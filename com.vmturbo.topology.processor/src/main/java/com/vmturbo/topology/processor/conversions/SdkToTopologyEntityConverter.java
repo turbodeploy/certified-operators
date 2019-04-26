@@ -159,6 +159,7 @@ public class SdkToTopologyEntityConverter {
         final boolean availableAsProvider = dto.getProviderPolicy().getAvailableForPlacement();
         final boolean isShopTogether = dto.getConsumerPolicy().getShopsTogether();
         final boolean isControllable = dto.getConsumerPolicy().getControllable();
+        final boolean isMonitored = dto.getMonitored();
         final Map<String, TagValuesDTO> entityTags = extractTags(dto);
 
         List<TopologyDTO.CommoditySoldDTO> soldList = entity.getTopologyCommoditiesSold().stream()
@@ -256,6 +257,10 @@ public class SdkToTopologyEntityConverter {
 
         TypeSpecificInfo info = mapToTypeSpecificInfo(dto, entityPropertyMap);
 
+        // Either monitored or controllable is false, set XL controllable to false.
+        // Explanations: some probes still send "Monitored = false", but XL doesn't have "Monitored" property,
+        // given the the semantic is the same, setting XL controllable to false.
+        // When probes send "Controllable = false", set XL controllable to false.
         final TopologyEntityDTO.Builder retBuilder = newTopologyEntityDTO(
             entityType,
             entity.getOid(),
@@ -268,7 +273,7 @@ public class SdkToTopologyEntityConverter {
             entityTags,
             availableAsProvider,
             isShopTogether,
-            isControllable,
+            isControllable(isControllable, isMonitored),
             calculateSuspendabilityWithStitchingEntity(entity)
         );
 
@@ -318,6 +323,7 @@ public class SdkToTopologyEntityConverter {
         final boolean availableAsProvider = dto.getProviderPolicy().getAvailableForPlacement();
         final boolean isShopTogether =  dto.getConsumerPolicy().getShopsTogether();
         final boolean isControllable = dto.getConsumerPolicy().getControllable();
+        final boolean isMonitored = dto.getMonitored();
         final Map<String, TagValuesDTO> entityTags = extractTags(dto);
 
         List<TopologyDTO.CommoditySoldDTO> soldList = Lists.newArrayList();
@@ -400,6 +406,10 @@ public class SdkToTopologyEntityConverter {
             entityPropertyMap.put("origin", dto.getOrigin().toString()); // TODO: DISCOVERED/PROXY use number?
         }
 
+        // Either monitored or controllable is false, set XL controllable to false.
+        // Explanations: some probes still send "Monitored = false", but XL doesn't have "Monitored" property,
+        // given the the semantic is the same, setting XL controllable to false.
+        // When probes send "Controllable = false", set XL controllable to false.
         final TopologyEntityDTO.Builder retBuilder = newTopologyEntityDTO(
                 entityType,
                 oid,
@@ -414,12 +424,17 @@ public class SdkToTopologyEntityConverter {
                 entityTags,
                 availableAsProvider,
                 isShopTogether,
-                isControllable,
+                isControllable(isControllable, isMonitored),
                 calculateSuspendability(dto)
         );
 
         retBuilder.setTypeSpecificInfo(mapToTypeSpecificInfo(dto, entityPropertyMap));
         return retBuilder;
+    }
+
+    @VisibleForTesting
+    static boolean isControllable(final boolean isControllable, final boolean isMonitored) {
+        return isControllable && isMonitored;
     }
 
     private static TopologyDTO.TopologyEntityDTO.Builder newTopologyEntityDTO(

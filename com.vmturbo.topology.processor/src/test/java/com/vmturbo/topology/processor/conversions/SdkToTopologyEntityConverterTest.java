@@ -358,6 +358,15 @@ public class SdkToTopologyEntityConverterTest {
                 .get());
     }
 
+    // // Either monitored or controllable is false, set controllable to false.
+    @Test
+    public void testIsControllable() throws IOException {
+        assertTrue(SdkToTopologyEntityConverter.isControllable(true, true));
+        assertFalse(SdkToTopologyEntityConverter.isControllable(true, false));
+        assertFalse(SdkToTopologyEntityConverter.isControllable(false, true));
+        assertFalse(SdkToTopologyEntityConverter.isControllable(false, false));
+    }
+
     private static boolean isAccessCommodity(CommoditySoldDTO comm) {
         int type = comm.getCommodityType().getType();
         return type == CommodityType.DSPM_ACCESS_VALUE || type == CommodityType.DATASTORE_VALUE;
