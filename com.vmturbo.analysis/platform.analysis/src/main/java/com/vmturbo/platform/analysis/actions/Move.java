@@ -373,7 +373,10 @@ public class Move extends MoveBase implements Action { // inheritance for code r
         // Also assume a consistent sequence of actions, i.e. this.getDestination() == action.getSource().
         Move move = (Move) action;
         checkArgument(getTarget().equals(move.getTarget()));
-        if (move.getDestination() == getSource()) { // Moves cancel each other
+        // If this.destination == this.source, it means that we never moved (This can happen in
+        // case of group leaders of ASGs). So combine the actions.
+        if (getDestination() != getSource() &&
+            move.getDestination() == getSource()) { // Moves cancel each other
             return null;
         } else {
             Move newMove = new Move(getEconomy(), getTarget(), getSource(), move.getDestination());

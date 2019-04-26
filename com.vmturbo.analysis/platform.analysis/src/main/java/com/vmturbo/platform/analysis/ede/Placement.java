@@ -255,8 +255,9 @@ public class Placement {
         // move, and update economy and state
         PlacementResults placementResults = PlacementResults.empty();
         // Move will require destination provider to be cheaper than current host by quote factor
-        // and move cost factor.
-        if (Math.min(MOVE_COST_FACTOR_MAX_COMM_SIZE, shoppingList.getBasket().size())
+        // and move cost factor, except in the case of group leaders. For group leaders, we always
+        // produce move even if it is to the same provider.
+        if (shoppingList.getGroupFactor() > 1 || Math.min(MOVE_COST_FACTOR_MAX_COMM_SIZE, shoppingList.getBasket().size())
                         * buyer.getSettings().getMoveCostFactor() + cheapestQuote
                         < currentQuote * buyer.getSettings().getQuoteFactor()) {
             double savings = currentQuote - cheapestQuote;
@@ -422,10 +423,13 @@ public class Placement {
         Set<Integer> bestSellerIds = minimizer == null || minimizer.getBestSellers() == null
                         ? Collections.emptySet()
                         : traderIds(minimizer.getBestSellers().stream());
-        if (minimizer != null && !currentSuppliersIds.equals(bestSellerIds)) {
-            double currentTotalQuote = computeCurrentQuote(economy, movableSlByMarket);
+        boolean isLeaderSl = shoppingLists.stream().anyMatch(sl -> (sl.getGroupFactor() > 1));
+        // If there is a leader SL, then we want to always want to produce the move for that
+        // SL even if it the best sellers are the same as the current suppliers.
+        if (minimizer != null && (!currentSuppliersIds.equals(bestSellerIds) || isLeaderSl)) {
             ShoppingList firstSL = shoppingLists.get(0);
-            if (Math.min(MOVE_COST_FACTOR_MAX_COMM_SIZE, firstSL.getBasket().size())
+            double currentTotalQuote = computeCurrentQuote(economy, movableSlByMarket);
+            if (isLeaderSl || Math.min(MOVE_COST_FACTOR_MAX_COMM_SIZE, firstSL.getBasket().size())
                             * firstSL.getBuyer().getSettings().getMoveCostFactor()
                             + minimizer.getBestTotalQuote() < currentTotalQuote
                             * firstSL.getBuyer().getSettings().getQuoteFactor()) {
@@ -530,7 +534,9 @@ public class Placement {
         int numOfMoveActions = 0;
         List<Integer> compoundMoveCandidates = new ArrayList<>(bestSellers.size());
         for (Integer i : slsWithCommonCliques) {
-            if (currentSuppliers.get(i) == bestSellers.get(i)) {
+            // If the shopping list is a leader (group factor is > 1), then we always want to
+            // produce the move, even if the current supplier is the same as the best seller.
+            if (currentSuppliers.get(i) == bestSellers.get(i) && shoppingLists.get(i).getGroupFactor() <= 1) {
                 continue;
             }
             // step 2

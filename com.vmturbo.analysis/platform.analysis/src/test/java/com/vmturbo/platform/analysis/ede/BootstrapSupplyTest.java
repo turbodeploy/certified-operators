@@ -456,6 +456,7 @@ public class BootstrapSupplyTest {
      * Vm1 and Vm2 are placed on pm1 and st1, but within capacity.
      * Expected result: No actions are generated.
      */
+    @Test
     public void test_ShopTogetherBootstrap_NoActionsWhenNonInfiniteQuote(){
         Economy economy = new Economy();
         Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, true);

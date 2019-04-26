@@ -86,6 +86,17 @@ public class ActionCollapseTest {
         collapsed = ActionCollapse.collapsed(actions);
         assertTrue(collapsed.isEmpty());
 
+        // Move from S1 to S1 and S1 to S1 collapsed to a single move of S1 to S1
+        actions = new ArrayList<>();
+        actions.add(new Move(economy, p1, s1, s1));
+        actions.add(new Move(economy, p1, s1, s1));
+        collapsed = ActionCollapse.collapsed(actions);
+        assertEquals(1, collapsed.size());
+        move = (Move) collapsed.get(0);
+        assertSame(s1, move.getSource());
+        assertSame(s1, move.getDestination());
+        assertSame(p1, move.getTarget());
+
         // More shopping lists
         actions = new ArrayList<>();
         actions.add(new Move(economy, p1, s1, s2));
