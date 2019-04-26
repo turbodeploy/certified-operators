@@ -252,15 +252,19 @@ public class ActionSpecMapper {
 
     @Nonnull
     public ActionState calculateApiActionState(@Nonnull final ActionSpec actionSpec) {
-        if (actionSpec.getActionState() == ActionDTO.ActionState.READY) {
-            if (actionSpec.getActionMode() == ActionDTO.ActionMode.RECOMMEND ||
-                !actionSpec.getIsExecutable()) {
-                return ActionState.RECOMMENDED;
-            } else {
-                return ActionState.PENDING_ACCEPT;
-            }
-        } else {
-            return ActionState.valueOf(actionSpec.getActionState().name());
+        switch (actionSpec.getActionState()) {
+            case READY:
+                if (actionSpec.getActionMode() == ActionDTO.ActionMode.RECOMMEND ||
+                    !actionSpec.getIsExecutable()) {
+                    return ActionState.RECOMMENDED;
+                } else {
+                    return ActionState.PENDING_ACCEPT;
+                }
+            case PRE_IN_PROGRESS:
+            case POST_IN_PROGRESS:
+                return ActionState.IN_PROGRESS;
+            default:
+                return ActionState.valueOf(actionSpec.getActionState().name());
         }
     }
 
@@ -1258,13 +1262,15 @@ public class ActionSpecMapper {
                 return Optional.of(ActionDTO.ActionState.IN_PROGRESS);
             case FAILED:
                 return Optional.of(ActionDTO.ActionState.FAILED);
+            case CLEARED:
+                return Optional.of(ActionDTO.ActionState.CLEARED);
             // These don't map to ActionStates directly, because in XL we separate the concept
             // of a "decision" from the state of the action, and these relate to the decision.
-            case REJECTED: case RECOMMENDED: case DISABLED: case CLEARED:
+            case RECOMMENDED: case DISABLED:
                 return Optional.empty();
             default:
                 logger.error("Unknown action state {}", stateStr);
-                return Optional.empty();
+                throw new IllegalArgumentException("Unsupported action state " + stateStr);
         }
     }
 

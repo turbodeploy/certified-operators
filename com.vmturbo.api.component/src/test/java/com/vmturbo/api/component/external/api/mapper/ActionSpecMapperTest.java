@@ -10,6 +10,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -1114,6 +1115,48 @@ public class ActionSpecMapperTest {
                 + ActionDTOUtil.createTranslationBlock(1, "displayName", "default") +" and stuff";
         Assert.assertEquals("Test Entity and stuff", ActionSpecMapper.translateExplanation(testStart, context));
 
+    }
+
+    @Test
+    public void testMapClearedState() {
+        Optional<ActionDTO.ActionState> state = mapper.mapApiStateToXl(com.vmturbo.api.enums.ActionState.CLEARED);
+        assertThat(state.get(), is(ActionState.CLEARED));
+    }
+
+    @Test (expected = IllegalArgumentException.class)
+    public void testRejectedStateMustReturnError() {
+        final ActionApiInputDTO inputDto = new ActionApiInputDTO();
+        List<com.vmturbo.api.enums.ActionState> actionStates = new ArrayList<>();
+        actionStates.add(com.vmturbo.api.enums.ActionState.REJECTED);
+        inputDto.setActionStateList(actionStates);
+        mapper.createActionFilter(inputDto, Optional.empty());
+    }
+
+    @Test (expected = IllegalArgumentException.class)
+    public void testAccountingStateMustReturnError() {
+        final ActionApiInputDTO inputDto = new ActionApiInputDTO();
+        List<com.vmturbo.api.enums.ActionState> actionStates = new ArrayList<>();
+        actionStates.add(com.vmturbo.api.enums.ActionState.ACCOUNTING);
+        inputDto.setActionStateList(actionStates);
+        mapper.createActionFilter(inputDto, Optional.empty());
+    }
+
+    @Test
+    public void testMapPostInProgress(){
+        ActionSpec.Builder builder = ActionSpec.newBuilder()
+            .setActionState(ActionState.POST_IN_PROGRESS);
+        ActionSpec actionSpec = builder.build();
+        com.vmturbo.api.enums.ActionState actionState = mapper.calculateApiActionState(actionSpec);
+        assertThat(actionState, is(com.vmturbo.api.enums.ActionState.IN_PROGRESS));
+    }
+
+    @Test
+    public void testMapPreInProgress(){
+        ActionSpec.Builder builder = ActionSpec.newBuilder()
+            .setActionState(ActionState.PRE_IN_PROGRESS);
+        ActionSpec actionSpec = builder.build();
+        com.vmturbo.api.enums.ActionState actionState = mapper.calculateApiActionState(actionSpec);
+        assertThat(actionState, is(com.vmturbo.api.enums.ActionState.IN_PROGRESS));
     }
 
     private ActionInfo getHostMoveActionInfo() {
