@@ -3,13 +3,16 @@ package com.vmturbo.api.component.external.api.service;
 import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType.DATACENTER;
 import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType.PHYSICAL_MACHINE;
 import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.toServiceEntityApiDTO;
-import static com.vmturbo.api.component.external.api.util.ApiUtils.isGlobalScope;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -21,22 +24,26 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.ListUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.CaseFormat;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
-import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper;
+import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
@@ -49,50 +56,42 @@ import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
-import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
+import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
-import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.exceptions.OperationFailedException;
-import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
-import com.vmturbo.api.pagination.SearchPaginationRequest;
-import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IStatsService;
+import com.vmturbo.api.utils.CompositeEntityTypesSpec;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.EncodingUtil;
 import com.vmturbo.api.utils.StatsUtils;
 import com.vmturbo.api.utils.UrlsHelp;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
-import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination;
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
-import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.Builder;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
-import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityTypeFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupByType;
-import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsRequest;
-import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
-import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -107,9 +106,10 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsReq
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.common.protobuf.search.Search.CountEntitiesRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchPlanTopologyEntityDTOsRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
@@ -123,8 +123,10 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 
@@ -155,19 +157,16 @@ public class StatsService implements IStatsService {
 
     private static final String COSTCOMPONENT = "costComponent";
 
-    /**
-     *
-     * Current UI only shows up RI_DISCOUNT. But soon, it will be removed in classic. Instead
-     * RI_COMPUTE cost will be shown in the UI.  Until then, we will map the RI_COMPUTE
-     * to the riDiscount request call from the UI.
-     * Once it is fixed in classic, we would have to change this value.
-     */
-    public static final String RI_COMPUTE = "riDiscount";
-
     // Internally generated stat name when stats period are not set.
     private static final String CURRENT_COST_PRICE = "currentCostPrice";
 
     private static final Set<String> COST_STATS_SET = ImmutableSet.of(StringConstants.COST_PRICE, CURRENT_COST_PRICE);
+
+    private static final Set<String> NUM_WORKLOADS_STATS_SET = ImmutableSet.of(
+        StringConstants.NUM_WORKLOADS, "currentNumWorkloads",
+        StringConstants.NUM_VMS, "currentNumVMs",
+        StringConstants.NUM_DBS, "currentNumDBs",
+        StringConstants.NUM_DBSS, "currentNumDBSs");
 
     private static Logger logger = LogManager.getLogger(StatsService.class);
 
@@ -202,15 +201,13 @@ public class StatsService implements IStatsService {
 
     private final CostServiceBlockingStub costServiceRpc;
 
-    private final SearchService searchService;
-
-    private final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService;
-
-    private final ReservedInstanceMapper reservedInstanceMapper;
-
     private final MagicScopeGateway magicScopeGateway;
 
     private final UserSessionContext userSessionContext;
+
+    private final ReservedInstancesService riService;
+
+    private final long realtimeTopologyContextId;
 
     // CLUSTER_STATS is a collection of the cluster-headroom stats calculated from nightly plans.
     // this set is mostly copied from com.vmturbo.platform.gateway.util.StatsUtils.headRoomMetrics,
@@ -241,6 +238,55 @@ public class StatsService implements IStatsService {
             DATACENTER.getValue(), PHYSICAL_MACHINE.getValue()
     );
 
+    // set of stats passed from UI, which are for the number of entities grouped by tier
+    private static final Set<String> CLOUD_PLAN_ENTITIES_BY_TIER_STATS = ImmutableSet.of(
+        StringConstants.NUM_VIRTUAL_DISKS,
+        StringConstants.NUM_WORKLOADS
+    );
+
+    // list of entity types which are counted as workload for cloud
+    public static final List<String> ENTITY_TYPES_COUNTED_AS_WORKLOAD = ImmutableList.of(
+        UIEntityType.VIRTUAL_MACHINE.getValue(),
+        UIEntityType.DATABASE.getValue(),
+        UIEntityType.DATABASE_SERVER.getValue()
+    );
+
+    private static final Map<String, List<String>> WORKLOAD_NAME_TO_ENTITY_TYPES = ImmutableMap.of(
+        StringConstants.NUM_VMS, Collections.singletonList(UIEntityType.VIRTUAL_MACHINE.getValue()),
+        StringConstants.NUM_DBS, Collections.singletonList(UIEntityType.DATABASE.getValue()),
+        StringConstants.NUM_DBSS, Collections.singletonList(UIEntityType.DATABASE_SERVER.getValue()),
+        StringConstants.NUM_WORKLOADS, ENTITY_TYPES_COUNTED_AS_WORKLOAD
+    );
+
+    // set of plan types which are counted as cloud plans
+    private static final Set<String> CLOUD_PLAN_TYPES = ImmutableSet.of(
+        StringConstants.OPTIMIZE_CLOUD_PLAN_TYPE, StringConstants.CLOUD_MIGRATION_PLAN_TYPE);
+
+    // the function of how to get the tier id from a given TopologyEntityDTO, this is used
+    // for the stats of the number of entities by tier type
+    private static final Map<String, Function<TopologyEntityDTO, Long>> ENTITY_TYPE_TO_GET_TIER_FUNCTION = ImmutableMap.of(
+        UIEntityType.VIRTUAL_MACHINE.getValue(), topologyEntityDTO ->
+            topologyEntityDTO.getCommoditiesBoughtFromProvidersList().stream()
+                .filter(commodityBought -> commodityBought.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE)
+                .map(CommoditiesBoughtFromProvider::getProviderId)
+                .findAny().get(),
+        UIEntityType.DATABASE.getValue(), topologyEntityDTO ->
+            topologyEntityDTO.getCommoditiesBoughtFromProvidersList().stream()
+                .filter(commodityBought -> commodityBought.getProviderEntityType() == EntityType.DATABASE_TIER_VALUE)
+                .map(CommoditiesBoughtFromProvider::getProviderId)
+                .findAny().get(),
+        UIEntityType.DATABASE_SERVER.getValue(), topologyEntityDTO ->
+            topologyEntityDTO.getCommoditiesBoughtFromProvidersList().stream()
+                .filter(commodityBought -> commodityBought.getProviderEntityType() == EntityType.DATABASE_SERVER_TIER_VALUE)
+                .map(CommoditiesBoughtFromProvider::getProviderId)
+                .findAny().get(),
+        UIEntityType.VIRTUAL_VOLUME.getValue(), topologyEntityDTO ->
+            topologyEntityDTO.getConnectedEntityListList().stream()
+                .filter(connectedEntity -> connectedEntity.getConnectedEntityType() == EntityType.STORAGE_TIER_VALUE)
+                .map(ConnectedEntity::getConnectedEntityId)
+                .findFirst().get()
+    );
+
     StatsService(@Nonnull final StatsHistoryServiceBlockingStub statsServiceRpc,
                  @Nonnull final PlanServiceBlockingStub planRpcService,
                  @Nonnull final RepositoryApi repositoryApi,
@@ -254,11 +300,10 @@ public class StatsService implements IStatsService {
                  @Nonnull final GroupServiceBlockingStub groupServiceRpc,
                  @Nonnull final Duration liveStatsRetrievalWindow,
                  @Nonnull final CostServiceBlockingStub costService,
-                 @Nonnull final SearchService searchService,
-                 @Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService,
-                 @Nonnull final ReservedInstanceMapper reservedInstanceMapper,
                  @Nonnull final MagicScopeGateway magicScopeGateway,
-                 @Nonnull final UserSessionContext userSessionContext) {
+                 @Nonnull final UserSessionContext userSessionContext,
+                 @Nonnull final ReservedInstancesService riService,
+                 final long realtimeTopologyContextId) {
         this.statsServiceRpc = Objects.requireNonNull(statsServiceRpc);
         this.planRpcService = planRpcService;
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
@@ -273,11 +318,10 @@ public class StatsService implements IStatsService {
         logger.debug("Live Stats Retrieval Window is {}sec", liveStatsRetrievalWindow.getSeconds());
         this.statsMapper = Objects.requireNonNull(statsMapper);
         this.costServiceRpc = Objects.requireNonNull(costService);
-        this.searchService = Objects.requireNonNull(searchService);
-        this.riUtilizationCoverageService = Objects.requireNonNull(riUtilizationCoverageService);
-        this.reservedInstanceMapper = Objects.requireNonNull(reservedInstanceMapper);
         this.magicScopeGateway = Objects.requireNonNull(magicScopeGateway);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
+        this.riService = Objects.requireNonNull(riService);
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     /**
@@ -377,13 +421,26 @@ public class StatsService implements IStatsService {
             inputDto = getDefaultStatPeriodApiInputDto();
         }
 
-        // If it is a request for reserved instance coverage, then get the stats from cost component.
-        if (isRequestForReservedInstanceCoverageStats(inputDto)) {
-            return getReservedInstanceCoverageStats(uuid, inputDto);
-        }
-
         // choose LinkedList to make appending more efficient. This list will only be read once.
         final List<StatSnapshotApiDTO> stats = Lists.newLinkedList();
+
+        // put all requested stats filters into a new list
+        final List<StatApiInputDTO> statsFilters = inputDto.getStatistics() == null
+            ? Collections.emptyList() : new ArrayList<>(inputDto.getStatistics());
+        Optional<PlanInstance> optPlan = getRequestedPlanInstance(uuid);
+
+        // If it is a request for reserved instance coverage or utilization, then route it to the
+        // ReservedInstancesService to handle, which will get the stats from cost component
+        if (isRequestForRICoverageOrUtilizationStats(statsFilters)) {
+            return riService.getRICoverageOrUtilizationStats(uuid, inputDto, optPlan);
+        }
+
+        // fetch the number of entities by tier stats for cloud plan
+        Set<String> numEntitiesByTierStatNames = collectCloudPlanNumEntitiesByTierStatNames(optPlan, statsFilters);
+        if (!numEntitiesByTierStatNames.isEmpty()) {
+            stats.addAll(fetchNumEntitiesByTierStatsForCloudPlan(optPlan.get(), numEntitiesByTierStatNames));
+        }
+
         // If the endDate is in the future, read from the projected stats
         final long clockTimeNow = clock.millis();
 
@@ -394,8 +451,6 @@ public class StatsService implements IStatsService {
         // Currently, it is the only use case that reads stats data from the cluster table
         // and it is handled as a special case.  If more use cases need to get cluster level
         // statistics in the future, the conditions for calling getClusterStats will need to change.
-        final List<StatApiInputDTO> statsFilters = inputDto.getStatistics();
-
         final boolean isDefaultCloudGroupUuid = isDefaultCloudGroupUuid(uuid);
         if (!isDefaultCloudGroupUuid && isClusterUuid(uuid) && containsAnyClusterStats(statsFilters)) {
             // uuid belongs to a cluster. Call Stats service to retrieve cluster related stats.
@@ -446,7 +501,7 @@ public class StatsService implements IStatsService {
                 }
 
                 // check if this is a plan
-                isPlanRequest = getRequestedPlanInstance(uuid).isPresent();
+                isPlanRequest = optPlan.isPresent();
                 // if the user is scoped and this is not a plan, we need to check if the user has
                 // access to the resulting entity set.
                 if (!isPlanRequest) {
@@ -558,57 +613,61 @@ public class StatsService implements IStatsService {
                                 .collect(Collectors.toList()));
 
                     } else if (uuid != null || isDefaultCloudGroupUuid || fullMarketRequest) {
-                        List<CloudCostStatRecord> cloudCostStatRecords =
-                                getCloudStatRecordList(inputDto, uuid, entityStatOids, requestGroupBySet);
-                        Optional<StatRecord> riStat = Optional.empty();
-                        if (hasRequestedRICompute(inputDto)) {
-                            riStat = cloudCostStatRecords.stream()
-                                    .map(cloudStats -> cloudStats.getStatRecordsList())
-                                    .flatMap(statRecords -> statRecords.stream())
-                                    .filter(statRecord -> statRecord.getCategory() == CostCategory.RI_COMPUTE)
-                                    .findAny();
+                        final Set<Long> cloudEntityOids;
+                        if (optPlan.isPresent()) {
+                            cloudEntityOids = fetchRelatedEntitiesForScopes(MarketMapper.getPlanScopeIds(optPlan.get()),
+                                ENTITY_TYPES_COUNTED_AS_WORKLOAD, null).values().stream()
+                                .flatMap(Set::stream)
+                                .collect(Collectors.toSet());
+                        } else {
+                            cloudEntityOids = entityStatOids;
                         }
-
+                        List<CloudCostStatRecord> cloudCostStatRecords = getCloudStatRecordList(
+                            inputDto, uuid, cloudEntityOids, requestGroupBySet);
                         if (!isGroupByComponentRequest(requestGroupBySet)) {
                             // have to aggregate as needed.
-                            cloudCostStatRecords = aggregate(cloudCostStatRecords);
+                            cloudCostStatRecords = aggregate(cloudCostStatRecords, statsFilters);
                         }
                         List<StatSnapshotApiDTO> statSnapshots = cloudCostStatRecords.stream()
                                 .map(statsMapper::toCloudStatSnapshotApiDTO)
                                 .collect(Collectors.toList());
-                        if (hasRequestedNumWorkloads(inputDto)) {
+                        // remove COST_STATS_SET since it has already been fetched
+                        statsFilters.removeIf(statApiInputDTO -> COST_STATS_SET.contains(statApiInputDTO.getName()));
+                        // add numWorkloads, numVMs, numDBs, numDBSs if requested
+                        final List<StatApiDTO> numWorkloadStats = getNumWorkloadStatSnapshot(
+                            statsFilters, entityStatOids, optPlan);
+                        if (!numWorkloadStats.isEmpty()) {
                             // add the numWorkloads to the same timestamp it it exists.
                             if (statSnapshots.isEmpty()) {
                                 StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
                                 statSnapshotApiDTO.setDate(inputDto.getEndDate());
-                                statSnapshotApiDTO.setStatistics(Collections.singletonList(getNumWorkloadStatSnapshot()));
+                                statSnapshotApiDTO.setStatistics(numWorkloadStats);
                                 statSnapshots.add(statSnapshotApiDTO);
                             } else {
-                                statSnapshots.get(statSnapshots.size() - 1)
-                                        .getStatistics().add(getNumWorkloadStatSnapshot());
+                                // add numWorkloads to all snapshots
+                                statSnapshots.forEach(statSnapshotApiDTO -> {
+                                    List<StatApiDTO> statApiDTOs = new ArrayList<>();
+                                    statApiDTOs.addAll(statSnapshotApiDTO.getStatistics());
+                                    statApiDTOs.addAll(numWorkloadStats);
+                                    statSnapshotApiDTO.setStatistics(statApiDTOs);
+                                });
                             }
+                            // remove NUM_WORKLOADS_STATS_SET since it has already been fetched
+                            statsFilters.removeIf(statApiInputDTO ->
+                                NUM_WORKLOADS_STATS_SET.contains(statApiInputDTO.getName()));
                         }
-                        if (riStat.isPresent()) {
-                            if (statSnapshots.isEmpty()) {
-                                StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
-                                statSnapshotApiDTO.setDate(inputDto.getEndDate());
-                                statSnapshotApiDTO.setStatistics(Collections.singletonList(createRIComputeStatApiSnapshot(riStat.get())));
-                                statSnapshots.add(statSnapshotApiDTO);
-                            } else {
-                                statSnapshots.get(statSnapshots.size() - 1)
-                                        .getStatistics().add(createRIComputeStatApiSnapshot(riStat.get()));
-                            }
-                        }
+                        stats.clear();
                         stats.addAll(statSnapshots);
-
                     } else {
-                        ApiUtils.notImplementedInXL();
+                        throw ApiUtils.notImplementedInXL();
                     }
                 }
 
                 // Return if the input DTO has stats other than "cloudCost", retrieve them from other components, e.g. History
                 // TODO: combine both Cloud cost and non-Cloud stats for plan when plan is enabled in Cost component.
-                if ((uuid != null && !isDefaultCloudGroupUuid) || requestStatsParsedResultPair.hasNonCostStat) {
+                if (((uuid != null && !isDefaultCloudGroupUuid) || requestStatsParsedResultPair.hasNonCostStat)
+                        // should execute if left filters are not empty, or original input is empty (which means everything)
+                        && (!CollectionUtils.isEmpty(statsFilters) || CollectionUtils.isEmpty(inputDto.getStatistics()))) {
                     // we are only passing the possible global temp group type if the user is not scoped
                     // -- scoped users need to retrieve based on specific entities, rather than a global
                     // temp group
@@ -629,28 +688,337 @@ public class StatsService implements IStatsService {
         return StatsUtils.filterStats(stats, targets != null ? targets : getTargets());
     }
 
-    // aggregate to one StatRecord per CloudCostStatRecord
-    private List<CloudCostStatRecord> aggregate(@Nonnull final List<CloudCostStatRecord> cloudStatRecords) {
+    // aggregate to one StatRecord per related entity type per CloudCostStatRecord
+    private List<CloudCostStatRecord> aggregate(@Nonnull final List<CloudCostStatRecord> cloudStatRecords,
+                                                @Nonnull final List<StatApiInputDTO> statsFilters) {
+        boolean hasRiCostRequest = hasRequestedRICompute(statsFilters);
         return cloudStatRecords.stream().map(cloudCostStatRecord -> {
             final Builder builder = CloudCostStatRecord.newBuilder();
             builder.setSnapshotDate(cloudCostStatRecord.getSnapshotDate());
-            final StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
-            final StatRecord.StatValue.Builder statValueBuilder = CloudCostStatRecord.StatRecord.StatValue.newBuilder();
-            final List<StatRecord> statRecordsList = cloudCostStatRecord.getStatRecordsList();
-            statValueBuilder.setAvg((float) statRecordsList.stream().map(record -> record.getValues().getAvg())
-                    .mapToDouble(v -> v).average().orElse(0));
-            statValueBuilder.setMax((float) statRecordsList.stream().map(record -> record.getValues().getAvg())
-                    .mapToDouble(v -> v).max().orElse(0));
-            statValueBuilder.setMin((float) statRecordsList.stream().map(record -> record.getValues().getAvg())
-                    .mapToDouble(v -> v).min().orElse(0));
-            statValueBuilder.setTotal((float) statRecordsList.stream().map(record -> record.getValues().getAvg())
-                    .mapToDouble(v -> v).sum());
-            statRecordBuilder.setValues(statValueBuilder.build());
-            statRecordBuilder.setName(StringConstants.COST_PRICE);
-            statRecordBuilder.setUnits(StringConstants.DOLLARS_PER_HOUR);
-            builder.addStatRecords(statRecordBuilder.build());
+
+            final Map<CostCategory, Map<Integer, List<StatRecord>>> statRecordsMap = Maps.newHashMap();
+            cloudCostStatRecord.getStatRecordsList().forEach(statRecord ->
+                statRecordsMap.computeIfAbsent(statRecord.getCategory(), k -> new HashMap<>())
+                    .computeIfAbsent(statRecord.getAssociatedEntityType(), a -> Lists.newArrayList())
+                    .add(statRecord));
+
+            // add ri stat record
+            final List<StatRecord> riRecords = statRecordsMap.getOrDefault(CostCategory.RI_COMPUTE,
+                Collections.emptyMap()).get(EntityType.VIRTUAL_MACHINE_VALUE);
+            if (hasRiCostRequest && riRecords != null) {
+                builder.addStatRecords(aggregate(riRecords, Optional.empty(), true));
+            }
+
+            statsFilters.stream()
+                .filter(statApiInputDTO -> StringConstants.COST_PRICE.equals(statApiInputDTO.getName()))
+                .filter(statApiInputDTO -> statApiInputDTO.getRelatedEntityType() != null)
+                .forEach(statApiInputDTO -> {
+                    final String relatedEntityType = statApiInputDTO.getRelatedEntityType();
+                    final Set<String> filters = CollectionUtils.emptyIfNull(statApiInputDTO.getFilters()).stream()
+                        .map(StatFilterApiDTO::getValue).collect(Collectors.toSet());
+
+                    // two types of request for storage:
+                    //   {"name":"costPrice","relatedEntityType":"Storage"}
+                    //   {"filters":[{"type":"costComponent","value":"STORAGE"}]
+                    if ((relatedEntityType.equals(UIEntityType.VIRTUAL_MACHINE.getValue()) && filters.contains("STORAGE"))
+                            || relatedEntityType.equals(UIEntityType.STORAGE.getValue())) {
+                        // for the category storage, only get the record of entity type VM, since
+                        // the cost of entity type volume is included in the vm record
+                        final List<StatRecord> statRecordsList = statRecordsMap.getOrDefault(
+                            CostCategory.STORAGE, Collections.emptyMap()).get(EntityType.VIRTUAL_MACHINE_VALUE);
+                        if (!CollectionUtils.isEmpty(statRecordsList)) {
+                            builder.addStatRecords(aggregate(statRecordsList, Optional.of(EntityType.STORAGE_VALUE), false));
+                        }
+                    } else if (relatedEntityType.equals(CompositeEntityTypesSpec.WORKLOAD_ENTITYTYPE)) {
+                        final List<StatRecord> statRecordsList;
+                        if (filters.isEmpty()) {
+                            // add all if no filters
+                            statRecordsList = cloudCostStatRecord.getStatRecordsList();
+                        } else {
+                            // add on demand compute
+                            statRecordsList = statRecordsMap.getOrDefault(
+                                CostCategory.ON_DEMAND_COMPUTE, Collections.emptyMap()).values()
+                                .stream().flatMap(List::stream).collect(Collectors.toList());
+                            if (filters.contains(StringConstants.ON_DEMAND_COMPUTE_LICENSE_COST)) {
+                                // add license cost
+                                statRecordsList.addAll(statRecordsMap.getOrDefault(
+                                    CostCategory.LICENSE, Collections.emptyMap()).values().stream()
+                                    .flatMap(List::stream).collect(Collectors.toList()));
+                            }
+                        }
+                        if (!statRecordsList.isEmpty()) {
+                            builder.addStatRecords(aggregate(statRecordsList, Optional.empty(), false));
+                        }
+                    } else {
+                        int entityType = ServiceEntityMapper.fromUIEntityType(relatedEntityType);
+                        final List<StatRecord> statRecordsList;
+                        if (filters.isEmpty()) {
+                            // add all if no filters
+                            statRecordsList = statRecordsMap.values().stream()
+                                .filter(map -> map.containsKey(entityType))
+                                .flatMap(map -> map.get(entityType).stream())
+                                .collect(Collectors.toList());
+                        } else {
+                            // add on demand compute
+                            statRecordsList = ListUtils.emptyIfNull(statRecordsMap.getOrDefault(
+                                CostCategory.ON_DEMAND_COMPUTE, Collections.emptyMap()).get(entityType));
+                            if (filters.contains(StringConstants.ON_DEMAND_COMPUTE_LICENSE_COST)) {
+                                // add license cost
+                                statRecordsList.addAll(ListUtils.emptyIfNull(statRecordsMap.getOrDefault(
+                                    CostCategory.LICENSE, Collections.emptyMap()).get(entityType)));
+                            }
+                        }
+                        if (!statRecordsList.isEmpty()) {
+                            builder.addStatRecords(aggregate(statRecordsList, Optional.of(entityType), false));
+                        }
+                    }
+                });
             return builder.build();
         }).collect(Collectors.toList());
+    }
+
+    /**
+     * Aggregate a list of StatRecord into one StatRecord. Set relatedEntityType if provided.
+     */
+    private StatRecord aggregate(@Nonnull List<StatRecord> statRecordsList,
+                                 @Nonnull Optional<Integer> relatedEntityType,
+                                 final boolean isRiCost) {
+        final StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
+        final StatRecord.StatValue.Builder statValueBuilder = CloudCostStatRecord.StatRecord.StatValue.newBuilder();
+        statValueBuilder.setAvg((float) statRecordsList.stream().map(record -> record.getValues().getAvg())
+            .mapToDouble(v -> v).average().orElse(0));
+        statValueBuilder.setMax((float) statRecordsList.stream().map(record -> record.getValues().getAvg())
+            .mapToDouble(v -> v).max().orElse(0));
+        statValueBuilder.setMin((float) statRecordsList.stream().map(record -> record.getValues().getAvg())
+            .mapToDouble(v -> v).min().orElse(0));
+        statValueBuilder.setTotal((float) statRecordsList.stream().map(record -> record.getValues().getAvg())
+            .mapToDouble(v -> v).sum());
+        statRecordBuilder.setValues(statValueBuilder.build());
+        if (isRiCost) {
+            statRecordBuilder.setName(StringConstants.RI_COST);
+        } else {
+            statRecordBuilder.setName(StringConstants.COST_PRICE);
+        }
+        statRecordBuilder.setUnits(StringConstants.DOLLARS_PER_HOUR);
+        relatedEntityType.ifPresent(statRecordBuilder::setAssociatedEntityType);
+        return statRecordBuilder.build();
+    }
+
+    /**
+     * Collect the names of the stats (for number of entities by tier type) from original input
+     * stats into a new set, and remove from original list.
+     */
+    private Set<String> collectCloudPlanNumEntitiesByTierStatNames(@Nonnull Optional<PlanInstance> optPlan,
+                                                                   @Nullable List<StatApiInputDTO> stats) {
+        if (!optPlan.isPresent() || CollectionUtils.isEmpty(stats)) {
+            return Collections.emptySet();
+        }
+        final String type = optPlan.get().getScenario().getScenarioInfo().getType();
+        if (!CLOUD_PLAN_TYPES.contains(type)) {
+            return Collections.emptySet();
+        }
+        Set<String> statsNames = new HashSet<>();
+        Iterator<StatApiInputDTO> statsIterator = stats.iterator();
+        while (statsIterator.hasNext()) {
+            StatApiInputDTO statApiInputDTO = statsIterator.next();
+            // this is for "Cloud Template Summary By Type", but ccc chart also passes numWorkload
+            // as stat name, we need to handle them differently, so check filters since ccc chart
+            // passes filters here, we might need to change UI to handle it better
+            if (CLOUD_PLAN_ENTITIES_BY_TIER_STATS.contains(statApiInputDTO.getName()) &&
+                    statApiInputDTO.getFilters() == null) {
+                statsNames.add(statApiInputDTO.getName());
+                statsIterator.remove();
+            }
+        }
+        return statsNames;
+    }
+
+    /**
+     * For cloud plan, fetch stats for the number of entities grouped by tier.
+     *
+     * @param planInstance the plan instance to fetch stats for
+     * @param statsNames list of stats to fetch
+     * @return list of StatSnapshotApiDTOs
+     * @throws Exception
+     */
+    private List<StatSnapshotApiDTO> fetchNumEntitiesByTierStatsForCloudPlan(
+            @Nonnull PlanInstance planInstance,
+            @Nonnull Set<String> statsNames) throws Exception {
+        final Long planTopologyContextId = planInstance.getPlanId();
+        // find plan scope ids
+        Set<Long> scopes = MarketMapper.getPlanScopeIds(planInstance);
+        // return two snapshot, one for before plan, one for after plan
+        StatSnapshotApiDTO statSnapshotBeforePlan = new StatSnapshotApiDTO();
+        StatSnapshotApiDTO statSnapshotAfterPlan = new StatSnapshotApiDTO();
+        List<StatApiDTO> statsBeforePlan = new ArrayList<>();
+        List<StatApiDTO> statsAfterPlan = new ArrayList<>();
+
+        for (String statName : statsNames) {
+            if (StringConstants.NUM_VIRTUAL_DISKS.equals(statName)) {
+                statsBeforePlan.addAll(getNumVirtualDisksStats(scopes, null));
+                statsAfterPlan.addAll(getNumVirtualDisksStats(scopes, planTopologyContextId));
+            } else if (StringConstants.NUM_WORKLOADS.equals(statName)) {
+                statsBeforePlan.addAll(getNumWorkloadsByTierStats(scopes, null));
+                statsAfterPlan.addAll(getNumWorkloadsByTierStats(scopes, planTopologyContextId));
+            }
+        }
+
+        // set stats
+        statSnapshotBeforePlan.setStatistics(statsBeforePlan);
+        statSnapshotAfterPlan.setStatistics(statsAfterPlan);
+        // set stats time, use plan start time as startDate, use one day later as endDate
+        long planTime = planInstance.getStartTime();
+        statSnapshotBeforePlan.setDate(DateTimeUtil.toString(planTime));
+        Calendar c = Calendar.getInstance();
+        c.setTimeInMillis(planTime);
+        c.add(Calendar.DATE, 1);
+        statSnapshotAfterPlan.setDate(DateTimeUtil.toString(c.getTimeInMillis()));
+
+        return Lists.newArrayList(statSnapshotBeforePlan, statSnapshotAfterPlan);
+    }
+
+    /**
+     * Get the stats of number of virtual disks by tier.
+     *
+     * @param scopes a set of volume ids
+     * @param planTopologyContextId null or plan context id
+     * @return list of stats for volumes
+     * @throws Exception
+     */
+    private List<StatApiDTO> getNumVirtualDisksStats(@Nonnull Set<Long> scopes,
+                                                     @Nullable Long planTopologyContextId) throws Exception {
+        String volumeEntityType = UIEntityType.VIRTUAL_VOLUME.getValue();
+        // get all volumes ids in the plan scope, using supply chain fetcher
+        Set<Long> volumeIds = fetchRelatedEntitiesForScopes(scopes,
+            Lists.newArrayList(volumeEntityType), null).get(volumeEntityType);
+        return fetchNumEntitiesByTierStats(volumeIds, planTopologyContextId,
+            StringConstants.NUM_VIRTUAL_DISKS, StringConstants.TIER, ENTITY_TYPE_TO_GET_TIER_FUNCTION.get(volumeEntityType));
+    }
+
+    /**
+     * Fetch the stats for the number of entities grouped by tier.
+     *
+     * @param entityIds ids of entities to fetch stats for
+     * @param planTopologyContextId plan TopologyContextId, or null if for real time
+     * @param statName the name of the stat to fetch
+     * @param filterType is this a tier or template
+     * @param getTierId the function to get tier id from the entity
+     * @return list of StatApiDTOs
+     */
+    private List<StatApiDTO> fetchNumEntitiesByTierStats(@Nonnull Set<Long> entityIds,
+                                                         @Nullable Long planTopologyContextId,
+                                                         @Nonnull String statName,
+                                                         @Nonnull String filterType,
+                                                         @Nonnull Function<TopologyEntityDTO, Long> getTierId) {
+        // fetch entities
+        List<TopologyEntityDTO> entities = fetchTopologyEntityDTOs(entityIds, planTopologyContextId);
+        // tier id --> number of entities using the tier
+        Map<Long, Long> tierIdToNumEntities = entities.stream()
+            .collect(Collectors.groupingBy(getTierId, Collectors.counting()));
+        // tier id --> tier name
+        Map<Long, String> tierIdToName = fetchTopologyEntityDTOs(tierIdToNumEntities.keySet(), planTopologyContextId).stream()
+            .collect(Collectors.toMap(TopologyEntityDTO::getOid, TopologyEntityDTO::getDisplayName));
+
+        return tierIdToNumEntities.entrySet().stream()
+            .map(entry -> createStatApiDTOForPlan(statName, entry.getValue(),
+                filterType, tierIdToName.get(entry.getKey()), planTopologyContextId == null))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Create StatApiDTO based on given parameters, if beforePlan is true, then it is a stat for
+     * real time; if false, it is a stat for after plan. Related filter is created to indicate
+     * whether this is a stat before plan or after plan.
+     */
+    private StatApiDTO createStatApiDTOForPlan(String statName, Long statValue, String filterType,
+                                               String filterValue, boolean beforePlan) {
+        StatApiDTO statApiDTO = new StatApiDTO();
+        statApiDTO.setName(statName);
+        statApiDTO.setValue(Float.valueOf(statValue));
+        // filters
+        List<StatFilterApiDTO> statFilters = new ArrayList<>();
+        // tier filter
+        StatFilterApiDTO tierFilter = new StatFilterApiDTO();
+        tierFilter.setType(filterType);
+        tierFilter.setValue(filterValue);
+        statFilters.add(tierFilter);
+        // only add if it's real time market
+        if (beforePlan) {
+            StatFilterApiDTO planFilter = new StatFilterApiDTO();
+            planFilter.setType(StringConstants.RESULTS_TYPE);
+            planFilter.setValue(StringConstants.BEFORE_PLAN);
+            statFilters.add(planFilter);
+        }
+        // set filters
+        statApiDTO.setFilters(statFilters);
+        return statApiDTO;
+    }
+
+    private List<StatApiDTO> getNumWorkloadsByTierStats(@Nonnull Set<Long> scopes,
+                                                        @Nullable Long planTopologyContextId) throws Exception {
+        // fetch related entities ids for given scopes
+        final Map<String, Set<Long>> idsByEntityType = fetchRelatedEntitiesForScopes(scopes,
+            ENTITY_TYPES_COUNTED_AS_WORKLOAD, null);
+        return idsByEntityType.entrySet().stream()
+            .flatMap(entry -> fetchNumEntitiesByTierStats(entry.getValue(), planTopologyContextId,
+                StringConstants.NUM_WORKLOADS, StringConstants.TEMPLATE,
+                ENTITY_TYPE_TO_GET_TIER_FUNCTION.get(entry.getKey())).stream()
+            ).collect(Collectors.toList());
+    }
+
+    /**
+     * Fetch the related entities for a given scope list.
+     *
+     * @param scopes ids of scope to fetch related entities for
+     * @param relatedEntityTypes list of related entity types to fetch
+     * @return map from related entity type to entities
+     * @throws Exception
+     */
+    public Map<String, Set<Long>> fetchRelatedEntitiesForScopes(@Nonnull Set<Long> scopes,
+                                                                @Nonnull List<String> relatedEntityTypes,
+                                                                @Nullable EnvironmentType environmentType) throws Exception {
+        // get all VMs ids in the plan scope, using supply chain fetcher
+        SupplychainApiDTO supplychain = supplyChainFetcherFactory.newApiDtoFetcher()
+            .topologyContextId(realtimeTopologyContextId)
+            .addSeedUuids(scopes.stream().map(String::valueOf).collect(Collectors.toList()))
+            .entityTypes(relatedEntityTypes)
+            .entityDetailType(EntityDetailType.entity)
+            .environmentType(environmentType)
+            .fetch();
+        return supplychain.getSeMap().entrySet().stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry ->
+                entry.getValue().getInstances().keySet().stream()
+                    .map(Long::valueOf)
+                    .collect(Collectors.toSet())));
+    }
+
+    /**
+     * Fetch the TopologyEntityDTOs from given plan TopologyContextId. If context id is not
+     * provided, it fetch from real time topology.
+     *
+     * @param entityIds ids of entities to fetch
+     * @param planTopologyContextId context id of the plan topology to fetch entities from,
+     *                              or empty if it's for real time topology
+     * @return list of TopologyEntityDTOs
+     */
+    private List<TopologyEntityDTO> fetchTopologyEntityDTOs(@Nonnull Set<Long> entityIds,
+                                                            @Nullable Long planTopologyContextId) {
+        if (entityIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        if (planTopologyContextId != null) {
+            SearchPlanTopologyEntityDTOsRequest request = SearchPlanTopologyEntityDTOsRequest.newBuilder()
+                .setTopologyContextId(planTopologyContextId)
+                .addAllEntityOid(entityIds)
+                .build();
+            return searchServiceClient.searchPlanTopologyEntityDTOs(request).getTopologyEntityDtosList();
+        } else {
+            SearchTopologyEntityDTOsRequest request = SearchTopologyEntityDTOsRequest.newBuilder()
+                .addAllEntityOid(entityIds)
+                .build();
+            return searchServiceClient.searchTopologyEntityDTOs(request).getTopologyEntityDtosList();
+        }
     }
 
     private List<CloudCostStatRecord> getCloudStatRecordList(@Nonnull final StatPeriodApiInputDTO inputDto,
@@ -658,8 +1026,12 @@ public class StatsService implements IStatsService {
                                                              @Nonnull final Set<Long> entityStatOids,
                                                              @Nonnull final Set<String> requestGroupBySet) {
         final GetCloudCostStatsRequest.Builder builder = GetCloudCostStatsRequest.newBuilder();
-        if (isRelatedEntityTypeVM(inputDto)) {
-            builder.setEntityTypeFilter(EntityTypeFilter.newBuilder().addEntityTypeId(EntityType.VIRTUAL_MACHINE_VALUE).build());
+        // set entity types filter
+        final Set<Integer> relatedEntityTypes = getRelatedEntityTypes(inputDto.getStatistics());
+        if (!relatedEntityTypes.isEmpty()) {
+            builder.setEntityTypeFilter(EntityTypeFilter.newBuilder()
+                .addAllEntityTypeId(relatedEntityTypes)
+                .build());
         }
         //TODO consider create default Cloud group (probably in Group component). Currently the only group
         if (!isDefaultCloudGroupUuid(uuid) && !entityStatOids.isEmpty()) {
@@ -668,14 +1040,20 @@ public class StatsService implements IStatsService {
         if (isGroupByComponentRequest(requestGroupBySet)) {
             builder.setGroupBy(GetCloudCostStatsRequest.GroupByType.COSTCOMPONENT);
         }
-        if (inputDto.getStartDate() != null && inputDto.getEndDate() != null) {
-            builder.setStartDate(Long.valueOf(inputDto.getStartDate()));
+        // assuming that if endDate is not set, startDate is not set
+        if (inputDto.getEndDate() != null) {
             builder.setEndDate(Long.valueOf(inputDto.getEndDate()));
+            if (inputDto.getStartDate() != null) {
+                builder.setStartDate(Long.valueOf(inputDto.getStartDate()));
+            } else {
+                // for CCC chart, the startDate is not set by UI after refactor of CCC
+                // set it to 10 min earlier from now
+                builder.setStartDate(
+                    Instant.ofEpochMilli(clock.millis()).minus(Duration.ofMinutes(10)).toEpochMilli());
+            }
         }
-        final List<CloudCostStatRecord> cloudCostStatRecords = costServiceRpc.getCloudCostStats(
-                builder.build()).getCloudStatRecordList();
 
-        return cloudCostStatRecords;
+        return costServiceRpc.getCloudCostStats(builder.build()).getCloudStatRecordList();
     }
 
     private boolean isGroupByComponentRequest(Set<String> requestGroupBySet) {
@@ -685,42 +1063,33 @@ public class StatsService implements IStatsService {
     /**
      * Return the count of VMs + Database + DatabaseServers in the cloud.
      */
-    private StatApiDTO getNumWorkloadStatSnapshot() {
-        CountEntitiesRequest request = CountEntitiesRequest.newBuilder()
-            .addSearchParameters(SearchParameters.newBuilder()
-                .setStartingFilter(SearchMapper.stringPropertyFilterRegex("entityType",
-                    "^VirtualMachine$|^DatabaseServer$|^Database$"))
-                .addSearchFilter(SearchFilter.newBuilder()
-                    .setPropertyFilter(SearchMapper.stringPropertyFilterRegex("environmentType",
-                        "CLOUD"))))
-            .build();
-        float numCloudVMs = (float) searchServiceClient.countEntities(request).getEntityCount();
-        final StatApiDTO statApiDTO = new StatApiDTO();
-        statApiDTO.setName(StringConstants.NUM_WORKLOADS);
-        statApiDTO.setValue(numCloudVMs);
-        final StatValueApiDTO statValueApiDTO = new StatValueApiDTO();
-        statValueApiDTO.setAvg(numCloudVMs);
-        statValueApiDTO.setMax(numCloudVMs);
-        statValueApiDTO.setMin(numCloudVMs);
-        statValueApiDTO.setTotal(numCloudVMs);
-        statApiDTO.setValues(statValueApiDTO);
-
-        return statApiDTO;
-    }
-
-    private StatApiDTO createRIComputeStatApiSnapshot(StatRecord cloudCostStatRecord) {
-
-        final StatApiDTO statApiDTO = new StatApiDTO();
-        statApiDTO.setName(RI_COMPUTE);
-        statApiDTO.setUnits(StringConstants.DOLLARS_PER_HOUR);
-        statApiDTO.setValue(-1 * cloudCostStatRecord.getValues().getAvg());
-        final StatValueApiDTO statValueApiDTO = new StatValueApiDTO();
-        statValueApiDTO.setAvg(cloudCostStatRecord.getValues().getAvg());
-        statValueApiDTO.setMax(cloudCostStatRecord.getValues().getMax());
-        statValueApiDTO.setMin(cloudCostStatRecord.getValues().getMin());
-        statValueApiDTO.setTotal(cloudCostStatRecord.getValues().getTotal());
-        statApiDTO.setValues(statValueApiDTO);
-        return statApiDTO;
+    private List<StatApiDTO> getNumWorkloadStatSnapshot(@Nonnull List<StatApiInputDTO> statsFilters,
+                                                        @Nonnull Set<Long> entityStatOids,
+                                                        @Nonnull Optional<PlanInstance> optPlan) throws Exception {
+        final Set<Long> scopeIds = optPlan.isPresent()
+            ? MarketMapper.getPlanScopeIds(optPlan.get())
+            : entityStatOids;
+        List<StatApiDTO> stats = Lists.newArrayList();
+        for (StatApiInputDTO statApiInputDTO : statsFilters) {
+            List<String> entityTypes = WORKLOAD_NAME_TO_ENTITY_TYPES.get(statApiInputDTO.getName());
+            if (entityTypes != null) {
+                Map<String, Set<Long>> relatedEntities = fetchRelatedEntitiesForScopes(scopeIds,
+                    entityTypes, EnvironmentType.CLOUD);
+                final float numWorkloads = relatedEntities.values().stream()
+                    .flatMap(Set::stream).count();
+                final StatApiDTO statApiDTO = new StatApiDTO();
+                statApiDTO.setName(statApiInputDTO.getName());
+                statApiDTO.setValue(numWorkloads);
+                final StatValueApiDTO statValueApiDTO = new StatValueApiDTO();
+                statValueApiDTO.setAvg(numWorkloads);
+                statValueApiDTO.setMax(numWorkloads);
+                statValueApiDTO.setMin(numWorkloads);
+                statValueApiDTO.setTotal(numWorkloads);
+                statApiDTO.setValues(statValueApiDTO);
+                stats.add(statApiDTO);
+            }
+        }
+        return stats;
     }
 
     private List<CloudCostStatRecord> getCloudExpensesRecordList(@Nonnull final StatPeriodApiInputDTO inputDto,
@@ -747,15 +1116,26 @@ public class StatsService implements IStatsService {
                 builder.build()).getCloudStatRecordList();
     }
 
-    private boolean isRelatedEntityTypeVM(final StatPeriodApiInputDTO inputDto) {
-        if (inputDto != null && inputDto.getStatistics() != null) {
-            final List<StatApiInputDTO> statApiInputDTOS = inputDto.getStatistics();
-            return statApiInputDTOS.stream()
-                    .filter(statApiInputDTO -> statApiInputDTO.getRelatedEntityType() != null)
-                    .anyMatch(statApiInputDTO -> statApiInputDTO.getRelatedEntityType()
-                            .equals(StringConstants.VIRTUAL_MACHINE));
+    private Set<Integer> getRelatedEntityTypes(@Nullable List<StatApiInputDTO> statApiInputDTOs) {
+        if (CollectionUtils.isEmpty(statApiInputDTOs)) {
+            return Collections.emptySet();
         }
-        return false;
+
+        final Set<Integer> relatedEntityTypes = new HashSet<>();
+        statApiInputDTOs.stream()
+            .filter(statApiInputDTO -> statApiInputDTO.getRelatedEntityType() != null)
+            .forEach(statApiInputDTO -> {
+                String entityType = statApiInputDTO.getRelatedEntityType();
+                if (CompositeEntityTypesSpec.WORKLOAD_ENTITYTYPE.equals(entityType)) {
+                    relatedEntityTypes.addAll(ENTITY_TYPES_COUNTED_AS_WORKLOAD.stream()
+                        .map(ServiceEntityMapper::fromUIEntityType)
+                        .collect(Collectors.toSet())
+                    );
+                } else {
+                    relatedEntityTypes.add(ServiceEntityMapper.fromUIEntityType(entityType));
+                }
+            });
+        return relatedEntityTypes;
     }
 
     // It seems there is no easy way to distinguish top down (expense) or bottom up (cost) requests.
@@ -770,17 +1150,20 @@ public class StatsService implements IStatsService {
     // Search discovered Cloud services.
     private List<BaseApiDTO> getDiscoveredServiceDTO() {
         try {
-            final GroupApiDTO groupApiDTO = new GroupApiDTO();
-            groupApiDTO.setClassName(UIEntityType.CLOUD_SERVICE.getValue());
-            final SearchPaginationRequest searchPaginationRequest;
-            searchPaginationRequest = new SearchPaginationRequest(null, null, false, null);
-            final SearchPaginationResponse searchResponse =
-                    searchService.getMembersBasedOnFilter("", groupApiDTO, searchPaginationRequest);
-            return searchResponse != null ? searchResponse.getRawResults() : Collections.emptyList();
-        } catch (InvalidOperationException | OperationFailedException e) {
+            // find all cloud services
+            final SearchTopologyEntityDTOsResponse response =
+                searchServiceClient.searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
+                    .addSearchParameters(SearchParameters.newBuilder()
+                        .setStartingFilter(SearchMapper.entityTypeFilter(
+                            UIEntityType.CLOUD_SERVICE.getValue())))
+                    .build());
+            return response.getTopologyEntityDtosList().stream()
+                .map(topologyEntity -> ServiceEntityMapper.toServiceEntityApiDTO(topologyEntity, null))
+                .collect(Collectors.toList());
+        } catch (Exception e) {
             logger.error("Failed to search Cloud service");
+            return Collections.emptyList();
         }
-        return Collections.emptyList();
     }
 
     // function to populate the statistics -> filters -> type for API DTO
@@ -836,21 +1219,11 @@ public class StatsService implements IStatsService {
     }
 
     /**
-     * Return true if the request DTO has {@link StringConstants#NUM_WORKLOADS} else return false.
+     * Return true if the request DTO has RICost or else return false.
      */
-    private boolean hasRequestedNumWorkloads(@Nonnull final StatPeriodApiInputDTO inputDto) {
-        return CollectionUtils.emptyIfNull(inputDto.getStatistics())
-                .stream()
-                .anyMatch(dto -> StringConstants.NUM_WORKLOADS.equals(dto.getName()));
-    }
-
-    /**
-     * Return true if the request DTO has {@link StatsService#RI_COMPUTE} else return false.
-     */
-    private boolean hasRequestedRICompute(@Nonnull final StatPeriodApiInputDTO inputDto) {
-        return CollectionUtils.emptyIfNull(inputDto.getStatistics())
-                .stream()
-                .anyMatch(dto -> RI_COMPUTE.equals(dto.getName()));
+    private boolean hasRequestedRICompute(@Nonnull final List<StatApiInputDTO> statsFilters) {
+        return statsFilters.stream()
+                .anyMatch(dto -> StringConstants.RI_COST.equals(dto.getName()));
     }
 
     /**
@@ -1482,7 +1855,7 @@ public class StatsService implements IStatsService {
                 // incorrect results for entity types that can appear in both cloud an on-prem
                 // environments (e.g. VMs). Since no customers of XL currently use the cloud
                 // capabilities, this is ok as a short-term fix.
-                && (!tempGroup.hasEnvironmentType() || tempGroup.getEnvironmentType() == EnvironmentType.ON_PREM);
+                && (!tempGroup.hasEnvironmentType() || tempGroup.getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.ON_PREM);
 
         // if it is global temp group and need to expand, should return target expand entity type.
         if (isGlobalTempGroup && ENTITY_TYPES_TO_EXPAND.containsKey(
@@ -1506,119 +1879,17 @@ public class StatsService implements IStatsService {
     }
 
     /**
-     * Get a list of {@link StatSnapshotApiDTO} for reserved instance coverage stats from cost component.
-     *
-     * @param scope the scope of the request.
-     * @param inputDto a {@link StatPeriodApiInputDTO}.
-     * @return a list of {@link StatSnapshotApiDTO}.
-     * @throws UnknownObjectException if scope entity is unknown.
-     */
-    private List<StatSnapshotApiDTO> getReservedInstanceCoverageStats(
-            @Nonnull final String scope,
-            @Nonnull final StatPeriodApiInputDTO inputDto) throws UnknownObjectException {
-        final Optional<Group> groupOptional = groupExpander.getGroup(scope);
-        // TODO: add the projected reserved instance utilization stats.
-        final List<ReservedInstanceStatsRecord> riStatsRecords =
-                getRiCoverageStats(Long.valueOf(inputDto.getStartDate()),
-                        Long.valueOf(inputDto.getEndDate()), scope, groupOptional);
-        return reservedInstanceMapper.convertRIStatsRecordsToStatSnapshotApiDTO(riStatsRecords, true);
-    }
-
-    /**
-     * Get a list of {@link ReservedInstanceStatsRecord} from cost component which contains the stats
-     * of reserved instance coverages.
-     *
-     * @param startDateMillis the request start date milliseconds.
-     * @param endDateMillis the request end date milliseconds.
-     * @param scope the scope of the request.
-     * @param groupOptional a optional of {@link Group}.
-     * @return a list of {@link ReservedInstanceStatsRecord}.
-     * @throws UnknownObjectException if the scope entity is unknown.
-     */
-    private List<ReservedInstanceStatsRecord> getRiCoverageStats(
-            final long startDateMillis,
-            final long endDateMillis,
-            final String scope,
-            @Nonnull final Optional<Group> groupOptional) throws UnknownObjectException {
-        if (isGlobalScope(scope, groupOptional)) {
-            return riUtilizationCoverageService.getReservedInstanceCoverageStats(
-                    GetReservedInstanceCoverageStatsRequest.newBuilder()
-                            .setStartDate(startDateMillis)
-                            .setEndDate(endDateMillis)
-                            .build())
-                    .getReservedInstanceStatsRecordsList();
-        } else if (groupOptional.isPresent()) {
-            final int groupEntityType = GroupProtoUtil.getEntityType(groupOptional.get());
-            final Set<Long> expandedOidsList = groupExpander.expandUuid(scope);
-            final GetReservedInstanceCoverageStatsRequest request =
-                    createGetReservedInstanceCoverageStatsRequest(startDateMillis, endDateMillis,
-                            expandedOidsList, groupEntityType);
-            return riUtilizationCoverageService.getReservedInstanceCoverageStats(request)
-                    .getReservedInstanceStatsRecordsList();
-        } else {
-            final ServiceEntityApiDTO scopeEntity = repositoryApi.getServiceEntityForUuid(Long.valueOf(scope));
-            final int scopeEntityType = ServiceEntityMapper.fromUIEntityType(scopeEntity.getClassName());
-            final GetReservedInstanceCoverageStatsRequest request =
-                    createGetReservedInstanceCoverageStatsRequest(startDateMillis, endDateMillis,
-                            Sets.newHashSet(Long.valueOf(scope)), scopeEntityType);
-            return riUtilizationCoverageService.getReservedInstanceCoverageStats(request)
-                    .getReservedInstanceStatsRecordsList();
-        }
-    }
-
-    /**
-     * Create a {@link GetReservedInstanceCoverageStatsRequest} based on input parameters.
-     *
-     * @param startDateMillis the request start date milliseconds.
-     * @param endDateMillis the request end date milliseconds.
-     * @param filterIds a list of filter ids.
-     * @param filterType the filter type.
-     * @return a {@link GetReservedInstanceCoverageStatsRequest}.
-     * @throws UnknownObjectException if the filter type is unknown.
-     */
-    private GetReservedInstanceCoverageStatsRequest createGetReservedInstanceCoverageStatsRequest(
-            final long startDateMillis,
-            final long endDateMillis,
-            @Nonnull final Set<Long> filterIds,
-            final int filterType) throws UnknownObjectException {
-        final GetReservedInstanceCoverageStatsRequest.Builder request =
-                GetReservedInstanceCoverageStatsRequest.newBuilder()
-                        .setStartDate(startDateMillis)
-                        .setEndDate(endDateMillis);
-        if (filterType == EntityDTO.EntityType.REGION_VALUE) {
-            request.setRegionFilter(RegionFilter.newBuilder()
-                    .addAllRegionId(filterIds));
-        } else if (filterType == EntityDTO.EntityType.AVAILABILITY_ZONE_VALUE) {
-            request.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
-                    .addAllAvailabilityZoneId(filterIds));
-        } else if (filterType == EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE) {
-            request.setAccountFilter(AccountFilter.newBuilder()
-                    .addAllAccountId(filterIds));
-        } else if (filterType == EntityType.VIRTUAL_MACHINE_VALUE) {
-            request.setEntityFilter(EntityFilter.newBuilder()
-                    .addAllEntityId(filterIds));
-        }
-        else {
-            throw new UnknownObjectException("filter type: "  + filterType + " is not supported.");
-        }
-        return request.build();
-    }
-
-    /**
      * Check if the input request is for reserved instance coverage or not.
      *
-     * @param inputDto a {@link StatPeriodApiInputDTO}.
+     * @param inputStats a list of {@link StatApiInputDTO}.
      * @return return true if request is for reserved instance coverage, otherwise return false;
      */
-    private boolean isRequestForReservedInstanceCoverageStats(
-            @Nonnull final StatPeriodApiInputDTO inputDto) {
-        if (inputDto != null && inputDto.getStatistics() != null) {
-            final List<StatApiInputDTO> statApiInputDTOS = inputDto.getStatistics();
-            if (statApiInputDTOS.size() == 1
-                    && StringConstants.RI_COUPON_COVERAGE.equals(statApiInputDTOS.get(0).getName())
-                    && StringConstants.VIRTUAL_MACHINE.equals(statApiInputDTOS.get(0).getRelatedEntityType())) {
-                return true;
-            }
+    private boolean isRequestForRICoverageOrUtilizationStats(
+            @Nullable final List<StatApiInputDTO> inputStats) {
+        if (inputStats != null && inputStats.size() == 1 &&
+            (StringConstants.RI_COUPON_COVERAGE.equals(inputStats.get(0).getName()) ||
+                StringConstants.RI_COUPON_UTILIZATION.equals(inputStats.get(0).getName()))) {
+            return true;
         }
         return false;
     }

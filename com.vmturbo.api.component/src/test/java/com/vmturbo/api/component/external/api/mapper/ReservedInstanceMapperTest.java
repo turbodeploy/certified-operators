@@ -169,9 +169,9 @@ public class ReservedInstanceMapperTest {
     @Test
     public void testRiUtilizationStatsRecordsToEntityStatsApiDTO() throws Exception {
         final EntityStatsApiDTO entityStatsApiDTO =
-                reservedInstanceMapper.convertRIUtilizationStatsRecordsToEntityStatsApiDTO(
+                reservedInstanceMapper.convertRIStatsRecordsToEntityStatsApiDTO(
                         Lists.newArrayList(riStatsrecord), UI_REAL_TIME_MARKET_STR,
-                        Optional.empty());
+                        Optional.empty(), Optional.empty(), false);
         final List<StatSnapshotApiDTO> statSnapshotApiDTOS = entityStatsApiDTO.getStats();
         assertEquals(1L, statSnapshotApiDTOS.size());
 

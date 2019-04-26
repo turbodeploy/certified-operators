@@ -31,12 +31,16 @@ import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper.ActionSpecMappingContext;
+import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFactory.ActionSpecMappingContext;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
+import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.VirtualMachineAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -45,14 +49,9 @@ import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
-import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Performance;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
@@ -61,12 +60,15 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
+import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.InitialPlacement;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Performance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
@@ -76,15 +78,22 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
-import com.vmturbo.common.protobuf.search.Search.Entity;
+import com.vmturbo.common.protobuf.search.Search.SearchPlanTopologyEntityDTOsResponse;
+import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
+import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -100,6 +109,14 @@ public class ActionSpecMapperTest {
     private static final long REAL_TIME_TOPOLOGY_CONTEXT_ID = 777777L;
     private ActionSpecMapper mapper;
 
+    private ActionSpecMappingContextFactory actionSpecMappingContextFactory;
+
+    private CloudAspectMapper cloudAspectMapper;
+
+    private VirtualMachineAspectMapper vmAspectMapper;
+
+    private VirtualVolumeAspectMapper volumeAspectMapper;
+
     private RepositoryApi repositoryApi;
 
     private PolicyDTOMoles.PolicyServiceMole policyMole;
@@ -107,6 +124,8 @@ public class ActionSpecMapperTest {
     private GrpcTestServer grpcServer;
 
     private PolicyServiceGrpc.PolicyServiceBlockingStub policyService;
+
+    private SearchServiceMole searchMole;
 
     private final long contextId = 777L;
 
@@ -134,9 +153,22 @@ public class ActionSpecMapperTest {
         grpcServer.start();
         policyService = PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
         repositoryApi = Mockito.mock(RepositoryApi.class);
-        mapper = new ActionSpecMapper(repositoryApi, policyService, Executors
-                        .newCachedThreadPool(new ThreadFactoryBuilder().build()),
-                REAL_TIME_TOPOLOGY_CONTEXT_ID);
+
+        searchMole = Mockito.spy(new SearchServiceMole());
+        GrpcTestServer searchGrpcServer = GrpcTestServer.newServer(searchMole);
+        searchGrpcServer.start();
+        SearchServiceBlockingStub searchServiceBlockingStub = SearchServiceGrpc.newBlockingStub(
+            searchGrpcServer.getChannel());
+
+        cloudAspectMapper = Mockito.mock(CloudAspectMapper.class);
+        vmAspectMapper = Mockito.mock(VirtualMachineAspectMapper.class);
+        volumeAspectMapper = Mockito.mock(VirtualVolumeAspectMapper.class);
+
+        actionSpecMappingContextFactory = new ActionSpecMappingContextFactory(policyService,
+            Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()),
+            searchServiceBlockingStub, cloudAspectMapper, vmAspectMapper, volumeAspectMapper,
+            REAL_TIME_TOPOLOGY_CONTEXT_ID);
+        mapper = new ActionSpecMapper(actionSpecMappingContextFactory, REAL_TIME_TOPOLOGY_CONTEXT_ID);
         commodityCpu = CommodityType.newBuilder()
             .setType(CommodityDTO.CommodityType.CPU_VALUE)
             .setKey("blah")
@@ -328,16 +360,18 @@ public class ActionSpecMapperTest {
                                     .addReconfigureCommodity(cpuAllocation)
                                     .addReconfigureCommodity(network).build())
                             .build();
-        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
-                        .thenReturn(oidToEntityMap(
-                                entityApiDTO(TARGET, 3L, "C0"),
-                                entityApiDTO(SOURCE, 1L, "C1")));
+        Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
+            .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
+                .addAllTopologyEntityDtos(Lists.newArrayList(
+                    topologyEntityDTO(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
+                    topologyEntityDTO(SOURCE, 1L, EntityType.PHYSICAL_MACHINE_VALUE)
+                )).build());
 
         final ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, reconfigure), contextId);
         assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
         assertEquals("3", actionApiDTO.getTarget().getUuid());
-        assertEquals("C0", actionApiDTO.getTarget().getClassName());
+        assertEquals("VirtualMachine", actionApiDTO.getTarget().getClassName());
 
         assertEquals(SOURCE, actionApiDTO.getCurrentEntity().getDisplayName());
         assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
@@ -345,8 +379,8 @@ public class ActionSpecMapperTest {
 
         assertEquals( ActionType.RECONFIGURE, actionApiDTO.getActionType());
         assertEquals(
-            "Reconfigure C 0 Target which requires Cpu Allocation, Network TestNetworkName1 but " +
-                    "is hosted by C 1 Source which does not provide Cpu Allocation, Network " +
+            "Reconfigure Virtual Machine Target which requires Cpu Allocation, Network TestNetworkName1 but " +
+                    "is hosted by Physical Machine Source which does not provide Cpu Allocation, Network " +
                     "TestNetworkName1",
             actionApiDTO.getDetails());
     }
@@ -368,21 +402,22 @@ public class ActionSpecMapperTest {
                             .setReconfigure(ReconfigureExplanation.newBuilder()
                                     .addReconfigureCommodity(cpuAllocation).build())
                             .build();
-        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
-                        .thenReturn(oidToEntityMap(
-                                entityApiDTO(TARGET, 3L, "C0")));
-
+        Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
+            .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
+                .addAllTopologyEntityDtos(Lists.newArrayList(
+                    topologyEntityDTO(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE)
+                )).build());
         final ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, reconfigure), contextId);
         assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
         assertEquals("3", actionApiDTO.getTarget().getUuid());
-        assertEquals("C0", actionApiDTO.getTarget().getClassName());
+        assertEquals("VirtualMachine", actionApiDTO.getTarget().getClassName());
 
         assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
 
         assertEquals( ActionType.RECONFIGURE, actionApiDTO.getActionType());
         assertEquals(
-            "Reconfigure C 0 Target as it is unplaced",
+            "Reconfigure Virtual Machine Target as it is unplaced",
             actionApiDTO.getDetails());
     }
 
@@ -397,8 +432,12 @@ public class ActionSpecMapperTest {
                         .newBuilder().setProvisionBySupplyExplanation(ProvisionBySupplyExplanation
                                         .newBuilder().setMostExpensiveCommodity(21).build())
                         .build()).build();
-        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
-            .thenReturn(oidToEntityMap(entityApiDTO("EntityToClone", 3L, "c0")));
+        Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
+            .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
+                .addAllTopologyEntityDtos(Lists.newArrayList(
+                    topologyEntityDTO("EntityToClone", 3L, EntityType.VIRTUAL_MACHINE_VALUE),
+                    topologyEntityDTO("New Entity", -1L, EntityType.VIRTUAL_MACHINE_VALUE)
+                )).build());
 
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
                 buildActionSpec(provisionInfo, provision), contextId);
@@ -406,15 +445,15 @@ public class ActionSpecMapperTest {
         assertEquals("3", actionApiDTO.getCurrentValue());
 
         assertEquals("New Entity", actionApiDTO.getTarget().getDisplayName());
-        assertEquals("c0", actionApiDTO.getTarget().getClassName());
+        assertEquals("VirtualMachine", actionApiDTO.getTarget().getClassName());
         assertEquals("-1", actionApiDTO.getTarget().getUuid());
 
         assertEquals("New Entity", actionApiDTO.getNewEntity().getDisplayName());
-        assertEquals("c0", actionApiDTO.getNewEntity().getClassName());
+        assertEquals("VirtualMachine", actionApiDTO.getNewEntity().getClassName());
         assertEquals("-1", actionApiDTO.getNewEntity().getUuid());
 
         assertEquals(ActionType.PROVISION, actionApiDTO.getActionType());
-        assertThat(actionApiDTO.getDetails(), containsString("Provision c 0 EntityToClone"));
+        assertThat(actionApiDTO.getDetails(), containsString("Provision Virtual Machine EntityToClone"));
     }
 
     @Test
@@ -434,8 +473,11 @@ public class ActionSpecMapperTest {
                 .setEndUtilization(0.4f).build())
             .build();
 
-        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
-            .thenReturn(oidToEntityMap(entityApiDTO(ENTITY_TO_RESIZE_NAME, targetId, "c0")));
+        Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
+            .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
+                .addAllTopologyEntityDtos(Lists.newArrayList(
+                    topologyEntityDTO(ENTITY_TO_RESIZE_NAME, targetId, EntityType.VIRTUAL_MACHINE_VALUE)
+                )).build());
 
         final ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize), contextId);
@@ -462,9 +504,11 @@ public class ActionSpecMapperTest {
                         .setStartUtilization(0.2f)
                         .setEndUtilization(0.4f).build())
                 .build();
-        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
-                .thenReturn(oidToEntityMap(entityApiDTO(ENTITY_TO_RESIZE_NAME, targetId, "c0")));
-
+        Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
+            .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
+                .addAllTopologyEntityDtos(Lists.newArrayList(
+                    topologyEntityDTO(ENTITY_TO_RESIZE_NAME, targetId, EntityType.VIRTUAL_MACHINE_VALUE)
+                )).build());
         final ActionApiDTO actionApiDTO =
                 mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize), contextId);
 
@@ -499,8 +543,11 @@ public class ActionSpecMapperTest {
                         .setEndUtilization(0.4f).build())
                 .build();
 
-        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
-                .thenReturn(oidToEntityMap(entityApiDTO(ENTITY_TO_RESIZE_NAME, targetId, "c0")));
+        Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
+            .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
+                .addAllTopologyEntityDtos(Lists.newArrayList(
+                    topologyEntityDTO(ENTITY_TO_RESIZE_NAME, targetId, EntityType.VIRTUAL_MACHINE_VALUE)
+                )).build());
 
         final ActionApiDTO actionApiDTO =
                 mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize), contextId);
@@ -528,9 +575,11 @@ public class ActionSpecMapperTest {
                                         .setActivate(ActivateExplanation.newBuilder()
                                                         .setMostExpensiveCommodity(commodityCpu.getType()).build())
                                         .build();
-        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
-                        .thenReturn(oidToEntityMap(
-                                entityApiDTO("EntityToActivate", targetId, "c0")));
+        Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
+            .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
+                .addAllTopologyEntityDtos(Lists.newArrayList(
+                    topologyEntityDTO("EntityToActivate", targetId, EntityType.VIRTUAL_MACHINE_VALUE)
+                )).build());
 
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
                 buildActionSpec(activateInfo, activate), contextId);
@@ -541,7 +590,7 @@ public class ActionSpecMapperTest {
             IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
                     CommodityDTO.CommodityType.CPU.name(),
                     CommodityDTO.CommodityType.MEM.name()));
-        assertThat(actionApiDTO.getDetails(), containsString("Start c 0"));
+        assertThat(actionApiDTO.getDetails(), containsString("Start Virtual Machine"));
     }
 
     /**
@@ -562,9 +611,11 @@ public class ActionSpecMapperTest {
         final String entityToActivateName = "EntityToActivate";
         final String className = "Storage";
         final String prettyClassName = "Storage";
-        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
-                .thenReturn(oidToEntityMap(entityApiDTO(entityToActivateName, targetId, className)));
-
+        Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
+            .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
+                .addAllTopologyEntityDtos(Lists.newArrayList(
+                    topologyEntityDTO(entityToActivateName, targetId, EntityType.STORAGE_VALUE)
+                )).build());
 
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
                 buildActionSpec(deactivateInfo, activate), contextId);
@@ -588,11 +639,12 @@ public class ActionSpecMapperTest {
         Explanation deactivate = Explanation.newBuilder()
             .setDeactivate(DeactivateExplanation.newBuilder().build()).build();
         final String entityToDeactivateName = "EntityToDeactivate";
-        final String className = "C0";
-        final String prettyClassName = "C 0";
-        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
-            .thenReturn(oidToEntityMap(entityApiDTO(entityToDeactivateName, targetId, className)));
-
+        final String prettyClassName = "Virtual Machine";
+        Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
+            .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
+                .addAllTopologyEntityDtos(Lists.newArrayList(
+                    topologyEntityDTO(entityToDeactivateName, targetId, EntityType.VIRTUAL_MACHINE_VALUE)
+                )).build());
 
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
             buildActionSpec(deactivateInfo, deactivate), contextId);
@@ -619,11 +671,12 @@ public class ActionSpecMapperTest {
         Explanation delete = Explanation.newBuilder()
             .setDelete(DeleteExplanation.newBuilder().setSizeKb(2048l).build()).build();
         final String entityToDelete = "EntityToDelete";
-        final String className = "C0";
-        final String prettyClassName = "C 0";
-        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
-            .thenReturn(oidToEntityMap(entityApiDTO(entityToDelete, targetId, className)));
-
+        final String prettyClassName = "Storage";
+        Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
+            .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
+                .addAllTopologyEntityDtos(Lists.newArrayList(
+                    topologyEntityDTO(entityToDelete, targetId, EntityType.STORAGE_VALUE)
+                )).build());
 
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
             buildActionSpec(deleteInfo, delete), contextId);
@@ -650,12 +703,12 @@ public class ActionSpecMapperTest {
         Explanation deactivate = Explanation.newBuilder()
                 .setDeactivate(DeactivateExplanation.newBuilder().build()).build();
         final String entityToDeactivateName = "EntityToDeactivate";
-        final String className = "DiskArray";
         final String prettyClassName = "Disk Array";
-        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
-                .thenReturn(oidToEntityMap(entityApiDTO(entityToDeactivateName, targetId, className)));
-
-
+        Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
+            .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
+                .addAllTopologyEntityDtos(Lists.newArrayList(
+                    topologyEntityDTO(entityToDeactivateName, targetId, EntityType.DISK_ARRAY_VALUE)
+                )).build());
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
                 buildActionSpec(deactivateInfo, deactivate), contextId);
         assertEquals(entityToDeactivateName, actionApiDTO.getTarget().getDisplayName());
@@ -710,14 +763,11 @@ public class ActionSpecMapperTest {
                 .setCommodityType(commodityCpu))
             .build();
 
-        final Map<Long, Optional<ServiceEntityApiDTO>> involvedEntities = oidToEntityMap(
-            entityApiDTO("EntityToResize", goodTarget, "c0"));
-        involvedEntities.put(badTarget, Optional.empty());
-        involvedEntities.put(badSource, Optional.empty());
-        involvedEntities.put(badDestination, Optional.empty());
-
-        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
-            .thenReturn(involvedEntities);
+        Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
+            .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
+                .addAllTopologyEntityDtos(Lists.newArrayList(
+                    topologyEntityDTO("EntityToResize", goodTarget, EntityType.VIRTUAL_MACHINE_VALUE)
+                )).build());
 
         final ActionSpec moveSpec = buildActionSpec(moveInfo, Explanation.getDefaultInstance(), Optional.empty());
         final ActionSpec resizeSpec = buildActionSpec(resizeInfo, Explanation.getDefaultInstance(), Optional.empty());
@@ -740,13 +790,13 @@ public class ActionSpecMapperTest {
                                         .build())
                         .build())
                         .build();
-        final Map<Long, Optional<ServiceEntityApiDTO>> involvedEntities = oidToEntityMap(
-                        entityApiDTO("target", 1, "VM"),
-                        entityApiDTO("source", 2, "VM"),
-                        entityApiDTO("dest", 3, "VM")
-        );
-        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
-                        .thenReturn(involvedEntities);
+        Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
+            .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
+                .addAllTopologyEntityDtos(Lists.newArrayList(
+                    topologyEntityDTO("target", 1, EntityType.VIRTUAL_MACHINE_VALUE),
+                    topologyEntityDTO("source", 2, EntityType.VIRTUAL_MACHINE_VALUE),
+                    topologyEntityDTO("dest", 3, EntityType.VIRTUAL_MACHINE_VALUE)
+                )).build());
         final Compliance compliance = Compliance.newBuilder().addMissingCommodities(
                         CommodityType.newBuilder()
                                         .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
@@ -780,15 +830,16 @@ public class ActionSpecMapperTest {
                 .setDestination(ApiUtilsTest.createActionEntity(5, EntityType.STORAGE_VALUE))
                 .build()))
             .build();
-        final Map<Long, Optional<ServiceEntityApiDTO>> involvedEntities = oidToEntityMap(
-            entityApiDTO("target", 1, "VM"),
-            entityApiDTO("source", 2, "PM"),
-            entityApiDTO("dest", 3, "PM"),
-            entityApiDTO("stSource", 4, "ST"),
-            entityApiDTO("stDest", 5, "ST")
-        );
-        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
-            .thenReturn(involvedEntities);
+        Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
+            .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
+                .addAllTopologyEntityDtos(Lists.newArrayList(
+                    topologyEntityDTO("target", 1, EntityType.VIRTUAL_MACHINE_VALUE),
+                    topologyEntityDTO("source", 2, EntityType.PHYSICAL_MACHINE_VALUE),
+                    topologyEntityDTO("dest", 3, EntityType.PHYSICAL_MACHINE_VALUE),
+                    topologyEntityDTO("stSource", 4, EntityType.STORAGE_VALUE),
+                    topologyEntityDTO("stDest", 5, EntityType.STORAGE_VALUE)
+                )).build());
+
         final Compliance compliance = Compliance.newBuilder().addMissingCommodities(
             CommodityType.newBuilder()
                 .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
@@ -839,6 +890,13 @@ public class ActionSpecMapperTest {
                                 .build())
                         .build())
                 .build();
+        Mockito.when(searchMole.searchTopologyEntityDTOs(any()))
+            .thenReturn(SearchTopologyEntityDTOsResponse.newBuilder()
+                .addAllTopologyEntityDtos(Lists.newArrayList(
+                    topologyEntityDTO("target", 1, EntityType.VIRTUAL_MACHINE_VALUE),
+                    topologyEntityDTO("source", 2, EntityType.VIRTUAL_MACHINE_VALUE),
+                    topologyEntityDTO("dest", 3, EntityType.VIRTUAL_MACHINE_VALUE)
+                )).build());
         final ActionApiDTO actionApiDTO =
                 mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), contextId);
         assertEquals(com.vmturbo.api.enums.ActionState.SUCCEEDED, actionApiDTO.getActionState());
@@ -1017,12 +1075,17 @@ public class ActionSpecMapperTest {
 
     @Test
     public void testTranslateExplanation() {
-        Map<Long, Optional<ServiceEntityApiDTO>> entitiesMap = new HashMap<>();
-        ServiceEntityApiDTO entity = new ServiceEntityApiDTO();
-        entity.setDisplayName("Test Entity");
-        entity.setCostPrice(1.0f);
-        entitiesMap.put(1L,Optional.of(entity));
-        ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesMap, Collections.emptyMap());
+        Map<Long, TopologyEntityDTO> entitiesMap = new HashMap<>();
+        TopologyEntityDTO entity = TopologyEntityDTO.newBuilder()
+            .setDisplayName("Test Entity")
+            .setOid(1L)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .build();
+        entitiesMap.put(1L, entity);
+        ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesMap,
+            Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+            Collections.emptyMap(), Collections.emptyMap());
+        context.getOptionalEntity(1L).get().setCostPrice(1.0f);
 
         String noTranslationNeeded = "Simple string";
         Assert.assertEquals("Simple string", ActionSpecMapper.translateExplanation(noTranslationNeeded, context));
@@ -1077,11 +1140,22 @@ public class ActionSpecMapperTest {
 
         ActionInfo moveInfo = ActionInfo.newBuilder().setMove(move).build();
 
-        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
-                .thenReturn(oidToEntityMap(
-                                entityApiDTO(TARGET, 3L, UIEntityType.VIRTUAL_MACHINE.getValue()),
-                                entityApiDTO(SOURCE, 1L, srcAndDestType),
-                                entityApiDTO(DESTINATION, 2L, srcAndDestType)));
+        Mockito.when(searchMole.searchTopologyEntityDTOs(any()))
+            .thenReturn(SearchTopologyEntityDTOsResponse.newBuilder()
+                .addAllTopologyEntityDtos(Lists.newArrayList(
+                    topologyEntityDTO(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
+                    topologyEntityDTO(SOURCE, 1L, ServiceEntityMapper.fromUIEntityType(srcAndDestType)),
+                    topologyEntityDTO(DESTINATION, 2L, ServiceEntityMapper.fromUIEntityType(srcAndDestType))
+                )).build());
+
+        Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
+            .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
+                .addAllTopologyEntityDtos(Lists.newArrayList(
+                    topologyEntityDTO(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
+                    topologyEntityDTO(SOURCE, 1L, ServiceEntityMapper.fromUIEntityType(srcAndDestType)),
+                    topologyEntityDTO(DESTINATION, 2L, ServiceEntityMapper.fromUIEntityType(srcAndDestType))
+                )).build());
+
         return moveInfo;
     }
 
@@ -1121,6 +1195,15 @@ public class ActionSpecMapperTest {
         seDTO.setUuid(Long.toString(oid));
         seDTO.setClassName(className);
         return seDTO;
+    }
+
+    private TopologyEntityDTO topologyEntityDTO(@Nonnull final String displayName, long oid,
+                                                int entityType) {
+        return TopologyEntityDTO.newBuilder()
+            .setOid(oid)
+            .setDisplayName(displayName)
+            .setEntityType(entityType)
+            .build();
     }
 
     private ActionSpec buildActionSpec(ActionInfo actionInfo, Explanation explanation) {

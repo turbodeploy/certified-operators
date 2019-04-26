@@ -9,6 +9,8 @@ import static com.vmturbo.api.MarketNotificationDTO.StatusNotification.Status.SU
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -23,6 +25,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 
 /**
  * Converts {@link PlanInstance} objects to the plan-related API objects - namely
@@ -134,5 +137,18 @@ public class MarketMapper {
             entitiesList.add(dto);
         }
         return entitiesList;
+    }
+
+    /**
+     * Get the plan scope ids from given PlanInstance.
+     *
+     * @param planInstance the PlanInstance to get scope ids from
+     * @return set of plan scope ids
+     */
+    public static Set<Long> getPlanScopeIds(@Nonnull PlanInstance planInstance) {
+        return planInstance.getScenario().getScenarioInfo()
+            .getScope().getScopeEntriesList().stream()
+            .map(PlanScopeEntry::getScopeObjectOid)
+            .collect(Collectors.toSet());
     }
 }

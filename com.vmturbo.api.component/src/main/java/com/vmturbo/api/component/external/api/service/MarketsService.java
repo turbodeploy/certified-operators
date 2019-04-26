@@ -168,7 +168,7 @@ public class MarketsService implements IMarketsService {
 
     private final MarketMapper marketMapper;
 
-    private StatsService statsService;
+    private final StatsService statsService;
 
     private final StatsMapper statsMapper;
 
@@ -206,6 +206,7 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
                           @Nonnull final TopologyProcessor topologyProcessor,
                           @Nonnull final EntitySeverityServiceBlockingStub entitySeverity,
+                          @Nonnull final StatsService statsService,
                           final long realtimeTopologyContextId) {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
@@ -227,6 +228,7 @@ public class MarketsService implements IMarketsService {
         this.entitySeverity = Objects.requireNonNull(entitySeverity);
         this.mergeDataCenterPolicyHandler = new MergeDataCenterPolicyHandler();
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
+        this.statsService = Objects.requireNonNull(statsService);
     }
 
     /**
@@ -1004,9 +1006,9 @@ public class MarketsService implements IMarketsService {
      *
      * @param statsService the stats service.
      */
-    public void setStatsService(@Nonnull StatsService statsService) {
-        this.statsService = Objects.requireNonNull(statsService);
-    }
+//    public void setStatsService(@Nonnull StatsService statsService) {
+//        this.statsService = Objects.requireNonNull(statsService);
+//    }
 
     /**
      * Handles invalid cases for the given startTime and endTime period and throws

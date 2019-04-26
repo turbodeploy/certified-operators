@@ -470,8 +470,9 @@ public class CostRpcService extends CostServiceImplBase {
                 if (request.hasStartDate() && request.hasEndDate()) {
                     snapshotToEntityCostMap = entityCostStore.getEntityCosts(entityCostFilter);
                     snapshotToEntityCostMap.put(
-                            request.getEndDate() + TimeUnit.HOURS.toMillis(PROJECTED_STATS_TIME_IN_FUTURE_HOURS),
-                            projectedEntityCostStore.getAllProjectedEntitiesCosts());
+                        request.getEndDate() + TimeUnit.HOURS.toMillis(PROJECTED_STATS_TIME_IN_FUTURE_HOURS),
+                        request.hasEntityFilter() ? projectedEntityCostStore.getProjectedEntityCosts(filterIds)
+                            : projectedEntityCostStore.getAllProjectedEntitiesCosts());
                 } else {
                     snapshotToEntityCostMap = entityCostStore.getLatestEntityCost(filterIds, entityTypeFilterIds);
                 }

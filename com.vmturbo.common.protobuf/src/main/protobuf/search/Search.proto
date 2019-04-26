@@ -318,6 +318,19 @@ message SearchTopologyEntityDTOsResponse {
     repeated .topology.TopologyEntityDTO topology_entity_dtos = 1;
 }
 
+message SearchPlanTopologyEntityDTOsRequest {
+    // The id of the plan topology context.
+    optional int64 topology_context_id = 1;
+
+    // ids of the entities to fetch from plan topology
+    repeated int64 entity_oid = 2;
+}
+
+message SearchPlanTopologyEntityDTOsResponse {
+    // A list of matched plan entities.
+    repeated .topology.TopologyEntityDTO topology_entity_dtos = 1;
+}
+
 message CountEntitiesRequest {
     repeated SearchParameters searchParameters = 1;
 }
@@ -358,6 +371,9 @@ service SearchService {
 
     // Search for TopologyEntityDTOs based on the search parameters and return TopologyEntityDTO objects
     rpc SearchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest) returns (SearchTopologyEntityDTOsResponse);
+
+    // Search for TopologyEntityDTOs in the plan topology based on the request and return TopologyEntityDTO objects
+    rpc SearchPlanTopologyEntityDTOs(SearchPlanTopologyEntityDTOsRequest) returns (SearchPlanTopologyEntityDTOsResponse);
 
     rpc CountEntities(CountEntitiesRequest) returns (EntityCountResponse);
 

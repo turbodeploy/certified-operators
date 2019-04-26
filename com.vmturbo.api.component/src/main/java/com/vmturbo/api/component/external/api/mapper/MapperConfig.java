@@ -58,9 +58,21 @@ public class MapperConfig {
 
     @Bean
     public ActionSpecMapper actionSpecMapper() {
-        return new ActionSpecMapper(communicationConfig.repositoryApi(),
-                        communicationConfig.policyRpcService(), executorService(),
-                        communicationConfig.getRealtimeTopologyContextId());
+        return new ActionSpecMapper(
+            actionSpecMappingContextFactory(),
+            communicationConfig.getRealtimeTopologyContextId());
+    }
+
+    @Bean
+    public ActionSpecMappingContextFactory actionSpecMappingContextFactory() {
+        return new ActionSpecMappingContextFactory(
+            communicationConfig.policyRpcService(),
+            executorService(),
+            communicationConfig.searchServiceBlockingStub(),
+            cloudAspectMapper(),
+            virtualMachineMapper(),
+            virtualVolumeAspectMapper(),
+            communicationConfig.getRealtimeTopologyContextId());
     }
 
     @Bean
@@ -181,7 +193,7 @@ public class MapperConfig {
 
     @Bean
     public CloudAspectMapper cloudAspectMapper() {
-        return new CloudAspectMapper();
+        return new CloudAspectMapper(serviceConfig.reservedInstancesService());
     }
 
     @Bean

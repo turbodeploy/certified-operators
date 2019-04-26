@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -28,16 +29,16 @@ import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.ActionCostType;
-import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.utils.CompositeEntityTypesSpec;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsRequest;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery;
-import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
@@ -196,6 +197,10 @@ public class ActionStatsQueryExecutor {
         default Set<Integer> getRelatedEntityTypes() {
             final Set<Integer> types = new HashSet<>();
             CollectionUtils.emptyIfNull(actionInput().getRelatedEntityTypes()).stream()
+                .flatMap(relatedEntityType ->
+                    CompositeEntityTypesSpec.WORKLOAD_ENTITYTYPE.equals(relatedEntityType)
+                        ? CompositeEntityTypesSpec.WORKLOAD_TYPE_PRIMITIVES.stream()
+                        : Stream.of(relatedEntityType))
                 .map(ServiceEntityMapper::fromUIEntityType)
                 .forEach(types::add);
             entityType().ifPresent(types::add);

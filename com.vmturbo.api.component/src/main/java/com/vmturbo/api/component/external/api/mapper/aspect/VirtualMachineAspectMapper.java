@@ -11,6 +11,7 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * Topology Extension data related to Virtual Machine.
@@ -66,6 +67,6 @@ public class VirtualMachineAspectMapper implements IAspectMapper {
     @Nonnull
     @Override
     public String getAspectName() {
-        return "virtualMachineAspect";
+        return StringConstants.VM_ASPECT_NAME;
     }
 }

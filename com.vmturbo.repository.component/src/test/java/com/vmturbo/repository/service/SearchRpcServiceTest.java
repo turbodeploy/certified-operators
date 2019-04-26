@@ -130,7 +130,7 @@ public class SearchRpcServiceTest {
     private List<List<AQLRepr>> singleReprs = new ArrayList<>();
     private List<List<AQLRepr>> multiReprs = new ArrayList<>();
 
-    private final String db = "db-1";
+    private final String db = "topology-1-SOURCE-2";
 
     @Before
     public void setUp() throws Throwable {
@@ -141,6 +141,9 @@ public class SearchRpcServiceTest {
 
         given(topologyManager.getRealtimeDatabase()).willReturn(
                 Optional.of(TopologyDatabase.from(db)));
+
+        given(topologyManager.getRealtimeTopologyId()).willReturn(Optional.of(
+            new TopologyID(1L,2L, TopologyType.SOURCE)));
 
         for (SearchParameters searchParameters : searchEntityOidsRequest.getSearchParametersList()) {
             singleReprs.add(SearchDTOConverter.toAqlRepr(searchParameters));

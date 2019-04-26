@@ -14,21 +14,23 @@ import java.util.concurrent.Executors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
+import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.VirtualMachineAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -39,11 +41,17 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider.Builder;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
+import com.vmturbo.common.protobuf.search.Search.SearchPlanTopologyEntityDTOsResponse;
+import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -52,6 +60,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Test the construction of {@link ActionApiDTO} with compound moves.
  */
 public class CompoundMoveTest {
+
+    private static final long REAL_TIME_TOPOLOGY_CONTEXT_ID = 777777L;
 
     private ActionSpecMapper mapper;
 
@@ -63,9 +73,13 @@ public class CompoundMoveTest {
 
     private PolicyServiceGrpc.PolicyServiceBlockingStub policyService;
 
+    private ActionSpecMappingContextFactory actionSpecMappingContextFactory;
+
     private static final int VM = EntityType.VIRTUAL_MACHINE_VALUE;
     private static final int PM = EntityType.PHYSICAL_MACHINE_VALUE;
     private static final int ST = EntityType.STORAGE_VALUE;
+
+    private SearchServiceMole searchMole;
 
     private static final long TARGET_ID = 10;
     private static final String TARGET_NAME = "vm-1";
@@ -94,17 +108,39 @@ public class CompoundMoveTest {
         grpcServer.start();
         policyService = PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
         repositoryApi = Mockito.mock(RepositoryApi.class);
-        mapper = new ActionSpecMapper(repositoryApi, policyService, Executors
-                        .newCachedThreadPool(new ThreadFactoryBuilder().build()), 777777L);
+        searchMole = Mockito.spy(new SearchServiceMole());
+        GrpcTestServer searchGrpcServer = GrpcTestServer.newServer(searchMole);
+        searchGrpcServer.start();
+        SearchServiceBlockingStub searchServiceBlockingStub = SearchServiceGrpc.newBlockingStub(
+            searchGrpcServer.getChannel());
+
+        actionSpecMappingContextFactory = new ActionSpecMappingContextFactory(policyService,
+            Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()),
+            searchServiceBlockingStub, Mockito.mock(CloudAspectMapper.class),
+            Mockito.mock(VirtualMachineAspectMapper.class),
+            Mockito.mock(VirtualVolumeAspectMapper.class), REAL_TIME_TOPOLOGY_CONTEXT_ID);
+
+        mapper = new ActionSpecMapper(actionSpecMappingContextFactory, REAL_TIME_TOPOLOGY_CONTEXT_ID);
         IdentityGenerator.initPrefix(0);
-        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
-            .thenReturn(oidToEntityMap(
-                    entityApiDTO(TARGET_NAME, TARGET_ID, UIEntityType.VIRTUAL_MACHINE.getValue()),
-                    entityApiDTO(PM1_NAME, PM1_ID, UIEntityType.PHYSICAL_MACHINE.getValue()),
-                    entityApiDTO(PM2_NAME, PM2_ID, UIEntityType.PHYSICAL_MACHINE.getValue()),
-                    entityApiDTO(ST1_NAME, ST1_ID, UIEntityType.STORAGE.getValue()),
-                    entityApiDTO(ST2_NAME, ST2_ID, UIEntityType.STORAGE.getValue()),
-                    entityApiDTO(VOL1_NAME, VOL1_ID, UIEntityType.VIRTUAL_VOLUME.getValue())));
+        Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
+            .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
+                .addAllTopologyEntityDtos(Lists.newArrayList(
+                    topologyEntityDTO(TARGET_NAME, TARGET_ID, EntityType.VIRTUAL_MACHINE_VALUE),
+                    topologyEntityDTO(PM1_NAME, PM1_ID, EntityType.PHYSICAL_MACHINE_VALUE),
+                    topologyEntityDTO(PM2_NAME, PM2_ID, EntityType.PHYSICAL_MACHINE_VALUE),
+                    topologyEntityDTO(ST1_NAME, ST1_ID, EntityType.STORAGE_VALUE),
+                    topologyEntityDTO(ST2_NAME, ST2_ID, EntityType.STORAGE_VALUE),
+                    topologyEntityDTO(VOL1_NAME, VOL1_ID, EntityType.VIRTUAL_VOLUME_VALUE)))
+                .build());
+    }
+
+    private TopologyEntityDTO topologyEntityDTO(@Nonnull final String displayName, long oid,
+                                                int entityType) {
+        return TopologyEntityDTO.newBuilder()
+            .setOid(oid)
+            .setDisplayName(displayName)
+            .setEntityType(entityType)
+            .build();
     }
 
     private Map<Long, Optional<ServiceEntityApiDTO>> oidToEntityMap(

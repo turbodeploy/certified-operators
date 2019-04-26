@@ -329,7 +329,7 @@ public class MarketsServiceTest {
                     policyMapper(), marketMapper(), statsMapper(), paginationMapper(),
                     groupRpcService(), repositoryRpcService(), new UserSessionContext(),
                     uiNotificationChannel(), actionStatsQueryExecutor(), topologyProcessor(),
-                    entitySeverityRpcServive(), REALTIME_CONTEXT_ID);
+                    entitySeverityRpcServive(), Mockito.mock(StatsService.class), REALTIME_CONTEXT_ID);
         }
 
         @Bean

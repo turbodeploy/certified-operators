@@ -325,7 +325,7 @@ public class VirtualVolumeAspectMapperTest {
             TraversalDirection.PRODUCES, UIEntityType.VIRTUAL_MACHINE.getValue()))
             .thenReturn(Lists.newArrayList(vm2));
 
-        when(volumeAspectMapper.searchTopologyEntityDTOs(Sets.newHashSet(regionId1, regionId2)))
+        when(volumeAspectMapper.searchTopologyEntityDTOs(Sets.newHashSet(regionId1, regionId2), null))
             .thenReturn(Lists.newArrayList(region1, region2));
 
         VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO) volumeAspectMapper.mapEntitiesToAspect(
@@ -411,7 +411,7 @@ public class VirtualVolumeAspectMapperTest {
             TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME.getValue()))
             .thenReturn(Lists.newArrayList(volume4, wastedFilesVolume));
 
-        when(volumeAspectMapper.searchTopologyEntityDTOs(Sets.newHashSet(volumeId4, wastedVolumeId1)))
+        when(volumeAspectMapper.searchTopologyEntityDTOs(Sets.newHashSet(volumeId4, wastedVolumeId1), null))
             .thenReturn(Lists.newArrayList(volume4, wastedFilesVolume));
 
         when(volumeAspectMapper.traverseAndGetEntityCount(volumeId4.toString(),

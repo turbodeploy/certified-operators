@@ -1,11 +1,13 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -41,6 +43,7 @@ import com.vmturbo.common.protobuf.search.Search.CountEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.EntityCountResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchPlanTopologyEntityDTOsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
@@ -81,11 +84,11 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
 
     @Override
     public @Nonnull String getAspectName() {
-        return "virtualDisksAspect";
+        return StringConstants.VIRTUAL_VOLUME_ASPECT_NAME;
     }
 
     @Override
-    public EntityAspect mapEntityToAspect(@Nonnull TopologyEntityDTO entity) {
+    public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
         STEntityAspectApiDTO aspect = new STEntityAspectApiDTO();
         aspect.setDisplayName(entity.getDisplayName());
         aspect.setName(String.valueOf(entity.getOid()));
@@ -134,7 +137,7 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
                 .collect(Collectors.toList());
 
         // find all regions for the given storage tiers
-        List<TopologyEntityDTO> regions = searchTopologyEntityDTOs(regionIds);
+        List<TopologyEntityDTO> regions = searchTopologyEntityDTOs(regionIds, null);
         final Map<Long, TopologyEntityDTO> regionByZoneId = Maps.newHashMap();
         final Map<Long, TopologyEntityDTO> regionById = Maps.newHashMap();
         regions.forEach(region -> {
@@ -168,7 +171,7 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
 
         // get cost stats for all volumes
         Map<Long, StatApiDTO> volumeCostStatById = getVolumeCostStats(volumes.stream()
-                .map(TopologyEntityDTO::getOid).collect(Collectors.toSet()));
+                .map(TopologyEntityDTO::getOid).collect(Collectors.toSet()), null);
 
         // get all VMs consuming given storage tiers
         List<TopologyEntityDTO> vms = storageTierIds.stream()
@@ -202,88 +205,86 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
     /**
      * Create VirtualVolumeAspect for volumes related to a list of virtual machines.
      */
-    private EntityAspect mapVirtualMachines(@Nonnull List<TopologyEntityDTO> vms) {
-        final Map<Long, TopologyEntityDTO> vmByVolumeId = Maps.newHashMap();
-
-        // create mapping from volume id to storage tier and region
-        final Map<Long, TopologyEntityDTO> storageTierByVolumeId = Maps.newHashMap();
-        final Map<Long, Set<Long>> volumeIdsByRegionId = Maps.newHashMap();
-        final Map<Long, Long> zoneIdByVolumeId = Maps.newHashMap();
-
-        vms.forEach(vm -> {
-            Long regionId = null;
-            Long zoneId = null;
-            Set<Long> volumeIds = Sets.newHashSet();
-            for (ConnectedEntity connectedEntity : vm.getConnectedEntityListList()) {
-                int connectedEntityType = connectedEntity.getConnectedEntityType();
-                Long connectedEntityId = connectedEntity.getConnectedEntityId();
-                if (connectedEntityType == EntityType.VIRTUAL_VOLUME_VALUE) {
-                    volumeIds.add(connectedEntityId);
-                    vmByVolumeId.put(connectedEntityId, vm);
-                } else if (connectedEntityType == EntityType.REGION_VALUE) {
-                    regionId = connectedEntityId;
-                } else if (connectedEntityType == EntityType.AVAILABILITY_ZONE_VALUE) {
-                    zoneId = connectedEntityId;
-                }
-            }
-
-            for (Long volumeId : volumeIds) {
-                if (regionId != null) {
-                    // vm connected to region (azure)
-                    volumeIdsByRegionId.computeIfAbsent(regionId, k -> new HashSet<>()).add(volumeId);
-                } else if (zoneId != null) {
-                    // vm connected to zone (aws)
-                    zoneIdByVolumeId.put(volumeId, zoneId);
-                }
-
-                // find StorageTier connected to this volume
-                List<TopologyEntityDTO> storageTier = traverseAndGetEntities(String.valueOf(volumeId),
-                        TraversalDirection.CONNECTED_TO, UIEntityType.STORAGE_TIER.getValue());
-                if (storageTier.size() == 0) {
-                    logger.warn("Volume {} is not connected to any StorageTier", volumeId);
-                } else if (storageTier.size() > 1) {
-                    logger.warn("Volume {} is connected to {} StorageTiers", volumeId,
-                            storageTier.size());
-                } else {
-                    storageTierByVolumeId.put(volumeId, storageTier.get(0));
-                }
-            }
-        });
-
-        // mapping from volume id to region entity
-        final Map<Long, TopologyEntityDTO> regionByVolumeId = Maps.newHashMap();
-        zoneIdByVolumeId.forEach((volumeId, zoneId) -> {
-            List<TopologyEntityDTO> region = traverseAndGetEntities(String.valueOf(zoneId),
-                    TraversalDirection.CONNECTED_FROM, UIEntityType.REGION.getValue());
-            if (region.size() == 1) {
-                regionByVolumeId.put(volumeId, region.get(0));
-            }
-        });
-        if (volumeIdsByRegionId.keySet().size() > 0) {
-            searchTopologyEntityDTOs(volumeIdsByRegionId.keySet()).forEach(region -> {
-                Set<Long> volumeIds = volumeIdsByRegionId.get(region.getOid());
-                if (volumeIds != null) {
-                    volumeIds.forEach(volumeId -> regionByVolumeId.put(volumeId, region));
-                }
-            });
-        }
-
-        // get cost stats for all volumes
-        final Map<Long, StatApiDTO> volumeCostStatById = getVolumeCostStats(vmByVolumeId.keySet());
-
-        // convert to VirtualDiskApiDTO
-        List<VirtualDiskApiDTO> virtualDisks = searchTopologyEntityDTOs(vmByVolumeId.keySet()).stream()
-                .map(volume -> convert(volume, vmByVolumeId, storageTierByVolumeId,
-                        regionByVolumeId, volumeCostStatById))
-                .collect(Collectors.toList());
-
-        if (virtualDisks.isEmpty()) {
+    @Nullable
+    private EntityAspect mapVirtualMachines(@Nonnull List<TopologyEntityDTO> vmDTOs) {
+        Map<Long, List<VirtualDiskApiDTO>> volumeAspectsByVMId = mapVirtualMachines(vmDTOs, null);
+        if (volumeAspectsByVMId.isEmpty()) {
             return null;
         }
-
         final VirtualDisksAspectApiDTO aspect = new VirtualDisksAspectApiDTO();
-        aspect.setVirtualDisks(virtualDisks);
+        aspect.setVirtualDisks(volumeAspectsByVMId.values().stream()
+            .flatMap(List::stream).collect(Collectors.toList()));
         return aspect;
+    }
+
+    private Map<Long, List<VirtualDiskApiDTO>> mapVirtualMachines(@Nonnull List<TopologyEntityDTO> vms,
+                                                                  @Nullable Long topologyContextId) {
+        // mapping from volume id to vm
+        final Map<Long, TopologyEntityDTO> vmByVolumeId = Maps.newHashMap();
+        // mapping from zone id to region
+        final Map<Long, TopologyEntityDTO> regionByZoneId = Maps.newHashMap();
+        // mapping from volume id to storage tier
+        final Map<Long, TopologyEntityDTO> storageTierByVolumeId = Maps.newHashMap();
+        // mapping from volume id to region entity
+        final Map<Long, TopologyEntityDTO> regionByVolumeId = Maps.newHashMap();
+
+        // mapping from volume id to vm
+        vms.forEach(vm ->
+            vm.getConnectedEntityListList().forEach(connectedEntity -> {
+                if (connectedEntity.getConnectedEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
+                    vmByVolumeId.put(connectedEntity.getConnectedEntityId(), vm);
+                }
+            })
+        );
+
+        // fetch all the regions and create mapping from region id to region
+        final Map<Long, TopologyEntityDTO> regionById = fetchRegions();
+        regionById.values().forEach(region ->
+            region.getConnectedEntityListList().stream()
+            .filter(connectedEntity -> connectedEntity.getConnectedEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
+            .forEach(connectedEntity -> regionByZoneId.put(connectedEntity.getConnectedEntityId(), region))
+        );
+
+        // fetch all the storage tiers and create mapping from tier id to tier
+        final Map<Long, TopologyEntityDTO> storageTierById = fetchStorageTiers();
+
+        // fetch all related volumes
+        final List<TopologyEntityDTO> volumes = searchTopologyEntityDTOs(vmByVolumeId.keySet(), topologyContextId);
+        volumes.forEach(volume -> {
+            for (ConnectedEntity connectedEntity : volume.getConnectedEntityListList()) {
+                int connectedEntityType = connectedEntity.getConnectedEntityType();
+                Long connectedEntityId = connectedEntity.getConnectedEntityId();
+                if (connectedEntityType == EntityType.REGION_VALUE) {
+                    // volume connected to region (azure)
+                    regionByVolumeId.put(volume.getOid(), regionById.get(connectedEntityId));
+                } else if (connectedEntityType == EntityType.AVAILABILITY_ZONE_VALUE) {
+                    // volume connected to zone (aws)
+                    regionByVolumeId.put(volume.getOid(), regionByZoneId.get(connectedEntityId));
+                } else if (connectedEntityType == EntityType.STORAGE_TIER_VALUE) {
+                    storageTierByVolumeId.put(volume.getOid(), storageTierById.get(connectedEntityId));
+                }
+            }
+        });
+
+        // get cost stats for all volumes
+        final Map<Long, StatApiDTO> volumeCostStatById = getVolumeCostStats(vmByVolumeId.keySet(), topologyContextId);
+
+        // convert to VirtualDiskApiDTO
+        final Map<Long, List<VirtualDiskApiDTO>> volumeAspectsByVMId = new HashMap<>();
+        volumes.forEach(volume -> {
+            VirtualDiskApiDTO volumeAspect = convert(volume, vmByVolumeId, storageTierByVolumeId,
+                regionByVolumeId, volumeCostStatById);
+            Long vmId = vmByVolumeId.get(volume.getOid()).getOid();
+            volumeAspectsByVMId.computeIfAbsent(vmId, k -> Lists.newArrayList()).add(volumeAspect);
+        });
+        return volumeAspectsByVMId;
+    }
+
+    public Map<Long, List<VirtualDiskApiDTO>> mapVirtualMachines(@Nonnull Set<Long> vmIds,
+                                                                 @Nullable Long topologyContextId) {
+        // fetch vms from given topology, for example: a plan projected topology
+        final List<TopologyEntityDTO> vms = searchTopologyEntityDTOs(vmIds, topologyContextId);
+        return mapVirtualMachines(vms, topologyContextId);
     }
 
     /**
@@ -327,14 +328,21 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
      * @param volumeIds list of volume ids to get cost for
      * @return map of cost StatApiDTO for each volume id
      */
-    private Map<Long, StatApiDTO> getVolumeCostStats(@Nonnull Set<Long> volumeIds) {
-        final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
+    private Map<Long, StatApiDTO> getVolumeCostStats(@Nonnull Set<Long> volumeIds,
+                                                     @Nullable Long topologyContextId) {
+        final GetCloudCostStatsRequest.Builder request = GetCloudCostStatsRequest.newBuilder()
                 .setEntityFilter(EntityFilter.newBuilder()
                         .addAllEntityId(volumeIds)
-                        .build())
-                .build();
+                        .build());
+        if (topologyContextId != null) {
+            // get projected cost
+            long now = Instant.now().toEpochMilli();
+            request.setStartDate(now);
+            request.setEndDate(now);
+        }
+
         try {
-            final List<CloudCostStatRecord> cloudStatRecords = costServiceRpc.getCloudCostStats(request)
+            final List<CloudCostStatRecord> cloudStatRecords = costServiceRpc.getCloudCostStats(request.build())
                     .getCloudStatRecordList();
             return cloudStatRecords.stream()
                     .flatMap(cloudStatRecord -> cloudStatRecord.getStatRecordsList().stream())
@@ -430,13 +438,13 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
      * starting oid in the given traversalDirection.
      */
     public List<TopologyEntityDTO> traverseAndGetEntities(
-        @Nonnull String startOid,
-        @Nonnull TraversalDirection traversalDirection,
-        @Nonnull String endEntityType) {
-        return searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
+                @Nonnull String startOid,
+                @Nonnull TraversalDirection traversalDirection,
+                @Nonnull String endEntityType) {
+        SearchTopologyEntityDTOsRequest.Builder request = SearchTopologyEntityDTOsRequest.newBuilder()
             .addSearchParameters(createSearchParameters(startOid, traversalDirection,
-                endEntityType))
-            .build());
+                endEntityType));
+        return searchTopologyEntityDTOs(request.build());
     }
 
     /**
@@ -452,12 +460,58 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
     }
 
     /**
-     * Search for TopologyEntityDTOs for a set of oids.
+     * Fetch the TopologyEntityDTOs from given plan TopologyContextId. If context id is not
+     * provided, it fetch from real time topology.
+     *
+     * @param entityIds ids of entities to fetch
+     * @param planTopologyContextId context id of the plan topology to fetch entities from,
+     *                              or empty if it's for real time topology
+     * @return list of TopologyEntityDTOs
      */
-    public List<TopologyEntityDTO> searchTopologyEntityDTOs(@Nonnull Set<Long> oids) {
-        return searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
-                        .addAllEntityOid(oids)
-                        .build());
+    public List<TopologyEntityDTO> searchTopologyEntityDTOs(@Nonnull Set<Long> entityIds,
+                                                            @Nullable Long planTopologyContextId) {
+        if (entityIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        if (planTopologyContextId != null) {
+            SearchPlanTopologyEntityDTOsRequest request = SearchPlanTopologyEntityDTOsRequest.newBuilder()
+                .setTopologyContextId(planTopologyContextId)
+                .addAllEntityOid(entityIds)
+                .build();
+            return searchServiceRpc.searchPlanTopologyEntityDTOs(request).getTopologyEntityDtosList();
+        } else {
+            SearchTopologyEntityDTOsRequest request = SearchTopologyEntityDTOsRequest.newBuilder()
+                .addAllEntityOid(entityIds)
+                .build();
+            return searchServiceRpc.searchTopologyEntityDTOs(request).getTopologyEntityDtosList();
+        }
+    }
+
+    /**
+     * Fetch all the regions and create mapping from region id to region. It only fetch from real
+     * time topology since it should be same in plan topology.
+     */
+    private Map<Long, TopologyEntityDTO> fetchRegions() {
+        SearchTopologyEntityDTOsRequest request = SearchTopologyEntityDTOsRequest.newBuilder()
+            .addSearchParameters(SearchParameters.newBuilder()
+                .setStartingFilter(SearchMapper.entityTypeFilter(UIEntityType.REGION.getValue())))
+            .build();
+        return searchTopologyEntityDTOs(request).stream()
+            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+    }
+
+    /**
+     * Fetch all the storage tiers and create mapping from tier id to tier. It only fetch from real
+     * time topology since it should be same in plan topology.
+     */
+    private Map<Long, TopologyEntityDTO> fetchStorageTiers() {
+        SearchTopologyEntityDTOsRequest request = SearchTopologyEntityDTOsRequest.newBuilder()
+            .addSearchParameters(SearchParameters.newBuilder()
+                .setStartingFilter(SearchMapper.entityTypeFilter(UIEntityType.STORAGE_TIER.getValue())))
+            .build();
+        return searchTopologyEntityDTOs(request).stream()
+            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
     }
 
     /**

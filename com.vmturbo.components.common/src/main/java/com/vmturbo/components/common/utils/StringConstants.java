@@ -94,6 +94,7 @@ public class StringConstants {
     public static final String NUM_NOTIFICATIONS = "numNotifications";
     public static final String RI_COUPON_COVERAGE = "RICouponCoverage";
     public static final String RI_COUPON_UNITS = "RICoupon";
+    public static final String RI_COST = "RICost";
     public static final String HOST = "Host";
     public static final String DATABASE_SERVER = "DatabaseServer";
     public static final String PRODUCER_UUID = "producer_uuid";
@@ -264,10 +265,9 @@ public class StringConstants {
     public static final String N_ENTITIES = "n_entities";
     public static final String SAVINGS_UNIT = "savings_unit";
 
-
     public static final String DOLLARS_PER_HOUR = "$/h";
     public static final String PROPERTY = "property";
-    public static final String OPTIMIZE_CLOUD_PLAN_TYPE= "OPTIMIZE_CLOUD";
+    public static final String OPTIMIZE_CLOUD_PLAN_TYPE = "OPTIMIZE_CLOUD";
     public static final String CLOUD_MIGRATION_PLAN_TYPE = "CLOUD_MIGRATION";
     public static final String DISABLED = "DISABLED";
     public static final String RESIZE = "resize";
@@ -276,4 +276,12 @@ public class StringConstants {
     public static final String PREFERRED_PAYMENT_OPTION = "preferredPaymentOption";
     public static final String PREFERRED_TERM = "preferredTerm";
     public static final String PURCHASE_DATE = "purchaseDate";
+    public final static String RESULTS_TYPE = "resultsType";
+    public final static String BEFORE_PLAN = "beforePlan";
+    public final static String ON_DEMAND_COMPUTE_LICENSE_COST = "ON_DEMAND_COMPUTE_LICENSE_COST";
+
+    // aspect name constants
+    public static final String CLOUD_ASPECT_NAME = "cloudAspect";
+    public static final String VM_ASPECT_NAME = "virtualMachineAspect";
+    public static final String VIRTUAL_VOLUME_ASPECT_NAME = "virtualDisksAspect";
 }

@@ -16,6 +16,7 @@ import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -37,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -57,7 +59,6 @@ import com.google.common.collect.Sets;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
-import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
@@ -88,6 +89,7 @@ import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
+import com.vmturbo.common.protobuf.cost.Cost.EntityTypeFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
@@ -152,6 +154,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 @RunWith(MockitoJUnitRunner.class)
 public class StatsServiceTest {
 
+    private static final long REALTIME_CONTEXT_ID = 777777;
+
     public static final String PHYSICAL_MACHINE_TYPE = "PhysicalMachine";
 
     private StatsService statsService;
@@ -188,7 +192,7 @@ public class StatsServiceTest {
     private ReservedInstanceUtilizationCoverageServiceMole riUtilizationCoverageSpy =
             spy(new ReservedInstanceUtilizationCoverageServiceMole());
 
-    private ReservedInstanceMapper reservedInstanceMapper = Mockito.mock(ReservedInstanceMapper.class);
+    private ReservedInstancesService riService = Mockito.mock(ReservedInstancesService.class);
 
     private MagicScopeGateway magicScopeGateway = mock(MagicScopeGateway.class);
 
@@ -243,12 +247,15 @@ public class StatsServiceTest {
 
         when(magicScopeGateway.enter(anyString())).thenAnswer(invocation -> invocation.getArgumentAt(0, String.class));
         when(magicScopeGateway.enter(anyList())).thenAnswer(invocation -> invocation.getArgumentAt(0, List.class));
+        when(riService.fetchPlanInstance(oid1)).thenReturn(Optional.empty());
+        when(riService.fetchPlanInstance(oid2)).thenReturn(Optional.empty());
+        when(riService.fetchPlanInstance("11111")).thenReturn(Optional.empty());
+        when(riService.fetchPlanInstance(StatsService.MARKET)).thenReturn(Optional.empty());
 
-        statsService = new StatsService(statsServiceRpc, planRpcService, repositoryApi,
-            repositoryRpcService, searchServiceClient, supplyChainFetcherFactory, statsMapper, groupExpander, mockClock,
-                targetsService, groupService, Duration.ofSeconds(60), costService, searchService,
-                        riUtilizationCoverageRpcService,
-                        reservedInstanceMapper, magicScopeGateway, userSessionContext);
+        statsService = spy(new StatsService(statsServiceRpc, planRpcService, repositoryApi,
+            repositoryRpcService, searchServiceClient, supplyChainFetcherFactory, statsMapper,
+            groupExpander, mockClock, targetsService, groupService, Duration.ofSeconds(60),
+            costService, magicScopeGateway, userSessionContext, riService, REALTIME_CONTEXT_ID));
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
         when(uuidMapper.fromUuid(oid2)).thenReturn(apiId2);
         when(apiId1.uuid()).thenReturn(oid1);
@@ -364,8 +371,8 @@ public class StatsServiceTest {
         final StatSnapshotApiDTO apiDto = new StatSnapshotApiDTO();
         apiDto.setStatistics(Collections.emptyList());
         when(statsMapper.toStatSnapshotApiDTO(any(), any(), any(), any(), any(), any())).thenReturn(apiDto);
-
         when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
+        when(riService.fetchPlanInstance("111")).thenReturn(Optional.empty());
 
         final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery("111", inputDto);
 
@@ -422,8 +429,6 @@ public class StatsServiceTest {
         final Set<Long> expandedOidList = Sets.newHashSet(apiId1.oid());
         when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
         when(groupExpander.expandUuid(anyObject())).thenReturn(expandedOidList);
-
-
         when(statsMapper.toAveragedEntityStatsRequest(expandedOidList, inputDto, Optional.empty()))
                 .thenReturn(request);
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
@@ -442,13 +447,17 @@ public class StatsServiceTest {
         final StatSnapshotApiDTO apiDto = new StatSnapshotApiDTO();
         apiDto.setStatistics(Collections.emptyList());
         when(statsMapper.toCloudStatSnapshotApiDTO(any())).thenReturn(apiDto);
-
         when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
+        when(riService.fetchPlanInstance(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID)).thenReturn(Optional.empty());
 
         final List<StatSnapshotApiDTO> resp = statsService
                 .getStatsByEntityQuery(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID, inputDto);
 
         GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest.newBuilder()
+                .setEntityTypeFilter(EntityTypeFilter.newBuilder()
+                    .addAllEntityTypeId(StatsService.ENTITY_TYPES_COUNTED_AS_WORKLOAD.stream()
+                        .map(ServiceEntityMapper::fromUIEntityType)
+                        .collect(Collectors.toSet())))
                 .build();
         verify(costServiceSpy).getCloudCostStats(cloudCostStatsRequest);
         verify(statsMapper).toCloudStatSnapshotApiDTO(any());
@@ -465,7 +474,7 @@ public class StatsServiceTest {
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
         final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
         statApiInputDTO.setName(StringConstants.COST_PRICE);
-        statApiInputDTO.setRelatedEntityType("Workload");
+        statApiInputDTO.setRelatedEntityType(UIEntityType.VIRTUAL_MACHINE.getValue());
         inputDto.setStatistics(Lists.newArrayList(statApiInputDTO));
         final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
                 .setFilter(StatsFilter.newBuilder().addCommodityRequests(CommodityRequest.newBuilder().build())
@@ -506,6 +515,8 @@ public class StatsServiceTest {
 
         GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest.newBuilder()
                 .setEntityFilter(EntityFilter.newBuilder().addEntityId(1l).build())
+                .setEntityTypeFilter(EntityTypeFilter.newBuilder()
+                    .addEntityTypeId(EntityType.VIRTUAL_MACHINE_VALUE))
                 .build();
 
         final CloudCostStatRecord expectedCloudStatRecord = CloudCostStatRecord.newBuilder()
@@ -515,6 +526,7 @@ public class StatsServiceTest {
                         .setUnits(StringConstants.DOLLARS_PER_HOUR)
                         .setValues(StatValue.newBuilder().setTotal(value1 + value2 + value3)
                                 .setMin(value1).setMax(value3).setAvg((value1 + value2 + value3)/3).build())
+                        .setAssociatedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                         .build())
                 .build();
         verify(costServiceSpy).getCloudCostStats(cloudCostStatsRequest);
@@ -538,8 +550,8 @@ public class StatsServiceTest {
 
         // other stats
         final StatApiInputDTO statApiInputDTO1 = new StatApiInputDTO();
-        statApiInputDTO1.setName("numVMs");
-        statApiInputDTO1.setRelatedEntityType("Workload");
+        statApiInputDTO1.setName("VMem");
+        statApiInputDTO1.setRelatedEntityType("VirtualMachine");
         inputDto.setStatistics(Lists.newArrayList(statApiInputDTO, statApiInputDTO1));
         final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
                 .setFilter(StatsFilter.newBuilder().addCommodityRequests(CommodityRequest.newBuilder().build())
@@ -572,14 +584,19 @@ public class StatsServiceTest {
         final StatSnapshotApiDTO apiDto = new StatSnapshotApiDTO();
         apiDto.setStatistics(Collections.emptyList());
         when(statsMapper.toCloudStatSnapshotApiDTO(any())).thenReturn(apiDto);
-
         when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
+        doReturn(ImmutableMap.of(UIEntityType.VIRTUAL_MACHINE.getValue(), Sets.newHashSet(1L)))
+            .when(statsService).fetchRelatedEntitiesForScopes(any(), any(), any());
 
         final List<StatSnapshotApiDTO> resp = statsService
                 .getStatsByEntityQuery("11111", inputDto);
 
         GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest.newBuilder()
                 .setEntityFilter(EntityFilter.newBuilder().addEntityId(1l).build())
+                .setEntityTypeFilter(EntityTypeFilter.newBuilder()
+                    .addAllEntityTypeId(StatsService.ENTITY_TYPES_COUNTED_AS_WORKLOAD.stream()
+                        .map(ServiceEntityMapper::fromUIEntityType)
+                        .collect(Collectors.toSet())))
                 .build();
 
         final CloudCostStatRecord expectedCloudStatRecord = CloudCostStatRecord.newBuilder()
@@ -639,7 +656,7 @@ public class StatsServiceTest {
         statRecordBuilder.setName(StringConstants.COST_PRICE);
         statRecordBuilder.setUnits(StringConstants.DOLLARS_PER_HOUR);
         statRecordBuilder.setAssociatedEntityId(4l);
-        statRecordBuilder.setAssociatedEntityType(1);
+        statRecordBuilder.setAssociatedEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
         statRecordBuilder.setCategory(costCategory);
         CloudCostStatRecord.StatRecord.StatValue.Builder statValueBuilder = CloudCostStatRecord.StatRecord.StatValue.newBuilder();
 
@@ -879,6 +896,7 @@ public class StatsServiceTest {
                 GetAveragedEntityStatsRequest.getDefaultInstance();
         when(statsMapper.toAveragedEntityStatsRequest(oids, inputDto, Optional.empty()))
                 .thenReturn(request);
+        when(riService.fetchPlanInstance("7")).thenReturn(Optional.empty());
 
         // We don't really care about what happens after the RPC call, because the thing
         // we're testing is that the datacenter gets expanded into the right IDs before
