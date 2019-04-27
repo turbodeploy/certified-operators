@@ -1,31 +1,20 @@
-FROM ubuntu:18.04
-MAINTAINER XL Components <XLComponents@turbonomic.com>
+FROM registry.access.redhat.com/rhel7
+MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
-ENV ARCHITECTURE amd64
-ENV INFLUXDB_VERSION 1.7.0
-ENV INFLUXDB_URL https://dl.influxdata.com/influxdb/releases
-ENV INFLUXDB_PACKAGE influxdb_${INFLUXDB_VERSION}_${ARCHITECTURE}.deb
-ENV INFLUXDB_PACKAGE_URL ${INFLUXDB_URL}/${INFLUXDB_PACKAGE}
-ENV INFLUX_CONF /etc/influxdb/influxdb.conf
+# Add user and group beforehand, so that rpm won't create its own with differen uid/gid.
+RUN groupadd -g 1000 influxdb && useradd -r -g 1000 -s /bin/bash -u 102 influxdb && \
+passwd -l root
 
-RUN apt-get update -q -y && apt-get upgrade -q -y && \
-    apt-get install -q -y --no-install-recommends \
-        libjemalloc1 \
-        rsyslog \
-        ca-certificates \
-        xz-utils \
-        curl \
-        python-flask \
-        net-tools \
-        vim-tiny \
-    && \
-    rm -rf /var/lib/apt/lists/* && \
-    apt-get clean && \
-    curl -s -O ${INFLUXDB_PACKAGE_URL} && \
-    DEBIAN_FRONTEND="noninteractive" dpkg -i ${INFLUXDB_PACKAGE} && \
-    DEBIAN_FRONTEND="noninteractive" apt-get purge -y --auto-remove ca-certificates && \
-    DEBIAN_FRONTEND="noninteractive" apt-get purge -y --auto-remove curl && \
-    rm -f ${INFLUXDB_PACKAGE}*
+# Install influxdb and other tools
+RUN echo "[influxdb]" > /etc/yum.repos.d/influxdb.repo && \
+    echo "name=InfluxDB Repository" >> /etc/yum.repos.d/influxdb.repo && \
+    echo "baseurl=https://repos.influxdata.com/rhel/7/x86_64/stable/" >> /etc/yum.repos.d/influxdb.repo && \
+    echo "gpgkey=https://repos.influxdata.com/influxdb.key" >> /etc/yum.repos.d/influxdb.repo && \
+    echo "gpgcheck=1" >> /etc/yum.repos.d/influxdb.repo && \
+    echo "enabled=1" >> /etc/yum.repos.d/influxdb.repo && \
+    yum install -y openssl influxdb rsyslog gettext && \
+    yum clean all && \
+    rm -rf /var/cache/yum
 
 # Initialization
 RUN mkdir -p /var/lib/influxdb && \
@@ -41,14 +30,16 @@ VOLUME ["/var/lib/influxdb", "/home/influxdb/influxdb-dump"]
 
 COPY entrypoint.sh /entrypoint.sh
 COPY influx_dump_scheduler.py /influx_dump_scheduler.py
-ENTRYPOINT ["/entrypoint.sh"]
+
 RUN chmod 755 /entrypoint.sh && \
     chmod 755 /influx_dump_scheduler.py
-RUN passwd -l root
-USER influxdb
 
 # InfluxDB port
 EXPOSE 8086
 
 # InfluxDB backup-and-restore port
 EXPOSE 8088
+
+USER influxdb
+
+ENTRYPOINT ["/entrypoint.sh"]

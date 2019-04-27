@@ -1,14 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
-    <modelVersion>4.0.0</modelVersion>
 
     <parent>
         <artifactId>Turbonomic-XL</artifactId>
         <groupId>com.vmturbo</groupId>
-        <version>7.17.0-SNAPSHOT</version>
-        <relativePath>../build</relativePath>
+        <version>7.17.0-java11-SNAPSHOT</version>
+        <relativePath>../build/pom.xml</relativePath>
     </parent>
+    <modelVersion>4.0.0</modelVersion>
 
     <artifactId>diags</artifactId>
 
@@ -17,6 +18,29 @@
             <id>docker</id>
             <build>
                 <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>unpack</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>unpack</goal>
+                                </goals>
+                                <configuration>
+                                    <artifactItems>
+                                        <artifactItem>
+                                            <groupId>org.webjars</groupId>
+                                            <artifactId>swagger-ui</artifactId>
+                                            <version>${swagger-ui-version}</version>
+                                        </artifactItem>
+                                    </artifactItems>
+                                    <excludes>**/*.gz</excludes>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
                     <plugin>
                         <groupId>com.spotify</groupId>
                         <artifactId>docker-maven-plugin</artifactId>
@@ -29,7 +53,29 @@
                             <labels>
                                 <label>com.vmturbo.version=${project.version}</label>
                             </labels>
-                            <serverId>docker-registry</serverId>
+                            <serverId>docker-hub</serverId>
+                            <!-- include the support files - entrypoint.sh and collect_diags.sh -->
+                            <resources>
+                                <resource>
+                                    <targetPath>/</targetPath>
+                                    <directory>${project.basedir}/docker</directory>
+                                    <include>**/*</include>
+                                </resource>
+                                <resource>
+                                    <targetPath>/swagger</targetPath>
+                                    <directory>${project.build.directory}/dependency/META-INF/resources/webjars/swagger-ui/${swagger-ui-version}</directory>
+                                    <include>**/*</include>
+                                    <exclude>index.html</exclude>
+                                </resource>
+                                <resource>
+                                    <targetPath>/swagger</targetPath>
+                                    <directory>${project.basedir}/swagger</directory>
+                                    <include>**/*</include>
+                                </resource>
+                            </resources>
+                            <runs>
+                                <run>chmod 755 /collect_diags.sh /entrypoint.sh</run>
+                            </runs>
                         </configuration>
                         <executions>
                             <execution>

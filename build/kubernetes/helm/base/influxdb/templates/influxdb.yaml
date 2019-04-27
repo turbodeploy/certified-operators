@@ -80,7 +80,7 @@ spec:
 {{- end }}
       restartPolicy: Always
       securityContext:
-        runAsUser: 0
+        fsGroup: 2000
       volumes:
       - name: influxdb
         persistentVolumeClaim:
