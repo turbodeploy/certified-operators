@@ -291,6 +291,7 @@ public final class ProtobufToAnalysis {
         destination.setIsShopTogether(source.getIsShopTogether());
         destination.setProviderMustClone(source.getProviderMustClone());
         destination.setDaemon(source.getDaemon());
+        destination.setResizeThroughSupplier(source.getResizeThroughSupplier());
         destination.setQuoteFunction(populateQuoteFunction(destination, source.getQuoteFunction()));
         destination.setQuoteFactor(source.getQuoteFactor());
         destination.setMoveCostFactor(source.getMoveCostFactor());

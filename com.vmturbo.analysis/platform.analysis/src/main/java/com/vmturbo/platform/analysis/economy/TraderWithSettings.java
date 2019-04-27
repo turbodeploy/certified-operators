@@ -43,6 +43,8 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     private QuoteFunction quoteFunction_ = QuoteFunctionFactory.sumOfCommodityQuoteFunction();
     private BalanceAccount balanceAccount_;
     private boolean isDaemon_ = false;
+    // Whether the trader resizes commodity capacities through its Supplier cloning or suspending.
+    private boolean isResizeThroughSupplier_ = false;
 
     // Constructors
 
@@ -137,6 +139,12 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     @Pure
     public boolean isDaemon(@ReadOnly TraderWithSettings this) {
         return isDaemon_;
+    }
+
+    @Override
+    @Pure
+    public boolean isResizeThroughSupplier(@ReadOnly TraderWithSettings this) {
+        return isResizeThroughSupplier_;
     }
 
     public boolean isCanSimulateAction() {
@@ -242,6 +250,13 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     @Deterministic
     public @NonNull TraderSettings setDaemon(boolean isDaemon) {
         isDaemon_ = isDaemon;
+        return this;
+    }
+
+    @Override
+    @Deterministic
+    public @NonNull TraderSettings setResizeThroughSupplier(boolean isResizeThroughSupplier) {
+        isResizeThroughSupplier_ = isResizeThroughSupplier;
         return this;
     }
 

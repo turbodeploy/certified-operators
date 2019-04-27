@@ -85,6 +85,12 @@ public interface TraderSettings {
     boolean isCanSimulateAction();
 
     /**
+     * Whether the associated {@link Trader} resizes commodity capacities through Supplier cloning
+     * or suspending.
+     */
+    boolean isResizeThroughSupplier();
+
+    /**
      * Returns the associated {@link CostFunction} if there is any.
      */
     CostFunction getCostFunction();
@@ -262,6 +268,18 @@ public interface TraderSettings {
      * @return {@code this}
      */
     @NonNull TraderSettings setDaemon(boolean daemon);
+
+    /**
+     * Sets the value of the <b>resizeThroughSupplier</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param resizeThroughSupplier the new value for the field.
+     * @return {@code this}
+     */
+    @NonNull TraderSettings setResizeThroughSupplier(boolean resizeThroughSupplier);
 
     /**
      * Sets the value of the <b>quote factor</b> field.

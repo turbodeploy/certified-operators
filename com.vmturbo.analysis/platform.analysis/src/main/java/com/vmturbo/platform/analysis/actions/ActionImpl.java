@@ -22,6 +22,10 @@ public class ActionImpl implements Action {
 
     private boolean executable_ = true;
 
+    // Extract some Action that isn't normally extracted from the provision analysis round of
+    // main market.
+    private boolean extractAction_ = false;
+
     private ActionType type_;
 
     @Override
@@ -127,5 +131,24 @@ public class ActionImpl implements Action {
         return null;
     }
 
+    /**
+     * A getter for the flag regarding whether the action that isn't normally extracted from the
+     * provision round of analysis of the main market should be extracted.
+     * @return boolean
+     */
+    @Override
+    public boolean isExtractAction() {
+        return extractAction_;
+    }
 
+    /**
+     * A setter for the flag regarding whether the action that isn't normally extracted from the
+     * provision round of analysis of the main market should be extracted.
+     * @param extractAction boolean
+     * @return
+     */
+    @Override
+    public void setExtractAction(boolean extractAction) {
+        extractAction_ = extractAction;
+    }
 }

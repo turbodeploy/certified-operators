@@ -31,6 +31,7 @@ import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
+import com.vmturbo.platform.analysis.actions.Utility;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -165,17 +166,31 @@ public class BootstrapSupply {
                                 .collect(Collectors.toList());
                 Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, mkt, economy, Optional.of(cliqueId));
                 if (sellerThatFits != null) {
+                    Trader newSeller;
                     boolean isDebugSeller = sellerThatFits.isDebugEnabled();
                     String sellerDebugInfo = sellerThatFits.getDebugInfoNeverUseInCode();
-                    CommoditySpecification commSpec = findCommSpecWithInfiniteQuote(sellerThatFits, sl, economy);
-                    Trader newSeller = provisionOrActivateTrader(sellerThatFits, mkt, allActions, economy, commSpec);
+                    // Obtain list of commodity specs causing infinite quote for the shopping list
+                    List<CommoditySpecification> commSpecs = findCommSpecsWithInfiniteQuote(sellerThatFits, sl, economy);
+                    if (sellerThatFits.getSettings().isResizeThroughSupplier()) {
+                        // If the trader is resizeThroughSupplier then generate supply provisions
+                        // to provide enough capacity for the sellerThatFits to be able to host the
+                        // shopping list.
+                        List<Trader> newSellers = Utility.provisionSufficientSupplyForResize(economy,
+                                        sellerThatFits, commSpecs, sl, allActions);
+                        if (newSellers.isEmpty()) {
+                            return allActions;
+                        }
+                        newSeller = newSellers.get(0);
+                    } else {
+                        CommoditySpecification commSpec = commSpecs.isEmpty() ? null : commSpecs.get(0);
+                        newSeller = provisionOrActivateTrader(sellerThatFits, mkt, allActions, economy, commSpec);
+                    }
                     if (logger.isTraceEnabled() || isDebugBuyer || isDebugSeller) {
                         logger.info("The seller " + sellerDebugInfo + " was"
                                 + (newSeller == sellerThatFits? " activated"
                                 : " cloned (provision by supply)")
                                 + " to accommodate " + buyerDebugInfo + ".");
                     }
-
                     CliqueMinimizer minimizerWithSupply = Placement
                                     .computeBestQuote(economy, traderToBePlaced);
                     // if minimizerWithSupply is finite, we can place the current buyer with
@@ -786,12 +801,39 @@ public class BootstrapSupply {
                 // clone one of the sellers or reactivate an inactive seller that the VM can fit in
                 Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, market, economy, Optional.empty());
                 if (sellerThatFits != null) {
-                    CommoditySpecification commoditySpecWithInfiniteQuote =
-                                    findCommSpecWithInfiniteQuote(sellerThatFits, sl, economy);
-                    Trader provisionedSeller = provisionOrActivateTrader(sellerThatFits, market,
+                    Trader provisionedSeller;
+                    // Obtain list of commodity specs causing infinite quote for the shopping list
+                    List<CommoditySpecification> commoditySpecsWithInfiniteQuote =
+                                    findCommSpecsWithInfiniteQuote(sellerThatFits, sl, economy);
+                    if (sellerThatFits.getSettings().isResizeThroughSupplier()) {
+                        // If the trader is resizeThroughSupplier then generate supply provisions
+                        // to provide enough capacity for the sellerThatFits to be able to host the
+                        // shopping list.
+                        List<Trader> newSellers = Utility.provisionSufficientSupplyForResize(economy,
+                                        sellerThatFits, commoditySpecsWithInfiniteQuote, sl, allActions);
+                        if (newSellers.isEmpty()) {
+                            return allActions;
+                        }
+                        provisionedSeller = newSellers.get(0);
+                    } else {
+                        CommoditySpecification commoditySpecWithInfiniteQuote = commoditySpecsWithInfiniteQuote
+                                        .isEmpty() ? null : commoditySpecsWithInfiniteQuote.get(0);
+                        provisionedSeller = provisionOrActivateTrader(sellerThatFits, market,
                             allActions, economy, commoditySpecWithInfiniteQuote);
+                    }
+                    // provisionedSeller may not be a clone of the sellerThatFits in the case of
+                    // resizeThroughSupplier so ensure that the provisionedSeller is added to this
+                    // market's available sellers before moving the sl onto it
+                    if (market.getActiveSellersAvailableForPlacement().contains(provisionedSeller)) {
                     allActions.add(new Move(economy, sl, provisionedSeller).take()
                             .setImportance(Double.POSITIVE_INFINITY));
+                    // if the sellerThatFits is resizeThroughSupplier trader then move the sl to it
+                    // if it isn't currently on it.
+                    } else if (sellerThatFits.getSettings().isResizeThroughSupplier()
+                                    && sl.getSupplier() != sellerThatFits) {
+                        allActions.add(new Move(economy, sl, sellerThatFits).take()
+                                        .setImportance(Double.POSITIVE_INFINITY));
+                    }
                 } else {
                     @NonNull Trader buyer = sl.getBuyer();
                     if (logger.isTraceEnabled() || buyer.isDebugEnabled()) {
@@ -811,18 +853,19 @@ public class BootstrapSupply {
     }
 
     /**
-     * Returns the commodity specification in shopping list that led to infinite quote
+     * Returns the commodity specifications in shopping list that led to infinite quote
      * for current or future seller.
      * @param sellerThatFits future supplier of given shopping list.
      * @param sl shopping list's commodities to iterate over.
      * @param economy economy in which current seller and shopping list exist.
-     * @return commWithInfQuote commodity that led to infinite quote if any.
+     * @return infCommSpecList List of commodities that led to infinite quote if any.
      */
-     private static @Nullable CommoditySpecification findCommSpecWithInfiniteQuote(Trader sellerThatFits,
+     public static List<CommoditySpecification> findCommSpecsWithInfiniteQuote(Trader sellerThatFits,
                     ShoppingList sl, Economy economy) {
+        List<CommoditySpecification> infCommSpecList = new ArrayList<>();
         Trader traderToInspect = chooseSellerToAskQuotes(sellerThatFits, sl);
         if (traderToInspect == null) {
-            return null;
+            return infCommSpecList;
         }
         Basket basket = sl.getBasket();
         CommoditySpecification commWithInfQuote = null;
@@ -836,19 +879,19 @@ public class BootstrapSupply {
                     // AnalysisToProtobuf.actionTO (which is executed before sending over the
                     // results to platform), we calculate the most expensive commodity and make it
                     // the reason commodity if the provision action's reason is null
-                    return null;
+                    return infCommSpecList;
                 }
             }
             double[] tempQuote = EdeCommon.computeCommodityCost(economy, sl, traderToInspect,
                                                                 soldIndex, boughtIndex, false);
             if (Double.isInfinite(tempQuote[0])) {
                 commWithInfQuote = basketCommSpec;
-                logger.info("Provision in BootStrap due to : "
-                                + basketCommSpec.getDebugInfoNeverUseInCode());
-                break;
+                logger.debug("Infinite Quote in BootStrap for " + sl.getDebugInfoNeverUseInCode()
+                + " due to : " + basketCommSpec.getDebugInfoNeverUseInCode());
+                infCommSpecList.add(commWithInfQuote);
             }
         }
-        return commWithInfQuote;
+        return infCommSpecList;
     }
 
     /**
@@ -934,9 +977,13 @@ public class BootstrapSupply {
         String buyerDebugInfo = shoppingList.getBuyer().getDebugInfoNeverUseInCode();
 
         List<Trader> activeSellerThatCanAcceptNewCustomers = market.getActiveSellersAvailableForPlacement();
-        // Return if there are active sellers and none of them are cloneable
+        List<Trader> activeSellers = market.getActiveSellersAvailableForPlacement();
+        // Return if there are active sellers and none of them are cloneable or resizeable through
+        // supplier.
         if (!activeSellerThatCanAcceptNewCustomers.isEmpty() && activeSellerThatCanAcceptNewCustomers.stream()
-                        .filter(seller -> seller.getSettings().isCloneable()).count() == 0) {
+            .filter(seller -> (seller.getSettings().isCloneable()
+            || Utility.resizeThroughSupplier(seller,shoppingList, economy)))
+            .count() == 0) {
             if (logger.isTraceEnabled() || isDebugBuyer) {
                 logger.info("There are no active sellers available to place "
                             + buyerDebugInfo + ".");
@@ -1041,9 +1088,11 @@ public class BootstrapSupply {
             }
         }
         for (Trader seller : candidateSellers) {
-            // pick the first candidate seller that can fit the demand
-            if (seller.getSettings().isCloneable()
-                    && ProvisionUtils.canBuyerFitInSeller(buyerShoppingList, seller, economy)) {
+            // pick the first candidate seller that can fit the demand through either cloning
+            // or resizing through provisioning its own supplier.
+            if ((seller.getSettings().isCloneable()
+                && ProvisionUtils.canBuyerFitInSeller(buyerShoppingList, seller, economy))
+                || Utility.resizeThroughSupplier(seller, buyerShoppingList, economy)) {
                 return seller;
             }
         }

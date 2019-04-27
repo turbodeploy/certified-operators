@@ -11,6 +11,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -37,6 +39,7 @@ import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 public class ProvisionBySupply extends ActionImpl {
 
     // Fields
+    private static final Logger logger = LogManager.getLogger();
     private final @NonNull Economy economy_;
     private final @NonNull Trader modelSeller_;
     private @Nullable Trader provisionedSeller_;
@@ -217,6 +220,26 @@ public class ProvisionBySupply extends ActionImpl {
             // Copy movable attribute, it has to be set since bootstrap checks it
             provisionedSellerSl.setMovable(shoppingList.isMovable());
             runBootstrapToPlaceClones(unPlacedClones);
+        }
+
+        // Generate Capacity Resize actions on resizeThroughSupplier traders whose Provider is cloning.
+        try {
+            getModelSeller().getCustomers().stream().map(ShoppingList::getBuyer)
+            .filter(trader -> trader.getSettings().isResizeThroughSupplier())
+            .forEach(trader -> {
+                getEconomy().getMarketsAsBuyer(trader).entrySet().stream()
+                .filter(marketEntry -> marketEntry.getKey().getSupplier() == getModelSeller())
+                .forEach(map -> {
+                    // Generate the resize actions for matching commodities between the model seller
+                    // and the resizeThroughtSupplier trader.
+                    getSubsequentActions().addAll(Utility.resizeCommoditiesOfTrader(getEconomy(),
+                    getModelSeller(), map.getKey()));
+                });
+            });
+        } catch (Exception e) {
+            logger.error("Error in ProvisionBySupply for resizeThroughSupplier Trader Capacity "
+                         + "Resize when provisioning " + getModelSeller()
+                         .getDebugInfoNeverUseInCode(), e);
         }
 
         // Update commodities sold

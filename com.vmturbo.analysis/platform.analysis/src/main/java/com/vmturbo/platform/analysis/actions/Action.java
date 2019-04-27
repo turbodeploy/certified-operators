@@ -23,6 +23,11 @@ public interface Action {
    // Methods
     boolean setExecutable(boolean executable);
     boolean isExecutable();
+    // Extract some Action that isn't normally extracted from the provision analysis round of
+    // main market.
+    boolean isExtractAction();
+    void setExtractAction(boolean extractAction);
+
 
     ActionType getType();
 

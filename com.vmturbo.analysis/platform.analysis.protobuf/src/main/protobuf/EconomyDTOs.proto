@@ -120,6 +120,9 @@ message TraderSettingsTO {
 
     // Whether the trader is a daemon
     optional bool daemon = 16 [default = false];
+
+    // Whether the trader resizes commodity capacities through Supplier cloning or suspending.
+    optional bool resizeThroughSupplier = 17 [default = false];
 }
 
 // The different states a trader can be in. The intention is to make this a boolean once we confirm
