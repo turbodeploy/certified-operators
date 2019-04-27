@@ -272,9 +272,6 @@ public class Resize extends ActionImpl {
             Resize newResize = new Resize(getEconomy(), getSellingTrader(),
                         getResizedCommoditySpec(), getResizedCommodity(), getSoldIndex(),
                         getOldCapacity(), resize.getNewCapacity());
-            if (resize.isExtractAction() && isExtractAction()) {
-                newResize.setExtractAction(true);
-            }
             return newResize;
         }
     }

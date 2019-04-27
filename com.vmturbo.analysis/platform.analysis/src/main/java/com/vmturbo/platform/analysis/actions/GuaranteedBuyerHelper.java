@@ -21,8 +21,6 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.economy.TraderSettings;
-import com.vmturbo.platform.analysis.ede.BootstrapSupply;
 
 /**
  * Comprises a number of static utility methods used for creating and updating shoppingLists of
@@ -350,64 +348,5 @@ public final class GuaranteedBuyerHelper {
                 }
             }
         }
-    }
-
-    /**
-     * Check if guaranteed buyer's commodities should try to be resized.
-     * @param trader The Guaranteed Buyer trader.
-     * @return boolean
-     */
-    public static boolean initiateGuaranteedBuyerCommoditiesResizeCheck(Trader trader) {
-        TraderSettings traderSettings = trader.getSettings();
-        return traderSettings == null ? false : traderSettings.isProviderMustClone()
-                        && traderSettings.isGuaranteedBuyer()
-                        && !traderSettings.isCloneable()
-                        && !traderSettings.isSuspendable();
-    }
-
-    /**
-     * Generate capacity resize for commodities sold by Guaranteed Buyer that are provided by
-     * the Seller.
-     * @param economy Economy of GuaranteedBuyer
-     * @param seller Seller providing to the GuaranteedBuyer
-     * @param buyerSL ShoppingList of the GuaranteedBuyer
-     * @return
-     */
-    public static List<Resize> resizeSLCommoditiesOfGuaranteedBuyer(Economy economy, Trader seller,
-                    ShoppingList buyerSL) {
-        List<Resize> resizeList = new ArrayList<>();
-        Trader guaranteedBuyer = buyerSL.getBuyer();
-        for (int z = 0; z < buyerSL.getBasket().size(); z++) {
-            CommoditySpecification buyerCS = buyerSL.getBasket().get(z);
-            CommoditySold buyerCommoditySold = guaranteedBuyer.getCommoditySold(buyerCS);
-            for (CommoditySpecification sellerCS : seller.getBasketSold()) {
-                if (buyerCS.equals(sellerCS)) {
-                    Resize resizeAction = new Resize(economy, guaranteedBuyer, buyerCS,
-                        buyerCommoditySold, guaranteedBuyer.getBasketSold().indexOf(buyerCS),
-                        buyerCommoditySold.getCapacity() + seller.getCommoditySold(sellerCS)
-                        .getCapacity()).take();
-                    resizeAction.setExtractAction(true);
-                    resizeList.add(resizeAction);
-                    break;
-                }
-            }
-        }
-        return resizeList;
-    }
-
-    /**
-     * Determine if the seller has a supplier that is selling it the commodity that the shoppingList
-     * is getting an infinite quote for.
-     * @param seller Seller for shoppingList.
-     * @param buyerShoppingList Shopping List that may buy from seller.
-     * @param economy The current economy.
-     * @return boolean
-     */
-    public static boolean doesProviderOfSellerSellCommodity(Trader seller, ShoppingList
-                    buyerShoppingList, Economy economy) {
-        CommoditySpecification cs = BootstrapSupply.findCommSpecWithInfiniteQuote(seller,
-                        buyerShoppingList, economy);
-        return economy.getMarketsAsBuyer(seller).keySet().stream().anyMatch(sl ->
-        sl.getSupplier() != null && sl.getSupplier().getBasketSold().contains(cs));
     }
 } // end GuaranteedBuyerHelper class

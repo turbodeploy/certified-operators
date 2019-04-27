@@ -28,7 +28,6 @@ import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
-import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomySettings;
 import com.vmturbo.platform.analysis.ede.Ede;
@@ -399,10 +398,9 @@ public class AnalysisServer implements AutoCloseable {
                 economy.getSettings().setResizeDependentCommodities(false);
                 secondRoundActions.addAll(ede.generateActions(economy, instInfo.isClassifyActions(), true,
                                 true, false, true, false, mktData).stream()
-                                .filter(action -> (action instanceof ProvisionByDemand
-                                || action instanceof ProvisionBySupply
-                                || action instanceof Activate
-                                || (action instanceof Resize && action.isExtractAction())))
+                                .filter(action -> (action instanceof ProvisionByDemand ||
+                                                action instanceof ProvisionBySupply ||
+                                                action instanceof Activate))
                                 .collect(Collectors.toList()));
                 for (Action action : secondRoundActions) {
                     ActionTO actionTO = AnalysisToProtobuf
