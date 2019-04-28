@@ -799,7 +799,6 @@
                 <module>../protoc-plugin-common</module>
                 <module>../protoc-spring-rest</module>
                 <module>../protoc-grpc-moles</module>
-                <module>../diags</module>
 
                 <!-- The meat of the XL code, and the platform components. -->
                 <module>../com.vmturbo.auth.api</module>
@@ -909,6 +908,20 @@
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
                 <module>../com.vmturbo.components.test.performance</module>
                 <module>../com.vmturbo.systest</module>
+            </modules>
+        </profile>
+        <profile>
+            <id>base-components</id>
+            <modules>
+                <module>../versioning</module>
+                <module>../com.vmturbo.components.baseimage</module>
+                <module>../syslog</module>
+                <module>../db</module>
+                <module>../com.vmturbo.arangodb</module>
+                <module>../kafka</module>
+                <module>../zookeeper</module>
+                <module>../nginx</module>
+                <module>../diags</module>
             </modules>
         </profile>
         <profile>
