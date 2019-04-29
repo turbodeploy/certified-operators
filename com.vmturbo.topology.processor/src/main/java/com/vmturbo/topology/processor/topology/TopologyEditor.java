@@ -44,6 +44,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanSc
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Removed;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Replaced;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -94,7 +95,8 @@ public class TopologyEditor {
                              @Nonnull final TopologyInfo topologyInfo,
                              @Nonnull final GroupResolver groupResolver) {
 
-        // Set shopTogether to false for all entities, so SNM is not performed by default.
+        // Set shopTogether to false for all entities if it's not a alleviate pressure plan,
+        // so SNM is not performed by default.
         // 1. For full scope custom plan,
         //    since shopTogether is false for all entities, we will not perform SNM on any entities.
         // 2. For add workload plans (VM template),
@@ -107,9 +109,14 @@ public class TopologyEditor {
         // 4. For hardware refresh plans,
         //    shopTogether will be reset to true later for all consumers of an entity to be replaced,
         //    which means we will perform SNM on those consumers.
+        // 5. For alleviate pressure plans,
+        //    set shopTogether to true for all entities. This plan is a scoped plan, so entities
+        //    not related to the hot or cold clusters will be discarded later.
         // Related story: OM-44989
+        boolean isAlleviatePressurePlan = TopologyDTOUtil.isAlleviatePressurePlan(topologyInfo);
         topology.forEach((oid, entity) ->
-            entity.getEntityBuilder().getAnalysisSettingsBuilder().setShopTogether(false));
+            entity.getEntityBuilder().getAnalysisSettingsBuilder()
+                .setShopTogether(isAlleviatePressurePlan));
 
         final Map<Long, Long> entityAdditions = new HashMap<>();
         final Set<Long> entitiesToRemove = new HashSet<>();

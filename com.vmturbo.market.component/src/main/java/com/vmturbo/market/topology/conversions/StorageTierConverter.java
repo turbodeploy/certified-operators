@@ -59,8 +59,7 @@ public class StorageTierConverter implements TierConverter {
             String debugInfo = marketTier.getDisplayName();
             logger.debug("Creating trader for {}", debugInfo);
             TraderSettingsTO.Builder settingsBuilder = TopologyConversionUtils.
-                    createCommonTraderSettingsTOBuilder(storageTier, topology,
-                            TopologyDTOUtil.isAlleviatePressurePlan(topologyInfo));
+                    createCommonTraderSettingsTOBuilder(storageTier, topology);
             final EconomyDTOs.TraderSettingsTO settings = settingsBuilder
                     .setClonable(false)
                     .setSuspendable(false)

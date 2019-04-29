@@ -66,8 +66,7 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
             String debugInfo = marketTier.getDisplayName();
             logger.debug("Creating trader for {}", debugInfo);
             TraderSettingsTO.Builder settingsBuilder = TopologyConversionUtils.
-                    createCommonTraderSettingsTOBuilder(computeTier, topology,
-                            TopologyDTOUtil.isAlleviatePressurePlan(topologyInfo));
+                    createCommonTraderSettingsTOBuilder(computeTier, topology);
             final EconomyDTOs.TraderSettingsTO settings = settingsBuilder
                     .setClonable(false)
                     .setSuspendable(false)

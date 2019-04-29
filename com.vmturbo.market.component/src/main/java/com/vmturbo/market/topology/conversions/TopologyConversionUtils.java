@@ -45,14 +45,11 @@ public class TopologyConversionUtils {
      *
      * @param entity
      * @param topology
-     * @param isAlleviatePressurePlan is the settings to be created for an alleviate pressure plan plan?
      * @return {@link TraderSettingsTO.Builder}
      */
     static TraderSettingsTO.Builder createCommonTraderSettingsTOBuilder(
-            TopologyEntityDTO entity, @Nonnull Map<Long, TopologyEntityDTO> topology,
-            boolean isAlleviatePressurePlan) {
-        final boolean shopTogether = isAlleviatePressurePlan ? true
-                : entity.getAnalysisSettings().getShopTogether();
+            TopologyEntityDTO entity, @Nonnull Map<Long, TopologyEntityDTO> topology) {
+        final boolean shopTogether = entity.getAnalysisSettings().getShopTogether();
         final EconomyDTOs.TraderSettingsTO.Builder settingsBuilder =
                 EconomyDTOs.TraderSettingsTO.newBuilder()
                 .setMinDesiredUtilization(getMinDesiredUtilization(entity))

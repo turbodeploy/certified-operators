@@ -199,7 +199,6 @@ public class TopologyConverter {
 
     private float quoteFactor = AnalysisUtil.QUOTE_FACTOR;
     private float liveMarketMoveCostFactor = AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR;
-    private boolean isAlleviatePressurePlan = false;
 
     // Add a cost of moving from source to destination.
     public static final float PLAN_MOVE_COST_FACTOR = 0.0f;
@@ -292,7 +291,6 @@ public class TopologyConverter {
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
         this.quoteFactor = quoteFactor;
         this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
-        isAlleviatePressurePlan = TopologyDTOUtil.isAlleviatePressurePlan(topologyInfo);
         this.commodityConverter = commodityConverter != null ?
                 commodityConverter : new CommodityConverter(commodityTypeAllocator, commoditySpecMap,
                     includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable, conversionErrorCounts);
@@ -320,7 +318,6 @@ public class TopologyConverter {
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
         this.quoteFactor = quoteFactor;
         this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
-        isAlleviatePressurePlan = TopologyDTOUtil.isAlleviatePressurePlan(topologyInfo);
         this.commodityConverter = commodityConverter;
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
@@ -1312,8 +1309,7 @@ public class TopologyConverter {
 
             boolean isEntityFromCloud = TopologyConversionUtils.isEntityConsumingCloud(topologyDTO);
             TraderSettingsTO.Builder settingsBuilder = TopologyConversionUtils.
-                    createCommonTraderSettingsTOBuilder(
-                            topologyDTO, unmodifiableEntityOidToDtoMap, isAlleviatePressurePlan);
+                    createCommonTraderSettingsTOBuilder(topologyDTO, unmodifiableEntityOidToDtoMap);
             settingsBuilder.setClonable(clonable && controllable)
                     .setControllable(controllable)
                     // cloud providers do not come here. We will hence be setting this to true just for
@@ -1369,8 +1365,7 @@ public class TopologyConverter {
     }
 
     private @Nonnull List<CommoditySoldTO> createAllCommoditySoldTO(@Nonnull TopologyEntityDTO topologyDTO) {
-        final boolean shopTogether = isAlleviatePressurePlan ||
-                topologyDTO.getAnalysisSettings().getShopTogether();
+        final boolean shopTogether = topologyDTO.getAnalysisSettings().getShopTogether();
         List<CommoditySoldTO> commSoldTOList = new ArrayList<>();
         commSoldTOList.addAll(commodityConverter.commoditiesSoldList(topologyDTO));
         if (!shopTogether) {
@@ -1423,13 +1418,7 @@ public class TopologyConverter {
                 .map(commBoughtGrouping -> createShoppingList(
                         topologyEntity,
                         topologyEntity.getEntityType(),
-                        // If we run an alleviate pressure plan, we should set shopTogether to true.
-                        // Same as what we did in createAllCommoditySoldTO.
-                        // Otherwise, since topologyEntity.getAnalysisSettings().getShopTogether() is false for some
-                        // old vcenters (e.g. dc6), we will reach a situation where sls are buying biclique commodities
-                        // and sellers are not selling biclique commodities. Then reconfigure actions will be generated.
-                        // Related bug: OM-43769
-                        isAlleviatePressurePlan || topologyEntity.getAnalysisSettings().getShopTogether(),
+                        topologyEntity.getAnalysisSettings().getShopTogether(),
                         getProviderId(commBoughtGrouping, topologyEntity),
                         commBoughtGrouping,
                         providers))
