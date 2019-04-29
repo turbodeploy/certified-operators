@@ -33,6 +33,7 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;
@@ -56,6 +57,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
+import com.vmturbo.components.common.mapping.EnvironmentTypeMapper;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -170,8 +172,7 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
         });
 
         // get cost stats for all volumes
-        Map<Long, StatApiDTO> volumeCostStatById = getVolumeCostStats(volumes.stream()
-                .map(TopologyEntityDTO::getOid).collect(Collectors.toSet()), null);
+        Map<Long, StatApiDTO> volumeCostStatById = getVolumeCostStats(volumes, null);
 
         // get all VMs consuming given storage tiers
         List<TopologyEntityDTO> vms = storageTierIds.stream()
@@ -267,7 +268,7 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
         });
 
         // get cost stats for all volumes
-        final Map<Long, StatApiDTO> volumeCostStatById = getVolumeCostStats(vmByVolumeId.keySet(), topologyContextId);
+        final Map<Long, StatApiDTO> volumeCostStatById = getVolumeCostStats(volumes, topologyContextId);
 
         // convert to VirtualDiskApiDTO
         final Map<Long, List<VirtualDiskApiDTO>> volumeAspectsByVMId = new HashMap<>();
@@ -325,11 +326,21 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
     /**
      * Retrieve cost for volumes and create cost StatApiDTO for each volume.
      *
-     * @param volumeIds list of volume ids to get cost for
+     * @param volumes list of volumes to get cost for
      * @return map of cost StatApiDTO for each volume id
      */
-    private Map<Long, StatApiDTO> getVolumeCostStats(@Nonnull Set<Long> volumeIds,
+    private Map<Long, StatApiDTO> getVolumeCostStats(@Nonnull List<TopologyEntityDTO> volumes,
                                                      @Nullable Long topologyContextId) {
+        // collect all cloud volumes, since on-prem volume doesn't have cost
+        final Set<Long> volumeIds = volumes.stream()
+            .filter(volume -> volume.getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD)
+            .map(TopologyEntityDTO::getOid)
+            .collect(Collectors.toSet());
+
+        if (volumeIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
         final GetCloudCostStatsRequest.Builder request = GetCloudCostStatsRequest.newBuilder()
                 .setEntityFilter(EntityFilter.newBuilder()
                         .addAllEntityId(volumeIds)
@@ -573,7 +584,8 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
         VirtualDiskApiDTO virtualDiskApiDTO = new VirtualDiskApiDTO();
         virtualDiskApiDTO.setUuid(String.valueOf(volumeId));
         virtualDiskApiDTO.setDisplayName(volume.getDisplayName());
-        virtualDiskApiDTO.setEnvironmentType(EnvironmentType.CLOUD);
+        EnvironmentTypeMapper.fromXLToApi(volume.getEnvironmentType()).ifPresent(
+            environmentType -> virtualDiskApiDTO.setEnvironmentType(environmentType));
 
         // find region for the volume and set it in VirtualDiskApiDTO
         final TopologyEntityDTO region = regionByVolumeId.get(volume.getOid());
