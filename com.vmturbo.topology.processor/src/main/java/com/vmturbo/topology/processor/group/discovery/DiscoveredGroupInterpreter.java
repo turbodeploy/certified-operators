@@ -389,9 +389,35 @@ class DiscoveredGroupInterpreter {
         @Nonnull final String memberId,
         @Nonnull final GroupDTO groupDto,
         @Nonnull final GroupInterpretationContext context) {
-        final GroupDTO discoveredGroup = context.getGroupsByUuid().get(memberId);
-        if (discoveredGroup == null) {
-            return Optional.empty();
+        final GroupDTO discoveredGroup;
+        final GroupDTO noPrefixGroup = context.getGroupsByUuid().get(memberId);
+        final String parsedMemberId;
+        // We're trying to find if there's a reference to a group that has already been parsed.
+        // Checking only for the id would not work for the groups that have been added a prefix.
+        // In that case, we need to check if prexif+id exists.
+        if (noPrefixGroup == null) {
+            //Checking for group with seller prefix
+            final GroupDTO sellerPrefixGroup =
+                context.getGroupsByUuid().get(GroupProtoUtil.SELLERS_GROUP_ID_PREFIX + memberId);
+            if (sellerPrefixGroup == null) {
+                // References are valid only to group of sellers. Buyer groups are created at
+                // the probe level and they do not represent "real" groups,
+                // and thus can't be referenced.
+                final GroupDTO buyerPrefixGroup =
+                    context.getGroupsByUuid().get(GroupProtoUtil.BUYERS_GROUP_ID_PREFIX + memberId);
+                if (buyerPrefixGroup != null) {
+                    logger.error("Member (uuid: {}) references to buyer group {}",
+                        memberId, groupDto.getDisplayName());
+                }
+                // No matching discovered group.
+                return Optional.empty();
+            } else {
+                discoveredGroup = sellerPrefixGroup;
+                parsedMemberId = GroupProtoUtil.SELLERS_GROUP_ID_PREFIX + memberId;
+            }
+        } else {
+            discoveredGroup = noPrefixGroup;
+            parsedMemberId = memberId;
         }
 
         // We push the "parent" group instead of the member group, because it makes the code
@@ -414,7 +440,8 @@ class DiscoveredGroupInterpreter {
             }
 
             final InterpretedGroup interpretedGroup =
-                context.computeInterpretedGroup(memberId, () -> interpretGroup(discoveredGroup, context));
+                context.computeInterpretedGroup(parsedMemberId,
+                    () -> interpretGroup(discoveredGroup, context));
             // We may have detected a cycle while interpreting the member group.
             // If so, we shouldn't include any of that member group's members in this group.
             if (context.inCycle()) {

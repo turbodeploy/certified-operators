@@ -738,7 +738,7 @@ public class DiscoveredGroupInterpreterTest {
         // verify that storage cluster's member is added to parent group's member list
         assertThat(groupsByGroupName.get(parentGroup.getGroupName()).getStaticMembers(),
             containsInAnyOrder(1L, 2L));
-        assertThat(groupsByGroupName.get(childGroup.getConstraintInfo().getConstraintId())
+        assertThat(groupsByGroupName.get(GroupProtoUtil.extractId(childGroup))
                 .getStaticMembers(), containsInAnyOrder(2L));
     }
 
