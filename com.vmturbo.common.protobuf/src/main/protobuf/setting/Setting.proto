@@ -600,6 +600,7 @@ message GetEntitySettingsRequest {
 
 }
 
+// Contains some number of entity settings.
 message GetEntitySettingsResponse {
 
     message SettingsForEntity {
@@ -616,10 +617,14 @@ message GetEntitySettingsResponse {
     }
 
     // The settings that match the filters in the request.
+    //
     // If the request contains an explicit set of entities to get settings for, the
     // response will contain an entry for every specified entity. If the request is
     // for all entities, the response will only return entries for entities that have settings
     // matching the parameters in the request.
+    //
+    // A property (tentatively entitySettingsResponseChunkSize) will control the amount of entity
+    // settings in each chunk.
     repeated SettingsForEntity settings = 1;
 
     message SettingToPolicyName {
@@ -750,7 +755,7 @@ service SettingPolicyService {
 
     // Retrieve settings associated with a selection of entities.
     // Returns a NOT_FOUND status if there is no setting information for the selected topology.
-    rpc GetEntitySettings(GetEntitySettingsRequest) returns (GetEntitySettingsResponse);
+    rpc GetEntitySettings(GetEntitySettingsRequest) returns (stream GetEntitySettingsResponse);
 
     // Get setting policies associated with an entity
     rpc GetEntitySettingPolicies(GetEntitySettingPoliciesRequest) returns (GetEntitySettingPoliciesResponse);

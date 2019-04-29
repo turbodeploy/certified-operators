@@ -1,7 +1,6 @@
 package com.vmturbo.group.service;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -17,11 +16,13 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterators;
+
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
-import com.google.common.collect.ImmutableSet;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.CancelQueuedActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -81,8 +82,9 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
 
     private final ActionsServiceBlockingStub actionsServiceClient;
 
-
     private final long realtimeTopologyContextId;
+
+    private final int entitySettingsResponseChunkSize;
 
     private final static Set<String> IMMUTABLE_ACTION_SETTINGS = ImmutableSet.<String>builder()
             .add(EntitySettingSpecs.Move.getSettingName()).add(EntitySettingSpecs.StorageMove.getSettingName())
@@ -94,12 +96,14 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
                                    @Nonnull final SettingSpecStore settingSpecStore,
                                    @Nonnull final EntitySettingStore entitySettingStore,
                                    @Nonnull final ActionsServiceBlockingStub actionsServiceClient,
-                                   final long realtimeTopologyContextId) {
+                                   final long realtimeTopologyContextId,
+                                   final int entitySettingsResponseChunkSize) {
         this.settingStore = Objects.requireNonNull(settingStore);
         this.entitySettingStore = Objects.requireNonNull(entitySettingStore);
         this.settingSpecStore = Objects.requireNonNull(settingSpecStore);
         this.actionsServiceClient = Objects.requireNonNull(actionsServiceClient);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.entitySettingsResponseChunkSize = entitySettingsResponseChunkSize;
     }
 
     /**
@@ -383,24 +387,30 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
                                 settingPolicy.getInfo().getName()));
             }
 
-            results.forEach((oid, settings) -> respBuilder.addSettings(
-                    SettingsForEntity.newBuilder()
+            Iterators.partition(results.entrySet().iterator(), entitySettingsResponseChunkSize)
+                .forEachRemaining(entityChunk -> {
+                    final GetEntitySettingsResponse.Builder chunkResponse =
+                        GetEntitySettingsResponse.newBuilder();
+                    entityChunk.forEach(entry -> {
+                        final Long oid = entry.getKey();
+                        Collection<SettingToPolicyId> settings = entry.getValue();
+                        chunkResponse.addSettings(SettingsForEntity.newBuilder()
                             .setEntityId(oid)
                             .addAllSettings(settings.stream()
-                                    .map(setting -> {
-                                        SettingToPolicyName.Builder settingToPolicyName =
-                                                SettingToPolicyName.newBuilder()
-                                                        .setSetting(setting.getSetting());
-                                        String name = settingPolicyIdToNameMap.get(setting.getSettingPolicyId());
-                                        if (name != null) {
-                                            settingToPolicyName.setSettingPolicyName(name);
-                                        }
-                                        return settingToPolicyName.build();
-                                    })
-                                    .collect(Collectors.toList()))
-                            .build()));
-
-            responseObserver.onNext(respBuilder.build());
+                                .map(setting -> {
+                                    SettingToPolicyName.Builder settingToPolicyName =
+                                        SettingToPolicyName.newBuilder()
+                                            .setSetting(setting.getSetting());
+                                    String name = settingPolicyIdToNameMap.get(setting.getSettingPolicyId());
+                                    if (name != null) {
+                                        settingToPolicyName.setSettingPolicyName(name);
+                                    }
+                                    return settingToPolicyName.build();
+                                })
+                                .collect(Collectors.toList())));
+                    });
+                    responseObserver.onNext(chunkResponse.build());
+                });
             responseObserver.onCompleted();
         } catch (NoSettingsForTopologyException e) {
             logger.error("Topology not found for entity settings request: {}", e.getMessage());

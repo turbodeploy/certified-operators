@@ -99,13 +99,13 @@ public class EntitiesCacheTest {
                 .setSettingFilter(EntitySettingFilter.newBuilder()
                         .addEntities(ENTITY_ID))
                 .build()))
-            .thenReturn(GetEntitySettingsResponse.newBuilder()
+            .thenReturn(Collections.singletonList(GetEntitySettingsResponse.newBuilder()
                     .addSettings(SettingsForEntity.newBuilder()
                             .setEntityId(ENTITY_ID)
                             .addSettings(SettingToPolicyName.newBuilder()
                                     .setSetting(setting)
                                     .build()))
-                    .build());
+                    .build()));
 
         when(restTemplate.exchange(anyString(), eq(HttpMethod.POST), eq(httpEntity), eq(type)))
                 .thenReturn(ResponseEntity.ok(Collections.singletonList(entityDto)));

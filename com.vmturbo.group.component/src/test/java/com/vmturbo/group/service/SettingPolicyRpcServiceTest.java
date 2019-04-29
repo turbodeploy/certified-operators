@@ -140,7 +140,7 @@ public class SettingPolicyRpcServiceTest {
         settingPolicyService =
                 new SettingPolicyRpcService(settingStore, settingSpecStore, entitySettingStore,
                         ActionsServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
-                        realtimeTopologyContextId);
+                        realtimeTopologyContextId, 1);
     }
 
     @Test

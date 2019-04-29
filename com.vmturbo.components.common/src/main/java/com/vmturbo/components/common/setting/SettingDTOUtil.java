@@ -2,6 +2,7 @@ package com.vmturbo.components.common.setting;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -10,6 +11,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
@@ -21,6 +24,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
@@ -162,6 +167,21 @@ public final class SettingDTOUtil {
             .filter(sp -> sp.hasInfo() && sp.getInfo().hasEntityType())
             .collect(Collectors.toMap(sp -> sp.getInfo().getEntityType(), Function.identity()));
 
+    }
+
+    /**
+     * Convert an iterator over {@link GetEntitySettingsResponse} objects (returned by
+     * a gRPC call) to a stream of the contained {@link SettingsForEntity} objects.
+     *
+     * @param iterator The iterator returned by the gRPC call - represents the server stream.
+     * @return A stream of {@link SettingsForEntity} objects returned by the server.
+     */
+    @Nonnull
+    public static Stream<SettingsForEntity> flattenEntitySettings(
+            @Nonnull final Iterator<GetEntitySettingsResponse> iterator) {
+        final Iterable<GetEntitySettingsResponse> respIt = () -> iterator;
+        return StreamSupport.stream(respIt.spliterator(), false)
+            .flatMap(resp -> resp.getSettingsList().stream());
     }
 
     /**

@@ -60,6 +60,9 @@ public class RpcConfig {
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
+    @Value("${entitySettingsResponseChunkSize:20}")
+    private int entitySettingsResponseChunkSize;
+
     @Bean
     public PolicyRpcService policyService() {
         return new PolicyRpcService(policyConfig.policyStore(), groupService(),
@@ -112,7 +115,7 @@ public class RpcConfig {
         return new SettingPolicyRpcService(settingConfig.settingStore(),
                 settingConfig.settingSpecsStore(),
                 settingConfig.entitySettingStore(),
-                actionsRpcService(), realtimeTopologyContextId);
+                actionsRpcService(), realtimeTopologyContextId, entitySettingsResponseChunkSize);
     }
 
     @Bean

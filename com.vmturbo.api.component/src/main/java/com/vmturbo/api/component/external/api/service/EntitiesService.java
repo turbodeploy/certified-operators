@@ -86,7 +86,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingToPolicyName;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
@@ -100,15 +99,8 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
-import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTOREST.GroupDTO.ConstraintType;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 
@@ -424,13 +416,10 @@ public class EntitiesService implements IEntitiesService {
                                 .build())
                         .build();
 
-        GetEntitySettingsResponse response =
-                settingPolicyServiceBlockingStub.getEntitySettings(request);
-
-        Optional<SettingsForEntity> entitySettings = response.getSettingsList()
-                .stream()
+        final Optional<SettingsForEntity> entitySettings = SettingDTOUtil.flattenEntitySettings(
+            settingPolicyServiceBlockingStub.getEntitySettings(request))
                 .filter(settingsForEntity -> settingsForEntity.hasEntityId()
-                        && settingsForEntity.getEntityId()==Long.valueOf(uuid))
+                    && settingsForEntity.getEntityId()==Long.valueOf(uuid))
                 .findFirst();
 
         if (!entitySettings.isPresent()) {
