@@ -187,8 +187,9 @@ public class TopologyFilterFactory {
             case "state":
                 // Note - we are ignoring the case-sensitivity parameter. Since the state is an
                 // enum it doesn't really make sense to be case-sensitive.
-                final UIEntityState targetState =
-                        UIEntityState.fromString(stringCriteria.getStringPropertyRegex());
+                // there should be only one state in the options, e.g. state = "ACTIVE".
+                final UIEntityState targetState = stringCriteria.getOptionsList().stream()
+                    .findFirst().map(UIEntityState::fromString).orElse(UIEntityState.UNKNOWN);
 
                 // If the target state resolves to "UNKNOWN" but "UNKNOWN" wasn't what the user
                 // explicitly wanted, we throw an exception to avoid weird behaviour.

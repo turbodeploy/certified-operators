@@ -231,6 +231,7 @@ public class TopologyFilterFactoryTest {
                 .setPropertyFilter(Search.PropertyFilter.newBuilder()
                         .setPropertyName("state")
                         .setStringFilter(StringFilter.newBuilder()
+                                .addOptions("ACTIVE")
                                 .setPositiveMatch(true)
                                 .setStringPropertyRegex("ACTIVE")))
                 .build();
@@ -252,6 +253,7 @@ public class TopologyFilterFactoryTest {
                 .setPropertyFilter(Search.PropertyFilter.newBuilder()
                         .setPropertyName("state")
                         .setStringFilter(StringFilter.newBuilder()
+                                .addOptions("ACTIVE")
                                 // Match set to false, so "ACTIVE" entities shouldn't match.
                                 .setPositiveMatch(false)
                                 .setStringPropertyRegex("ACTIVE")))
@@ -269,26 +271,6 @@ public class TopologyFilterFactoryTest {
 
         when(entity2.getEntityState()).thenReturn(EntityState.FAILOVER);
         assertTrue(propertyFilter.test(entity2));
-    }
-
-    @Test
-    public void testSearchFilterForEntityStateCaseInsensitive() {
-        final SearchFilter searchCriteria = SearchFilter.newBuilder()
-                .setPropertyFilter(Search.PropertyFilter.newBuilder()
-                        .setPropertyName("state")
-                        .setStringFilter(StringFilter.newBuilder()
-                                .setPositiveMatch(true)
-                                .setStringPropertyRegex("AcTivE")
-                                // Ignore case sensitive flag.
-                                .setCaseSensitive(true)))
-                .build();
-
-        final TopologyFilter filter = filterFactory.filterFor(searchCriteria);
-        assertTrue(filter instanceof PropertyFilter);
-        final PropertyFilter propertyFilter = (PropertyFilter)filter;
-
-        when(entity1.getEntityState()).thenReturn(EntityState.POWERED_ON);
-        assertTrue(propertyFilter.test(entity1));
     }
 
     @Test
@@ -603,6 +585,25 @@ public class TopologyFilterFactoryTest {
         final TopologyEntity entity = topologyEntity(builder);
         assertThat(
             displayNameFilter.apply(Stream.of(entity), graph).collect(Collectors.toList()),
+            contains(entity));
+    }
+
+    @Test
+    public void testStringStateActiveOption() {
+        final PropertyFilter stringFilter = new TopologyFilterFactory()
+            .filterFor(Search.PropertyFilter.newBuilder()
+                .setPropertyName("state")
+                .setStringFilter(StringFilter.newBuilder()
+                    .setStringPropertyRegex("")
+                    .addOptions("ACTIVE")
+                ).build());
+
+        final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
+            .setDisplayName("entity-in-group-1");
+
+        final TopologyEntity entity = topologyEntity(builder);
+        assertThat(
+            stringFilter.apply(Stream.of(entity), graph).collect(Collectors.toList()),
             contains(entity));
     }
 
