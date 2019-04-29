@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -46,6 +47,7 @@ import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IActionsService;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.UrlsHelp;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -188,6 +190,7 @@ public class ActionsService implements IActionsService {
     @Override
     public List<EntityStatsApiDTO> getActionStatsByUuidsQuery(ActionScopesApiInputDTO actionScopesApiInputDTO)
             throws Exception {
+        String currentTimeStamp = DateTimeUtil.toString(Clock.systemUTC().millis());
         if (actionScopesApiInputDTO.getScopes() == null) {
             return Collections.emptyList();
         }
@@ -217,6 +220,9 @@ public class ActionsService implements IActionsService {
 
             final ImmutableActionStatsQuery.Builder queryBuilder = ImmutableActionStatsQuery.builder()
                 .scopes(scopes)
+                 // store the time when this api is triggered in the query and use it for current action record
+                 // we want to make sure we have the action record with current timestamp
+                .currentTimeStamp(currentTimeStamp)
                 .actionInput(actionScopesApiInputDTO.getActionInput());
             if (actionScopesApiInputDTO.getRelatedType() != null) {
                 queryBuilder.entityType(ServiceEntityMapper.fromUIEntityType(

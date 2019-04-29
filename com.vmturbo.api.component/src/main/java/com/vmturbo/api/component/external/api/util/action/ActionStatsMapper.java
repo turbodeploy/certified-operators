@@ -65,7 +65,8 @@ class ActionStatsMapper {
             @Nonnull final List<CurrentActionStat> currentActionStats,
             @Nonnull final ActionStatsQuery query) {
         final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
-        statSnapshotApiDTO.setDate(DateTimeUtil.toString(clock.millis()));
+        statSnapshotApiDTO.setDate(query.currentTimeStamp().isPresent() ? query.currentTimeStamp().get()
+                        : DateTimeUtil.toString(clock.millis()));
         statSnapshotApiDTO.setStatistics(currentActionStats.stream()
             .flatMap(stat -> currentActionStatXlToApi(stat, query).stream())
             .collect(Collectors.toList()));

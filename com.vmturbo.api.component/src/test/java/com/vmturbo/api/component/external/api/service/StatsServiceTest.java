@@ -207,7 +207,7 @@ public class StatsServiceTest {
     private final ServiceEntityApiDTO se2 = new ServiceEntityApiDTO();
 
     private static final StatSnapshot STAT_SNAPSHOT = StatSnapshot.newBuilder()
-            .setSnapshotDate("foo")
+            .setSnapshotDate(DateTimeUtil.toString(Clock.systemUTC().millis()))
             .build();
 
     private static final EntityStats ENTITY_STATS = EntityStats.newBuilder()
@@ -285,17 +285,18 @@ public class StatsServiceTest {
 
         final StatSnapshotApiDTO apiDto = new StatSnapshotApiDTO();
         apiDto.setStatistics(Collections.emptyList());
-        when(statsMapper.toStatSnapshotApiDTO(STAT_SNAPSHOT)).thenReturn(apiDto);
+        when(statsMapper.toStatSnapshotApiDTO(any())).thenReturn(apiDto);
 
         final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(oid1, inputDto);
 
         verify(statsMapper).toAveragedEntityStatsRequest(expandedOidList, inputDto, Optional.empty());
         verify(statsHistoryServiceSpy).getAveragedEntityStats(request);
-        verify(statsMapper).toStatSnapshotApiDTO(STAT_SNAPSHOT);
+        // we will return an extra data point to represent current record which may not be in DB
+        verify(statsMapper, times(2)).toStatSnapshotApiDTO(any());
         // Should have called targets service to get a list of targets.
         verify(targetsService).getTargets(null);
 
-        assertThat(resp, containsInAnyOrder(apiDto));
+        assertTrue(resp.contains(apiDto));
     }
 
     @Test
@@ -729,7 +730,7 @@ public class StatsServiceTest {
 
         final StatSnapshotApiDTO apiDto = new StatSnapshotApiDTO();
         apiDto.setStatistics(Collections.emptyList());
-        when(statsMapper.toStatSnapshotApiDTO(STAT_SNAPSHOT)).thenReturn(apiDto);
+        when(statsMapper.toStatSnapshotApiDTO(any())).thenReturn(apiDto);
 
         final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(oid1, inputDto);
 
@@ -738,11 +739,12 @@ public class StatsServiceTest {
                 any(StatPeriodApiInputDTO.class),
                 eq(Optional.empty()));
         verify(statsHistoryServiceSpy).getAveragedEntityStats(request);
-        verify(statsMapper).toStatSnapshotApiDTO(STAT_SNAPSHOT);
+        // we will return an extra data point to represent current record which may not be in DB
+        verify(statsMapper, times(2)).toStatSnapshotApiDTO(any());
         // Should have called targets service to get a list of targets.
         verify(targetsService).getTargets(null);
 
-        assertThat(resp, containsInAnyOrder(apiDto));
+        assertTrue(resp.contains(apiDto));
     }
 
     /**
@@ -764,7 +766,7 @@ public class StatsServiceTest {
 
         final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
         dto.setStatistics(Collections.emptyList());
-        when(statsMapper.toStatSnapshotApiDTO(STAT_SNAPSHOT)).thenReturn(dto);
+        when(statsMapper.toStatSnapshotApiDTO(any())).thenReturn(dto);
 
         final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(
                 UuidMapper.UI_REAL_TIME_MARKET_STR, inputDto);
@@ -772,10 +774,11 @@ public class StatsServiceTest {
         verify(groupExpander).getGroup(UuidMapper.UI_REAL_TIME_MARKET_STR);
         verify(statsMapper).toAveragedEntityStatsRequest(Collections.emptySet(), inputDto, Optional.empty());
         verify(statsHistoryServiceSpy).getAveragedEntityStats(request);
-        verify(statsMapper).toStatSnapshotApiDTO(STAT_SNAPSHOT);
+        // we will return an extra data point to represent current record which may not be in DB
+        verify(statsMapper, times(2)).toStatSnapshotApiDTO(any());
 
-        assertEquals(1, resp.size());
-        assertThat(resp, containsInAnyOrder(dto));
+        assertEquals(2, resp.size());
+        assertTrue(resp.contains(dto));
     }
 
     /**
@@ -843,7 +846,7 @@ public class StatsServiceTest {
 
         final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
         dto.setStatistics(Collections.emptyList());
-        when(statsMapper.toStatSnapshotApiDTO(STAT_SNAPSHOT)).thenReturn(dto);
+        when(statsMapper.toStatSnapshotApiDTO(any())).thenReturn(dto);
 
         // act
         final List<StatSnapshotApiDTO> retDtos = statsService.getStatsByEntityQuery(oid1, inputDto);
@@ -852,7 +855,7 @@ public class StatsServiceTest {
         verify(statsMapper).toAveragedEntityStatsRequest(listOfOidsInGroup, inputDto, Optional.empty());
         verify(statsHistoryServiceSpy).getAveragedEntityStats(request);
 
-        assertThat(retDtos, containsInAnyOrder(dto));
+        assertTrue(retDtos.contains(dto));
     }
 
     /**
@@ -993,7 +996,7 @@ public class StatsServiceTest {
 
         final StatSnapshotApiDTO retDto = new StatSnapshotApiDTO();
         retDto.setStatistics(Collections.emptyList());
-        when(statsMapper.toStatSnapshotApiDTO(STAT_SNAPSHOT)).thenReturn(retDto);
+        when(statsMapper.toStatSnapshotApiDTO(any())).thenReturn(retDto);
 
         // act
         final List<StatSnapshotApiDTO> results = statsService.getStatsByEntityQuery(oid1, inputDto);
@@ -1001,9 +1004,10 @@ public class StatsServiceTest {
         // assert
         verify(statsMapper).toAveragedEntityStatsRequest(expandedOid, inputDto, Optional.empty());
         verify(statsHistoryServiceSpy).getAveragedEntityStats(request);
-        verify(statsMapper).toStatSnapshotApiDTO(STAT_SNAPSHOT);
+        // we will return an extra data point to represent current record which may not be in DB
+        verify(statsMapper, times(2)).toStatSnapshotApiDTO(any());
 
-        assertThat(results, containsInAnyOrder(retDto));
+        assertTrue(results.contains(retDto));
 
         verify(statsHistoryServiceSpy, times(0)).getProjectedStats(anyObject(), anyObject());
     }

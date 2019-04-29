@@ -189,6 +189,11 @@ public class ActionStatsQueryExecutor {
          */
         ActionApiInputDTO actionInput();
 
+        /**
+         * The time stamp when the query was constructed.
+         */
+        Optional<String> currentTimeStamp();
+
         default boolean isHistorical() {
             return actionInput().getStartTime() != null && actionInput().getEndTime() != null;
         }

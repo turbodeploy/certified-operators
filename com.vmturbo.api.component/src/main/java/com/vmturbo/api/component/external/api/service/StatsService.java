@@ -408,6 +408,7 @@ public class StatsService implements IStatsService {
     @Override
     public List<StatSnapshotApiDTO> getStatsByEntityQuery(String originalUuid, StatPeriodApiInputDTO inputDto)
             throws Exception {
+        final long currentTimeStamp = Clock.systemUTC().millis();
         // NOTE: to anyone updating this method, Gary Z. is offering a *generous* reward to any who can
         // refactor this function into smaller and simpler pieces, as it is getting cumbersome. Please
         // submit proof of your success by adding him to your review request.
@@ -676,9 +677,20 @@ public class StatsService implements IStatsService {
                                     userSessionContext.isUserScoped() ? Optional.empty() : globalTempGroupEntityType);
 
                     final Iterable<StatSnapshot> statsIterator = () -> statsServiceRpc.getAveragedEntityStats(request);
-
-                    stats.addAll(0, StreamSupport.stream(statsIterator.spliterator(), false)
-                            .map(statsMapper::toStatSnapshotApiDTO)
+                    final List<StatSnapshot> statsList = new ArrayList<>();
+                    statsIterator.forEach(s -> statsList.add(s));
+                    // Only do it in realtime: find the latest record in the past and clone it, use the new clone as the snapshot
+                    // for current. The reason to do it is that DB may not necessarily have records that
+                    // matches with the time point when API queries stats data, therefore we decide to use the
+                    // value from the latest record in history to represent it.
+                    if (!isPlanRequest) {
+                        StatSnapshot latestSnapshot = getLatestSnapShotInPast(statsList, currentTimeStamp);
+                        if (latestSnapshot != null &&  currentTimeStamp != DateTimeUtil.parseTime(latestSnapshot.getSnapshotDate())) {
+                            statsList.add(latestSnapshot.toBuilder().clone()
+                                          .setSnapshotDate(DateTimeUtil.toString(currentTimeStamp)).build());
+                        }
+                    }
+                    stats.addAll(0, statsList.stream().map(statsMapper::toStatSnapshotApiDTO)
                             .collect(Collectors.toList()));
                 }
             }
@@ -686,6 +698,26 @@ public class StatsService implements IStatsService {
 
         // filter out those commodities listed in BLACK_LISTED_STATS in StatsUtils
         return StatsUtils.filterStats(stats, targets != null ? targets : getTargets());
+    }
+
+    /**
+     * A helper method to find the stats snapshot with the latest time stamp in history.
+     *
+     * @param statsSnapshots a list of snapshot builders
+     * @param currentTimeStamp the current time stamp which is used to decide snapshots in history
+     * @return a Stats.StatSnapshot.Builder
+     */
+    private @Nullable StatSnapshot getLatestSnapShotInPast(Iterable<StatSnapshot> statsSnapshots, long currentTimeStamp) {
+        StatSnapshot latestRecordInPast = null;
+        long latestTimeStamp = 0;
+        for (StatSnapshot snapshot : statsSnapshots) {
+            long snapShotTimeStamp = DateTimeUtil.parseTime(snapshot.getSnapshotDate());
+            if (snapShotTimeStamp > latestTimeStamp && snapShotTimeStamp <= currentTimeStamp) {
+                latestTimeStamp = snapShotTimeStamp;
+                latestRecordInPast = snapshot;
+            }
+        }
+        return latestRecordInPast;
     }
 
     // aggregate to one StatRecord per related entity type per CloudCostStatRecord

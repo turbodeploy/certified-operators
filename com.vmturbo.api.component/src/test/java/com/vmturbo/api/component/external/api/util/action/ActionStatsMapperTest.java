@@ -61,6 +61,7 @@ public class ActionStatsMapperTest {
 
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
         when(query.getCostType()).thenReturn(Optional.empty());
+        when(query.currentTimeStamp()).thenReturn(Optional.empty());
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(stat1Filters);
 
         final StatSnapshotApiDTO snapshots = new ActionStatsMapper(clock, groupByFiltersFactory)
@@ -119,6 +120,7 @@ public class ActionStatsMapperTest {
 
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
         when(query.getCostType()).thenReturn(Optional.empty());
+        when(query.currentTimeStamp()).thenReturn(Optional.empty());
 
         final GroupByFilters stat1Filters = mock(GroupByFilters.class);
         final List<StatFilterApiDTO> stat1ApiFilters = Collections.singletonList(new StatFilterApiDTO());
@@ -325,6 +327,7 @@ public class ActionStatsMapperTest {
 
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
         when(query.getCostType()).thenReturn(Optional.of(ActionCostType.SAVING));
+        when(query.currentTimeStamp()).thenReturn(Optional.empty());
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(groupByFilters);
 
         final StatSnapshotApiDTO snapshot = new ActionStatsMapper(clock, groupByFiltersFactory)
@@ -355,6 +358,7 @@ public class ActionStatsMapperTest {
 
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
         when(query.getCostType()).thenReturn(Optional.of(ActionCostType.INVESTMENT));
+        when(query.currentTimeStamp()).thenReturn(Optional.empty());
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(groupByFilters);
 
         final StatSnapshotApiDTO snapshot = new ActionStatsMapper(clock, groupByFiltersFactory)
