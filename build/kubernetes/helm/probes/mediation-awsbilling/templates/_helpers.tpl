@@ -44,9 +44,9 @@ Also, we can't use a single if because lazy evaluation is not an option
 */}}
 {{- if .Values.global }}
     {{- if .Values.global.repository }}
-        {{- printf "%s/com.vmturbo.mediation.awsbilling.component:%s" .Values.global.repository .Values.global.tag -}}
+        {{- printf "%s/com.vmturbo.mediation.aws.billing.component:%s" .Values.global.repository .Values.global.tag -}}
     {{- end -}}
 {{- else -}}
-    {{- printf "%s/com.vmturbo.mediation.awsbilling.component:%s" $repositoryName $tag -}}
+    {{- printf "%s/com.vmturbo.mediation.aws.billing.component:%s" $repositoryName $tag -}}
 {{- end -}}
 {{- end -}}

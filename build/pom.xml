@@ -294,6 +294,7 @@
                 <module>../com.vmturbo.mediation.aws.component</module>
                 <module>../com.vmturbo.mediation.aws.conversion</module>
                 <module>../com.vmturbo.mediation.aws.cost.component</module>
+                <module>../com.vmturbo.mediation.aws.lambda.component</module>
                 <module>../com.vmturbo.mediation.azure.component</module>
                 <module>../com.vmturbo.mediation.azure.conversion</module>
                 <module>../com.vmturbo.mediation.azure.volumes.conversion</module>
@@ -310,6 +311,7 @@
                 <module>../com.vmturbo.mediation.dynatrace.component</module>
                 <module>../com.vmturbo.mediation.istio.component</module>
                 <module>../com.vmturbo.mediation.hds.component</module>
+                <module>../com.vmturbo.mediation.horizon.component</module>
                 <module>../com.vmturbo.mediation.hpe3par.component</module>
                 <module>../com.vmturbo.mediation.hyperflex.component</module>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
@@ -333,7 +335,6 @@
                 <module>../com.vmturbo.mediation.vmm.component</module>
                 <module>../com.vmturbo.mediation.vplex.component</module>
                 <module>../com.vmturbo.mediation.xtremio.component</module>
-                <module>../com.vmturbo.mediation.horizon.component</module>
             </modules>
         </profile>
 
@@ -386,6 +387,13 @@
             <id>mediation-aws-billing</id>
             <modules>
                 <module>../com.vmturbo.mediation.aws.billing.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-aws-lambda</id>
+            <modules>
+                <module>../com.vmturbo.mediation.aws.lambda.component</module>
             </modules>
         </profile>
 
@@ -859,6 +867,7 @@
                 <module>../com.vmturbo.mediation.aws.component</module>
                 <module>../com.vmturbo.mediation.aws.conversion</module>
                 <module>../com.vmturbo.mediation.aws.cost.component</module>
+                <module>../com.vmturbo.mediation.aws.lambda.component</module>
                 <module>../com.vmturbo.mediation.azure.component</module>
                 <module>../com.vmturbo.mediation.azure.conversion</module>
                 <module>../com.vmturbo.mediation.azure.volumes.conversion</module>
@@ -873,6 +882,7 @@
                 <module>../com.vmturbo.mediation.dynatrace.component</module>
                 <module>../com.vmturbo.mediation.istio.component</module>
                 <module>../com.vmturbo.mediation.hds.component</module>
+                <module>../com.vmturbo.mediation.horizon.component</module>
                 <module>../com.vmturbo.mediation.hpe3par.component</module>
                 <module>../com.vmturbo.mediation.hyperflex.component</module>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
@@ -898,7 +908,6 @@
                 <module>../com.vmturbo.mediation.vmm.component</module>
                 <module>../com.vmturbo.mediation.vplex.component</module>
                 <module>../com.vmturbo.mediation.xtremio.component</module>
-                <module>../com.vmturbo.mediation.horizon.component</module>
                 <module>../versioning</module>
 
                 <!-- Mediation container with all the probes inside. -->
