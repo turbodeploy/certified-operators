@@ -41,6 +41,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import io.grpc.StatusRuntimeException;
+
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
@@ -1309,15 +1311,21 @@ public class StatsService implements IStatsService {
         }
 
         // fetch plan from plan orchestrator
-        PlanDTO.OptionalPlanInstance planInstanceOptional =
+        try {
+            PlanDTO.OptionalPlanInstance planInstanceOptional =
                 planRpcService.getPlan(PlanDTO.PlanId.newBuilder()
-                        .setPlanId(oid)
-                        .build());
-        if (!planInstanceOptional.hasPlanInstance()) {
+                    .setPlanId(oid)
+                    .build());
+            if (!planInstanceOptional.hasPlanInstance()) {
+                return Optional.empty();
+            }
+
+            return Optional.of(planInstanceOptional.getPlanInstance());
+        } catch (StatusRuntimeException e) {
+            logger.error("Unable to reach plan orchestrator. Error: {}." +
+                " Assuming ID {} is not a plan", e.getMessage(), possiblePlanUuid);
             return Optional.empty();
         }
-
-        return Optional.of(planInstanceOptional.getPlanInstance());
     }
 
     /**

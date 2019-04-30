@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.communication;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -184,8 +185,7 @@ public class RepositoryApi {
             return severityPopulator.populate(realtimeTopologyContextId, entityDtos);
         } catch (RestClientException e) {
             logger.error("Error retrieving data through REST call {}: {}", getEntitiesRequest, e);
-            throw new RuntimeException(
-                    "Error retrieving data through REST call " + getEntitiesRequest, e);
+            return Collections.emptyList();
         }
     }
 
