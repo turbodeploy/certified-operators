@@ -57,12 +57,14 @@ public class StringConstants {
     public static final String MIN_VALUE="min_value";
     public static final String MIN_DATE="min_date";
     public static final String MAX_DATE="max_date";
+    public static final String OID = "oid";
     public static final String NAME = "name";
     public static final String CATEGORY = "category";
     public static final String IMPORTANCE = "importance";
     public static final String RISK = "risk";
     public static final String CLEARED = "cleared";
     public static final String COUNT = "count";
+    public static final String TAGS_ATTR = "tags";
 
     public static final String CPU_PROP = "cpu_prop";
     public static final String VM_UUID = "vm_uuid";

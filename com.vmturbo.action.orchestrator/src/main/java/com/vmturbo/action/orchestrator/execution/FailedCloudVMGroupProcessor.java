@@ -30,10 +30,12 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.NameFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupPropertyFilterList;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 /**
@@ -244,10 +246,19 @@ public class FailedCloudVMGroupProcessor {
      */
     private Optional<Group> getFailedGroup() {
         Iterator<Group> groupResponse = groupServiceClient.getGroups(
-                GetGroupsRequest.newBuilder()
-                        .addTypeFilter(Type.GROUP)
-                        .setNameFilter(NameFilter.newBuilder().setNameRegex(FAILED_GROUP_CLOUD_VMS))
-                        .build());
+            GetGroupsRequest.newBuilder()
+                .addTypeFilter(Type.GROUP)
+                .setPropertyFilters(
+                    GroupPropertyFilterList.newBuilder()
+                        .addPropertyFilters(
+                            PropertyFilter.newBuilder()
+                                .setStringFilter(
+                                    StringFilter.newBuilder()
+                                        .setStringPropertyRegex(FAILED_GROUP_CLOUD_VMS)
+                                        .build())
+                                .build())
+                        .build())
+                .build());
 
         // It's theoretically possible to have other groups with the same name, but there can only be one group with the same name + entity type.
         while (groupResponse.hasNext()) {

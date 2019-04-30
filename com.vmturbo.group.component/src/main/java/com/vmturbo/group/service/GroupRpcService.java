@@ -1,6 +1,7 @@
 package com.vmturbo.group.service;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -45,13 +46,12 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupPropertyFilterList.GroupPropertyFilter;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupPropertyFilterList.GroupPropertyFilter.PropertyTypeCase;
-import com.vmturbo.common.protobuf.group.GroupDTO.NameFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo.SelectionCriteriaCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo.TypeCase;
@@ -67,10 +67,14 @@ import com.vmturbo.common.protobuf.group.GroupDTO.UpdateNestedGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableGroupUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.GroupNotFoundException;
@@ -340,9 +344,8 @@ public class GroupRpcService extends GroupServiceImplBase {
                             group.getOrigin().equals(request.getOriginFilter()))
                     .filter(group -> request.getTypeFilterList().isEmpty() ||
                             request.getTypeFilterList().contains(group.getType()))
-                    .filter(group -> !request.hasNameFilter() ||
-                            GroupProtoUtil.nameFilterMatches(GroupProtoUtil.getGroupDisplayName(group),
-                                    request.getNameFilter()))
+                    .filter(group ->
+                            matchFilters(request.getPropertyFilters().getPropertyFiltersList(), group))
                     .filter(group -> !request.hasClusterFilter() ||
                             GroupProtoUtil.clusterFilterMatcher(group, request.getClusterFilter()))
                     .map(group -> resolveClusterFilters ? resolveClusterFilters(group) : group)
@@ -620,21 +623,6 @@ public class GroupRpcService extends GroupServiceImplBase {
         }
     }
 
-    @Nonnull
-    private Predicate<Group> groupPropFilterToPredicate(@Nonnull final GroupPropertyFilter propFilter ) {
-        if (propFilter.getPropertyTypeCase() == PropertyTypeCase.NAME_FILTER) {
-            final StringFilter strFilter = propFilter.getNameFilter();
-            final Pattern pattern = Pattern.compile(strFilter.getStringPropertyRegex(),
-                strFilter.getCaseSensitive() ? 0 : Pattern.CASE_INSENSITIVE);
-            final Predicate<Group> thisFilterPredicate = strFilter.getPositiveMatch() ?
-                group -> pattern.matcher(GroupProtoUtil.getGroupDisplayName(group)).find() :
-                group -> !pattern.matcher(GroupProtoUtil.getGroupDisplayName(group)).find();
-            return thisFilterPredicate;
-        } else {
-            return group -> true;
-        }
-    }
-
     /**
      * Get the members of a nested group.
      *
@@ -680,14 +668,6 @@ public class GroupRpcService extends GroupServiceImplBase {
                         .collect(Collectors.toList());
                 }
             case PROPERTY_FILTER_LIST:
-                final Predicate<Group> groupPredicate =
-                    nestedGroupInfo.getPropertyFilterList().getPropertyFiltersList().stream()
-                        .map(this::groupPropFilterToPredicate)
-                        // AND the individual predicates together.
-                        .reduce(Predicate::and)
-                        // If there are no property filters, return all groups (of the proper type).
-                        .orElse(group -> true);
-
                 final Stream<Group> groupStream;
                 if (nestedGroupInfo.getTypeCase() == TypeCase.CLUSTER) {
                     groupStream = groupStore.getAll().stream()
@@ -697,7 +677,8 @@ public class GroupRpcService extends GroupServiceImplBase {
                     groupStream = Stream.empty();
                 }
                 return groupStream
-                    .filter(groupPredicate)
+                    .filter(g ->
+                            matchFilters(nestedGroupInfo.getPropertyFilterList().getPropertyFiltersList(), g))
                     .map(Group::getId)
                     .collect(Collectors.toList());
             default:
@@ -853,6 +834,20 @@ public class GroupRpcService extends GroupServiceImplBase {
         };
     }
 
+    @Override
+    public void getTags(GetTagsRequest request, StreamObserver<GetTagsResponse> responseObserver) {
+        try {
+            responseObserver.onNext(
+                GetTagsResponse.newBuilder()
+                    .setTags(groupStore.getTags())
+                    .build());
+            responseObserver.onCompleted();
+        } catch (DataAccessException e) {
+            logger.error("Data access exception while fetching group tags", e);
+            responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
+        }
+    }
+
     /**
      * Given a group, transform any dynamic clusterMembershipFilters it contains into StringFilters
      * that express the cluster membership filter statically.
@@ -933,14 +928,12 @@ public class GroupRpcService extends GroupServiceImplBase {
         // back to getMembers() to get generic group resolution, which would be more flexible,
         // but has the huge caveat of allowing circular references to happen. We'll stick to
         // just handling clusters here and open it up later, when/if needed.
-        StringFilter clusterSpecifierFilter = inputFilter.getClusterMembershipFilter().getClusterSpecifier().getStringFilter();
-        NameFilter nf = NameFilter.newBuilder()
-                .setNameRegex(clusterSpecifierFilter.getStringPropertyRegex())
-                .setNegateMatch(!clusterSpecifierFilter.getPositiveMatch())
-                .build();
-        logger.debug("Resolving ClusterMemberFilter {}", clusterSpecifierFilter.getStringPropertyRegex());
-        Set<Long> matchingClusterMembers = groupStore.getAll().stream()
-                .filter(group -> GroupProtoUtil.nameFilterMatches(GroupProtoUtil.getGroupDisplayName(group), nf))
+        final PropertyFilter clusterSpecifierFilter =
+                inputFilter.getClusterMembershipFilter().getClusterSpecifier();
+        logger.debug("Resolving ClusterMemberFilter {}", clusterSpecifierFilter);
+        final Set<Long> matchingClusterMembers =
+            groupStore.getAll().stream()
+                .filter(group -> matchFilter(clusterSpecifierFilter, group))
                 .filter(Group::hasCluster) // only clusters plz
                 .map(Group::getCluster)
                 .flatMap(clusterInfo -> clusterInfo.getMembers().getStaticMemberOidsList().stream())
@@ -956,5 +949,62 @@ public class GroupRpcService extends GroupServiceImplBase {
                                 .setStringPropertyRegex(sj.toString())))
                 .build();
         return searchFilter;
+    }
+
+
+    private boolean matchFilters(@Nonnull List<PropertyFilter> filters, @Nonnull Group group) {
+        return filters.stream().allMatch(filter -> matchFilter(filter, group));
+    }
+
+    private boolean matchFilter(@Nonnull PropertyFilter filter, @Nonnull Group group) {
+        if (filter.getPropertyName().equals(StringConstants.DISPLAY_NAME_ATTR) && filter.hasStringFilter()) {
+            // filter according to property name
+            return GroupProtoUtil.nameFilterMatches(
+                       GroupProtoUtil.getGroupDisplayName(group), filter.getStringFilter());
+        } else if (filter.getPropertyName().equals(StringConstants.TAGS_ATTR) && filter.hasMapFilter()) {
+            // filter according to tags
+
+            // get tags from group object
+            final Tags tags;
+            switch (group.getInfoCase()) {
+                case GROUP:
+                    tags = group.getGroup().getTags();
+                    break;
+                case CLUSTER:
+                    tags = group.getCluster().getTags();
+                    break;
+                default:
+                    return false;
+            }
+
+            // get map filter and validate
+            final MapFilter mapFilter = filter.getMapFilter();
+            if (!mapFilter.hasKey()) {
+                throw new IllegalArgumentException("Tags filter without a key: " + mapFilter);
+            }
+
+            // get corresponding tag values (empty list if the tag key is not present)
+            final List<String> tagValues =
+                    Optional.ofNullable(tags.getTagsMap().get(mapFilter.getKey()))
+                        .map(x -> (List<String>)x.getValuesList())
+                        .orElse(Collections.emptyList());
+
+            if (mapFilter.hasRegex()) {
+                // regular expression mapping: there should be one value in tagValues
+                // that matches the pattern mapFilter.getRegex()
+                final Pattern pattern = Pattern.compile(mapFilter.getRegex());
+                return
+                    tagValues.stream().anyMatch(v -> pattern.matcher(v).matches()) ==
+                    mapFilter.getPositiveMatch();
+            } else {
+                // exact matching: the lists mapFilter.getValuesList() and tagValues
+                // must have a non-empty intersection
+                return
+                    Collections.disjoint(mapFilter.getValuesList(), tagValues) !=
+                    mapFilter.getPositiveMatch();
+            }
+        }
+
+        throw new IllegalArgumentException("Invalid filter for groups: " + filter);
     }
 }

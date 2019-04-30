@@ -71,7 +71,6 @@ import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
-import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
@@ -86,6 +85,9 @@ import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
@@ -103,7 +105,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.identity.ArrayOidSet;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -141,11 +143,13 @@ public class SearchServiceTest {
     private EntitySeverityServiceMole entitySeverityServiceSpy = Mockito.spy(new EntitySeverityServiceMole());
     private StatsHistoryServiceMole historyServiceSpy = Mockito.spy(new StatsHistoryServiceMole());
     private ActionsServiceMole actionOrchestratorRpcService = new ActionsServiceMole();
+    private GroupServiceMole groupRpcService = new GroupServiceMole();
 
     @Rule
     public GrpcTestServer grpcServer =
         GrpcTestServer.newServer(
-            searchServiceSpy, entitySeverityServiceSpy, historyServiceSpy, actionOrchestratorRpcService);
+            searchServiceSpy, entitySeverityServiceSpy, historyServiceSpy,
+            actionOrchestratorRpcService, groupRpcService);
 
     private final long targetId1 = 111L;
     private final long targetId2 = 112L;
@@ -165,6 +169,8 @@ public class SearchServiceTest {
                 EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final ActionsServiceBlockingStub actionsServiceBlockingStub =
                 ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        final GroupServiceBlockingStub groupServiceBlockingStub =
+                GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(userSessionContext.isUserScoped()).thenReturn(false);
         final SearchUtil searchUtil =
             new SearchUtil(
@@ -192,7 +198,8 @@ public class SearchServiceTest {
                 businessUnitMapper,
                 realTimeContextId,
                 userSessionContext,
-                searchUtil));
+                searchUtil,
+                groupServiceBlockingStub));
 
         doReturn(ImmutableMap.of(
             targetId1, probeType1,
@@ -439,15 +446,19 @@ public class SearchServiceTest {
 
         SearchParameters resolvedParams = searchService.resolveClusterFilters(params);
 
-        // we should get the members of cluster 1 in the static regex
+        // we should get the members of cluster 1 in the static filter
         StringFilter stringFilter = resolvedParams.getSearchFilter(0).getPropertyFilter().getStringFilter();
-        assertEquals("^1$|^2$", stringFilter.getStringPropertyRegex());
+        assertEquals(
+                ImmutableSet.of("1", "2"),
+                stringFilter.getOptionsList().stream().collect(Collectors.toSet()));
 
         final ArgumentCaptor<GetGroupsRequest> reqCaptor = ArgumentCaptor.forClass(GetGroupsRequest.class);
         verify(groupExpander).getGroupsWithMembers(reqCaptor.capture());
         GetGroupsRequest req = reqCaptor.getValue();
         assertThat(req.getTypeFilterList(), contains(Group.Type.CLUSTER));
-        assertThat(req.getNameFilter().getNameRegex(), is(clusterSpecifier.getStringFilter().getStringPropertyRegex()));
+        assertThat(
+                req.getPropertyFilters().getPropertyFilters(0).getStringFilter(),
+                is(clusterSpecifier.getStringFilter()));
     }
 
     @Test
@@ -580,7 +591,7 @@ public class SearchServiceTest {
 
         // retrieve search service response
         final List<CriteriaOptionApiDTO> result =
-                searchService.getCriteriaOptions(GroupMapper.TAGS, null, null, null);
+                searchService.getCriteriaOptions(StringConstants.TAGS_ATTR, null, null, null);
 
         // compare response with expected response
         int resultCount = 0;

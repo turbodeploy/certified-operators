@@ -2,7 +2,6 @@ package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.component.external.api.mapper.GroupMapper.ACCOUNT_OID;
 import static com.vmturbo.api.component.external.api.mapper.GroupMapper.STATE;
-import static com.vmturbo.api.component.external.api.mapper.GroupMapper.TAGS;
 import static com.vmturbo.components.common.utils.StringConstants.CLUSTER;
 import static com.vmturbo.components.common.utils.StringConstants.STORAGE_CLUSTER;
 
@@ -16,7 +15,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.StringJoiner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -81,12 +79,12 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
-import com.vmturbo.common.protobuf.group.GroupDTO.NameFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupPropertyFilterList;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.Entity;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
@@ -101,6 +99,7 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -155,6 +154,8 @@ public class SearchService implements ISearchService {
 
     private TopologyProcessor topologyProcessor;
 
+    private final GroupServiceBlockingStub groupServiceRpc;
+
     private final SearchUtil searchUtil;
 
     SearchService(@Nonnull final RepositoryApi repositoryApi,
@@ -177,7 +178,8 @@ public class SearchService implements ISearchService {
                   @Nonnull BusinessUnitMapper businessUnitMapper,
                   final long realtimeTopologyContextId,
                   @Nonnull final UserSessionContext userSessionContext,
-                  @Nonnull final SearchUtil searchUtil) {
+                  @Nonnull final SearchUtil searchUtil,
+                  @Nonnull final GroupServiceBlockingStub groupServiceRpc) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.marketsService = Objects.requireNonNull(marketsService);
         this.groupsService = Objects.requireNonNull(groupsService);
@@ -199,6 +201,7 @@ public class SearchService implements ISearchService {
         this.realtimeContextId = realtimeTopologyContextId;
         this.userSessionContext = userSessionContext;
         this.searchUtil = searchUtil;
+        this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
     }
 
     @Override
@@ -712,27 +715,27 @@ public class SearchService implements ISearchService {
         if (!inputFilter.hasClusterMembershipFilter()) {
             return inputFilter;
         }
-        // this has a cluster membership filter -- resolve plz
-        StringFilter clusterSpecifierFilter = inputFilter.getClusterMembershipFilter()
-                .getClusterSpecifier()
-                .getStringFilter();
-        logger.debug("Resolving ClusterMemberFilter {}", clusterSpecifierFilter.getStringPropertyRegex());
-        // find matching groups and members using the group service
 
-        // build the replacement filter - a regex against /^oid1$|^oid2$|.../
-        StringJoiner sj = new StringJoiner("$|^","^","$");
-        groupExpander.getGroupsWithMembers(GetGroupsRequest.newBuilder()
-                .setNameFilter(NameFilter.newBuilder()
-                        .setNameRegex(clusterSpecifierFilter.getStringPropertyRegex())
-                        .setNegateMatch(!clusterSpecifierFilter.getPositiveMatch()))
-                .addTypeFilter(Type.CLUSTER)
-                .build())
-            .flatMap(groupAndMembers -> groupAndMembers.members().stream())
-            .distinct()
-            .forEach(oid -> sj.add(Long.toString(oid)));
-        return SearchFilter.newBuilder()
-            .setPropertyFilter(SearchMapper.stringPropertyFilterRegex("oid", sj.toString()))
-            .build();
+        // find matching groups using the group service
+        final Collection<String> oids =
+            groupExpander.getGroupsWithMembers(
+                    GetGroupsRequest.newBuilder()
+                        .setPropertyFilters(
+                            GroupPropertyFilterList.newBuilder()
+                                .addPropertyFilters(
+                                    inputFilter.getClusterMembershipFilter().getClusterSpecifier())
+                                .build())
+                        .addTypeFilter(Group.Type.CLUSTER)
+                        .build())
+                .flatMap(groupAndMembers -> groupAndMembers.members().stream())
+                .distinct()
+                .map(id -> Long.toString(id))
+                .collect(Collectors.toList());
+        return
+            SearchFilter.newBuilder()
+                .setPropertyFilter(
+                    SearchMapper.stringPropertyFilterExact(StringConstants.OID, oids))
+                .build();
     }
 
     @Override
@@ -759,26 +762,42 @@ public class SearchService implements ISearchService {
                     });
                 break;
 
-            case TAGS:
-                // retrieve relevant tags from the tags service
-                final List<TagApiDTO> tags = tagsService.getTags(scopes, entityType, envType);
+            case StringConstants.TAGS_ATTR:
+                if (GroupMapper.GROUP_CLASSES.contains(entityType)) {
+                    // retrieve tags from the group service
+                    final Map<String, TagValuesDTO> tags =
+                            groupServiceRpc.getTags(
+                                    GetTagsRequest.newBuilder().build())
+                                .getTags().getTagsMap();
 
-                // convert into a map
-                final Map<String, List<TagApiDTO>> tagsAsMap =
-                        tags.stream().collect(Collectors.groupingBy(TagApiDTO::getKey));
+                    // map to desired output
+                    tags.entrySet().forEach(tagEntry -> {
+                        final CriteriaOptionApiDTO criteriaOptionApiDTO = new CriteriaOptionApiDTO();
+                        criteriaOptionApiDTO.setValue(tagEntry.getKey());
+                        criteriaOptionApiDTO.setSubValues(tagEntry.getValue().getValuesList());
+                        optionApiDTOs.add(criteriaOptionApiDTO);
+                     });
+                } else {
+                    // retrieve relevant tags from the tags service
+                    final List<TagApiDTO> tags = tagsService.getTags(scopes, entityType, envType);
 
-                // translate tags as criteria options in the result
-                tagsAsMap.entrySet().forEach(e -> {
-                    final CriteriaOptionApiDTO criteriaOptionApiDTO = new CriteriaOptionApiDTO();
-                    criteriaOptionApiDTO.setValue(e.getKey());
-                    criteriaOptionApiDTO.setSubValues(
-                            e.getValue()
-                                    .stream()
-                                    .flatMap(tagApiDTO -> tagApiDTO.getValues().stream())
-                                    .collect(Collectors.toList())
-                    );
-                    optionApiDTOs.add(criteriaOptionApiDTO);
-                });
+                    // convert into a map
+                    final Map<String, List<TagApiDTO>> tagsAsMap =
+                            tags.stream().collect(Collectors.groupingBy(TagApiDTO::getKey));
+
+                    // translate tags as criteria options in the result
+                    tagsAsMap.entrySet().forEach(e -> {
+                        final CriteriaOptionApiDTO criteriaOptionApiDTO = new CriteriaOptionApiDTO();
+                        criteriaOptionApiDTO.setValue(e.getKey());
+                        criteriaOptionApiDTO.setSubValues(
+                                e.getValue()
+                                        .stream()
+                                        .flatMap(tagApiDTO -> tagApiDTO.getValues().stream())
+                                        .collect(Collectors.toList())
+                        );
+                        optionApiDTOs.add(criteriaOptionApiDTO);
+                    });
+                }
                 break;
 
             case ACCOUNT_OID:

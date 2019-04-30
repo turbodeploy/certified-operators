@@ -46,8 +46,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupPropertyFilterList;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupPropertyFilterList.GroupPropertyFilter;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupPropertyFilterList.GroupPropertyFilter.PropertyTypeCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo.SelectionCriteriaCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo.TypeCase;
@@ -60,8 +58,10 @@ import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ObjectFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.PropertyTypeCase;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
@@ -86,16 +86,19 @@ public class GroupMapper {
     public static final Set<String> GROUP_CLASSES = ImmutableSet.of(StringConstants.GROUP,
         StringConstants.CLUSTER, StringConstants.STORAGE_CLUSTER);
 
-    public static final String OID = "oid";
-
     public static final String GROUPS_FILTER_TYPE = "groupsByName";
 
     public static final String CLUSTERS_FILTER_TYPE = "clustersByName";
+
+    public static final String CLUSTERS_BY_TAGS_FILTER_TYPE = "clustersByTag";
 
     public static final String STORAGE_CLUSTERS_FILTER_TYPE = "storageClustersByName";
 
     public static final Set<String> GROUP_NAME_FILTER_TYPES = ImmutableSet.of(
         GROUPS_FILTER_TYPE, CLUSTERS_FILTER_TYPE, STORAGE_CLUSTERS_FILTER_TYPE);
+
+    public static final Set<String> GROUP_TAG_FILTER_TYPES =
+        Collections.singleton(CLUSTERS_BY_TAGS_FILTER_TYPE);
 
     // For normal criteria, user just need to provide a string (like a display name). But for
     // some criteria, UI allow user to choose from list of available options (like tags, state and
@@ -108,7 +111,6 @@ public class GroupMapper {
     // matches that inside "groupBuilderUseCases.json".
     public static final String ACCOUNT_OID = "BusinessAccount:oid:CONNECTED_TO:1";
     public static final String STATE = "state";
-    public static final String TAGS = "tags";
 
     private static final String CONSUMES = "CONSUMES";
     private static final String PRODUCES = "PRODUCES";
@@ -163,7 +165,7 @@ public class GroupMapper {
         final ImmutableMap.Builder<String, Function<SearchFilterContext, List<SearchFilter>>>
                 filterTypesToProcessors = new ImmutableMap.Builder<>();
         filterTypesToProcessors.put(
-                TAGS,
+                StringConstants.TAGS_ATTR,
                 context -> {
                     //TODO: the expression value coming from the UI is currently unsanitized.
                     // It is assumed that the tag keys and values do not contain characters such as = and |.
@@ -178,13 +180,15 @@ public class GroupMapper {
                         final String value = keyval[1];
                         final PropertyFilter tagsFilter =
                                 SearchMapper.mapPropertyFilterForMultimapsRegex(
-                                        TAGS, key, value, positiveMatch);
+                                        StringConstants.TAGS_ATTR, key, value, positiveMatch);
                         return Collections.singletonList(SearchMapper.searchFilterProperty(tagsFilter));
                     } else {
                         // exact match is required
                         final PropertyFilter tagsFilter =
                                 SearchMapper.mapPropertyFilterForMultimapsExact(
-                                        TAGS, context.getFilter().getExpVal(), positiveMatch);
+                                        StringConstants.TAGS_ATTR,
+                                        context.getFilter().getExpVal(),
+                                        positiveMatch);
                         return Collections.singletonList(SearchMapper.searchFilterProperty(tagsFilter));
                     }
                 });
@@ -193,9 +197,9 @@ public class GroupMapper {
                 context -> {
                     ClusterMembershipFilter clusterFilter =
                             SearchMapper.clusterFilter(
-                                SearchMapper.nameFilterExact(
+                                SearchMapper.nameFilterRegex(
                                     context.getFilter().getExpVal(),
-                                    context.getFilter().getExpType().equals(EQUAL),
+                                    context.getFilter().getExpType().equals(REGEX_MATCH),
                                     context.getFilter().getCaseSensitive()));
                     return Collections.singletonList(SearchMapper.searchFilterCluster(clusterFilter));
                 });
@@ -333,7 +337,6 @@ public class GroupMapper {
                             .addAllSearchParameters(convertToSearchParameters(groupDto, groupDto.getGroupType(), null)))
                     .build();
         }
-
         return requestBuilder.build();
     }
 
@@ -518,6 +521,40 @@ public class GroupMapper {
     }
 
     /**
+     * Convert a filter given by the API to a group property filter.
+     *
+     * @param filter the API filter to convert.
+     * @return the equivalent group property filter or {@code null} if {@code filter} is not
+     *         a group filter.
+     */
+    @Nonnull
+    public Optional<PropertyFilter> apiFilterToGroupPropFilter(@Nonnull FilterApiDTO filter) {
+        if (GROUP_NAME_FILTER_TYPES.contains(filter.getFilterType())) {
+            return
+                Optional.of(
+                        SearchMapper.nameFilterRegex(
+                            filter.getExpVal(),
+                            isPositiveMatchingOperator(filter.getExpType()),
+                            filter.getCaseSensitive()));
+        } else if (GROUP_TAG_FILTER_TYPES.contains(filter.getFilterType())) {
+            final boolean positiveMatch = isPositiveMatchingOperator(filter.getExpType());
+            if (isRegexOperator(filter.getExpType())) {
+                final String[] kv = filter.getExpVal().split("=");
+                return
+                    Optional.of(
+                        SearchMapper.mapPropertyFilterForMultimapsRegex(
+                                StringConstants.TAGS_ATTR, kv[0], kv[1], positiveMatch));
+            } else {
+                return
+                    Optional.of(
+                        SearchMapper.mapPropertyFilterForMultimapsExact(
+                                StringConstants.TAGS_ATTR, filter.getExpVal(), positiveMatch));
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
      * Convert a list of {@link FilterApiDTO}s meant to be applied to groups (to create a
      * nested group) to a {@link GroupPropertyFilterList} used inside XL.
      *
@@ -527,21 +564,23 @@ public class GroupMapper {
      * @return The {@link GroupPropertyFilterList}.
      */
     @Nonnull
-    private GroupPropertyFilterList apiFiltersToGroupPropFilters(
+    public GroupPropertyFilterList apiFiltersToGroupPropFilters(
             @Nonnull final NestedGroupInfoOrBuilder groupInfo,
             @Nullable List<FilterApiDTO> criteria) {
         if (CollectionUtils.isEmpty(criteria)) {
             return GroupPropertyFilterList.getDefaultInstance();
         }
 
-        GroupPropertyFilterList.Builder filterListBldr = GroupPropertyFilterList.newBuilder();
+        final GroupPropertyFilterList.Builder filterListBldr = GroupPropertyFilterList.newBuilder();
         criteria.stream()
-            .filter(filter -> GROUP_NAME_FILTER_TYPES.contains(filter.getFilterType()))
+            .filter(GroupMapper::isGroupFilter)
             .filter(filter -> {
                 if (groupInfo.getTypeCase() == TypeCase.CLUSTER) {
                     switch (groupInfo.getCluster()) {
                         case COMPUTE:
-                            return filter.getFilterType().equals(CLUSTERS_FILTER_TYPE);
+                            return
+                                filter.getFilterType().equals(CLUSTERS_FILTER_TYPE) ||
+                                filter.getFilterType().equals(CLUSTERS_BY_TAGS_FILTER_TYPE);
                         case STORAGE:
                             return filter.getFilterType().equals(STORAGE_CLUSTERS_FILTER_TYPE);
                         default:
@@ -550,15 +589,15 @@ public class GroupMapper {
                 }
                 return false;
             })
-            .map(nameFilter -> {
-                GroupPropertyFilter propertyFilter = GroupPropertyFilter.newBuilder()
-                    .setNameFilter(SearchMapper.stringFilterRegex(
-                        nameFilter.getExpVal(), nameFilter.getExpType().equals(EQUAL), nameFilter.getCaseSensitive()))
-                    .build();
-                return propertyFilter;
-            })
-            .forEach(filterListBldr::addPropertyFilters);
+            .map(this::apiFilterToGroupPropFilter)
+            .forEach(optionalFilter -> optionalFilter.map(filterListBldr::addPropertyFilters));
         return filterListBldr.build();
+    }
+
+    private static boolean isGroupFilter(@Nonnull FilterApiDTO filterApiDTO) {
+        return
+            GROUP_NAME_FILTER_TYPES.contains(filterApiDTO.getFilterType()) ||
+            GROUP_TAG_FILTER_TYPES.contains(filterApiDTO.getFilterType());
     }
 
     /**
@@ -571,30 +610,58 @@ public class GroupMapper {
     @Nonnull
     private List<FilterApiDTO> groupPropFiltersToApiFilters(
             @Nonnull final NestedGroupInfo groupInfo) {
-        Preconditions.checkArgument(groupInfo.getSelectionCriteriaCase() ==
-            SelectionCriteriaCase.PROPERTY_FILTER_LIST);
         return groupInfo.getPropertyFilterList().getPropertyFiltersList().stream()
             .map(propFilter -> {
-                if (propFilter.getPropertyTypeCase() == PropertyTypeCase.NAME_FILTER) {
-                    if (groupInfo.getTypeCase() == TypeCase.CLUSTER) {
-                        final StringFilter nameFilter = propFilter.getNameFilter();
-                        FilterApiDTO filterApiDTO = new FilterApiDTO();
-                        filterApiDTO.setExpVal(nameFilter.getStringPropertyRegex());
-                        filterApiDTO.setExpType(nameFilter.getPositiveMatch() ? EQUAL : NOT_EQUAL);
-                        filterApiDTO.setCaseSensitive(nameFilter.getCaseSensitive());
-                        switch (groupInfo.getCluster()) {
-                            case COMPUTE:
-                                filterApiDTO.setFilterType(CLUSTERS_FILTER_TYPE);
-                                break;
-                            case STORAGE:
-                                filterApiDTO.setFilterType(STORAGE_CLUSTERS_FILTER_TYPE);
-                                break;
-                            default:
-                                // Error.
-                                return null;
-                        }
-                        return filterApiDTO;
+                if (propFilter.getPropertyTypeCase() == PropertyTypeCase.STRING_FILTER) {
+                    // the property corresponds to the display name of the cluster
+                    final StringFilter stringFilter = propFilter.getStringFilter();
+                    final FilterApiDTO filterApiDTO = new FilterApiDTO();
+
+                    // remove leading ^ and trailing $ from the regex
+                    final String unfilteredRegex = stringFilter.getStringPropertyRegex();
+                    filterApiDTO.setExpVal(
+                            unfilteredRegex.substring(1, unfilteredRegex.length() - 1));
+
+                    filterApiDTO.setExpType(stringFilter.getPositiveMatch() ? REGEX_MATCH : REGEX_NO_MATCH);
+                    filterApiDTO.setCaseSensitive(stringFilter.getCaseSensitive());
+                    switch (groupInfo.getCluster()) {
+                        case COMPUTE:
+                            filterApiDTO.setFilterType(CLUSTERS_FILTER_TYPE);
+                            break;
+                        case STORAGE:
+                            filterApiDTO.setFilterType(STORAGE_CLUSTERS_FILTER_TYPE);
+                            break;
+                        default:
+                            // Error.
+                            return null;
                     }
+                    return filterApiDTO;
+                } else if (propFilter.getPropertyTypeCase() == PropertyTypeCase.MAP_FILTER) {
+                    // the property corresponds to the tags of the cluster
+                    final MapFilter mapFilter = propFilter.getMapFilter();
+                    final FilterApiDTO filterApiDTO = new FilterApiDTO();
+                    if (mapFilter.hasRegex()) {
+                        // regex matching
+                        filterApiDTO.setExpVal(
+                                mapFilter.getKey() + "=" +
+                                mapFilter.getRegex().substring(1, mapFilter.getRegex().length() - 1));
+                        filterApiDTO.setExpType(mapFilter.getPositiveMatch() ? REGEX_MATCH : REGEX_NO_MATCH);
+                    } else {
+                        // exact matching
+                        filterApiDTO.setExpVal(
+                                mapFilter.getValuesList().stream()
+                                        .map(v -> mapFilter.getKey() + "=" + v)
+                                        .collect(Collectors.joining("|")));
+                        filterApiDTO.setExpType(mapFilter.getPositiveMatch() ? EQUAL : NOT_EQUAL);
+                    }
+                    filterApiDTO.setCaseSensitive(false);
+                    if (groupInfo.getCluster() == Type.COMPUTE) {
+                            filterApiDTO.setFilterType(CLUSTERS_BY_TAGS_FILTER_TYPE);
+                    } else {
+                        // Error.
+                        return null;
+                    }
+                    return filterApiDTO;
                 }
                 return null;
             })
@@ -639,7 +706,7 @@ public class GroupMapper {
     public List<FilterApiDTO> convertToFilterApis(GroupInfo groupInfo) {
         return groupInfo.getSearchParametersCollection()
                 .getSearchParametersList().stream()
-                .map(searchParameters -> toFilterApiDTO(searchParameters))
+                .map(this::toFilterApiDTO)
                 .collect(Collectors.toList());
     }
 
@@ -659,7 +726,7 @@ public class GroupMapper {
         final SearchParameters.Builder searchParameters = SearchParameters.newBuilder().setStartingFilter(byType);
         if (!StringUtils.isEmpty(nameQuery)) {
             // For the query string, we want to use a "contains"-type query.
-            searchParameters.addSearchFilter(SearchMapper.searchFilterProperty(SearchMapper.nameFilter(".*" + nameQuery + ".*")));
+            searchParameters.addSearchFilter(SearchMapper.searchFilterProperty(SearchMapper.nameFilterRegex(".*" + nameQuery + ".*")));
         }
         return searchParameters.build();
     }
@@ -799,8 +866,7 @@ public class GroupMapper {
                     // helpful to the UI side).  we can distinguish the cases by looking at
                     // the operator
                     final boolean positiveMatch = isPositiveMatchingOperator(filter.getExpType());
-                    final boolean regex = isRegexOperator(filter.getExpType());
-                    if (regex) {
+                    if (isRegexOperator(filter.getExpType())) {
                         listFilter.setStringFilter(
                             SearchMapper.stringFilterRegex(
                                 filter.getExpVal(),
@@ -913,9 +979,7 @@ public class GroupMapper {
                 // helpful to the UI side).  we can distinguish the cases by looking at
                 // the operator
                 final boolean positiveMatch = isPositiveMatchingOperator(filter.getExpType());
-                final boolean regex = isRegexOperator(filter.getExpType());
-
-                if (regex) {
+                if (isRegexOperator(filter.getExpType())) {
                     currentFieldPropertyFilter =
                         SearchMapper.stringPropertyFilterRegex(
                             lastField,

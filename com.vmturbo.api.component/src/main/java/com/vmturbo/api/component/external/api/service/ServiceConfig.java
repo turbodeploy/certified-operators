@@ -409,7 +409,8 @@ public class ServiceConfig {
                 mapperConfig.businessUnitMapper(),
                 communicationConfig.getRealtimeTopologyContextId(),
                 userSessionContext(),
-                searchUtil());
+                searchUtil(),
+                communicationConfig.groupRpcService());
     }
 
     @Bean

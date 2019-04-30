@@ -2,11 +2,13 @@ package com.vmturbo.group.group;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Consumer;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -30,12 +32,13 @@ import com.google.protobuf.TextFormat;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Builder;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.group.common.DuplicateNameException;
@@ -46,6 +49,7 @@ import com.vmturbo.group.common.TargetCollectionUpdate.TargetGroupUpdate;
 import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.tables.pojos.Grouping;
 import com.vmturbo.group.db.tables.records.GroupingRecord;
+import com.vmturbo.group.db.tables.records.TagsGroupRecord;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.policy.PolicyStore;
 import com.vmturbo.group.policy.PolicyStore.PolicyDeleteException;
@@ -142,7 +146,7 @@ public class GroupStore implements Diagnosable {
 
 
     /**
-     * Retrieve a {@link Group} by it's ID.
+     * Retrieve a {@link Group} by its ID.
      *
      * @param id The ID of the group to look for.
      * @return The {@link Group} associated with that ID.
@@ -272,6 +276,36 @@ public class GroupStore implements Diagnosable {
                 throw e;
             }
         }
+    }
+
+    /**
+     * Return all tags in the database in the protobuf format.
+     *
+     * @return All the tags in the database.
+     */
+    @Nonnull
+    public Tags getTags() throws DataAccessException {
+        final Map<String, Set<String>> resultMapBuilder = new HashMap<>();
+        try {
+            dslContext
+                .select(Tables.TAGS_GROUP.TAG_KEY, Tables.TAGS_GROUP.TAG_VALUE)
+                .from(Tables.TAGS_GROUP)
+                .fetch()
+                .into(TagsGroupRecord.class)
+                .forEach(singleTagRecord ->
+                    (resultMapBuilder.computeIfAbsent(
+                            singleTagRecord.getTagKey(), x -> new HashSet<>()))
+                        .add(singleTagRecord.getTagValue()));
+        } catch (Exception e) {
+            // this logs any error that happens but does not filter it
+            GROUP_STORE_ERROR_COUNT.labels(GET_LABEL).increment();
+            throw e;
+        }
+        final Tags.Builder resultBuilder = Tags.newBuilder();
+        resultMapBuilder.entrySet().forEach(e ->
+                resultBuilder.putTags(
+                        e.getKey(), TagValuesDTO.newBuilder().addAllValues(e.getValue()).build()));
+        return resultBuilder.build();
     }
 
     private Group internalUpdateUserGroup(final long id, Function<Group, Group> groupUpdateFn)
@@ -526,10 +560,32 @@ public class GroupStore implements Diagnosable {
         }
     }
 
+    @Nonnull
+    private Stream<TagsGroupRecord> extractTagsFromGroup(@Nonnull Group group) {
+        switch (group.getInfoCase()) {
+            case GROUP:
+                return extractKeysAndValuesFromTags(
+                    group.getId(), group.getGroup().getTags().getTagsMap());
+            case CLUSTER:
+                return extractKeysAndValuesFromTags(
+                    group.getId(), group.getCluster().getTags().getTagsMap());
+            default:
+                return Stream.empty();
+        }
+    }
+
+    @Nonnull
+    private Stream<TagsGroupRecord> extractKeysAndValuesFromTags(
+            long id, @Nonnull Map<String, TagValuesDTO> tags) {
+        return tags.entrySet().stream()
+                   .flatMap(e -> e.getValue().getValuesList().stream()
+                                     .map(v -> new TagsGroupRecord(id, e.getKey(), v)));
+    }
+
     private void internalDelete(@Nonnull final DSLContext context,
                                 final long groupId) {
-        // The entry from the POLICY_GROUP table should be deleted automatically
-        // because of the foreign key constaint.
+        // The entries from the POLICY_GROUP and the TAG_GROUP table will
+        // be deleted automatically because of the foreign key constraint.
         context.deleteFrom(Tables.GROUPING)
                 .where(Tables.GROUPING.ID.eq(groupId))
                 .execute();
@@ -555,6 +611,8 @@ public class GroupStore implements Diagnosable {
                 getGroupData(group));
 
         context.newRecord(Tables.GROUPING, grouping).store();
+        extractTagsFromGroup(group).forEach(record ->
+                context.newRecord(Tables.TAGS_GROUP, record).store());
 
         return toGroup(grouping).orElseThrow(() -> new IllegalArgumentException(
                 "Failed to map grouping for group " + group.getId() + " (" + groupName + ") back to group."));
@@ -590,6 +648,13 @@ public class GroupStore implements Diagnosable {
             // got overwritten.
             throw new IllegalStateException("Failed to update record.");
         }
+
+        // remove all tags related to the updated group
+        context.delete(Tables.TAGS_GROUP).where(Tables.TAGS_GROUP.GROUP_ID.eq(group.getId())).execute();
+
+        // insert new tags
+        extractTagsFromGroup(group).forEach(record ->
+                context.newRecord(Tables.TAGS_GROUP, record).store());
 
         return toGroup(groupingRecord.into(Grouping.class)).orElseThrow(() ->
                 new IllegalArgumentException("Failed to map grouping for group " + group.getId() +

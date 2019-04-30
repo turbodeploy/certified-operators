@@ -15,8 +15,11 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.jooq.DSLContext;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -26,12 +29,16 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
+import com.google.common.collect.ImmutableSet;
+
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableGroupUpdateException;
@@ -39,6 +46,7 @@ import com.vmturbo.group.common.ImmutableUpdateException.ImmutablePolicyUpdateEx
 import com.vmturbo.group.common.ItemNotFoundException.GroupNotFoundException;
 import com.vmturbo.group.common.ItemNotFoundException.PolicyNotFoundException;
 import com.vmturbo.group.db.Tables;
+import com.vmturbo.group.db.tables.records.TagsGroupRecord;
 import com.vmturbo.group.group.GroupStore.GroupNotClusterException;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.policy.PolicyStore;
@@ -57,27 +65,47 @@ public class GroupStoreTest {
 
     private static final long TARGET_ID = 7L;
 
+    private static final String TAG_KEY_1 = "key1";
+    private static final String TAG_KEY_2 = "key2";
+    private static final String TAG_VALUE_11 = "value11";
+    private static final String TAG_VALUE_12 = "value12";
+    private static final String TAG_VALUE_2 = "value2";
+
+    private static final Tags SAMPLE_TAGS =
+            Tags.newBuilder()
+                .putTags(
+                        TAG_KEY_1,
+                        TagValuesDTO.newBuilder().addValues(TAG_VALUE_11).addValues(TAG_VALUE_12).build())
+                .putTags(
+                        TAG_KEY_2,
+                        TagValuesDTO.newBuilder().addValues(TAG_VALUE_2).build())
+                .build();
+
     private static final GroupInfo GROUP_INFO = GroupInfo.newBuilder()
             .setName("the krew")
             .setEntityType(123)
             .setStaticGroupMembers(StaticGroupMembers.newBuilder()
                     .addStaticMemberOids(1L))
+            .setTags(SAMPLE_TAGS)
             .build();
 
     private static final GroupInfo UPDATED_GROUP_INFO = GROUP_INFO.toBuilder()
             .setStaticGroupMembers(StaticGroupMembers.newBuilder()
                     .addStaticMemberOids(2L))
+            .setTags(Tags.newBuilder().build())
             .build();
 
     private static final ClusterInfo CLUSTER_INFO = ClusterInfo.newBuilder()
             .setName("the kluster")
             .setMembers(StaticGroupMembers.newBuilder()
                     .addStaticMemberOids(2L))
+            .setTags(SAMPLE_TAGS)
             .build();
 
     private static final ClusterInfo UPDATED_CLUSTER_INFO = CLUSTER_INFO.toBuilder()
             .setMembers(StaticGroupMembers.newBuilder()
                     .addStaticMemberOids(3L))
+            .setTags(Tags.newBuilder().build())
             .build();
 
     @Autowired
@@ -109,6 +137,8 @@ public class GroupStoreTest {
 
         final Group gotGroup = groupStore.get(GROUP_ID).get();
         assertThat(gotGroup, is(group));
+
+        assertTrue(tagsAreInDB(GROUP_ID));
     }
 
     public void testNewUserGroupDuplicateNameOnly() throws DuplicateNameException {
@@ -116,7 +146,6 @@ public class GroupStoreTest {
         groupStore.newUserGroup(GROUP_INFO);
 
         // Try to create a group with the same name.
-        // This shouldn't throw an exception.
         groupStore.newUserGroup(GroupInfo.newBuilder()
             .setName(GROUP_INFO.getName())
             .setEntityType(GROUP_INFO.getEntityType() + 1)
@@ -129,7 +158,6 @@ public class GroupStoreTest {
         groupStore.newUserGroup(GROUP_INFO);
 
         // Try to create a group with the same name.
-        // This shouldn't throw an exception.
         groupStore.newUserGroup(GroupInfo.newBuilder()
                 .setName(GROUP_INFO.getName())
                 .setEntityType(GROUP_INFO.getEntityType())
@@ -150,6 +178,8 @@ public class GroupStoreTest {
 
         final Group gotGroup = groupStore.get(GROUP_ID).get();
         assertThat(gotGroup, is(group));
+
+        assertFalse(tagsAreInDB(GROUP_ID));
     }
 
     @Test(expected = DuplicateNameException.class)
@@ -198,6 +228,8 @@ public class GroupStoreTest {
         assertThat(group.getType(), is(Type.GROUP));
         assertThat(group.getOrigin(), is(Origin.DISCOVERED));
         assertThat(group.getTargetId(), is(TARGET_ID));
+
+        assertTrue(tagsAreInDB(GROUP_ID));
     }
 
     @Test
@@ -213,6 +245,8 @@ public class GroupStoreTest {
         assertThat(group.getType(), is(Type.CLUSTER));
         assertThat(group.getOrigin(), is(Origin.DISCOVERED));
         assertThat(group.getTargetId(), is(TARGET_ID));
+
+        assertTrue(tagsAreInDB(GROUP_ID));
     }
 
     @Test
@@ -224,6 +258,8 @@ public class GroupStoreTest {
         assertTrue(groupStore.get(GROUP_ID).isPresent());
         groupStore.updateTargetGroups(dbConfig.dsl(), TARGET_ID, Collections.emptyList(), Collections.emptyList());
         assertFalse(groupStore.get(GROUP_ID).isPresent());
+
+        assertFalse(tagsAreInDB(GROUP_ID));
     }
 
     @Test
@@ -235,6 +271,8 @@ public class GroupStoreTest {
         assertTrue(groupStore.get(GROUP_ID).isPresent());
         groupStore.updateTargetGroups(dbConfig.dsl(), TARGET_ID, Collections.emptyList(), Collections.emptyList());
         assertFalse(groupStore.get(GROUP_ID).isPresent());
+
+        assertFalse(tagsAreInDB(GROUP_ID));
     }
 
     @Test
@@ -248,6 +286,8 @@ public class GroupStoreTest {
         groupStore.updateTargetGroups(dbConfig.dsl(), TARGET_ID, Collections.singletonList(UPDATED_GROUP_INFO), Collections.emptyList());
 
         assertThat(groupStore.get(GROUP_ID).get().getGroup(), is(UPDATED_GROUP_INFO));
+
+        assertFalse(tagsAreInDB(GROUP_ID));
     }
 
     @Test
@@ -261,6 +301,8 @@ public class GroupStoreTest {
         groupStore.updateTargetGroups(dbConfig.dsl(), TARGET_ID, Collections.emptyList(), Collections.singletonList(UPDATED_CLUSTER_INFO));
 
         assertThat(groupStore.get(GROUP_ID).get().getCluster(), is(UPDATED_CLUSTER_INFO));
+
+        assertFalse(tagsAreInDB(GROUP_ID));
     }
 
     @Test
@@ -276,6 +318,8 @@ public class GroupStoreTest {
         groupStore.updateClusterHeadroomTemplate(GROUP_ID, headroomTemplateId);
 
         assertThat(groupStore.get(GROUP_ID).get().getCluster().getClusterHeadroomTemplateId(), is(headroomTemplateId));
+
+        assertTrue(tagsAreInDB(GROUP_ID));
     }
 
     @Test(expected = GroupNotFoundException.class)
@@ -297,11 +341,14 @@ public class GroupStoreTest {
         when(identityProvider.next()).thenReturn(GROUP_ID);
         groupStore.newUserGroup(GROUP_INFO);
 
+        assertTrue(tagsAreInDB(GROUP_ID));
+
         final Group group = groupStore.deleteUserGroup(GROUP_ID);
         assertThat(group.getId(), is(GROUP_ID));
         assertThat(group.getGroup(), is(GROUP_INFO));
 
         assertFalse(groupStore.get(GROUP_ID).isPresent());
+        assertFalse(tagsAreInDB(GROUP_ID));
 
         verify(policyStore).deletePoliciesForGroup(any(), eq(GROUP_ID));
     }
@@ -347,5 +394,38 @@ public class GroupStoreTest {
 
         final Group group = newGroupStore.get(GROUP_ID).get();
         assertThat(group, is(originalGroup));
+    }
+
+    /**
+     * Checks if the {@link #SAMPLE_TAGS} are in the database under a specific group.
+     *
+     * @param id id of the group to check.
+     * @return true if all tags are there, false if no tags are there.
+     * @throws IllegalStateException should not happen: some tags are there, but they are not correct
+     */
+    private boolean tagsAreInDB(long id) throws IllegalStateException {
+        final Set<TagsGroupRecord> tagsGroupRecords =
+                dbConfig.dsl()
+                        .selectFrom(Tables.TAGS_GROUP)
+                        .where(Tables.TAGS_GROUP.GROUP_ID.eq(id))
+                        .fetch()
+                        .into(TagsGroupRecord.class)
+                        .stream()
+                        .collect(Collectors.toSet());
+        if (tagsGroupRecords.isEmpty()) {
+            return false;
+        } else if (sampleTagsInDB(id).equals(tagsGroupRecords)) {
+            return true;
+        }
+        throw new IllegalStateException("boom");
+    }
+
+    private Set<TagsGroupRecord> sampleTagsInDB(long id) {
+        Assert.assertEquals(SAMPLE_TAGS, groupStore.getTags());
+        return
+            ImmutableSet.of(
+                new TagsGroupRecord(id, TAG_KEY_1, TAG_VALUE_11),
+                new TagsGroupRecord(id, TAG_KEY_1, TAG_VALUE_12),
+                new TagsGroupRecord(id, TAG_KEY_2, TAG_VALUE_2));
     }
 }

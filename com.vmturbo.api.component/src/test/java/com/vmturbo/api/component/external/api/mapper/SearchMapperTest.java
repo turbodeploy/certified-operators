@@ -35,7 +35,7 @@ public class SearchMapperTest {
 
     @Test
     public void testNameFilter() {
-        PropertyFilter fooSearch = SearchMapper.nameFilter(FOO);
+        PropertyFilter fooSearch = SearchMapper.nameFilterRegex(FOO);
         assertEquals("displayName", fooSearch.getPropertyName());
         assertEquals("^" + FOO + "$", fooSearch.getStringFilter().getStringPropertyRegex());
         assertEquals(0, fooSearch.getStringFilter().getOptionsCount());
@@ -43,7 +43,7 @@ public class SearchMapperTest {
 
     @Test
     public void testNameFilterWithMatch() {
-        PropertyFilter fooSearch = SearchMapper.nameFilter(FOO, false, false);
+        PropertyFilter fooSearch = SearchMapper.nameFilterRegex(FOO, false, false);
         assertEquals("displayName", fooSearch.getPropertyName());
         assertEquals("^" + FOO + "$", fooSearch.getStringFilter().getStringPropertyRegex());
         assertEquals(0, fooSearch.getStringFilter().getOptionsCount());

@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditi
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.components.common.mapping.UIEntityState;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * Utility class with static methods to facilitate the creation of searches and filters.
@@ -41,9 +42,7 @@ public class SearchMapper {
     private static final Logger logger = LogManager.getLogger();
 
     public static final String ENTITY_TYPE_PROPERTY = "entityType";
-    public static final String DISPLAY_NAME_PROPERTY = "displayName";
     public static final String STATE_PROPERTY = "state";
-    public static final String OID = "oid";
 
     /**
      * Wrap an instance of {@link PropertyFilter} with a {@link SearchFilter}.
@@ -242,10 +241,6 @@ public class SearchMapper {
         final List<String> values = new ArrayList<>();
         for (String kvp : keyValuePairs) {
             final String[] kv = kvp.split("=");
-            if (kv.length == 0 || kv.length > 2) {
-                logger.error("String \"{}\" cannot be split into key/value pair.", kvp);
-                return emptyMapPropertyFilter(propName);
-            }
             if (key == null) {
                 key = kv[0];
             } else if (!key.equals(kv[0])) {
@@ -268,7 +263,6 @@ public class SearchMapper {
                             .build())
                     .build();
         logger.debug("Property filter constructed: {}", result);
-
         return result;
     }
 
@@ -371,7 +365,7 @@ public class SearchMapper {
             final boolean caseSensitive) {
         return
             stringPropertyFilterExact(
-                DISPLAY_NAME_PROPERTY, Collections.singleton(displayName), match, caseSensitive);
+                StringConstants.DISPLAY_NAME_ATTR, Collections.singleton(displayName), match, caseSensitive);
     }
 
     /**
@@ -381,8 +375,8 @@ public class SearchMapper {
      * @param displayName the display name to use for the search
      * @return a property filter
      */
-    public static PropertyFilter nameFilter(String displayName) {
-        return nameFilter(displayName, true, false);
+    public static PropertyFilter nameFilterRegex(String displayName) {
+        return nameFilterRegex(displayName, true, false);
     }
 
     /**
@@ -392,10 +386,11 @@ public class SearchMapper {
      *              when the match fails.
      * @return a property filter
      */
-    public static PropertyFilter nameFilter(@Nonnull final String displayName,
-                                            final boolean match,
-                                            final boolean caseSensitive) {
-        return stringPropertyFilterRegex(DISPLAY_NAME_PROPERTY, displayName, match, caseSensitive);
+    public static PropertyFilter nameFilterRegex(@Nonnull final String displayName,
+                                                 final boolean match,
+                                                 final boolean caseSensitive) {
+        return
+            stringPropertyFilterRegex(StringConstants.DISPLAY_NAME_ATTR, displayName, match, caseSensitive);
     }
 
     /**
@@ -420,7 +415,7 @@ public class SearchMapper {
      * @return the filter.
      */
     public static PropertyFilter idFilter(long oid) {
-        return stringPropertyFilterExact(OID, Collections.singleton(Long.toString(oid)));
+        return stringPropertyFilterExact(StringConstants.OID, Collections.singleton(Long.toString(oid)));
     }
 
     /**

@@ -15,12 +15,12 @@ import junit.framework.TestCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.NameFilter;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.AtMostNPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -35,30 +35,30 @@ public class GroupProtoUtilTest {
     @Test
     public void testNameMatches() {
         TestCase.assertTrue(GroupProtoUtil.nameFilterMatches(MATCHING_NAME,
-                NameFilter.newBuilder().setNameRegex(REGEX).build()));
+                StringFilter.newBuilder().setStringPropertyRegex(REGEX).build()));
     }
 
     @Test
     public void testNameNotMatches() {
         assertFalse(GroupProtoUtil.nameFilterMatches(NOT_MATCHING_NAME,
-                NameFilter.newBuilder().setNameRegex(REGEX).build()));
+                StringFilter.newBuilder().setStringPropertyRegex(REGEX).build()));
     }
 
     @Test
     public void testNegateMatch() {
         assertFalse(GroupProtoUtil.nameFilterMatches(MATCHING_NAME,
-                NameFilter.newBuilder()
-                    .setNameRegex(REGEX)
-                    .setNegateMatch(true)
+                StringFilter.newBuilder()
+                    .setStringPropertyRegex(REGEX)
+                    .setPositiveMatch(false)
                     .build()));
     }
 
     @Test
     public void testNegateNoMatch() {
         assertTrue(GroupProtoUtil.nameFilterMatches(NOT_MATCHING_NAME,
-                NameFilter.newBuilder()
-                        .setNameRegex(REGEX)
-                        .setNegateMatch(true)
+                StringFilter.newBuilder()
+                        .setStringPropertyRegex(REGEX)
+                        .setPositiveMatch(false)
                         .build()));
     }
 

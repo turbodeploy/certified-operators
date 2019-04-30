@@ -47,6 +47,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo.SelectionCriteriaCase;
+import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
@@ -718,7 +719,9 @@ public class GroupMapperTest {
         assertTrue(param.getSearchFilter(0).hasClusterMembershipFilter());
         ClusterMembershipFilter clusterMembershipFilter = param.getSearchFilter(0).getClusterMembershipFilter();
         // verify that we are looking for clusters with name FOO
-        assertEquals(FOO, clusterMembershipFilter.getClusterSpecifier().getStringFilter().getOptions(0));
+        assertEquals(
+                "^" + FOO + "$",
+                clusterMembershipFilter.getClusterSpecifier().getStringFilter().getStringPropertyRegex());
 
         // test conversion from GroupApiDTO back to FilterApiDTO
         groupDto.setDisplayName("TestGroupDto");
@@ -733,7 +736,6 @@ public class GroupMapperTest {
         assertEquals("vmsByClusterName", vmsByClusterNameFilter.getFilterType());
         assertEquals("EQ", vmsByClusterNameFilter.getExpType());
         assertEquals(FOO, vmsByClusterNameFilter.getExpVal());
-
     }
 
     @Test
@@ -745,7 +747,7 @@ public class GroupMapperTest {
         assertThat(param.getStartingFilter(), is(TYPE_IS_VM));
         assertThat(param.getSearchFilterCount(), is(1));
         assertThat(param.getSearchFilter(0),
-            is(SearchMapper.searchFilterProperty(SearchMapper.nameFilter(".*" + FOO + ".*"))));
+            is(SearchMapper.searchFilterProperty(SearchMapper.nameFilterRegex(".*" + FOO + ".*"))));
     }
 
     /**
@@ -1197,5 +1199,61 @@ public class GroupMapperTest {
         assertEquals(0, tagFilter.getValuesCount());
         assertTrue(tagFilter.getPositiveMatch());
         assertEquals("^.*a.*$", tagFilter.getRegex());
+    }
+
+    /**
+     * Tests translation of a dynamic nested group with two filter properties
+     * (one for name and one for tags) from the API structure to the internal
+     * nested group structure.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testDynamicNestedGroupTranslation() throws Exception {
+        final FilterApiDTO nameFilter = new FilterApiDTO();
+        nameFilter.setFilterType(GroupMapper.CLUSTERS_FILTER_TYPE);
+        nameFilter.setExpType(GroupMapper.EQUAL);
+        nameFilter.setExpVal("the name");
+
+        final FilterApiDTO tagsFilter = new FilterApiDTO();
+        tagsFilter.setFilterType(GroupMapper.CLUSTERS_BY_TAGS_FILTER_TYPE);
+        tagsFilter.setExpType(GroupMapper.EQUAL);
+        tagsFilter.setExpVal("key=value1|key=value2");
+
+        final GroupApiDTO groupApiDTO = new GroupApiDTO();
+        groupApiDTO.setGroupType(StringConstants.CLUSTER);
+        groupApiDTO.setIsStatic(false);
+        groupApiDTO.setCriteriaList(ImmutableList.of(nameFilter, tagsFilter));
+        groupApiDTO.setDisplayName("group of clusters");
+
+        final NestedGroupInfo result = groupMapper.toNestedGroupInfo(groupApiDTO);
+        final PropertyFilter namePropertyFilter =
+                result.getPropertyFilterList().getPropertyFilters(0);
+        final PropertyFilter tagsPropertyFilter =
+                result.getPropertyFilterList().getPropertyFilters(1);
+
+        Assert.assertEquals(
+                PropertyFilter.newBuilder()
+                        .setPropertyName(StringConstants.DISPLAY_NAME_ATTR)
+                        .setStringFilter(
+                                StringFilter.newBuilder()
+                                        .setStringPropertyRegex("^the name$")
+                                        .setPositiveMatch(true)
+                                        .setCaseSensitive(false)
+                                        .build())
+                        .build(),
+                namePropertyFilter);
+        Assert.assertEquals(
+                PropertyFilter.newBuilder()
+                        .setPropertyName(StringConstants.TAGS_ATTR)
+                        .setMapFilter(
+                                MapFilter.newBuilder()
+                                        .setKey("key")
+                                        .addValues("value1")
+                                        .addValues("value2")
+                                        .setPositiveMatch(true)
+                                        .build())
+                        .build(),
+                tagsPropertyFilter);
     }
 }

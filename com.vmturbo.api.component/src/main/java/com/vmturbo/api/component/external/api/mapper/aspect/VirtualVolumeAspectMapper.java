@@ -20,7 +20,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
@@ -397,7 +396,7 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
             // start from storage tier oid
             .setStartingFilter(
                     SearchMapper.stringPropertyFilterExact(
-                            GroupMapper.OID, Collections.singletonList(startOid)))
+                            StringConstants.OID, Collections.singletonList(startOid)))
             // traverse CONNECTED_FROM
             .addSearchFilter(SearchFilter.newBuilder()
                 .setTraversalFilter(TraversalFilter.newBuilder()

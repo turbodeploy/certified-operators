@@ -8,7 +8,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.TagsMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
@@ -26,6 +25,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsResponse;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -130,7 +130,7 @@ public class TagsService implements ITagsService {
                             .setStartingFilter(
                                 PropertyFilter
                                     .newBuilder()
-                                    .setPropertyName(GroupMapper.TAGS)
+                                    .setPropertyName(StringConstants.TAGS_ATTR)
                                     .setMapFilter(MapFilter.newBuilder().setKey(tagKey).build())
                                     .build()
                             ).build()

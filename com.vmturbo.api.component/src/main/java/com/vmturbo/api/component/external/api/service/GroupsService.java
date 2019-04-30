@@ -94,7 +94,6 @@ import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
@@ -114,6 +113,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupPropertyFilterList;
 import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo.TypeCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
@@ -960,27 +960,21 @@ public class GroupsService implements IGroupsService {
     /**
      * Create a GetGroupsRequest based on the given filterList.
      *
-     * The only filter supporeted is 'groupsByName'. The name regex for this filter is given by
-     * the "expVal" of the FilterApiDTO. The sense of the match is given by the "expType",
-     * i.e "EQ" -> 'search for match' vs. anything else -> 'search for non-match'
-     *
      * @param filterList a list of FilterApiDTO to be applied to this group; only "groupsByName" is
      *                   currently supported
      * @return a GetGroupsRequest with the filtering set if an item in the filterList is found
      */
     @VisibleForTesting
-    GetGroupsRequest.Builder getGroupsRequestForFilters(List<FilterApiDTO> filterList) {
-
-        GetGroupsRequest.Builder requestBuilder = GetGroupsRequest.newBuilder();
-        for (FilterApiDTO filter : filterList ) {
-            if (GroupMapper.GROUP_NAME_FILTER_TYPES.contains(filter.getFilterType())) {
-                requestBuilder.setNameFilter(GroupDTO.NameFilter.newBuilder()
-                        .setNameRegex(filter.getExpVal())
-                        .setNegateMatch(!filter.getExpType().equals("EQ"))
-                );
-            }
-        }
-        return requestBuilder;
+    GetGroupsRequest.Builder getGroupsRequestForFilters(@Nonnull List<FilterApiDTO> filterList) {
+        final GroupPropertyFilterList.Builder groupPropertyFilterListBuilder =
+                GroupPropertyFilterList.newBuilder();
+        filterList.stream()
+                .map(groupMapper::apiFilterToGroupPropFilter)
+                .filter(optionalFilter -> optionalFilter.isPresent())
+                .map(Optional::get)
+                .forEach(groupPropertyFilterListBuilder::addPropertyFilters);
+        return
+            GetGroupsRequest.newBuilder().setPropertyFilters(groupPropertyFilterListBuilder.build());
     }
 
     /**

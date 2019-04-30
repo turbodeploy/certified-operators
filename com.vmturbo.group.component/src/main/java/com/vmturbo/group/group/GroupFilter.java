@@ -22,7 +22,7 @@ import com.vmturbo.group.db.Tables;
  * meant as a utility to provide an easier way to define simple searches
  * over the groups in the table.
  *
- * Conditions in the filter are applied by AND-ing them together.
+ * Conditions in the filter are applied by conjoining them together.
  */
 @Immutable
 public class GroupFilter {

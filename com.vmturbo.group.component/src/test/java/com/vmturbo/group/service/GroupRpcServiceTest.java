@@ -23,17 +23,19 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
+
+import com.google.common.collect.ImmutableSet;
 
 import io.grpc.Status;
 import io.grpc.Status.Code;
@@ -51,10 +53,12 @@ import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettin
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupPropertyFilterList;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsPoliciesSettingsResponse;
@@ -65,16 +69,20 @@ import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.health.HealthStatus;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.components.common.identity.OidSet;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableGroupUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.GroupNotFoundException;
 import com.vmturbo.group.group.EntityToClusterMapping;
@@ -119,8 +127,27 @@ public class GroupRpcServiceTest {
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(searchServiceHandler);
 
-    @Captor
-    private ArgumentCaptor<StatusException> exceptionCaptor;
+    private final Group group1 = Group.newBuilder()
+            .setId(1L)
+            .setGroup(GroupInfo.newBuilder()
+                    .setTags(Tags.newBuilder()
+                            .putTags("key", TagValuesDTO.newBuilder()
+                                    .addValues("value1")
+                                    .addValues("value2")
+                                    .build())))
+            .build();
+    private final Group group2 = Group.newBuilder()
+            .setId(2L)
+            .setGroup(GroupInfo.newBuilder()
+                    .setTags(Tags.newBuilder()
+                            .putTags("key", TagValuesDTO.newBuilder()
+                                    .addValues("value3")
+                                    .build())
+                            .putTags("otherkey", TagValuesDTO.newBuilder()
+                                    .addValues("value1")
+                                    .addValues("value3")
+                                    .build())))
+            .build();
 
     @Before
     public void setUp() throws Exception {
@@ -139,7 +166,7 @@ public class GroupRpcServiceTest {
         final GroupDTO.Group group = GroupDTO.Group.newBuilder()
                 .setId(id)
                 .setGroup(GroupInfo.newBuilder()
-                    .setName("group-foo"))
+                        .setName("group-foo"))
                 .build();
         final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
                 mock(StreamObserver.class);
@@ -200,7 +227,7 @@ public class GroupRpcServiceTest {
                 mock(StreamObserver.class);
 
         when(temporaryGroupCache.create(TempGroupInfo.getDefaultInstance()))
-            .thenThrow(new InvalidTempGroupException(Collections.singletonList("ERROR")));
+                .thenThrow(new InvalidTempGroupException(Collections.singletonList("ERROR")));
         groupRpcService.createTempGroup(CreateTempGroupRequest.newBuilder()
                 .setGroupInfo(TempGroupInfo.getDefaultInstance())
                 .build(), mockObserver);
@@ -243,7 +270,7 @@ public class GroupRpcServiceTest {
         final GroupDTO.Group group = GroupDTO.Group.newBuilder()
                 .setId(id)
                 .setGroup(GroupInfo.newBuilder()
-                    .setName("group-foo"))
+                        .setName("group-foo"))
                 .build();
         final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
                 mock(StreamObserver.class);
@@ -339,7 +366,7 @@ public class GroupRpcServiceTest {
         when(groupStore.deleteUserGroup(idToDelete)).thenThrow(new ImmutableGroupUpdateException(Group.newBuilder()
                 .setId(idToDelete)
                 .setGroup(GroupInfo.newBuilder()
-                    .setName(name))
+                        .setName(name))
                 .build()));
 
         groupRpcService.deleteGroup(gid, mockObserver);
@@ -351,7 +378,7 @@ public class GroupRpcServiceTest {
         final ArgumentCaptor<StatusException> exceptionCaptor = ArgumentCaptor.forClass(StatusException.class);
         verify(mockObserver).onError(exceptionCaptor.capture());
         assertThat(exceptionCaptor.getValue(),
-            GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT).descriptionContains(name));
+                GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT).descriptionContains(name));
     }
 
     @Test
@@ -374,7 +401,7 @@ public class GroupRpcServiceTest {
         final ArgumentCaptor<StatusException> exceptionCaptor = ArgumentCaptor.forClass(StatusException.class);
         verify(mockObserver).onError(exceptionCaptor.capture());
         assertThat(exceptionCaptor.getValue(), GrpcExceptionMatcher.hasCode(Code.NOT_FOUND)
-            .descriptionContains(Long.toString(idToDelete)));
+                .descriptionContains(Long.toString(idToDelete)));
     }
 
     @Test
@@ -468,8 +495,8 @@ public class GroupRpcServiceTest {
                 mock(StreamObserver.class);
 
         final GroupDTO.Group group = GroupDTO.Group.newBuilder()
-                        .setId(id)
-                        .build();
+                .setId(id)
+                .build();
         given(groupStore.get(id)).willReturn(Optional.of(group));
 
         groupRpcService.getGroup(gid, mockObserver);
@@ -509,12 +536,12 @@ public class GroupRpcServiceTest {
                 mock(StreamObserver.class);
 
         final GroupDTO.Group g1 = GroupDTO.Group.newBuilder()
-                        .setId(id1)
-                        .build();
+                .setId(id1)
+                .build();
 
         final GroupDTO.Group g2 = GroupDTO.Group.newBuilder()
-                        .setId(id2)
-                        .build();
+                .setId(id2)
+                .build();
 
         given(groupStore.getAll()).willReturn(Arrays.asList(g1, g2));
 
@@ -534,7 +561,7 @@ public class GroupRpcServiceTest {
                 .build();
 
         when(temporaryGroupCache.getAll())
-            .thenReturn(Collections.singletonList(group));
+                .thenReturn(Collections.singletonList(group));
         final StreamObserver<GroupDTO.Group> mockObserver =
                 mock(StreamObserver.class);
 
@@ -587,9 +614,9 @@ public class GroupRpcServiceTest {
         given(groupStore.updateUserGroup(eq(id), eq(group.getGroup()))).willReturn(group);
 
         groupRpcService.updateGroup(UpdateGroupRequest.newBuilder()
-            .setId(id)
-            .setNewInfo(group.getGroup())
-            .build(), mockObserver);
+                .setId(id)
+                .setNewInfo(group.getGroup())
+                .build(), mockObserver);
 
         verify(groupStore).updateUserGroup(eq(id), eq(group.getGroup()));
         verify(mockObserver).onNext(GroupDTO.UpdateGroupResponse.newBuilder()
@@ -712,8 +739,8 @@ public class GroupRpcServiceTest {
         final GroupDTO.Group group1234 = GroupDTO.Group.newBuilder()
                 .setId(groupId)
                 .setGroup(GroupInfo.newBuilder()
-                    .setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                            .addSearchParameters(SearchParameters.getDefaultInstance())))
+                        .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                                .addSearchParameters(SearchParameters.getDefaultInstance())))
                 .build();
 
         final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
@@ -733,6 +760,73 @@ public class GroupRpcServiceTest {
         verify(mockObserver).onCompleted();
     }
 
+    /**
+     * Tests various cases of tag filtering.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetWithTags1() throws Exception {
+        when(groupStore.getAll()).thenReturn(ImmutableSet.of(group1, group2));
+        final StreamObserver<Group> mockObserver = mock(StreamObserver.class);
+        final ArgumentCaptor<Group> captor = ArgumentCaptor.forClass(Group.class);
+        groupRpcService.getGroups(GetGroupsRequest.newBuilder()
+                .setPropertyFilters(GroupPropertyFilterList.newBuilder()
+                    .addPropertyFilters(PropertyFilter.newBuilder()
+                        .setPropertyName(StringConstants.TAGS_ATTR)
+                        .setMapFilter(
+                            MapFilter.newBuilder()
+                                .setKey("key")
+                                .addValues("value4")
+                                .addValues("value1"))))
+                .build(),
+            mockObserver);
+        verify(mockObserver).onNext(captor.capture());
+        verify(mockObserver).onCompleted();
+        Assert.assertEquals(group1, captor.getValue());
+    }
+
+    @Test
+    public void testGetWithTags2() throws Exception {
+        when(groupStore.getAll()).thenReturn(ImmutableSet.of(group1, group2));
+        final StreamObserver<Group> mockObserver = mock(StreamObserver.class);
+        final ArgumentCaptor<Group> captor = ArgumentCaptor.forClass(Group.class);
+        groupRpcService.getGroups(GetGroupsRequest.newBuilder()
+                .setPropertyFilters(GroupPropertyFilterList.newBuilder()
+                    .addPropertyFilters(PropertyFilter.newBuilder()
+                        .setPropertyName(StringConstants.TAGS_ATTR)
+                        .setMapFilter(
+                            MapFilter.newBuilder()
+                                .setKey("key")
+                                .setRegex(".*2"))))
+                .build(),
+            mockObserver);
+        verify(mockObserver).onNext(captor.capture());
+        verify(mockObserver).onCompleted();
+        Assert.assertEquals(group1, captor.getValue());
+    }
+
+    @Test
+    public void testGetWithTags3() throws Exception {
+        when(groupStore.getAll()).thenReturn(ImmutableSet.of(group1, group2));
+        final StreamObserver<Group> mockObserver = mock(StreamObserver.class);
+        final ArgumentCaptor<Group> captor = ArgumentCaptor.forClass(Group.class);
+        groupRpcService.getGroups(GetGroupsRequest.newBuilder()
+                .setPropertyFilters(GroupPropertyFilterList.newBuilder()
+                    .addPropertyFilters(PropertyFilter.newBuilder()
+                        .setPropertyName(StringConstants.TAGS_ATTR)
+                        .setMapFilter(
+                            MapFilter.newBuilder()
+                                .setKey("otherkey")
+                                .setRegex(".*")
+                                .setPositiveMatch(false))))
+                .build(),
+            mockObserver);
+        verify(mockObserver).onNext(captor.capture());
+        verify(mockObserver).onCompleted();
+        Assert.assertEquals(group1, captor.getValue());
+    }
+
     @Test
     public void testStaticGetMembers() throws Exception {
         final long groupId = 1234L;
@@ -746,7 +840,7 @@ public class GroupRpcServiceTest {
                 .setId(groupId)
                 .setGroup(GroupInfo.newBuilder()
                     .setStaticGroupMembers(GroupDTO.StaticGroupMembers.newBuilder()
-                            .addAllStaticMemberOids(staticGroupMembers)))
+                        .addAllStaticMemberOids(staticGroupMembers)))
                 .build();
 
         final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
@@ -893,6 +987,39 @@ public class GroupRpcServiceTest {
                 eq(10L), eq(Collections.emptyList()), anyMap());
         verify(settingStore).updateTargetSettingPolicies(isA(DSLContext.class),
                 eq(10L), eq(Collections.emptyList()), anyMap());
+    }
+
+    /**
+     * Test successful retrieval of tags.
+     */
+    @Test
+    public void testGetTags() {
+        final Tags tags = Tags.newBuilder().build();
+        when(groupStore.getTags()).thenReturn(tags);
+        final StreamObserver<GetTagsResponse> mockObserver = mock(StreamObserver.class);
+        final ArgumentCaptor<GetTagsResponse> captor = ArgumentCaptor.forClass(GetTagsResponse.class);
+        groupRpcService.getTags(GroupDTO.GetTagsRequest.newBuilder().build(), mockObserver);
+        verify(mockObserver).onNext(captor.capture());
+        verify(mockObserver).onCompleted();
+        Assert.assertEquals(tags, captor.getValue().getTags());
+    }
+
+    /**
+     * Test failed retrieval of tags.
+     */
+    @Test
+    public void testGetTagsFailed() {
+        final String errorMessage = "boom";
+        when(groupStore.getTags()).thenThrow(new DataAccessException(errorMessage));
+        final StreamObserver<GetTagsResponse> mockObserver = mock(StreamObserver.class);
+        final ArgumentCaptor<Throwable> captor = ArgumentCaptor.forClass(Throwable.class);
+        groupRpcService.getTags(GroupDTO.GetTagsRequest.newBuilder().build(), mockObserver);
+        verify(mockObserver).onError(captor.capture());
+        final Throwable throwable = captor.getValue();
+        Assert.assertTrue(throwable instanceof StatusException);
+        final StatusException statusException = (StatusException)throwable;
+        Assert.assertEquals(Status.INTERNAL.getCode(), statusException.getStatus().getCode());
+        Assert.assertEquals(Status.INTERNAL.getCode() + ": " + errorMessage, statusException.getMessage());
     }
 
     private void givenSearchHanderWillReturn(final List<Long> oids) {

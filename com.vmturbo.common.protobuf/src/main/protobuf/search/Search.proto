@@ -224,13 +224,7 @@ message PropertyFilter {
 // the need ever arises.
 //
 message ClusterMembershipFilter {
-    // Specifies the group(s) to filter membership based on. NOTE: only string regexes on cluster
-    // names are supported right now. We would need to enhance to allow selection on other cluster
-    // properties and/or multiple property filter support if this is needed in the future.
-    //
-    // There is also a NameFilter available in the GroupDTO.proto that is a better modeling fit for
-    // this filter's role, but we can't import that without creating a circular reference between
-    // the two .proto files.
+    // Specifies the group(s) to filter membership based on.
     optional PropertyFilter cluster_specifier = 1;
 }
 

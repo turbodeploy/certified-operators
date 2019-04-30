@@ -207,22 +207,18 @@ message NestedGroupInfo {
 }
 
 // A property filter list that can be used to dynamically select a set of groups.
-// This is loosely equivalent to "SearchParameters" in Search.proto, with a lot less functionality
-// because our support for search over groups is much more limited.
+// This is loosely equivalent to "SearchParameters" in Search.proto, but without
+// traversal filters.<p/>
+// Currently (2019/4/29), there are exactly two properties that can be used to
+// filter groups: display names and tags. For display names, we use a regex string
+// filter. For tags, we use a MapFilter, as is the case for service entity tags.
+// Other property filter types, e.g., numeric filters, list filters, and object
+// filters are not used.
 message GroupPropertyFilterList {
-
-    // Since groups are not service entities, we can't apply all types of
-    // property filters to groups. We define a group-specific set of allowed property filters.
-    message GroupPropertyFilter {
-        oneof property_type {
-            .search.PropertyFilter.StringFilter name_filter = 1;
-
-            // In the future we also need to add a "tag" filter,
-            // but we don't currently support tags on groups.
-        }
-    }
-
-    repeated GroupPropertyFilter property_filters = 1;
+    // Property filters to match group against. Currently (2019/4/29) used only for:
+    // (a) display name (property of type string) regex matching and
+    // (b) tags (property of type multimap).
+    repeated .search.PropertyFilter property_filters = 1;
 }
 
 
@@ -325,8 +321,8 @@ message GetGroupsRequest {
     // Return only groups with these IDs.
     repeated int64 id = 1;
 
-    // Return only groups where the name matches this filter.
-    optional NameFilter name_filter = 2;
+    // Return only groups where these filters are matched
+    optional GroupPropertyFilterList property_filters = 2;
 
     // Return only groups with the specific origin.
     optional Group.Origin origin_filter = 3;
@@ -412,16 +408,6 @@ message DiscoveredGroupsPoliciesSettings {
 
 message StoreDiscoveredGroupsPoliciesSettingsResponse {}
 
-
-// A filter on the name of a group (or cluster).
-message NameFilter {
-    // The regex to compare the name against.
-    optional string name_regex = 1;
-
-    // Whether to negate the result of the regex.
-    optional bool negate_match = 2 [default = false];
-}
-
 // Specify the criteria for the clusters to return.
 // All filters/conditions are AND-ed together. If no filters/conditions
 // are set, the call will return all clusters.
@@ -475,6 +461,12 @@ message GetClusterForEntityResponse {
     optional Group cluster = 1;
 }
 
+message GetTagsRequest {}
+
+message GetTagsResponse {
+    optional .tag.Tags tags = 1;
+}
+
 // A service responsible for group operations.
 service GroupService {
     // Create a group
@@ -519,5 +511,8 @@ service GroupService {
 
     // Stores groups, clusters, settings and policies discovered in the customer's topology.
     rpc StoreDiscoveredGroupsPoliciesSettings(stream DiscoveredGroupsPoliciesSettings) returns (StoreDiscoveredGroupsPoliciesSettingsResponse);
+
+    // Returns all tags of groups
+    rpc GetTags(GetTagsRequest) returns (GetTagsResponse);
 }
 

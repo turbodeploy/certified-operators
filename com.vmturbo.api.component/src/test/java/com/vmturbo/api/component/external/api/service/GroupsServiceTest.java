@@ -47,10 +47,10 @@ import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
 import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
-import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.SearchUtil;
@@ -95,12 +95,15 @@ import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.search.Search.Entity;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -228,6 +231,17 @@ public class GroupsServiceTest {
     @Test
     public void testGetGroupsWithFilterEq() throws Exception {
         // Arrange
+        groupFilterApiDTO.setExpType(EQ_MATCH_TYPE);
+        when(groupMapper.apiFilterToGroupPropFilter(eq(groupFilterApiDTO)))
+                .thenReturn(
+                        Optional.of(
+                                PropertyFilter.newBuilder()
+                                        .setStringFilter(
+                                                StringFilter.newBuilder()
+                                                        .setStringPropertyRegex(
+                                                                StringConstants.DISPLAY_NAME_ATTR)
+                                                        .build())
+                                        .build()));
 
         // Act
         List<FilterApiDTO> filterList = Lists.newArrayList(groupFilterApiDTO);
@@ -235,8 +249,13 @@ public class GroupsServiceTest {
                 groupsService.getGroupsRequestForFilters(filterList);
 
         // Assert
-        assertThat(groupsRequest.getNameFilter().getNameRegex(), is(GROUP_TEST_PATTERN));
-        assertThat(groupsRequest.getNameFilter().getNegateMatch(), is(false));
+        assertThat(
+            groupsRequest.getPropertyFilters()
+                .getPropertyFilters(0).getStringFilter().getStringPropertyRegex(),
+            is(StringConstants.DISPLAY_NAME_ATTR));
+        assertThat(
+            groupsRequest.getPropertyFilters().getPropertyFilters(0).getStringFilter().getPositiveMatch(),
+            is(true));
     }
 
     /**
@@ -246,14 +265,30 @@ public class GroupsServiceTest {
     public void testGetGroupsWithFilterNe() throws Exception {
         // Arrange
         groupFilterApiDTO.setExpType(NE_MATCH_TYPE);
+        when(groupMapper.apiFilterToGroupPropFilter(eq(groupFilterApiDTO)))
+                .thenReturn(
+                        Optional.of(
+                                PropertyFilter.newBuilder()
+                                        .setStringFilter(
+                                                StringFilter.newBuilder()
+                                                        .setStringPropertyRegex(
+                                                                StringConstants.DISPLAY_NAME_ATTR)
+                                                        .setPositiveMatch(false)
+                                                        .build())
+                                        .build()));
         // Act
         List<FilterApiDTO> filterList = Lists.newArrayList(groupFilterApiDTO);
         final GroupDTO.GetGroupsRequest.Builder groupsRequest =
                 groupsService.getGroupsRequestForFilters(filterList);
 
         // Assert
-        assertThat(groupsRequest.getNameFilter().getNameRegex(), is(GROUP_TEST_PATTERN));
-        assertThat(groupsRequest.getNameFilter().getNegateMatch(), is(true));
+        assertThat(
+            groupsRequest.getPropertyFilters()
+                .getPropertyFilters(0).getStringFilter().getStringPropertyRegex(),
+            is(StringConstants.DISPLAY_NAME_ATTR));
+        assertThat(
+            groupsRequest.getPropertyFilters().getPropertyFilters(0).getStringFilter().getPositiveMatch(),
+            is(false));
     }
 
     @Test

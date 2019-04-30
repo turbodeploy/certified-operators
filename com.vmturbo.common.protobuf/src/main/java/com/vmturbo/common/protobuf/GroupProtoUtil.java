@@ -17,11 +17,11 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupOrBuilder;
-import com.vmturbo.common.protobuf.group.GroupDTO.NameFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo.TypeCase;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -62,9 +62,8 @@ public class GroupProtoUtil {
      * @return True if the name matches the filter.
      */
     public static boolean nameFilterMatches(@Nonnull final String name,
-                                            @Nonnull final NameFilter filter) {
-        final boolean patternMatches = Pattern.matches(filter.getNameRegex(), name);
-        return patternMatches ^ filter.getNegateMatch();
+                                            @Nonnull final StringFilter filter) {
+        return Pattern.matches(filter.getStringPropertyRegex(), name) == filter.getPositiveMatch();
     }
 
     /**
