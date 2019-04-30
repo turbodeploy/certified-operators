@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableList;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
+import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchMapper;
@@ -78,6 +79,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.api.AccountValue;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetInfo;
@@ -229,7 +231,8 @@ public class EntitiesServiceTest {
                 SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 SettingServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 mock(SettingsMapper.class),
-                searchUtil);
+                searchUtil,
+                mock(RepositoryApi.class));
     }
 
     /**

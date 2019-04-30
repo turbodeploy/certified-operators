@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -28,6 +29,8 @@ import com.google.common.collect.Lists;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
+import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.ConstraintsMapper;
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
@@ -152,6 +155,8 @@ public class EntitiesService implements IEntitiesService {
 
     private final SearchUtil searchUtil;
 
+    private final RepositoryApi repositoryApi;
+
     // Entity types which are not part of Host or Storage Cluster.
     private static final ImmutableSet<String> NON_CLUSTER_ENTITY_TYPES =
             ImmutableSet.of(
@@ -180,6 +185,14 @@ public class EntitiesService implements IEntitiesService {
                     UIEntityType.CHASSIS.getValue(), 2,
                     ConstraintType.CLUSTER.toString(), 3);
 
+    private static final Set<String> BREADCRUMB_ENTITIES_TO_FETCH =
+            new HashSet<String>(Arrays.asList(
+                    UIEntityType.REGION.getValue(),
+                    UIEntityType.AVAILABILITY_ZONE.getValue(),
+                    UIEntityType.DATACENTER.getValue(),
+                    UIEntityType.CHASSIS.getValue(),
+                    UIEntityType.PHYSICAL_MACHINE.getValue()));
+
     public EntitiesService(
             @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
             @Nonnull final ActionSpecMapper actionSpecMapper,
@@ -198,7 +211,8 @@ public class EntitiesService implements IEntitiesService {
             @Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub,
             @Nonnull final SettingServiceBlockingStub settingServiceBlockingStub,
             @Nonnull final SettingsMapper settingsMapper,
-            @Nonnull final SearchUtil searchUtil) {
+            @Nonnull final SearchUtil searchUtil,
+            @Nonnull final RepositoryApi repositoryApi) {
 
         this.actionOrchestratorRpcService = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
@@ -218,6 +232,7 @@ public class EntitiesService implements IEntitiesService {
         this.statsHistoryService = Objects.requireNonNull(statsHistoryService);
         this.settingsMapper = Objects.requireNonNull(settingsMapper);
         this.searchUtil = Objects.requireNonNull(searchUtil);
+        this.repositoryApi = Objects.requireNonNull(repositoryApi);
     }
 
     @Override
@@ -468,43 +483,55 @@ public class EntitiesService implements IEntitiesService {
         // For entities below the host(e.g DC/Chassis/Storage etc..), there is no cluster
         // to fetch. So just return the entity.
 
-        // We get the entire supply chain for the entity instead of only the entities which we are
-        // interested in(BREADCRUMB_ENTITY_PRECEDENCE_MAP + host + storage + entityType of uuid). This
-        // is because we don't know the entity type of the supplied uuid. If the entity is something
-        // like DataCenter etc, the SupplyChain request will pull in lot of unnecessary entities which
-        // may cause memory issue. It can be optimized by first querying the entityType for the uuid,
-        // and then getting only the interested entities in the supply chain. So the trade-off is between
-        // 2 rpc calls(latency) vs memory consumption. For now, we will have one single call as its simpler.
-        // If the memory usage of pulling in the entire supply chain of the entity is deemed high, then
-        // we can change it to the 2 rpc call approach.
-        final SupplychainApiDTO supplyChain = supplyChainFetcher.newApiDtoFetcher()
-                .topologyContextId(realtimeTopologyContextId)
-                .addSeedUuids(Lists.newArrayList(uuid))
-                .includeHealthSummary(false)
-                .entityDetailType(EntityDetailType.entity)
-                .fetch();
-        final Map<Long, ServiceEntityApiDTO> serviceEntityMap = supplyChain.getSeMap().entrySet().stream()
-                .map(Entry::getValue)
-                .flatMap(supplyChainEntryDTO -> supplyChainEntryDTO.getInstances().values().stream())
-                .collect(Collectors.toMap(apiDTO -> Long.valueOf(apiDTO.getUuid()), Function.identity()));
-
-        // extract the entities which we are interested in
-        List<BaseApiDTO> result = serviceEntityMap.values()
-                .stream()
-                .filter(serviceEntityApiDTO ->
-                        BREADCRUMB_ENTITY_PRECEDENCE_MAP.keySet().contains(serviceEntityApiDTO.getClassName())
-                        || serviceEntityApiDTO.getUuid().equals(uuid))
-                .collect(Collectors.toList());
-
         long entityOid = Long.valueOf(uuid);
-        long oidToQuery = 0;
-        // If the entity is of type STORAGE, get its oid. Else find the oid of the Host the entity is
-        // connected to. For entities below the host such as DC, Chassis etc, the oidToQuery will be
-        // set to 0.
-        if (serviceEntityMap.containsKey(entityOid)
-                && serviceEntityMap.get(entityOid).getClassName().equals(UIEntityType.STORAGE.getValue())) {
+        Optional<ServiceEntityApiDTO> entityApiDTO =
+                repositoryApi.getServiceEntitiesById(
+                        ServiceEntitiesRequest.newBuilder(ImmutableSet.of(entityOid))
+                                .build())
+                .getOrDefault(entityOid, Optional.empty());
+
+
+        if (!entityApiDTO.isPresent()) {
+            logger.warn("No entity dto found for entity with oid: {}", entityOid);
+            return Collections.emptyList();
+        }
+
+        long oidToQuery = 1;
+        List<BaseApiDTO> result = new ArrayList<>();
+        result.add(entityApiDTO.get());
+
+        // Skip supply-chain call for entities which are not consumers(direct/in-direct) of host(PM).
+        if (entityApiDTO.get().getClassName().equals(UIEntityType.STORAGE.getValue())) {
             oidToQuery = entityOid;
-        }  else if (!NON_CLUSTER_ENTITY_TYPES.contains(serviceEntityMap.get(entityOid).getClassName())) {
+        } else if (!NON_CLUSTER_ENTITY_TYPES.contains(entityApiDTO.get().getClassName())) {
+
+            // We are only interested in entities of type : in BREADCRUMB_ENTITIES_TO_FETCH
+            // type of the input entity.
+            Set<String> entityTypesToFetch = new HashSet<>(BREADCRUMB_ENTITIES_TO_FETCH);
+            entityTypesToFetch.add(entityApiDTO.get().getClassName());
+
+            final SupplychainApiDTO supplyChain = supplyChainFetcher.newApiDtoFetcher()
+                    .topologyContextId(realtimeTopologyContextId)
+                    .addSeedUuids(Lists.newArrayList(uuid))
+                    .entityTypes(entityTypesToFetch.stream().collect(Collectors.toList()))
+                    .includeHealthSummary(false)
+                    .entityDetailType(EntityDetailType.entity)
+                    .fetch();
+
+            final Map<Long, ServiceEntityApiDTO> serviceEntityMap =
+                    supplyChain.getSeMap().entrySet().stream()
+                            .map(Entry::getValue)
+                            .flatMap(supplyChainEntryDTO -> supplyChainEntryDTO.getInstances().values().stream())
+                            .collect(Collectors.toMap(apiDTO -> Long.valueOf(apiDTO.getUuid()), Function.identity()));
+
+            // Remove PM(Host) entity type from the result.
+            result = serviceEntityMap.values()
+                    .stream()
+                    .filter(serviceEntityApiDTO ->
+                            !UIEntityType.PHYSICAL_MACHINE.getValue().equals(serviceEntityApiDTO.getClassName()))
+                    .collect(Collectors.toList());
+
+            // Find the oid of the Host the entity is connected to.
             for (Entry<Long, ServiceEntityApiDTO> entry : serviceEntityMap.entrySet()) {
                 ServiceEntityApiDTO serviceEntityApiDTO = entry.getValue();
                 if (serviceEntityApiDTO.getClassName().equals(UIEntityType.PHYSICAL_MACHINE.getValue())) {
@@ -521,7 +548,7 @@ public class EntitiesService implements IEntitiesService {
                             .build());
             if (response.hasCluster()) {
                 final ServiceEntityApiDTO serviceEntityApiDTO = new ServiceEntityApiDTO();
-                serviceEntityApiDTO.setDisplayName(GroupProtoUtil.getGroupName(response.getCluster()));
+                serviceEntityApiDTO.setDisplayName(GroupProtoUtil.getGroupDisplayName(response.getCluster()));
                 serviceEntityApiDTO.setUuid(Long.toString(response.getCluster().getId()));
                 serviceEntityApiDTO.setClassName(ConstraintType.CLUSTER.name());
                 // Insert the clusterRecord before the Entity record.

@@ -44,6 +44,7 @@ import com.vmturbo.notification.api.impl.NotificationClientConfig;
 import com.vmturbo.reporting.api.ReportingClientConfig;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceBlockingStub;
+import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
 
@@ -221,7 +222,13 @@ public class ServiceConfig {
                 settingPolicyServiceBlockingStub(),
                 communicationConfig.settingRpcService(),
                 mapperConfig.settingsMapper(),
-                searchUtil());
+                searchUtil(),
+                communicationConfig.repositoryApi());
+    }
+
+    @Bean
+    public RepositoryClient repositoryClient() {
+        return new RepositoryClient(communicationConfig.repositoryChannel());
     }
 
     @Bean
