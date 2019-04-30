@@ -9,12 +9,12 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.store.EntitiesCache;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -55,11 +55,8 @@ public class ActionModeCalculatorTest {
             .setId(10289)
             .setExplanation(Explanation.getDefaultInstance())
             .setImportance(0);
-    private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
-            actionStream.map(action -> {
-                action.getActionTranslation().setPassthroughTranslationSuccess();
-                return action;
-            })));
+
+    private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
 
     private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
 

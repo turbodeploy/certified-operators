@@ -12,8 +12,8 @@ import java.util.Optional;
 
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mockito;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.Action.SerializationState;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
@@ -54,11 +54,7 @@ public class ActionStateUpdaterTest {
     private final WorkflowStore workflowStoreMock = mock(WorkflowStore.class);
     private final FailedCloudVMGroupProcessor failedCloudVMGroupProcessor = mock(FailedCloudVMGroupProcessor.class);
     private final long realtimeTopologyContextId = 0;
-    private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
-            actionStream.map(action -> {
-                action.getActionTranslation().setPassthroughTranslationSuccess();
-                return action;
-            })));
+    private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
     private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
     private final ActionStateUpdater actionStateUpdater =
             new ActionStateUpdater(actionStorehouse, notificationSender, actionHistoryDao, actionExecutorMock, workflowStoreMock, realtimeTopologyContextId, failedCloudVMGroupProcessor);

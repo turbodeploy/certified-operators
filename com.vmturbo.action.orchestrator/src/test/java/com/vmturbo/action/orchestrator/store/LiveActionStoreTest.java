@@ -2,18 +2,22 @@ package com.vmturbo.action.orchestrator.store;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isA;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -27,6 +31,8 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.internal.matchers.apachecommons.ReflectionEquals;
 
@@ -38,11 +44,13 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
+import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
 import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
 import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
+import com.vmturbo.action.orchestrator.store.EntitiesCache.Snapshot;
 import com.vmturbo.action.orchestrator.store.LiveActionStore.RecommendationTracker;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -111,11 +119,7 @@ public class LiveActionStoreTest {
 
     private static final long TOPOLOGY_CONTEXT_ID = 123456;
 
-    private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
-            actionStream.map(action -> {
-                action.getActionTranslation().setPassthroughTranslationSuccess();
-                return action;
-            })));
+    private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
 
     private final ActionTargetSelector targetSelector = Mockito.mock(ActionTargetSelector.class);
 
@@ -134,7 +138,7 @@ public class LiveActionStoreTest {
     @Before
     public void setup() throws TargetResolutionException, UnsupportedActionException {
         actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID, targetSelector,
-            probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician);
+            probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician, actionTranslator);
 
         when(targetSelector.getTargetsForActions(any())).thenAnswer(invocation -> {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
@@ -223,7 +227,7 @@ public class LiveActionStoreTest {
         // methods in the original action, not in the spy.
         ActionStore actionStore =
                 new LiveActionStore(new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID, targetSelector,
-                    probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician);
+                    probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician, actionTranslator);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 
@@ -505,10 +509,15 @@ public class LiveActionStoreTest {
             .addAction(move(vm1, hostA, vmType, hostB, vmType))
             .build();
 
+        Snapshot snapshot = mock(Snapshot.class);
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+
         actionStore.populateRecommendedActions(plan);
-        verify(entitySettingsCache).update(eq(ImmutableSet.of(vm1, hostA, hostB)),
+
+        verify(entitySettingsCache).newSnapshot(eq(ImmutableSet.of(vm1, hostA, hostB)),
             eq(plan.getInfo().getMarket().getSourceTopologyInfo().getTopologyContextId()),
             eq(plan.getInfo().getMarket().getSourceTopologyInfo().getTopologyId()));
+        verify(entitySettingsCache).update(snapshot);
         verify(spyActionFactory).newAction(any(),
             eq(entitySettingsCache),
             eq(firstPlanId));
@@ -553,6 +562,55 @@ public class LiveActionStoreTest {
         assertThat(actionStore.getAction(queuedMove.getId()).get().getState(), is(ActionState.CLEARED));
         assertThat(actionStore.getAction(queuedMoveSameSrc.getId()).get().getState(), is(ActionState.READY));
     }
+
+    @Test
+    public void testTranslationOfRecommendedActions() {
+        ActionDTO.Action.Builder queuedMove =
+            move(vm1, hostA, vmType, hostB, vmType);
+        ActionPlan plan = ActionPlan.newBuilder()
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                        .setTopologyId(topologyId))))
+            .setId(firstPlanId)
+            .addAction(queuedMove)
+            .build();
+
+        actionStore.populateRecommendedActions(plan);
+        final Optional<Action> queuedAction = actionStore.getAction(queuedMove.getId());
+        assertTrue(queuedAction.isPresent());
+        // Translation should have succeeded.
+        assertThat(queuedAction.get().getTranslationStatus(), is(TranslationStatus.TRANSLATION_SUCCEEDED));
+    }
+
+    @Test
+    public void testDropFailedTranslations() {
+        ActionDTO.Action.Builder queuedMove =
+            move(vm1, hostA, vmType, hostB, vmType);
+        ActionPlan plan = ActionPlan.newBuilder()
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                        .setTopologyId(topologyId))))
+            .setId(firstPlanId)
+            .addAction(queuedMove)
+            .build();
+
+        doAnswer(invocation -> {
+            Stream<Action> actionStream = (Stream<Action>)invocation.getArgumentAt(0, Stream.class);
+            return actionStream.peek(action -> action.getActionTranslation().setTranslationFailure());
+        }).when(actionTranslator).translate(any(Stream.class));
+
+        actionStore.populateRecommendedActions(plan);
+        final Optional<Action> queuedAction = actionStore.getAction(queuedMove.getId());
+        // Translation should have failed, so the action shouldn't be in the store..
+        assertFalse(queuedAction.isPresent());
+    }
+
+    @Captor
+    private ArgumentCaptor<Stream<Action>> translationCaptor;
 
     @Test
     public void testRetentionOfReRecommendedAction() {

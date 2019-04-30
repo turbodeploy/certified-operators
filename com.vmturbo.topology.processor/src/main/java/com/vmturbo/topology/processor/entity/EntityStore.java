@@ -6,7 +6,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -23,7 +22,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 
@@ -316,29 +314,8 @@ public class EntityStore {
         return finalEntitiesById;
     }
 
-    /**
-     * Add entity information to the repository.
-     *
-     * This will overwrite any existing information associated with the specified target.
-     *
-     * @param probeId The probe that the target belongs to.
-     * @param targetId The target that discovered the entities. Existing entities discovered by this
-     *                 target will be purged from the repository.
-     * @param entityDTOList The discovered {@link EntityDTO} objects.
-     * @throws IdentityUninitializedException If the identity service is uninitialized, and we are
-     *  unable to assign IDs to discovered entities.
-     * @throws IdentityMetadataMissingException if asked to assign an ID to an {@link EntityDTO}
-     *         for which there is no identity metadata.
-     */
-    public void entitiesDiscovered(final long probeId,
-                                   final long targetId,
-                                   @Nonnull final List<EntityDTO> entityDTOList)
-            throws IdentityUninitializedException, IdentityMetadataMissingException,
-                    IdentityProviderException {
-
-        final Map<Long, EntityDTO> entitiesById =
-            assignIdsToEntities(probeId, targetId, entityDTOList);
-
+    private void insertTargetEntities(final long targetId,
+                                      @Nonnull final Map<Long, EntityDTO> entitiesById) {
         synchronized (topologyUpdateLock) {
             purgeTarget(targetId,
                     // If the entity is not present in the incoming snapshot, then remove it.
@@ -430,6 +407,32 @@ public class EntityStore {
     }
 
     /**
+     * Add entity information to the repository.
+     *
+     * This will overwrite any existing information associated with the specified target.
+     *
+     * @param probeId The probe that the target belongs to.
+     * @param targetId The target that discovered the entities. Existing entities discovered by this
+     *                 target will be purged from the repository.
+     * @param entityDTOList The discovered {@link EntityDTO} objects.
+     * @throws IdentityUninitializedException If the identity service is uninitialized, and we are
+     *  unable to assign IDs to discovered entities.
+     * @throws IdentityMetadataMissingException if asked to assign an ID to an {@link EntityDTO}
+     *         for which there is no identity metadata.
+     */
+    public void entitiesDiscovered(final long probeId,
+                                   final long targetId,
+                                   @Nonnull final List<EntityDTO> entityDTOList)
+            throws IdentityUninitializedException, IdentityMetadataMissingException,
+                    IdentityProviderException {
+
+        final Map<Long, EntityDTO> entitiesById =
+            assignIdsToEntities(probeId, targetId, entityDTOList);
+
+        insertTargetEntities(targetId, entitiesById);
+    }
+
+    /**
      * Puts restored entities in a target's entities map.
      * Also populates the (global) entities map with the new entities.
      *
@@ -441,36 +444,8 @@ public class EntityStore {
      * @param restoredMap a map from entity OID to entity
      */
     public void entitiesRestored(long targetId, long lastUpdatedTime, Map<Long, EntityDTO> restoredMap) {
-        // Create a new per-target map with the restored entities
-        final ImmutableSet.Builder<Long> newTargetEntitiesBuilder = new ImmutableSet.Builder<>();
-        final ImmutableMap.Builder<String, Long> newEntitiesByLocalIdBuilder = new ImmutableMap.Builder<>();
-        for (Entry<Long, EntityDTO> entry : restoredMap.entrySet()) {
-            final EntityDTO dto = entry.getValue();
-            final long oid = entry.getKey();
-            final Entity existingEntity = entityMap.get(oid);
-
-            newTargetEntitiesBuilder.add(oid);
-            newEntitiesByLocalIdBuilder.put(dto.getId(), oid);
-
-            if (existingEntity == null) {
-                // No information about this entity yet. Create new information to add.
-                final EntityType entityType = entry.getValue().getEntityType();
-                logger.debug("Restoring entity {} of type {} to the topology.", oid, entityType);
-                final Entity newEntity = new Entity(oid, entityType);
-                newEntity.addTargetInfo(targetId, dto);
-                entityMap.put(oid, newEntity);
-            } else {
-                // The entity already exists. Append additional per-target information
-                // to the existing information.
-                existingEntity.addTargetInfo(targetId, dto);
-            }
-        }
-
-        TargetEntityIdInfo idInfo = new TargetEntityIdInfo(newTargetEntitiesBuilder.build(),
-            newEntitiesByLocalIdBuilder.build(),
-            lastUpdatedTime);
-        // Get rid of the old per-target map and instead use the new one with the restored entities
-        targetEntities.put(targetId, idInfo );
+        logger.info("Restoring {} entities for target {}", restoredMap.size(), targetId);
+        insertTargetEntities(targetId, restoredMap);
     }
 
     /**

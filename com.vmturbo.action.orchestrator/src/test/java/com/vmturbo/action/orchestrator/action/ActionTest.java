@@ -16,7 +16,6 @@ import java.util.Map;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -61,11 +60,9 @@ public class ActionTest {
     private ActionDTO.Action reconfigureRecommendation;
     private Action reconfigureAction;
     private EntitiesCache entitySettingsCache = mock(EntitiesCache.class);
-    private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
-            actionStream.map(action -> {
-                action.getActionTranslation().setPassthroughTranslationSuccess();
-                return action;
-            })));
+
+    private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
+
     private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
 
     @Before

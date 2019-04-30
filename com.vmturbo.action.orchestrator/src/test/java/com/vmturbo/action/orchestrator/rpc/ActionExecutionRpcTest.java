@@ -1,7 +1,11 @@
 package com.vmturbo.action.orchestrator.rpc;
 
+import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.passthroughTranslator;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
@@ -16,6 +20,8 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import javax.annotation.Nonnull;
 
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
@@ -32,6 +38,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
+import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
@@ -53,6 +60,7 @@ import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator.TranslationExecutor;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
@@ -70,7 +78,6 @@ import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
  * Tests for action execution RPCs.
@@ -82,11 +89,8 @@ public class ActionExecutionRpcTest {
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
 
     // Have the translator pass-through translate all actions.
-    private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
-            actionStream.map(action -> {
-                action.getActionTranslation().setPassthroughTranslationSuccess();
-                return action;
-            })));
+    private final ActionTranslator actionTranslator = passthroughTranslator();
+
     private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
     private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
     private final IActionStoreFactory actionStoreFactory = mock(IActionStoreFactory.class);
@@ -150,7 +154,7 @@ public class ActionExecutionRpcTest {
         actionStoreSpy =
             Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
                 actionTargetSelector, probeCapabilityCache,
-                entitySettingsCache, actionHistoryDao, statistician));
+                entitySettingsCache, actionHistoryDao, statistician, actionTranslator));
 
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
@@ -351,10 +355,12 @@ public class ActionExecutionRpcTest {
         // Since wthis test uses a new actionTranslator, all the dependent objects are
         // created again - actionModeCalculator, actionStoreHouse, actionsRpcService, grpcServer,
         // actionOrchestratorServiceClient, LiveActionStore
-        final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
-                actionStream.map(action -> {
-                    return action;
-                })));
+        final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(new TranslationExecutor() {
+            @Override
+            public <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream) {
+                return actionStream;
+            }
+        }));
         ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
         final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
                 executor, actionStoreLoader, actionModeCalculator);
@@ -376,7 +382,7 @@ public class ActionExecutionRpcTest {
         actionStoreSpy =
             Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
                 actionTargetSelector, probeCapabilityCache, entitySettingsCache,
-                actionHistoryDao, statistician));
+                actionHistoryDao, statistician, actionTranslator));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
 
         actionStorehouse.storeActions(plan);

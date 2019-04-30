@@ -12,19 +12,18 @@ import javax.annotation.Nonnull;
 
 import org.junit.Assert;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
+import com.vmturbo.action.orchestrator.action.ActionEvent.AfterFailureEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.AfterSuccessEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.CannotExecuteEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.AfterFailureEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.AfterSuccessEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
@@ -49,11 +48,9 @@ import com.vmturbo.components.common.setting.EntitySettingSpecs;
 public class ActionStateMachineTest {
 
     private final EntitiesCache entitySettingsCache = mock(EntitiesCache.class);
-    private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
-            actionStream.map(action -> {
-                action.getActionTranslation().setPassthroughTranslationSuccess();
-                return action;
-            })));
+
+    private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
+
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
 
     private final ActionDTO.Action move = ActionDTO.Action.newBuilder()

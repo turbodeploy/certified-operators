@@ -28,6 +28,7 @@ import org.springframework.web.client.RestTemplate;
 
 import io.grpc.Status;
 
+import com.vmturbo.action.orchestrator.store.EntitiesCache.Snapshot;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
@@ -111,7 +112,9 @@ public class EntitiesCacheTest {
                 .thenReturn(ResponseEntity.ok(Collections.singletonList(entityDto)));
 
 
-        entitySettingsCache.update(Collections.singleton(ENTITY_ID), TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
+        final Snapshot snapshot = entitySettingsCache.newSnapshot(
+            Collections.singleton(ENTITY_ID), TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
+        entitySettingsCache.update(snapshot);
 
         final Map<String, Setting> newSettings = entitySettingsCache.getSettingsForEntity(ENTITY_ID);
         assertTrue(newSettings.containsKey(setting.getSettingSpecName()));
@@ -131,7 +134,8 @@ public class EntitiesCacheTest {
         when(restTemplate.exchange(anyString(), eq(HttpMethod.POST), eq(httpEntity), eq(type)))
                 .thenThrow(new RestClientException("NO!"));
 
-        entitySettingsCache.update(Collections.singleton(ENTITY_ID), TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
+        entitySettingsCache.newSnapshot(Collections.singleton(ENTITY_ID),
+            TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
 
         assertTrue(entitySettingsCache.getSettingsForEntity(ENTITY_ID).isEmpty());
     }

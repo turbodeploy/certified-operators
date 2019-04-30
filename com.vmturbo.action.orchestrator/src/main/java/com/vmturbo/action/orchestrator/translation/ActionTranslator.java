@@ -84,7 +84,7 @@ public class ActionTranslator {
          *         Note that the order of the actions in the output stream is not guaranteed to be the same as they were
          *         on the input. If this is important, consider applying an {@link Stream#sorted(Comparator)} operation.
          */
-        Stream<ActionView> translate(@Nonnull final Stream<ActionView> actionStream);
+        <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream);
     }
 
     private final TranslationExecutor translationExecutor;
@@ -145,10 +145,6 @@ public class ActionTranslator {
     @Nonnull
     public Stream<ActionSpec> translateToSpecs(@Nonnull final Stream<ActionView> actionStream) {
         return translate(actionStream)
-            // Filter out failed VCPU resize translations.
-            // TODO (roman, Sep 21 2018): We may want to filter these out when processing
-            // actions from the market.
-            .filter(this::isVcpuResizeTranslationSuccessful)
             .map(this::toSpec);
     }
 
@@ -176,27 +172,8 @@ public class ActionTranslator {
      *         Note that the order of the actions in the output stream is not guaranteed to be the same as they were
      *         on the input. If this is important, consider applying an {@link Stream#sorted(Comparator)} operation.
      */
-    public Stream<ActionView> translate(@Nonnull final Stream<ActionView> actionStream) {
-        return translationExecutor.translate(actionStream)
-            // Filter out failed VCPU resize translations.
-            // TODO (roman, Sep 21 2018): We may want to filter these out when processing
-            // actions from the market.
-            .filter(this::isVcpuResizeTranslationSuccessful);
-    }
-
-    /**
-     * Filter out VCPU resize actions with same "from" and "to" values. Since it doesn't make sense
-     * to generate same values VCPU resize actions.
-     * TODO: refactor it to be more genaric, probably a predicate?
-     * @param actionView action view
-     * @return false if it's VCPU resize action and translation is failed.
-     */
-    private boolean isVcpuResizeTranslationSuccessful(@Nonnull final ActionView actionView) {
-        final ActionDTO.ActionInfo actionInfo = actionView.getRecommendation().getInfo();
-        // not resize action || not VCPU resize || VCPU resize translation is successful
-        return !actionInfo.getActionTypeCase().equals(ActionTypeCase.RESIZE)
-                || actionInfo.getResize().getCommodityType().getType() != CommodityType.VCPU_VALUE
-                || actionView.getActionTranslation().getTranslatedRecommendation().isPresent();
+    public <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream) {
+        return translationExecutor.translate(actionStream);
     }
 
     /**
@@ -276,7 +253,7 @@ public class ActionTranslator {
          */
         @FunctionalInterface
         public interface BatchTranslator {
-            Stream<ActionView> translate(@Nonnull final List<ActionView> actionsToTranslate);
+            <T extends ActionView> Stream<T> translate(@Nonnull final List<T> actionsToTranslate);
         }
 
         /**
@@ -312,8 +289,8 @@ public class ActionTranslator {
          *         Note that the order of the actions in the output stream is not guaranteed to be the same as they were
          *         on the input. If this is important, consider applying an {@link Stream#sorted(Comparator)} operation.
          */
-        public Stream<ActionView> translate(@Nonnull final Stream<ActionView> actionStream) {
-            final Map<BatchTranslator, List<ActionView>> actionsByTranslationMethod = actionStream
+        public <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream) {
+            final Map<BatchTranslator, List<T>> actionsByTranslationMethod = actionStream
                 .collect(Collectors.groupingBy(this::getTranslationMethod));
 
             return actionsByTranslationMethod.entrySet().stream()
@@ -354,7 +331,7 @@ public class ActionTranslator {
          * @param actionsToTranslate The action to translate.
          * @return A stream containing the input actions.
          */
-        private Stream<ActionView> skipTranslation(@Nonnull final List<ActionView> actionsToTranslate) {
+        private <T extends ActionView> Stream<T> skipTranslation(@Nonnull final List<T> actionsToTranslate) {
             return actionsToTranslate.stream();
         }
 
@@ -365,7 +342,7 @@ public class ActionTranslator {
          * @param actionsToTranslate The actions to be translated.
          * @return A stream of the translated actions.
          */
-        private Stream<ActionView> passthroughTranslation(@Nonnull final List<ActionView> actionsToTranslate) {
+        private <T extends ActionView> Stream<T> passthroughTranslation(@Nonnull final List<T> actionsToTranslate) {
             return actionsToTranslate.stream()
                 .map(action -> {
                     action.getActionTranslation().setPassthroughTranslationSuccess();
@@ -380,8 +357,8 @@ public class ActionTranslator {
          * @param resizeActions The actions to be translated.
          * @return A stream of translated vCPU actions.
          */
-        private Stream<ActionView> translateVcpuResizes(@Nonnull final List<ActionView> resizeActions) {
-            final Map<Long, List<ActionView>> resizeActionsByVmTargetId = resizeActions.stream()
+        private <T extends ActionView> Stream<T> translateVcpuResizes(@Nonnull final List<T> resizeActions) {
+            final Map<Long, List<T>> resizeActionsByVmTargetId = resizeActions.stream()
                 .collect(Collectors.groupingBy(action ->
                     action.getRecommendation().getInfo().getResize().getTarget().getId()));
 
@@ -416,8 +393,8 @@ public class ActionTranslator {
          * @param resizeActions The resize actions to be translated.
          * @return A stream of the translated resize actions.
          */
-        private Stream<ActionView> translateVcpuResizes(@Nonnull final GetHostInfoResponse hostInfoResponse,
-                                                        @Nonnull final List<ActionView> resizeActions) {
+        private <T extends ActionView> Stream<T> translateVcpuResizes(@Nonnull final GetHostInfoResponse hostInfoResponse,
+                                                        @Nonnull final List<T> resizeActions) {
             if (!hostInfoResponse.hasHostInfo()) {
                 logger.warn("Host info not found for VCPU resize on entity {}. Skipping translation",
                     hostInfoResponse.getVirtualMachineId());

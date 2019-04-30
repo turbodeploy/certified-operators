@@ -26,6 +26,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -36,15 +37,19 @@ import com.google.common.collect.Maps;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
+import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.QueryFilter;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
+import com.vmturbo.action.orchestrator.store.EntitiesCache.Snapshot;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
@@ -78,6 +83,13 @@ public class LiveActionStore implements ActionStore {
     // shared lock protecting access to actions and riActions maps.
     private static final Object actionsLock = new Object();
 
+    /**
+     * Lock protecting population of the store. Within a single "population" of the store we may
+     * want to hold and release the actions lock, but we don't want to allow other "population"
+     * operations to take place in the meantime.
+     */
+    private static final Object storePopulationLock = new Object();
+
     private final IActionFactory actionFactory;
 
     private final long topologyContextId;
@@ -95,6 +107,8 @@ public class LiveActionStore implements ActionStore {
     private final ProbeCapabilityCache probeCapabilityCache;
 
     private final LiveActionsStatistician actionsStatistician;
+
+    private final ActionTranslator actionTranslator;
 
     /**
      * A mutable (real-time) action is considered visible (from outside the Action Orchestrator's perspective)
@@ -118,7 +132,8 @@ public class LiveActionStore implements ActionStore {
                            @Nonnull final ProbeCapabilityCache probeCapabilityCache,
                            @Nonnull final EntitiesCache entitySettingsCache,
                            @Nonnull final ActionHistoryDao actionHistoryDao,
-                           @Nonnull final LiveActionsStatistician liveActionsStatistician) {
+                           @Nonnull final LiveActionsStatistician liveActionsStatistician,
+                           @Nonnull final ActionTranslator actionTranslator) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.topologyContextId = topologyContextId;
         this.severityCache = new EntitySeverityCache(QueryFilter.VISIBILITY_FILTER);
@@ -127,6 +142,7 @@ public class LiveActionStore implements ActionStore {
         this.entitySettingsCache = entitySettingsCache;
         this.actionHistoryDao = Objects.requireNonNull(actionHistoryDao);
         this.actionsStatistician = Objects.requireNonNull(liveActionsStatistician);
+        this.actionTranslator = Objects.requireNonNull(actionTranslator);
     }
 
     /**
@@ -274,114 +290,170 @@ public class LiveActionStore implements ActionStore {
     @Override
     public boolean populateRecommendedActions(@Nonnull final ActionPlan actionPlan) {
 
-        if (actionPlan.getInfo().hasBuyRi()) {
-            return populateBuyRIActions(actionPlan);
-        }
+        synchronized (storePopulationLock) {
+            if (actionPlan.getInfo().hasBuyRi()) {
+                return populateBuyRIActions(actionPlan);
+            }
 
-        final TopologyInfo sourceTopologyInfo =
-            actionPlan.getInfo().getMarket().getSourceTopologyInfo();
+            final TopologyInfo sourceTopologyInfo =
+                actionPlan.getInfo().getMarket().getSourceTopologyInfo();
 
-        // This call requires some computation and an RPC call, so do it outside of the
-        // action lock.
-        Collection<ActionDTO.Action> actionsWithSupportLevel = actionsWithSupportLevel(actionPlan);
-        // RecommendationTracker to accelerate lookups of recommendations.
-        RecommendationTracker recommendations = new RecommendationTracker();
+            // This call requires some computation and an RPC call, so do it outside of the
+            // action lock.
+            Collection<ActionDTO.Action> actionsWithSupportLevel = actionsWithSupportLevel(actionPlan);
+            // RecommendationTracker to accelerate lookups of recommendations.
+            RecommendationTracker recommendations = new RecommendationTracker();
 
-        // Apply addition and removal to the internal store atomically.
-        // It is generally not safe to call synchronized on a complex object not dedicated
-        // to the purpose of locking because of the possibility of deadlock, but
-        // SynchronizedCollections are an exception to this rule.
-        final List<ActionView> completedSinceLastPopulate = new ArrayList<>();
-        synchronized (actionsLock) {
+            // Apply addition and removal to the internal store atomically.
+            // It is generally not safe to call synchronized on a complex object not dedicated
+            // to the purpose of locking because of the possibility of deadlock, but
+            // SynchronizedCollections are an exception to this rule.
+            final List<ActionView> completedSinceLastPopulate = new ArrayList<>();
+            final List<Long> actionsToRemove = new ArrayList<>();
+            synchronized (actionsLock) {
 
-            // Only retain IN-PROGRESS, QUEUED and READY actions which are re-recommended.
-            List<Long> actionsToRemove = new ArrayList<>();
-            actions.values().forEach(action -> {
-                switch (action.getState()) {
-                    case IN_PROGRESS:
-                    case QUEUED:
-                        recommendations.add(action);
-                        break;
-                    case READY:
-                        recommendations.add(action);
-                        actionsToRemove.add(action.getId());
-                        break;
-                    case SUCCEEDED:
-                    case FAILED:
-                        completedSinceLastPopulate.add(action);
-                        actionsToRemove.add(action.getId());
-                        break;
-                    default:
-                        actionsToRemove.add(action.getId());
+                // Only retain IN-PROGRESS, QUEUED and READY actions which are re-recommended.
+                actions.values().forEach(action -> {
+                    switch (action.getState()) {
+                        case IN_PROGRESS:
+                        case QUEUED:
+                            recommendations.add(action);
+                            break;
+                        case READY:
+                            recommendations.add(action);
+                            actionsToRemove.add(action.getId());
+                            break;
+                        case SUCCEEDED:
+                        case FAILED:
+                            completedSinceLastPopulate.add(action);
+                            actionsToRemove.add(action.getId());
+                            break;
+                        default:
+                            actionsToRemove.add(action.getId());
+                    }
+                });
+            }
+
+            // We released the actions lock, but we are still holding the population lock, so
+            // the actions map shouldn't get modified in the meantime.
+            //
+            // Actions may change state due to user behaviour, but that's fine.
+            //
+            // We now build up the list of actions to add, and apply translations.
+
+            final long planId = actionPlan.getId();
+            final MutableInt newActionCounts = new MutableInt(0);
+
+            final Stream<Action> translatedReadyActions = actionTranslator.translate(actionsWithSupportLevel.stream()
+                .map(recommendedAction -> {
+                    final Optional<Action> existingActionOpt = recommendations.take(recommendedAction.getInfo());
+                    final Action action;
+                    if (existingActionOpt.isPresent()) {
+                        action = existingActionOpt.get();
+
+                        // If we are re-using an existing action, we should update the recommendation
+                        // so other properties that may have changed (e.g. importance, executability)
+                        // reflect the most recent recommendation from the market. However, we only
+                        // do this for "READY" actions. An IN_PROGRESS or QUEUED action is considered
+                        // "fixed" until it either succeeds or fails.
+                        // TODO (roman, Oct 31 2018): If a QUEUED action becomes non-executable, it
+                        // may be worth clearing it.
+                        if (action.getState() == ActionState.READY) {
+                            action.updateRecommendation(recommendedAction);
+                        }
+                    } else {
+                        newActionCounts.getAndIncrement();
+                        action = actionFactory.newAction(recommendedAction, entitySettingsCache, planId);
+                    }
+
+                    if (action.getState() == ActionState.READY) {
+                        return action;
+                    } else {
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull));
+
+            final MutableInt removedCount = new MutableInt(0);
+            final Set<ActionTypeCase> unsupportedActionTypes = new HashSet<>();
+            final List<Action> translatedActionsToAdd = new ArrayList<>();
+            final Set<Long> entitiesToRetrieve = new HashSet<>();
+
+            // This actually drains the stream defined above, updating the recommendation, creating
+            // new actions, and so on.
+            translatedReadyActions.forEach(action -> {
+                if (action.getTranslationStatus() == TranslationStatus.TRANSLATION_FAILED) {
+                    removedCount.increment();
+                    // Make sure to remove the actions with failed translations.
+                    // We don't send NotRecommendedEvent-s because the action is still recommended
+                    // but it's useless.
+                    actionsToRemove.add(action.getId());
+                    logger.trace("Removed action {} with failed translation. Full action: {}",
+                            action.getId(), action);
+                } else {
+                    try {
+                        entitiesToRetrieve.addAll(ActionDTOUtil.getInvolvedEntityIds(action.getRecommendation()));
+                        translatedActionsToAdd.add(action);
+                    } catch (UnsupportedActionException e) {
+                        unsupportedActionTypes.add(e.getActionType());
+                    }
                 }
             });
 
-            actions.keySet().removeAll(actionsToRemove);
 
-            final long planId = actionPlan.getId();
-            final Set<Long> entitiesToRetrieve = new HashSet<>();
-            final AtomicInteger newActionCounts = new AtomicInteger(0);
-            for (ActionDTO.Action recommendedAction : actionsWithSupportLevel) {
-                final Optional<Action> existingActionOpt = recommendations.take(recommendedAction.getInfo());
-                final Action action;
-                if (existingActionOpt.isPresent()) {
-                    action = existingActionOpt.get();
-
-                    // If we are re-using an existing action, we should update the recommendation
-                    // so other properties that may have changed (e.g. importance, executability)
-                    // reflect the most recent recommendation from the market. However, we only
-                    // do this for "READY" actions. An IN_PROGRESS or QUEUED action is considered
-                    // "fixed" until it either succeeds or fails.
-                    // TODO (roman, Oct 31 2018): If a QUEUED action becomes non-executable, it
-                    // may be worth clearing it.
-                    if (action.getState() == ActionState.READY) {
-                        action.updateRecommendation(recommendedAction);
-                    }
-                } else {
-                    newActionCounts.getAndIncrement();
-                    action = actionFactory.newAction(recommendedAction, entitySettingsCache, planId);
-                }
-
-                if (action.getState() == ActionState.READY) {
-                    try {
-                        entitiesToRetrieve.addAll(ActionDTOUtil.getInvolvedEntityIds(recommendedAction));
-                        actions.put(action.getId(), action);
-                    } catch (UnsupportedActionException e) {
-                        logger.error("Recommendation contains unsupported action", e);
-                    }
-                }
+            // We don't explicitly clear actions that were not successfully translated.
+            if (removedCount.intValue() > 0) {
+                logger.warn("Dropped {} actions due to failed translations.", removedCount);
             }
-            logger.info("Number of Re-Recommended actions={}, Newly created actions={}",
-                    (actionPlan.getActionCount() - newActionCounts.get()),
-                    newActionCounts);
 
-            entitySettingsCache.update(entitiesToRetrieve,
+            if (!unsupportedActionTypes.isEmpty()) {
+                logger.error("Action plan contained unsupported action types: {}", unsupportedActionTypes);
+            }
+
+            // Get a new snapshot for the entity settings cache. We do this outside of lock scope
+            // so as to not block the readers on the RPC.
+            final Snapshot snapshot = entitySettingsCache.newSnapshot(entitiesToRetrieve,
                 sourceTopologyInfo.getTopologyContextId(), sourceTopologyInfo.getTopologyId());
 
-            // Clear READY or QUEUED actions that were not re-recommended. If they were
-            // re-recommended, they would have been removed from the RecommendationTracker
-            // above.
-            StreamSupport.stream(recommendations.spliterator(), false)
-                .filter(action -> (action.getState() == ActionState.READY
-                            || action.getState() == ActionState.QUEUED))
-                .forEach(action -> action.receive(new NotRecommendedEvent(planId)));
+            // Grab the lock again (this will wait for all readers to leave), and apply the changes.
+            synchronized (actionsLock) {
+                actions.keySet().removeAll(actionsToRemove);
+                // Some of these may be noops - if we're re-adding an action that was already in
+                // the map from a previous action plan.
+                translatedActionsToAdd.forEach(action -> actions.put(action.getId(), action));
 
-            actions.values().stream()
-                .collect(Collectors.groupingBy(a ->
-                    a.getRecommendation().getInfo().getActionTypeCase(), Collectors.counting())
-                ).forEach((actionType, count) -> Metrics.ACTION_COUNTS_SUMMARY
+                // Update the entity settings cache.
+                entitySettingsCache.update(snapshot);
+
+                logger.info("Number of Re-Recommended actions={}, Newly created actions={}",
+                    (actionPlan.getActionCount() - newActionCounts.intValue()),
+                    newActionCounts);
+
+                // Clear READY or QUEUED actions that were not re-recommended. If they were
+                // re-recommended, they would have been removed from the RecommendationTracker
+                // above.
+                StreamSupport.stream(recommendations.spliterator(), false)
+                    .filter(action -> (action.getState() == ActionState.READY
+                        || action.getState() == ActionState.QUEUED))
+                    .forEach(action -> action.receive(new NotRecommendedEvent(planId)));
+
+                actions.values().stream()
+                    .collect(Collectors.groupingBy(a ->
+                        a.getRecommendation().getInfo().getActionTypeCase(), Collectors.counting())
+                    ).forEach((actionType, count) -> Metrics.ACTION_COUNTS_SUMMARY
                     .labels(actionType.name())
-                    .observe((double)count));
+                    .observe((double) count));
 
-            // Record the action stats.
-            // TODO (roman, Nov 15 2018): For actions completed since the last snapshot, it may make
-            // sense to use the last snapshot's time instead of the current snapshot's time.
-            // Not doing it for now because of the extra complexity - and it's not clear if anyone
-            // cares if the counts are off by ~10 minutes.
-            actionsStatistician.recordActionStats(sourceTopologyInfo,
+                // Record the action stats.
+                // TODO (roman, Nov 15 2018): For actions completed since the last snapshot, it may make
+                // sense to use the last snapshot's time instead of the current snapshot's time.
+                // Not doing it for now because of the extra complexity - and it's not clear if anyone
+                // cares if the counts are off by ~10 minutes.
+                actionsStatistician.recordActionStats(sourceTopologyInfo,
                     // Only record user-visible actions.
                     Stream.concat(completedSinceLastPopulate.stream(), actions.values().stream())
-                            .filter(VISIBILITY_PREDICATE));
+                        .filter(VISIBILITY_PREDICATE));
+            }
         }
 
         return true;
@@ -435,11 +507,11 @@ public class LiveActionStore implements ActionStore {
         synchronized (actionsLock) {
             final long planId = actionPlan.getId();
             riActions.clear();
-            for (ActionDTO.Action recommendedAction : actionPlan.getActionList() ) {
-                ActionInfo actionInfo = recommendedAction.getInfo();
-                final Action action = actionFactory.newAction(recommendedAction, planId);
-                riActions.put(action.getId(), action);
-            }
+            // All RI translations should be passthrough, but we do it here anyway for consistency
+            // with the "normal" action case.
+            actionTranslator.translate(actionPlan.getActionList().stream()
+                    .map(recommendedAction -> actionFactory.newAction(recommendedAction, planId)))
+                .forEach(action -> riActions.put(action.getId(), action));
             logger.info("Number of buy RI actions={}", actionPlan.getActionCount());
         }
         return true;
@@ -518,12 +590,7 @@ public class LiveActionStore implements ActionStore {
     @Nonnull
     @Override
     public Map<Long, ActionView> getActionViews() {
-        Map<Long, ActionView> currentActionViews;
-        synchronized (actionsLock) {
-            currentActionViews = getActions().values().stream()
-                .collect(Collectors.toMap(ActionView::getId, Function.identity()));
-        }
-        return Collections.unmodifiableMap(currentActionViews);
+        return Collections.unmodifiableMap(getActions());
     }
 
     /**

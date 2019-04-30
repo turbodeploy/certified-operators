@@ -75,7 +75,7 @@ public class FailedCloudVMGroupProcessor {
         final Group group;
         try {
             if (successOidsSet.isEmpty() && failedOidsSet.isEmpty()) {
-                logger.info("No new entities to process.");
+                logger.debug("No new entities to process.");
                 return;
             }
 

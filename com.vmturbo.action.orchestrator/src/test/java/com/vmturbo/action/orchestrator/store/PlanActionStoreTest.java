@@ -1,7 +1,7 @@
 package com.vmturbo.action.orchestrator.store;
 
+import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.passthroughTranslator;
 import static com.vmturbo.action.orchestrator.db.tables.MarketAction.MARKET_ACTION;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -16,21 +16,18 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
 
 import org.apache.commons.collections4.ListUtils;
-import org.apache.commons.collections4.SetUtils;
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
@@ -38,8 +35,6 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
@@ -86,11 +81,9 @@ public class PlanActionStoreTest {
     private final LocalDateTime actionRecommendationTime = LocalDateTime.now();
     private final IActionFactory actionFactory = mock(IActionFactory.class);
     private PlanActionStore actionStore;
-    private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
-            actionStream.map(action -> {
-                action.getActionTranslation().setPassthroughTranslationSuccess();
-                return action;
-            })));
+
+    private final ActionTranslator actionTranslator = passthroughTranslator();
+
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
 
     @Before

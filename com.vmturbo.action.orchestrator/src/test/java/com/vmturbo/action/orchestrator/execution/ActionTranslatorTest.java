@@ -1,8 +1,10 @@
 package com.vmturbo.action.orchestrator.execution;
 
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -144,8 +146,9 @@ public class ActionTranslatorTest {
     @Test
     public void testTranslateResizeActionTypesWithSameVcpuValue() throws Exception {
         final Action resize = setupDefaultResizeActionNegativeScenario();
-        // The action shouldn't appear in the post-translation stream.
-        assertEquals(0, translator.translate(Stream.of(resize)).count());
+        // Action should appear, and translation status should be failed.
+        final Action action = translator.translate(Stream.of(resize)).findFirst().get();
+        assertThat(action.getTranslationStatus(), is(TranslationStatus.TRANSLATION_FAILED));
     }
 
     @Test

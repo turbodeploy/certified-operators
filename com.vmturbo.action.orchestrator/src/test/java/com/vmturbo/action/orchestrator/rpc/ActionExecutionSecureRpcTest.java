@@ -38,7 +38,6 @@ import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
-import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
@@ -105,10 +104,7 @@ public class ActionExecutionSecureRpcTest {
     private final static long ACTION_ID = 9999;
 
     // Have the translator pass-through translate all actions.
-    private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
-            actionStream.peek(action -> {
-                action.getActionTranslation().setPassthroughTranslationSuccess();
-            })));
+    private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
     private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
     private final IActionStoreFactory actionStoreFactory = mock(IActionStoreFactory.class);
@@ -210,7 +206,7 @@ public class ActionExecutionSecureRpcTest {
         // mock action store
         actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
             actionTargetSelector, probeCapabilityCache, entitySettingsCache,
-            actionHistoryDao, actionsStatistician));
+            actionHistoryDao, actionsStatistician, actionTranslator));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");

@@ -113,18 +113,11 @@ public class ActionQueryRpcTest {
     private final WorkflowStore workflowStore = mock(WorkflowStore.class);
     private final HistoricalActionStatReader historicalStatReader = mock(HistoricalActionStatReader.class);
     private final CurrentActionStatReader liveStatReader = mock(CurrentActionStatReader.class);
-    private final ActionTranslator actionTranslator = new ActionTranslator(actionStream ->
-        actionStream.map(action -> {
-            action.getActionTranslation().setPassthroughTranslationSuccess();
-            return action;
-        }));
+    private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
 
-    private final ActionTranslator actionTranslatorWithFailedTranslation = new ActionTranslator(actionStream ->
-            actionStream.map(action -> {
-                action.getActionTranslation().setTranslationFailure();
-                return action;
-            }));
+    private final ActionTranslator actionTranslatorWithFailedTranslation =
+        ActionOrchestratorTestUtils.passthroughTranslator();
 
     private final ActionPaginatorFactory paginatorFactory =
             Mockito.spy(new DefaultActionPaginatorFactory(1000, 1000));
@@ -248,34 +241,6 @@ public class ActionQueryRpcTest {
                 .map(ActionOrchestratorAction::getActionSpec)
                 .collect(Collectors.toList());
         assertThat(actionSpecs, containsInAnyOrder(spec(visibleAction), spec(disabledAction)));
-    }
-
-    /**
-     * Verify filtering out VCPU resize actions with same "from" and "to" values.
-     * Since it doesn't make sense to generate same values VCPU resize actions.
-     *
-     * @throws Exception
-     */
-    @Test
-    public void testGetAllActionWithResizeActionWithFailedTranslation() throws Exception {
-        ActionView resizeAction = new Action(ActionOrchestratorTestUtils
-                .createResizeRecommendation(1, 11l,
-                        CommodityType.VCPU, 4000, 2500), actionPlanId, actionModeCalculator);
-        resizeAction.getActionTranslation().setTranslationFailure();
-        final Map<Long, ActionView> actionViews = ImmutableMap.of(
-                resizeAction.getId(), resizeAction               );
-        when(actionStore.getActionViews()).thenReturn(actionViews);
-        when(actionStore.getVisibilityPredicate()).thenReturn(PlanActionStore.VISIBILITY_PREDICATE);
-
-        FilteredActionRequest actionRequest = FilteredActionRequest.newBuilder()
-                .setTopologyContextId(topologyContextId)
-                .build();
-
-        final List<ActionSpec> actionSpecs = actionOrchestratorServiceClientForFailedTranslation.getAllActions(actionRequest)
-                .getActionsList().stream()
-                .map(ActionOrchestratorAction::getActionSpec)
-                .collect(Collectors.toList());
-        assertEquals(0, actionSpecs.size());
     }
 
     /**
@@ -621,29 +586,6 @@ public class ActionQueryRpcTest {
                     .setCount(resizeActions)
                     .setType(ActionType.RESIZE)
                     .build()));
-    }
-
-    /**
-     * Verify filtering out VCPU resize actions with same "from" and "to" values.
-     * Since it doesn't make sense to generate same values VCPU resize actions.
-     *
-     * @throws Exception
-     */
-    @Test
-    public void testGetAllActionCountsWithResizeActionWithFailedTranslation() throws Exception {
-        ActionView resizeAction = new Action(ActionOrchestratorTestUtils
-                .createResizeRecommendation(1, 11l,
-                        CommodityType.VCPU, 4000, 2500), actionPlanId, actionModeCalculator);
-        final Map<Long, ActionView> actionViews = ImmutableMap.of(
-                resizeAction.getId(), resizeAction);
-        when(actionStore.getActionViews()).thenReturn(actionViews);
-        when(actionStore.getVisibilityPredicate()).thenReturn(action -> true);
-
-        final GetActionCountsResponse response = actionOrchestratorServiceClientForFailedTranslation.getActionCounts(
-                GetActionCountsRequest.newBuilder()
-                        .setTopologyContextId(topologyContextId)
-                        .build());
-        assertThat(response.getCountsByTypeCount(), is(0));
     }
 
     @Test

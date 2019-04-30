@@ -97,7 +97,8 @@ public class ActionStoreConfig {
             actionExecutionConfig.actionTargetSelector(),
             actionExecutionConfig.targetCapabilityCache(),
             entitySettingsCache(),
-            actionStatsConfig.actionsStatistician());
+            actionStatsConfig.actionsStatistician(),
+            actionTranslationConfig.actionTranslator());
     }
 
     @Bean

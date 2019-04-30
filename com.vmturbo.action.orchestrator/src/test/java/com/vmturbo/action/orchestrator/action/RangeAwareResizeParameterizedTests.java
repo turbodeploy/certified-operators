@@ -13,10 +13,10 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
-import org.mockito.Mockito;
 
 import com.google.common.collect.Maps;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.store.EntitiesCache;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -25,7 +25,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
-import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -48,11 +47,8 @@ public class RangeAwareResizeParameterizedTests {
     private static final Map<String, Setting> rangeAwareSettingsForEntity = Maps.newHashMap();
     private EntitiesCache entitySettingsCache = mock(EntitiesCache.class);
 
-    private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
-            actionStream.map(action -> {
-                action.getActionTranslation().setPassthroughTranslationSuccess();
-                return action;
-            })));
+    private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
+
     private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
 
     public RangeAwareResizeParameterizedTests(CommodityAttribute changedAttribute, int commodityType,

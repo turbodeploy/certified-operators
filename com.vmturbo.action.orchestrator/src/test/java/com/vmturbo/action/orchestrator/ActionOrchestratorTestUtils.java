@@ -4,18 +4,22 @@ import static org.mockito.Mockito.mock;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import org.junit.Assert;
+import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
+import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator.TranslationExecutor;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -33,6 +37,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class ActionOrchestratorTestUtils {
 
+
     private ActionOrchestratorTestUtils() {}
 
     public static final long TARGET_ID = 11;
@@ -45,6 +50,16 @@ public class ActionOrchestratorTestUtils {
 
     private static ActionTranslator actionTranslator = mock(ActionTranslator.class);
     private static ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
+
+    @Nonnull
+    public static ActionTranslator passthroughTranslator() {
+        return Mockito.spy(new ActionTranslator(new TranslationExecutor() {
+            @Override
+            public <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream) {
+                return actionStream.peek(action -> action.getActionTranslation().setPassthroughTranslationSuccess());
+            }
+        }));
+    }
 
     @Nonnull
     public static Action createMoveAction(final long actionId, final long actionPlanId) {
