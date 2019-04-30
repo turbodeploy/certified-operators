@@ -368,8 +368,6 @@ public class EntitiesService implements IEntitiesService {
     @Nonnull
     public ActionApiDTO getActionByEntityUuid(@Nonnull String uuid, @Nonnull String aUuid)
             throws Exception {
-        // remark: the first parameter is completely ignored.
-        // an entity id is not needed to get an action by its id.
         final ActionApiDTO result;
         try {
             // get the action object from the action orchestrator
@@ -384,12 +382,16 @@ public class EntitiesService implements IEntitiesService {
                                 .build())
                         .getActionSpec(),
                     realtimeTopologyContextId);
-
-            // add discovering targets to all entities associated with the action object
-            searchUtil.populateActionApiDTOWithTargets(result);
         } catch (StatusRuntimeException e) {
             throw ExceptionMapper.translateStatusException(e);
         }
+        // check if the passed in entity uuid is related to the action
+        if (!isRelatedAction(uuid, result)) {
+            throw new IllegalArgumentException(String.format("Entity %s in the query is not " +
+                "related to the action %s.", uuid, aUuid));
+        }
+        // add discovering targets to all entities associated with the action object
+        searchUtil.populateActionApiDTOWithTargets(result);
         return result;
     }
 
@@ -794,6 +796,23 @@ public class EntitiesService implements IEntitiesService {
                 }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Check if the entity is related to the action.
+     *
+     * @param entityUuid The uuid of the entity.
+     * @param action The action API DTO retrieved from action service.
+     * @return True if there are related.
+     */
+    private boolean isRelatedAction(@Nonnull final String entityUuid,
+        @Nonnull final ActionApiDTO action) {
+        final ServiceEntityApiDTO targetEntity = action.getTarget();
+        final ServiceEntityApiDTO currentEntity = action.getCurrentEntity();
+        final ServiceEntityApiDTO newEntity = action.getNewEntity();
+        return (targetEntity != null && entityUuid.equals(targetEntity.getUuid())) ||
+            (currentEntity != null && entityUuid.equals(currentEntity.getUuid())) ||
+            (newEntity != null && entityUuid.equals(newEntity.getUuid()));
     }
 }
 
