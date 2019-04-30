@@ -222,24 +222,28 @@ public class ProvisionBySupply extends ActionImpl {
             runBootstrapToPlaceClones(unPlacedClones);
         }
 
-        // Generate Capacity Resize actions on resizeThroughSupplier traders whose Provider is cloning.
+        // Generate Capacity Resize actions on resizeThroughSupplier traders whose Provider is
+        // cloning.
         try {
-            getModelSeller().getCustomers().stream().map(ShoppingList::getBuyer)
+            modelSeller_.getCustomers().stream()
+                .map(ShoppingList::getBuyer)
             .filter(trader -> trader.getSettings().isResizeThroughSupplier())
             .forEach(trader -> {
-                getEconomy().getMarketsAsBuyer(trader).entrySet().stream()
-                .filter(marketEntry -> marketEntry.getKey().getSupplier() == getModelSeller())
-                .forEach(map -> {
-                    // Generate the resize actions for matching commodities between the model seller
-                    // and the resizeThroughtSupplier trader.
-                    getSubsequentActions().addAll(Utility.resizeCommoditiesOfTrader(getEconomy(),
-                    getModelSeller(), map.getKey()));
+                    economy_.getMarketsAsBuyer(trader).keySet().stream()
+                        .filter(shoppingList -> shoppingList.getSupplier() == modelSeller_)
+                        .forEach(sl -> {
+                            // Generate the resize actions for matching commodities between
+                            // the model seller and the resizeThroughtSupplier trader.
+                            getSubsequentActions().addAll(Utility.resizeCommoditiesOfTrader(
+                                                                                    getEconomy(),
+                                                                                    modelSeller_,
+                                                                                    sl));
                 });
             });
         } catch (Exception e) {
             logger.error("Error in ProvisionBySupply for resizeThroughSupplier Trader Capacity "
-                         + "Resize when provisioning " + getModelSeller()
-                         .getDebugInfoNeverUseInCode(), e);
+                            + "Resize when provisioning "
+                                + modelSeller_.getDebugInfoNeverUseInCode(), e);
         }
 
         // Update commodities sold

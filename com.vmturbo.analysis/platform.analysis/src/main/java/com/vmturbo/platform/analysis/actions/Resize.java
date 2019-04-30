@@ -272,10 +272,11 @@ public class Resize extends ActionImpl {
             Resize newResize = new Resize(getEconomy(), getSellingTrader(),
                         getResizedCommoditySpec(), getResizedCommodity(), getSoldIndex(),
                         getOldCapacity(), resize.getNewCapacity());
-            // Ensure that if we need to extra the action in the from the provision round of the
-            // main market we are passing along the extractAction boolean value to the new resize.
+            // Ensure that if we need to extract the action from the provision round of the
+            // main market we are passing along the extractAction boolean value to the combined
+            // resize action.
             if (resize.isExtractAction() && isExtractAction()) {
-                newResize.setExtractAction(true);
+                newResize.enableExtractAction();
             }
             return newResize;
         }
