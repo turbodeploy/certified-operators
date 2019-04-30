@@ -25,9 +25,8 @@ public interface Action {
     boolean isExecutable();
     // Extract some Action that isn't normally extracted from the provision analysis round of
     // main market.
-    // For example a Resize action in a ResizeThroughSupplier flow.
     boolean isExtractAction();
-    void enableExtractAction();
+    void setExtractAction(boolean extractAction);
 
 
     ActionType getType();

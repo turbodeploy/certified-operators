@@ -180,13 +180,10 @@ public class BootstrapSupply {
                         if (newSellers.isEmpty()) {
                             return allActions;
                         }
-                        // Obtain the first provisioned seller since they are all the same.
                         newSeller = newSellers.get(0);
                     } else {
-                        CommoditySpecification commSpec = commSpecs.isEmpty() ? null
-                                        : commSpecs.get(0);
-                        newSeller = provisionOrActivateTrader(sellerThatFits, mkt, allActions,
-                                        economy, commSpec);
+                        CommoditySpecification commSpec = commSpecs.isEmpty() ? null : commSpecs.get(0);
+                        newSeller = provisionOrActivateTrader(sellerThatFits, mkt, allActions, economy, commSpec);
                     }
                     if (logger.isTraceEnabled() || isDebugBuyer || isDebugSeller) {
                         logger.info("The seller " + sellerDebugInfo + " was"
@@ -817,12 +814,10 @@ public class BootstrapSupply {
                         if (newSellers.isEmpty()) {
                             return allActions;
                         }
-                        // Obtain the first provisioned seller since they are all the same.
                         provisionedSeller = newSellers.get(0);
                     } else {
-                        CommoditySpecification commoditySpecWithInfiniteQuote =
-                                        commoditySpecsWithInfiniteQuote.isEmpty()
-                                            ? null : commoditySpecsWithInfiniteQuote.get(0);
+                        CommoditySpecification commoditySpecWithInfiniteQuote = commoditySpecsWithInfiniteQuote
+                                        .isEmpty() ? null : commoditySpecsWithInfiniteQuote.get(0);
                         provisionedSeller = provisionOrActivateTrader(sellerThatFits, market,
                             allActions, economy, commoditySpecWithInfiniteQuote);
                     }
@@ -984,9 +979,10 @@ public class BootstrapSupply {
         List<Trader> activeSellerThatCanAcceptNewCustomers = market.getActiveSellersAvailableForPlacement();
         // Return if there are active sellers and none of them are cloneable or resizeable through
         // supplier.
-        if (SellerThatCanAcceptNewCustomers.stream()
-                .noneMatch(seller -> seller.getSettings().isCloneable()
-                    || Utility.resizeThroughSupplier(seller, shoppingList, economy))) {
+        if (!activeSellerThatCanAcceptNewCustomers.isEmpty() && activeSellerThatCanAcceptNewCustomers.stream()
+            .filter(seller -> (seller.getSettings().isCloneable()
+            || Utility.resizeThroughSupplier(seller,shoppingList, economy)))
+            .count() == 0) {
             if (logger.isTraceEnabled() || isDebugBuyer) {
                 logger.info("There are no active sellers available to place "
                             + buyerDebugInfo + ".");
