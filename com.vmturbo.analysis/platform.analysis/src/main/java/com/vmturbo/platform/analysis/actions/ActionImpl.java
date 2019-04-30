@@ -134,7 +134,8 @@ public class ActionImpl implements Action {
     /**
      * A getter for the flag regarding whether the action that isn't normally extracted from the
      * provision round of analysis of the main market should be extracted.
-     * @return boolean
+     *
+     * @return Whether the item should be extracted.
      */
     @Override
     public boolean isExtractAction() {
@@ -142,13 +143,11 @@ public class ActionImpl implements Action {
     }
 
     /**
-     * A setter for the flag regarding whether the action that isn't normally extracted from the
-     * provision round of analysis of the main market should be extracted.
-     * @param extractAction boolean
-     * @return
+     * Set the flag regarding whether the action that isn't normally extracted from the
+     * provision round of analysis of the main market to true.
      */
     @Override
-    public void setExtractAction(boolean extractAction) {
-        extractAction_ = extractAction;
+    public void enableExtractAction() {
+        extractAction_ = true;
     }
 }

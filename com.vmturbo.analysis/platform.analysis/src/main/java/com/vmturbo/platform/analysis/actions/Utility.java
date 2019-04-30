@@ -15,10 +15,8 @@ import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.ede.BootstrapSupply;
 
 /**
@@ -148,24 +146,26 @@ public final class Utility {
     }
 
     /**
-     * Check if Trader is resizeThroughSupplier trader and that trader's own supplier provides the
-     * needed commodities for the buyer shopping list in order to determine if this trader is a
-     * a valid candidate for generating additional supply to meet the shopping list's needs.
+     * Check if Trader is resizeThroughSupplier trader. If it is, then check that the trader
+     * has a supplier of its own that provides the needed commodities for the buyer shopping list.
+     * This is necessary in order to determine if this trader is a valid candidate for generating
+     * additional supply to meet the shopping list's needs.
+     *
      * @param trader The resizeThroughSupplier Trader.
      * @param buyerShoppingList Shopping List that may buy from seller.
      * @param economy The current economy.
-     * @return boolean
+     * @return Whether this trader is a valid candidate for generating supply.
      */
     public static boolean resizeThroughSupplier(Trader trader, ShoppingList buyerShoppingList,
                     Economy economy) {
-        TraderSettings traderSettings = trader.getSettings();
-        return traderSettings == null ? false : traderSettings.isResizeThroughSupplier()
+        return trader.getSettings().isResizeThroughSupplier()
             && providerOfSellerSellsCommodityHavingInfiniteQuote(trader, buyerShoppingList, economy);
     }
 
     /**
      * Generate capacity resize for commodities sold by resizeThroughSupplier Trader that are
      * provided by Trader's own supplier.
+     *
      * @param economy Economy of resizeThroughSupplier Trader
      * @param seller Seller providing to the resizeThroughSupplier Trader
      * @param buyerSL ShoppingList of the resizeThroughSupplier Trader
@@ -181,10 +181,12 @@ public final class Utility {
             // capacity of the commodity sold by the supplier of the trader as the added amount.
             if (buyerCommoditySold.getSettings().isResizable()) {
                 Resize resizeAction = new Resize(economy, resizeThroughSupplierTrader, buyerCS,
-                    buyerCommoditySold, resizeThroughSupplierTrader.getBasketSold()
-                    .indexOf(buyerCS), buyerCommoditySold.getCapacity()
-                    + seller.getCommoditySold(buyerCS).getCapacity()).take();
-                resizeAction.setExtractAction(true);
+                    buyerCommoditySold,
+                    resizeThroughSupplierTrader.getBasketSold().indexOf(buyerCS),
+                    buyerCommoditySold.getCapacity()
+                        + seller.getCommoditySold(buyerCS).getCapacity());
+                resizeAction.take();
+                resizeAction.enableExtractAction();
                 resizeList.add(resizeAction);
             }
         });
@@ -198,27 +200,43 @@ public final class Utility {
      * For example:
      * VM on Storage gets an infinite quote due to StorageAmount. Check that the Storage's Supplier
      * (potentially a host) is selling the it StorageAmount before returning true.
+     *
      * @param seller Seller for shoppingList that gets an infinite quote.
      * @param buyerShoppingList Shopping List that may buy from seller.
      * @param economy The current economy.
-     * @return boolean
+     * @return Whether the potential seller for the shopping list can provide the needed
+     * commodities through its supplier.
      */
     public static boolean providerOfSellerSellsCommodityHavingInfiniteQuote(Trader seller,
                     ShoppingList buyerShoppingList, Economy economy) {
         List<CommoditySpecification> commSpecs = BootstrapSupply.findCommSpecsWithInfiniteQuote(seller,
             buyerShoppingList, economy);
         Basket neededCommsBasket = new Basket(commSpecs);
-        return economy.getMarketsAsBuyer(seller).keySet().stream().anyMatch(sl ->
+        return economy.getMarketsAsBuyer(seller).keySet().stream()
+            .anyMatch(sl ->
             sl.getSupplier() != null
             && neededCommsBasket.isSatisfiedBy(sl.getSupplier().getBasketSold()))
-            && !commSpecs.stream().anyMatch(cs -> !seller.getCommoditySold(cs).getSettings().isResizable());
+                && sellerCommoditiesAreResizable(commSpecs, seller);
     }
 
+    /**
+     * Check that the selling trader's specified commodities are resizable.
+     *
+     * @param commSpecList List of commodity specifications to check.
+     * @param seller Trader whose commodities are being checked.
+     * @return Whether the selling trader's specified commodities are resizable.
+     */
+    public static boolean sellerCommoditiesAreResizable(List<CommoditySpecification> commSpecList,
+                    Trader seller) {
+        return commSpecList.stream()
+                .noneMatch(cs -> !seller.getCommoditySold(cs).getSettings().isResizable());
+    }
 
     /**
      * Provision enough supply to support the shopping list placing on the seller by considering the
      * commodities leading to infinite quotes, the shopping list consumption and the added capacity
      * per provision.
+     *
      * @param economy Economy shopping list is in.
      * @param seller Seller directly selling to the shopping list.
      * @param csList CommoditySpecification list causing infinite quotes for the shopping list.
@@ -236,10 +254,9 @@ public final class Utility {
         Basket infiniteCommsBasket = new Basket(csList);
         // Find provider of seller to increase capacities of commodities of seller trader that are
         // highly utilized and therefore giving the buyer shopping list an infinite quote.
-        for (Map.Entry<ShoppingList, Market> marketEntry :
-            economy.getMarketsAsBuyer(seller).entrySet()) {
-            if (infiniteCommsBasket.isSatisfiedBy(marketEntry.getKey().getSupplier().getBasketSold())) {
-                provisionableProvider = marketEntry.getKey().getSupplier();
+        for (ShoppingList shoppingList : economy.getMarketsAsBuyer(seller).keySet()) {
+            if (infiniteCommsBasket.isSatisfiedBy(shoppingList.getSupplier().getBasketSold())) {
+                provisionableProvider = shoppingList.getSupplier();
                 break;
             }
         }
@@ -249,10 +266,11 @@ public final class Utility {
         // Go through the commodities that need to be resized and find the one that needs the most
         // provisions and the count of how many provisions are needed so we generate enough supply
         // for the shopping list.
-        // The formula is:
+        // Example:
         // sl: VM shopping list
         // seller: vSanStorage trader
         // provisionableProvider: Host trader
+        // The formula is:
         // neededClones = Ceiling of (excess usage / effective capacity added per entity) =
         //                Ceiling of ((sellerUsage
         //                              + buyerUsage if not currently on seller
