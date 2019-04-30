@@ -30,6 +30,8 @@ import com.vmturbo.clustermgr.aggregator.DataAggregator;
 import com.vmturbo.clustermgr.collectors.DataMetricLogs;
 import com.vmturbo.clustermgr.transfer.DataTransfer;
 import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController;
+import com.vmturbo.components.common.OsCommandProcessRunner;
+import com.vmturbo.components.common.OsProcessFactory;
 import com.vmturbo.components.common.logging.LogConfigurationService;
 import com.vmturbo.proactivesupport.DataCollectorFramework;
 
@@ -125,7 +127,8 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public ClusterMgrService clusterMgrService() {
-        final ClusterMgrService clusterMgrService = new ClusterMgrService(consulService());
+        final ClusterMgrService clusterMgrService = new ClusterMgrService(consulService(),
+            osCommandProcessRunner());
         return clusterMgrService;
     }
 
@@ -158,6 +161,16 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
     @Bean
     public TcpIpAggegatorReceiverBridge tcpIpAggegatorReceiverBridge() throws IOException {
         return new TcpIpAggegatorReceiverBridge(bridgePort, dataAggregator());
+    }
+
+    @Bean
+    public OsCommandProcessRunner osCommandProcessRunner() {
+        return new OsCommandProcessRunner();
+    }
+
+    @Bean
+    public OsProcessFactory scriptProcessFactory() {
+        return new OsProcessFactory();
     }
 
     /**

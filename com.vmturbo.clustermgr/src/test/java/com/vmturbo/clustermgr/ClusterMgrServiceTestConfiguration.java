@@ -4,6 +4,8 @@ import org.mockito.Mockito;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.vmturbo.components.common.OsCommandProcessRunner;
+
 /**
  * Test configuration for {@link ClusterMgrServiceTest}.
  */
@@ -12,7 +14,7 @@ public class ClusterMgrServiceTestConfiguration {
 
     @Bean
     public ClusterMgrService clusterMgrService() {
-        return new ClusterMgrService(consulService()/*, factoryInstalledComponentsService()*/);
+        return new ClusterMgrService(consulService(), new OsCommandProcessRunner());
     }
 
     @Bean

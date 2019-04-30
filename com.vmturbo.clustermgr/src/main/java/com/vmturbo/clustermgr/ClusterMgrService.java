@@ -3,7 +3,9 @@ package com.vmturbo.clustermgr;
 import static com.vmturbo.clustermgr.ClusterMgrConfig.TELEMETRY_ENABLED;
 import static com.vmturbo.clustermgr.ClusterMgrConfig.TELEMETRY_LOCKED;
 
+import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -44,11 +46,15 @@ import org.springframework.http.MediaType;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Optional;
 import com.google.common.base.Splitter;
+import com.google.common.collect.Lists;
 import com.google.common.net.InetAddresses;
 import com.google.common.net.InternetDomainName;
 import com.orbitz.consul.model.catalog.CatalogService;
 import com.orbitz.consul.model.health.HealthCheck;
 import com.orbitz.consul.model.kv.Value;
+
+import com.vmturbo.api.dto.admin.HttpProxyDTO;
+import com.vmturbo.components.common.OsCommandProcessRunner;
 
 /**
  * Implement the ClusterMgr Services: component status, component configuration, node configuration.
@@ -98,9 +104,20 @@ public class ClusterMgrService {
     private static final String CONSUL_HEALTH_CHECK_UNSUCCESSFUL_FRAGMENT = "no such host";
     private static final String GLOBAL_DEFAULT_COMPONENT_CONFIG_PROPERTIES_PATH =
         "config/global_defaults.properties";
+    public static final String HOME_TURBONOMIC_DATA_TURBO_FILE_ZIP =
+        "/home/turbonomic/data/turbonomic-diags-_%d.zip";
+    public static final String COLLON = ":";
+    public static final String AT = "@";
 
     // Default configuration properties global to all component types
     private final ComponentProperties globalDefaultProperties = new ComponentProperties();
+    private final OsCommandProcessRunner osCommandProcessRunner;
+
+    @VisibleForTesting
+    final static String CURL_COMMAND = "curl";
+    @VisibleForTesting
+    final static String UPLOAD_VMTURBO_COM_URL =
+        "http://upload.vmturbo.com/appliance/cgi-bin/vmtupload.cgi";
 
     private Logger log = LogManager.getLogger();
 
@@ -112,8 +129,10 @@ public class ClusterMgrService {
 
     private final AtomicBoolean kvInitialized = new AtomicBoolean(false);
 
-    public ClusterMgrService(@Nonnull final ConsulService consulService) {
+    public ClusterMgrService(@Nonnull final ConsulService consulService,
+                             @Nonnull final OsCommandProcessRunner osCommandProcessRunner) {
         this.consulService = Objects.requireNonNull(consulService);
+        this.osCommandProcessRunner = osCommandProcessRunner;
         loadGlobalDefaultProperties();
     }
 
@@ -1209,6 +1228,104 @@ public class ClusterMgrService {
     private static boolean isValidKeyComponent(@Nonnull String keyComponent) {
         return (StringUtils.isNotBlank(keyComponent) &&
                 !StringUtils.containsAny(keyComponent, CONSUL_PATH_SEPARATOR, PROPERTY_KEY_SEPARATOR));
+    }
+
+    /**
+     * Export diagnostics to upload.vmturbo.com using Curl. Because:
+     * 1. Both classic and metron are using curl to upload files.
+     * 2. The vmtupload.cgi in upload.vmturbo.com doesn't support stream upload!!!
+     * Note: this method is synchronized because they are resources intensive operations, e.g.
+     * the diagnostics file could be very big.
+     * TODO: integration test
+     * @param httpProxyDTO value object with proxy settings
+     * @return true if export is successful
+     */
+    public synchronized boolean exportDiagnostics(final HttpProxyDTO httpProxyDTO) {
+        // export the diags file to /home/turbonomic/data/turbonomic-diags-_xxx.zip
+        // xxx is current system time epoch.
+        final String fileName = String.format(HOME_TURBONOMIC_DATA_TURBO_FILE_ZIP,
+            System.currentTimeMillis());
+        final File diagsFile = new File(fileName);
+
+        // 1. write to file
+        if (writeDiagnosticsFileToDisk(diagsFile)) {
+            // 2. invoke curl command to upload, e.g.:
+            // curl -x 10.10.172.84:3128 -F ufile=@test.log  http://10.10.168.175/cgi-bin/vmturboupload.cgi
+            try {
+                // this runner blocks until the process completes
+                osCommandProcessRunner.runOsCommandProcess(CURL_COMMAND, getCurlArgs(fileName, httpProxyDTO));
+                // delete the file
+                if (diagsFile.delete()) {
+                    log.debug("Successfully deleted diagnostic file: " + diagsFile.getName());
+                } else {
+                    log.error("failed to deleted diagnostic file:" + diagsFile.getName());
+                }
+            } finally {
+                log.info("Successfully upload diagnostics file: " + fileName);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    // write diagnostics file to disk
+    private boolean writeDiagnosticsFileToDisk(@Nonnull final File diagsFile) {
+        FileOutputStream diagsFileOutputStream = null;
+        try {
+            diagsFileOutputStream = new FileOutputStream(diagsFile);
+            collectComponentDiagnostics(diagsFileOutputStream);
+            diagsFileOutputStream.flush();
+            diagsFileOutputStream.close();
+        } catch (FileNotFoundException e) {
+            log.error("Failed to write diagnostics file to {}. Error message: {}",
+                HOME_TURBONOMIC_DATA_TURBO_FILE_ZIP, e.getMessage() );
+            return false;
+        } catch (IOException e) {
+            log.error("Failed to write diagnostics file to {}. Error message: {}",
+                HOME_TURBONOMIC_DATA_TURBO_FILE_ZIP, e.getMessage() );
+            return false;
+        } finally {
+            try {
+                if (diagsFileOutputStream != null) {
+                    diagsFileOutputStream.close();
+                }
+            } catch (IOException e) {
+                log.error("Failed to close diagnostic file output stream. Error message: {}",
+                    e.getMessage() );
+                // it doesn't affect writing to disk.
+            }
+        }
+        return true;
+    }
+
+    // get curl command based on if proxy is available or not
+    @VisibleForTesting
+    String[] getCurlArgs(@Nonnull final String fileName,
+                         @Nonnull final HttpProxyDTO httpProxyDTO) {
+        final List <String> argsList = Lists.newArrayList("-F", "ufile=@" + fileName,
+            UPLOAD_VMTURBO_COM_URL);
+        // it's mainly not writing proxy password to log file.
+        final List <String> argsListDebug = Lists.newArrayList(argsList);
+        if (httpProxyDTO.getIsProxyEnabled()) {
+            if (!StringUtils.isEmpty(httpProxyDTO.getProxyHost()) &&
+                !StringUtils.isEmpty(httpProxyDTO.getPortNumber())) {
+                // using proxy
+                argsList.add("-x");
+                argsListDebug.add("-x");
+                if (!StringUtils.isEmpty(httpProxyDTO.getUserName()) &&
+                    !StringUtils.isEmpty(httpProxyDTO.getPassword())) {
+                    argsList.add(httpProxyDTO.getUserName() + COLLON + httpProxyDTO.getPassword() + AT
+                        + httpProxyDTO.getProxyHost()+ COLLON +httpProxyDTO.getPortNumber());
+                    argsListDebug.add(httpProxyDTO.getUserName() + COLLON + "*****" + AT
+                        + httpProxyDTO.getProxyHost()+ COLLON +httpProxyDTO.getPortNumber());
+                } else {
+                    argsList.add(httpProxyDTO.getProxyHost()+ COLLON +httpProxyDTO.getPortNumber());
+                    argsListDebug.add(httpProxyDTO.getProxyHost()+ COLLON +httpProxyDTO.getPortNumber());
+                }
+            }
+        }
+        log.info("curl arguments: " +argsListDebug);
+        return argsList.toArray(new String[0]);
     }
 
     private interface ResponseEntityProcessor {

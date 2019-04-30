@@ -11,6 +11,8 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
+import com.vmturbo.components.common.OsCommandProcessRunner;
+
 /**
  * Integration tests for {@link ClusterMgrService}. Run against live consul (started
  * automatically embedded).
@@ -28,10 +30,12 @@ public class ClusterMgrServiceIT {
 
     private ClusterMgrService svc;
 
+
     @Before
     public void startup() {
         final ConsulService consulService = new ConsulService("localhost", consul.getHttpPort());
-        svc = new ClusterMgrService(consulService);
+        final OsCommandProcessRunner runner = new OsCommandProcessRunner();
+        svc = new ClusterMgrService(consulService, runner);
         svc.loadGlobalDefaultProperties();
         final ComponentProperties defaultProperties = new ComponentProperties();
         defaultProperties.put(PROP_1, PROP_1_DEF_VAL);

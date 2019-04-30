@@ -24,6 +24,8 @@ import com.orbitz.consul.model.health.HealthCheck;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 
+import com.vmturbo.api.dto.admin.HttpProxyDTO;
+
 /**
  * REST endpoint for ClusterMgr, exposing APIs for component status, component configuration, node configuration.
  *
@@ -384,6 +386,24 @@ public class ClusterMgrController {
         return clusterMgrService.isClusterKvStoreInitialized() ?
                 ResponseEntity.ok("true") :
                 ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body("false");
+    }
+
+
+    /**
+     * Export XL diagnostics to upload.vmturbo.com
+     * @param httpProxyDTO value object to hold http proxy information
+     * @return true if diagnostics is uploaded successfully; false otherwise
+     */
+    @ApiOperation("Export XL diagnostics to upload.vmturbo.com.")
+    @RequestMapping(
+        path="/diagnostics",
+        consumes = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE},
+        method = RequestMethod.POST)
+    @ResponseBody
+    @SuppressWarnings("unused")
+    public Boolean exportDiagnotics(
+        @RequestBody HttpProxyDTO httpProxyDTO) {
+        return clusterMgrService.exportDiagnostics(httpProxyDTO);
     }
 
 }

@@ -26,6 +26,7 @@ import org.springframework.web.client.RestTemplate;
 
 import com.google.common.io.ByteStreams;
 
+import com.vmturbo.api.dto.admin.HttpProxyDTO;
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
@@ -265,6 +266,16 @@ public class ClusterMgrRestClient extends ComponentRestClient {
 
 
     /**
+     * Export diagnostics file.
+     *
+     * @param httpProxyDTO the value object with http proxy settings
+     */
+    public boolean exportComponentDiagnostics(@Nonnull HttpProxyDTO httpProxyDTO) {
+        return new RestPostRequestor<Boolean, HttpProxyDTO>(uriBase + DIAGNOSTICS_URI,
+            Boolean.class).invoke(httpProxyDTO);
+    }
+
+    /**
      * Return the current Cluster Node name assigned to this VMT Component Instance.
      *
      * @param componentType type of the component to which component is assigned
@@ -456,6 +467,42 @@ public class ClusterMgrRestClient extends ComponentRestClient {
             final RestTemplate restTemplate = getRestTemplate();
             final ResponseEntity<T> response = restTemplate.exchange(UriBuilder.fromPath(uri).build(parameters),
                     HttpMethod.PUT, new HttpEntity<>(requestObject), clz);
+            return response.getBody();
+        }
+
+        void invokeVoid(@Nonnull U requestObject, @Nonnull Object... parameters) {
+            getRestTemplate().put(uri, requestObject, parameters);
+        }
+    }
+
+    /**
+     * Utility class to perform an HTTP POST. The constructor takes a URI string as a parameter, which
+     * may include substitution parameters. The field "uriBase" is prepended to the given URI string.
+     * <p>
+     * The .invoke() call accepts a data object of type U to be "POST", and parameters to be
+     * substituted into the URI.
+     * <p>
+     * Note: the status code from the http request is not checked.
+     * @param <T> the type of the return value
+     * @param <U> the type of the object to be "POST"
+     */
+    private class RestPostRequestor<T, U> {
+        private final String uri;
+        private final Class clz;
+
+        RestPostRequestor(String uri, Class resultClass) {
+            this.uri = uri;
+            this.clz = resultClass;
+        }
+
+        @SuppressWarnings("unchecked")
+        @Nonnull
+        T invoke(@Nonnull U requestObject, @Nonnull Object... parameters) {
+            logger.debug("invoke POST requestor requestObject: {}   URI:{} parameters...{} resultClass: {}",
+                requestObject, this.uri, parameters, clz);
+            final RestTemplate restTemplate = getRestTemplate();
+            final ResponseEntity<T> response = restTemplate.exchange(UriBuilder.fromPath(uri).build(parameters),
+                HttpMethod.POST, new HttpEntity<>(requestObject), clz);
             return response.getBody();
         }
 
