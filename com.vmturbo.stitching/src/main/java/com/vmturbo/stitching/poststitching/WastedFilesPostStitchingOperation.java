@@ -93,6 +93,8 @@ public class WastedFilesPostStitchingOperation implements PostStitchingOperation
                             .filter(file -> !filesUsedByVms.contains(file.getPath()))
                             .filter(file -> !isIgnored(file.getPath(), ignoreFilesPattern,
                                 ignoreDirsPattern))
+                            .filter(file -> file.getLinkedPathsList().stream().noneMatch(link ->
+                                            isIgnored(link, ignoreFilesPattern, ignoreDirsPattern)))
                             .collect(Collectors.toList()));
                     toUpdate.getTopologyEntityDtoBuilder()
                         .getTypeSpecificInfoBuilder()
@@ -124,7 +126,7 @@ public class WastedFilesPostStitchingOperation implements PostStitchingOperation
 
     /**
      * Whether the path is ignored according to global wildcard settings.
-    * Storage browsing probes are required to return Unix paths.
+     * Storage browsing probes are required to return Unix paths.
      *
      * @param path Unix-style separated full pathname
      * @param ignoreDirs ignore directories pattern

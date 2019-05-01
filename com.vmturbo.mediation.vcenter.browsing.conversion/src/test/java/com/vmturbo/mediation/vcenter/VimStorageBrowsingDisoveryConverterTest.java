@@ -89,6 +89,8 @@ public class VimStorageBrowsingDisoveryConverterTest {
         assertEquals(1, wastedVolume.getLayeredOverList().size());
         assertTrue(wastedVolume.getLayeredOver(0)
                 .equals(entitiesByType.get(EntityType.STORAGE).get(0).getId()));
+        assertEquals(1,
+                    wastedVolume.getVirtualVolumeData().getFileList().get(0).getLinkedPathsCount());
     }
 
     @Test

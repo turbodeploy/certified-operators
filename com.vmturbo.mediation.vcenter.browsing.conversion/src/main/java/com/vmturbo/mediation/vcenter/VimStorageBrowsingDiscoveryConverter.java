@@ -64,22 +64,22 @@ public class VimStorageBrowsingDiscoveryConverter {
     private final Map<String, EntityDTO.Builder> vmDtoById = Maps.newHashMap();
 
     /**
-     * A map from storage id to its EntityDTO
+     * A map from storage id to its EntityDTO.
      */
     private final Map<String, EntityDTO> storageDtoById = Maps.newHashMap();
 
     /**
-     * A prefix we attach to the beginning of the VirtualVolume ID
+     * A prefix we attach to the beginning of the VirtualVolume ID.
      */
-    private final static String VIRTUAL_VOLUME_ID_PREFIX = "VirtualVolume-";
+    private static final String VIRTUAL_VOLUME_ID_PREFIX = "VirtualVolume-";
 
     /**
      * A suffix we add to the VirtualVolume ID for those virtual volumes representing wasted files.
      */
     @VisibleForTesting
-    final static String WASTED_VOLUMES_SUFFIX = "wastedFiles";
+    static final String WASTED_VOLUMES_SUFFIX = "wastedFiles";
 
-    private final static String ID_SEPARATOR = "-";
+    private static final String ID_SEPARATOR = "-";
 
     /**
      * The prefix that the VimStorageBrowsing probe attaches to VM and Storage IDs in the ID field
@@ -87,7 +87,7 @@ public class VimStorageBrowsingDiscoveryConverter {
      * VirtualMachineFileDescriptor.
      */
     @VisibleForTesting
-    final static String STORAGE_BROWSING_ID_PREFIX = "dsb-";
+    static final String STORAGE_BROWSING_ID_PREFIX = "dsb-";
 
     public VimStorageBrowsingDiscoveryConverter(@Nonnull DiscoveryResponse discoveryResponse) {
         originalDiscoveryResponse = Objects.requireNonNull(discoveryResponse);
@@ -279,6 +279,8 @@ public class VimStorageBrowsingDiscoveryConverter {
                                 .setType(storageFileDescriptor.getType())
                                 .setModificationTimeMs(storageFileDescriptor
                                         .getModificationTimeMs())
+                                .addAllLinkedPaths(storageFileDescriptor
+                                         .getOtherPathsList())
                                 .build())
                 .collect(Collectors.toList());
     }

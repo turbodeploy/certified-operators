@@ -6,6 +6,7 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.Set;
@@ -30,6 +31,9 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
 
+/**
+ * Test the WastedFile post stitching operation.
+ */
 public class WastedFilesPostStitchingOperationTest {
 
     private final IStitchingJournal journal = mock(IStitchingJournal.class);
@@ -37,31 +41,38 @@ public class WastedFilesPostStitchingOperationTest {
     private final WastedFilesPostStitchingOperation wastedFilesPostOp =
             new WastedFilesPostStitchingOperation();
 
-    private final static long storage1Oid = 111L;
-    private final static long storage2Oid = 111L;
-    private final static long vm1Oid = 211L;
-    private final static long vm2Oid = 212L;
-    private final static long virtualVolume1Oid = 311L;
-    private final static long virtualVolume2Oid = 312L;
-    private final static long virtualVolume1WastedOid = 313L;
-    private final static long virtualVolume2WastedOid = 314L;
-    private final static String ignoreFile = "/usr/local/foo4.log";
-    private final static String ignoreDirFile = "/.snapshot/foo2/foo5";
-    private final static String wastedFile = "/local/foo/bar.hlog";
-    private final static String [] allFiles = {"/opt/dev/foo1.iso", "/etc/foo2.snap", "/usr/lib/foo3",
+    private static final long storage1Oid = 111L;
+    private static final long storage2Oid = 112L;
+    private static final long storage3Oid = 113L;
+    private static final long vm1Oid = 211L;
+    private static final long vm2Oid = 212L;
+    private static final long virtualVolume1Oid = 311L;
+    private static final long virtualVolume2Oid = 312L;
+    private static final long virtualVolume1WastedOid = 313L;
+    private static final long virtualVolume2WastedOid = 314L;
+    private static final long virtualVolume3WastedOid = 315L;
+    private static final String ignoreFile = "/usr/local/foo4.log";
+    private static final String ignoreDirFile = "/.snapshot/foo2/foo5";
+    private static final String wastedFile = "/local/foo/bar.hlog";
+    private static final String[] allFiles = {"/opt/dev/foo1.iso", "/etc/foo2.snap", "/usr/lib/foo3",
             ignoreFile, ignoreDirFile, wastedFile};
-    private final static String [] vm1Files = {"/opt/dev/foo1.iso"};
-    private final static String [] vm2Files = {"/etc/foo2.snap", "/usr/lib/foo3"};
-    private final static Set<String> wastedFilesNoFiltering = Sets.newHashSet(wastedFile, ignoreFile,
+    private static final String validPath3 = "/a8436c5c-b286-0137-b2a0-005056b8004b/xyz.hlog";
+    private static final String[] otherLinks3 = {"/.snapshot/xyz.hlog", "/good/file.name"};
+    private static final String[] vm1Files = {"/opt/dev/foo1.iso"};
+    private static final String[] vm2Files = {"/etc/foo2.snap", "/usr/lib/foo3"};
+    private static final Set<String> wastedFilesNoFiltering = Sets.newHashSet(wastedFile, ignoreFile,
             ignoreDirFile);
-    private final static Set<String> wastedFilesAfterFiltering = Sets.newHashSet(vm1Files[0],
+    private static final Set<String> wastedFilesAfterFiltering = Sets.newHashSet(vm1Files[0],
             vm2Files[0], vm2Files[1], wastedFile);
+    private static final Set<String> wastedOtherPathFile = Sets.newHashSet(validPath3);
     private static TopologyEntity storageEntity1;
     private static TopologyEntity storageEntity2;
+    private static TopologyEntity storageEntity3;
     private static TopologyEntity virtVol1;
     private static TopologyEntity virtVol2;
     private static TopologyEntity virtVolWasted1;
     private static TopologyEntity virtVolWasted2;
+    private static TopologyEntity virtVolWasted3;
     private static EntitySettingsCollection settingsCollection = mock(EntitySettingsCollection.class);
 
     private static void initialSetupForMainTest() {
@@ -272,5 +283,88 @@ public class WastedFilesPostStitchingOperationTest {
                         VirtualVolumeFileDescriptor.newBuilder().setPath(pathName)
                             .build())
                         .collect(Collectors.toList()))));
+    }
+
+    /**
+     * Setup environment to test filtering of other paths based on ignore directory settings.
+     * Just a single storage with a single volume connected to it.  Volume has all the files
+     * associated with it.
+     */
+    private static void initialSetupForIgnoreSettingsOtherPathsTest() {
+        final TopologyEntity.Builder storage3 =
+            PostStitchingTestUtilities.makeTopologyEntityBuilder(
+                storage3Oid,
+                EntityType.STORAGE.getNumber(),
+                Collections.emptyList(),
+                Collections.emptyList());
+
+        final TopologyEntity.Builder virtualVolumeWasted3 =
+            PostStitchingTestUtilities.makeTopologyEntityBuilder(
+                virtualVolume3WastedOid,
+                EntityType.VIRTUAL_VOLUME.getNumber(),
+                Collections.emptyList(),
+                Collections.emptyList());
+
+        virtualVolumeWasted3.addConnectedTo(storage3);
+        storage3.addConnectedFrom(virtualVolumeWasted3);
+        addFileToVirtualVolume(virtualVolumeWasted3, validPath3, otherLinks3);
+        storageEntity3 = storage3.build();
+        virtVolWasted3 = virtualVolumeWasted3.build();
+        assertTrue(virtVolWasted3.getConnectedToEntities().contains(storageEntity3));
+        assertEquals(1, virtVolWasted3.getTopologyEntityDtoBuilder()
+            .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
+    }
+
+    /**
+     * Test that the ignore directories settings work for additional paths.  Set the
+     * directory to the default value which will ignore .snapshot directories.  Make sure the
+     * files we expect to be filtered out are.
+     */
+    @Test
+    public void testIgnoreSettingsOtherPaths() {
+        initialSetupForIgnoreSettingsOtherPathsTest();
+        UnitTestResultBuilder resultBuilder = new UnitTestResultBuilder();
+        StringSettingValue filterNothing = StringSettingValue.newBuilder().setValue("").build();
+        Setting fileFilterNothing =
+            Setting.newBuilder().setStringSettingValue(filterNothing).build();
+        StringSettingValue filterDirectory =
+            StringSettingValue.newBuilder()
+                .setValue("\\.dvsData.*|\\.snapshot.*|\\.vSphere-HA.*|\\.naa.*|\\.etc.*|lost\\+found.*|stCtlVM-.*")
+                .build();
+        Setting directoryFilterDevFoo1 =
+            Setting.newBuilder().setStringSettingValue(filterDirectory).build();
+        Mockito.when(settingsCollection.getEntitySetting(storage3Oid,
+            EntitySettingSpecs.IgnoreDirectories))
+            .thenReturn(Optional.of(directoryFilterDevFoo1));
+        Mockito.when(settingsCollection.getEntitySetting(storage3Oid,
+            EntitySettingSpecs.IgnoreFiles)).thenReturn(Optional.of(fileFilterNothing));
+        wastedFilesPostOp.performOperation(
+            Stream.of(storageEntity3), settingsCollection, resultBuilder);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
+        assertEquals(Collections.emptySet(), virtVolWasted3.getTopologyEntityDtoBuilder()
+            .getTypeSpecificInfo().getVirtualVolume().getFilesList().stream()
+            .map(VirtualVolumeFileDescriptor::getPath)
+            .collect(Collectors.toSet()));
+    }
+
+    /**
+     * Add VirtualVolumeFileDescriptors corresponding to a list of path names to a VirtualVolume.
+     *
+     * @param builder   A builder for the VirtualVolume's TopologyEntity
+     * @param path The pathname of the file to add.
+     * @param links An array of alternative paths to the same file as path.
+     */
+    private static void addFileToVirtualVolume(@Nonnull TopologyEntity.Builder builder,
+                                                @Nonnull String path, @Nonnull String[] links) {
+        builder.getEntityBuilder().setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+            .setVirtualVolume(
+                builder.getEntityBuilder()
+                    .getTypeSpecificInfo()
+                    .getVirtualVolume()
+                    .toBuilder()
+                    .addAllFiles(Collections.singletonList(
+                        VirtualVolumeFileDescriptor.newBuilder().setPath(path)
+                        .addAllLinkedPaths(Arrays.asList(links)).build())
+                        )));
     }
 }

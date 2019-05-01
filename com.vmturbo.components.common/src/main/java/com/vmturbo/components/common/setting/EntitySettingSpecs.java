@@ -599,14 +599,14 @@ public enum EntitySettingSpecs {
         Collections.emptyList(),
         SettingTiebreaker.SMALLER,
         EnumSet.of(EntityType.STORAGE),
-        string("\\.dvsData.*|\\.snapshot.*|\\.vSphere-HA.*|\\.naa.*|\\.etc.*|lost\\+found.*|stCtlVM-.*"),
+        string("\\.dvsData.*|\\.snapshot.*|\\.vSphere-HA.*|\\.naa.*|\\.etc.*|lost\\+found.*|stCtlVM-.*|\\.iSCSI-CONFIG.*|\\.vsan\\.stats.*|etc|targets"),
         true),
 
     IgnoreFiles("ignoreFiles", "Files to ignore",
         Collections.emptyList(),
         SettingTiebreaker.SMALLER,
         EnumSet.of(EntityType.STORAGE),
-        string(),
+        string("config\\.db|stats\\.db.*"),
         true),
 
     EnforceNonDisruptive("enforceNonDisruptive", "Enforce Non Disruptive Mode",

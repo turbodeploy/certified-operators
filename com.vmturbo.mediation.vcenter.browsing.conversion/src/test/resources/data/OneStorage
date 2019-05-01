@@ -35,6 +35,7 @@ entityDTO {
       modificationTimeMs: 1538449874000
       type: LOG
       iopsProvisioned: 0
+	  otherPaths: "/foo/File1.log"
     }
     file {
       path: "/file2.vswp"
