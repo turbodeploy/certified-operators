@@ -148,12 +148,15 @@ public class ProbeStitchingDependencyTracker {
                 .requireThatProbeCategory(ProbeCategory.FABRIC).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
                 .requireThatProbeCategory(ProbeCategory.APPLICATION_SERVER).stitchAfter(ProbeCategory.HYPERVISOR)
                 .requireThatProbeCategory(ProbeCategory.APPLICATION_SERVER).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
+                .requireThatProbeCategory(ProbeCategory.DATABASE_SERVER).stitchAfter(ProbeCategory.HYPERVISOR)
+                .requireThatProbeCategory(ProbeCategory.DATABASE_SERVER).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
                 .requireThatProbeCategory(ProbeCategory.CLOUD_NATIVE).stitchAfter(ProbeCategory.HYPERVISOR)
                 .requireThatProbeCategory(ProbeCategory.CLOUD_NATIVE).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
                 .requireThatProbeCategory(ProbeCategory.PAAS).stitchAfter(ProbeCategory.HYPERVISOR)
                 .requireThatProbeCategory(ProbeCategory.PAAS).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
                 .requireThatProbeCategory(ProbeCategory.GUEST_OS_PROCESSES).stitchAfter(ProbeCategory.HYPERVISOR)
                 .requireThatProbeCategory(ProbeCategory.GUEST_OS_PROCESSES).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
+                .requireThatProbeCategory(ProbeCategory.VIRTUAL_DESKTOP_INFRASTRUCTURE).stitchAfter(ProbeCategory.HYPERVISOR)
                 // probe type ordering, we only support the probe types comparison if they are
                 // belonged to same category.
                 .requireThatProbeType(SDKProbeType.CLOUD_FOUNDRY).stitchAfter(SDKProbeType.PIVOTAL_OPSMAN)
