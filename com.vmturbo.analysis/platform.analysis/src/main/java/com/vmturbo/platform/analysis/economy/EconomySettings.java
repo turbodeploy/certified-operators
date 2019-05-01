@@ -48,9 +48,9 @@ public final class EconomySettings implements Serializable {
     private boolean isResizeDependentCommodities_ = true;
     private int maxPlacementIterations_ = DEFAULT_MAX_PLACEMENT_ITERATIONS;
     private boolean sortShoppingLists_ = false;
+    private float discountedComputeCostFactor = -1f;
 
     // Constructors
-
     /**
      * Constructs a new default-initialized EconomySettings instance.
      */
@@ -244,6 +244,19 @@ public final class EconomySettings implements Serializable {
         return this;
     }
 
+    public float getDiscountedComputeCostFactor() {
+        return discountedComputeCostFactor;
+    }
+
+    public void setDiscountedComputeCostFactor(float discountedComputeCostFactor) {
+        checkArgument(discountedComputeCostFactor >= 0,
+            "discountedComputeCostFactor = " + discountedComputeCostFactor);
+        this.discountedComputeCostFactor = discountedComputeCostFactor;
+    }
+
+    public boolean hasDiscountedComputeCostFactor() {
+       return discountedComputeCostFactor != -1;
+    }
     // Methods
 
     /**

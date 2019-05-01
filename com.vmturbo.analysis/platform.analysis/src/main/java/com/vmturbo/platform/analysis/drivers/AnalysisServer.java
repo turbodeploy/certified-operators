@@ -182,6 +182,9 @@ public class AnalysisServer implements AutoCloseable {
         settings.setQuoteFactor(settingsTO.getQuoteFactor());
         settings.setMaxPlacementIterations(settingsTO.getMaxPlacementIterations());
         settings.setSortShoppingLists(settingsTO.getSortShoppingLists());
+        if (settingsTO.hasDiscountedComputeCostFactor()) {
+            settings.setDiscountedComputeCostFactor(settingsTO.getDiscountedComputeCostFactor());
+        }
         return instInfo;
     }
 

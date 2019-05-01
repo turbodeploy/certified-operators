@@ -533,6 +533,32 @@ public class CostFunctionFactory {
             return Double.POSITIVE_INFINITY;
         }
 
+        // Get the cost of the template matched with the vm. If this buyer represents a
+        // consistent scaling group, the template cost will be for all members of the
+        // group (the cost will be multiplied by the group factor)
+        double templateCostForBuyer = QuoteFunctionFactory.computeCost(buyer, matchingTP, false, economy)
+                .getQuoteValue();
+
+        double costOnCurrentSupplier = QuoteFunctionFactory.computeCost(buyer, buyer.getSupplier(), false, economy)
+                .getQuoteValue();
+
+        // If we are sizing up to use a RI and we only allow resizes up to templates
+        // that cost less than : (riCostFactor * cost at current supplier). If it is more, we prevent
+        // such a resize to avoid cases like forcing small VMs to use large unused RIs.
+        if (economy.getSettings().hasDiscountedComputeCostFactor()
+                && templateCostForBuyer > economy.getSettings().getDiscountedComputeCostFactor() * costOnCurrentSupplier) {
+            if (logger.isTraceEnabled() || seller.isDebugEnabled()
+                    || buyer.getBuyer().isDebugEnabled()) {
+                logger.info("Ignoring supplier : {} (cost : {}) for shopping list {} because "
+                                + "it has cost {} times greater than current supplier {} (cost : {}).",
+                                matchingTP.getDebugInfoNeverUseInCode(), templateCostForBuyer,
+                                buyer.getDebugInfoNeverUseInCode(),
+                                economy.getSettings().getDiscountedComputeCostFactor(),
+                                buyer.getSupplier(), costOnCurrentSupplier);
+            }
+            return Double.POSITIVE_INFINITY;
+        }
+
         // The capacity of a coupon commodity sold by a template provider reflects the number of
         // coupons associated with the template it represents. This number is the requested amount
         // of coupons by a matching vm.
@@ -550,12 +576,6 @@ public class CostFunctionFactory {
         double availableCoupons =
                         couponCommSoldByCbtp.getCapacity() - couponCommSoldByCbtp.getQuantity();
 
-        // Get the cost of the template matched with the vm. If this buyer represents a
-        // consistent scaling group, the template cost will be for all members of the
-        // group (the cost will be multiplied by the group factor)
-        double templateCostForBuyer = QuoteFunctionFactory
-                .computeCost(buyer, matchingTP, false, economy)
-                .getQuoteValue();
         double singleVmTemplateCost = templateCostForBuyer / (groupFactor > 0 ? groupFactor : 1);
 
         double discountedCost = 0;

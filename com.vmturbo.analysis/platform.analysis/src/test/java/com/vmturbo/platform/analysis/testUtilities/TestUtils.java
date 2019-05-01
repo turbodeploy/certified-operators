@@ -14,6 +14,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.platform.analysis.actions.Move;
+import com.vmturbo.platform.analysis.economy.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
@@ -23,12 +24,15 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.DatabaseTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO.ComputeResourceDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceCost;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceLimitation;
@@ -592,5 +596,48 @@ public class TestUtils {
         sl.move(supplier);
         sl.setMovable(true);
         Move.updateQuantities(e, sl, supplier, FunctionalOperatorUtil.ADD_COMM);
+    }
+
+    public static Trader setAndGetCBTP(double cost, String name, Economy economy) {
+        double riDeprecationFactor = 0.0000001;
+        Trader cbtp = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0l),
+                        Arrays.asList(TestUtils.CPU, TestUtils.COUPON_COMMODITY),new double[] {3000, 2},true, true, name);
+        cbtp.getSettings().setBalanceAccount(new BalanceAccount(0.0, 100000000d, 24));
+        cbtp.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
+        CbtpCostDTO.Builder cbtpBundleBuilder = createCbtpBundleBuilder(TestUtils.COUPON_COMMODITY.getBaseType(), cost * riDeprecationFactor, 50);
+        CostDTO costDTOcbtp = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder.build()).build();
+        CbtpCostDTO cdDTo = costDTOcbtp.getCbtpResourceBundle();
+        cbtp.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(cdDTo));
+        return cbtp;
+    }
+
+    public static ComputeTierCostDTO.Builder getComputeTierCostDTOBuilder() {
+        ComputeTierCostDTO.Builder costBundleBuilder = ComputeTierCostDTO.newBuilder();
+        costBundleBuilder.addComputeResourceDepedency(ComputeResourceDependency.newBuilder()
+                .setBaseResourceType(CommoditySpecificationTO.newBuilder()
+                        .setBaseType(0)
+                        .setType(0))
+                .setDependentResourceType(CommoditySpecificationTO.newBuilder()
+                        .setBaseType(0)
+                        .setType(0)));
+        costBundleBuilder.setLicenseCommodityBaseType(3);
+        costBundleBuilder.setCouponBaseType(TestUtils.COUPON_COMMODITY.getBaseType());
+        return costBundleBuilder;
+    }
+
+    /**
+     * Create the cbtp bundle builder
+     *
+     * @param couponBaseType  Coupon value we want to set on the cbtp
+     * @param price   The price of the RI we want to set on the cbtp
+     * @param averageDiscount  the discount we want to set
+     * @return  the CBTPCostDTO.Builder
+     */
+    public static CbtpCostDTO.Builder createCbtpBundleBuilder(int couponBaseType, double price, double averageDiscount) {
+        CbtpCostDTO.Builder cbtpBundleBuilder = CbtpCostDTO.newBuilder();
+        cbtpBundleBuilder.setCouponBaseType(couponBaseType);
+        cbtpBundleBuilder.setPrice(price);
+        cbtpBundleBuilder.setDiscountPercentage(averageDiscount);
+        return cbtpBundleBuilder;
     }
 }

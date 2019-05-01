@@ -36,6 +36,10 @@ message EconomySettingsTO {
 
     required bool sort_shopping_lists = 9;
 
+    // Factor to represent how much above current current cost we allow a VM
+    // to scale up. For example, if on-demand cost at current supplier is $x
+    // we allow VM to move to a RI with on-demand cost <= discounted_compute_cost_factor * x.
+    optional float discounted_compute_cost_factor = 10;
 }
 
 // A list of commodities that must be bought from the same provider, with some additional information.

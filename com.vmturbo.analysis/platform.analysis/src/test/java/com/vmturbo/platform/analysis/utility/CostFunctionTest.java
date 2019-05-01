@@ -238,13 +238,13 @@ public class CostFunctionTest {
         cbtp2.getSettings().setBalanceAccount(ba);
         cbtp2.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
 
-        CbtpCostDTO.Builder cbtpBundleBuilder = createCbtpBundleBuilder(0,m5Large*riDeprecationFactor,
+        CbtpCostDTO.Builder cbtpBundleBuilder = TestUtils.createCbtpBundleBuilder(0,m5Large*riDeprecationFactor,
                 10 );
         CostDTO costDTOcbtp = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder.build()).build();
         CbtpCostDTO cdDTo = costDTOcbtp.getCbtpResourceBundle();
         cbtp1.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(cdDTo));
 
-        CbtpCostDTO.Builder cbtpBundleBuilder2 = createCbtpBundleBuilder(0, r4Large*riDeprecationFactor,
+        CbtpCostDTO.Builder cbtpBundleBuilder2 = TestUtils.createCbtpBundleBuilder(0, r4Large*riDeprecationFactor,
                 50);
         CostDTO costDTOcbtp2 = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder2.build()).build();
         CbtpCostDTO cdDTo2 = costDTOcbtp2.getCbtpResourceBundle();
@@ -302,14 +302,14 @@ public class CostFunctionTest {
                 bestQuoteSoFar.getQuoteValue(), forTraderIncomeStatement).getQuoteValue() );
 
         // Test to check if we scale the previous costs down by a factor of 10, we get the same quote
-        CbtpCostDTO.Builder cbtpBundleBuilder3 = createCbtpBundleBuilder(0,m4Large*riDeprecationFactor,
+        CbtpCostDTO.Builder cbtpBundleBuilder3 = TestUtils.createCbtpBundleBuilder(0,m4Large*riDeprecationFactor,
                 10 );
 
         CostDTO costDTOcbtp3 = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder3.build()).build();
         CbtpCostDTO cdDTo3 = costDTOcbtp3.getCbtpResourceBundle();
         cbtp1.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(cdDTo3));
 
-        CbtpCostDTO.Builder cbtpBundleBuilder4 = createCbtpBundleBuilder(0, c4Large*riDeprecationFactor,
+        CbtpCostDTO.Builder cbtpBundleBuilder4 = TestUtils.createCbtpBundleBuilder(0, c4Large*riDeprecationFactor,
                 50);
 
         CostDTO costDTOcbtp4 = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder4.build()).build();
@@ -326,7 +326,7 @@ public class CostFunctionTest {
         assertEquals(quoteCbtp1, quoteCbtp2, TestUtils.FlOATING_POINT_DELTA2);
 
         // Set the price for a t2.large cbtp
-        CbtpCostDTO.Builder cbtpBundleBuilder5 = createCbtpBundleBuilder(0,t2Large*riDeprecationFactor,
+        CbtpCostDTO.Builder cbtpBundleBuilder5 = TestUtils.createCbtpBundleBuilder(0,t2Large*riDeprecationFactor,
                 10 );
 
         CostDTO costDTOcbtp5 = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder5.build()).build();
@@ -334,7 +334,7 @@ public class CostFunctionTest {
         cbtp1.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(cdDTo5));
 
         // Set the price for a t3.large cbtp
-        CbtpCostDTO.Builder cbtpBundleBuilder6 = createCbtpBundleBuilder(0, t3Large*riDeprecationFactor,
+        CbtpCostDTO.Builder cbtpBundleBuilder6 = TestUtils.createCbtpBundleBuilder(0, t3Large*riDeprecationFactor,
                 50);
 
         CostDTO costDTOcbtp6 = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder6.build()).build();
@@ -356,7 +356,7 @@ public class CostFunctionTest {
 
         double updatedriDprecationFactor = 0.00001;
         // Set the price for a t2.large cbtp with updated riDeprecationFactor
-        CbtpCostDTO.Builder cbtpBundleBuilder7 = createCbtpBundleBuilder(0,t2Large*updatedriDprecationFactor,
+        CbtpCostDTO.Builder cbtpBundleBuilder7 = TestUtils.createCbtpBundleBuilder(0,t2Large*updatedriDprecationFactor,
                 10 );
 
         CostDTO costDTOcbtp7 = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder7.build()).build();
@@ -364,7 +364,7 @@ public class CostFunctionTest {
         cbtp1.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(cdDTo7));
 
         // Set the price for a t3.large cbtp with updated riDeprecationFactor
-        CbtpCostDTO.Builder cbtpBundleBuilder8 = createCbtpBundleBuilder(0, t3Large*updatedriDprecationFactor,
+        CbtpCostDTO.Builder cbtpBundleBuilder8 = TestUtils.createCbtpBundleBuilder(0, t3Large*updatedriDprecationFactor,
                 50);
 
         CostDTO costDTOcbtp8 = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder8.build()).build();
@@ -376,6 +376,150 @@ public class CostFunctionTest {
 
         // t2.large gives higher quote than t3.large which should be the case
         assert(quoteCbtp5 > quoteCbtp6);
+    }
+
+    @Test
+    public void test_DiscountedComputeCostFactor() {
+
+        float discounted_compute_costFactor = 5;
+        // Costs for template
+        double t2NanoCost = 0.0063;
+        // Cost greater than discounted_compute_costFactor * costOnCurrentSupplier (in this case t2Nano)
+        double m5Large = 0.19200;
+
+        // Create economy with discounted compute cost factor
+        Economy economy = new Economy();
+        economy.getSettings().setDiscountedComputeCostFactor(discounted_compute_costFactor);
+
+        // Create a VM buyer
+        Trader vm = TestUtils.createVM(economy, "vm-buyer");
+        BalanceAccount ba = new BalanceAccount(0.0, 100000000d, 24);
+        vm.getSettings().setBalanceAccount(ba);
+
+        // Create a TP for this VM
+        Trader t2NanoTP = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0l),
+                Arrays.asList(TestUtils.CPU),
+                new double[] {3000}, true,
+                true, "t2Nano");
+
+        // Set the cost dto on the TP
+        CostDTO t2NanoTP_CostDto = CostDTO.newBuilder().setComputeTierCost(
+            TestUtils.getComputeTierCostDTOBuilder().addCostTupleList(CostTuple.newBuilder()
+                .setLicenseCommodityType(-1)
+                .setPrice(t2NanoCost)
+                .setBusinessAccountId(24)
+                .build()).build()).build();
+
+        t2NanoTP.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
+        t2NanoTP.getSettings().setCostFunction(CostFunctionFactory.createCostFunction(t2NanoTP_CostDto));
+
+        // Place VM on t2Nano TP
+        ShoppingList vmSL = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.CPU),
+                vm, new double[] {1000}, t2NanoTP);
+        vmSL.setGroupFactor(1L);
+
+        // Create CBTP
+        Trader cbtp_m5Large = TestUtils.setAndGetCBTP(m5Large, "cbtp_m5Large", economy);
+
+        // Create a new TP which sells to CBTP
+        Trader m5LargeTP = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0l),
+                Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.CPU, TestUtils.SEGMENTATION_COMMODITY),
+                new double[] {8, 3000, 1}, true,
+                true, "m5Large");
+
+        // Set the cost dto on the TP
+        CostDTO m5LargeTP_CostDto = CostDTO.newBuilder().setComputeTierCost(
+            TestUtils.getComputeTierCostDTOBuilder().addCostTupleList(CostTuple.newBuilder()
+                .setLicenseCommodityType(-1)
+                .setPrice(m5Large)
+                .setBusinessAccountId(24)
+                .build()).build()).build();
+
+        m5LargeTP.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
+        m5LargeTP.getSettings().setCostFunction(CostFunctionFactory.createCostFunction(m5LargeTP_CostDto));
+
+        // Place CBTP on TP
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.SEGMENTATION_COMMODITY),
+                        cbtp_m5Large, new double[] {2, 1}, m5LargeTP);
+
+        economy.populateMarketsWithSellers();
+
+        final InitialInfiniteQuote bestQuoteSoFar = new InitialInfiniteQuote();
+        boolean forTraderIncomeStatement = true;
+
+        // Act
+        double q1 = EdeCommon.quote(economy, vmSL, cbtp_m5Large, bestQuoteSoFar.getQuoteValue(),
+                        forTraderIncomeStatement).getQuoteValue();
+
+        // Infinite quote because on demand cost of cbtP > discounted_compute_costFactor * costOnCurrentSupplier
+        assertTrue(Double.isInfinite(q1));
+
+        // Change cost Factor : 0.0192/0.00063 ~31
+        economy.getSettings().setDiscountedComputeCostFactor(31);
+
+        q1 = EdeCommon.quote(economy, vmSL, cbtp_m5Large, bestQuoteSoFar.getQuoteValue(),
+                        forTraderIncomeStatement).getQuoteValue();
+
+        assertTrue(Double.isFinite(q1));
+    }
+
+    @Test
+    public void test_DiscountedComputeCostFactor_NoSupplier() {
+        // Very big cost factor (for a VM with no supplier this factor (no matter how big)
+        // should return infinite quote.
+        float discounted_compute_costFactor = 100000;
+
+        double m5Large = 0.19200;
+
+        // Create economy with discounted compute cost factor
+        Economy economy = new Economy();
+        economy.getSettings().setDiscountedComputeCostFactor(discounted_compute_costFactor);
+
+        // Create a VM buyer
+        Trader vm = TestUtils.createVM(economy, "vm-buyer");
+        BalanceAccount ba = new BalanceAccount(0.0, 100000000d, 24);
+        vm.getSettings().setBalanceAccount(ba);
+
+        // VM with no supplier
+        ShoppingList vmSL = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.CPU),
+                vm, new double[] {1000}, null);
+        vmSL.setGroupFactor(1L);
+
+        // Create CBTP
+        Trader cbtp_m5Large = TestUtils.setAndGetCBTP(m5Large, "cbtp_m5Large", economy);
+
+        // Create a new TP which sells to CBTP
+        Trader m5LargeTP = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0l),
+                Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.CPU, TestUtils.SEGMENTATION_COMMODITY),
+                new double[] {8, 3000, 1}, true,
+                true, "m5Large");
+
+        // Set the cost dto on the TP
+        CostDTO m5LargeTP_CostDto = CostDTO.newBuilder().setComputeTierCost(
+            TestUtils.getComputeTierCostDTOBuilder().addCostTupleList(CostTuple.newBuilder()
+                .setLicenseCommodityType(-1)
+                .setPrice(m5Large)
+                .setBusinessAccountId(24)
+                .build()).build()).build();
+
+        m5LargeTP.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
+        m5LargeTP.getSettings().setCostFunction(CostFunctionFactory.createCostFunction(m5LargeTP_CostDto));
+
+        // Place CBTP on TP
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.SEGMENTATION_COMMODITY),
+                        cbtp_m5Large, new double[] {2, 1}, m5LargeTP);
+
+        economy.populateMarketsWithSellers();
+
+        final InitialInfiniteQuote bestQuoteSoFar = new InitialInfiniteQuote();
+        boolean forTraderIncomeStatement = true;
+
+        // Act
+        double q1 = EdeCommon.quote(economy, vmSL, cbtp_m5Large, bestQuoteSoFar.getQuoteValue(),
+                        forTraderIncomeStatement).getQuoteValue();
+
+        // Infinite quote because no supplier
+        assertTrue(Double.isInfinite(q1));
     }
 
     /**
@@ -468,20 +612,5 @@ public class CostFunctionTest {
         assertTrue(quote.getContext().isPresent());
         assertEquals(TestUtils.DC4_COMM_TYPE, quote.getContext().get().getRegionId());
         assertEquals(4.5d, quote.getQuoteValue(), 0);
-    }
-    /**
-     * Create the cbtp bundle builder
-     *
-     * @param couponBaseType  Coupon value we want to set on the cbtp
-     * @param price   The price of the RI we want to set on the cbtp
-     * @param averageDiscount  the discount we want to set
-     * @return  the CBTPCostDTO.Builder
-     */
-    public CbtpCostDTO.Builder createCbtpBundleBuilder(int couponBaseType, double price, double averageDiscount) {
-        CbtpCostDTO.Builder cbtpBundleBuilder = CbtpCostDTO.newBuilder();
-        cbtpBundleBuilder.setCouponBaseType(couponBaseType);
-        cbtpBundleBuilder.setPrice(price);
-        cbtpBundleBuilder.setDiscountPercentage(averageDiscount);
-        return cbtpBundleBuilder;
     }
 }
