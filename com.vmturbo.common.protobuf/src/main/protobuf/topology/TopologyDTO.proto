@@ -663,11 +663,11 @@ message CommodityBoughtDTO {
 
     // A historical value which is used in conjunction to the used value to calculate a
     // weighted used value
-    optional double historical_used = 6 [default = 0.0];
+    optional double historical_used = 6;
 
     // A historical value which is used in conjunction to the peak value to calculate a
     // weighted peak value
-    optional double historical_peak = 7 [default = 0.0];
+    optional double historical_peak = 7;
 
     // The display name for specific commodity like port channel and net throughput.
     optional string display_name = 8;
