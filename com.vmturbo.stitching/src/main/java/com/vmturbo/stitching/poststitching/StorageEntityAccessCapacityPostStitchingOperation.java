@@ -81,7 +81,8 @@ public class StorageEntityAccessCapacityPostStitchingOperation implements PostSt
                         .forEach(commodity -> commodity.setCapacity(iopsSetting.get().getNumericSettingValue().getValue()));
                 });
             } else {
-                logger.warn("Could not set Storage Access capacity for Storage {} ({}) because " +
+                // TODO switched from warn to debug to reduce logging load - does it need more visibility?
+                logger.debug("Could not set Storage Access capacity for Storage {} ({}) because " +
                     "it had no Disk Array or Logical Pool provider with Storage Access capacity, and" +
                     " no setting for IOPS capacity.", storage.getOid(), storage.getDisplayName());
             }

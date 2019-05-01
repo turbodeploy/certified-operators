@@ -77,7 +77,9 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements
                    settingsCollection.getEntitySetting(entity, overprovisionSettingType);
 
                if (!overprovisionSetting.isPresent()) {
-                   logger.warn("Could not update {} capacities for entity {} ; no {} setting found",
+                   // TODO From javadoc, this seems like an anticipated case where this operation
+                   // does not apply, so why are we logging anything?
+                   logger.debug("Could not update {} capacities for entity {} ; no {} setting found",
                        overprovCommodityType, entityOid, overprovisionSettingType.getSettingName());
                } else {
                    resultBuilder.queueUpdateEntityAlone(entity, entityForUpdate ->

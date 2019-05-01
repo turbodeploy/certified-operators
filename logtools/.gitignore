@@ -1,0 +1,11 @@
+*.log
+*.txt
+*.txt_*
+*.gz
+*.xz
+*.digest
+*.summary
+*.pyc
+sizes
+*~
+*#

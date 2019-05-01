@@ -51,6 +51,10 @@ public class HistoricalEditor {
 
     private HistoricalInfo historicalInfo;
 
+    // commodity types already logged as missing historical info - recreated on
+    // each invocation of applyCommodityEdits()
+    private Set<Integer> commodityTypesAlreadyLoggedAsMissingHistory = null;
+
     // the weight of the historical used value in the calculation of the weighted used value
     public static final float globalUsedHistoryWeight = 0.5f;
 
@@ -127,6 +131,7 @@ public class HistoricalEditor {
 
         Stream<TopologyEntity> entities = graph.entities();
         Iterable<TopologyEntity> entitiesIterable = entities::iterator;
+        this.commodityTypesAlreadyLoggedAsMissingHistory = new HashSet<>();
 
         // Clean historical utilization data structure
         // Construct the set of all oids existing from previous iterations
@@ -203,6 +208,7 @@ public class HistoricalEditor {
             }
 
         }
+        this.commodityTypesAlreadyLoggedAsMissingHistory = null;
 
         executorService.submit(() -> historicalUtilizationDatabase.saveInfo(historicalInfo));
     }
@@ -322,7 +328,12 @@ public class HistoricalEditor {
                     }
                 }
                 if (!commSoldFound) {
-                    logger.error("A sold commodity with type {} is missing in HistoricalServiceEntityInfo", commodityType.getType());
+                    int type = commodityType.getType();
+                    // don't repeat log messages within a cycle
+                    if (!commodityTypesAlreadyLoggedAsMissingHistory.contains(type)) {
+                        logger.error("A sold commodity with type {} is missing in HistoricalServiceEntityInfo", type);
+                        commodityTypesAlreadyLoggedAsMissingHistory.add(type);
+                    }
                 }
             }
         }

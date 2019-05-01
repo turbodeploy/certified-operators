@@ -48,7 +48,8 @@ public abstract class StorageLatencyPostStitchingOperation implements PostStitch
                         applyOperationToEntity(latencyCapacity.get(), entity)
                     );
                 } else {
-                    logger.warn("Could not set Storage Latency capacity for entity {} ; " +
+                    // TODO switched from warn to debug to reduce logging load - does it need more visibility?
+                    logger.debug("Could not set Storage Latency capacity for entity {} ; " +
                         "no setting was found", eligible.getOid());
                 }
             });

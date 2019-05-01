@@ -117,7 +117,8 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
                             defaultSetting.get().getNumericSettingValue().getValue();
                         queueSingleUpdate(defaultValue, entity, resultBuilder);
                     } else {
-                        logger.warn("Could not set Storage Access capacity for entity {} ({}) " +
+                        // TODO switched this from warn to debug to reduce logging load - does it need more visibility?
+                        logger.debug("Could not set Storage Access capacity for entity {} ({}) " +
                                 "because no valid IOPS Capacity settings were found",
                             entity.getOid(), entity.getDisplayName());
                     }

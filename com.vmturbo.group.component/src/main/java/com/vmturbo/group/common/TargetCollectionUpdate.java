@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -19,6 +20,8 @@ import org.jooq.exception.DataAccessException;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Sets;
+import com.google.protobuf.MessageOrBuilder;
+import com.google.protobuf.TextFormat;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
@@ -47,7 +50,8 @@ import com.vmturbo.group.identity.IdentityProvider;
  * @param <SpecType> Specifications for instances of the collection have this type,
  *                  e.g. {@link GroupInfo}.
  */
-public abstract class TargetCollectionUpdate<InstanceType, SpecType> {
+public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuilder,
+    SpecType extends MessageOrBuilder> {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -97,7 +101,8 @@ public abstract class TargetCollectionUpdate<InstanceType, SpecType> {
                 // This should never happen, because we shouldn't have saved colliding collections.
                 (one, other) -> {
                     logger.error("Retrieved two existing colliding collections for the " +
-                            "same target. Updating the one with the greater ID.:\n{}\nand\n\n{}", one, other);
+                            "same target. Updating the one with the greater ID.: {} and {}",
+                        TextFormat.shortDebugString(one), TextFormat.shortDebugString(other));
                     // We want to make an effort to clean up if there are existing duplicates.
                     // If there are two duplicate instances, keep the one with the higher key.
                     final long oneId = idGetter().apply(one);
@@ -106,16 +111,15 @@ public abstract class TargetCollectionUpdate<InstanceType, SpecType> {
                     return oneId > otherId ? one : other;
                 }));
 
+        AtomicInteger dupeKeys = new AtomicInteger(0);
         final Map<SpecKey, SpecType> newByKey = newDiscoveredCollections.stream()
                 .collect(Collectors.toMap(
-                    spec -> new SpecKey(infoNameGetter().apply(spec),
-                        memberTypeGetter().apply(spec), targetId),
+                    this::getSpecKey,
                     Function.identity(),
-                    (one, other) -> {
-                        logger.warn("Discovered two colliding collections for the " +
-                                "same target:\n{}\nand\n\n{}", one, other);
-                        return one;
-                    }));
+                    (one, other) -> handleDuplicateSpecKey(one, other, dupeKeys)));
+        if (dupeKeys.get() > 0) {
+            logger.warn("Discovered {} pairs instances with collding keys");
+        }
 
         existingByKey.entrySet().stream().forEach(e ->
             oidMap.put(e.getKey().toString(), idGetter().apply(e.getValue())));
@@ -147,6 +151,19 @@ public abstract class TargetCollectionUpdate<InstanceType, SpecType> {
             .forEach(groupsToRemove::add);
     }
 
+    private SpecKey getSpecKey(SpecType instance) {
+        return new SpecKey(infoNameGetter().apply(instance),
+            memberTypeGetter().apply(instance), targetId);
+    }
+
+    private SpecType handleDuplicateSpecKey(SpecType one, SpecType other, AtomicInteger dupeKeys) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("Discovered two colliding collections for the same target: {} and {}",
+                TextFormat.shortDebugString(one), TextFormat.shortDebugString((other)));
+            dupeKeys.incrementAndGet();
+        }
+        return one;
+    }
     /**
      * @return A function to get the ID of an instance.
      */

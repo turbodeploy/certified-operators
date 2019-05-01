@@ -42,7 +42,8 @@ public class EntityValidator {
                                      @Nonnull final CommoditySoldDTO.Builder original,
                                      @Nonnull final String property,
                                      final double illegalAmount) {
-        logger.warn("Entity {} with name {} of type {} is selling {} commodity {} with illegal {} {}",
+        // TODO chagned from warn to trace to reduce logging load - does it need more visibility?
+        logger.trace("Entity {} with name {} of type {} is selling {} commodity {} with illegal {} {}",
                 entityId,
                 entityName,
                 EntityType.forNumber(entityType),
@@ -58,7 +59,8 @@ public class EntityValidator {
                                                @Nonnull final String property,
                                                final double illegalAmount, final long providerId,
                                                final int providerType) {
-        logger.warn("Entity {} with name {} of type {} is buying {} commodity {} with illegal " +
+        // TODO changed from warn to trace to reduce logging load - does it need more visibility?
+        logger.trace("Entity {} with name {} of type {} is buying {} commodity {} with illegal " +
                 "{} {} from entity {} of type {}", entityId, entityName,
             EntityType.forNumber(entityType),
             original.getActive() ? "active" : "non-active",

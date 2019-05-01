@@ -4,10 +4,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -29,7 +31,7 @@ public class SupplyChainValidator {
     /**
      * Initialize a supply chain validator, giving access to a probe store and a target store.
      *
-     * @param probeStore the probe store.
+     * @param probeStore  the probe store.
      * @param targetStore the target store.
      */
     public SupplyChainValidator(@Nonnull ProbeStore probeStore, @Nonnull TargetStore targetStore) {
@@ -46,7 +48,7 @@ public class SupplyChainValidator {
      */
     @Nonnull
     public List<SupplyChainValidationFailure> validateTopologyEntities(
-            @Nonnull final Stream<TopologyEntity> entities) {
+        @Nonnull final Stream<TopologyEntity> entities) {
         // renew supply chain definitions
         // this happens because new probes might have registered since the last time
         // the supply chain validator was invoked
@@ -60,15 +62,34 @@ public class SupplyChainValidator {
 
         // iterate through discovered entities
         entities.filter(TopologyEntity::hasDiscoveryOrigin).forEach(entity -> {
-            logger.trace("Supply chain validation for entity {} begins", entity::getDisplayName);
+            logger.trace("Supply chain validation for entity {} begins",
+                entity::getDisplayName);
             final Collection<TemplateDTO> templates =
                 supplyChainDefinitions.retrieveSupplyChainTemplates(entity);
             validationErrors.addAll(SupplyChainEntityValidator.verify(templates, entity));
         });
 
-        // log all errors
-        validationErrors.forEach(e -> logger.error(e.toString()));
-        logger.info("{} supply chain validation errors have been detected.", validationErrors::size);
+        if (!validationErrors.isEmpty()) {
+            boolean debug = logger.isDebugEnabled();
+            if (debug) {
+                // log all errors if debug logging is enabled
+                validationErrors.forEach(validationError -> logger.error(validationError.toString()));
+            }
+            // otherwise just log consolidated error messages - one per subclass of
+            // SupplyChainValidationFailure that appears in the validation errors. If DEBUG is
+            // enabled, these are summarizing ERROR logs already produced, so they go out at INFO
+            // level. Otherwise, they're announcing errors, so they go at ERROR level.
+            validationErrors.stream()
+                .collect(Collectors.groupingBy(SupplyChainValidationFailure::getClass,
+                    Collectors.counting()))
+                .forEach((type, count) -> logger.log(debug ? Level.INFO : Level.ERROR,
+                    "Supply chain validation errors of type {}: {}", type, count));
+            // Total is always a summary, so it goes out at INFO level
+            logger.info("Supply chain validation errors total: {}",
+                validationErrors.size());
+        } else {
+            logger.info("No supply chain validation errors detected.");
+        }
 
         return Collections.unmodifiableList(validationErrors);
     }
