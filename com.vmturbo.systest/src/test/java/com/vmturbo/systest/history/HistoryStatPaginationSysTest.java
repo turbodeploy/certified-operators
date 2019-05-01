@@ -160,7 +160,7 @@ public class HistoryStatPaginationSysTest {
 
         // Send projected topology
         logger.info("Sending projected topology...");
-        marketSender.notifyProjectedTopology(topologyInfo, 2L, Collections.emptySet(), entities.stream()
+        marketSender.notifyProjectedTopology(topologyInfo, 2L, entities.stream()
             .map(entity -> ProjectedTopologyEntity.newBuilder()
                 .setEntity(entity)
                 .setOriginalPriceIndex(1.0f)

@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.arangodb.ArangoDBException;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start.SkippedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -48,7 +47,6 @@ public class MarketTopologyListener implements ProjectedTopologyListener {
     @Override
     public void onProjectedTopologyReceived(final long projectedTopologyId,
                 @Nonnull final TopologyInfo originalTopologyInfo,
-                @Nonnull final Set<SkippedEntity> skippedEntities,
                 @Nonnull final RemoteIterator<ProjectedTopologyEntity> projectedTopo) {
         try {
             onProjectedTopologyReceivedInternal(projectedTopologyId, originalTopologyInfo,

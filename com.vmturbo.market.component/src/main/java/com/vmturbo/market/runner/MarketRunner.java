@@ -215,7 +215,6 @@ public class MarketRunner {
                     // want to minimize the risk of the projected topology being unavailable.
                     serverApi.notifyProjectedTopology(analysis.getTopologyInfo(),
                                     analysis.getProjectedTopologyId().get(),
-                                    analysis.getSkippedEntities(),
                                     analysis.getProjectedTopology().get());
                     serverApi.notifyActionsRecommended(analysis.getActionPlan().get());
 

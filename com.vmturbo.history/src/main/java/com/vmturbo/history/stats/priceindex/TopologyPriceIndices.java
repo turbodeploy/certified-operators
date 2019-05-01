@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start.SkippedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.history.SharedMetrics;
@@ -136,15 +135,6 @@ public class TopologyPriceIndices {
                 projectedTopologyEntity.getEntity().getEnvironmentType(),
                 projectedTopologyEntity.getEntity().getOid(),
                 priceIdx);
-            return this;
-        }
-
-        public Builder addSkippedEntity(@Nonnull final SkippedEntity skippedEntity) {
-            setPriceIdx(skippedEntity.getEntityType(),
-                    skippedEntity.getEnvironmentType(),
-                    skippedEntity.getOid(),
-                    HistoryStatsUtils.DEFAULT_PRICE_IDX);
-            numSkipped++;
             return this;
         }
 

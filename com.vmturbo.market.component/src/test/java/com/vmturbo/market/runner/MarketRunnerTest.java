@@ -159,7 +159,7 @@ public class MarketRunnerTest {
         // since the IDgenerator gives us a different projectedTopoID every time, we create a
         // MockitoMatcher using anyLong to represent this parameter
         verify(serverApi, Mockito.times(1))
-                .notifyProjectedTopology(eq(topologyInfo), anyLong(), anySet(),
+                .notifyProjectedTopology(eq(topologyInfo), anyLong(),
                         eq(analysis.getProjectedTopology().get()));
     }
 

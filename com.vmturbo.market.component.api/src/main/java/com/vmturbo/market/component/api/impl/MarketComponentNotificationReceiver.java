@@ -21,7 +21,6 @@ import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start.SkippedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -173,7 +172,7 @@ public class MarketComponentNotificationReceiver extends
             case START:
                 final Start start = topology.getStart();
                 projectedTopologyChunkReceiver.startTopologyBroadcast(topology.getTopologyId(),
-                        createProjectedTopologyChunkConsumers(topologyId, start.getSourceTopologyInfo(), Sets.newHashSet(start.getSkippedEntitiesList())));
+                        createProjectedTopologyChunkConsumers(topologyId, start.getSourceTopologyInfo()));
                 break;
             case DATA:
                 projectedTopologyChunkReceiver.processData(topology.getTopologyId(),
@@ -288,11 +287,11 @@ public class MarketComponentNotificationReceiver extends
     }
 
     private Collection<Consumer<RemoteIterator<ProjectedTopologyEntity>>> createProjectedTopologyChunkConsumers(
-            final long topologyId, final TopologyInfo topologyInfo, final Set<SkippedEntity> skippedEntities) {
+            final long topologyId, final TopologyInfo topologyInfo) {
         return projectedTopologyListenersSet.stream().map(listener -> {
             final Consumer<RemoteIterator<ProjectedTopologyEntity>> consumer =
                     iterator -> listener.onProjectedTopologyReceived(
-                            topologyId, topologyInfo, skippedEntities, iterator);
+                            topologyId, topologyInfo, iterator);
             return consumer;
         }).collect(Collectors.toList());
     }

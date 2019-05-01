@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.Collections2;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start.SkippedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -80,7 +79,6 @@ public class PlanStatsWriter {
      * Process message with chunks of projected plan topology DTOs.
      *
      * @param topologyInfo the topology information about this topology
-     * @param skippedEntities entities from the original topology not in the projected topology.
      * @param dtosIterator an iterator of chunks
      * @throws CommunicationException if there is a problem getting the next chunk
      * @throws TimeoutException if there is a timeout getting the next chunk
@@ -89,7 +87,6 @@ public class PlanStatsWriter {
      * @return The number of entities processed.
      */
     public int processProjectedChunks(@Nonnull final TopologyInfo topologyInfo,
-                @Nonnull final Set<SkippedEntity> skippedEntities,
                 @Nonnull final RemoteIterator<ProjectedTopologyEntity> dtosIterator)
             throws CommunicationException, TimeoutException, InterruptedException, VmtDbException {
         final ScenariosRecord scenarioInfo = historydbIO.getOrAddScenariosRecord(topologyInfo);
@@ -100,9 +97,7 @@ public class PlanStatsWriter {
         final MktSnapshotsStatsRecord projectedPriceIndexRecord = buildPriceIndexRecord(scenarioInfo,
                 "priceIndex");
 
-        int numOriginalPriceIndex = skippedEntities.size();
-        skippedEntities.forEach(skippedEntityOid ->
-            tabulateCapacityMinMax(currentPriceIndexRecord, HistoryStatsUtils.DEFAULT_PRICE_IDX));
+        int numOriginalPriceIndex = 0;
 
         int numberOfEntities = 0;
         historydbIO.addMktSnapshotRecord(topologyInfo);
@@ -119,7 +114,6 @@ public class PlanStatsWriter {
                 }
                 tabulateCapacityMinMax(projectedPriceIndexRecord, entity.getProjectedPriceIndex());
             }
-
             numberOfEntities += chunk.size();
         }
         logger.debug("Writing aggregates for topology {} and context {}",

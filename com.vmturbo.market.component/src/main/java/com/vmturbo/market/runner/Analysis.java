@@ -47,7 +47,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start.SkippedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
@@ -346,18 +345,12 @@ public class Analysis {
                 converter.updateShoppingListMap(results.getNewShoppingListToBuyerEntryList());
                 logger.info(logPrefix + "Done performing analysis");
 
-                List<TraderTO> projectedTraderDTO = new ArrayList<>();
-                // retrieve entities which were not converted so that they can be added to the projected
-                // topology
-                List<ProjectedTopologyEntity> projectedEntitiesFromOriginalTopo =
-                        originalCloudTopology.getAllEntitesOfTypes(
-                                TopologyConversionConstants.STATIC_INFRASTRUCTURE)
-                                .stream().map(p -> ProjectedTopologyEntity.newBuilder()
-                                .setEntity(p).build()).collect(Collectors.toList());
-                try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.startTimer()) {
-                    if (enableThrottling) {
-                        // remove the fake entities used in suspension throttling
-                        // we need to remove it both from the projected topology and the source topology
+            List<TraderTO> projectedTraderDTO = new ArrayList<>();
+
+            try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.startTimer()) {
+                if (enableThrottling) {
+                    // remove the fake entities used in suspension throttling
+                    // we need to remove it both from the projected topology and the source topology
 
                         // source, non scoped topology
                         for (long fakeEntityOid : fakeEntityDTOs.keySet()) {
@@ -374,19 +367,11 @@ public class Analysis {
                         projectedTraderDTO = results.getProjectedTopoEntityTOList();
                     }
 
-                    projectedEntities = converter.convertFromMarket(
-                            projectedTraderDTO,
-                            topologyDTOs,
-                            results.getPriceIndexMsg(), topologyCostCalculator.getCloudCostData());
-                    projectedEntitiesFromOriginalTopo.forEach(projectedEntity -> {
-                        final ProjectedTopologyEntity existing =
-                                projectedEntities.put(projectedEntity.getEntity().getOid(), projectedEntity);
-                        if (existing != null && !projectedEntity.equals(existing)) {
-                            logger.error("Existing projected entity overwritten by entity from " +
-                                            "original topology. Existing (converted from market): {}\nOriginal: {}",
-                                    existing, projectedEntity);
-                        }
-                    });
+                projectedEntities = converter.convertFromMarket(
+                    projectedTraderDTO,
+                    topologyDTOs,
+                    results.getPriceIndexMsg(), topologyCostCalculator.getCloudCostData());
+                copySkippedEntitiesToProjectedTopology();
 
                     // Calculate the projected entity costs.
                     final CloudTopology<TopologyEntityDTO> projectedCloudTopology =
@@ -461,6 +446,34 @@ public class Analysis {
      */
     public boolean isStopAnalysis() {
         return stopAnalysis;
+    }
+
+    /**
+     * Copy skipped entities (entities which did not go through market conversion) from the
+     * original topology to the projected topology
+     */
+    private void copySkippedEntitiesToProjectedTopology() {
+        Set<ProjectedTopologyEntity> projectedEntitiesFromOriginalTopo =
+            originalCloudTopology.getAllEntitesOfTypes(
+                TopologyConversionConstants.STATIC_INFRASTRUCTURE).stream()
+                .map(p -> ProjectedTopologyEntity.newBuilder()
+                    .setEntity(p).build())
+                .collect(Collectors.toSet());
+        Set<ProjectedTopologyEntity> projectedEntitiesFromSkippedEntities =
+            converter.getSkippedEntities().stream()
+                .map(e ->  ProjectedTopologyEntity.newBuilder()
+                    .setEntity(e).build())
+                .collect(Collectors.toSet());
+        Sets.union(projectedEntitiesFromOriginalTopo, projectedEntitiesFromSkippedEntities)
+            .forEach(projectedEntity -> {
+                final ProjectedTopologyEntity existing =
+                    projectedEntities.put(projectedEntity.getEntity().getOid(), projectedEntity);
+                if (existing != null && !projectedEntity.equals(existing)) {
+                    logger.error("Existing projected entity overwritten by entity from " +
+                            "original topology. Existing (converted from market): {}\nOriginal: {}",
+                        existing, projectedEntity);
+                }
+            });
     }
 
     /**
@@ -726,26 +739,6 @@ public class Analysis {
         return !topologyInfo.getScopeSeedOidsList().isEmpty() && (!topologyInfo.hasPlanInfo()
                 || (!topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.OPTIMIZE_CLOUD_PLAN_TYPE) &&
                         !topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.CLOUD_MIGRATION_PLAN_TYPE)));
-    }
-
-    /**
-     * Get the OIDs of entities skipped during conversion of {@link TopologyEntityDTO}s to
-     * {@link TraderTO}s.
-     *
-     * @return A set of the OIDS of entities skipped during conversion.
-     */
-    @Nonnull
-    public Set<SkippedEntity> getSkippedEntities() {
-        if (!isDone()) {
-            throw new IllegalStateException("Attempting to get skipped entities before analysis is done.");
-        }
-        return converter.getSkippedEntities().stream()
-            .map(entity -> SkippedEntity.newBuilder()
-                .setOid(entity.getOid())
-                .setEntityType(entity.getEntityType())
-                .setEnvironmentType(entity.getEnvironmentType())
-                .build())
-            .collect(Collectors.toSet());
     }
 
     /**

@@ -39,7 +39,7 @@ public class PlanStatsWriterTest {
         RemoteIterator<ProjectedTopologyEntity> iterator
             = Mockito.mock(RemoteIterator.class);
         when(iterator.hasNext()).thenReturn(false);
-        planStatsWriter.processProjectedChunks(TopologyInfo.newBuilder().build(), Collections.EMPTY_SET, iterator);
+        planStatsWriter.processProjectedChunks(TopologyInfo.newBuilder().build(), iterator);
         verify(historydbIO, atLeastOnce()).clipValue(anyDouble());
     }
 

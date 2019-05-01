@@ -539,30 +539,8 @@ message ProjectedTopology {
 
     // Marker message, declaring the start of topology broadcast
     message Start {
-
-        message SkippedEntity {
-            // The oid of the skipped entity.
-            optional int64 oid = 1;
-
-            // The entity type of the entity. We often need the entity type to figure
-            // out what to do with the entity.
-            optional int32 entity_type = 2;
-
-            // The environment type of the entity. We may need the environment type to
-            // properly categorize the entity.
-            optional .common.EnvironmentType environment_type = 3;
-        }
-
         // The basic information of the source topology
         optional TopologyInfo source_topology_info = 1;
-
-        // Entities in the source topology that were skipped in the analysis.
-        // These entities will not have associated entries in the projected
-        // topology.
-        repeated SkippedEntity skipped_entities = 3;
-
-        // Skipped entities. This field is deprecated, because we also need the entity type.
-        repeated int64 __deprecated__skipped_entities = 2 [deprecated = true];
     };
     // Message to hold real data of the topology - it is the chunk
     message Data {

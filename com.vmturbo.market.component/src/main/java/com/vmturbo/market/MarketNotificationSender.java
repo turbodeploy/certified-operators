@@ -15,7 +15,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Data;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.End;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start.SkippedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -108,21 +107,17 @@ public class MarketNotificationSender extends
      *
      * @param originalTopologyInfo The {@link TopologyInfo} describing the original topology.
      * @param projectedTopologyId The ID of the projected topology.
-     * @param skippedEntities The IDs of entities in the original topology that were skipped
-     *                        during conversion, and do not appear in the projected topology.
      * @param projectedTopo The protobuf objects describing the traders after plan execution.
      * @throws CommunicationException if persistent communication error occurs
      * @throws InterruptedException if thread interrupted
      */
     public void notifyProjectedTopology(@Nonnull final TopologyInfo originalTopologyInfo,
                                     final long projectedTopologyId,
-                                    final Set<SkippedEntity> skippedEntities,
                                     @Nonnull final Collection<ProjectedTopologyEntity> projectedTopo)
             throws CommunicationException, InterruptedException {
         sendProjectedTopologySegment(ProjectedTopology.newBuilder()
                 .setStart(Start.newBuilder()
                         .setSourceTopologyInfo(originalTopologyInfo)
-                        .addAllSkippedEntities(skippedEntities)
                         .build())
                 .setTopologyId(projectedTopologyId)
                 .build());

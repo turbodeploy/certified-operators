@@ -95,7 +95,6 @@ public class MarketTopologyListenerTest {
                         .setTopologyContextId(topologyContextId)
                         .setCreationTime(creationTime)
                         .build(),
-                Collections.emptySet(),
                 entityIterator);
 
         verify(topologyManager).newProjectedTopologyCreator(tid);
@@ -123,7 +122,6 @@ public class MarketTopologyListenerTest {
                         .setTopologyContextId(topologyContextId)
                         .setCreationTime(creationTime)
                         .build(),
-                Collections.emptySet(),
                 entityIterator);
 
         // should not have any "write" interactions

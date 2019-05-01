@@ -161,7 +161,6 @@ public abstract class HistoryPerformanceTest {
                     .setTopologyType(ComponentUtils.topologyType(topologyContextId))
                     .build(),
                 PROJECTED_TOPOLOGY_ID,
-                Collections.emptySet(),
                 Lists.transform(topoDTOs, entity -> ProjectedTopologyEntity.newBuilder()
                     .setEntity(entity)
                     .setProjectedPriceIndex(1.0)

@@ -95,7 +95,6 @@ public class MarketTopologyListenerExceptionTest {
                         .setTopologyContextId(topologyContextId)
                         .setCreationTime(creationTime)
                         .build(),
-                 Collections.emptySet(),
                  entityIterator);
 
         verifyMocks();
@@ -120,7 +119,6 @@ public class MarketTopologyListenerExceptionTest {
                         .setTopologyContextId(topologyContextId)
                         .setCreationTime(creationTime)
                         .build(),
-                Collections.emptySet(),
                 entityIterator);
 
         verifyMocks();
@@ -146,7 +144,6 @@ public class MarketTopologyListenerExceptionTest {
                             .setTopologyContextId(topologyContextId)
                             .setCreationTime(creationTime)
                             .build(),
-                    Collections.emptySet(),
                     entityIterator);
         } catch (IllegalStateException ise) {
             // expected
