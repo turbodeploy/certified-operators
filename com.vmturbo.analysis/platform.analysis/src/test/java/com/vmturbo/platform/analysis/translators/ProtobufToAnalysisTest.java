@@ -4,16 +4,21 @@ import static org.junit.Assert.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+
+import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mockito;
 
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
 
 import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.CommoditySold;
+import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -23,15 +28,19 @@ import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Constant;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.StandardWeighted;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Step;
+import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO;
+import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO.RiskBased;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 /**
  * A test case for the {@link ProtobufToAnalysis} class.
@@ -164,9 +173,71 @@ public class ProtobufToAnalysisTest {
     }
 
     @Test
-    @Ignore
     public final void testPopulateCommoditySold() {
-        fail("Not yet implemented"); // TODO
+        float commUsed = 1f;
+        float commPeakUsed = 2f;
+        float commMaxUsed = 3f;
+        float commSoldCap = 5f;
+        int numConusmer = 6;
+        float historicalUsed = 4f;
+        CommoditySoldSettingsTO settingTO = CommoditySoldSettingsTO.newBuilder().build();
+        CommoditySoldTO.Builder commSoldTOBuilder = CommoditySoldTO.newBuilder()
+                        .setSettings(settingTO)
+                        .setQuantity(commUsed)
+                        .setPeakQuantity(commPeakUsed)
+                        .setMaxQuantity(commMaxUsed)
+                        .setCapacity(commSoldCap)
+                        .setNumConsumers(numConusmer)
+                        .setThin(true);
+
+        TraderSettingsTO traderSetting = TraderSettingsTO
+                        .newBuilder()
+                        .setQuoteFunction(
+                           QuoteFunctionDTO
+                           .newBuilder()
+                           .setRiskBased(
+                              RiskBased.newBuilder()))
+                        .build();
+
+        TraderTO trader = TraderTO.newBuilder().setOid(1).setSettings(traderSetting).build();
+
+        CommoditySold commoditySold = new CommoditySold() {
+            private static final long serialVersionUID = 1L;
+
+            @Override
+            public @NonNull @PolyRead CommoditySoldSettings getSettings() {
+                return Mockito.mock(CommoditySoldSettings.class);
+            }
+
+            @Override
+            public double getEffectiveCapacity() {
+                return 0;
+            }
+        };
+
+        ProtobufToAnalysis.populateCommoditySold(commSoldTOBuilder.build(), commoditySold, trader);
+
+        float precision = 0.001f;
+        assertEquals(commUsed, commoditySold.getQuantity(), precision);
+        assertEquals(commUsed, commoditySold.getStartQuantity(), precision);
+        assertEquals(commPeakUsed, commoditySold.getPeakQuantity(), precision);
+        assertEquals(commPeakUsed, commoditySold.getStartPeakQuantity(), precision);
+        assertEquals(commMaxUsed, commoditySold.getMaxQuantity(), precision);
+        assertEquals(commSoldCap, commoditySold.getCapacity(), precision);
+        assertEquals(numConusmer, commoditySold.getNumConsumers(), precision);
+        assertEquals(commUsed, commoditySold.getHistoricalOrElseCurrentQuantity(), precision);
+        assertTrue(commoditySold.isThin());
+
+        //If the commodity is not set the value for historical quantity should be -1
+        ProtobufToAnalysis.populateCommoditySold(
+                        commSoldTOBuilder
+                            .setHistoricalQuantity(historicalUsed)
+                            .build(),
+                        commoditySold,
+                        trader);
+
+        assertEquals(historicalUsed, commoditySold.getHistoricalOrElseCurrentQuantity(), precision);
+
     }
 
     @Test

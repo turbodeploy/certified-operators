@@ -415,8 +415,8 @@ public class Ledger {
             // expense of this consumer is utilOfCommBought*priceFn(utilOfCommBought)
             double maxDesUtil = buyer.getSettings().getMaxDesiredUtil();
             double minDesUtil = buyer.getSettings().getMinDesiredUtil();
-            double commSoldUtil = cs.getUtilization() / cs.getSettings()
-                    .getUtilizationUpperBound();
+            double commSoldUtil = cs.getHistoricalOrElseCurrentUtilization()
+                            / cs.getSettings().getUtilizationUpperBound();
             PriceFunction pf = cs.getSettings().getPriceFunction();
 
             if (Double.isNaN(commSoldUtil)) {
@@ -495,12 +495,28 @@ public class Ledger {
                                 // for the Mem raw material.  In this case, we just skip
                                 // updating the expenses for that commodity.
                                 CommoditySold relatedCommSoldByBuyer = commSoldList.get(index);
-                                double relatedCommSoldUtil = relatedCommSoldByBuyer.getQuantity()
-                                        / relatedCommSoldByBuyer.getEffectiveCapacity();
+                                // Use desired utilization if we are using historical quantity to
+                                // resize. Otherwise, use the quantity of the related commodity
+                                double relatedCommSoldUtil = cs.isHistoricalQuantitySet()
+                                                ? (minDesUtil + maxDesUtil) / 2
+                                                : relatedCommSoldByBuyer.getQuantity()
+                                                                / relatedCommSoldByBuyer
+                                                                                .getEffectiveCapacity();
+
                                 double[] incomeStatementExpenses = calculateIncomeStatementExpenses(relatedCommSoldByBuyer,
                                         shoppingList, supplier, economy, relatedCommSoldUtil, maxDesUtil, minDesUtil);
 
-                                commSoldIS.setExpenses(commSoldIS.getExpenses() + incomeStatementExpenses[0]);
+                                // Use average of min and max desired expense as current expense
+                                // when using historical quantity for generating resize action.
+                                // Otherwise, the expense are calculated based on current quantity
+                                // of the shopping list.
+                                double historicalExpenses = cs.isHistoricalQuantitySet()
+                                                                ? ((incomeStatementExpenses[1]
+                                                                                + incomeStatementExpenses[2])
+                                                                                / 2)
+                                                                : incomeStatementExpenses[0];
+
+                                commSoldIS.setExpenses(commSoldIS.getExpenses() + historicalExpenses);
                                 commSoldIS.setMaxDesiredExpenses(commSoldIS.getMaxDesiredExpenses() + incomeStatementExpenses[1]);
                                 commSoldIS.setMinDesiredExpenses(commSoldIS.getMinDesiredExpenses() + incomeStatementExpenses[2]);
                             }
@@ -532,14 +548,24 @@ public class Ledger {
                     // find the right provider comm and use it to compute the expenses
                     CommoditySold commSoldBySeller = supplier.getCommoditySold(basketBought
                             .get(boughtIndex));
-                    // using capacity to remain consistent with quote
-                    double commBoughtUtil = shoppingList.getQuantity(boughtIndex)
-                            / commSoldBySeller.getEffectiveCapacity();
+                    // Use desired utilization if we are using historical quantity for populating
+                    // income statement otherwise calculate the utilization based on shopping list
+                    // quantity
+                    double commBoughtUtil = cs.isHistoricalQuantitySet()
+                                    ? (minDesUtil + maxDesUtil) / 2
+                                    : shoppingList.getQuantity(boughtIndex)
+                                                    / commSoldBySeller.getEffectiveCapacity();
                     if (commBoughtUtil != 0) {
                         double[] incomeStatementExpenses = calculateIncomeStatementExpenses(commSoldBySeller,
                                 shoppingList, supplier, economy, commBoughtUtil, maxDesUtil, minDesUtil);
-
-                        commSoldIS.setExpenses(commSoldIS.getExpenses() + incomeStatementExpenses[0]);
+                        // Use average of min and max desired expenses if we are using historical
+                        // quantity for resizing otherwise use current expenses
+                        double historicalExpenses = cs.isHistoricalQuantitySet()
+                                                        ? ((incomeStatementExpenses[1]
+                                                                        + incomeStatementExpenses[2])
+                                                                        / 2)
+                                                        : incomeStatementExpenses[0];
+                        commSoldIS.setExpenses(commSoldIS.getExpenses() + historicalExpenses);
                         commSoldIS.setMaxDesiredExpenses(commSoldIS.getMaxDesiredExpenses() + incomeStatementExpenses[1]);
                         commSoldIS.setMinDesiredExpenses(commSoldIS.getMinDesiredExpenses() + incomeStatementExpenses[2]);
 

@@ -75,6 +75,12 @@ message EndDiscoveredTopology {
         repeated CommodityResizeDependency commodityResizeDependency = 2;
     }
 
+    // The entry that represents a dependency that should be skipped
+    message ResizeDependencySkipEntry {
+        required int32 commodityType = 1;
+        repeated int32 dependentCommodities = 2;
+    }
+
     // An entry in raw to processed commodity map. The raw (bought) commodity
     // is the key and the processed (sold) commodity is the value.
     message CommodityRawMaterialEntry {
@@ -108,6 +114,10 @@ message EndDiscoveredTopology {
     optional bool movesThrottling = 8 [default = false];
     // This field specifies the suspensions throttling behavior
     optional SuspensionsThrottlingConfig suspensionsThrottlingConfig = 9 [default = DEFAULT];
+
+    // This keeps the list of commodity dependencies that will be skipped when
+    // simulating resize based on historical data
+    repeated ResizeDependencySkipEntry skipListForHistoryBasedResize = 10;
 }
 
 // A compound message to encapsulate any one of command messages.

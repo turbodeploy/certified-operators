@@ -11,12 +11,12 @@ import java.util.List;
 import java.util.Set;
 
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Resize;
+import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -891,5 +891,118 @@ public class ResizerTest {
             }
         }
         return actual;
+    }
+
+    @Test
+    public void testResizeDecisionsUsingHistoricalQuantityResizeUp() {
+        double historicalQuanity = 9;
+        double currentQuantity = 6.5;
+        Economy economy = setUpEconomyWithHistoricalQuantity(currentQuantity, historicalQuanity);
+
+        economy.populateMarketsWithSellers();
+
+        Ledger ledger = new Ledger(economy);
+
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(1, actions.size());
+
+        Resize resizeAction = (Resize)actions.get(0);
+
+        assertEquals(14d, resizeAction.getNewCapacity(), 0.01);
+    }
+
+    @Test
+    public void testResizeDecisionsUsingHistoricalQuantityResizeDown() {
+        double historicalQuanity = 2;
+        double currentQuantity = 6.5;
+        Economy economy = setUpEconomyWithHistoricalQuantity(currentQuantity, historicalQuanity);
+
+        economy.populateMarketsWithSellers();
+
+        Ledger ledger = new Ledger(economy);
+
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(1, actions.size());
+
+        Resize resizeAction = (Resize)actions.get(0);
+
+        assertEquals(7d, resizeAction.getNewCapacity(), 0.01);
+    }
+
+    @Test
+    public void testResizeDecisionsUsingHistoricalQuantityNoResize() {
+        double historicalQuanity = 6.5;
+        double currentQuantity = 9;
+        Economy economy = setUpEconomyWithHistoricalQuantity(currentQuantity, historicalQuanity);
+
+        economy.populateMarketsWithSellers();
+
+        Ledger ledger = new Ledger(economy);
+
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(0, actions.size());
+    }
+
+    /**
+     * This method create an economy where a consumer is consuming from a provider. In
+     * this economy, the historical quantity for the commodity sold of the consumer is
+     * populated based on the input parameter. The purpose of this method is verifying
+     * the amount the market recommend resizing to based on historical quantity.
+     *
+     * @param currentQuantity The current quantity of the commodity sold by consumer.
+     * @param historicalQuanity The historical quantity of the commodity sold by consumer.
+     *
+     * @return the constructed economy.
+     */
+    private Economy setUpEconomyWithHistoricalQuantity(double currentQuantity, double historicalQuanity) {
+        Economy economy = new Economy();
+        final CommoditySpecification cpuSpec =
+                        new CommoditySpecification(0, 1000, 1, Integer.MAX_VALUE);
+        final CommoditySpecification vcpuSpec =
+                        new CommoditySpecification(1, 1000, 1, Integer.MAX_VALUE);
+        Basket basketSoldBySeller = new Basket(Collections.singleton(cpuSpec));
+        Basket basketSoldByBuyer = new Basket(Collections.singleton(vcpuSpec));
+
+        // create supplier
+        Trader seller = economy.addTrader(0, TraderState.ACTIVE, basketSoldBySeller);
+        seller
+            .getCommoditiesSold()
+            .get(0)
+                .setQuantity(20)
+                .setPeakQuantity(25)
+                .setCapacity(100);
+        seller.setDebugInfoNeverUseInCode("Seller");
+
+        // create consumer
+        Trader buyer = economy.addTrader(1, TraderState.ACTIVE, basketSoldByBuyer);
+        economy.addBasketBought(buyer, basketSoldBySeller)
+            .setQuantity(0, currentQuantity)
+            .setPeakQuantity(0, currentQuantity)
+            .setMovable(true)
+            .move(seller);
+        buyer.setDebugInfoNeverUseInCode("Buyer");
+
+        buyer
+            .getCommoditiesSold()
+            .get(0)
+                .setQuantity(currentQuantity)
+                .setHistoricalQuantity(historicalQuanity)
+                .setPeakQuantity(currentQuantity)
+                .setCapacity(10);
+
+        economy.getModifiableRawCommodityMap().put(vcpuSpec.getBaseType(),
+                        Arrays.asList(cpuSpec.getBaseType()));
+
+        buyer.getSettings().setMinDesiredUtil(0.6);
+        buyer.getSettings().setMaxDesiredUtil(0.7);
+
+        seller.getSettings().setMinDesiredUtil(0.6);
+        seller.getSettings().setMaxDesiredUtil(0.7);
+        economy.getSettings().setRightSizeLower(0.5);
+        economy.getSettings().setRightSizeUpper(0.8);
+        return economy;
     }
 }

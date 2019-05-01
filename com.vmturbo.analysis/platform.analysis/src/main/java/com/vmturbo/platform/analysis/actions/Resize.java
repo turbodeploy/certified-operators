@@ -191,9 +191,20 @@ public class Resize extends ActionImpl {
 
     @Override
     public @NonNull Resize take() {
+        return take(true);
+    }
+
+    /**
+     * Simulate effect of taking actions.
+     *
+     * @param basedOnHistorical Is this action based on historical quantity? The simulation
+     * on dependent commodities changes based on the parameter.
+     * @return {@code this}
+     */
+    public @NonNull Resize take(boolean basedOnHistorical) {
         super.take();
         Resizer.resizeDependentCommodities(getEconomy(), getSellingTrader(), getResizedCommodity(),
-                                   getSoldIndex(), getNewCapacity());
+                                   getSoldIndex(), getNewCapacity(), basedOnHistorical);
         getSellingTrader().getCommoditySold(getResizedCommoditySpec()).setCapacity(getNewCapacity());
         return this;
     }

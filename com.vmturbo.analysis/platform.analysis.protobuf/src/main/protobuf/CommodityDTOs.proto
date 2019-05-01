@@ -103,4 +103,7 @@ message CommoditySoldTO {
 
     // number of consumers for this commodity
     optional int32 numConsumers = 8;
+
+    // The quantity that represent historical usage of commodity
+    optional float historicalQuantity = 9;
 }

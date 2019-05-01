@@ -38,6 +38,7 @@ import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTop
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityRawMaterialEntry;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityResizeDependency;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityResizeDependencyEntry;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.ResizeDependencySkipEntry;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
@@ -223,7 +224,8 @@ public final class ProtobufToAnalysis {
         destination.setCapacityLowerBound(source.getCapacityLowerBound());
         destination.setCapacityUpperBound(source.getCapacityUpperBound());
         destination.setCapacityIncrement(source.getCapacityIncrement());
-        destination.setUtilizationUpperBound(source.getUtilizationUpperBound()).setOrigUtilizationUpperBound(source.getUtilizationUpperBound());
+        destination.setUtilizationUpperBound(source.getUtilizationUpperBound());
+        destination.setOrigUtilizationUpperBound(source.getUtilizationUpperBound());
         destination.setPriceFunction(priceFunction(source.getPriceFunction()));
         CostDTO costDTO = (entitySett.getQuoteFunction().hasRiskBased() == true) ?
                         entitySett.getQuoteFunction().getRiskBased().getCloudCost() : null;
@@ -251,6 +253,12 @@ public final class ProtobufToAnalysis {
             source.getPeakQuantity() ? source.getQuantity() :
                 source.getPeakQuantity());
         destination.setThin(source.getThin());
+
+        // Only populate the right size quantity if it has been sent
+        if (source.hasHistoricalQuantity()) {
+            destination.setHistoricalQuantity(source.getHistoricalQuantity());
+        }
+
         try {
             populateCommoditySoldSettings(source.getSettings(), destination.getSettings(),
                                           entity.getSettings());
@@ -453,6 +461,24 @@ public final class ProtobufToAnalysis {
             }
             resizeDependencyMap.put(commodityType, resizeSpecs);
 
+        }
+    }
+
+
+    /**
+     * Populates the commodity history based resize dependency skip map of a {@link Topology}
+     * from information in an {@link EndDiscoveredTopology} message.
+     *
+     * @param source The {@link EndDiscoveredTopology} message from which to get the map entries.
+     * @param destination destination The {@link Topology} to put the entries to.
+     */
+    public static void populateHistoryBasedResizeDependencyMap(@NonNull EndDiscoveredTopology source,
+                                                 @NonNull Topology destination) {
+        Map<Integer, List<Integer>> resizeDependencyMap =
+                        destination.getModifiableHistoryBasedResizeSkipDependency();
+
+        for (ResizeDependencySkipEntry entry : source.getSkipListForHistoryBasedResizeList()) {
+            resizeDependencyMap.put(entry.getCommodityType(), entry.getDependentCommoditiesList());
         }
     }
 

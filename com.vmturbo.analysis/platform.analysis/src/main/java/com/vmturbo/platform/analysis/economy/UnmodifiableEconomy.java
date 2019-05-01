@@ -186,6 +186,10 @@ public interface UnmodifiableEconomy {
     @ReadOnly
     List<@NonNull CommodityResizeSpecification> getResizeDependency(int processedCommodityType);
 
+    @NonNull
+    @ReadOnly
+    List<@NonNull Integer> getHistoryBasedResizeSkippedDependentCommodities(int processedCommodityType);
+
     @ReadOnly
     boolean getForceStop();
 

@@ -102,7 +102,7 @@ public class Resizer {
                                            commoditySold.getSettings().getUtilizationUpperBound();
                                 Resize resizeAction = new Resize(economy, seller,
                                     basketSold.get(soldIndex), commoditySold, soldIndex, newCapacity);
-                                resizeAction.take();
+                                resizeAction.take(commoditySold.isHistoricalQuantitySet());
                                 resizeAction.setImportance(currentRevenue - newRevenue);
                                 actions.add(resizeAction);
                                 if (logger.isTraceEnabled() || isDebugTrader) {
@@ -380,8 +380,8 @@ public class Resizer {
                                                  IncomeStatement commodityIS) {
         boolean eligibleForResizeDown = seller.getSettings().isEligibleForResizeDown();
         double currentCapacity = resizeCommodity.getEffectiveCapacity();
-        double currentQuantity = resizeCommodity.getQuantity();
-        double currentUtilization = currentQuantity / currentCapacity;
+        double currentUtilization = resizeCommodity.getHistoricalOrElseCurrentQuantity()
+                        / currentCapacity;
         // do not resize if utilization is in acceptable range
         // or if resizeDown warm up interval not finish
         EconomySettings settings = economy.getSettings();
@@ -452,11 +452,13 @@ public class Resizer {
      *
      * @param resizeCommodity Commodity to be resized.
      * @param newRevenue The target revenue for the commodity after resize.
+     * @param seller The seller that we are finding the desired capacity for.
+     * @param economy The economy that this seller operates in.
      * @return The new capacity
      */
     private static double calculateDesiredCapacity(CommoditySold resizeCommodity, double newRevenue,
                                                    Trader seller, Economy economy) {
-        double currentQuantity = resizeCommodity.getQuantity();
+        double currentQuantity = resizeCommodity.getHistoricalOrElseCurrentQuantity();
         PriceFunction priceFunction = resizeCommodity.getSettings().getPriceFunction();
 
         // interval which is almost (0,1) to avoid divide by zero
@@ -478,10 +480,12 @@ public class Resizer {
      *                      and may trigger resize of other commodities.
      * @param commoditySoldIndex The index of {@link CommoditySold commodity} sold in basket.
      * @param newCapacity The new capacity.
+     * @param basedOnHistorical Is this action based on historical quantity? The simulation
+     * on dependent commodities changes based on the parameter.
      */
     public static void resizeDependentCommodities(@NonNull Economy economy,
              @NonNull Trader seller, @NonNull CommoditySold commoditySold, int commoditySoldIndex,
-                                                                              double newCapacity) {
+                                                    double newCapacity, boolean basedOnHistorical) {
         if (!economy.getSettings().isResizeDependentCommodities()) {
             return;
         }
@@ -490,11 +494,23 @@ public class Resizer {
         if (typeOfCommsBought == null || typeOfCommsBought.isEmpty()) {
             return;
         }
+        List<Integer> skippedCommodityTypes =
+                        economy.getHistoryBasedResizeSkippedDependentCommodities(seller
+                                        .getBasketSold().get(commoditySoldIndex).getBaseType());
+
         for (ShoppingList shoppingList : economy.getMarketsAsBuyer(seller).keySet()) {
 
             Trader supplier = shoppingList.getSupplier();
             Basket basketBought = shoppingList.getBasket();
             for (CommodityResizeSpecification typeOfCommBought : typeOfCommsBought) {
+                // If this resize is based on historical quantities and this commodity should
+                // be skipped when the resize is based on historical quantity continue
+                if (basedOnHistorical
+                        && skippedCommodityTypes != null
+                        && skippedCommodityTypes.contains(typeOfCommBought.getCommodityType())) {
+                    continue;
+                }
+
                 int boughtIndex = basketBought.indexOfBaseType(typeOfCommBought.getCommodityType());
                 if (boughtIndex < 0) {
                     continue;

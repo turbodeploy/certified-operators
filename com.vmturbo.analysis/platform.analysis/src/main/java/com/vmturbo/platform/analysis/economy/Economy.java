@@ -15,7 +15,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -64,6 +63,10 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     // Map of commodity resize dependency calculation by commodity type.
     private final @NonNull Map<@NonNull Integer, @NonNull List<@NonNull CommodityResizeSpecification>>
         commodityResizeDependency_ = new HashMap<>();
+    // Map of list of commodities that simulation of resize action based on historical value
+    // should be skipped by commodity type.
+    private final @NonNull Map<@NonNull Integer, @NonNull List<@NonNull Integer>>
+        historyBasedResizeDependencySkipMap_ = new HashMap<>();
     // Map from raw processedCommodity -> rawCommodity
     private final @NonNull Map<@NonNull Integer, @NonNull List<@NonNull Integer>> rawMaterial_ = new HashMap<>();
     // a flag to indicate if analysis should stop immediately or not
@@ -149,6 +152,18 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     public @NonNull Map<@NonNull Integer, @NonNull List<@NonNull CommodityResizeSpecification>>
                                                     getModifiableCommodityResizeDependencyMap() {
         return commodityResizeDependency_;
+    }
+
+    /**
+    *
+    * @return A modifiable map from commodity sold to the dependent commodities bought
+    *         that the change to them should be skipped in case of resize based on
+    *         historical usage.
+    */
+    @Pure
+    public @NonNull Map<@NonNull Integer, @NonNull List<@NonNull Integer>>
+                                                    getModifiableHistoryBasedResizeDependencySkipMap() {
+        return historyBasedResizeDependencySkipMap_;
     }
 
     @Pure
@@ -296,6 +311,22 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     public @NonNull @ReadOnly List<@NonNull CommodityResizeSpecification>
                     getResizeDependency(@ReadOnly Economy this, int processedCommodityType) {
         return commodityResizeDependency_.get(processedCommodityType);
+    }
+
+    /**
+     * Get the list of dependent commodity types for which the simulation of change
+     * based on resize should be skipped when the resize is based on historical
+     * quantity.
+     *
+     * @param processedCommodityType The type of resized commodity.
+     * @return the list of commodity types that their simulation should be skipped.
+     */
+    @Override
+    @Pure
+    public @NonNull @ReadOnly List<@NonNull Integer>
+                    getHistoryBasedResizeSkippedDependentCommodities(@ReadOnly Economy this,
+                                    int processedCommodityType) {
+        return historyBasedResizeDependencySkipMap_.get(processedCommodityType);
     }
 
     /**
@@ -683,6 +714,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         settings_.clear();
         preferentialSls_.clear();
         commodityResizeDependency_.clear();
+        historyBasedResizeDependencySkipMap_.clear();
         rawMaterial_.clear();
         marketsForPlacement_.clear();
         forceStop = false;

@@ -25,6 +25,8 @@ public abstract class CommoditySold implements Serializable {
     private double capacity_ = Double.MAX_VALUE;
     private double startQuantity_ = 0.0;
     private double startPeakQuantity_ = 0.0;
+    // The negative one value for historicalQuantity_ represents that it has not been populated
+    private double historicalQuantity_ = -1D;
     private boolean thin_ = false;
     // numConsumers is the sum of the traders sent to the market that are consuming a resource
     // these can be active or inactive traders
@@ -261,6 +263,22 @@ public abstract class CommoditySold implements Serializable {
     }
 
     /**
+     * Sets the value for the historical quantity for the commodity.
+     *
+     * The value returned for historical quantity can be negative if it has not been set. However,
+     * this method will throw an exception if you try sending a negative value to this method.
+     *
+     * @param historicalQuantity the value for the historical quantity.
+     * @return {@code this}
+     */
+    @Deterministic
+    public @NonNull CommoditySold setHistoricalQuantity(double historicalQuantity) {
+        checkArgument(0 <= historicalQuantity, "historicalQuantity = %s", historicalQuantity);
+        historicalQuantity_ = historicalQuantity;
+        return this;
+    }
+
+    /**
      * Sets the value of the <b>thin</b> field.
      *
      * <p>
@@ -290,4 +308,43 @@ public abstract class CommoditySold implements Serializable {
         numConsumers_ = numConsumers;
         return this;
     }
+
+    /**
+     * Returns true when a non-negative value has been assigned to historical quantity.
+     *
+     * @return true when historical commodity has been set.
+     */
+    public boolean isHistoricalQuantitySet() {
+        return historicalQuantity_ >= 0;
+    }
+
+    /**
+     * Returns the <b>historical quantity</b> or <b>current quantity</b> of {@code this} commodity.
+     *
+     * <p>
+     *  This is the aggregate quantity of {@code this} commodity the respective trader is selling to
+     *  all its customers, but it should not be assumed that it equals the total amount, all the
+     *  customers are buying! Various factors including sharing and overheads may lead to values
+     *  greater or less than the total. The quantity is usually retrieved by Mediation from the
+     *  Hypervisor.
+     * </p>
+     *
+     * @return  the historical quantity if present otherwise it will return current quantity.
+     */
+    @Pure
+    public double getHistoricalOrElseCurrentQuantity(@ReadOnly CommoditySold this) {
+        return isHistoricalQuantitySet() ? historicalQuantity_ : quantity_;
+    }
+
+    /**
+     * Returns the <b>historical utilization</b> or <b>current quantity</b> of {@code this} commodity.
+     *
+     * @return return the historical utilization if present otherwise it will return current
+     * utilization.
+     */
+    @Pure
+    public double getHistoricalOrElseCurrentUtilization(@ReadOnly CommoditySold this) {
+        return getHistoricalOrElseCurrentQuantity() / getCapacity();
+    }
+
 } // end CommoditySold interface

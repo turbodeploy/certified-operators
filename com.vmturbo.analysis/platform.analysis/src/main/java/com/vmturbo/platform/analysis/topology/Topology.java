@@ -188,6 +188,17 @@ public final class Topology implements Serializable {
     }
 
     /**
+    *
+    * @return A modifiable map from commodity sold to the dependent commodities bought
+    *         that the change to them should be skipped in case of resize based on
+    *         historical usage.
+    */
+   public @NonNull Map<@NonNull Integer, @NonNull List<@NonNull Integer>>
+                                           getModifiableHistoryBasedResizeSkipDependency() {
+       return economy_.getModifiableHistoryBasedResizeDependencySkipMap();
+   }
+
+    /**
      *
      * @return A modifiable map from processed commodity to the raw commodities used by it.
      */
