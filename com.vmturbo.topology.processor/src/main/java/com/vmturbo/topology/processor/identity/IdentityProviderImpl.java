@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.identity;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 
+import com.vmturbo.common.protobuf.topology.Probe;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -31,7 +33,6 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.identity.extractor.IdentifyingPropertyExtractor;
 import com.vmturbo.topology.processor.identity.metadata.ServiceEntityIdentityMetadata;
 import com.vmturbo.topology.processor.identity.metadata.ServiceEntityIdentityMetadataStore;
-import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 
 /**
  * Base implementation of the Identity Provider.
@@ -90,21 +91,12 @@ public class IdentityProviderImpl implements IdentityProvider {
 
     private final KeyValueStore keyValueStore;
 
-    private final ProbeInfoCompatibilityChecker probeInfoCompatibilityChecker;
-
     /**
      * Contains the entity identity metadata each probe provided at registration
      * time. We use this metadata to drive property extraction from entity DTOs.
      */
     private final ConcurrentMap<Long, ServiceEntityIdentityMetadataStore> perProbeMetadata
             = new ConcurrentHashMap<>();
-
-    /**
-     * Contains the {@link ProbeInfo} for each probe, provided at registration time.
-     * We use this to enforce compatibility when a probe of the same type re-registers with
-     * the topology processor.
-     */
-    private final ConcurrentMap<Long, ProbeInfo> existingProbeInfoById = new ConcurrentHashMap<>();
     // END Fields for Entity ID management
 
     /**
@@ -116,12 +108,10 @@ public class IdentityProviderImpl implements IdentityProvider {
      */
     public IdentityProviderImpl(@Nonnull final IdentityService identityService,
                                 @Nonnull final KeyValueStore keyValueStore,
-                                @Nonnull final ProbeInfoCompatibilityChecker compatibilityChecker,
                                 final long identityGeneratorPrefix) {
         IdentityGenerator.initPrefix(identityGeneratorPrefix);
         this.identityService = Objects.requireNonNull(identityService);
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
-        this.probeInfoCompatibilityChecker = Objects.requireNonNull(compatibilityChecker);
 
         Map<String, String> savedProbeIds = this.keyValueStore.getByPrefix(PROBE_ID_PREFIX);
 
@@ -147,7 +137,7 @@ public class IdentityProviderImpl implements IdentityProvider {
     /** {@inheritDoc}
      */
     @Override
-    public long getProbeId(@Nonnull final ProbeInfo probeInfo) throws IdentityProviderException {
+    public long getProbeId(@Nonnull final ProbeInfo probeInfo) {
         Objects.requireNonNull(probeInfo);
         // The probe type uniquely identifies a probe.
         synchronized (probeIdLock) {
@@ -159,25 +149,21 @@ public class IdentityProviderImpl implements IdentityProvider {
                 probeTypeToId.put(probeInfo.getProbeType(), probeId);
             }
 
-            final ProbeInfo existingInfo = existingProbeInfoById.putIfAbsent(probeId, probeInfo);
-            if (existingInfo != null) {
-                final boolean compatible =
-                    probeInfoCompatibilityChecker.areCompatible(existingInfo, probeInfo);
-                if (!compatible) {
-                    throw new IdentityProviderException("Probe configuration " + probeInfo
-                        + " is incompatible with already registered probe with the same probe type: "
-                        + existingInfo);
-                }
-                // Now that we passed the compatibility check we can override the probe info
-                // with the most recent one.
-                existingProbeInfoById.put(probeId, probeInfo);
+            // We may have restored the probe ID from the KV store, in which case
+            // it's still necessary to re-record the metadata the first time an
+            // actual probe registers.
+            if (!perProbeMetadata.containsKey(probeId)) {
+                /* Instead of having a separate call-back for probes to
+                 * register identity metadata we extract the metadata
+                 * from the first probe that is assigned a particular ID.
+                 *
+                 * The assumption is that every subsequent probe that
+                 * maps to the same ID should have the same identity
+                 * metadata.
+                 */
+                perProbeMetadata.put(probeId,
+                        new ServiceEntityIdentityMetadataStore(probeInfo.getEntityMetadataList()));
             }
-
-            // We passed the compatibility check, so replace the per-probe metadata with the
-            // most recent version.
-            perProbeMetadata.put(probeId,
-                new ServiceEntityIdentityMetadataStore(probeInfo.getEntityMetadataList()));
-
             return probeId;
         }
     }
@@ -197,7 +183,6 @@ public class IdentityProviderImpl implements IdentityProvider {
                 logger.warn("ProbeInfo doesn't exist in the ProbeMetadataMap: {}", probeInfo);
                 return;
             }
-            existingProbeInfoById.put(probeId, probeInfo);
             perProbeMetadata.put(probeId,
                     new ServiceEntityIdentityMetadataStore(probeInfo.getEntityMetadataList()));
         }

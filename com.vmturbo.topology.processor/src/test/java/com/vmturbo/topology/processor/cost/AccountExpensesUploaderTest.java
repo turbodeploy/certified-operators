@@ -46,7 +46,6 @@ import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
-import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
@@ -70,9 +69,8 @@ public class AccountExpensesUploaderTest {
     }
 
     private IdentityProvider identityProvider = new IdentityProviderImpl(
-        new IdentityService(new IdentityServiceInMemoryUnderlyingStore(
-            Mockito.mock(IdentityDatabaseStore.class)),
-            new HeuristicsMatcher()), keyValueStore, new ProbeInfoCompatibilityChecker(), 0L);
+            new IdentityService(new IdentityServiceInMemoryUnderlyingStore(
+                    Mockito.mock(IdentityDatabaseStore.class)), new HeuristicsMatcher()), keyValueStore, 0L);
 
     private StitchingContext mockStitchingContext = Mockito.mock(StitchingContext.class);
 

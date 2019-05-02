@@ -1,7 +1,5 @@
 package com.vmturbo.topology.processor.probes;
 
-import static org.mockito.Mockito.mock;
-
 import java.util.Collections;
 
 import org.junit.Assert;
@@ -43,8 +41,8 @@ public class ProbeRegistrationTest {
     private IdentityProvider identityProvider;
     private ProbeInfo.Builder probeInfoBuilder;
 
-    private final StitchingOperationStore stitchingOperationStore = mock(StitchingOperationStore.class);
-    private final KeyValueStore keyValueStore = mock(KeyValueStore.class);
+    private final StitchingOperationStore stitchingOperationStore = Mockito.mock(StitchingOperationStore.class);
+    private final KeyValueStore keyValueStore = Mockito.mock(KeyValueStore.class);
 
     @Before
     public final void init() {
@@ -55,11 +53,11 @@ public class ProbeRegistrationTest {
         identityProvider = new IdentityProviderImpl(
                 new IdentityService(
                         new IdentityServiceInMemoryUnderlyingStore(
-                                mock(IdentityDatabaseStore.class)),
+                                Mockito.mock(IdentityDatabaseStore.class)),
                         new HeuristicsMatcher()),
-                new MapKeyValueStore(), new ProbeInfoCompatibilityChecker(), 0L);
+                new MapKeyValueStore(), 0L);
         remoteMediation = new RemoteMediationServer(new RemoteProbeStore(keyValueStore,
-                identityProvider, stitchingOperationStore));
+                identityProvider, stitchingOperationStore, new ProbeInfoCompatibilityChecker()));
         probeInfoBuilder = ProbeInfo.newBuilder(Probes.defaultProbe);
     }
 

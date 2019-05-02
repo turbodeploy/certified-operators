@@ -4,7 +4,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -13,6 +12,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -33,7 +33,6 @@ import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
 import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
-import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.util.Probes;
 
 /**
@@ -51,16 +50,13 @@ public class IdentityProviderImplTest {
 
     private ProbeInfo baseProbeInfo;
 
-    private ProbeInfoCompatibilityChecker compatibilityChecker = mock(ProbeInfoCompatibilityChecker.class);
-
     @Before
     public void setup() throws Exception {
         keyValueStore = new MapKeyValueStore();
         identityProvider = new IdentityProviderImpl(
             new IdentityService(new IdentityServiceInMemoryUnderlyingStore(
-                    mock(IdentityDatabaseStore.class)), new HeuristicsMatcher()),
-            keyValueStore,
-            compatibilityChecker, 0L);
+                    Mockito.mock(IdentityDatabaseStore.class)), new HeuristicsMatcher()),
+            keyValueStore, 0L);
         baseProbeInfo = Probes.defaultProbe;
     }
 
@@ -68,10 +64,9 @@ public class IdentityProviderImplTest {
     public void testConstructorInitializesIdentityGenerator() {
         final long idGenPrefix = IdentityGenerator.MAXPREFIX - 1;
         identityProvider = new IdentityProviderImpl(new IdentityService(
-            new IdentityServiceInMemoryUnderlyingStore(mock(IdentityDatabaseStore.class)),
+            new IdentityServiceInMemoryUnderlyingStore(Mockito.mock(IdentityDatabaseStore.class)),
                 new HeuristicsMatcher()),
             keyValueStore,
-            compatibilityChecker,
             idGenPrefix
         );
 
@@ -101,25 +96,10 @@ public class IdentityProviderImplTest {
         long probeId = identityProvider.getProbeId(baseProbeInfo);
         ProbeInfo eqProbe = ProbeInfo.newBuilder(baseProbeInfo)
                 .setProbeCategory("otherCat").build();
-
-        when(compatibilityChecker.areCompatible(baseProbeInfo, eqProbe)).thenReturn(true);
         assertEquals(probeId, identityProvider.getProbeId(eqProbe));
-        // Should check compatibility.
-        verify(compatibilityChecker).areCompatible(baseProbeInfo, eqProbe);
-
         ProbeInfo diffProbe = ProbeInfo.newBuilder(baseProbeInfo)
                 .setProbeType("test2").build();
         assertNotEquals(probeId, identityProvider.getProbeId(diffProbe));
-    }
-
-    @Test(expected = IdentityProviderException.class)
-    public void testGetProbeIdIncompatible() throws Exception {
-        long probeId = identityProvider.getProbeId(baseProbeInfo);
-        ProbeInfo incompatible = ProbeInfo.newBuilder(baseProbeInfo)
-            .setProbeCategory("otherCat").build();
-
-        when(compatibilityChecker.areCompatible(baseProbeInfo, incompatible)).thenReturn(false);
-        identityProvider.getProbeId(incompatible);
     }
 
     /**
@@ -229,10 +209,10 @@ public class IdentityProviderImplTest {
      */
     @Test
     public void testProbeIdSave() throws Exception {
-        final KeyValueStore mockKvStore = mock(KeyValueStore.class);
+        final KeyValueStore mockKvStore = Mockito.mock(KeyValueStore.class);
 
         final IdentityProvider newInstance = new IdentityProviderImpl(
-            mock(IdentityService.class), mockKvStore, compatibilityChecker, 0L);
+            Mockito.mock(IdentityService.class), mockKvStore, 0L);
 
         final long probeId = newInstance.getProbeId(baseProbeInfo);
         // Verify that the call to save the probeId happened.
@@ -240,7 +220,6 @@ public class IdentityProviderImplTest {
                         Mockito.eq("id/probes/" + baseProbeInfo.getProbeType()),
                         Mockito.eq(Long.toString(probeId)));
 
-        when(compatibilityChecker.areCompatible(baseProbeInfo, baseProbeInfo)).thenReturn(true);
         // Verify that getting the same ID again doesn't result in another call to the KV-store.
         assertEquals(probeId, newInstance.getProbeId(baseProbeInfo));
         verify(mockKvStore, Mockito.times(1)).put(
@@ -261,7 +240,7 @@ public class IdentityProviderImplTest {
         // A different instance of the identity provider should assign
         // the same probe ID to the same probe.
         final IdentityProvider newInstance =
-            new IdentityProviderImpl(mock(IdentityService.class), keyValueStore, compatibilityChecker, 0L);
+            new IdentityProviderImpl(Mockito.mock(IdentityService.class), keyValueStore, 0L);
         assertEquals(probeId, newInstance.getProbeId(baseProbeInfo));
     }
 
@@ -283,11 +262,10 @@ public class IdentityProviderImplTest {
      * @throws Exception If any exception occurs.
      */
     private void testGetEntityIdIdSvcException(Exception e) throws Exception {
-        IdentityService identityService = mock(IdentityService.class);
+        IdentityService identityService = Mockito.mock(IdentityService.class);
         when(identityService.getEntityOIDs(any()))
                 .thenThrow(e);
-        IdentityProvider provider = new IdentityProviderImpl(identityService,
-            new MapKeyValueStore(), compatibilityChecker, 0L);
+        IdentityProvider provider = new IdentityProviderImpl(identityService, new MapKeyValueStore(), 0L);
 
         ProbeInfo probeInfo = ProbeInfo.newBuilder(baseProbeInfo)
                 .addEntityMetadata(
@@ -308,33 +286,33 @@ public class IdentityProviderImplTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testBadJsonRestore1() throws Exception {
-        final IdentityService identityService = mock(IdentityService.class);
+        final IdentityService identityService = Mockito.mock(IdentityService.class);
         final IdentityProviderImpl providerImpl = new IdentityProviderImpl(identityService,
-                new MapKeyValueStore(), compatibilityChecker, 0);
+                new MapKeyValueStore(), 0);
         providerImpl.restoreDiags(ImmutableList.of("blah", "", ""));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testBadJsonRestore2() throws Exception {
-        final IdentityService identityService = mock(IdentityService.class);
+        final IdentityService identityService = Mockito.mock(IdentityService.class);
         final IdentityProviderImpl providerImpl = new IdentityProviderImpl(identityService,
-                new MapKeyValueStore(), compatibilityChecker, 0);
+                new MapKeyValueStore(), 0);
         providerImpl.restoreDiags(ImmutableList.of("{}", "blah", ""));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testWrongLinesRestore() throws Exception {
-        final IdentityService identityService = mock(IdentityService.class);
+        final IdentityService identityService = Mockito.mock(IdentityService.class);
         final IdentityProviderImpl providerImpl = new IdentityProviderImpl(identityService,
-                new MapKeyValueStore(), compatibilityChecker, 0);
+                new MapKeyValueStore(), 0);
         providerImpl.restoreDiags(Collections.emptyList());
     }
 
     @Test
     public void testBackupRestore() throws Exception {
-        final IdentityService identityService = mock(IdentityService.class);
+        final IdentityService identityService = Mockito.mock(IdentityService.class);
         final IdentityProviderImpl providerImpl = new IdentityProviderImpl(identityService,
-                new MapKeyValueStore(), compatibilityChecker, 0);
+                new MapKeyValueStore(), 0);
 
         final ProbeInfo probeInfo = ProbeInfo.newBuilder(baseProbeInfo)
                 .addEntityMetadata(
@@ -363,7 +341,7 @@ public class IdentityProviderImplTest {
         // Create a new provider, restore the diags, and make sure
         // the new providers behaves just like the old one.
         final IdentityProviderImpl newProvider = new IdentityProviderImpl(identityService,
-                new MapKeyValueStore(), compatibilityChecker, 0);
+                new MapKeyValueStore(), 0);
         newProvider.restoreDiags(diags);
         verify(identityService).restore(any());
         // It should assign the same ID for the same probe type.

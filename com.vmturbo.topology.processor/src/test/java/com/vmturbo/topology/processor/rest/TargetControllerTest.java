@@ -118,12 +118,13 @@ public class TargetControllerTest {
                             new IdentityServiceInMemoryUnderlyingStore(
                                     Mockito.mock(IdentityDatabaseStore.class)),
                             new HeuristicsMatcher()),
-                    new MapKeyValueStore(), new ProbeInfoCompatibilityChecker(), 0L);
+                    new MapKeyValueStore(), 0L);
         }
 
         @Bean
         ProbeStore probeStore() {
-            return new RemoteProbeStore(keyValueStore(), identityService(), stitchingOperationStore());
+            return new RemoteProbeStore(keyValueStore(), identityService(), stitchingOperationStore(),
+                new ProbeInfoCompatibilityChecker());
         }
 
         @Bean

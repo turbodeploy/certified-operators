@@ -20,7 +20,6 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeOrdering;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -51,12 +50,7 @@ public class TestProbeStore implements ProbeStore {
     public boolean registerNewProbe(@Nonnull ProbeInfo probeInfo,
                                     @Nonnull ITransport<MediationServerMessage,
                                         MediationClientMessage> transport) throws ProbeException {
-        final long probeId;
-        try {
-            probeId = identityProvider.getProbeId(probeInfo);
-        } catch (IdentityProviderException e) {
-            throw new ProbeException("Failed to get ID!", e);
-        }
+        long probeId = identityProvider.getProbeId(probeInfo);
         probeInfos.put(probeId, probeInfo);
         probes.put(probeId, transport);
         listeners.forEach(listener -> listener.onProbeRegistered(probeId, probeInfo));
@@ -71,11 +65,7 @@ public class TestProbeStore implements ProbeStore {
     }
 
     public void removeProbe(ProbeInfo probeInfo) {
-        try {
-            probeInfos.remove(identityProvider.getProbeId(probeInfo));
-        } catch (IdentityProviderException e) {
-            // No problem.
-        }
+        probeInfos.remove(identityProvider.getProbeId(probeInfo));
     }
 
     @Override
