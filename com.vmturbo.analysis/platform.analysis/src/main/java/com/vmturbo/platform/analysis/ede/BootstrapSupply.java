@@ -868,7 +868,10 @@ public class BootstrapSupply {
      public static List<CommoditySpecification> findCommSpecsWithInfiniteQuote(Trader sellerThatFits,
                     ShoppingList sl, Economy economy) {
         List<CommoditySpecification> infCommSpecList = new ArrayList<>();
-        Trader traderToInspect = chooseSellerToAskQuotes(sellerThatFits, sl);
+        // If seller that fits is resize through supplier trader then return the infinite
+        // commodities the VM would get by moving to this trader.
+        Trader traderToInspect = sellerThatFits.getSettings().isResizeThroughSupplier()
+                        ? sellerThatFits : chooseSellerToAskQuotes(sellerThatFits, sl);
         if (traderToInspect == null) {
             return infCommSpecList;
         }
