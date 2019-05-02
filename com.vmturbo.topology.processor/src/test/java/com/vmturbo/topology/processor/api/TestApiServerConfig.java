@@ -57,6 +57,7 @@ import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
 import com.vmturbo.topology.processor.operation.OperationManager;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
+import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.rest.OperationController;
 import com.vmturbo.topology.processor.rest.ProbeController;
 import com.vmturbo.topology.processor.rest.TargetController;
@@ -151,8 +152,13 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
+    public ProbeInfoCompatibilityChecker compatibilityChecker() {
+        return Mockito.mock(ProbeInfoCompatibilityChecker.class);
+    }
+
+    @Bean
     public IdentityProvider identityProvider() {
-            return Mockito.spy(new IdentityProviderImpl(identityService(), keyValueStore(), 0L));
+            return Mockito.spy(new IdentityProviderImpl(identityService(), keyValueStore(), compatibilityChecker(), 0L));
     }
 
     @Bean

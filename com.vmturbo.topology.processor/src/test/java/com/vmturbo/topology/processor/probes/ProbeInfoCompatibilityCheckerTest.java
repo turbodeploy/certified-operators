@@ -101,38 +101,64 @@ public class ProbeInfoCompatibilityCheckerTest {
     }
 
     @Test
-    public void testIdentityMetadata() {
-        final ProbeInfo a = probeInfoBuilder()
-            .addEntityMetadata(EntityIdentityMetadata.newBuilder()
-                .setEntityType(EntityType.VIRTUAL_MACHINE)
-                .addNonVolatileProperties(PropertyMetadata.newBuilder()
-                    .setName("id")))
-            .addEntityMetadata(EntityIdentityMetadata.newBuilder()
-                .setEntityType(EntityType.PHYSICAL_MACHINE)
-                .addNonVolatileProperties(PropertyMetadata.newBuilder()
-                    .setName("id")))
-            .build();
-        final ProbeInfo b = probeInfoBuilder()
-            .addEntityMetadata(EntityIdentityMetadata.newBuilder()
-                .setEntityType(EntityType.PHYSICAL_MACHINE)
-                .addNonVolatileProperties(PropertyMetadata.newBuilder()
-                    .setName("id")))
+    public void testIdentityMetadataChangeToEntity() {
+        final ProbeInfo existing = probeInfoBuilder()
             .addEntityMetadata(EntityIdentityMetadata.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_MACHINE)
                 .addNonVolatileProperties(PropertyMetadata.newBuilder()
                     .setName("id")))
             .build();
-        final ProbeInfo c = probeInfoBuilder()
+        final ProbeInfo newInfo = probeInfoBuilder()
             .addEntityMetadata(EntityIdentityMetadata.newBuilder()
-                .setEntityType(EntityType.PHYSICAL_MACHINE)
+                .setEntityType(EntityType.VIRTUAL_MACHINE)
                 .addNonVolatileProperties(PropertyMetadata.newBuilder()
-                    .setName("id")))
+                    .setName("id"))
+                .addNonVolatileProperties(PropertyMetadata.newBuilder()
+                    .setName("foo")))
             .build();
+        assertFalse(checker.areCompatible(existing, newInfo));
+    }
 
-        assertTrue(checker.areCompatible(a, b));
-        assertTrue(checker.areCompatible(a, a));
-        assertFalse(checker.areCompatible(a, c));
-        assertFalse(checker.areCompatible(c, b));
+    @Test
+    public void testIdentityMetadataAddNewEntityType() {
+        final ProbeInfo existing = probeInfoBuilder()
+            .addEntityMetadata(EntityIdentityMetadata.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE)
+                .addNonVolatileProperties(PropertyMetadata.newBuilder()
+                    .setName("id")))
+            .build();
+        final ProbeInfo newInfo = probeInfoBuilder()
+            .addEntityMetadata(EntityIdentityMetadata.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE)
+                .addNonVolatileProperties(PropertyMetadata.newBuilder()
+                    .setName("id")))
+            .addEntityMetadata(EntityIdentityMetadata.newBuilder()
+                .setEntityType(EntityType.PHYSICAL_MACHINE)
+                .addNonVolatileProperties(PropertyMetadata.newBuilder()
+                    .setName("id")))
+            .build();
+        assertTrue(checker.areCompatible(existing, newInfo));
+    }
+
+    @Test
+    public void testIdentityMetadatRemoveEntityType() {
+        final ProbeInfo existingInfo = probeInfoBuilder()
+            .addEntityMetadata(EntityIdentityMetadata.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE)
+                .addNonVolatileProperties(PropertyMetadata.newBuilder()
+                    .setName("id")))
+            .addEntityMetadata(EntityIdentityMetadata.newBuilder()
+                .setEntityType(EntityType.PHYSICAL_MACHINE)
+                .addNonVolatileProperties(PropertyMetadata.newBuilder()
+                    .setName("id")))
+            .build();
+        final ProbeInfo newInfo = probeInfoBuilder()
+            .addEntityMetadata(EntityIdentityMetadata.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE)
+                .addNonVolatileProperties(PropertyMetadata.newBuilder()
+                    .setName("id")))
+            .build();
+        assertFalse(checker.areCompatible(existingInfo, newInfo));
     }
 
     private static ProbeInfo.Builder probeInfoBuilder() {

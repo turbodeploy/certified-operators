@@ -35,8 +35,7 @@ public class ProbeConfig {
     public ProbeStore probeStore() {
         return new RemoteProbeStore(keyValueStoreConfig.keyValueStore(),
                 identityProviderConfig.identityProvider(),
-                stitchingConfig.stitchingOperationStore(),
-                compatibilityChecker());
+                stitchingConfig.stitchingOperationStore());
     }
 
     @Bean

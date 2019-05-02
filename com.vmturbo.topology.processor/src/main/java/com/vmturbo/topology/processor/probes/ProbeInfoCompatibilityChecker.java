@@ -5,11 +5,20 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.IdentityMetadata.EntityIdentityMetadata;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 
 /**
@@ -24,15 +33,38 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
  *
  */
 public class ProbeInfoCompatibilityChecker {
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * Create a new ProbeInfoCompatibilityChecker.
      */
     public ProbeInfoCompatibilityChecker() {
-        
+
     }
 
-    private static final Collection<Function<ProbeInfo, Object>> PROPERTY_EXTRACTORS;
+    /**
+     * The list of {@link CompatibilityCheck}s to apply when comparing an existing probe info to
+     * a newly registered one.
+     */
+    private static final Collection<CompatibilityCheck> CHECKS;
+
+    /**
+     * A compatibility check to apply to a new {@link ProbeInfo}.
+     */
+    @FunctionalInterface
+    private interface CompatibilityCheck {
+
+        /**
+         * Check whether the new probe info is compatible with the existing one.
+         *
+         * @param existingInfo The existing {@link ProbeInfo}.
+         * @param newInfo The new {@link ProbeInfo}.
+         * @return An {@link Optional} containing the error if they are not compatible.
+         *         An empty optional otherwise.
+         */
+        Optional<String> checkCompatibility(@Nonnull final ProbeInfo existingInfo,
+                                            @Nonnull final ProbeInfo newInfo);
+    }
 
     /**
      * Changes in these fields on a {@link ProbeInfo} indicate a compatibility problem.
@@ -41,42 +73,137 @@ public class ProbeInfoCompatibilityChecker {
      * different info, we need to check if the new info is compatible with the old info.
      *
      * For example, because we persist identity metadata, a change in identity metadata
-     * would require a data migration for all associated entities. Because this migration
+     * might require a data migration for all associated entities. Because this migration
      * has not been implemented yet, we consider a change in this field to be an
      * incompatibility.
      */
     static {
-        final List<Function<ProbeInfo, Object>> extractors = new ArrayList<>();
-        extractors.add(ProbeInfo::getProbeType);
-        extractors.add(ProbeInfo::getProbeCategory);
+        final List<CompatibilityCheck> checks = new ArrayList<>();
+
+        checks.add(new EqualityCheck(ProbeInfo::getProbeType, "type"));
+        checks.add(new EqualityCheck(ProbeInfo::getProbeCategory, "category"));
         // Lists are converted to Sets so that ordering does not affect equality checking
-        extractors.add(probe -> new HashSet<>(probe.getAccountDefinitionList()));
-        extractors.add(probe -> new HashSet<>(probe.getTargetIdentifierFieldList()));
-        extractors.add(probe -> new HashSet<>(probe.getEntityMetadataList()));
-        PROPERTY_EXTRACTORS = Collections.unmodifiableList(extractors);
+        checks.add(new EqualityCheck(probe -> new HashSet<>(probe.getAccountDefinitionList()),
+            "accountDefinitionList"));
+        checks.add(new EqualityCheck(probe -> new HashSet<>(probe.getTargetIdentifierFieldList()),
+            "targetIdentifierFieldList"));
+        checks.add(new IdentityMetadataCheck());
+        CHECKS = Collections.unmodifiableList(checks);
     }
+
+
 
     /**
      * Compare 2 {@link ProbeInfo} objects for compatibility.
      * Compatibility is reflexive, symmetric and transitive.
      *
-     * @param left left {@link ProbeInfo} to compare
-     * @param right right {@link ProbeInfo} to compare
-     * @return {@code true} if probe infos are equal, {@code false} otherwise.
+     * @param existingInfo Existing {@link ProbeInfo} to compare to.
+     * @param newInfo The newly registered {@link ProbeInfo} to compare.
+     * @return {@code true} if probe infos are compatible, {@code false} otherwise.
      */
-    public boolean areCompatible(@Nonnull final ProbeInfo left,
-                                 @Nonnull final ProbeInfo right) {
-        Objects.requireNonNull(left);
-        Objects.requireNonNull(right);
-        if (left == right) {
+    public boolean areCompatible(@Nonnull final ProbeInfo existingInfo,
+                                 @Nonnull final ProbeInfo newInfo) {
+
+        Objects.requireNonNull(existingInfo);
+        Objects.requireNonNull(newInfo);
+        if (existingInfo == newInfo) {
             return true; // Fast check for reference equality.
         }
 
-        return PROPERTY_EXTRACTORS.stream()
-            .allMatch(extractor -> {
-                final Object leftField = extractor.apply(left);
-                final Object rightField = extractor.apply(right);
-                return Objects.equals(leftField, rightField);
-            });
+        final List<String> errors = CHECKS.stream()
+            .map(check -> check.checkCompatibility(existingInfo, newInfo))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .collect(Collectors.toList());
+        if (!errors.isEmpty()) {
+            logger.error("New probe info incompatible with existing probe info. Errors: " + errors);
+            return false;
+        } else {
+            return true;
+        }
+    }
+
+    /**
+     * A compatibility check that compares certain probe fields for equality.
+     *
+     * Used for fields where changes indicate a compatibility problem.
+     */
+    private static class EqualityCheck implements CompatibilityCheck {
+        private final Function<ProbeInfo, Object> extractor;
+        private final String fieldName;
+
+        private EqualityCheck(@Nonnull final Function<ProbeInfo, Object> extractor,
+                              @Nonnull final String fieldName) {
+            this.extractor = extractor;
+            this.fieldName = fieldName;
+        }
+
+        @Override
+        public Optional<String> checkCompatibility(@Nonnull final ProbeInfo existingInfo, @Nonnull final ProbeInfo newInfo) {
+            final Object existingField = extractor.apply(existingInfo);
+            final Object newField = extractor.apply(newInfo);
+            if (Objects.equals(existingField, newField)) {
+                return Optional.empty();
+            } else {
+                return Optional.of("Incompatible field: " + fieldName + "! Existing: " +
+                    existingField + ". New: " + newField);
+            }
+        }
+    }
+
+    /**
+     * A compatibility check for {@link EntityIdentityMetadata} reported by the probe.
+     */
+    private static class IdentityMetadataCheck implements CompatibilityCheck {
+
+        @Override
+        public Optional<String> checkCompatibility(@Nonnull final ProbeInfo existingInfo,
+                                                   @Nonnull final ProbeInfo newInfo) {
+            final Map<EntityType, EntityIdentityMetadata> existingByType =
+                existingInfo.getEntityMetadataList().stream()
+                    .collect(Collectors.toMap(EntityIdentityMetadata::getEntityType, Function.identity()));
+            final Map<EntityType, EntityIdentityMetadata> newByType =
+                newInfo.getEntityMetadataList().stream()
+                    .collect(Collectors.toMap(EntityIdentityMetadata::getEntityType, Function.identity()));
+
+            final Set<EntityType> removedEntityTypes = existingByType.keySet().stream()
+                .filter(type -> !newByType.containsKey(type))
+                .collect(Collectors.toSet());
+
+            final Set<EntityType> modifiedEntityTypes = newInfo.getEntityMetadataList().stream()
+                .map(newMetadata -> {
+                    final EntityIdentityMetadata existingMetadata = existingByType.get(newMetadata.getEntityType());
+                    if (existingMetadata != null && !existingMetadata.equals(newMetadata)) {
+                        return newMetadata.getEntityType();
+                    } else {
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+            if (!removedEntityTypes.isEmpty() || !modifiedEntityTypes.isEmpty()) {
+                StringBuilder errBuilder = new StringBuilder();
+                // TODO (roman, May 2 2019): OM-45656 - Support removing entity types.
+                // We will probably need to clear out all entities of these types known to the
+                // IdentityProvider.
+                if (!removedEntityTypes.isEmpty()) {
+                    errBuilder.append("Identity metadata for existing entity types " +
+                        removedEntityTypes + " removed! Need migration.");
+                }
+
+                // TODO (roman, May 2 2019): OM-45657 - Support modifying entity types.
+                // For probes that we own we may still require server-side migrations to preserve
+                // the IDs. For third-party probes we may need to clear out all entities of these
+                // types known to the IdentityProvider and re-assign IDs.
+                if (!modifiedEntityTypes.isEmpty()) {
+                    errBuilder.append("Identity metadata for existing entity types " +
+                        modifiedEntityTypes + " changed! Need migration.");
+                }
+                return Optional.of(errBuilder.toString());
+            } else {
+                return Optional.empty();
+            }
+        }
     }
 }

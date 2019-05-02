@@ -15,6 +15,7 @@ import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 import org.springframework.web.socket.server.standard.ServerEndpointRegistration;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import com.vmturbo.communication.WebsocketServerTransportManager;
 import com.vmturbo.communication.WebsocketServerTransportManager.TransportHandler;
 import com.vmturbo.identity.store.IdentityStore;
@@ -34,7 +35,6 @@ import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.RemoteProbeStore;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
-import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -74,7 +74,7 @@ public class TestMediationCommonConfig {
                 new IdentityService(
                         new IdentityServiceInMemoryUnderlyingStore(
                             Mockito.mock(IdentityDatabaseStore.class)), new HeuristicsMatcher()),
-                keyValueStore(), 0L);
+                keyValueStore(), compatibilityChecker(), 0L);
     }
 
     @Bean
@@ -85,7 +85,7 @@ public class TestMediationCommonConfig {
     @Bean
     public ProbeStore probeStore() {
         return new RemoteProbeStore(keyValueStore(), identityProvider(),
-            stitchingOperationStore(), compatibilityChecker());
+            stitchingOperationStore());
     }
 
     @Bean
