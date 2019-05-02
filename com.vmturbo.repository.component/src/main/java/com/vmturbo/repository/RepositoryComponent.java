@@ -482,7 +482,8 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @Bean
     public TopologyRelationshipRecorder topologyRelationshipRecorder() {
-        return new TopologyRelationshipRecorder();
+        return new TopologyRelationshipRecorder(arangoDBExecutor(),
+            topologyManager());
     }
 
     @Bean

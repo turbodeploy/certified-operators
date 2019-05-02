@@ -98,7 +98,7 @@ public class TopologyEntitiesListenerTest {
         verify(topologyCreator).complete();
         verify(topologyCreator, times(2)).addEntities(any());
         verify(globalSupplyChainRecorder, times(1))
-                .setGlobalSupplyChainProviderRels(any());
+                .createGlobalSupplyChainProviderRels(any(),any());
         verify(notificationSender).onSourceTopologyAvailable(eq(topologyId), eq(topologyContextId));
     }
 

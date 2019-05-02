@@ -20,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.stringtemplate.v4.ST;
 
+import com.arangodb.ArangoCollection;
 import com.arangodb.ArangoCursor;
 import com.arangodb.ArangoDB;
 import com.arangodb.ArangoDBException;
@@ -28,6 +29,7 @@ import com.arangodb.model.AqlQueryOptions;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Multimap;
 
 import javaslang.collection.Seq;
 import javaslang.control.Try;
@@ -39,12 +41,14 @@ import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
+import com.vmturbo.repository.exception.GraphDatabaseExceptions.GlobalSupplyChainProviderRelsException;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.parameter.GraphCmd.ServiceEntityMultiGet;
 import com.vmturbo.repository.graph.parameter.GraphCmd.SupplyChainDirection;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph.ResultVertex;
+import com.vmturbo.repository.topology.GlobalSupplyChainRelationships;
 import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyDatabases;
 
@@ -52,6 +56,7 @@ public class ArangoDBExecutor implements GraphDBExecutor {
 
     // TODO: Temporary place holder for topology database name.
     public static final String DEFAULT_PLACEHOLDER_DATABASE = "";
+    public static final String SUPPLY_CHAIN_RELS_COLLECTION = "globalSupplyChainProviderRels";
     private static final Logger logger = LoggerFactory.getLogger(ArangoDBExecutor.class);
 
     private final ArangoDatabaseFactory arangoDatabaseFactory;
@@ -214,6 +219,29 @@ public class ArangoDBExecutor implements GraphDBExecutor {
                     ? Try.success(new SupplyChainSubgraph(providerResults, consumerResults))
                     : Try.failure(new NoSuchElementException("Entity " + supplyChainCmd.getStartingVertex() + " not found."));
         });
+    }
+
+    public  void insertNewDocument(final @Nonnull BaseDocument newDocument,
+                                   String collection, String database) throws GlobalSupplyChainProviderRelsException
+    {
+        final ArangoDB driver = arangoDatabaseFactory.getArangoDriver();
+        try {
+            driver.db(database).collection(collection).insertDocument(newDocument);
+        } catch (ArangoDBException e) {
+            throw new GlobalSupplyChainProviderRelsException(e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public GlobalSupplyChainRelationships getSupplyChainRels(TopologyDatabase database) {
+        final String databaseName = TopologyDatabases.getDbName(database);
+
+        logger.debug("Get supply chain relationship query {} for database {}", ArangoDBQueries.GET_SUPPLY_CHAIN_RELS,
+            databaseName);
+        final List<BaseDocument> results =
+            arangoDatabaseFactory.getArangoDriver().db(databaseName).query(ArangoDBQueries.GET_SUPPLY_CHAIN_RELS, null, null,
+                BaseDocument.class).asListRemaining();
+        return new GlobalSupplyChainRelationships(results);
     }
 
     @Override

@@ -162,7 +162,8 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
                 topologyCreator.addEntities(chunk);
                 numberOfEntities += chunk.size();
             }
-            globalSupplyChainRecorder.setGlobalSupplyChainProviderRels(recorder.supplyChain());
+            globalSupplyChainRecorder.createGlobalSupplyChainProviderRels(recorder.supplyChain(),
+                tid);
             topologyCreator.complete();
             SharedMetrics.TOPOLOGY_ENTITY_COUNT_GAUGE
                 .labels(SharedMetrics.SOURCE_LABEL)

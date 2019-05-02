@@ -90,4 +90,6 @@ public class ArangoDBQueries {
      */
     static final String GET_ALL_ENTITIES =
             "FOR se IN ${collection} RETURN se";
+    static final String GET_SUPPLY_CHAIN_RELS =
+            "FOR rel IN globalSupplyChainProviderRels RETURN rel";
 }

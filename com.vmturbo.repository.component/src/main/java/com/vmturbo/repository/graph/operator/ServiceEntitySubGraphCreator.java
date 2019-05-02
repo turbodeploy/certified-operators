@@ -24,6 +24,7 @@ import com.vmturbo.repository.exception.GraphDatabaseExceptions.EdgeOperationExc
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.VertexOperationException;
 import com.vmturbo.repository.graph.GraphDefinition;
 import com.vmturbo.repository.graph.driver.GraphDatabaseDriver;
+import com.vmturbo.repository.graph.executor.ArangoDBExecutor;
 import com.vmturbo.repository.graph.parameter.CollectionParameter;
 import com.vmturbo.repository.graph.parameter.EdgeParameter;
 import com.vmturbo.repository.graph.parameter.EdgeParameter.EdgeType;
@@ -90,6 +91,14 @@ public class ServiceEntitySubGraphCreator {
                 new CollectionParameter.Builder(graphDefinition.getProviderRelationship())
                                            .edge().build();
         graphDatabaseDriver.createCollection(paramSeProvEdgeCollection);
+
+        logger.debug("Creating supply chain relationship collection: "
+            + ArangoDBExecutor.SUPPLY_CHAIN_RELS_COLLECTION);
+        CollectionParameter globalSupplyChainProviderRels =
+            new CollectionParameter
+                .Builder(ArangoDBExecutor.SUPPLY_CHAIN_RELS_COLLECTION)
+                .build();
+        graphDatabaseDriver.createCollection(globalSupplyChainProviderRels);
     }
 
     /**

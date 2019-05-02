@@ -15,8 +15,11 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -31,12 +34,16 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import com.arangodb.ArangoCollection;
 import com.arangodb.ArangoCursor;
 import com.arangodb.ArangoDB;
 import com.arangodb.ArangoDBException;
 import com.arangodb.ArangoDatabase;
+import com.arangodb.entity.BaseDocument;
 import com.arangodb.model.AqlQueryOptions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 
 import javaslang.control.Try;
 
@@ -50,7 +57,9 @@ import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.result.ResultsFixture;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph.ResultVertex;
+import com.vmturbo.repository.topology.GlobalSupplyChainRelationships;
 import com.vmturbo.repository.topology.TopologyDatabase;
+import com.vmturbo.repository.topology.TopologyDatabases;
 
 @RunWith(MockitoJUnitRunner.class)
 public class ArangoDBExecutorTest {
@@ -186,6 +195,32 @@ public class ArangoDBExecutorTest {
         whenSearchServiceEntity();
 
         thenSearchServiceEntityResults(mockResults);
+    }
+
+    @Test
+    public void getSupplyChainRels() throws Exception {
+        final ArangoCursor<BaseDocument> searchResultCursor = Mockito.mock(ArangoCursor.class);
+        final String key1 = "Virtual Machine";
+        final List<String> key2 = Arrays.asList("Storage");
+        final BaseDocument document = new BaseDocument();
+        document.addAttribute(key1, key2);
+        final List<BaseDocument> documents = new ArrayList<>(Arrays.asList(document));
+        final Multimap<String, String> providerRels = HashMultimap.create();
+        providerRels.putAll(key1,key2);
+        final ArangoDatabase mockDatabase = Mockito.mock(ArangoDatabase.class);
+        final TopologyDatabase db = mock(TopologyDatabase.class);
+        GlobalSupplyChainRelationships mockResult = new GlobalSupplyChainRelationships(documents);
+
+        when(mockDatabase.collection(anyString())).thenReturn(mock(ArangoCollection.class));
+        when(arangoDriver.db(anyString())).thenReturn(mockDatabase);
+        when(mockDatabase.query(ArangoDBQueries.GET_SUPPLY_CHAIN_RELS, null, null,
+            BaseDocument.class))
+            .thenReturn(searchResultCursor);
+        when(searchResultCursor.asListRemaining()).thenReturn(documents);
+        mockDatabase.collection(arangoDBExecutor.SUPPLY_CHAIN_RELS_COLLECTION).insertDocument(document);
+        when(TopologyDatabases.getDbName(db)).thenReturn("topology-id");
+
+        assertThat(arangoDBExecutor.getSupplyChainRels(db)).isEqualToComparingFieldByField(mockResult);
     }
 
     @Test

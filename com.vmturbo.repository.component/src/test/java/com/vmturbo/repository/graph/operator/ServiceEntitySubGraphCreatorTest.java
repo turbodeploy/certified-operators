@@ -64,7 +64,7 @@ public class ServiceEntitySubGraphCreatorTest {
         serviceEntitySubGraphCreatorTest.init();
 
         ArgumentCaptor<CollectionParameter> p = ArgumentCaptor.forClass(CollectionParameter.class);
-        verify(graphDatabaseBuilder, times(2)).createCollection(p.capture());
+        verify(graphDatabaseBuilder, times(3)).createCollection(p.capture());
         assertEquals(graphDefinition.getServiceEntityVertex(), p.getAllValues().get(0).getName());
         assertEquals(graphDefinition.getProviderRelationship(), p.getAllValues().get(1).getName());
     }

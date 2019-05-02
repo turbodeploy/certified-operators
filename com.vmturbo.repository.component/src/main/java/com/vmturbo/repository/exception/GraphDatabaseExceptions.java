@@ -63,4 +63,13 @@ public class GraphDatabaseExceptions {
             super(msg, throwable);
         }
     }
+    public static class GlobalSupplyChainProviderRelsException extends GraphDatabaseException {
+        public GlobalSupplyChainProviderRelsException(final String msg) {
+            super(msg);
+        }
+
+        public GlobalSupplyChainProviderRelsException(final String msg, Throwable throwable) {
+            super(msg, throwable);
+        }
+    }
 }
