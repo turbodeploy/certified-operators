@@ -57,7 +57,9 @@ public final class GuaranteedBuyerHelper {
             // a set of shopping list sponsored by guaranteed buyer, we create a new set to keep
             // only the sl that is not consuming the new clone
             Set<ShoppingList> slsNeedsUpdate = new HashSet<>();
-            slsNeedsUpdate.addAll(slsSponsoredByGuaranteedBuyer.get(guaranteedBuyer));
+            slsNeedsUpdate.addAll(slsSponsoredByGuaranteedBuyer.get(guaranteedBuyer).stream()
+                .filter(shoppingList -> sl.getBasket().equals(shoppingList.getBasket()))
+                .collect(Collectors.toSet()));
             // we assume the basket sold by the new clone is not changed, thus new sl between
             // guaranteedBuyer and the new clone will shop in an existing market
             Basket newBasket = sl.getBasket();
@@ -151,7 +153,8 @@ public final class GuaranteedBuyerHelper {
                     .get(shoppingList.getBuyer()).stream()
                     .filter(sl -> {
                         Trader supplier = sl.getSupplier();
-                        return supplier != null && supplier.getState().isActive();
+                        return supplier != null && supplier.getState().isActive()
+                                        && shoppingList.getBasket().equals(sl.getBasket());
                     }).collect(Collectors.toSet());
             // Cannot rebalance across zero buyers.
             if (slsNeedsUpdate.size() > 1) {

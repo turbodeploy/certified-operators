@@ -56,6 +56,9 @@ public class Resizer {
             if (economy.getForceStop()) {
                 return actions;
             }
+            if (seller.getSettings().isResizeThroughSupplier()) {
+                continue;
+            }
             Basket basketSold = seller.getBasketSold();
             boolean isDebugTrader = seller.isDebugEnabled();
             String sellerDebugInfo = seller.getDebugInfoNeverUseInCode();
