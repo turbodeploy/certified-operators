@@ -520,15 +520,15 @@ public class CloudCostCalculatorTest {
     @Test
     public void testEmptyCost() throws CloudCostDataRetrievalException {
         final CloudCostData cloudCostData = new CloudCostData(PriceTable.getDefaultInstance(),
-                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-                Collections.emptyMap(), Collections.emptyMap());
+            Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+            Collections.emptyMap(), Collections.emptyMap());
 
         final CloudCostCalculator<TestEntityClass> calculator =
             calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor, discountApplicatorFactory,
-                    reservedInstanceApplicatorFactory, e -> null, topologyRiCoverage);
+                reservedInstanceApplicatorFactory, e -> null, topologyRiCoverage);
         final TestEntityClass noCostEntity = TestEntityClass.newBuilder(7)
-                .setType(EntityType.HYPERVISOR_VALUE)
-                .build(infoExtractor);
+            .setType(EntityType.NETWORK_VALUE)
+            .build(infoExtractor);
         final CostJournal<TestEntityClass> journal = calculator.calculateCost(noCostEntity);
         assertThat(journal.getEntity(), is(noCostEntity));
         assertThat(journal.getTotalHourlyCost(), is(0.0));
