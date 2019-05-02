@@ -11,10 +11,12 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.Map;
+import java.util.TimeZone;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
@@ -121,13 +123,13 @@ public class SqlEntityCostStoreTest {
         assertEquals(0, store.getEntityCosts(now, now.minusHours(1l)).size());
     }
 
-    @Ignore
     @Test
     public void testGetCostWithEntityCostFilter() throws DbException, InvalidEntityCostsException {
         // get by date
         final LocalDateTime now = LocalDateTime.now(clock);
-        final EntityCostFilter entityCostFilter = new EntityCostFilter(Collections.emptySet(), Collections.emptySet(), now.toInstant(ZoneOffset.UTC).toEpochMilli(),
-                now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(), TimeFrame.LATEST);
+        final EntityCostFilter entityCostFilter = new EntityCostFilter(Collections.emptySet(), Collections.emptySet(),
+            now.toInstant(OffsetDateTime.now().getOffset()).toEpochMilli(), now.plusDays(1l)
+            .toInstant(OffsetDateTime.now().getOffset()).toEpochMilli(), TimeFrame.LATEST);
 
         // insert
         saveCosts();
@@ -146,8 +148,9 @@ public class SqlEntityCostStoreTest {
     public void testGetCostWithEntityCostFilterHourEmpty() throws DbException, InvalidEntityCostsException {
         // get by date
         final LocalDateTime now = LocalDateTime.now(clock);
-        final EntityCostFilter entityCostFilter = new EntityCostFilter(Collections.emptySet(), Collections.emptySet(), now.toInstant(ZoneOffset.UTC).toEpochMilli(),
-                now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(), TimeFrame.HOUR);
+        final EntityCostFilter entityCostFilter = new EntityCostFilter(Collections.emptySet(), Collections.emptySet(),
+            now.toInstant(OffsetDateTime.now().getOffset()).toEpochMilli(),
+                now.plusDays(1l).toInstant(OffsetDateTime.now().getOffset()).toEpochMilli(), TimeFrame.HOUR);
 
         // insert
         saveCosts();
@@ -166,8 +169,9 @@ public class SqlEntityCostStoreTest {
     public void testGetCostWithEntityCostFilterMonthEmpty() throws DbException, InvalidEntityCostsException {
         // get by date
         final LocalDateTime now = LocalDateTime.now(clock);
-        final EntityCostFilter entityCostFilter = new EntityCostFilter(Collections.emptySet(), Collections.emptySet(), now.toInstant(ZoneOffset.UTC).toEpochMilli(),
-                now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(), TimeFrame.MONTH);
+        final EntityCostFilter entityCostFilter = new EntityCostFilter(Collections.emptySet(), Collections.emptySet(),
+            now.toInstant(OffsetDateTime.now().getOffset()).toEpochMilli(),
+                now.plusDays(1l).toInstant(OffsetDateTime.now().getOffset()).toEpochMilli(), TimeFrame.MONTH);
 
         // insert
         saveCosts();
@@ -186,8 +190,9 @@ public class SqlEntityCostStoreTest {
     public void testGetCostWithEntityCostFilterDayEmpty() throws DbException, InvalidEntityCostsException {
         // get by date
         final LocalDateTime now = LocalDateTime.now(clock);
-        final EntityCostFilter entityCostFilter = new EntityCostFilter(Collections.emptySet(), Collections.emptySet(), now.toInstant(ZoneOffset.UTC).toEpochMilli(),
-                now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(), TimeFrame.DAY);
+        final EntityCostFilter entityCostFilter = new EntityCostFilter(Collections.emptySet(), Collections.emptySet(),
+            now.toInstant(OffsetDateTime.now().getOffset()).toEpochMilli(),
+                now.plusDays(1l).toInstant(OffsetDateTime.now().getOffset()).toEpochMilli(), TimeFrame.DAY);
 
         // insert
         saveCosts();
