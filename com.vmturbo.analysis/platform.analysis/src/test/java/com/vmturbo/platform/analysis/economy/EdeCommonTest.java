@@ -158,7 +158,7 @@ public class EdeCommonTest {
         Economy economy = new Economy();
         CostFunction io1CostFunc = TestUtils.setUpIO1CostFunction();
         CostFunction gp2CostFunc = TestUtils.setUpGP2CostFunction();
-        BalanceAccount ba = new BalanceAccount(100, 10000, 1);
+        BalanceAccount ba = new BalanceAccount(100, 10000, 1, 0);
         Trader gp2 = TestUtils.createTrader(economy, TestUtils.ST_TYPE, Arrays.asList(4l),
                         Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS),
                         new double[] {16 * 1024, 10000}, true, false);

@@ -9,4 +9,6 @@ message BalanceAccountDTO {
     required double budget = 2 [default = 0];
     // the id of the account
     required int64 id = 3;
+    // id of the price offering associated with this account
+    optional int64 priceId = 4 [default = 0];
 }

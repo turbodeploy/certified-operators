@@ -522,7 +522,8 @@ public final class ProtobufToAnalysis {
         if (balanceAccount == null) {
             balanceAccount = new BalanceAccount(source.getBalanceAccount().getSpent(),
                                                 source.getBalanceAccount().getBudget(),
-                                                source.getBalanceAccount().getId());
+                                                source.getBalanceAccount().getId(),
+                    source.getBalanceAccount().getPriceId());
             topology.getEconomy().getBalanceAccountMap().put(balanceAccount.getId(),
                                                              balanceAccount);
         }

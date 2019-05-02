@@ -44,7 +44,7 @@ public class CostFunctionTest {
     @Test
     public void testCostFunction_CalculateCost_AWSIO1CostFunction() {
         Economy economy = new Economy();
-        BalanceAccount ba = new BalanceAccount(100, 10000, 1);
+        BalanceAccount ba = new BalanceAccount(100, 10000, 1, 0);
         Trader io1 = TestUtils.createStorage(economy, Arrays.asList(0l), 4, false);
         io1.getSettings().setBalanceAccount(ba);
         CostFunction io1Function = TestUtils.setUpIO1CostFunction();
@@ -82,7 +82,7 @@ public class CostFunctionTest {
     @Test
     public void testCostFunction_CalculateCost_AWSGP2CostFunction() {
         Economy economy = new Economy();
-        BalanceAccount ba = new BalanceAccount(100, 10000, 1);
+        BalanceAccount ba = new BalanceAccount(100, 10000, 1, 0);
         Trader gp2 = TestUtils.createStorage(economy, Arrays.asList(0l), 4, false);
         CostFunction gp2Function = TestUtils.setUpGP2CostFunction();
         gp2.getSettings().setCostFunction(gp2Function);
@@ -116,7 +116,7 @@ public class CostFunctionTest {
     @Test
     public void testCostFunction_CalculateCost_AzurePremiumManagedCostFunction() {
         Economy economy = new Economy();
-        BalanceAccount ba = new BalanceAccount(100, 10000, 1);
+        BalanceAccount ba = new BalanceAccount(100, 10000, 1, 0);
         Trader premiumManaged = TestUtils.createStorage(economy, Arrays.asList(0l), 4, false);
         premiumManaged.getSettings().setBalanceAccount(ba);
         CostFunction premiumManagedFunction = TestUtils.setUpPremiumManagedCostFunction();
@@ -140,7 +140,7 @@ public class CostFunctionTest {
     @Test
     public void testCostFunction_CalculateCost_AzureStandardUnmanagedCostFunction() {
         Economy economy = new Economy();
-        BalanceAccount ba = new BalanceAccount(100, 10000, 1);
+        BalanceAccount ba = new BalanceAccount(100, 10000, 1, 0);
         Trader standardUnManaged = TestUtils.createStorage(economy, Arrays.asList(0l), 4, false);
         standardUnManaged.getSettings().setBalanceAccount(ba);
         CostFunction standardUnManagedFunction = TestUtils.setUpStandardUnmanagedCostFunction();
@@ -169,7 +169,7 @@ public class CostFunctionTest {
     @Test
     public void testCostFunction_CalculateCost_AWSComputeTierCostFunction() {
         Economy economy = new Economy();
-        BalanceAccount ba = new BalanceAccount(100, 10000, 1);
+        BalanceAccount ba = new BalanceAccount(100, 10000, 1, 0);
         CommoditySpecification linuxComm =
                 new CommoditySpecification(TestUtils.LINUX_COMM_TYPE, TestUtils.LICENSE_COMM_BASE_TYPE, 0, 100000, false);
         CommoditySpecification windowsComm =
@@ -220,7 +220,7 @@ public class CostFunctionTest {
 
         // Create a VM buyer
         Trader vm = TestUtils.createVM(economy, "buyer");
-        BalanceAccount ba = new BalanceAccount(0.0, 100000000d, 24);
+        BalanceAccount ba = new BalanceAccount(0.0, 100000000d, 24, 0);
         vm.getSettings().setBalanceAccount(ba);
 
         // Create CBTPs
@@ -350,7 +350,7 @@ public class CostFunctionTest {
         // Now a test by changing budget on business account and increasing the riDeprecationFactor
         // to 10^-5 from 10^-7
         // Update the budget on balance account
-        BalanceAccount ba2 = new BalanceAccount(0.0, 10000d, 24);
+        BalanceAccount ba2 = new BalanceAccount(0.0, 10000d, 24, 0);
         cbtp1.getSettings().setBalanceAccount(ba2);
         cbtp2.getSettings().setBalanceAccount(ba2);
 
@@ -393,7 +393,7 @@ public class CostFunctionTest {
 
         // Create a VM buyer
         Trader vm = TestUtils.createVM(economy, "vm-buyer");
-        BalanceAccount ba = new BalanceAccount(0.0, 100000000d, 24);
+        BalanceAccount ba = new BalanceAccount(0.0, 100000000d, 24, 0);
         vm.getSettings().setBalanceAccount(ba);
 
         // Create a TP for this VM
@@ -477,7 +477,7 @@ public class CostFunctionTest {
 
         // Create a VM buyer
         Trader vm = TestUtils.createVM(economy, "vm-buyer");
-        BalanceAccount ba = new BalanceAccount(0.0, 100000000d, 24);
+        BalanceAccount ba = new BalanceAccount(0.0, 100000000d, 24, 0);
         vm.getSettings().setBalanceAccount(ba);
 
         // VM with no supplier
@@ -559,7 +559,7 @@ public class CostFunctionTest {
     public void testCostFunction_DatabaseTierComputeFunction() {
         // Setup a DBS with Linux license on Region DC4 and Account 1
         Economy economy = new Economy();
-        BalanceAccount ba = new BalanceAccount(100, 10000, 1);
+        BalanceAccount ba = new BalanceAccount(100, 10000, 1, 0);
         Trader dbs1 = TestUtils.createDBS(economy);
         dbs1.getSettings().setBalanceAccount(ba);
         CommoditySpecification linuxComm =

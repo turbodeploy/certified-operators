@@ -16,6 +16,7 @@ import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.vmturbo.platform.analysis.economy.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -23,6 +24,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.ede.QuoteMinimizer;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
@@ -458,14 +460,26 @@ public class CostFunctionFactory {
         final int licenseBaseType = costDTO.getLicenseCommodityBaseType();
         final int licenseCommBoughtIndex = sl.getBasket().indexOfBaseType(licenseBaseType);
         final long groupFactor = sl.getGroupFactor();
-        if (sl.getBuyer().getSettings() == null
-                        || sl.getBuyer().getSettings().getBalanceAccount() == null
-                        || costMap.get(sl.getBuyer().getSettings().getBalanceAccount().getId()) == null) {
-            logger.warn("Business account is not found on seller: {}, for shopping list: {}, return infinity compute quote",
+        final BalanceAccount balanceAccount = sl.getBuyer().getSettings().getBalanceAccount();
+        if (balanceAccount == null) {
+            logger.warn("Business account is not found on seller: {}, for shopping list: {}, " +
+                            "return infinity compute quote",
                     seller.getDebugInfoNeverUseInCode(), sl.getDebugInfoNeverUseInCode());
             return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
         }
-        Map<Integer, Double> costByLicense = costMap.get(sl.getBuyer().getSettings().getBalanceAccount().getId());
+        final long priceId = balanceAccount.getPriceId();
+        final long balanceAccountId = balanceAccount.getId();
+
+        final Map<Integer, Double> costByLicense = costMap.containsKey(priceId) ?
+                costMap.get(priceId) : costMap.get(balanceAccountId);
+
+        if (costByLicense == null) {
+            logger.warn("No entry found in cost map on seller: {}, for shopping list: {}, using " +
+                    "priceId: {}, balanceAccountId: {}", seller.getDebugInfoNeverUseInCode(),
+                    sl.getDebugInfoNeverUseInCode(), priceId, balanceAccountId);
+            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+        }
+
         if (licenseCommBoughtIndex == -1) {
         // NOTE: -1 is the no license commodity type
             return new CommodityQuote(seller, costByLicense.get(licenseCommBoughtIndex) * groupFactor);
@@ -504,7 +518,20 @@ public class CostFunctionFactory {
         if (buyer.getSupplier() == seller) {
             return 0;
         }
-
+        final List<CostTuple> costTuples = cbtpResourceBundle.getCostTuplesList();
+        if (!costTuples.isEmpty()) {
+            final long sellerAccountId = costTuples.iterator().next().getBusinessAccountId();
+            final long buyerAccountId = buyer.getBuyer().getSettings().getBalanceAccount().getId();
+            if (sellerAccountId != buyerAccountId) {
+                if (logger.isTraceEnabled() || seller.isDebugEnabled()
+                        || buyer.getBuyer().isDebugEnabled()) {
+                    logger.info("Buyer {} is not in CBTP {} scope, buyer accountId: {}, seller " +
+                                    "accountId: {}", buyer.getDebugInfoNeverUseInCode(),
+                            seller.getDebugInfoNeverUseInCode(), buyerAccountId, sellerAccountId);
+                    return Double.POSITIVE_INFINITY;
+                }
+            }
+        }
         // Match the vm with a template in order to:
         // 1) Estimate the number of coupons requested by the vm
         // 2) Determine the template cost the discount should apply to
@@ -617,15 +644,23 @@ public class CostFunctionFactory {
         final int regionBaseType = costDTO.getRegionCommodityBaseType();
         final int regionCommBoughtIndex = sl.getBasket().indexOfBaseType(regionBaseType);
         final long groupFactor = sl.getGroupFactor();
-        if (sl.getBuyer().getSettings() == null
-                || sl.getBuyer().getSettings().getBalanceAccount() == null
-                || !costTable.hasAccountId(sl.getBuyer().getSettings().getBalanceAccount().getId())) {
-            logger.warn("Business account is not found on seller: {}, for shopping list: {}, return infinity compute quote",
+        final BalanceAccount balanceAccount = sl.getBuyer().getSettings().getBalanceAccount();
+        if (balanceAccount == null) {
+            logger.warn("Business account is not found on seller: {}, for shopping list: {}, return " +
+                            "infinity compute quote", seller.getDebugInfoNeverUseInCode(),
+                    sl.getDebugInfoNeverUseInCode());
+            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+        }
+        final long accountId = costTable.hasAccountId(balanceAccount.getPriceId()) ?
+                balanceAccount.getPriceId() : balanceAccount.getId();
+
+        if (!costTable.hasAccountId(accountId)) {
+            logger.warn("Business account id {} is not found on seller: {}, for shopping list: {}, "
+                            + "return infinity compute quote", accountId,
                     seller.getDebugInfoNeverUseInCode(), sl.getDebugInfoNeverUseInCode());
             return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
         }
 
-        final long accountId = sl.getBuyer().getSettings().getBalanceAccount().getId();
         // NOTE: CostTable.NO_VALUE (-1) is the no license commodity type
         final int licenseTypeKey = licenseCommBoughtIndex == CostTable.NO_VALUE ?
                 licenseCommBoughtIndex :
@@ -926,15 +961,32 @@ public class CostFunctionFactory {
                                            commCapacity.get(sl.getBasket().get(i)).getMinCapacity());
             }
             double previousUpperBound = 0;
-            if (sl.getBuyer().getSettings() == null
-                    || sl.getBuyer().getSettings().getBalanceAccount() == null
-                    || !commodityPrice.getValue().containsKey(sl.getBuyer().getSettings().getBalanceAccount().getId())) {
+            final BalanceAccount balanceAccount = sl.getBuyer().getSettings().getBalanceAccount();
+            if (balanceAccount == null) {
                 logger.warn("Business account is not found for shopping list: {}, return infinity storage quote",
                         sl.getDebugInfoNeverUseInCode());
 
                 return Double.POSITIVE_INFINITY;
             }
-            for (PriceData priceData : commodityPrice.getValue().get(sl.getBuyer().getSettings().getBalanceAccount().getId())) {
+            // priceMap may contain PriceData by price id. Price id is the identifier for a price
+            // offering associated with a Balance Account. Different Balance Accounts (i.e.
+            // Balance Accounts with different ids) may have the same price id, if they are
+            // associated with the same price offering. If no entry is found in the priceMap for a
+            // price id, then the Balance Account id is used to lookup the priceMap.
+            final long priceId = balanceAccount.getPriceId();
+            final long balanceAccountId = balanceAccount.getId();
+            final Map<Long, List<PriceData>> priceMap = commodityPrice.getValue();
+            final List<PriceData> priceDataList = priceMap.containsKey(priceId) ?
+                    priceMap.get(priceId) : priceMap.get(balanceAccountId);
+
+            if (priceDataList == null) {
+                logger.warn("No entry found in cost map for shopping list: {}, " +
+                                "using priceId: {}, balanceAccountId: {}",
+                        sl.getDebugInfoNeverUseInCode(), priceId, balanceAccountId);
+                return Double.POSITIVE_INFINITY;
+            }
+
+            for (PriceData priceData : priceDataList) {
                 // the list of priceData is sorted based on upper bound
                 double currentUpperBound = priceData.getUpperBound();
                 if (priceData.isAccumulative()) {

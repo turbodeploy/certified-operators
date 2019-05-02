@@ -602,7 +602,7 @@ public class TestUtils {
         double riDeprecationFactor = 0.0000001;
         Trader cbtp = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0l),
                         Arrays.asList(TestUtils.CPU, TestUtils.COUPON_COMMODITY),new double[] {3000, 2},true, true, name);
-        cbtp.getSettings().setBalanceAccount(new BalanceAccount(0.0, 100000000d, 24));
+        cbtp.getSettings().setBalanceAccount(new BalanceAccount(0.0, 100000000d, 24, 0));
         cbtp.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
         CbtpCostDTO.Builder cbtpBundleBuilder = createCbtpBundleBuilder(TestUtils.COUPON_COMMODITY.getBaseType(), cost * riDeprecationFactor, 50);
         CostDTO costDTOcbtp = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder.build()).build();

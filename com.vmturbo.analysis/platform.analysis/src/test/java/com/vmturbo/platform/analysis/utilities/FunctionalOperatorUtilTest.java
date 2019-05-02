@@ -73,10 +73,10 @@ public class FunctionalOperatorUtilTest {
     @Test
     public void testUpdateExpenses() {
         Trader vm1 = TestUtils.createVM(economy);
-        vm1.getSettings().setBalanceAccount(new BalanceAccount(200, 0, 0));
+        vm1.getSettings().setBalanceAccount(new BalanceAccount(200, 0, 0, 0));
         Trader pm1 = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0L),
                         Arrays.asList(TestUtils.COST_COMMODITY), new double[] {100}, true, false);
-        BalanceAccount ba = new BalanceAccount(200, 300, 1);
+        BalanceAccount ba = new BalanceAccount(200, 300, 1, 0);
         pm1.getSettings().setBalanceAccount(ba);
         TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COST_COMMODITY), vm1,
                         new double[] {40}, new double[] {60}, pm1);

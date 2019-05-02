@@ -11,10 +11,17 @@ public class BalanceAccount {
     private double budget_;
     private long id_;
 
-    public BalanceAccount(double spent, double budget, long id) {
+    /**
+     * Id corresponding to the price offering that this Balance Account is associated with. The
+     * provider costs may be dependent on the priceId of the Balance Account.
+     */
+    private long priceId_;
+
+    public BalanceAccount(double spent, double budget, long id, long priceId) {
         spent_ = spent;
         budget_ = budget;
         id_ = id;
+        priceId_ = priceId;
     }
 
     public void setSpent(double spent) {
@@ -35,5 +42,9 @@ public class BalanceAccount {
 
     public long getId() {
         return id_;
+    }
+
+    public long getPriceId() {
+        return priceId_;
     }
 }
