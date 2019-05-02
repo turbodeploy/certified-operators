@@ -101,7 +101,7 @@ public class KVBackedTargetStore implements TargetStore {
                                 entry.getKey());
                         return null;
                     } catch (TargetStoreException e) {
-                        logger.error("Failed to deserialize target: {}", entry.getKey(), e);
+                        logger.error("Failed to deserialize target: " + entry.getKey(), e);
                         return null;
                     }
                 })

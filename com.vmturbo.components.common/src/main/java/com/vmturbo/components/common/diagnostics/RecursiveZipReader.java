@@ -70,15 +70,9 @@ public class RecursiveZipReader implements Iterable<Diags> {
             inputStreamStack.pop();
             if (!inputStreamStack.isEmpty()) {
                 InputStream is = inputStreamStack.peek();
-                System.out.println(is);
                 zis = new ZipInputStream(is);
-                System.out.println(zis);
                 try {
-                    System.out.println(is.available());
-                    System.out.println(zis.available());
                     ze = zis.getNextEntry();
-                    System.out.println(is.available());
-                    System.out.println(zis.available());
                 } catch (IOException e) {
                     exception = e;
                 }
@@ -110,7 +104,9 @@ public class RecursiveZipReader implements Iterable<Diags> {
         @Override
         public Diags next() {
             try {
-                // ze can't be null here
+                if (ze == null) {
+                    throw new NoSuchElementException();
+                }
                 String name = ze.getName();
                 if (name.endsWith(".zip")) {
                     push(zis);

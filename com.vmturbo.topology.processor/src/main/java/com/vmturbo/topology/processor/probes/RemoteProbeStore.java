@@ -129,8 +129,8 @@ public class RemoteProbeStore implements ProbeStore {
                 final boolean probeExists = probes.containsKey(probeId);
 
                 try {
-                    keyValueStore.put(PROBE_KV_STORE_PREFIX + Long.toString(probeId),
-                            JsonFormat.printer().print(probeInfo));
+                    // Store the probeInfo in Consul
+                    storeProbeInfo(probeId, probeInfo);
                 } catch (InvalidProtocolBufferException e) {
                     logger.error("Invalid probeInfo {}", probeInfo);
                     throw new ProbeException("Failed to persist probe info in Consul. Probe ID: " + probeId);
@@ -171,6 +171,16 @@ public class RemoteProbeStore implements ProbeStore {
         synchronized (dataLock) {
             probeInfos.clear();
             probeInfos.putAll(probeInfoMap);
+            // Keep Consul in sync with the internal cache
+            keyValueStore.remove(PROBE_KV_STORE_PREFIX);
+            probeInfos.forEach((probeId, probeInfo) -> {
+                try {
+                    storeProbeInfo(probeId, probeInfo);
+                } catch (InvalidProtocolBufferException e) {
+                    throw new IllegalArgumentException("Failed to restore an invalid probeInfo: "
+                        + probeInfo, e);
+                }
+            });
             // set stitching operations when loading diags so stitching will happen
             stitchingOperationStore.clearOperations();
             probeInfos.forEach((probeId, probeInfo) -> {
@@ -302,23 +312,25 @@ public class RemoteProbeStore implements ProbeStore {
         throws ProbeException {
 
         Objects.requireNonNull(probeInfo, "probeInfo cannot be null");
-        Optional<Long> probeId = getProbeIdForType(probeInfo.getProbeType());
-        if (!probeId.isPresent()) {
+        Optional<Long> probeIdOpt = getProbeIdForType(probeInfo.getProbeType());
+        if (!probeIdOpt.isPresent()) {
             logger.warn("Trying to update a non-existing probeInfo: {}", probeInfo);
             return;
         }
+        final long probeId = probeIdOpt.get();
 
         synchronized (dataLock) {
 
             try {
-                keyValueStore.put(PROBE_KV_STORE_PREFIX + Long.toString(probeId.get()),
-                        JsonFormat.printer().print(probeInfo));
+                // Store the probeInfo in Consul
+                storeProbeInfo(probeId, probeInfo);
             } catch (InvalidProtocolBufferException e) {
                 logger.error("Invalid probeInfo {}", probeInfo);
                 throw new ProbeException("Failed to persist probe info in Consul. Probe ID: " + probeId);
             }
 
-            probeInfos.put(probeId.get(), probeInfo);
+            // Cache the probeInfo in memory
+            probeInfos.put(probeId, probeInfo);
         }
     }
 
@@ -353,5 +365,11 @@ public class RemoteProbeStore implements ProbeStore {
     @Override
     public ProbeOrdering getProbeOrdering() {
         return probeOrdering;
+    }
+
+    private void storeProbeInfo(final Long probeId, final ProbeInfo probeInfo)
+        throws InvalidProtocolBufferException {
+        // Store the probeInfo in consul, using the probeId as the key
+        keyValueStore.put(PROBE_KV_STORE_PREFIX + probeId, JsonFormat.printer().print(probeInfo));
     }
 }

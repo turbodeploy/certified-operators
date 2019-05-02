@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -26,6 +27,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Streams;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 
@@ -319,51 +321,70 @@ public class TopologyProcessorDiagnosticsHandler {
      */
     public List<Target> restore(InputStream zis) throws IOException, TargetDeserializationException,
                                                             InvalidTargetException {
-        for (Diags diags : new RecursiveZipReader(zis)) {
-            final String diagsName = diags.getName();
-            final List<String> diagsLines = diags.getLines();
-            if (diagsLines == null) {
-                continue;
-            }
-            try {
-                if (TARGET_IDENTIFIERS_DIAGS_FILE_NAME.equals(diagsName)) {
-                    restoreTargetIdentifiers(diagsLines);
-                } else if (TARGETS_DIAGS_FILE_NAME.equals(diagsName)) {
-                    restoreTargets(diagsLines);
-                } else if (SCHEDULES_DIAGS_FILE_NAME.equals(diagsName)) {
-                    restoreSchedules(diagsLines);
-                } else if (PROBES_DIAGS_FILE_NAME.equals(diagsName)){
-                    restoreProbes(diagsLines);
-                } else if (ID_DIAGS_FILE_NAME.equals(diagsName)) {
-                    try {
-                        identityProvider.restoreDiags(diagsLines);
-                    } catch (RuntimeException e) {
-                        logger.error("Failed to restore Identity diags.", e);
-                    }
-                } else {
-                    Matcher entitiesMatcher = ENTITIES_PATTERN.matcher(diagsName);
-                    Matcher groupsMatcher = GROUPS_PATTERN.matcher(diagsName);
-                    Matcher settingPolicyMatcher = SETTING_POLICIES_PATTERN.matcher(diagsName);
-                    Matcher deploymentProfileMatcher = DEPLOYMENT_PROFILE_PATTERN.matcher(diagsName);
-                    if (entitiesMatcher.matches()) {
-                        long targetId = Long.valueOf(entitiesMatcher.group(1));
-                        long lastUpdatedTime = Long.valueOf(entitiesMatcher.group(2));
-                        restoreEntities(targetId, lastUpdatedTime, diagsLines);
-                    } else if (groupsMatcher.matches()) {
-                        long targetId = Long.valueOf(groupsMatcher.group(1));
-                        restoreGroupsAndPolicies(targetId, diagsLines);
-                    } else if (settingPolicyMatcher.matches()) {
-                        long targetId = Long.valueOf(settingPolicyMatcher.group(1));
-                        restoreSettingPolicies(targetId, diagsLines);
-                    } else if (deploymentProfileMatcher.matches()) {
-                        long targetId = Long.valueOf(deploymentProfileMatcher.group(1));
-                        restoreTemplatesAndDeploymentProfiles(targetId, diagsLines);
-                    } else {
-                        logger.warn("Did not recognize diags file {}", diagsName);
-                    }
+        Map<String, List<Diags>> diagnosticsByNameMap = Streams.stream(new RecursiveZipReader(zis))
+            .collect(Collectors.groupingBy(Diags::getName));
+//        Map<String, Diags> diagnosticsByNameMap = new HashMap<>();
+//        new RecursiveZipReader(zis).iterator()
+//            .forEachRemaining(diags -> diagnosticsByNameMap.put(diags.getName(), diags));
+
+        // Ordering is important. The identityProvider diags must be restored before the probes diags.
+        // Otherwise, a race condition occurs where if a probe (re)registers after the restore of
+        // the probe diags and before the restore of the identityProvider diags, then a probeInfo
+        // will be written to Consul with the old ID. This entry will later become a duplicate entry
+        // and cause severe problems.
+        // Process the identityProvider diags (if any) before processing any other diags
+        List<Diags> identityDiags = diagnosticsByNameMap.get(ID_DIAGS_FILE_NAME);
+        if (!identityDiags.isEmpty()) {
+            identityDiags.forEach(diags -> {
+                try {
+                    identityProvider.restoreDiags(diags.getLines());
+                } catch (Exception e) {
+                    logger.error("Failed to restore Identity diags.", e);
+                }});
+            diagnosticsByNameMap.remove(ID_DIAGS_FILE_NAME);
+        }
+
+        for (List<Diags> diagsOfSpecificType : diagnosticsByNameMap.values()) {
+            for (Diags diags : diagsOfSpecificType) {
+                final String diagsName = diags.getName();
+                final List<String> diagsLines = diags.getLines();
+                if (diagsLines == null) {
+                    continue;
                 }
-            } catch (Exception e) {
-                logger.error("Failed to restore diags file {}", diagsName, e);
+                try {
+                    if (TARGET_IDENTIFIERS_DIAGS_FILE_NAME.equals(diagsName)) {
+                        restoreTargetIdentifiers(diagsLines);
+                    } else if (TARGETS_DIAGS_FILE_NAME.equals(diagsName)) {
+                        restoreTargets(diagsLines);
+                    } else if (SCHEDULES_DIAGS_FILE_NAME.equals(diagsName)) {
+                        restoreSchedules(diagsLines);
+                    } else if (PROBES_DIAGS_FILE_NAME.equals(diagsName)) {
+                        restoreProbes(diagsLines);
+                    } else {
+                        Matcher entitiesMatcher = ENTITIES_PATTERN.matcher(diagsName);
+                        Matcher groupsMatcher = GROUPS_PATTERN.matcher(diagsName);
+                        Matcher settingPolicyMatcher = SETTING_POLICIES_PATTERN.matcher(diagsName);
+                        Matcher deploymentProfileMatcher = DEPLOYMENT_PROFILE_PATTERN.matcher(diagsName);
+                        if (entitiesMatcher.matches()) {
+                            long targetId = Long.valueOf(entitiesMatcher.group(1));
+                            long lastUpdatedTime = Long.valueOf(entitiesMatcher.group(2));
+                            restoreEntities(targetId, lastUpdatedTime, diagsLines);
+                        } else if (groupsMatcher.matches()) {
+                            long targetId = Long.valueOf(groupsMatcher.group(1));
+                            restoreGroupsAndPolicies(targetId, diagsLines);
+                        } else if (settingPolicyMatcher.matches()) {
+                            long targetId = Long.valueOf(settingPolicyMatcher.group(1));
+                            restoreSettingPolicies(targetId, diagsLines);
+                        } else if (deploymentProfileMatcher.matches()) {
+                            long targetId = Long.valueOf(deploymentProfileMatcher.group(1));
+                            restoreTemplatesAndDeploymentProfiles(targetId, diagsLines);
+                        } else {
+                            logger.warn("Did not recognize diags file {}", diagsName);
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.error("Failed to restore diags file {}", diagsName, e);
+                }
             }
         }
         return targetStore.getAll();

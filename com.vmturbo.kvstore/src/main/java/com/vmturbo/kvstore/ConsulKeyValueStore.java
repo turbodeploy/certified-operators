@@ -135,7 +135,8 @@ public class ConsulKeyValueStore implements KeyValueStore {
      */
     @Override
     public void remove(@Nonnull final String key) {
-        performKeyValueOperation(() -> consul.deleteKVValue(fullKey(key)));
+        // KeyValueClient::deleteKVValues allows deleting values or directories
+        performKeyValueOperation(() -> consul.deleteKVValues(fullKey(key)));
     }
 
     /** {@inheritDoc}

@@ -3,7 +3,6 @@ package com.vmturbo.topology.processor.identity;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,7 +21,6 @@ import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 
-import com.vmturbo.common.protobuf.topology.Probe;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -141,12 +139,14 @@ public class IdentityProviderImpl implements IdentityProvider {
         Objects.requireNonNull(probeInfo);
         // The probe type uniquely identifies a probe.
         synchronized (probeIdLock) {
-            Long probeId = probeTypeToId.get(probeInfo.getProbeType());
+            final String probeType = probeInfo.getProbeType();
+            Long probeId = probeTypeToId.get(probeType);
             if (probeId == null) {
                 probeId = IdentityGenerator.next();
-
-                keyValueStore.put(PROBE_ID_PREFIX + probeInfo.getProbeType(), probeId.toString());
-                probeTypeToId.put(probeInfo.getProbeType(), probeId);
+                // Store the probe ID in Consul
+                storeProbeId(probeType, probeId);
+                // Cache the probe ID in memory
+                probeTypeToId.put(probeType, probeId);
             }
 
             // We may have restored the probe ID from the KV store, in which case
@@ -307,6 +307,9 @@ public class IdentityProviderImpl implements IdentityProvider {
                     new TypeToken<Map<String, Long>>(){}.getType());
                 probeTypeToId.clear();
                 probeTypeToId.putAll(newProbeTypeToId);
+                // Keep Consul in sync with the internal cache
+                keyValueStore.remove(PROBE_ID_PREFIX);
+                probeTypeToId.forEach(this::storeProbeId);
             } catch (JsonSyntaxException e) {
                 throw new IllegalArgumentException(
                         "Unable to parse probe type to ID input JSON.", e);
@@ -327,5 +330,9 @@ public class IdentityProviderImpl implements IdentityProvider {
             identityService.restore(reader);
         }
         logger.info("Successfully restored the Identity Provider!");
+    }
+
+    private void storeProbeId(final String probeType, final Long probeId) {
+        keyValueStore.put(PROBE_ID_PREFIX + probeType, probeId.toString());
     }
 }

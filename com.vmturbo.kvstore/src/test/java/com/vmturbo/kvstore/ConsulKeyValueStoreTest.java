@@ -153,7 +153,7 @@ public class ConsulKeyValueStoreTest {
     @Test
     public void testRemove() throws Exception {
         consulKeyValueStore.remove("test");
-        Mockito.verify(keyValueClient).deleteKVValue("test/test");
+        Mockito.verify(keyValueClient).deleteKVValues("test/test");
     }
 
     /**
