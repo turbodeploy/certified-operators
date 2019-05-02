@@ -85,6 +85,7 @@ import com.vmturbo.topology.processor.operation.OperationTestUtilities;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
+import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.targets.DerivedTargetParser;
@@ -118,7 +119,7 @@ public class OperationControllerTest {
                         new IdentityServiceInMemoryUnderlyingStore(
                                 Mockito.mock(IdentityDatabaseStore.class)),
                         new HeuristicsMatcher()),
-                    new MapKeyValueStore(), 0L);
+                    new MapKeyValueStore(), new ProbeInfoCompatibilityChecker(), 0L);
         }
 
         @Bean

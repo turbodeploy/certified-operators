@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.communication;
 
+import static org.mockito.Mockito.mock;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -27,6 +29,7 @@ import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUn
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandler;
 import com.vmturbo.topology.processor.probes.ProbeException;
+import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.util.Probes;
 
@@ -37,20 +40,21 @@ public class RemoteMediationServerTest {
 
     private final IdentityProvider identityProvider = new IdentityProviderImpl(
         new IdentityService(new IdentityServiceInMemoryUnderlyingStore(
-                Mockito.mock(IdentityDatabaseStore.class)),
-                new HeuristicsMatcher()),
+            mock(IdentityDatabaseStore.class)),
+            new HeuristicsMatcher()),
         new MapKeyValueStore(),
+        new ProbeInfoCompatibilityChecker(),
         0L);
 
     private final ProbeStore probeStore = new TestProbeStore(identityProvider);
 
     private final RemoteMediationServer remoteMediationServer = new RemoteMediationServer(probeStore);
 
-    private final DiscoveryMessageHandler mockOperationMessageHandler = Mockito.mock(DiscoveryMessageHandler.class);
+    private final DiscoveryMessageHandler mockOperationMessageHandler = mock(DiscoveryMessageHandler.class);
 
     @SuppressWarnings("unchecked")
     private final ITransport<MediationServerMessage, MediationClientMessage> transport =
-        (ITransport<MediationServerMessage, MediationClientMessage>)Mockito.mock(ITransport.class);
+        (ITransport<MediationServerMessage, MediationClientMessage>) mock(ITransport.class);
 
     private long probeId;
 
@@ -95,7 +99,7 @@ public class RemoteMediationServerTest {
         final DiscoveryRequest discoveryRequest = buildDiscoveryRequest();
         final MediationClientMessage mediationClientMessage = buildMediationClientMessage();
 
-        Discovery mockOperation = Mockito.mock(Discovery.class);
+        Discovery mockOperation = mock(Discovery.class);
         Mockito.when(mockOperationMessageHandler.getOperation()).thenReturn(mockOperation);
         Mockito.when(mockOperationMessageHandler.onMessage(mediationClientMessage))
                 .thenReturn(HandlerStatus.IN_PROGRESS);

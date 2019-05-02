@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.probes;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
 
 /**
@@ -73,36 +75,45 @@ public class RemoteProbeStore implements ProbeStore {
 
     private final StitchingOperationStore stitchingOperationStore;
 
-    private final ProbeInfoCompatibilityChecker compatibilityChecker;
-
     private final ProbeOrdering probeOrdering;
 
     public RemoteProbeStore(@Nonnull final KeyValueStore keyValueStore,
                             @Nonnull IdentityProvider identityProvider,
-                            @Nonnull final StitchingOperationStore stitchingOperationStore,
-                            @Nonnull final ProbeInfoCompatibilityChecker compatibilityChecker) {
+                            @Nonnull final StitchingOperationStore stitchingOperationStore) {
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
         identityProvider_ = Objects.requireNonNull(identityProvider);
         this.stitchingOperationStore = Objects.requireNonNull(stitchingOperationStore);
-        this.compatibilityChecker = Objects.requireNonNull(compatibilityChecker);
 
         // Load ProbeInfo persisted in Consul.
         Map<String, String> persistedProbeInfos = this.keyValueStore.getByPrefix(PROBE_KV_STORE_PREFIX);
 
-        this.probeInfos = persistedProbeInfos.values().stream()
-                .map(probeInfoJson -> {
-                    try {
-                        final ProbeInfo.Builder probeInfoBuilder = ProbeInfo.newBuilder();
-                        JsonFormat.parser().merge(probeInfoJson, probeInfoBuilder);
-                        return probeInfoBuilder.build();
-                    } catch (InvalidProtocolBufferException e){
-                        logger.error("Failed to load probe info from Consul.");
-                        return null;
-                    }
-                })
-                .filter(Objects::nonNull)
-                .collect(Collectors.toConcurrentMap(
-                    identityProvider_::getProbeId, Function.identity()));
+        this.probeInfos = new HashMap<>();
+        persistedProbeInfos.values().stream()
+            .map(probeInfoJson -> {
+                try {
+                    final ProbeInfo.Builder probeInfoBuilder = ProbeInfo.newBuilder();
+                    JsonFormat.parser().merge(probeInfoJson, probeInfoBuilder);
+                    return probeInfoBuilder.build();
+                } catch (InvalidProtocolBufferException e){
+                    logger.error("Failed to load probe info from Consul.");
+                    return null;
+                }
+            })
+            .filter(Objects::nonNull)
+            .forEach(probeInfo -> {
+                final long probeId;
+                try {
+                    probeId = identityProvider_.getProbeId(probeInfo);
+                } catch (IdentityProviderException e) {
+                    logger.error("Failed to assign ID to saved probe info. Error: {}", e.getMessage());
+                    return;
+                }
+                final ProbeInfo existing = this.probeInfos.putIfAbsent(probeId, probeInfo);
+                if (existing != null) {
+                    logger.error("Probe with same id ({}) loaded more than once from KV store!" +
+                            " Keeping first. Dropping: {}", probeId, probeInfo);
+                }
+            });
         this.probeOrdering = new StandardProbeOrdering(this);
     }
 
@@ -117,48 +128,46 @@ public class RemoteProbeStore implements ProbeStore {
         Objects.requireNonNull(transport, "Transport should not be null");
 
         synchronized (dataLock) {
-            long probeId = identityProvider_.getProbeId(probeInfo);
-            final ProbeInfo existing = probeInfos.get(probeId);
-            if (existing != null && !compatibilityChecker.areCompatible(existing, probeInfo)) {
-                throw new ProbeException("Probe configuration " + probeInfo
-                                + ", received from " + transport + " is incompatible "
-                                + "with already registered probe with the same probe type: "
-                                + existing);
-            } else {
-                logger.debug("Adding endpoint to probe type map: " + transport + " " + probeInfo.getProbeType());
-                final boolean probeExists = probes.containsKey(probeId);
-
-                try {
-                    keyValueStore.put(PROBE_KV_STORE_PREFIX + Long.toString(probeId),
-                            JsonFormat.printer().print(probeInfo));
-                } catch (InvalidProtocolBufferException e) {
-                    logger.error("Invalid probeInfo {}", probeInfo);
-                    throw new ProbeException("Failed to persist probe info in Consul. Probe ID: " + probeId);
-                }
-
-                probes.put(probeId, transport);
-                // If we passed the compatibility check, it is safe to replace the old registration
-                // information in the store.
-                probeInfos.put(probeId, probeInfo);
-                stitchingOperationStore.setOperationsForProbe(probeId, probeInfo, probeOrdering);
-
-                if (probeExists) {
-                    logger.info("Connected probe " + probeId +
-                            " type=" + probeInfo.getProbeType() +
-                            " category=" + probeInfo.getProbeCategory()
-                    );
-                } else {
-                    logger.info("Registered new probe " + probeId +
-                            " type=" + probeInfo.getProbeType() +
-                            " category=" + probeInfo.getProbeCategory()
-                    );
-                }
-
-                // notify listeners
-                listeners.forEach(listener -> listener.onProbeRegistered(probeId, probeInfo));
-
-                return probeExists;
+            final long probeId;
+            try {
+                probeId = identityProvider_.getProbeId(probeInfo);
+            } catch (IdentityProviderException e) {
+                throw new ProbeException("Failed to get ID for probe configuration received from " +
+                    transport, e);
             }
+
+            logger.debug("Adding endpoint to probe type map: " + transport + " " + probeInfo.getProbeType());
+            final boolean probeExists = probes.containsKey(probeId);
+
+            try {
+                keyValueStore.put(PROBE_KV_STORE_PREFIX + Long.toString(probeId),
+                        JsonFormat.printer().print(probeInfo));
+            } catch (InvalidProtocolBufferException e) {
+                logger.error("Invalid probeInfo {}", probeInfo);
+                throw new ProbeException("Failed to persist probe info in Consul. Probe ID: " + probeId);
+            }
+
+            probes.put(probeId, transport);
+            // If we successfully got an ID it means we passed the compatibility check.
+            probeInfos.put(probeId, probeInfo);
+            stitchingOperationStore.setOperationsForProbe(probeId, probeInfo, probeOrdering);
+
+            if (probeExists) {
+                logger.info("Connected probe " + probeId +
+                        " type=" + probeInfo.getProbeType() +
+                        " category=" + probeInfo.getProbeCategory()
+                );
+            } else {
+                logger.info("Registered new probe " + probeId +
+                        " type=" + probeInfo.getProbeType() +
+                        " category=" + probeInfo.getProbeCategory()
+                );
+            }
+
+            // notify listeners
+            listeners.forEach(listener -> listener.onProbeRegistered(probeId, probeInfo));
+
+            return probeExists;
         }
     }
 

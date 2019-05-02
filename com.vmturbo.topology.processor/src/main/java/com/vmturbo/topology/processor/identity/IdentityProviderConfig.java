@@ -70,6 +70,7 @@ public class IdentityProviderConfig {
         return new IdentityProviderImpl(
             identityService(),
             kvConfig.keyValueStore(),
+            probeConfig.compatibilityChecker(),
             identityGeneratorPrefix);
     }
 

@@ -39,8 +39,9 @@ public interface IdentityProvider extends Diagnosable {
      *
      * @param probeInfo The object describing the probe.
      * @return The OID to use to identify the probe.
+     * @throws IdentityProviderException If there was an error assigning the ID.
      */
-    long getProbeId(@Nonnull ProbeInfo probeInfo);
+    long getProbeId(@Nonnull ProbeInfo probeInfo) throws IdentityProviderException;
 
     /**
      * Get the entity ID for the entities discovered by a specific probe

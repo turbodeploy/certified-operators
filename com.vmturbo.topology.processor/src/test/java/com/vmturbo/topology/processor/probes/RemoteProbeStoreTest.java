@@ -27,6 +27,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.storage.StorageStitchingOperation;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore.ProbeStitchingOperation;
 import com.vmturbo.topology.processor.util.Probes;
@@ -49,15 +50,10 @@ public class RemoteProbeStoreTest {
     private final ITransport<MediationServerMessage, MediationClientMessage> transport =
         createTransport();
 
-    private final ProbeInfoCompatibilityChecker compatibilityChecker =
-        Mockito.mock(ProbeInfoCompatibilityChecker.class);
-
     @Before
     public void setup() {
         idProvider = Mockito.mock(IdentityProvider.class);
-        when(compatibilityChecker.areCompatible(any(ProbeInfo.class), any(ProbeInfo.class)))
-            .thenReturn(true);
-        store = new RemoteProbeStore(keyValueStore, idProvider, stitchingOperationStore, compatibilityChecker);
+        store = new RemoteProbeStore(keyValueStore, idProvider, stitchingOperationStore);
     }
 
     @Test
@@ -86,8 +82,6 @@ public class RemoteProbeStoreTest {
                 .build();
         final long probeId = 12345L;
         when(idProvider.getProbeId(probeInfoWithCategory)).thenReturn(probeId);
-        when(compatibilityChecker.areCompatible(any(ProbeInfo.class), any(ProbeInfo.class)))
-                .thenReturn(true);
         store.registerNewProbe(probeInfoWithCategory, transport);
         List<Long> dbServerProbeIds = store.getProbeIdsForCategory(ProbeCategory.DATABASE_SERVER);
         assertEquals(1, dbServerProbeIds.size());
@@ -167,13 +161,13 @@ public class RemoteProbeStoreTest {
         final ProbeInfo probe2 = ProbeInfo.newBuilder(Probes.defaultProbe)
             .addTargetIdentifierField(tgt1)
             .build();
-        when(compatibilityChecker.areCompatible(any(ProbeInfo.class), any(ProbeInfo.class)))
-            .thenReturn(false);
-        when(idProvider.getProbeId(any(ProbeInfo.class))).thenReturn(1234L);
+        when(idProvider.getProbeId(probe1)).thenReturn(123L);
 
         store.registerNewProbe(probe1, transport);
+
+        // Incompatibility.
+        when(idProvider.getProbeId(any())).thenThrow(new IdentityProviderException("BOO!"));
         expectedException.expect(ProbeException.class);
-        expectedException.expectMessage("is incompatible with already registered probe");
         store.registerNewProbe(probe2, transport);
     }
 
@@ -197,18 +191,16 @@ public class RemoteProbeStoreTest {
         final ProbeInfo probe2 = ProbeInfo.newBuilder(Probes.defaultProbe)
             .addTargetIdentifierField(tgt1)
             .build();
-        final long probeId = 1234L;
-        when(compatibilityChecker.areCompatible(any(ProbeInfo.class), any(ProbeInfo.class)))
-            .thenReturn(false);
-        Mockito.when(idProvider.getProbeId(any(ProbeInfo.class))).thenReturn(probeId);
+        when(idProvider.getProbeId(probe1)).thenReturn(123L);
 
         store.registerNewProbe(probe1, transport);
         store.removeTransport(transport);
         verify(stitchingOperationStore).removeOperationsForProbe(anyLong());
         final ITransport<MediationServerMessage, MediationClientMessage> transport2 =
             createTransport();
+
+        when(idProvider.getProbeId(any())).thenThrow(new IdentityProviderException("BOO!"));
         expectedException.expect(ProbeException.class);
-        expectedException.expectMessage("is incompatible with already registered probe");
         store.registerNewProbe(probe2, transport2);
     }
 
@@ -232,8 +224,6 @@ public class RemoteProbeStoreTest {
             .setDiscoversSupplyChain(true)
             .build();
         final long probeId = 1234L;
-        when(compatibilityChecker.areCompatible(any(ProbeInfo.class), any(ProbeInfo.class)))
-            .thenReturn(true);
         Mockito.when(idProvider.getProbeId(any(ProbeInfo.class))).thenReturn(probeId);
 
         store.registerNewProbe(probe1, transport);
@@ -266,8 +256,6 @@ public class RemoteProbeStoreTest {
         final long storageProbeId = 2345L;
         final long hypervisorProbeId = 3456L;
         final long fabricProbeId = 4567L;
-        when(compatibilityChecker.areCompatible(any(ProbeInfo.class), any(ProbeInfo.class)))
-                .thenReturn(true);
         Mockito.when(idProvider.getProbeId(storageProbe)).thenReturn(storageProbeId);
         Mockito.when(idProvider.getProbeId(hypervisorProbe)).thenReturn(hypervisorProbeId);
         Mockito.when(idProvider.getProbeId(fabricProbe)).thenReturn(fabricProbeId);
