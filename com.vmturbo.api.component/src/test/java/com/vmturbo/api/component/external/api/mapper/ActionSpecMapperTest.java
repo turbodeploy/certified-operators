@@ -445,13 +445,13 @@ public class ActionSpecMapperTest {
         assertEquals("EntityToClone", actionApiDTO.getCurrentEntity().getDisplayName());
         assertEquals("3", actionApiDTO.getCurrentValue());
 
-        assertEquals("New Entity", actionApiDTO.getTarget().getDisplayName());
+        assertEquals("EntityToClone", actionApiDTO.getTarget().getDisplayName());
         assertEquals("VirtualMachine", actionApiDTO.getTarget().getClassName());
-        assertEquals("-1", actionApiDTO.getTarget().getUuid());
+        assertEquals("3", actionApiDTO.getTarget().getUuid());
 
-        assertEquals("New Entity", actionApiDTO.getNewEntity().getDisplayName());
+        assertEquals("EntityToClone", actionApiDTO.getNewEntity().getDisplayName());
         assertEquals("VirtualMachine", actionApiDTO.getNewEntity().getClassName());
-        assertEquals("-1", actionApiDTO.getNewEntity().getUuid());
+        assertEquals("3", actionApiDTO.getNewEntity().getUuid());
 
         assertEquals(ActionType.PROVISION, actionApiDTO.getActionType());
         assertThat(actionApiDTO.getDetails(), containsString("Provision Virtual Machine EntityToClone"));
