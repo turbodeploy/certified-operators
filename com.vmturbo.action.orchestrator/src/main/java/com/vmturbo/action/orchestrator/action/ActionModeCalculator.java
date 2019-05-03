@@ -521,6 +521,12 @@ public class ActionModeCalculator {
                     if (minThresholdOpt.isPresent() && maxThresholdOpt.isPresent()) {
                         float minThreshold = minThresholdOpt.get();
                         float maxThreshold = maxThresholdOpt.get();
+                        if (minThreshold > maxThreshold) {
+                            logger.error("Incorrect resize configuration for entity id {} and commodity {} : "
+                                + "Min threshold value ({}) is greater than max threshold value ({}).",
+                                resize.getTarget().getId(), commType, minThreshold, maxThreshold);
+                            return Optional.empty();
+                        }
                         ResizeCapacity resizeCapacity = getCapacityForModeCalculation(resize);
                         float oldCapacity = resizeCapacity.oldCapacity();
                         float newCapacity = resizeCapacity.newCapacity();
