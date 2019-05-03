@@ -13,7 +13,7 @@ passwd -l root
 COPY start_zookeeper /
 COPY zookeeper-ready /
 
-RUN yum install -y rsyslog java-1.8.0-openjdk-headless && \
+RUN yum install -y rsyslog java-11-openjdk-headless && \
     yum clean all && \
     rm -rf /var/cache/yum
 

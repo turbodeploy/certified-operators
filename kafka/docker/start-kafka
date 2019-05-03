@@ -58,7 +58,7 @@ KAFKA_PARAMS="$KAFKA_PARAMS --override log.message.timestamp.type=LogAppendTime"
 # Specifically for Kafka, we are using a high container mem limit, in order to benefit from the OS page cache.
 # This max heap percentage is based on data that we saw while monitoring the process.
 # 5.12% on a 20000 mem limit corresponds to a 1024mb for heap.
-KAFKA_HEAP_OPTS="-Xms16m -Xss512k -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMPercentage=10.0"
+KAFKA_HEAP_OPTS="-Xms16m -Xss512k -XX:MaxRAMPercentage=10.0"
 
 echo Executing kafka with options: $KAFKA_PARAMS | $LOGGER_COMMAND
 

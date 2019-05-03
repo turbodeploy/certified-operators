@@ -11,7 +11,7 @@ COPY start-kafka /
 RUN groupadd -g 1000 kafka && useradd -m -r -d /home/kafka -g 1000 -s /bin/bash -u 101 kafka && \
     passwd -l root
 
-RUN yum install -y rsyslog java-1.8.0-openjdk-headless && \
+RUN yum install -y rsyslog java-11-openjdk-headless && \
     yum clean all && \
     rm -rf /var/cache/yum
 

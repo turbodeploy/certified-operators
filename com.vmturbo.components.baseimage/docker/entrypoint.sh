@@ -4,11 +4,13 @@
 # The Djava.security.egd=file:/dev/./urandom configuration significantly speeds up start-up time
 # for the components using the SecureRandom class (see
 # http://stackoverflow.com/questions/25660899/spring-boot-actuator-application-wont-start-on-ubuntu-vps)
-COMMON_JAVA_OPTS="-XX:+UseG1GC -XX:CompileThreshold=1500 -XX:+ExitOnOutOfMemoryError"
-COMMON_JAVA_OPTS="-Xms16m -Xss512k -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMPercentage=75.0 $COMMON_JAVA_OPTS"
-COMMON_JAVA_OPTS="-verbose:gc -XX:+PrintGCDateStamps $COMMON_JAVA_OPTS"
+COMMON_JAVA_OPTS="-XX:CompileThreshold=1500 -XX:+ExitOnOutOfMemoryError -verbose:gc"
+COMMON_JAVA_OPTS="-Xms16m -Xss512k -XX:MaxRAMPercentage=75.0 $COMMON_JAVA_OPTS"
 COMMON_JAVA_OPTS="-XX:SoftRefLRUPolicyMSPerMB=0 -XX:+PrintConcurrentLocks -XX:+PrintClassHistogram $COMMON_JAVA_OPTS"
 COMMON_JAVA_OPTS="-XX:+PrintCommandLineFlags -XX:+UseStringDeduplication -XX:StringDeduplicationAgeThreshold=1 $COMMON_JAVA_OPTS"
+COMMON_JAVA_OPTS="-Djavax.xml.bind.JAXBContextFactory=com.sun.xml.bind.v2.ContextFactory $COMMON_JAVA_OPTS"
+COMMON_JAVA_OPTS="-Djavax.xml.ws.spi.Provider=com.sun.xml.ws.spi.ProviderImpl $COMMON_JAVA_OPTS"
+COMMON_JAVA_OPTS="-Djavax.xml.soap.SAAJMetaFactory=com.sun.xml.messaging.saaj.soap.SAAJMetaFactoryImpl $COMMON_JAVA_OPTS"
 COMMON_JAVA_OPTS="-Djava.security.egd=file:/dev/./urandom -Djava.net.preferIPv4Stack=true -XX:-OmitStackTraceInFastThrow $COMMON_JAVA_OPTS"
 COMMON_JAVA_OPTS="-Dnetworkaddress.cache.ttl=0 -Dnetworkaddress.cache.negative.ttl=0 $COMMON_JAVA_OPTS"
 COMMON_JAVA_OPTS="-DLog4jContextSelector=${LOG4J_CONTEXT_SELECTOR:-org.apache.logging.log4j.core.async.AsyncLoggerContextSelector} $COMMON_JAVA_OPTS"

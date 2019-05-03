@@ -1,7 +1,7 @@
 FROM registry.access.redhat.com/rhel7
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
-RUN yum install -y rsyslog java-1.8.0-openjdk-devel \
+RUN yum install -y rsyslog java-11-openjdk-devel \
     openssl rsyslog gettext iputils iproute nmap tcpdump lsof \
     telnet sysstat strace iptraf-ng openssh-clients traceroute && \
     yum clean all && \

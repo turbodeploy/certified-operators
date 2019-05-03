@@ -52,6 +52,9 @@
         <jacocoVersion>0.8.2</jacocoVersion>
         <jacocoAntVersion>0.8.2</jacocoAntVersion>
         <javax.servlet-api.version>3.1.0</javax.servlet-api.version>
+        <javax.xml.bind.version>2.3.1</javax.xml.bind.version>
+        <javax.xml.ws.version>2.3.1</javax.xml.ws.version>
+        <com.sun.xml.bind.version>2.3.0.1</com.sun.xml.bind.version>
         <hamcrest-all.version>1.3</hamcrest-all.version>
         <javassist.version>3.21.0-GA</javassist.version>
 
@@ -1974,6 +1977,33 @@
                 <artifactId>javax.servlet-api</artifactId>
                 <version>${javax.servlet-api.version}</version>
             </dependency>
+            <!-- BEGIN: Java 11 lost dependencies -->
+            <dependency>
+                <groupId>javax.xml.bind</groupId>
+                <artifactId>jaxb-api</artifactId>
+                <version>${javax.xml.bind.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.sun.xml.bind</groupId>
+                <artifactId>jaxb-impl</artifactId>
+                <version>${javax.xml.bind.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.sun.xml.bind</groupId>
+                <artifactId>jaxb-core</artifactId>
+                <version>${com.sun.xml.bind.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>javax.xml.ws</groupId>
+                <artifactId>jaxws-api</artifactId>
+                <version>${javax.xml.ws.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.sun.xml.ws</groupId>
+                <artifactId>rt</artifactId>
+                <version>${javax.xml.ws.version}</version>
+            </dependency>
+            <!-- END: Java 11 lost dependencies -->
             <dependency>
                 <groupId>com.typesafe.akka</groupId>
                 <artifactId>akka-testkit_2.10</artifactId>
