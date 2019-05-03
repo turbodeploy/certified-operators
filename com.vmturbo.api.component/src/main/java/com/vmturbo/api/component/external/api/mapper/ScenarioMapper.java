@@ -720,7 +720,8 @@ public class ScenarioMapper {
     private IgnoreConstraint toIgnoreConstraint(@Nonnull RemoveConstraintApiDTO constraint) {
         return IgnoreConstraint.newBuilder()
                 .setIgnoreGroup(ConstraintGroup.newBuilder()
-                        .setCommodityType(constraint.getConstraintType().name())
+                        .setCommodityType(constraint.getConstraintType() == null ? ConstraintType
+                                .GlobalIgnoreConstraint.name() : constraint.getConstraintType().name())
                         .setGroupUuid(Long.parseLong(constraint.getTarget().getUuid()))
                         .build())
                 .build();
