@@ -106,7 +106,9 @@ public class ActionStatsMapperTest {
                 .setReasonCommodityBaseType(1)
                 .setActionCategory(ActionCategory.PERFORMANCE_ASSURANCE)
                 .setActionState(ActionState.READY)
-                .setActionType(ActionType.ACTIVATE))
+                .setActionType(ActionType.ACTIVATE)
+                .setActionExplanation("Mem congestion")
+                .setTargetEntityId(111))
             .setActionCount(3)
             .setEntityCount(4)
             .build();
@@ -142,6 +144,8 @@ public class ActionStatsMapperTest {
         verify(stat1Filters).setType(ActionType.ACTIVATE);
         verify(stat1Filters).setReasonCommodity(1);
         verify(stat1Filters).setTargetEntityType(10);
+        verify(stat1Filters).setTargetEntityId(111);
+        verify(stat1Filters).setExplanation("Mem congestion");
         // We get the filters for each StatApiDTO.
         verify(stat1Filters, times(2)).getFilters();
         verifyNoMoreInteractions(stat1Filters);

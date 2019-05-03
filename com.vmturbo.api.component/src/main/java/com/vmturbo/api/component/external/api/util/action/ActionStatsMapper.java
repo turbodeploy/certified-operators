@@ -24,6 +24,7 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionStats;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.components.common.utils.StringConstants;
 
 /**
@@ -106,6 +107,22 @@ class ActionStatsMapper {
             groupByFilters.setCategory(actionStat.getStatGroup().getActionCategory());
         }
 
+        if (actionStat.getStatGroup().hasActionExplanation()) {
+            // Todo(OM-45690): for most of the cases, it returns without prefix: "CPU congestion",
+            // but for some cases it returns "(^_^)~Mem Provisioned congestion", so we need to
+            // remove the prefix. this can resolve most of the common cases except some special
+            // cases like:
+            // "(^_^)~{entity:72933133281220:displayName:Current supplier} can be suspended to improve efficiency"}
+            // which is a unreasonable groupBy string, this special case can be handled by
+            // ActionSpecMapper::translateExplanation, but it seems an overkill to create
+            // ActionSpecMappingContext here! And there is currently no use case for this in UI.
+            String explanation = actionStat.getStatGroup().getActionExplanation();
+            if (explanation.startsWith(ActionDTOUtil.TRANSLATION_PREFIX)) {
+                explanation = explanation.substring(ActionDTOUtil.TRANSLATION_PREFIX.length());
+            }
+            groupByFilters.setExplanation(explanation);
+        }
+
         if (actionStat.getStatGroup().hasActionState()) {
             groupByFilters.setState(actionStat.getStatGroup().getActionState());
         }
@@ -116,6 +133,10 @@ class ActionStatsMapper {
 
         if (actionStat.getStatGroup().hasTargetEntityType()) {
             groupByFilters.setTargetEntityType(actionStat.getStatGroup().getTargetEntityType());
+        }
+
+        if (actionStat.getStatGroup().hasTargetEntityId()) {
+            groupByFilters.setTargetEntityId(actionStat.getStatGroup().getTargetEntityId());
         }
 
         if (actionStat.getStatGroup().hasReasonCommodityBaseType()) {

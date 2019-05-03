@@ -83,6 +83,10 @@ public class GroupByFilters {
             ActionSpecMapper.mapXlActionCategoryToApi(category));
     }
 
+    public void setExplanation(@Nonnull final String explanation) {
+        setValue(StringConstants.RISK_DESCRIPTION, explanation);
+    }
+
     public void setState(@Nonnull final ActionState state) {
         setValue(StringConstants.ACTION_STATES,
             actionSpecMapper.mapXlActionStateToApi(state).name());
@@ -101,6 +105,10 @@ public class GroupByFilters {
     public void setTargetEntityType(final int entityType) {
         setValue(StringConstants.TARGET_TYPE,
             ServiceEntityMapper.toUIEntityType(entityType));
+    }
+
+    public void setTargetEntityId(final long entityId) {
+        setValue(StringConstants.TARGET_UUID_CC, String.valueOf(entityId));
     }
 
     @Nonnull

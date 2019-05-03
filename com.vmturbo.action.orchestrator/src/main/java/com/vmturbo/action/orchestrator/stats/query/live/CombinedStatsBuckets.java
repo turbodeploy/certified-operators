@@ -16,6 +16,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 
+import com.vmturbo.action.orchestrator.action.ExplanationComposer;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -67,8 +68,10 @@ class CombinedStatsBuckets {
                 final StatGroup.Builder bldr = StatGroup.newBuilder();
                 bucketKey.state().ifPresent(bldr::setActionState);
                 bucketKey.category().ifPresent(bldr::setActionCategory);
+                bucketKey.explanation().ifPresent(bldr::setActionExplanation);
                 bucketKey.type().ifPresent(bldr::setActionType);
                 bucketKey.targetEntityType().ifPresent(bldr::setTargetEntityType);
+                bucketKey.targetEntityId().ifPresent(bldr::setTargetEntityId);
                 bucketKey.reasonCommodityBaseType().ifPresent(bldr::setReasonCommodityBaseType);
                 return new CombinedStatsBucket(entityPredicate, bldr.build());
             });
@@ -79,8 +82,10 @@ class CombinedStatsBuckets {
     public interface GroupByBucketKey {
         Optional<ActionState> state();
         Optional<ActionCategory> category();
+        Optional<String> explanation();
         Optional<ActionType> type();
         Optional<Integer> targetEntityType();
+        Optional<Long> targetEntityId();
         Optional<Integer> reasonCommodityBaseType();
     }
 
@@ -91,6 +96,10 @@ class CombinedStatsBuckets {
         final ImmutableGroupByBucketKey.Builder keyBuilder = ImmutableGroupByBucketKey.builder();
         if (groupBy.contains(GroupBy.ACTION_CATEGORY)) {
             keyBuilder.category(actionInfo.action().getActionCategory());
+        }
+        if (groupBy.contains(GroupBy.ACTION_EXPLANATION)) {
+            keyBuilder.explanation(ExplanationComposer.composeExplanation(
+                actionInfo.action().getRecommendation()));
         }
         if (groupBy.contains(GroupBy.ACTION_STATE)) {
             keyBuilder.state(actionInfo.action().getState());
@@ -113,6 +122,15 @@ class CombinedStatsBuckets {
                 // This shouldn't really happen unless we add a new action type and forget
                 // to update the code.
                 logger.error("Failed to get primary entity of action with unsupported type: {}",
+                    e.getMessage());
+            }
+        }
+        if (groupBy.contains(GroupBy.TARGET_ENTITY_ID)) {
+            try {
+                keyBuilder.targetEntityId(
+                    ActionDTOUtil.getPrimaryEntityId(actionInfo.action().getRecommendation()));
+            } catch (UnsupportedActionException e) {
+                logger.error("Failed to get the id of the primary entity of action: {}",
                     e.getMessage());
             }
         }

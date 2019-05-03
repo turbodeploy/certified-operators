@@ -1107,6 +1107,12 @@ message CurrentActionStatsQuery {
 
         // Entity type of the primary entity for the action.
         TARGET_ENTITY_TYPE = 5;
+
+        // Explanation for the action (e.g. "CPU congestion", "Mem Provisioned congestion", etc.)
+        ACTION_EXPLANATION = 6;
+
+        // Id of the target entity for the action.
+        TARGET_ENTITY_ID = 7;
     }
 }
 
@@ -1282,6 +1288,14 @@ message CurrentActionStat {
         // The base type of the commodity that is "most responsible" for the action. Only present if
         // the "group_by" in the query contained "REASON_COMMODITY".
         optional int32 reason_commodity_base_type = 5;
+
+        // Explanation for the action (e.g. "CPU congestion", "Mem congestion", etc.)
+        // Todo(OM-45690): currently for some cases the explanation is partially composed in the AO,
+        // for example: "(^_^)~Mem Provisioned congestion", we should compose it fully in AO
+        optional string action_explanation = 6;
+
+        // Id of the target entity for the action.
+        optional int64 target_entity_id = 7;
     }
 
     // The stat group this action stat is in.

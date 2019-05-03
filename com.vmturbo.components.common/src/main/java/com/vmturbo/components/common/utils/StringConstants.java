@@ -92,6 +92,7 @@ public class StringConstants {
     public static final String ACTION_STATES = "actionStates";
     public static final String RISK_SEVERITY = "riskSeverity";
     public static final String RISK_SUB_CATEGORY = "riskSubCategory";
+    public static final String RISK_DESCRIPTION = "risk";
     public static final String REASON_COMMODITY = "reasonCommodity";
     public static final String NUM_NOTIFICATIONS = "numNotifications";
     public static final String RI_COUPON_COVERAGE = "RICouponCoverage";
