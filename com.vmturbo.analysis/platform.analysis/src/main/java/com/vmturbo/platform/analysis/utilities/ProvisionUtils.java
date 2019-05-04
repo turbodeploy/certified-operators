@@ -1,7 +1,5 @@
 package com.vmturbo.platform.analysis.utilities;
 
-import java.util.stream.Stream;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -77,31 +75,6 @@ public class ProvisionUtils {
                     (commSold.getEffectiveCapacity() - overHeadPeak))) {
                 return false;
             }
-        }
-        return true;
-    }
-
-    /**
-     * Method to create a stream of shopping lists not containing daemons.
-     *
-     * @param trader the trader whose shopping list's streams we need to create
-     * @return the stream of the shopping list.
-     */
-    public static Stream<ShoppingList> makeNonDaemonCustomerStream(Trader trader) {
-        return trader.getCustomers().stream().filter(sl -> !sl.getBuyer().getSettings().isDaemon());
-    }
-
-    /**
-     * Method to check if there are other customers besides guaranteed buyers and daemons in a traders
-     * shopping lists.
-     *
-     * @param trader The trader whose shopping lists we need to check
-     * @return true if there are other customers besides guaranteed buyers and daemons
-     */
-    public static boolean goAheadWithSuspendAndProvision(Trader trader) {
-        if (makeNonDaemonCustomerStream(trader)
-                .anyMatch(cust -> !cust.getBuyer().getSettings().isGuaranteedBuyer())) {
-            return false;
         }
         return true;
     }

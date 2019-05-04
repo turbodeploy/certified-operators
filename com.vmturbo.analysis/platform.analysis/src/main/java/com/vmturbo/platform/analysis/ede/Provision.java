@@ -428,7 +428,6 @@ public class Provision {
         // and that at least one nonGuaranteedBuyer has moved into the new host
         return ledger.getTraderIncomeStatements().get(mostProfitableTrader.getEconomyIndex())
                 .getROI() < origRoI && !provisionedTrader.getCustomers().isEmpty() &&
-                ProvisionUtils.goAheadWithSuspendAndProvision(mostProfitableTrader) &&
                 origMostProfitableCommRev > newMostProfitableCommRev;
     }
 

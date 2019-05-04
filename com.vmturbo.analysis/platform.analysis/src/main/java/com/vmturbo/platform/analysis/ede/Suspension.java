@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -29,7 +30,6 @@ import com.vmturbo.platform.analysis.ledger.IncomeStatement;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
-import com.vmturbo.platform.analysis.utilities.ProvisionUtils;
 
 public class Suspension {
 
@@ -63,6 +63,11 @@ public class Suspension {
     /**
      * Return a list of recommendations to optimize the suspension of all eligible traders in the
      * economy.
+     *
+     * <p>
+     *  As a result of invoking this method, both the economy and the state that are passed as
+     *  parameters to it, may be changed.
+     * </p>
      *
      * @param economy - the economy whose non-profitable traders we want to suspend while remaining
      *                  in the desired state
@@ -236,7 +241,8 @@ public class Suspension {
         // Rollback actions if the trader still has customers.  If all of the customers are
         // guaranteed buyers, it's still okay to proceed with the suspend.
 
-        if (!ProvisionUtils.goAheadWithSuspendAndProvision(trader)) {
+        if (makeNonDaemonCustomerStream(trader)
+                .anyMatch(cust -> !cust.getBuyer().getSettings().isGuaranteedBuyer())) {
             if (logger.isTraceEnabled() || isDebugTrader) {
                 logger.info("{" + traderDebugInfo + "} will not be suspended"
                         + " because it still has customers.");
@@ -426,13 +432,17 @@ public class Suspension {
         suspensionsThrottlingConfig = suspensionsThrottligConfig;
     }
 
+    private static Stream<ShoppingList> makeNonDaemonCustomerStream(Trader seller) {
+        return seller.getCustomers().stream().filter(sl -> !sl.getBuyer().getSettings().isDaemon());
+    }
+
     /**
      * Get list of customers of seller that are not daemons
      * @param seller to check
      * @return list of sellers that are not daemons that are customers of the seller
      */
     private static List<ShoppingList> getNonDaemonCustomers(Trader seller) {
-        return ProvisionUtils.makeNonDaemonCustomerStream(seller).collect(Collectors.toList());
+        return makeNonDaemonCustomerStream(seller).collect(Collectors.toList());
     }
 
     /**
@@ -441,6 +451,6 @@ public class Suspension {
      * @return true if the seller has at least one customer that is not a daemon
      */
     private static boolean sellerHasNonDaemonCustomers(Trader seller) {
-        return ProvisionUtils.makeNonDaemonCustomerStream(seller).findFirst().isPresent();
+        return makeNonDaemonCustomerStream(seller).findFirst().isPresent();
     }
 }
