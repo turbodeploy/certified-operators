@@ -30,6 +30,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -49,9 +50,11 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity;
+import com.vmturbo.platform.common.dto.Discovery.NoChange;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
@@ -145,10 +148,10 @@ public class OperationManagerTest {
     private long probeId;
     private long targetId;
 
-    private final long ACTIVATE_VM_ID = 100l;
-    private final long DEACTIVATE_VM_ID = 200l;
-    private final long MOVE_SOURCE_ID = 20l;
-    private final long MOVE_DESTINATION_ID = 30l;
+    private static final long ACTIVATE_VM_ID = 100L;
+    private static final long DEACTIVATE_VM_ID = 200L;
+    private static final long MOVE_SOURCE_ID = 20L;
+    private static final long MOVE_DESTINATION_ID = 30L;
 
     @SuppressWarnings("unchecked")
     private final ITransport<MediationServerMessage, MediationClientMessage> transport =
@@ -313,6 +316,55 @@ public class OperationManagerTest {
         operationManager.notifyDiscoveryResult(discovery, result);
         OperationTestUtilities.waitForDiscovery(operationManager, discovery);
         Mockito.verify(entityStore, never()).entitiesDiscovered(anyLong(), anyLong(), any());
+    }
+
+    /**
+     * Test that a discovery with no chgange gets processed properly.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testProcessDiscoveryNoChange() throws Exception {
+        final Discovery discovery = operationManager.startDiscovery(targetId);
+        // When the probe responds that nothing has changed (the NoChange message)
+        // the code that interacts with the entity store is skipped.
+        final DiscoveryResponse result = DiscoveryResponse.newBuilder()
+                .setNoChange(NoChange.getDefaultInstance())
+                .build();
+        operationManager.notifyDiscoveryResult(discovery, result);
+        OperationTestUtilities.waitForDiscovery(operationManager, discovery);
+        Mockito.verify(entityStore, never()).entitiesDiscovered(anyLong(), anyLong(), any());
+    }
+
+    /**
+     * Test that a discovery context received in the last discovery response is
+     * placed in the subsequent discovery request.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testSendDiscoveryContext() throws Exception {
+        final Discovery discovery1 = operationManager.startDiscovery(targetId);
+        DiscoveryContextDTO contextResponse = DiscoveryContextDTO.newBuilder()
+                .putContextEntry("A", "B")
+                .build();
+        final DiscoveryResponse result = DiscoveryResponse.newBuilder()
+                .setDiscoveryContext(contextResponse)
+                .build();
+        operationManager.notifyDiscoveryResult(discovery1, result);
+        OperationTestUtilities.waitForDiscovery(operationManager, discovery1);
+        final Discovery discovery2 = operationManager.startDiscovery(targetId);
+        ArgumentCaptor<DiscoveryRequest> requestCaptor
+            = ArgumentCaptor.forClass(DiscoveryRequest.class);
+        Mockito.verify(mockRemoteMediationServer, times(2)).sendDiscoveryRequest(eq(probeId),
+            requestCaptor.capture(), any(OperationMessageHandler.class));
+        List<DiscoveryRequest> requests = requestCaptor.getAllValues();
+        // Verify that the first discovery request contained an empty discovery context
+        Assert.assertEquals(DiscoveryContextDTO.getDefaultInstance(),
+            requests.get(0).getDiscoveryContext());
+        // Verify that the second discovery request contained the discovery context
+        // received in the first discovery response
+        Assert.assertEquals(contextResponse, requests.get(1).getDiscoveryContext());
     }
 
     /**

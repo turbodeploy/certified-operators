@@ -24,9 +24,9 @@ public class DiscoveryMessageHandler extends OperationMessageHandler<Discovery> 
 
     static {
         CHUNK_CONFIG =
-                new ChunkConfigurationImpl.Builder<DiscoveryResponse, DiscoveryResponse.Builder>().addRepeatedField(
-                        DiscoveryResponse::getEntityDTOList,
-                        DiscoveryResponse.Builder::addAllEntityDTO)
+                new ChunkConfigurationImpl.Builder<DiscoveryResponse, DiscoveryResponse.Builder>()
+                        .addRepeatedField(DiscoveryResponse::getEntityDTOList,
+                                DiscoveryResponse.Builder::addAllEntityDTO)
                         .addRepeatedField(DiscoveryResponse::getErrorDTOList,
                                 DiscoveryResponse.Builder::addAllErrorDTO)
                         .addRepeatedField(DiscoveryResponse::getDiscoveredGroupList,
@@ -47,11 +47,17 @@ public class DiscoveryMessageHandler extends OperationMessageHandler<Discovery> 
                             DiscoveryResponse.Builder::addAllWorkflow)
                         .addRepeatedField(DiscoveryResponse::getNonMarketEntityDTOList,
                             DiscoveryResponse.Builder::addAllNonMarketEntityDTO)
+                        .addField(DiscoveryResponse::hasDiscoveryContext,
+                                DiscoveryResponse::getDiscoveryContext,
+                                DiscoveryResponse.Builder::setDiscoveryContext)
                         .addField(DiscoveryResponse::hasPriceTable,
-                                DiscoveryResponse::getPriceTable,
-                                DiscoveryResponse.Builder::setPriceTable)
+                            DiscoveryResponse::getPriceTable,
+                            DiscoveryResponse.Builder::setPriceTable)
+                        .addField(DiscoveryResponse::hasNoChange,
+                            DiscoveryResponse::getNoChange,
+                            DiscoveryResponse.Builder::setNoChange)
                         .addRepeatedField(DiscoveryResponse::getFlowDTOList,
-                                          DiscoveryResponse.Builder::addAllFlowDTO)
+                                DiscoveryResponse.Builder::addAllFlowDTO)
                         .build();
     }
 
