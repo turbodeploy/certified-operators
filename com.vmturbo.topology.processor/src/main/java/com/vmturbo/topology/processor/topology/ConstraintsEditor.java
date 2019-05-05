@@ -20,6 +20,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.api.enums.ConstraintType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
@@ -152,6 +153,11 @@ public class ConstraintsEditor {
                                 .filter(commodity -> commodity.getGroupUuid() == group.getId())
                                 .map(ConstraintGroup::getCommodityType)
                                 .collect(Collectors.toSet());
+                        // GlobalIgnoreConstraint means we need to disable all access commodities
+                        if (commoditiesOfGroup.contains(ConstraintType.GlobalIgnoreConstraint.name())) {
+                            commoditiesOfGroup.remove(ConstraintType.GlobalIgnoreConstraint.name());
+                            commoditiesOfGroup.add(ALL_COMMODITIES);
+                        }
                         groupMembersOids.forEach(entityId ->
                             entitesToIgnoredCommodities.putAll(entityId, commoditiesOfGroup));
                     } catch (GroupResolutionException e) {
