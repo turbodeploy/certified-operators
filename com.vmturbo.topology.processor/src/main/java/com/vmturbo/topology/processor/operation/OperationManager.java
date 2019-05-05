@@ -39,7 +39,6 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.ActionExecution.Workflow;
 import com.vmturbo.platform.common.dto.ActionExecution.Workflow.ActionScriptPhase;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
@@ -106,10 +105,6 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     // Mapping from TargetID -> Current Discovery Operation
     private final ConcurrentMap<Long, Discovery> currentTargetDiscoveries = new ConcurrentHashMap<>();
-
-    // Mapping from TargetID -> DiscoveryContextDTO
-    private final ConcurrentMap<Long, DiscoveryContextDTO> currentTargetDiscoveryContext =
-                    new ConcurrentHashMap<>();
 
     // Mapping from TargetID -> Current Validation Operation
     private final ConcurrentMap<Long, Validation> currentTargetValidations = new ConcurrentHashMap<>();
@@ -222,7 +217,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     /**
      * Total Permit timeout = probeDiscoveryPermitWaitTimeoutMins +
-     *      rand(0, probeDiscoveryPermitWaitTimeoutIntervalMins).
+     *      rand(0, probeDiscoveryPermitWaitTimeoutIntervalMins)
      */
     private final int probeDiscoveryPermitWaitTimeoutIntervalMins;
 
@@ -583,8 +578,6 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                     .setProbeType(probeType)
                     .setDiscoveryType(DiscoveryType.FULL)
                     .addAllAccountValue(target.getMediationAccountVals(groupScopeResolver))
-                    .setDiscoveryContext(currentTargetDiscoveryContext.getOrDefault(
-                        targetId, DiscoveryContextDTO.getDefaultInstance()))
                     .build();
 
             discoveryMessageHandler =
@@ -968,8 +961,6 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     private void processDiscoveryResponse(@Nonnull final Discovery discovery,
                                           @Nonnull final DiscoveryResponse response) {
         final boolean success = !hasGeneralCriticalError(response.getErrorDTOList());
-        // Discovery response changed since last discovery
-        final boolean change = !response.hasNoChange();
         final long targetId = discovery.getTargetId();
         // pjs: these discovery results can be pretty huge, (i.e. the cloud price discovery is over
         // 100 mb of json), so I'm splitting this into two messages, a debug and trace version so
@@ -978,9 +969,6 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         logger.debug("Received discovery result from target {}: {} bytes",
                 targetId, response.getSerializedSize());
         logger.trace("Discovery result from target {}: {}", targetId, response);
-        if (!change) {
-            logger.info("No change since last discovery of target {}", targetId);
-        }
 
         Optional<Semaphore> semaphore =
                 Optional.ofNullable(probeOperationPermits.get(discovery.getProbeId()));
@@ -996,7 +984,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 () -> semaphore.map(Semaphore::getQueueLength).orElse(-1),
                 () -> targetId);
         try {
-            if (success && change) {
+            if (success) {
                 // TODO: (DavidBlinn 3/14/2018) if information makes it into the entityStore but fails later
                 // the topological information will be inconsistent. (ie if the entities are placed in the
                 // entityStore but the discoveredGroupUploader throws an exception, the entity and group
@@ -1013,9 +1001,6 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 discoveredCloudCostUploader.recordTargetCostData(targetId, discovery,
                         response.getNonMarketEntityDTOList(), response.getCostDTOList(),
                         response.getPriceTable());
-                if (response.hasDiscoveryContext()) {
-                    currentTargetDiscoveryContext.put(targetId, response.getDiscoveryContext());
-                }
                 if (discoveryDumper != null) {
                     final Optional<Target> target = targetStore.getTarget(targetId);
                     final Optional<ProbeInfo> probeInfo = probeStore.getProbe(discovery.getProbeId());
