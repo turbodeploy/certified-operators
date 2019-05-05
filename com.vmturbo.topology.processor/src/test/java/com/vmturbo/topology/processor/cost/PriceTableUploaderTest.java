@@ -28,6 +28,8 @@ import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList.DatabaseTierConfigPrice;
+import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceByOsEntry;
+import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceByOsEntry.LicensePrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.OnDemandPriceTableByRegionEntry;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.OnDemandPriceTableByRegionEntry.ComputePriceTableByTierEntry;
@@ -42,6 +44,10 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  *
  */
 public class PriceTableUploaderTest {
+
+    private static final double RHEL_LICENSE_PRICE = 5.1;
+    private static final double DELTA = 1e-10;
+
     // test GRPC server
     private final TestPriceService priceServiceSpy = spy(new TestPriceService());
 
@@ -171,6 +177,46 @@ public class PriceTableUploaderTest {
         Assert.assertTrue(onDemandTable.containsCloudStoragePricesByTierId(30L));
         StorageTierPriceList storageTierPriceList = onDemandTable.getCloudStoragePricesByTierIdMap().get(30L);
         Assert.assertEquals(10, storageTierPriceList.getCloudStoragePriceList().get(0).getPrices(0).getPriceAmount().getAmount(), 0);
+    }
+
+    /**
+     * Verify that license costs are uploaded properly to the Price Table used by cost component.
+     */
+    @Test
+    public void testLicensePrices() {
+        // Build a set of cost data that the license price table will be built from
+        PricingDTO.PriceTable sourcePriceTable = PricingDTO.PriceTable.newBuilder()
+                .addLicensePriceTable(createLicensePriceByOsEntry(OSType.RHEL, 4, RHEL_LICENSE_PRICE))
+                .build();
+
+        // The third argument of the uploader is riSpecPriceChunkSize which is irrelevant here
+        priceTableUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC(), 100);
+        PriceTable priceTable = priceTableUploader.priceTableToCostPriceTable(sourcePriceTable,
+                cloudOidByLocalId, SDKProbeType.AZURE_COST);
+        // should have an entry for RHEL licenses
+        Assert.assertEquals(1, priceTable.getLicensePricesCount());
+        Assert.assertEquals(OSType.RHEL, priceTable.getLicensePricesList().get(0).getOsType());
+        LicensePriceByOsEntry rhelEntry = priceTable.getLicensePricesList().get(0);
+        Assert.assertEquals(RHEL_LICENSE_PRICE, rhelEntry.getLicensePrices(0).getPrice()
+                .getPriceAmount().getAmount(), DELTA);
+    }
+
+    /**
+     * Create a {@link LicensePriceByOsEntry}.
+     *
+     * @param os the {@link OSType} to create the entry for
+     * @param numOfCores numner of cores for which the license price is given
+     * @param amount the price of the created license
+     * @return {@link LicensePriceByOsEntry}
+     */
+    private LicensePriceByOsEntry createLicensePriceByOsEntry(OSType os, int numOfCores, double amount) {
+        return LicensePriceByOsEntry.newBuilder()
+                .setOsType(os)
+                .addLicensePrices(LicensePrice.newBuilder()
+                        .setNumberOfCores(numOfCores)
+                        .setPrice(Price.newBuilder()
+                                .setPriceAmount(CurrencyAmount.newBuilder()
+                                        .setAmount(amount)))).build();
     }
 
     public static class TestPriceService extends PricingServiceImplBase {

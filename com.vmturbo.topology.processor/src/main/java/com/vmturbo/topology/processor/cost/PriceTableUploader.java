@@ -46,6 +46,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.UploadPriceTablesResponse;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceStub;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO;
+import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceByOsEntry;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.OnDemandPriceTableByRegionEntry;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.ReservedInstancePriceEntry;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.ReservedInstancePriceTableByRegionEntry;
@@ -273,9 +274,8 @@ public class PriceTableUploader {
         logger.debug("Processing price table for probe type {}", probeType);
 
         PriceTable.Builder priceTableBuilder = PriceTable.newBuilder();
-        // we only knows on-demand prices for now.
+        // we only know on-demand and license prices for now.
         // TODO: reckon the spot instance prices
-        // TODO: savvy the license prices
         // structure to track missing tiers - we want to log about this but not spam the log.
         Multimap<String,String> missingTiers = ArrayListMultimap.create();
 
@@ -345,6 +345,9 @@ public class PriceTableUploader {
         if (missingTiers.size() > 0) {
             logger.warn("Couldnt find oids for: {}", missingTiers);
         }
+
+        // Populate the new Price table with license costs
+        priceTableBuilder.addAllLicensePrices(sourcePriceTable.getLicensePriceTableList());
 
         return priceTableBuilder.build();
     }

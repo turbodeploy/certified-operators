@@ -37,9 +37,8 @@ message PriceTable {
     // See SpotInstancePriceTable for more details.
     map<int64, SpotInstancePriceTable> spot_price_by_region_id = 10;
 
-    // A list of license prices, arranged by license ID.
-    // License IDs are derived from the OS the license is for.
-    map<int64, common_dto.LicensePriceList> license_price_by_id = 20;
+    // A list of license prices grouped by OS type
+    repeated common_dto.LicensePriceByOsEntry license_prices = 20;
 }
 
 // The pricing information for reserved instances.
