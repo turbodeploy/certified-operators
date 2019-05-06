@@ -169,7 +169,7 @@ function start_mediation-stressprobe() {
     -e 'component_type=mediation-stressprobe' \
     -e 'instance_id=mediation-stressprobe-1' \
     -e 'consul_host=consul' \
-    -e 'JAVA_OPTS=-agentlib:jdwp=transport=dt_socket,address=8000,server=y,suspend=n' \
+    -e 'JAVA_OPTS=-agentlib:jdwp=transport=dt_socket,address=0.0.0.0:8000,server=y,suspend=n' \
     --mount type=volume,src=mediation-stressprobe,dst=/home/turbonomic/data,volume-driver=local \
     turbonomic/com.vmturbo.mediation.stressprobe.component:latest
 }
