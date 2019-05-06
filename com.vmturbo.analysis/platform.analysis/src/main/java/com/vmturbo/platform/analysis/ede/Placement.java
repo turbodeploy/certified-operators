@@ -420,9 +420,10 @@ public class Placement {
                         .collect(Collectors.toList());
         Set<Integer> currentSuppliersIds = traderIds(shoppingLists.stream()
                         .map(ShoppingList::getSupplier));
-        Set<Integer> bestSellerIds = minimizer == null || minimizer.getBestSellers() == null
-                        ? Collections.emptySet()
-                        : traderIds(minimizer.getBestSellers().stream());
+        if (minimizer == null || minimizer.getBestSellers() == null) {
+            return actions;
+        }
+        Set<Integer> bestSellerIds = traderIds(minimizer.getBestSellers().stream());
         boolean isLeaderSl = shoppingLists.stream().anyMatch(sl -> (sl.getGroupFactor() > 1));
         // If there is a leader SL, then we want to always want to produce the move for that
         // SL even if it the best sellers are the same as the current suppliers.
