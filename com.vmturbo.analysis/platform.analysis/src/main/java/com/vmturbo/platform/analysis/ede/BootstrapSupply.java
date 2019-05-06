@@ -172,6 +172,10 @@ public class BootstrapSupply {
                     // Obtain list of commodity specs causing infinite quote for the shopping list
                     List<CommoditySpecification> commSpecs = findCommSpecsWithInfiniteQuote(sellerThatFits, sl, economy);
                     if (sellerThatFits.getSettings().isResizeThroughSupplier()) {
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("SellerThatFits is ResizeThroughSupplier: {}",
+                                            sellerThatFits.getDebugInfoNeverUseInCode());
+                        }
                         // If the trader is resizeThroughSupplier then generate supply provisions
                         // to provide enough capacity for the sellerThatFits to be able to host the
                         // shopping list.
@@ -809,6 +813,10 @@ public class BootstrapSupply {
                     List<CommoditySpecification> commoditySpecsWithInfiniteQuote =
                                     findCommSpecsWithInfiniteQuote(sellerThatFits, sl, economy);
                     if (sellerThatFits.getSettings().isResizeThroughSupplier()) {
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("SellerThatFits is ResizeThroughSupplier: {}",
+                                            sellerThatFits.getDebugInfoNeverUseInCode());
+                        }
                         // If the trader is resizeThroughSupplier then generate supply provisions
                         // to provide enough capacity for the sellerThatFits to be able to host the
                         // shopping list.

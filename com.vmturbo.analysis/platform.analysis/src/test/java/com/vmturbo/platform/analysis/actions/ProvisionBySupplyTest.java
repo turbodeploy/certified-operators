@@ -36,10 +36,13 @@ public class ProvisionBySupplyTest {
     private static final CommoditySpecification MEM = new CommoditySpecification(1);
     private static final CommoditySpecification VCPU = new CommoditySpecification(0);
     private static final CommoditySpecification VMEM = new CommoditySpecification(1);
+    private static final CommoditySpecification STORAGE_AMOUNT = new CommoditySpecification(2);
 
     private static final Basket EMPTY = new Basket();
-    private static final Basket[] basketsSold = {EMPTY, new Basket(VCPU), new Basket(VCPU, VMEM)};
-    private static final Basket[] basketsBought = {EMPTY, new Basket(CPU), new Basket(CPU, MEM)};
+    private static final Basket[] basketsSold = {EMPTY, new Basket(VCPU), new Basket(VCPU, VMEM),
+                    new Basket(VCPU, VMEM, STORAGE_AMOUNT)};
+    private static final Basket[] basketsBought = {EMPTY, new Basket(CPU), new Basket(CPU, MEM),
+                    new Basket(STORAGE_AMOUNT)};
 
     private static final String DEBUG_INFO = "trader name";
 
@@ -91,6 +94,25 @@ public class ProvisionBySupplyTest {
         e1.populateMarketsWithSellers();
 
         return new Object[]{e1, modelSeller};
+    }
+
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Object[] parametersForTestWithResizeThroughSupplier() {
+        Economy e1 = new Economy();
+
+        Trader modelSeller = e1.addTrader(0, TraderState.ACTIVE, basketsSold[3], basketsBought[0]);
+        Trader b1 = e1.addTrader(1, TraderState.ACTIVE, basketsSold[3]);
+        b1.getSettings().setResizeThroughSupplier(true);
+        ShoppingList s1 = e1.addBasketBought(b1, basketsSold[3]);
+        s1.move(modelSeller);
+
+        Trader modelSeller2 = e1.addTrader(0, TraderState.ACTIVE, basketsSold[3], basketsBought[0]);
+        Trader b2 = e1.addTrader(1, TraderState.ACTIVE, basketsBought[3]);
+        b2.getSettings().setResizeThroughSupplier(true);
+        ShoppingList s2 = e1.addBasketBought(b2, basketsBought[3]);
+        s2.move(modelSeller2);
+        e1.populateMarketsWithSellers();
+        return new Object[]{e1, modelSeller, modelSeller2};
     }
 
     @Test
@@ -230,6 +252,30 @@ public class ProvisionBySupplyTest {
         }
 
 
+    }
+
+    @Test
+    @Parameters(method = "parametersForTestWithResizeThroughSupplier")
+    @TestCaseName("Test #{index}: GenerateResizeThroughSupplier")
+    public final void testWithResizeThroughSupplier(@NonNull Economy economy,
+                    @NonNull Trader modelSeller, @NonNull Trader modelSeller2) {
+        @NonNull ProvisionBySupply provision1 = (ProvisionBySupply) new ProvisionBySupply(economy,
+                        modelSeller, CPU).take();
+        assertTrue(provision1.getSubsequentActions().stream().filter(a -> a instanceof Resize)
+                        .count() == 3);
+        @NonNull ProvisionBySupply provision2 = (ProvisionBySupply) new ProvisionBySupply(economy,
+                        modelSeller, STORAGE_AMOUNT).take();
+        assertTrue(provision2.getSubsequentActions().stream().filter(a -> a instanceof Resize)
+                        .count() == 3);
+
+        @NonNull ProvisionBySupply provision3 = (ProvisionBySupply) new ProvisionBySupply(economy,
+                        modelSeller2, CPU).take();
+        assertTrue(provision3.getSubsequentActions().stream().filter(a -> a instanceof Resize)
+                        .count() == 1);
+        @NonNull ProvisionBySupply provision4 = (ProvisionBySupply) new ProvisionBySupply(economy,
+                        modelSeller2, STORAGE_AMOUNT).take();
+        assertTrue(provision4.getSubsequentActions().stream().filter(a -> a instanceof Resize)
+                        .count() == 1);
     }
 
     @SuppressWarnings("unused")

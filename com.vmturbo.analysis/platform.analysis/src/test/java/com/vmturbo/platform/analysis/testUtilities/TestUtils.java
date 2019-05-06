@@ -83,6 +83,8 @@ public class TestUtils {
     public static final CommoditySpecification MEM = createNewCommSpec();
     public static final CommoditySpecification COUPON_COMMODITY = createNewCommSpec();
     public static final CommoditySpecification ST_AMT = createNewCommSpec();
+    public static final CommoditySpecification ST_PROV = createNewCommSpec();
+    public static final CommoditySpecification ST_LATENCY = createNewCommSpec();
     public static final CommoditySpecification CPU_ALLOC = createNewCommSpec();
     public static final CommoditySpecification MEM_ALLOC = createNewCommSpec();
     public static final CommoditySpecification VCPU = createNewCommSpec();

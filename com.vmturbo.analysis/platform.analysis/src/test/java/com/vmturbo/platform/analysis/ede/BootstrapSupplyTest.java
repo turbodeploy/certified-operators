@@ -16,18 +16,22 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.ActionCollapse;
 import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
+import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.utilities.ProvisionUtils;
 
@@ -287,6 +291,228 @@ public class BootstrapSupplyTest {
     }
 
     /**
+     * Case: Non Shop together ResizeThroughSupplier Host Congestion: st1 buys from pm1. Vm1 and Vm2
+     * are placed on pm1 and st1.
+     * Expected result: Resize Storage Amount and St Provision on St1 when Provisioning clone of Pm1
+     * due to Host congestion.
+     */
+    @Test
+    public void test_NonShopTogetherBootstrap_ResizeThroughSupplier_HostCongestion() {
+        Economy economy = new Economy();
+        Trader pm1 = TestUtils.createTrader(economy, PM_TYPE, Arrays.asList(0l),
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM, TestUtils.ST_AMT, TestUtils.ST_PROV),
+                        new double[]{100, 100, 300, 600}, true, false);
+        pm1.setDebugInfoNeverUseInCode("PM1");
+        Trader st1 = TestUtils.createTrader(economy, ST_TYPE, Arrays.asList(0l),
+                        Arrays.asList(TestUtils.ST_AMT, TestUtils.ST_PROV, TestUtils.IOPS,
+                                        TestUtils.ST_LATENCY),
+                        new double[]{500, 1000, 5000, 5000}, false, true);
+        ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
+                        .indexOf(TestUtils.ST_AMT))).setPriceFunction(PriceFunction.Cache
+                                        .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
+        ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
+                        .indexOf(TestUtils.ST_PROV))).setPriceFunction(PriceFunction.Cache
+                                        .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
+        st1.getSettings().setResizeThroughSupplier(true);
+        st1.setDebugInfoNeverUseInCode("DS1");
+        ShoppingList stSl = economy.addBasketBought(st1, new Basket(TestUtils.ST_AMT, TestUtils.ST_PROV));
+        stSl.move(pm1);
+        //Place vm1 on pm1 and st1.
+        Trader vm1 = TestUtils.createVM(economy);
+        ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{60, 0}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.ST_AMT,
+                        TestUtils.ST_PROV, TestUtils.IOPS,TestUtils.ST_LATENCY),
+                        vm1, new double[]{50, 100, 100, 100}, st1);
+        vm1.setDebugInfoNeverUseInCode("VM1");
+        //Place vm2 on pm1 and st1.
+        Trader vm2 = TestUtils.createVM(economy);
+        ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{60, 0}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.ST_AMT,
+                        TestUtils.ST_PROV, TestUtils.IOPS,TestUtils.ST_LATENCY),
+                        vm2, new double[]{50, 100, 100, 100}, st1);
+        vm2.setDebugInfoNeverUseInCode("VM2");
+        economy.populateMarketsWithSellers();
+        economy.getModifiableShopTogetherTraders().add(vm1);
+        economy.getModifiableShopTogetherTraders().add(vm2);
+
+        List<Action> bootStrapActionList = BootstrapSupply.nonShopTogetherBootstrap(economy);
+        assertTrue(bootStrapActionList.size() == 4);
+        Action a0 = bootStrapActionList.get(0);
+        Action a1 = bootStrapActionList.get(1);
+        Action a2 = bootStrapActionList.get(2);
+        assertEquals(ActionType.PROVISION_BY_SUPPLY, a0.getType());
+        ProvisionBySupply prov = (ProvisionBySupply) a0;
+        assertEquals(TestUtils.CPU, prov.getReason());
+        assertEquals(pm1, prov.getModelSeller());
+        assertEquals(ActionType.RESIZE, a1.getType());
+        Resize r1 = (Resize) a1;
+        assertEquals(TestUtils.ST_AMT, r1.getResizedCommoditySpec());
+        assertEquals(st1, r1.getSellingTrader());
+        assertEquals(ActionType.RESIZE, a2.getType());
+        Resize r2 = (Resize) a2;
+        assertEquals(TestUtils.ST_PROV, r2.getResizedCommoditySpec());
+        assertEquals(st1, r2.getSellingTrader());
+
+        Action move = bootStrapActionList.get(3);
+        Move expectedMove1 = new Move(economy, sl1, pm1, prov.getProvisionedSeller());
+        Move expectedMove2 = new Move(economy, sl2, pm1, prov.getProvisionedSeller());
+        assertTrue(move.equals(expectedMove1) || move.equals(expectedMove2));
+    }
+
+    /**
+     * Case: Non Shop together ResizeThroughSupplier Storage Congestion: st1 buys from pm1. Vm1 and
+     * Vm2 are placed on pm1 and st1.
+     * Expected result: Resize Storage Amount and St Provision on St1 when Provisioning clone of Pm1
+     * due to Storage congestion.
+     */
+    @Test
+    public void test_NonShopTogetherBootstrap_ResizeThroughSupplier_StorageCongestion() {
+        Economy economy = new Economy();
+        Trader pm1 = TestUtils.createTrader(economy, PM_TYPE, Arrays.asList(0l),
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM, TestUtils.ST_AMT, TestUtils.ST_PROV),
+                        new double[]{5000, 5000, 1000, 2000}, true, false);
+        pm1.setDebugInfoNeverUseInCode("PM1");
+        Trader st1 = TestUtils.createTrader(economy, ST_TYPE, Arrays.asList(0l),
+                        Arrays.asList(TestUtils.ST_AMT, TestUtils.ST_PROV, TestUtils.IOPS,
+                                        TestUtils.ST_LATENCY),
+                        new double[]{500, 5000, 5000, 5000}, false, true);
+        ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
+                        .indexOf(TestUtils.ST_AMT))).setPriceFunction(PriceFunction.Cache
+                                        .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
+        ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
+                        .indexOf(TestUtils.ST_PROV))).setPriceFunction(PriceFunction.Cache
+                                        .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
+        st1.getSettings().setResizeThroughSupplier(true);
+        st1.setDebugInfoNeverUseInCode("DS1");
+        ShoppingList stSl = economy.addBasketBought(st1, new Basket(TestUtils.ST_AMT, TestUtils.ST_PROV));
+        stSl.move(pm1);
+        //Place vm1 on pm1 and st1.
+        Trader vm1 = TestUtils.createVM(economy);
+        TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{60, 0}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.ST_AMT,
+                        TestUtils.ST_PROV, TestUtils.IOPS,TestUtils.ST_LATENCY),
+                        vm1, new double[]{350, 700, 100, 100}, st1);
+        vm1.setDebugInfoNeverUseInCode("VM1");
+        //Place vm2 on pm1 and st1.
+        Trader vm2 = TestUtils.createVM(economy);
+        TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{60, 0}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.ST_AMT,
+                        TestUtils.ST_PROV, TestUtils.IOPS,TestUtils.ST_LATENCY),
+                        vm2, new double[]{350, 700, 100, 100}, st1);
+        vm2.setDebugInfoNeverUseInCode("VM2");
+        economy.populateMarketsWithSellers();
+        economy.getModifiableShopTogetherTraders().add(vm1);
+        economy.getModifiableShopTogetherTraders().add(vm2);
+
+        List<Action> bootStrapActionList = BootstrapSupply.nonShopTogetherBootstrap(economy);
+        assertTrue(bootStrapActionList.size() == 3);
+        Action a0 = bootStrapActionList.get(0);
+        Action a1 = bootStrapActionList.get(1);
+        Action a2 = bootStrapActionList.get(2);
+        assertEquals(ActionType.PROVISION_BY_SUPPLY, a0.getType());
+        ProvisionBySupply prov = (ProvisionBySupply) a0;
+        assertEquals(TestUtils.ST_AMT, prov.getReason());
+        assertEquals(pm1, prov.getModelSeller());
+        assertEquals(ActionType.RESIZE, a1.getType());
+        Resize r1 = (Resize) a1;
+        assertEquals(TestUtils.ST_AMT, r1.getResizedCommoditySpec());
+        assertEquals(st1, r1.getSellingTrader());
+        assertEquals(ActionType.RESIZE, a2.getType());
+        Resize r2 = (Resize) a2;
+        assertEquals(TestUtils.ST_PROV, r2.getResizedCommoditySpec());
+        assertEquals(st1, r2.getSellingTrader());
+    }
+
+    /**
+     * Case: Non Shop together ResizeThroughSupplier Storage Congestion MultiProvision and Resize
+     * Collapse: st1 buys from pm1. Vm1 and Vm2 are placed on pm1 and st1.
+     * Expected result: Resize Storage Amount and St Provision on St1 when Provisioning clone of Pm1
+     * due to Storage congestion. Multiple Provisions should occur for a bigger resize and the
+     * resizes should collapse.
+     */
+    @Test
+    public void test_NonShopTogetherBootstrap_ResizeThroughSupplier_StorageCongestion_MultiProvision() {
+        Economy economy = new Economy();
+        Trader pm1 = TestUtils.createTrader(economy, PM_TYPE, Arrays.asList(0l),
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM, TestUtils.ST_AMT, TestUtils.ST_PROV),
+                        new double[]{5000, 5000, 200, 200}, true, false);
+        pm1.setDebugInfoNeverUseInCode("PM1");
+        Trader st1 = TestUtils.createTrader(economy, ST_TYPE, Arrays.asList(0l),
+                        Arrays.asList(TestUtils.ST_AMT, TestUtils.ST_PROV, TestUtils.IOPS,
+                                        TestUtils.ST_LATENCY),
+                        new double[]{400, 5000, 5000, 5000}, false, true);
+        ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
+                        .indexOf(TestUtils.ST_AMT))).setPriceFunction(PriceFunction.Cache
+                                        .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
+        ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
+                        .indexOf(TestUtils.ST_PROV))).setPriceFunction(PriceFunction.Cache
+                                        .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
+        st1.getSettings().setResizeThroughSupplier(true);
+        st1.setDebugInfoNeverUseInCode("DS1");
+        ShoppingList stSl = economy.addBasketBought(st1, new Basket(TestUtils.ST_AMT, TestUtils.ST_PROV));
+        stSl.move(pm1);
+        //Place vm1 on pm1 and st1.
+        Trader vm1 = TestUtils.createVM(economy);
+        TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{60, 0}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.ST_AMT,
+                        TestUtils.ST_PROV, TestUtils.IOPS,TestUtils.ST_LATENCY),
+                        vm1, new double[]{350, 700, 100, 100}, st1);
+        vm1.setDebugInfoNeverUseInCode("VM1");
+        //Place vm2 on pm1 and st1.
+        Trader vm2 = TestUtils.createVM(economy);
+        TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{60, 0}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.ST_AMT,
+                        TestUtils.ST_PROV, TestUtils.IOPS,TestUtils.ST_LATENCY),
+                        vm2, new double[]{350, 700, 100, 100}, st1);
+        vm2.setDebugInfoNeverUseInCode("VM2");
+        economy.populateMarketsWithSellers();
+        economy.getModifiableShopTogetherTraders().add(vm1);
+        economy.getModifiableShopTogetherTraders().add(vm2);
+
+        List<Action> bootStrapActionList = BootstrapSupply.nonShopTogetherBootstrap(economy);
+        assertTrue(bootStrapActionList.size() == 6);
+        Action a0 = bootStrapActionList.get(0);
+        Action a1 = bootStrapActionList.get(1);
+        Action a2 = bootStrapActionList.get(2);
+        Action a3 = bootStrapActionList.get(3);
+        Action a4 = bootStrapActionList.get(4);
+        Action a5 = bootStrapActionList.get(5);
+        assertEquals(ActionType.PROVISION_BY_SUPPLY, a0.getType());
+        ProvisionBySupply prov = (ProvisionBySupply) a0;
+        assertEquals(TestUtils.ST_AMT, prov.getReason());
+        assertEquals(pm1, prov.getModelSeller());
+        assertEquals(ActionType.RESIZE, a1.getType());
+        Resize r1 = (Resize) a1;
+        assertEquals(TestUtils.ST_AMT, r1.getResizedCommoditySpec());
+        assertEquals(st1, r1.getSellingTrader());
+        assertEquals(ActionType.RESIZE, a2.getType());
+        Resize r2 = (Resize) a2;
+        assertEquals(TestUtils.ST_PROV, r2.getResizedCommoditySpec());
+        assertEquals(st1, r2.getSellingTrader());
+        assertEquals(ActionType.PROVISION_BY_SUPPLY, a3.getType());
+        ProvisionBySupply prov3 = (ProvisionBySupply) a3;
+        assertEquals(TestUtils.ST_AMT, prov.getReason());
+        assertEquals(pm1, prov3.getModelSeller());
+        assertEquals(ActionType.RESIZE, a4.getType());
+        Resize r4 = (Resize) a4;
+        assertEquals(TestUtils.ST_AMT, r4.getResizedCommoditySpec());
+        assertEquals(st1, r4.getSellingTrader());
+        assertEquals(ActionType.RESIZE, a5.getType());
+        Resize r5 = (Resize) a5;
+        assertEquals(TestUtils.ST_PROV, r5.getResizedCommoditySpec());
+        assertEquals(st1, r5.getSellingTrader());
+
+        List<Action> collapsedActions = ActionCollapse.collapsed(bootStrapActionList);
+        assertTrue(collapsedActions.size() == 4);
+    }
+
+    /**
      * Case: Non Shop together : Pm1 connected to St1. Vm1 placed on pm1 and st1.
      * Vm2 not placed anywhere.
      * Expected result: Provision a new PM by demand
@@ -449,6 +675,230 @@ public class BootstrapSupplyTest {
         Move expectedMove2 = new Move(economy, sl2, pm1, provisionBySupply.getProvisionedSeller());
         Move move = (Move)bootStrapActionList.get(1);
         assertTrue(move.equals(expectedMove1) || move.equals(expectedMove2));
+    }
+
+    /**
+     * Case: Shop together ResizeThroughSupplier Host Congestion: st1 buys from pm1. Vm1 and Vm2 are
+     * placed on pm1 and st1.
+     * Expected result: Resize Storage Amount and St Provision on St1 when Provisioning clone of Pm1
+     * due to Host congestion.
+     */
+    @Test
+    public void test_ShopTogetherBootstrap_ResizeThroughSupplier_HostCongestion() {
+        Economy economy = new Economy();
+        Trader pm1 = TestUtils.createTrader(economy, PM_TYPE, Arrays.asList(0l),
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM, TestUtils.ST_AMT, TestUtils.ST_PROV),
+                        new double[]{100, 100, 300, 600}, true, false);
+        pm1.setDebugInfoNeverUseInCode("PM1");
+        Trader st1 = TestUtils.createTrader(economy, ST_TYPE, Arrays.asList(0l),
+                        Arrays.asList(TestUtils.ST_AMT, TestUtils.ST_PROV, TestUtils.IOPS,
+                                        TestUtils.ST_LATENCY),
+                        new double[]{500, 1000, 5000, 5000}, false, true);
+        ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
+                        .indexOf(TestUtils.ST_AMT))).setPriceFunction(PriceFunction.Cache
+                                        .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
+        ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
+                        .indexOf(TestUtils.ST_PROV))).setPriceFunction(PriceFunction.Cache
+                                        .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
+        st1.getSettings().setResizeThroughSupplier(true);
+        st1.setDebugInfoNeverUseInCode("DS1");
+        ShoppingList stSl = economy.addBasketBought(st1, new Basket(TestUtils.ST_AMT, TestUtils.ST_PROV));
+        stSl.move(pm1);
+        //Place vm1 on pm1 and st1.
+        Trader vm1 = TestUtils.createVM(economy);
+        ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{60, 0}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.ST_AMT,
+                        TestUtils.ST_PROV, TestUtils.IOPS,TestUtils.ST_LATENCY),
+                        vm1, new double[]{50, 100, 100, 100}, st1);
+        vm1.setDebugInfoNeverUseInCode("VM1");
+        //Place vm2 on pm1 and st1.
+        Trader vm2 = TestUtils.createVM(economy);
+        ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{60, 0}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.ST_AMT,
+                        TestUtils.ST_PROV, TestUtils.IOPS,TestUtils.ST_LATENCY),
+                        vm2, new double[]{50, 100, 100, 100}, st1);
+        vm2.setDebugInfoNeverUseInCode("VM2");
+        economy.populateMarketsWithSellers();
+        economy.getModifiableShopTogetherTraders().add(vm1);
+        economy.getModifiableShopTogetherTraders().add(vm2);
+
+        List<Action> bootStrapActionList = BootstrapSupply.shopTogetherBootstrap(economy);
+        assertTrue(bootStrapActionList.size() == 4);
+        Action a0 = bootStrapActionList.get(0);
+        Action a1 = bootStrapActionList.get(1);
+        Action a2 = bootStrapActionList.get(2);
+        assertEquals(ActionType.PROVISION_BY_SUPPLY, a0.getType());
+        ProvisionBySupply prov = (ProvisionBySupply) a0;
+        assertEquals(TestUtils.CPU, prov.getReason());
+        assertEquals(pm1, prov.getModelSeller());
+        assertEquals(ActionType.RESIZE, a1.getType());
+        Resize r1 = (Resize) a1;
+        assertEquals(TestUtils.ST_AMT, r1.getResizedCommoditySpec());
+        assertEquals(st1, r1.getSellingTrader());
+        assertEquals(ActionType.RESIZE, a2.getType());
+        Resize r2 = (Resize) a2;
+        assertEquals(TestUtils.ST_PROV, r2.getResizedCommoditySpec());
+        assertEquals(st1, r2.getSellingTrader());
+
+        Action compoundMove = bootStrapActionList.get(3);
+        Move expectedMove1 = new Move(economy, sl1, pm1, prov.getProvisionedSeller());
+        Move expectedMove2 = new Move(economy, sl2, pm1, prov.getProvisionedSeller());
+        List<Move> moves = ((CompoundMove)compoundMove).getConstituentMoves();
+        assertEquals(moves.size(), 1);
+        assertTrue(moves.get(0).equals(expectedMove1) || moves.get(0).equals(expectedMove2));
+    }
+
+    /**
+     * Case: Shop together ResizeThroughSupplier Storage Congestion: st1 buys from pm1. Vm1 and Vm2
+     * are placed on pm1 and st1.
+     * Expected result: Resize Storage Amount and St Provision on St1 when Provisioning clone of Pm1
+     * due to Storage congestion.
+     */
+    @Test
+    public void test_ShopTogetherBootstrap_ResizeThroughSupplier_StorageCongestion() {
+        Economy economy = new Economy();
+        Trader pm1 = TestUtils.createTrader(economy, PM_TYPE, Arrays.asList(0l),
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM, TestUtils.ST_AMT, TestUtils.ST_PROV),
+                        new double[]{5000, 5000, 1000, 2000}, true, false);
+        pm1.setDebugInfoNeverUseInCode("PM1");
+        Trader st1 = TestUtils.createTrader(economy, ST_TYPE, Arrays.asList(0l),
+                        Arrays.asList(TestUtils.ST_AMT, TestUtils.ST_PROV, TestUtils.IOPS,
+                                        TestUtils.ST_LATENCY),
+                        new double[]{500, 5000, 5000, 5000}, false, true);
+        ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
+                        .indexOf(TestUtils.ST_AMT))).setPriceFunction(PriceFunction.Cache
+                                        .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
+        ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
+                        .indexOf(TestUtils.ST_PROV))).setPriceFunction(PriceFunction.Cache
+                                        .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
+        st1.getSettings().setResizeThroughSupplier(true);
+        st1.setDebugInfoNeverUseInCode("DS1");
+        ShoppingList stSl = economy.addBasketBought(st1, new Basket(TestUtils.ST_AMT, TestUtils.ST_PROV));
+        stSl.move(pm1);
+        //Place vm1 on pm1 and st1.
+        Trader vm1 = TestUtils.createVM(economy);
+        TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{60, 0}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.ST_AMT,
+                        TestUtils.ST_PROV, TestUtils.IOPS,TestUtils.ST_LATENCY),
+                        vm1, new double[]{350, 700, 100, 100}, st1);
+        vm1.setDebugInfoNeverUseInCode("VM1");
+        //Place vm2 on pm1 and st1.
+        Trader vm2 = TestUtils.createVM(economy);
+        TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{60, 0}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.ST_AMT,
+                        TestUtils.ST_PROV, TestUtils.IOPS,TestUtils.ST_LATENCY),
+                        vm2, new double[]{350, 700, 100, 100}, st1);
+        vm2.setDebugInfoNeverUseInCode("VM2");
+        economy.populateMarketsWithSellers();
+        economy.getModifiableShopTogetherTraders().add(vm1);
+        economy.getModifiableShopTogetherTraders().add(vm2);
+
+        List<Action> bootStrapActionList = BootstrapSupply.shopTogetherBootstrap(economy);
+        assertTrue(bootStrapActionList.size() == 3);
+        Action a0 = bootStrapActionList.get(0);
+        Action a1 = bootStrapActionList.get(1);
+        Action a2 = bootStrapActionList.get(2);
+        assertEquals(ActionType.PROVISION_BY_SUPPLY, a0.getType());
+        ProvisionBySupply prov = (ProvisionBySupply) a0;
+        assertEquals(TestUtils.ST_AMT, prov.getReason());
+        assertEquals(pm1, prov.getModelSeller());
+        assertEquals(ActionType.RESIZE, a1.getType());
+        Resize r1 = (Resize) a1;
+        assertEquals(TestUtils.ST_AMT, r1.getResizedCommoditySpec());
+        assertEquals(st1, r1.getSellingTrader());
+        assertEquals(ActionType.RESIZE, a2.getType());
+        Resize r2 = (Resize) a2;
+        assertEquals(TestUtils.ST_PROV, r2.getResizedCommoditySpec());
+        assertEquals(st1, r2.getSellingTrader());
+    }
+
+    /**
+     * Case: Shop together ResizeThroughSupplier Storage Congestion MultiProvision and Resize
+     * Collapse: st1 buys from pm1. Vm1 and Vm2 are placed on pm1 and st1.
+     * Expected result: Resize Storage Amount and St Provision on St1 when Provisioning clone of Pm1
+     * due to Storage congestion. Multiple Provisions should occur for a bigger resize and the
+     * resizes should collapse.
+     */
+    @Test
+    public void test_ShopTogetherBootstrap_ResizeThroughSupplier_StorageCongestion_MultiProvision() {
+        Economy economy = new Economy();
+        Trader pm1 = TestUtils.createTrader(economy, PM_TYPE, Arrays.asList(0l),
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM, TestUtils.ST_AMT, TestUtils.ST_PROV),
+                        new double[]{5000, 5000, 200, 200}, true, false);
+        pm1.setDebugInfoNeverUseInCode("PM1");
+        Trader st1 = TestUtils.createTrader(economy, ST_TYPE, Arrays.asList(0l),
+                        Arrays.asList(TestUtils.ST_AMT, TestUtils.ST_PROV, TestUtils.IOPS,
+                                        TestUtils.ST_LATENCY),
+                        new double[]{400, 5000, 5000, 5000}, false, true);
+        ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
+                        .indexOf(TestUtils.ST_AMT))).setPriceFunction(PriceFunction.Cache
+                                        .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
+        ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
+                        .indexOf(TestUtils.ST_PROV))).setPriceFunction(PriceFunction.Cache
+                                        .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
+        st1.getSettings().setResizeThroughSupplier(true);
+        st1.setDebugInfoNeverUseInCode("DS1");
+        ShoppingList stSl = economy.addBasketBought(st1, new Basket(TestUtils.ST_AMT, TestUtils.ST_PROV));
+        stSl.move(pm1);
+        //Place vm1 on pm1 and st1.
+        Trader vm1 = TestUtils.createVM(economy);
+        TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{60, 0}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.ST_AMT,
+                        TestUtils.ST_PROV, TestUtils.IOPS,TestUtils.ST_LATENCY),
+                        vm1, new double[]{350, 700, 100, 100}, st1);
+        vm1.setDebugInfoNeverUseInCode("VM1");
+        //Place vm2 on pm1 and st1.
+        Trader vm2 = TestUtils.createVM(economy);
+        TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{60, 0}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.ST_AMT,
+                        TestUtils.ST_PROV, TestUtils.IOPS,TestUtils.ST_LATENCY),
+                        vm2, new double[]{350, 700, 100, 100}, st1);
+        vm2.setDebugInfoNeverUseInCode("VM2");
+        economy.populateMarketsWithSellers();
+        economy.getModifiableShopTogetherTraders().add(vm1);
+        economy.getModifiableShopTogetherTraders().add(vm2);
+
+        List<Action> bootStrapActionList = BootstrapSupply.shopTogetherBootstrap(economy);
+        assertTrue(bootStrapActionList.size() == 6);
+        Action a0 = bootStrapActionList.get(0);
+        Action a1 = bootStrapActionList.get(1);
+        Action a2 = bootStrapActionList.get(2);
+        Action a3 = bootStrapActionList.get(3);
+        Action a4 = bootStrapActionList.get(4);
+        Action a5 = bootStrapActionList.get(5);
+        assertEquals(ActionType.PROVISION_BY_SUPPLY, a0.getType());
+        ProvisionBySupply prov = (ProvisionBySupply) a0;
+        assertEquals(TestUtils.ST_AMT, prov.getReason());
+        assertEquals(pm1, prov.getModelSeller());
+        assertEquals(ActionType.RESIZE, a1.getType());
+        Resize r1 = (Resize) a1;
+        assertEquals(TestUtils.ST_AMT, r1.getResizedCommoditySpec());
+        assertEquals(st1, r1.getSellingTrader());
+        assertEquals(ActionType.RESIZE, a2.getType());
+        Resize r2 = (Resize) a2;
+        assertEquals(TestUtils.ST_PROV, r2.getResizedCommoditySpec());
+        assertEquals(st1, r2.getSellingTrader());
+        assertEquals(ActionType.PROVISION_BY_SUPPLY, a3.getType());
+        ProvisionBySupply prov3 = (ProvisionBySupply) a3;
+        assertEquals(TestUtils.ST_AMT, prov.getReason());
+        assertEquals(pm1, prov3.getModelSeller());
+        assertEquals(ActionType.RESIZE, a4.getType());
+        Resize r4 = (Resize) a4;
+        assertEquals(TestUtils.ST_AMT, r4.getResizedCommoditySpec());
+        assertEquals(st1, r4.getSellingTrader());
+        assertEquals(ActionType.RESIZE, a5.getType());
+        Resize r5 = (Resize) a5;
+        assertEquals(TestUtils.ST_PROV, r5.getResizedCommoditySpec());
+        assertEquals(st1, r5.getSellingTrader());
+
+        List<Action> collapsedActions = ActionCollapse.collapsed(bootStrapActionList);
+        assertTrue(collapsedActions.size() == 4);
     }
 
     /**

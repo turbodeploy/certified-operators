@@ -7,7 +7,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
@@ -23,6 +26,9 @@ import com.vmturbo.platform.analysis.ede.BootstrapSupply;
  * Comprises a number of static utility methods used by many {@link Action} implementations.
  */
 public final class Utility {
+
+    static final Logger logger = LogManager.getLogger(Utility.class);
+
     // Methods
 
     /**
@@ -188,6 +194,11 @@ public final class Utility {
                 resizeAction.take();
                 resizeAction.enableExtractAction();
                 resizeList.add(resizeAction);
+            } else {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("ResizeThroughSupplier Trader SL {} Commodity {} is not resizable",
+                        buyerSL.getDebugInfoNeverUseInCode(), buyerCS.getDebugInfoNeverUseInCode());
+                }
             }
         });
         return resizeList;
@@ -246,6 +257,15 @@ public final class Utility {
      */
     public static List<Trader> provisionSufficientSupplyForResize(Economy economy, Trader seller,
                     List<CommoditySpecification> csList, ShoppingList sl, List<Action> allActions) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("---Provision Sufficient Supply---"
+                + "\nSeller: {}" + "\nShoppingList: {}" + "\nShoppingListProvider: {}"
+                    + "\nInfiniteCommSpecsList: {}",
+                seller.getDebugInfoNeverUseInCode(), sl.getDebugInfoNeverUseInCode(),
+                    sl.getSupplier() != null ? sl.getSupplier().getDebugInfoNeverUseInCode() : null,
+                        csList.stream().map(CommoditySpecification::getDebugInfoNeverUseInCode)
+                            .collect(Collectors.toList()).toString());
+        }
         boolean sellerIsSupplier = sl.getSupplier() == seller;
         int mostNeededSellers = 0;
         CommoditySpecification commSpec = null;
@@ -262,6 +282,10 @@ public final class Utility {
         }
         if (provisionableProvider == null) {
             return provisionedSupply;
+        }
+        if (logger.isDebugEnabled()) {
+            logger.debug("ProvisionableProvider: {}", provisionableProvider
+                            .getDebugInfoNeverUseInCode());
         }
         // Go through the commodities that need to be resized and find the one that needs the most
         // provisions and the count of how many provisions are needed so we generate enough supply
@@ -284,6 +308,17 @@ public final class Utility {
                                     - commSold.getEffectiveCapacity())
                                         / (provisionableProvider.getCommoditySold(cs).getCapacity()
                                             * commSold.getSettings().getUtilizationUpperBound())));
+            if (logger.isDebugEnabled()) {
+                logger.debug("CommoditySpecification: {}" + "\nNeededClones: {}"
+                    + "\nCommSold Quantity: {}" + "\nSellerIsSupplier: {}"
+                    + "\nSL Quantity Bought: {}" + "\nCommSold EffectiveCapacity: {}"
+                    + "\nProvisionableProvider Capacity: {}" + "\nCommSold UtilizationUpperBound: {}",
+                    cs.getDebugInfoNeverUseInCode(), neededClones, commSold.getQuantity(),
+                    sellerIsSupplier, sl.getQuantities()[sl.getBasket().indexOf(cs)],
+                    commSold.getEffectiveCapacity(),
+                    provisionableProvider.getCommoditySold(cs).getCapacity(),
+                    commSold.getSettings().getUtilizationUpperBound());
+            }
             if (neededClones > mostNeededSellers) {
                 mostNeededSellers = neededClones;
                 commSpec = cs;
