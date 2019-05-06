@@ -3,9 +3,15 @@ package com.vmturbo.topology.processor.ncm;
 /**
  * The {@link FlowsCommonUtils} contains common data structures and methods.
  */
-public class FlowsCommonUtils {
+class FlowsCommonUtils {
+    /**
+     * The flow key prefix.
+     */
+    static final String KEY_PREFIX = "FLOW-";
+
     /**
      * The flow keys.
      */
-    public static final String[] FLOW_KEYS = new String[]{"FLOW-0", "FLOW-1", "FLOW-2", "FLOW-3"};
+    static final String[] FLOW_KEYS = new String[]{KEY_PREFIX + "0", KEY_PREFIX + "1",
+                                                   KEY_PREFIX + "2", KEY_PREFIX + "3"};
 }
