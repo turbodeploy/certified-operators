@@ -524,11 +524,12 @@ public class EntitiesService implements IEntitiesService {
                             .flatMap(supplyChainEntryDTO -> supplyChainEntryDTO.getInstances().values().stream())
                             .collect(Collectors.toMap(apiDTO -> Long.valueOf(apiDTO.getUuid()), Function.identity()));
 
-            // Remove PM(Host) entity type from the result.
+            // Remove PM(Host) entity type from the result if the entity being searched for is not PM.
             result = serviceEntityMap.values()
                     .stream()
                     .filter(serviceEntityApiDTO ->
-                            !UIEntityType.PHYSICAL_MACHINE.getValue().equals(serviceEntityApiDTO.getClassName()))
+                            !UIEntityType.PHYSICAL_MACHINE.getValue().equals(serviceEntityApiDTO.getClassName())
+                                    || entityApiDTO.get().getClassName().equals(UIEntityType.PHYSICAL_MACHINE.getValue()))
                     .collect(Collectors.toList());
 
             // Find the oid of the Host the entity is connected to.

@@ -1,58 +1,37 @@
-{
-  "origin": {
-    "id": "72366309476093",
-    "entityType": "VirtualDataCenter"
+[
+  {
+    "entityType": "VirtualDataCenter",
+    "state": "ACTIVE",
+    "oid": "72366309476093",
+    "consumer": "",
+    "provider": ""
   },
-  "edgeCollection": [
-    {
-      "entityType": "",
-      "edges": [
-        {
-          "provider": {
-            "id": "72366309476093",
-            "entityType": "VirtualDataCenter"
-          },
-          "consumer": {
-            "id": "72366309476130",
-            "entityType": "VirtualMachine"
-          }
-        },
-        {
-          "provider": {
-            "id": "72366309476093",
-            "entityType": "VirtualDataCenter"
-          },
-          "consumer": {
-            "id": "72366309476131",
-            "entityType": "VirtualMachine"
-          }
-        }
-      ]
-    },
-    {
-      "entityType": "",
-      "edges": [
-        {
-          "provider": {
-            "id": "72366309476130",
-            "entityType": "VirtualMachine"
-          },
-          "consumer": {
-            "id": "72366309476172",
-            "entityType": "Application"
-          }
-        },
-        {
-          "provider": {
-            "id": "72366309476131",
-            "entityType": "VirtualMachine"
-          },
-          "consumer": {
-            "id": "72366309476173",
-            "entityType": "Application"
-          }
-        }
-      ]
-    }
-  ]
-}
+  {
+    "entityType": "VirtualMachine",
+    "state": "ACTIVE",
+    "oid": "72366309476130",
+    "consumer": "",
+    "provider": "72366309476093"
+  },
+  {
+    "entityType": "VirtualMachine",
+    "state": "ACTIVE",
+    "oid": "72366309476131",
+    "consumer": "",
+    "provider": "72366309476093"
+  },
+  {
+    "entityType": "Application",
+    "state": "ACTIVE",
+    "oid": "72366309476172",
+    "consumer": "",
+    "provider": "72366309476130"
+  },
+  {
+    "entityType": "Application",
+    "state": "ACTIVE",
+    "oid": "72366309476173",
+    "consumer": "",
+    "provider": "72366309476131"
+  }
+]

@@ -100,7 +100,8 @@ public class SearchHandler {
      */
     public Map<String, TagValuesDTO> searchTags(String dbName, SearchTagsRequest request)
             throws ArangoDBException {
-        return executor.executeTagCommand(dbName, request);
+        return executor.executeTagCommand(dbName, graphDefinition.getServiceEntityVertex(),
+                request);
     }
 
     /**
