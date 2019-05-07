@@ -190,7 +190,7 @@ public final class Utility {
                     buyerCommoditySold,
                     resizeThroughSupplierTrader.getBasketSold().indexOf(buyerCS),
                     buyerCommoditySold.getCapacity()
-                        + seller.getCommoditySold(buyerCS).getCapacity());
+                        + seller.getCommoditySold(buyerCS).getEffectiveCapacity());
                 resizeAction.take();
                 resizeAction.enableExtractAction();
                 resizeList.add(resizeAction);
@@ -306,18 +306,16 @@ public final class Utility {
             int neededClones = (int) Math.ceil(((commSold.getQuantity()
                                 + (sellerIsSupplier ? 0 : sl.getQuantities()[sl.getBasket().indexOf(cs)])
                                     - commSold.getEffectiveCapacity())
-                                        / (provisionableProvider.getCommoditySold(cs).getCapacity()
-                                            * commSold.getSettings().getUtilizationUpperBound())));
+                        / provisionableProvider.getCommoditySold(cs).getEffectiveCapacity()));
             if (logger.isDebugEnabled()) {
                 logger.debug("CommoditySpecification: {}" + "\nNeededClones: {}"
                     + "\nCommSold Quantity: {}" + "\nSellerIsSupplier: {}"
                     + "\nSL Quantity Bought: {}" + "\nCommSold EffectiveCapacity: {}"
-                    + "\nProvisionableProvider Capacity: {}" + "\nCommSold UtilizationUpperBound: {}",
+                    + "\nProvisionableProvider EffectiveCapacity: {}",
                     cs.getDebugInfoNeverUseInCode(), neededClones, commSold.getQuantity(),
                     sellerIsSupplier, sl.getQuantities()[sl.getBasket().indexOf(cs)],
                     commSold.getEffectiveCapacity(),
-                    provisionableProvider.getCommoditySold(cs).getCapacity(),
-                    commSold.getSettings().getUtilizationUpperBound());
+                    provisionableProvider.getCommoditySold(cs).getEffectiveCapacity());
             }
             if (neededClones > mostNeededSellers) {
                 mostNeededSellers = neededClones;
