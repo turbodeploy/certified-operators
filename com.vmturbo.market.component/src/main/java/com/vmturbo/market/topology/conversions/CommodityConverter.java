@@ -137,21 +137,15 @@ public class CommodityConverter {
                 conversionErrorCounts.recordError(ErrorCategory.USED_GT_CAPACITY_MEDIATION,
                     sdkCommType == null ? "UNKNOWN" : sdkCommType.name());
                 logger.trace("Used > Capacity for {}. Used : {}, Capacity : {}, Capped used : {}." +
-                    " This is a mediation error and should be looked at.", sdkCommType.name(),
+                    " This is a mediation error and should be looked at.", commodityType,
                     used, capacity, cappedUsed);
-                used = cappedUsed;
-            } else if (AnalysisUtil.VALID_COMMODITIES_TO_CAP.contains(type)) {
-                float cappedUsed = capacity * TopologyConversionConstants.CAPACITY_FACTOR;
-                logger.trace("Used > Capacity for {}. Used : {}, Capacity : {}, Capped used : {}." +
-                        "Capping the used to be less than capacity",
-                        sdkCommType.name(), used, capacity, cappedUsed);
                 used = cappedUsed;
             } else if (!(AnalysisUtil.COMMODITIES_TO_SKIP.contains(type) ||
                     AnalysisUtil.ACCESS_COMMODITY_TYPES.contains(type))) {
                 conversionErrorCounts.recordError(ErrorCategory.USED_GT_CAPACITY, sdkCommType == null ?
                     "UNKNOWN" : sdkCommType.name());
                 logger.trace("Used > Capacity for {}. Used : {} and Capacity : {}",
-                        sdkCommType.name(), used, capacity);
+                    commodityType, used, capacity);
             }
         }
         final CommodityDTOs.CommoditySoldSettingsTO economyCommSoldSettings =
