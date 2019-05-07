@@ -58,6 +58,8 @@ spec:
         volumeMounts:
         - mountPath: /tmp
           name: mediation-awsbilling-tmpfs0
+        - mountPath: /home/turbonomic/data
+          name: mediation-awsbilling-data
 {{- if .Values.global }}
   {{- if and .Values.global.registry .Values.global.imageUsername .Values.global.imagePassword }}
       imagePullSecrets:
@@ -67,6 +69,8 @@ spec:
       restartPolicy: Always
       volumes:
       - name: mediation-awsbilling-tmpfs0
+        emptyDir: {}
+      - name: mediation-awsbilling-data
         emptyDir: {}
 ---
 apiVersion: v1
