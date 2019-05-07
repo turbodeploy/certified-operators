@@ -46,15 +46,12 @@ import com.vmturbo.common.protobuf.cost.Pricing.UploadPriceTablesResponse;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceStub;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO;
-import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceByOsEntry;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.OnDemandPriceTableByRegionEntry;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.ReservedInstancePriceEntry;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.ReservedInstancePriceTableByRegionEntry;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.proactivesupport.DataMetricGauge;
-import com.vmturbo.proactivesupport.DataMetricHistogram;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -337,8 +334,8 @@ public class PriceTableUploader {
                     missingTiers
             );
 
-            // TODO: Get IP Prices too
-
+            // add the ip prices
+            onDemandPricesBuilder.setIpPrices(onDemandPriceTableForRegion.getIpPrices());
             // add the on demand prices
             priceTableBuilder.putOnDemandPriceByRegionId(regionOid, onDemandPricesBuilder.build());
         }

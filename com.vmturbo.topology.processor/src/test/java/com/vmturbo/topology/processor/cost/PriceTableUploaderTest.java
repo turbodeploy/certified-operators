@@ -28,6 +28,8 @@ import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList.DatabaseTierConfigPrice;
+import com.vmturbo.platform.sdk.common.PricingDTO.IpPriceList;
+import com.vmturbo.platform.sdk.common.PricingDTO.IpPriceList.IpConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceByOsEntry;
 import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceByOsEntry.LicensePrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
@@ -47,6 +49,9 @@ public class PriceTableUploaderTest {
 
     private static final double RHEL_LICENSE_PRICE = 5.1;
     private static final double DELTA = 1e-10;
+    private static final String REGION_ONE = "region-1";
+    private static final Long INDEX_ONE = 1L;
+    private static final double IP_RPICE_AMOUNT = 0.5;
 
     // test GRPC server
     private final TestPriceService priceServiceSpy = spy(new TestPriceService());
@@ -66,7 +71,7 @@ public class PriceTableUploaderTest {
     @Before
     public void setup() {
         cloudOidByLocalId = new HashMap<>();
-        cloudOidByLocalId.put("region-1", 1L);
+        cloudOidByLocalId.put(REGION_ONE, 1L);
         cloudOidByLocalId.put("compute-tier-1", 10L);
         cloudOidByLocalId.put("db-tier-1", 20L);
         cloudOidByLocalId.put("aws::ST::STORAGE-TIER-1", 30L);
@@ -78,8 +83,8 @@ public class PriceTableUploaderTest {
         PricingDTO.PriceTable sourcePriceTable = PricingDTO.PriceTable.newBuilder()
                 .addOnDemandPriceTable(OnDemandPriceTableByRegionEntry.newBuilder()
                     .setRelatedRegion(EntityDTO.newBuilder()
-                            .setId("region-1")
-                            .setDisplayName("region-1")
+                            .setId(REGION_ONE)
+                            .setDisplayName(REGION_ONE)
                             .setEntityType(EntityType.REGION))
                     .addComputePriceTable(ComputePriceTableByTierEntry.newBuilder()
                             .setRelatedComputeTier(EntityDTO.newBuilder()
@@ -100,8 +105,8 @@ public class PriceTableUploaderTest {
         // check the results.
         Assert.assertEquals(1, priceTable.getOnDemandPriceByRegionIdCount());
         // should have an entry for region 1
-        Assert.assertTrue(priceTable.getOnDemandPriceByRegionIdMap().containsKey(1L));
-        OnDemandPriceTable onDemandTable = priceTable.getOnDemandPriceByRegionIdMap().get(1L);
+        Assert.assertTrue(priceTable.getOnDemandPriceByRegionIdMap().containsKey(INDEX_ONE));
+        OnDemandPriceTable onDemandTable = priceTable.getOnDemandPriceByRegionIdMap().get(INDEX_ONE);
         Assert.assertTrue(onDemandTable.containsComputePricesByTierId(10L));
         ComputeTierPriceList computeTierPriceList = onDemandTable.getComputePricesByTierIdMap().get(10L);
         Assert.assertEquals(OSType.RHEL, computeTierPriceList.getBasePrice().getGuestOsType());
@@ -114,8 +119,8 @@ public class PriceTableUploaderTest {
         PricingDTO.PriceTable sourcePriceTable = PricingDTO.PriceTable.newBuilder()
                 .addOnDemandPriceTable(OnDemandPriceTableByRegionEntry.newBuilder()
                         .setRelatedRegion(EntityDTO.newBuilder()
-                                .setId("region-1")
-                                .setDisplayName("region-1")
+                                .setId(REGION_ONE)
+                                .setDisplayName(REGION_ONE)
                                 .setEntityType(EntityType.REGION))
                         .addDatabasePriceTable(DatabasePriceTableByTierEntry.newBuilder()
                                 .setRelatedDatabaseTier(EntityDTO.newBuilder()
@@ -138,8 +143,8 @@ public class PriceTableUploaderTest {
         // check the results.
         Assert.assertEquals(1, priceTable.getOnDemandPriceByRegionIdCount());
         // should have an entry for region 1
-        Assert.assertTrue(priceTable.getOnDemandPriceByRegionIdMap().containsKey(1L));
-        OnDemandPriceTable onDemandTable = priceTable.getOnDemandPriceByRegionIdMap().get(1L);
+        Assert.assertTrue(priceTable.getOnDemandPriceByRegionIdMap().containsKey(INDEX_ONE));
+        OnDemandPriceTable onDemandTable = priceTable.getOnDemandPriceByRegionIdMap().get(INDEX_ONE);
         Assert.assertTrue(onDemandTable.containsDbPricesByInstanceId(20L));
         DatabaseTierPriceList dbPriceList = onDemandTable.getDbPricesByInstanceIdMap().get(20L);
         Assert.assertEquals(DatabaseEdition.ORACLE_ENTERPRISE, dbPriceList.getBasePrice().getDbEdition());
@@ -152,8 +157,8 @@ public class PriceTableUploaderTest {
         PricingDTO.PriceTable sourcePriceTable = PricingDTO.PriceTable.newBuilder()
                 .addOnDemandPriceTable(OnDemandPriceTableByRegionEntry.newBuilder()
                         .setRelatedRegion(EntityDTO.newBuilder()
-                                .setId("region-1")
-                                .setDisplayName("region-1")
+                                .setId(REGION_ONE)
+                                .setDisplayName(REGION_ONE)
                                 .setEntityType(EntityType.REGION))
                         .addStoragePriceTable(StoragePriceTableByTierEntry.newBuilder()
                                 .setRelatedStorageTier(EntityDTO.newBuilder()
@@ -172,8 +177,8 @@ public class PriceTableUploaderTest {
         // check the results.
         Assert.assertEquals(1, priceTable.getOnDemandPriceByRegionIdCount());
         // should have an entry for region 1
-        Assert.assertTrue(priceTable.getOnDemandPriceByRegionIdMap().containsKey(1L));
-        OnDemandPriceTable onDemandTable = priceTable.getOnDemandPriceByRegionIdMap().get(1L);
+        Assert.assertTrue(priceTable.getOnDemandPriceByRegionIdMap().containsKey(INDEX_ONE));
+        OnDemandPriceTable onDemandTable = priceTable.getOnDemandPriceByRegionIdMap().get(INDEX_ONE);
         Assert.assertTrue(onDemandTable.containsCloudStoragePricesByTierId(30L));
         StorageTierPriceList storageTierPriceList = onDemandTable.getCloudStoragePricesByTierIdMap().get(30L);
         Assert.assertEquals(10, storageTierPriceList.getCloudStoragePriceList().get(0).getPrices(0).getPriceAmount().getAmount(), 0);
@@ -217,6 +222,31 @@ public class PriceTableUploaderTest {
                         .setPrice(Price.newBuilder()
                                 .setPriceAmount(CurrencyAmount.newBuilder()
                                         .setAmount(amount)))).build();
+    }
+
+    /**
+     * Verify that ip costs are uploaded properly to the Price Table used by cost component.
+     */
+    @Test
+    public void testIpPrices() {
+        PricingDTO.PriceTable sourcePriceTable = PricingDTO.PriceTable.newBuilder()
+            .addOnDemandPriceTable(OnDemandPriceTableByRegionEntry.newBuilder()
+                .setRelatedRegion(EntityDTO.newBuilder()
+                    .setId(REGION_ONE)
+                    .setDisplayName(REGION_ONE)
+                    .setEntityType(EntityType.REGION))
+                .setIpPrices(IpPriceList.newBuilder()
+                    .addIpPrice(IpConfigPrice.newBuilder().addPrices(Price.newBuilder()
+                        .setPriceAmount(CurrencyAmount.newBuilder()
+                            .setAmount(IP_RPICE_AMOUNT))))))
+            .build();
+        priceTableUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC(), 100);
+        PriceTable priceTable = priceTableUploader.priceTableToCostPriceTable(sourcePriceTable,
+            cloudOidByLocalId, SDKProbeType.AZURE_COST);
+        OnDemandPriceTable onDemandPriceTable = priceTable.getOnDemandPriceByRegionIdMap().get(INDEX_ONE);
+        Assert.assertNotNull(onDemandPriceTable);
+        Assert.assertEquals(IP_RPICE_AMOUNT, onDemandPriceTable.getIpPrices().getIpPrice(0)
+            .getPrices(0).getPriceAmount().getAmount(), DELTA);
     }
 
     public static class TestPriceService extends PricingServiceImplBase {
