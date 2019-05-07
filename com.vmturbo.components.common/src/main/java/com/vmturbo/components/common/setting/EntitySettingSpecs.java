@@ -339,7 +339,7 @@ public enum EntitySettingSpecs {
     StorageIncrement("usedIncrement_StAmt", "Increment constant for Storage Amount [GB]",
             Collections.singletonList("resizeRecommendationsConstants"),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            EnumSet.of(EntityType.STORAGE),
             numeric(0.0f/*min*/, 100000.0f/*max*/, 100.0f/*default*/), true),
 
     /**
