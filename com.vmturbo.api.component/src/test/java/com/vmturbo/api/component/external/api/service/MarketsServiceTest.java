@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.service;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -13,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
@@ -23,6 +25,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.mockito.internal.matchers.Any;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -82,8 +85,10 @@ import com.vmturbo.api.serviceinterfaces.IUsersService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.validators.InputDTOValidator;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
@@ -105,9 +110,17 @@ import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.EntityInfoMoles.EntityServiceMole;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -131,6 +144,8 @@ public class MarketsServiceTest {
     private TestConfig testConfig;
     @Autowired
     private WebApplicationContext wac;
+
+    private GrpcTestServer testServer;
 
     private MockMvc mockMvc;
     private static final Gson GSON = new Gson();
@@ -311,6 +326,46 @@ public class MarketsServiceTest {
     }
 
     /**
+     * Test that getting entities by real market Id causes a retrieveTopologyEntities call
+     * to the repository rpc service.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testRetrieveTopologyEntities() throws Exception {
+
+        final MarketsService marketService = testConfig.marketsService();
+
+        ApiTestUtils.mockRealtimeId("Market", REALTIME_PLAN_ID, testConfig.uuidMapper());
+
+        marketService.getEntitiesByMarketUuid("Market");
+
+        Mockito.verify(testConfig.repositoryService()).retrieveTopologyEntities(any());
+
+    }
+
+    /**
+     * Test that getting entities by real market Id causes a retrieveTopologyEntities call
+     * to the repository rpc service.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testRetrieveTopology() throws Exception {
+
+        final MarketsService marketService = testConfig.marketsService();
+
+        final PlanInstance plan1 = PlanInstance.newBuilder(planDefault).setPlanId(1).build();
+        ApiTestUtils.mockPlanId("1", testConfig.uuidMapper());
+        testConfig.planService().addInstance(plan1);
+
+        marketService.getEntitiesByMarketUuid("1");
+
+        Mockito.verify(testConfig.repositoryService()).retrieveTopology(any());
+
+    }
+
+    /**
      * Spring configuration to startup all the beans, necessary for test execution.
      */
     @Configuration
@@ -329,7 +384,8 @@ public class MarketsServiceTest {
                     policyMapper(), marketMapper(), statsMapper(), paginationMapper(),
                     groupRpcService(), repositoryRpcService(), new UserSessionContext(),
                     uiNotificationChannel(), actionStatsQueryExecutor(), topologyProcessor(),
-                    entitySeverityRpcServive(), Mockito.mock(StatsService.class), REALTIME_CONTEXT_ID);
+                    entitySeverityRpcService(), statsHistoryRpcService(),
+                    Mockito.mock(StatsService.class), REALTIME_CONTEXT_ID);
         }
 
         @Bean
@@ -407,10 +463,20 @@ public class MarketsServiceTest {
         }
 
         @Bean
+        public RepositoryServiceMole repositoryService() {
+            return spy(new RepositoryServiceMole());
+        }
+
+        @Bean
+        public EntitySeverityServiceMole entitySeverityService() {
+            return spy(new EntitySeverityServiceMole());
+        }
+
+        @Bean
         public GrpcTestServer grpcTestServer() {
             try {
-                final GrpcTestServer testServer = GrpcTestServer.newServer(planService(),
-                        groupService(), settingServiceMole());
+                final GrpcTestServer testServer = GrpcTestServer.newServer(planService(), entitySeverityService(),
+                        groupService(), settingServiceMole(), repositoryService());
                 testServer.start();
                 return testServer;
             } catch (IOException e) {
@@ -443,12 +509,19 @@ public class MarketsServiceTest {
             return GroupServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
         }
 
+        @Bean
         public RepositoryServiceBlockingStub repositoryRpcService() {
             return RepositoryServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
         }
 
-        public EntitySeverityServiceBlockingStub entitySeverityRpcServive() {
+        @Bean
+        public EntitySeverityServiceBlockingStub entitySeverityRpcService() {
             return EntitySeverityServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
+        }
+
+        @Bean
+        public StatsHistoryServiceBlockingStub statsHistoryRpcService() {
+            return StatsHistoryServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
         }
 
         @Bean

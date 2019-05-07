@@ -297,6 +297,7 @@ public class ServiceConfig {
                 actionStatsQueryExecutor(),
                 communicationConfig.topologyProcessor(),
                 communicationConfig.entitySeverityService(),
+                communicationConfig.historyRpcService(),
                 statsService(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
