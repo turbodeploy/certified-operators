@@ -4,8 +4,6 @@ set -eo pipefail
 
 DEFAULT_ARANGO_CONF=/etc/arangodb3/arangod.conf
 ARANGO_CONF=/var/lib/arangodb3/arangod.conf
-# Disable glibc++ memory pooling. jemalloc already does memory pooling.
-export GLIBCXX_FORCE_NEW=1
 
 # rsyslog
 rm -f /tmp/rsyslog.pid; /usr/sbin/rsyslogd -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
@@ -75,14 +73,6 @@ fi
 if [ ! -f $ARANGO_CONF ]; then
     echo "Copying default arangodb config file from $DEFAULT_ARANGO_CONF to $ARANGO_CONF" | $LOGGER_COMMAND
     cp $DEFAULT_ARANGO_CONF $ARANGO_CONF 2>&1 | $LOGGER_COMMAND
-fi
-
-# enable query cache
-# See https://www.arangodb.com/docs/3.3/aql/execution-and-performance-query-cache.html
-grep -q cache-mode $ARANGO_CONF
-if [ "$?" != 0 ]; then
-    echo "Enabling arangodb query cache" | $LOGGER_COMMAND
-    sed  -i  '$a\\n\[query]\ncache-mode = on\n' $ARANGO_CONF
 fi
 
 exec "$@" > >($LOGGER_COMMAND) 2>&1

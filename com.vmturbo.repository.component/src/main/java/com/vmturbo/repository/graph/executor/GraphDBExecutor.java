@@ -49,7 +49,5 @@ public interface GraphDBExecutor {
 
     @Nonnull
     Map<String, TagValuesDTO> executeTagCommand(
-            @Nonnull String databaseName,
-            @Nonnull String vertexCollection,
-            @Nonnull SearchTagsRequest request) throws ArangoDBException;
+            @Nonnull String databaseName, @Nonnull SearchTagsRequest request) throws ArangoDBException;
 }

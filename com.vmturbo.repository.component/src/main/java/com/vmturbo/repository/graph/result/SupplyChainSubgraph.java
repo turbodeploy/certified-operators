@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -19,7 +18,6 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
@@ -116,14 +114,13 @@ public class SupplyChainSubgraph {
      * for the "consumes" relation.  Each graph specifies an origin entity.  The origin entity on the
      * input graphs must be the same.
      *
-     * @param providersResult The providers leading out from the starting vertex.
-     * @param consumersResult The consumers leading out from the starting vertex.
+     * @param providersResult The edges for providers leading out from the starting vertex.
+     * @param consumersResult The edges for consumers leading out from the starting vertex.
      */
-    public SupplyChainSubgraph(@Nonnull final List<ResultVertex> providersResult,
-                               @Nonnull final List<ResultVertex> consumersResult) {
-        final ResultVertex providerOrigin = providersResult.get(0);
-        Preconditions.checkArgument(providerOrigin.getId().equals(
-                consumersResult.get(0).getId()));
+    public SupplyChainSubgraph(@Nonnull final SubgraphResult providersResult,
+                               @Nonnull final SubgraphResult consumersResult) {
+        final ResultVertex providerOrigin = providersResult.getOrigin();
+        Preconditions.checkArgument(providerOrigin.equals(consumersResult.getOrigin()));
 
         startingVertexId = providerOrigin.getId();
 
@@ -214,61 +211,31 @@ public class SupplyChainSubgraph {
     }
 
     /**
-     * Add neighbors from the {@link List<com.vmturbo.repository.graph.result.SupplyChainSubgraph.ResultVertex>} to
+     * Add neighbors from the {@link com.vmturbo.repository.graph.result.SupplyChainSubgraph.SubgraphResult} to
      * {@link this#graph} by traversing the edges.
      *
      * Add connections in both the provider and consumer directions.
      *
-     * @param vertices The vertices whose edges should be traversed to add neighbors to the graph
+     * @param subgraphResult the result whose edges should be traversed to add neighbors to the graph
      *                       internal to this {@link SupplyChainSubgraph}.
      */
-    private void addNeighbors(@Nonnull final List<ResultVertex> vertices) {
-        Map<String, ResultVertex> resultVertexMap = vertices.stream()
-                        .collect(Collectors.toMap(ResultVertex::getId,
-                                Function.identity(),
-                                // Here we don't care about the provider/consumer relations.
-                                // We are only interested in the id, state and type.
-                                // So we just pick any one if there are duplicates as the
-                                // id, state and type will be the same.
-                                (vertex1, vertex2) -> vertex1));
+    private void addNeighbors(@Nonnull final SubgraphResult subgraphResult) {
+        subgraphResult.getEdgeCollection().stream()
+            .forEach(edgeCollectionResult ->
+                edgeCollectionResult.getEdges().forEach(edge -> {
+                    final ResultVertex resultConsumer = edge.getConsumer();
+                    final ResultVertex resultProvider = edge.getProvider();
 
-        vertices.forEach(resultVertex -> {
-            // Origin vertex doesn't have any provider or consumer for itself.
-            if (Strings.isNullOrEmpty(resultVertex.getProvider()) &&
-                    Strings.isNullOrEmpty(resultVertex.getConsumer())) {
-                return;
-            }
+                    final SupplyChainVertex supplyChainConsumer =
+                        graph.computeIfAbsent(resultConsumer.getId(), id -> new SupplyChainVertex(resultConsumer));
+                    final SupplyChainVertex supplyChainProvider =
+                        graph.computeIfAbsent(resultProvider.getId(), id -> new SupplyChainVertex(resultProvider));
 
-            if (!Strings.isNullOrEmpty(resultVertex.getProvider())) {
-                final ResultVertex resultProvider =
-                        resultVertexMap.get(resultVertex.getProvider());
-                final SupplyChainVertex supplyChainProvider =
-                        graph.computeIfAbsent(resultProvider.getId(),
-                                id -> new SupplyChainVertex(resultProvider));
-                final SupplyChainVertex supplyChainConsumer =
-                        graph.computeIfAbsent(resultVertex.getId(),
-                                id -> new SupplyChainVertex(resultVertex));
-                supplyChainConsumer.providers.add(supplyChainProvider);
-                supplyChainProvider.consumers.add(supplyChainConsumer);
-
-            }
-
-            if (!Strings.isNullOrEmpty(resultVertex.getConsumer())) {
-                final ResultVertex resultConsumer =
-                        resultVertexMap.get(resultVertex.getConsumer());
-                final SupplyChainVertex supplyChainProvider =
-                        graph.computeIfAbsent(resultVertex.getId(),
-                                id -> new SupplyChainVertex(resultVertex));
-                final SupplyChainVertex supplyChainConsumer =
-                        graph.computeIfAbsent(resultConsumer.getId(),
-                                id -> new SupplyChainVertex(resultConsumer));
-                supplyChainConsumer.providers.add(supplyChainProvider);
-                supplyChainProvider.consumers.add(supplyChainConsumer);
-
-            }
-        });
+                    supplyChainConsumer.providers.add(supplyChainProvider);
+                    supplyChainProvider.consumers.add(supplyChainConsumer);
+                })
+            );
     }
-
 
     /**
      * A function that, given a vertex, returns the neighbors for that vertex in a particular direction
@@ -383,6 +350,44 @@ public class SupplyChainSubgraph {
     }
 
     /**
+     * A subgraph starting from an origin retrieved from ArangoDB in response to a supply chain query.
+     *
+     * Contains all the edges reachable from the origin in a single direction (either provider or consumer).
+     */
+    @Immutable
+    public static class SubgraphResult {
+
+        private final ResultVertex origin;
+
+        /**
+         *  All the edges reachable from the origin in a single direction (either provider or consumer)
+         */
+        private final List<EdgeCollectionResult> edgeCollection;
+
+        /**
+         * Default constructor required for initialization via ArangoDB's java driver.
+         */
+        public SubgraphResult() {
+            this(new ResultVertex(), Collections.emptyList());
+        }
+
+        @VisibleForTesting
+        SubgraphResult(@Nonnull final ResultVertex origin,
+                       @Nonnull final List<EdgeCollectionResult> edgeCollection) {
+            this.origin = Objects.requireNonNull(origin);
+            this.edgeCollection = Objects.requireNonNull(edgeCollection);
+        }
+
+        public List<EdgeCollectionResult> getEdgeCollection() {
+            return edgeCollection;
+        }
+
+        public ResultVertex getOrigin() {
+            return origin;
+        }
+    }
+
+    /**
      * A collection of edges reachable from an origin retrieved from ArangoDB in response to a supply chain query.
      */
     @Immutable
@@ -437,6 +442,61 @@ public class SupplyChainSubgraph {
 
         public ResultVertex getConsumer() {
             return consumer;
+        }
+    }
+
+    /**
+     * A vertex value retrieved from ArangoDB in response to a supply chain query.
+     */
+    @Immutable
+    public static class ResultVertex {
+        private final String id;
+
+        private final String entityType;
+
+        private final String state;
+
+        /**
+         * Default constructor required for initialization with ArangoDB's java driver.
+         */
+        public ResultVertex() {
+            this("", "", "");
+        }
+
+        @VisibleForTesting
+        ResultVertex(@Nonnull final String id, @Nonnull final String entityType, @Nonnull final String state) {
+            this.id = Objects.requireNonNull(id);
+            this.entityType = Objects.requireNonNull(entityType);
+            this.state = Objects.requireNonNull(state);
+        }
+
+        public String getId() {
+            return id;
+        }
+
+        public String getEntityType() {
+            return entityType;
+        }
+
+        public String getState() {
+            return state;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(id, entityType, state);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (!(other instanceof ResultVertex)) {
+                return false;
+            }
+
+            ResultVertex v = (ResultVertex)other;
+            return Objects.equals(id, v.id) &&
+                Objects.equals(entityType, v.entityType) &&
+                Objects.equals(state, v.state);
         }
     }
 
@@ -497,92 +557,6 @@ public class SupplyChainSubgraph {
             protoNodeBuilder.addAllConnectedProviderTypes(connectedProviderTypes);
             protoNodeBuilder.addAllConnectedConsumerTypes(connectedConsumerTypes);
             return protoNodeBuilder.build();
-        }
-    }
-
-    /**
-     * A vertex value retrieved from ArangoDB in response to a supply chain query.
-     */
-    @Immutable
-    public static class ResultVertex {
-
-        private final String oid;
-
-        private final String entityType;
-
-        private final String state;
-
-        private final String provider;
-
-        private final String consumer;
-
-        /**
-         * Default constructor required for initialization with ArangoDB's java driver.
-         */
-        public ResultVertex() {
-            this("", "", "", "", "");
-        }
-
-        @VisibleForTesting
-        ResultVertex(@Nonnull final String oid,
-                     @Nonnull final String entityType,
-                     @Nonnull final String state,
-                     @Nonnull final String provider,
-                     @Nonnull final String consumer) {
-            this.oid = Objects.requireNonNull(oid);
-            this.entityType = Objects.requireNonNull(entityType);
-            this.state = Objects.requireNonNull(state);
-            this.provider= Objects.requireNonNull(provider);
-            this.consumer = Objects.requireNonNull(consumer);
-        }
-
-        public String getId() {
-            return oid;
-        }
-
-        public String getEntityType() {
-            return entityType;
-        }
-
-        public String getState() {
-            return state;
-        }
-
-        public String getProvider() {
-            return provider;
-        }
-
-        public String getConsumer() {
-            return consumer;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(oid, entityType, state, provider, consumer);
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (!(other instanceof ResultVertex)) {
-                return false;
-            }
-
-            ResultVertex v = (ResultVertex)other;
-            return Objects.equals(oid, v.oid) &&
-                    Objects.equals(entityType, v.entityType) &&
-                    Objects.equals(state, v.state) &&
-                    Objects.equals(provider, v.provider) &&
-                    Objects.equals(consumer, v.consumer);
-        }
-
-        @Override
-        public String toString() {
-            StringBuffer sb = new StringBuffer();
-            sb.append("oid:").append(oid).append("\n")
-                    .append("entityType:").append(entityType).append("\n")
-                    .append("provider:").append(provider).append("\n")
-                    .append("consumer:").append(consumer).append("\n");
-            return sb.toString();
         }
     }
 }

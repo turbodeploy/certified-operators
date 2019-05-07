@@ -105,13 +105,6 @@ public class RepositoryComponent extends BaseVmtComponent {
     private static final Logger logger = LoggerFactory.getLogger(RepositoryComponent.class);
     private static final String DOCUMENT_KEY_FIELD = "_key";
     private static final String TOPOLOGY_PROTO_FIELD = "topology_proto_field";
-    private static final String GRAPH_NAME = "seGraph";
-    // svc : ServiceEntity vertex collection.
-    // Using abbreviated name to consume less space as the
-    // name is referenced in the edges in the edgeCollection
-    private static final String VERTEX_COLLECTION_NAME = "svc";
-    private static final String EDGE_COLLECTION_NAME = "seProviderEdgeCollection";
-    private static final String TOPOLOGY_PROTO_COLLECTION_NAME = "topology_proto";
 
     @Value("${actionOrchestratorHost}")
     private String actionOrchestratorHost;
@@ -285,10 +278,10 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Bean
     public GraphDefinition graphDefinition() {
         return new GraphDefinition.Builder()
-                .setGraphName(GRAPH_NAME)
-                .setServiceEntityVertex(VERTEX_COLLECTION_NAME)
-                .setProviderRelationship(EDGE_COLLECTION_NAME)
-                .setTopologyProtoCollection(TOPOLOGY_PROTO_COLLECTION_NAME)
+                .setGraphName("seGraph")
+                .setServiceEntityVertex("seVertexCollection")
+                .setProviderRelationship("seProviderEdgeCollection")
+                .setTopologyProtoCollection("topology_proto")
                 .createGraphDefinition();
     }
 

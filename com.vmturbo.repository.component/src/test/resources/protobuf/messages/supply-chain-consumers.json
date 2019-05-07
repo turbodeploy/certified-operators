@@ -1,16 +1,23 @@
-[
-  {
-    "oid": "72240626791587",
-    "state": "ACTIVE",
-    "entityType": "VirtualMachine",
-    "provider": "",
-    "consumer": ""
+{
+  "origin": {
+    "id": "72240626791587",
+    "entityType": "VirtualMachine"
   },
-  {
-    "oid": "72240626791643",
-    "state": "ACTIVE",
-    "entityType": "Application",
-    "provider": "72240626791587",
-    "consumer": ""
-  }
-]
+  "edgeCollection": [
+    {
+      "entityType": "VirtualMachine",
+      "edges": [
+        {
+          "provider": {
+            "entityType": "VirtualMachine",
+            "id": "72240626791587"
+          },
+          "consumer": {
+            "entityType": "Application",
+            "id": "72240626791643"
+          }
+        }
+      ]
+    }
+  ]
+}

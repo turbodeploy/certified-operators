@@ -2,8 +2,10 @@ package com.vmturbo.repository.graph.executor;
 
 import static com.vmturbo.repository.graph.result.ResultsFixture.fill;
 import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.dc;
+import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.emptySubgraphFor;
 import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.host;
 import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.nodeMapFor;
+import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.subgraphFor;
 import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.vm;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.CoreMatchers.is;
@@ -36,7 +38,6 @@ import com.arangodb.ArangoDB;
 import com.arangodb.ArangoDBException;
 import com.arangodb.ArangoDatabase;
 import com.arangodb.model.AqlQueryOptions;
-import com.google.common.collect.ImmutableList;
 
 import javaslang.control.Try;
 
@@ -49,7 +50,7 @@ import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.result.ResultsFixture;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph;
-import com.vmturbo.repository.graph.result.SupplyChainSubgraph.ResultVertex;
+import com.vmturbo.repository.graph.result.SupplyChainSubgraph.SubgraphResult;
 import com.vmturbo.repository.topology.TopologyDatabase;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -89,24 +90,17 @@ public class ArangoDBExecutorTest {
 
     @Test
     public void testExecuteSupplyChainCmdConsumerResults() throws Exception {
-
-        ResultVertex host1a = host("1", "", "2");
-        ResultVertex host1b = host("1", "", "3");
-        ResultVertex host1c = host("1", "", "4");
-        ResultVertex host1d = host("1", "", "5");
-
-        ResultVertex vm1 = vm("2", "1", "");
-        ResultVertex vm2 = vm("3", "1", "");
-        ResultVertex vm3 = vm("4", "1", "");
-        ResultVertex vm4 = vm("5", "1", "");
-
-        List<ResultVertex> vertices =
-                ImmutableList.of(host1a, host1b, host1c, host1d,
-                        vm1, vm2, vm3, vm4);
+        final SubgraphResult consumerResults = subgraphFor(1)
+            .providerEdges(
+                host(1).providesTo(vm(2)),
+                host(1).providesTo(vm(3)),
+                host(1).providesTo(vm(4)),
+                host(1).providesTo(vm(5))
+            ).build();
 
         givenASupplyChainCmd("db","start", "graph", Optional.empty(), "vertex");
         givenArangoDriverWillThrowException();
-        givenSupplyChainSubgraphResults(vertices, vertices);
+        givenSupplyChainSubgraphResults(emptySubgraphFor(host(1)), consumerResults);
         whenExecuteSupplyChainCmd();
         final Map<String, SupplyChainNode> supplyChainNodes = nodeMapFor(supplyChainSubgraph.get());
         assertEquals(1, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(RepoEntityType.PHYSICAL_MACHINE.getValue())));
@@ -126,30 +120,23 @@ public class ArangoDBExecutorTest {
     @Test
     public void testExecuteSupplyChainCmd() throws Exception {
 
-        ResultVertex host1a = host("1", "20", "2");
-        ResultVertex host1b = host("1", "20", "3");
-        ResultVertex host1c = host("1", "20", "4");
-        ResultVertex host1d = host("1", "20", "5");
-        // This edge won't be traversed
-        ResultVertex host2a = host("10", "20", "50");
-
-        ResultVertex vm1 = vm("2", "1", "");
-        ResultVertex vm2 = vm("3", "1", "");
-        ResultVertex vm3 = vm("4", "1", "");
-        ResultVertex vm4 = vm("5", "1", "");
-        // This edge won't be traversed because it is not outward from host 1
-        ResultVertex vm5 = vm("50", "10", "");
-
-        ResultVertex dc1a = dc("20", "", "1");
-        ResultVertex dc1b = dc("20", "", "10");
-
-        List<ResultVertex> vertices =
-                ImmutableList.of(host1a, host1b, host1c, host1d, host2a,
-                        vm1, vm2, vm3, vm4, vm5, dc1a, dc1b);
+        final SubgraphResult consumerResults = subgraphFor(1)
+            .providerEdges(
+                host(1).providesTo(vm(2)),
+                host(1).providesTo(vm(3)),
+                host(1).providesTo(vm(4)),
+                host(1).providesTo(vm(5)),
+                host(10).providesTo(vm(50)) // This edge won't be traversed because it is not outward from host 1
+            ).build();
+        final SubgraphResult providerResults = subgraphFor(1)
+            .consumerEdges(
+                host(1).consumesFrom(dc(20)),
+                host(10).consumesFrom(dc(20)) // This edge won't be traversed either
+            ).build();
 
         givenASupplyChainCmd("db","start", "graph", Optional.empty(), "vertex");
         givenArangoDriverWillThrowException();
-        givenSupplyChainSubgraphResults(vertices, vertices);
+        givenSupplyChainSubgraphResults(providerResults, consumerResults);
         whenExecuteSupplyChainCmd();
         final Map<String, SupplyChainNode> supplyChainNodes = nodeMapFor(supplyChainSubgraph.get());
         final SupplyChainNode pmNode = supplyChainNodes.get(RepoEntityType.PHYSICAL_MACHINE.getValue());
@@ -233,19 +220,19 @@ public class ArangoDBExecutorTest {
     }
 
     @SuppressWarnings("unchecked")
-    private void givenSupplyChainSubgraphResults(final List<ResultVertex> providerResults,
-                                                 final List<ResultVertex> consumerResults) throws Exception {
+    private void givenSupplyChainSubgraphResults(final SubgraphResult providerResults,
+                                                 final SubgraphResult consumerResults) throws Exception {
 
-        final ArangoCursor<ResultVertex> providerCursor = Mockito.mock(ArangoCursor.class);
-        final ArangoCursor<ResultVertex> consumerCursor = Mockito.mock(ArangoCursor.class);
+        final ArangoCursor<SubgraphResult> providerCursor = Mockito.mock(ArangoCursor.class);
+        final ArangoCursor<SubgraphResult> consumerCursor = Mockito.mock(ArangoCursor.class);
 
-        given(providerCursor.asListRemaining()).willReturn(providerResults);
-        given(consumerCursor.asListRemaining()).willReturn(consumerResults);
+        given(providerCursor.asListRemaining()).willReturn(Collections.singletonList(providerResults));
+        given(consumerCursor.asListRemaining()).willReturn(Collections.singletonList(consumerResults));
 
         final ArangoDatabase mockDatabase = Mockito.mock(ArangoDatabase.class);
 
         when(mockDatabase.query(anyString(), anyMap(), any(AqlQueryOptions.class),
-                                          Matchers.<Class<ResultVertex>>any()))
+                                          Matchers.<Class<SubgraphResult>>any()))
                 .thenReturn(providerCursor)
                 .thenReturn(consumerCursor);
 

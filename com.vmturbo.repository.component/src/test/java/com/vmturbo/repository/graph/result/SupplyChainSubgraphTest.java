@@ -4,8 +4,8 @@ import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.da;
 import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.lp;
 import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.nodeMapFor;
 import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.storage;
+import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.subgraphFor;
 import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.vm;
-
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -15,11 +15,9 @@ import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.lang.reflect.Type;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.net.URL;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
@@ -32,30 +30,28 @@ import javax.annotation.Nonnull;
 import org.apache.commons.io.IOUtils;
 import org.junit.Test;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.repository.constant.RepoObjectType.RepoEntityType;
+import com.vmturbo.repository.graph.result.SupplyChainSubgraph.ResultEdge;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph.ResultVertex;
+import com.vmturbo.repository.graph.result.SupplyChainSubgraph.SubgraphResult;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph.SupplyChainNodeBuilder;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph.SupplyChainVertex;
 
 public class SupplyChainSubgraphTest {
-
     @Test
     public void testLoadingStitchedSupplyChain() throws Exception {
-        final List<ResultVertex> consumers = graphResultFromFile("protobuf/messages/supply-chain-consumers.json");
-        final List<ResultVertex> providers = graphResultFromFile("protobuf/messages/supply-chain-providers.json");
+        final SubgraphResult consumers = graphResultFromFile("protobuf/messages/supply-chain-consumers.json");
+        final SubgraphResult providers = graphResultFromFile("protobuf/messages/supply-chain-providers.json");
 
         final SupplyChainSubgraph subgraph =
             new SupplyChainSubgraph(providers, consumers);
-
         final Map<String, SupplyChainNode> supplyChainNodes = subgraph.toSupplyChainNodes().stream()
             .collect(Collectors.toMap(SupplyChainNode::getEntityType, Function.identity()));
 
@@ -91,33 +87,34 @@ public class SupplyChainSubgraphTest {
          *  \ /
          *  444
          */
-        ResultVertex da1 = da("444", "", "22");
-        ResultVertex da2 = da("444", "", "33");
-        ResultVertex storage1 = storage("22", "444", "1");
-        ResultVertex storage2 = storage("33", "444", "1");
-        ResultVertex vm1 = vm("1", "22", "");
-        ResultVertex vm2 = vm("1", "33", "");
+        SubgraphResult providersResult = subgraphFor(1)
+            .providerEdges(
+                vm(1).consumesFrom(storage(22)),
+                vm(1).consumesFrom(storage(33))
+            ).providerEdges(
+                storage(22).consumesFrom(da(444)),
+                storage(33).consumesFrom(da(444))
+            ).build();
 
-        List<ResultVertex> vertices =
-                ImmutableList.of(vm1, vm2, storage1, storage2, da1, da2);
+        final ResultVertex origin = vm(1).vertex;
         final SupplyChainSubgraph subgraph =
-                new SupplyChainSubgraph(vertices, vertices);
+            new SupplyChainSubgraph(providersResult, new SubgraphResult(origin, Collections.emptyList()));
         final Map<String, SupplyChainNode> supplyChainNodes = nodeMapFor(subgraph);
 
         assertEquals(1, RepositoryDTOUtil.getMemberCount(
                 supplyChainNodes.get(RepoEntityType.DISKARRAY.getValue())));
     }
 
-
     @Test
     public void testUnconnectedEntitySupplyChain() {
-        ResultVertex vm = vm("1", "", "");
+        final ResultVertex origin = vm(1).vertex;
+        final SubgraphResult providersResult = new SubgraphResult(origin, Collections.emptyList());
+        final SubgraphResult consumersResult = new SubgraphResult(origin, Collections.emptyList());
 
-        List<ResultVertex> vertices = ImmutableList.of(vm);
         final SupplyChainSubgraph subgraph =
-                new SupplyChainSubgraph(vertices, vertices);
+            new SupplyChainSubgraph(providersResult, consumersResult);
         final Map<String, SupplyChainNode> supplyChainNodes = subgraph.toSupplyChainNodes().stream()
-                .collect(Collectors.toMap(SupplyChainNode::getEntityType, Function.identity()));
+            .collect(Collectors.toMap(SupplyChainNode::getEntityType, Function.identity()));
 
         final SupplyChainNode vmNode = supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue());
         assertEquals(1, RepositoryDTOUtil.getMemberCount(vmNode));
@@ -134,27 +131,27 @@ public class SupplyChainSubgraphTest {
      */
     @Test
     public void testVdcBuyingFromOtherVdc() throws Exception {
-        final List<ResultVertex> consumers = graphResultFromFile("protobuf/messages/supply-chain-vdc-consumers.json");
-        final List<ResultVertex> providers = graphResultFromFile("protobuf/messages/supply-chain-vdc-providers.json");
+        final SubgraphResult consumers = graphResultFromFile("protobuf/messages/supply-chain-vdc-consumers.json");
+        final SubgraphResult providers = graphResultFromFile("protobuf/messages/supply-chain-vdc-providers.json");
 
         final SupplyChainSubgraph subgraph =
-                new SupplyChainSubgraph(providers, consumers);
+            new SupplyChainSubgraph(providers, consumers);
         final Map<String, SupplyChainNode> supplyChainNodes = subgraph.toSupplyChainNodes().stream()
-                .collect(Collectors.toMap(SupplyChainNode::getEntityType, Function.identity()));
+            .collect(Collectors.toMap(SupplyChainNode::getEntityType, Function.identity()));
 
         assertThat(supplyChainNodes.keySet(), containsInAnyOrder(
-                RepoEntityType.APPLICATION.getValue(),
-                RepoEntityType.VIRTUAL_MACHINE.getValue(),
-                RepoEntityType.PHYSICAL_MACHINE.getValue(),
-                RepoEntityType.VIRTUAL_DATACENTER.getValue(),
-                RepoEntityType.DATACENTER.getValue(),
-                RepoEntityType.STORAGE.getValue(),
-                RepoEntityType.DISKARRAY.getValue()
+            RepoEntityType.APPLICATION.getValue(),
+            RepoEntityType.VIRTUAL_MACHINE.getValue(),
+            RepoEntityType.PHYSICAL_MACHINE.getValue(),
+            RepoEntityType.VIRTUAL_DATACENTER.getValue(),
+            RepoEntityType.DATACENTER.getValue(),
+            RepoEntityType.STORAGE.getValue(),
+            RepoEntityType.DISKARRAY.getValue()
         ));
 
         assertEquals(2, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(RepoEntityType.VIRTUAL_DATACENTER.getValue())));
         assertThat(supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue())
-                .getConnectedConsumerTypesList(), contains(RepoEntityType.APPLICATION.getValue()));
+            .getConnectedConsumerTypesList(), contains(RepoEntityType.APPLICATION.getValue()));
         assertThat(supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue())
                 .getConnectedProviderTypesList(), contains(RepoEntityType.VIRTUAL_DATACENTER.getValue()));
     }
@@ -176,17 +173,19 @@ public class SupplyChainSubgraphTest {
          *               \ |
          *                 C (1 entity)
          */
+        final SubgraphResult providersResult =
+                subgraphFor(3)
+                        .providerEdges(
+                                vm(1).consumesFrom(storage(2)),
+                                vm(11).consumesFrom(da(3)))
+                        .providerEdges(
+                                storage(2).consumesFrom(da(3)))
+                        .build();
 
-        ResultVertex da1 = da("3", "", "11");
-        ResultVertex da2 = da("3", "", "2");
-        ResultVertex storage1 = storage("2", "3", "1");
-        ResultVertex vm1 = vm("1", "2", "");
-        ResultVertex vm2 = vm("11", "3", "");
-
-        List<ResultVertex> vertices =
-                ImmutableList.of(da1, da2, storage1, vm1, vm2);
+        final ResultVertex origin = da(3).vertex;
         final SupplyChainSubgraph subgraph =
-                new SupplyChainSubgraph(vertices, vertices);
+                new SupplyChainSubgraph(
+                        providersResult, new SubgraphResult(origin, Collections.emptyList()));
         final Map<String, SupplyChainNode> supplyChainNodes = nodeMapFor(subgraph);
 
         assertEquals(1, RepositoryDTOUtil.getMemberCount(
@@ -211,17 +210,19 @@ public class SupplyChainSubgraphTest {
          *               \           |
          *              DiskArray (1 entity)
          */
+        final SubgraphResult providersResult =
+                subgraphFor(3)
+                        .providerEdges(
+                                storage(1).consumesFrom(lp(2)),
+                                storage(11).consumesFrom(da(3)))
+                        .providerEdges(
+                                lp(2).consumesFrom(da(3)))
+                        .build();
 
-        ResultVertex da1 = da("3", "", "11");
-        ResultVertex da2 = da("3", "", "2");
-        ResultVertex logicalPool1 = lp("2", "3", "");
-        ResultVertex storage1 = storage("1", "2", "1");
-        ResultVertex storage2 = storage("11", "3", "");
-
-        List<ResultVertex> vertices =
-                ImmutableList.of(da1, da2, logicalPool1, storage1, storage2);
+        final ResultVertex origin = da(3).vertex;
         final SupplyChainSubgraph subgraph =
-                new SupplyChainSubgraph(vertices, vertices);
+                new SupplyChainSubgraph(
+                        providersResult, new SubgraphResult(origin, Collections.emptyList()));
         final Map<String, SupplyChainNode> supplyChainNodes = nodeMapFor(subgraph);
 
         assertEquals(1, RepositoryDTOUtil.getMemberCount(
@@ -265,29 +266,44 @@ public class SupplyChainSubgraphTest {
         final Map<Integer, MemberList> membersByStateMap = node.getMembersByStateMap();
         assertThat(membersByStateMap.keySet(), containsInAnyOrder(activeStateInt, idleStateInt));
         assertThat(membersByStateMap.get(activeStateInt).getMemberOidsList(),
-                containsInAnyOrder(1L));
+            containsInAnyOrder(1L));
         assertThat(membersByStateMap.get(idleStateInt).getMemberOidsList(),
                 containsInAnyOrder(2L));
     }
 
+    private static class TypeAndEdges {
+        private String type;
+        private List<ResultEdge> edges;
+
+        public TypeAndEdges() {
+            this.type = "";
+            this.edges = Collections.emptyList();
+        }
+
+        public String getType() {
+            return type;
+        }
+
+        public List<ResultEdge> getEdges() {
+            return edges;
+        }
+    }
+
     /**
-     * Read {@link com.vmturbo.repository.graph.result.SupplyChainSubgraph.ResultVertex} from a file.
+     * Read {@link com.vmturbo.repository.graph.result.SupplyChainSubgraphTest.TypeAndEdges} from a file.
      *
      * @param fileName The name of the file containing the entities.
      * @return
      * @throws Exception
      */
-    private static List<ResultVertex> graphResultFromFile(@Nonnull final String fileName) throws IOException {
-        final Enumeration<URL> urlEnumeration =
-                SupplyChainSubgraphTest.class.getClassLoader().getResources(fileName);
+    private static SubgraphResult graphResultFromFile(@Nonnull final String fileName) throws IOException {
+        final Enumeration<URL> urlEnumeration = SupplyChainSubgraphTest.class.getClassLoader().getResources(fileName);
         final URL url = urlEnumeration.nextElement();
 
         StringWriter writer = new StringWriter();
         IOUtils.copy(url.openStream(), writer, "UTF-8");
         final String resultString = writer.toString();
 
-        Type listType = new TypeToken<ArrayList<ResultVertex>>(){}.getType();
-        return new Gson().fromJson(resultString, listType);
+        return new Gson().fromJson(resultString, SubgraphResult.class);
     }
-
 }

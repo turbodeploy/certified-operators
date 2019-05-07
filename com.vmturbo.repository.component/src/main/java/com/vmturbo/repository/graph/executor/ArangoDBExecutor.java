@@ -44,7 +44,7 @@ import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.parameter.GraphCmd.ServiceEntityMultiGet;
 import com.vmturbo.repository.graph.parameter.GraphCmd.SupplyChainDirection;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph;
-import com.vmturbo.repository.graph.result.SupplyChainSubgraph.ResultVertex;
+import com.vmturbo.repository.graph.result.SupplyChainSubgraph.SubgraphResult;
 import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyDatabases;
 
@@ -99,10 +99,10 @@ public class ArangoDBExecutor implements GraphDBExecutor {
         }
 
         template.add("edgeCollection", supplyChainCmd.getGraphName())
-                .add("startingId", startingId)
-                .add("vertexCollection", vertexCollection)
-                .add("edgeType", direction.getEdgeType())
-                .add("hasEnvType", supplyChainCmd.getEnvironmentType().isPresent());
+            .add("startingId", startingId)
+            .add("vertexCollection", vertexCollection)
+            .add("edgeType", direction.getEdgeType())
+            .add("hasEnvType", supplyChainCmd.getEnvironmentType().isPresent());
         supplyChainCmd.getEnvironmentType().ifPresent(envType ->
                 template.add("envType", envType.getApiEnumStringValue()));
 
@@ -196,24 +196,28 @@ public class ArangoDBExecutor implements GraphDBExecutor {
         logger.debug("Supply chain provider query {}", providerQuery);
         logger.debug("Supply chain consumer query {}", consumerQuery);
 
-        final Try<Seq<ArangoCursor<ResultVertex>>> combinedResults = Try.sequence(ImmutableList.of(
-                Try.of(() -> driver.db(TopologyDatabases.getDbName(database)).query(providerQuery, null, null, ResultVertex.class))
-                , Try.of(() -> driver.db(TopologyDatabases.getDbName(database)).query(consumerQuery, null, null, ResultVertex.class))));
+        final Try<Seq<ArangoCursor<SubgraphResult>>> combinedResults = Try.sequence(ImmutableList.of(
+            Try.of(() -> driver.db(TopologyDatabases.getDbName(database)).query(providerQuery, null, null, SubgraphResult.class))
+            , Try.of(() -> driver.db(TopologyDatabases.getDbName(database)).query(consumerQuery, null, null, SubgraphResult.class))));
         timer.observe();
 
         combinedResults.onFailure(logAQLException(Joiner.on("\n").join(providerQuery, consumerQuery)));
 
         return combinedResults.flatMap(results -> {
 
-            final List<ResultVertex> providerResults =
-                    fetchAllResults(results.get(0));
-            final List<ResultVertex> consumerResults =
-                    fetchAllResults(results.get(1));
+            final List<SubgraphResult> providerResults =
+                fetchAllResults(results.get(0));
+            final List<SubgraphResult> consumerResults =
+                fetchAllResults(results.get(1));
 
-            return (!providerResults.isEmpty() && !consumerResults.isEmpty())
-                    ? Try.success(new SupplyChainSubgraph(providerResults, consumerResults))
-                    : Try.failure(new NoSuchElementException("Entity " + supplyChainCmd.getStartingVertex() + " not found."));
+            return hasOneNonnullResult(providerResults) && hasOneNonnullResult(consumerResults)
+                ? Try.success(new SupplyChainSubgraph(providerResults.get(0), consumerResults.get(0)))
+                : Try.failure(new NoSuchElementException("Entity " + supplyChainCmd.getStartingVertex() + " not found."));
         });
+    }
+
+    private boolean hasOneNonnullResult(@Nonnull final List<SubgraphResult> resultList) {
+        return (resultList.size() == 1) && (resultList.get(0).getOrigin().getId() != null);
     }
 
     @Override
@@ -301,7 +305,6 @@ public class ArangoDBExecutor implements GraphDBExecutor {
     @Nonnull
     public Map<String, TagValuesDTO> executeTagCommand(
             @Nonnull String databaseName,
-            @Nonnull String vertexCollection,
             @Nonnull SearchTagsRequest request) throws ArangoDBException {
         final Collection<Long> entityOids = request.getEntitiesList();
         final EnvironmentTypeEnum.EnvironmentType environmentType =
@@ -309,7 +312,7 @@ public class ArangoDBExecutor implements GraphDBExecutor {
 
         // construct AQL query
         final StringBuilder queryBuilder =
-                new StringBuilder(String.format("FOR service_entity IN %s\n", vertexCollection));
+                new StringBuilder("FOR service_entity IN seVertexCollection\n");
         if (request.hasEntityType()) {
             queryBuilder
                     .append("FILTER service_entity.entityType == \"")

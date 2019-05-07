@@ -1,954 +1,1383 @@
-[
-  {
-    "entityType": "VirtualMachine",
-    "state": "ACTIVE",
-    "oid": "72240626791587",
-    "consumer": "",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791503",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791503",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791503",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791503",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791502",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791502",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791502",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791502",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791501",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791501",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791501",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791501",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791500",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791500",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791500",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791500",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791507",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791507",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791507",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791507",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791506",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791506",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791506",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791506",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791505",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791505",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791505",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791505",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791504",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791504",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791504",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791504",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791521",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791521",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791521",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791521",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791509",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791509",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791509",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791509",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791508",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791508",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791508",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791508",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791525",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791525",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791525",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791525",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791524",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791524",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791524",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791524",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "PhysicalMachine",
-    "state": "ACTIVE",
-    "oid": "72240626791527",
-    "consumer": "72240626791531",
-    "provider": ""
-  },
-  {
-    "entityType": "PhysicalMachine",
-    "state": "ACTIVE",
-    "oid": "72240626791527",
-    "consumer": "72240626791587",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72246077178257",
-    "consumer": "72246077178260",
-    "provider": ""
-  },
-  {
-    "entityType": "PhysicalMachine",
-    "state": "ACTIVE",
-    "oid": "72272425410578",
-    "consumer": "72240626791531",
-    "provider": ""
-  },
-  {
-    "entityType": "PhysicalMachine",
-    "state": "ACTIVE",
-    "oid": "72272425410576",
-    "consumer": "72240626791531",
-    "provider": ""
-  },
-  {
-    "entityType": "PhysicalMachine",
-    "state": "ACTIVE",
-    "oid": "72272425410577",
-    "consumer": "72240626791531",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240626791482",
-    "consumer": "72240626791509",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240626791483",
-    "consumer": "72240626791510",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240626791480",
-    "consumer": "72240626791507",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240626791481",
-    "consumer": "72240626791508",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240626791486",
-    "consumer": "72240626791513",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240626791479",
-    "consumer": "72240626791506",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240626791484",
-    "consumer": "72240626791511",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240626791485",
-    "consumer": "72240626791512",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72246077178261",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72246077178261",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72246077178261",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72246077178261",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72246077178260",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72246077178260",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72246077178260",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72246077178260",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240626791478",
-    "consumer": "72240626791505",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72246077178256",
-    "consumer": "72246077178259",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240624458262",
-    "consumer": "72240626791504",
-    "provider": ""
-  },
-  {
-    "entityType": "StorageController",
-    "state": "ACTIVE",
-    "oid": "72240624458261",
-    "consumer": "72240624458279",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791514",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791514",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791514",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791515",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791515",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791515",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791515",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791516",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791516",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791516",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791516",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791517",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791517",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791510",
-    "consumer": "72240626791587",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791510",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791510",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791510",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791510",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791511",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791511",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791511",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791511",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791512",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791512",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791512",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791512",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791513",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791513",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791513",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791513",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240626791473",
-    "consumer": "72240626791500",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240626791475",
-    "consumer": "72240626791502",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240626791474",
-    "consumer": "72240626791501",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791518",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72240626791519",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "DataCenter",
-    "state": "ACTIVE",
-    "oid": "72240626791472",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "DataCenter",
-    "state": "ACTIVE",
-    "oid": "72240626791472",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "DataCenter",
-    "state": "ACTIVE",
-    "oid": "72240626791472",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "DataCenter",
-    "state": "ACTIVE",
-    "oid": "72240626791472",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240624458293",
-    "consumer": "72240626791516",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240626791487",
-    "consumer": "72240626791514",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240626791491",
-    "consumer": "72240626791518",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240626791490",
-    "consumer": "72240626791517",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240626791492",
-    "consumer": "72240626791519",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240626791494",
-    "consumer": "72240626791521",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240626791497",
-    "consumer": "72240626791524",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240626791498",
-    "consumer": "72240626791525",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240624458279",
-    "consumer": "72240626791503",
-    "provider": ""
-  },
-  {
-    "entityType": "StorageController",
-    "state": "ACTIVE",
-    "oid": "72240624458278",
-    "consumer": "72240624458293",
-    "provider": ""
-  },
-  {
-    "entityType": "StorageController",
-    "state": "ACTIVE",
-    "oid": "72240624458278",
-    "consumer": "72240624458262",
-    "provider": ""
-  },
-  {
-    "entityType": "VirtualDataCenter",
-    "state": "ACTIVE",
-    "oid": "72240626791531",
-    "consumer": "72240626791587",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72246077178258",
-    "consumer": "72246077178261",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72246077178259",
-    "consumer": "72272425410576",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72246077178259",
-    "consumer": "72272425410577",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72246077178259",
-    "consumer": "72272425410578",
-    "provider": ""
-  },
-  {
-    "entityType": "Storage",
-    "state": "ACTIVE",
-    "oid": "72246077178259",
-    "consumer": "72240626791527",
-    "provider": ""
-  },
-  {
-    "entityType": "DiskArray",
-    "state": "ACTIVE",
-    "oid": "72240626791488",
-    "consumer": "72240626791515",
-    "provider": ""
-  }
-]
+{
+  "origin": {
+    "id": "72240626791587",
+    "entityType": "VirtualMachine"
+  },
+  "edgeCollection": [
+    {
+      "entityType": "DiskArray",
+      "edges": [
+        {
+          "provider": {
+            "entityType": "StorageController",
+            "id": "72240624458278"
+          },
+          "consumer": {
+            "entityType": "DiskArray",
+            "id": "72240624458293"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "StorageController",
+            "id": "72240624458278"
+          },
+          "consumer": {
+            "entityType": "DiskArray",
+            "id": "72240624458262"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "StorageController",
+            "id": "72240624458261"
+          },
+          "consumer": {
+            "entityType": "DiskArray",
+            "id": "72240624458279"
+          }
+        }
+      ]
+    },
+    {
+      "entityType": "PhysicalMachine",
+      "edges": [
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791516"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791504"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791505"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791508"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791521"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791506"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791512"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791518"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791501"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791525"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72246077178259"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791510"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791507"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791519"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791524"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791509"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791513"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791515"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DataCenter",
+            "id": "72240626791472"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791502"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791514"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791515"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791500"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72246077178261"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791504"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791505"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791506"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791525"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791510"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72246077178259"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791507"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791511"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791508"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791500"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791512"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791503"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791524"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791509"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791501"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791513"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791503"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DataCenter",
+            "id": "72240626791472"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72246077178260"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791509"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72246077178261"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791504"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791516"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72246077178261"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791505"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791506"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791517"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72246077178260"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791521"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72246077178259"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791521"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791507"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791500"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791512"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791524"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791501"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791513"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791525"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DataCenter",
+            "id": "72240626791472"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791502"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791514"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791515"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791503"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791511"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72246077178260"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791508"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791508"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791507"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791500"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791516"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791513"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791511"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791510"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72246077178261"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791525"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791504"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791511"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791501"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DataCenter",
+            "id": "72240626791472"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791502"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791506"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791509"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791514"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791510"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791503"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791517"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791516"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791515"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72246077178260"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791512"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791524"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72246077178259"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791502"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791521"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791505"
+          },
+          "consumer": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          }
+        }
+      ]
+    },
+    {
+      "entityType": "Storage",
+      "edges": [
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240626791491"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791518"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240626791492"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791519"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240626791481"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791508"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240626791480"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791507"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240626791473"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791500"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240624458293"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791516"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240626791486"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791513"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72246077178258"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72246077178261"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240626791498"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791525"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240624458262"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791504"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240626791484"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791511"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240626791474"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791501"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240626791475"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791502"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240626791479"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791506"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240626791482"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791509"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240626791487"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791514"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240624458279"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791503"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240626791490"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791517"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240626791488"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791515"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72246077178257"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72246077178260"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240626791485"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791512"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240626791497"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791524"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72246077178256"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72246077178259"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240626791494"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791521"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240626791478"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791505"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "DiskArray",
+            "id": "72240626791483"
+          },
+          "consumer": {
+            "entityType": "Storage",
+            "id": "72240626791510"
+          }
+        }
+      ]
+    },
+    {
+      "entityType": "VirtualDataCenter",
+      "edges": [
+        {
+          "provider": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410578"
+          },
+          "consumer": {
+            "entityType": "VirtualDataCenter",
+            "id": "72240626791531"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410576"
+          },
+          "consumer": {
+            "entityType": "VirtualDataCenter",
+            "id": "72240626791531"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          },
+          "consumer": {
+            "entityType": "VirtualDataCenter",
+            "id": "72240626791531"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "PhysicalMachine",
+            "id": "72272425410577"
+          },
+          "consumer": {
+            "entityType": "VirtualDataCenter",
+            "id": "72240626791531"
+          }
+        }
+      ]
+    },
+    {
+      "entityType": "VirtualMachine",
+      "edges": [
+        {
+          "provider": {
+            "entityType": "Storage",
+            "id": "72240626791510"
+          },
+          "consumer": {
+            "entityType": "VirtualMachine",
+            "id": "72240626791587"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "VirtualDataCenter",
+            "id": "72240626791531"
+          },
+          "consumer": {
+            "entityType": "VirtualMachine",
+            "id": "72240626791587"
+          }
+        },
+        {
+          "provider": {
+            "entityType": "PhysicalMachine",
+            "id": "72240626791527"
+          },
+          "consumer": {
+            "entityType": "VirtualMachine",
+            "id": "72240626791587"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -5,29 +5,98 @@ package com.vmturbo.repository.graph.executor;
  */
 public class ArangoDBQueries {
 
+    /**
+     * Consumer side of the supply query.
+     * See https://docs.arangodb.com/3.0/AQL/Graphs/Traversals.html for further details.
+     */
     static final String SUPPLY_CHAIN_CONSUMER_QUERY_TEMPLATE =
-            "   FOR v, e, p IN 0..10\n" +
-            "       OUTBOUND '<startingId>'\n" +
-            "       <edgeCollection>\n" +
-            "       OPTIONS { bfs: true, uniqueVertices: 'path', uniqueEdges: 'path' }\n" +
-            "       <if(hasInclusionEntityTypes)>FILTER p.vertices[*].entityType ALL IN <inclusionEntityTypes><endif>\n" +
-            "       <if(hasExclusionEntityTypes)>FILTER p.vertices[*].entityType NONE IN <exclusionEntityTypes><endif>\n" +
-            "       <if(hasEnvType)>FILTER v.environmentType == '<envType>'<endif>\n" +
-            "       <if(hasAllowedOidList)>FILTER TO_NUMBER(v.oid) IN accessOids<endif>\n" +
-            "       RETURN DISTINCT { oid: v.oid, entityType: v.entityType, state: v.state, " +
-            "           provider : SUBSTITUTE(e._from, '<vertexCollection>/', '')} ";
+        // Collect edges up to a maximum of 10 degrees away from the starting vertex.
+        "<if(hasAllowedOidList)>LET accessOids = [<allowedOidList;separator=\",\">]<endif>\n" +
+        "LET edgeCollection = (" +
+        "   FOR v, e, p IN 1 .. 10\n" +
+        "       OUTBOUND '<startingId>'\n" +
+        "       <edgeCollection>\n" +
+        "       OPTIONS { bfs: true, uniqueVertices: 'path', uniqueEdges: 'path' }\n" +
+        "       <if(hasInclusionEntityTypes)>FILTER p.vertices[*].entityType ALL IN <inclusionEntityTypes><endif>\n" +
+        "       <if(hasExclusionEntityTypes)>FILTER p.vertices[*].entityType NONE IN <exclusionEntityTypes><endif>\n" +
+        "       <if(hasEnvType)>FILTER v.environmentType == '<envType>'<endif>\n" +
+        "       <if(hasAllowedOidList)>FILTER TO_NUMBER(v.oid) IN accessOids<endif>\n" +
+        // From are starting vertices on the directed edges (the consumers).
+        "       LET from = FIRST(\n" +
+        "           FOR fv IN <vertexCollection>\n" +
+        "               FILTER fv._id == e._from\n" +
+        "              <if(hasAllowedOidList)>FILTER TO_NUMBER(fv.oid) IN accessOids<endif>\n" +
+        "               RETURN fv\n" +
+        "       )\n" +
+        // To are the ending vertices on the directed edges (the providers).
+        "       LET to = FIRST(\n" +
+        "           FOR tv IN <vertexCollection>\n" +
+        "               FILTER tv._id == e._to\n" +
+        "              <if(hasAllowedOidList)>FILTER TO_NUMBER(tv.oid) IN accessOids<endif>\n" +
+        "               RETURN tv\n" +
+        "       )\n" +
+        "       FILTER from.entityType != null && to.entityType != null\n" +
+        // "ftype" is the type of the first "from" vertex and because we group by entity type,
+        // it will be the type for all "from" vertices in the edgeCollection.
+        "       COLLECT ftype = from.entityType\n" +
+        "       INTO groups = {\n" +
+        "           provider: { entityType: from.entityType, state: from.state, id: from._key },\n" +
+        "           consumer: { entityType: to.entityType, state: to.state, id: to._key }\n" +
+        "       }\n" +
+        "       RETURN { type: ftype, edges:  UNIQUE(groups[*]) }\n" +
+        ")\n" +
+        // Collect information on the origin vertex (the vertex where the search started).
+        "LET originCollection = ( RETURN DOCUMENT('<startingId>') )\n" +
+        "LET origin = FIRST(originCollection)\n" +
+        // Return a document containing the origin and all edges up to 10 degrees away from the origin
+        // that are reachable by traversing in the consumer direction.
+        "RETURN { origin: {id: origin._key, entityType: origin.entityType, state: origin.state}, edgeCollection: edgeCollection }\n";
 
+    /**
+     * Provider side of the supply chain query.
+     * See https://docs.arangodb.com/3.0/AQL/Graphs/Traversals.html for further details.
+     */
     static final String SUPPLY_CHAIN_PROVIDER_QUERY_TEMPLATE =
-            "   FOR v, e, p IN 0..10\n" +
-            "       INBOUND '<startingId>'\n" +
-            "       <edgeCollection>\n" +
-            "       OPTIONS { bfs: true, uniqueVertices: 'path', uniqueEdges: 'path' }\n" +
-            "       <if(hasInclusionEntityTypes)>FILTER p.vertices[*].entityType ALL IN <inclusionEntityTypes><endif>\n" +
-            "       <if(hasExclusionEntityTypes)>FILTER p.vertices[*].entityType NONE IN <exclusionEntityTypes><endif>\n" +
-            "       <if(hasEnvType)>FILTER v.environmentType == '<envType>'<endif>\n" +
-            "       <if(hasAllowedOidList)>FILTER TO_NUMBER(v.oid) IN accessOids<endif>\n" +
-            "       RETURN DISTINCT { oid: v.oid, entityType: v.entityType, state: v.state, " +
-            "           consumer: SUBSTITUTE(e._to, '<vertexCollection>/', '')} ";
+        // Collect edges up to a maximum of 10 degrees away from the starting vertex.
+        "<if(hasAllowedOidList)>LET accessOids = [<allowedOidList;separator=\",\">]<endif>\n" +
+        "LET edgeCollection = (" +
+        "   FOR v, e, p IN 1 .. 10\n" +
+        "       INBOUND '<startingId>'\n" +
+        "       <edgeCollection>\n" +
+        "       OPTIONS { bfs: true, uniqueVertices: 'path', uniqueEdges: 'path' }\n" +
+        "       <if(hasInclusionEntityTypes)>FILTER p.vertices[*].entityType ALL IN <inclusionEntityTypes><endif>\n" +
+        "       <if(hasExclusionEntityTypes)>FILTER p.vertices[*].entityType NONE IN <exclusionEntityTypes><endif>\n" +
+        "       <if(hasEnvType)>FILTER v.environmentType == '<envType>'<endif>\n" +
+        "       <if(hasAllowedOidList)>FILTER TO_NUMBER(v.oid) IN accessOids<endif>\n" +
+        // From are starting vertices on the directed edges (the consumers).
+        "       LET from = FIRST(\n" +
+        "           FOR fv IN <vertexCollection>\n" +
+        "               FILTER fv._id == e._from\n" +
+        "              <if(hasAllowedOidList)>FILTER TO_NUMBER(fv.oid) IN accessOids<endif>\n" +
+        "               RETURN fv\n" +
+        "       )\n" +
+        // To are the ending vertices on the directed edges (the providers).
+        "       LET to = FIRST(\n" +
+        "           FOR tv IN <vertexCollection>\n" +
+        "               FILTER tv._id == e._to\n" +
+        "              <if(hasAllowedOidList)>FILTER TO_NUMBER(tv.oid) IN accessOids<endif>\n" +
+        "               RETURN tv\n" +
+        "       )\n" +
+        "       FILTER from.entityType != null && to.entityType != null\n" +
+                // "ttype" is the type of the first "to" vertex and because we group by entity type,
+        // it will be the type for all "to" vertices in the edgeCollection.
+        "       COLLECT ttype = to.entityType\n" +
+        "       INTO groups = {\n" +
+        "           provider: { entityType: from.entityType, state: from.state, id: from._key },\n" +
+        "           consumer: { entityType: to.entityType, state: to.state, id: to._key }\n" +
+        "       }\n" +
+        "       RETURN { entityType: ttype, edges:  UNIQUE(groups[*]) }\n" +
+        ")\n" +
+        "LET originCollection = ( RETURN DOCUMENT('<startingId>') )\n" +
+        "LET origin = FIRST(originCollection)\n" +
+        // Return a document containing the origin and all edges up to 10 degrees away from the origin
+        // that are reachable by traversing in the provider direction.
+        "RETURN { origin: {id: origin._key, entityType: origin.entityType, state: origin.state}, edgeCollection: edgeCollection }\n";
 
     /**
      * New query for computing the global supply chain.
