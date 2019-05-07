@@ -73,7 +73,7 @@ public class AnalysisTest {
 
     private long topologyContextId = 1111;
     private long topologyId = 2222;
-    private static final float DEFAULT_RATE_OF_RESIZE = 10.0f;
+    private static final float DEFAULT_RATE_OF_RESIZE = 2.0f;
     private TopologyType topologyType = TopologyType.PLAN;
 
     private final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
