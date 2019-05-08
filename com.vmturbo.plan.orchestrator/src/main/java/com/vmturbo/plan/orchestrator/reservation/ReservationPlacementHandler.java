@@ -59,6 +59,11 @@ public class ReservationPlacementHandler {
         final Set<Reservation> reservationSet =
                 reservationDao.getReservationsByStatus(ReservationStatus.RESERVED);
 
+        // if no reservations, don't bother updating.
+        if (reservationSet.size() == 0) {
+            return;
+        }
+
         // Get projected topology entities of reservation entities.
         final List<TopologyEntityDTO> reservationEntities =
                 retrieveReservationEntities(contextId, topologyId, reservationSet);

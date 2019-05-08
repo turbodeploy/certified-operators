@@ -146,4 +146,14 @@ public class ReservationPlacementHandlerTest {
         Mockito.verify(reservationDao, Mockito.times(1))
                 .updateReservationBatch(ImmutableSet.of(newReservation));
     }
+
+    @Test
+    public void testUpdateNoReservations() {
+        // if there are no reservations, there should be no requests for entities to the repository
+        Mockito.when(reservationDao.getReservationsByStatus(ReservationStatus.RESERVED))
+                .thenReturn(Collections.emptySet());
+
+        reservationPlacementHandler.updateReservations(contextId, topologyId);
+        Mockito.verifyZeroInteractions(repositoryServiceMole);
+    }
 }
