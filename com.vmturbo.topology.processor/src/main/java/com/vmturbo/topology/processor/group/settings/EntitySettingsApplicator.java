@@ -127,8 +127,6 @@ public class EntitySettingsApplicator {
                         CommodityType.VMEM),
                 new ResizeIncrementApplicator(EntitySettingSpecs.VstorageIncrement,
                         CommodityType.VSTORAGE),
-                new ResizeIncrementApplicator(EntitySettingSpecs.StorageIncrement,
-                        CommodityType.STORAGE_AMOUNT),
                 new ResizeTargetUtilizationApplicator(EntitySettingSpecs.ResizeTargetUtilizationVcpu,
                         CommodityType.VCPU),
                 new ResizeTargetUtilizationApplicator(EntitySettingSpecs.ResizeTargetUtilizationVmem,
@@ -554,9 +552,7 @@ public class EntitySettingsApplicator {
                 //VMEM setting value is in MBs. Market expects it in KBs.
                 CommodityType.VMEM_VALUE, 1024.0f,
                 //VSTORAGE setting value is in GBs. Market expects it in MBs.
-                CommodityType.VSTORAGE_VALUE, 1024.0f,
-                //STORAGE_AMOUNT setting value is in GBs. Market expects it in MBs.
-                CommodityType.STORAGE_AMOUNT_VALUE, 1024.0f);
+                CommodityType.VSTORAGE_VALUE, 1024.0f);
 
 
         private ResizeIncrementApplicator(@Nonnull EntitySettingSpecs setting,
@@ -567,8 +563,7 @@ public class EntitySettingsApplicator {
 
         @Override
         public void apply(@Nonnull Builder entity, @Nonnull Setting setting) {
-            if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE ||
-                    entity.getEntityType() == EntityType.STORAGE_VALUE) {
+            if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
                 final float settingValue = setting.getNumericSettingValue().getValue();
                 entity.getCommoditySoldListBuilderList().stream()
                     .filter(commodity -> commodity.getCommodityType().getType() ==

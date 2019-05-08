@@ -8,7 +8,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -61,14 +60,6 @@ public class TopologyEntitiesHandler {
     private static final String GLOBAL_ANALYSIS_LABEL = "global";
     public static final String PLAN_CONTEXT_TYPE_LABEL = "plan";
     public static final String LIVE_CONTEXT_TYPE_LABEL = "live";
-
-    private static final ImmutableMap<Float, Float> rateOfResizeTranslationMap = ImmutableMap.of(
-            // Low rateOfResize
-            1.0f, 10000000000.0f,
-            // Medium rateOfResize
-            2.0f, 4.0f,
-            // High rateOfResize
-            3.0f, 1.0f);
 
     private static final DataMetricSummary ECONOMY_BUILD = DataMetricSummary.builder()
             .withName("mkt_economy_build_duration_seconds")
@@ -308,8 +299,7 @@ public class TopologyEntitiesHandler {
 
         analysisConfig.getGlobalSetting(GlobalSettingSpecs.RateOfResize).ifPresent(rateOfResize -> {
             if (rateOfResize.hasNumericSettingValue()) {
-                economySettings.setRateOfResize(rateOfResizeTranslationMap
-                        .get(rateOfResize.getNumericSettingValue().getValue()));
+                economySettings.setRateOfResize(rateOfResize.getNumericSettingValue().getValue());
             }
         });
 
