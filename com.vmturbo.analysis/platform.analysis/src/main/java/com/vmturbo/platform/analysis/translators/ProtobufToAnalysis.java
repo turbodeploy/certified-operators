@@ -378,6 +378,7 @@ public final class ProtobufToAnalysis {
             topology.addShopTogetherTraders(output);
         }
         output.setTemplateProvider(input.getTemplateProvider());
+        output.setScalingGroupId(input.getScalingGroupId());
 
         return output;
     }

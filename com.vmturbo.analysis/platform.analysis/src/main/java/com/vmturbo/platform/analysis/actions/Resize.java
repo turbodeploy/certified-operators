@@ -30,7 +30,7 @@ public class Resize extends ActionImpl {
     private final @NonNull CommoditySold resizedCommodity_;
     private final int soldIndex_;
     private final double oldCapacity_; // needed for rolling back.
-    private final double newCapacity_;
+    private double newCapacity_;
 
     // Constructors
 
@@ -178,6 +178,13 @@ public class Resize extends ActionImpl {
     @Pure
     public double getNewCapacity(@ReadOnly Resize this) {
         return newCapacity_;
+    }
+
+    /**
+     * Set the new capacity of the resized commodity
+     */
+    public void setNewCapacity(final double newCapacity) {
+        this.newCapacity_ = newCapacity;
     }
 
     @Override

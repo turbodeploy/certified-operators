@@ -64,6 +64,9 @@ public abstract class Trader implements Serializable {
     private boolean sellersInfoPrinted = false;
     // This field hold the explanation for unplaced traders.
     private String unplacedExplanation = "";
+    // Identifies the scaling group that this trader belongs to
+    private final static String NO_SCALING_GROUP = "";
+    private String scalingGroupId_ = NO_SCALING_GROUP;
 
     // Constructors
     /**
@@ -489,5 +492,27 @@ public abstract class Trader implements Serializable {
      */
     public void setUnplacedExplanation(@Nonnull String unplacedExplanation) {
         this.unplacedExplanation = unplacedExplanation;
+    }
+
+    /**
+     * @return the scaling group ID.
+     */
+    public String getScalingGroupId() {
+        return scalingGroupId_;
+    }
+
+    /**
+     * Sets the scaling group ID.
+     * @param scaling group ID
+     */
+    public void setScalingGroupId(@Nonnull String scalingGroupId) {
+        this.scalingGroupId_ = scalingGroupId;
+    }
+
+    /**
+     * @return whether this Trader is in a scaling group
+     */
+    public boolean isInScalingGroup() {
+        return !NO_SCALING_GROUP.equals(scalingGroupId_);
     }
 } // end interface Trader

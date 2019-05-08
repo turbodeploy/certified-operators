@@ -26,6 +26,7 @@ import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.utilities.Bisection;
 import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
+import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * This class implements the resize decision logic.
@@ -48,6 +49,7 @@ public class Resizer {
     public static @NonNull List<@NonNull Action> resizeDecisions(@NonNull Economy economy,
                                                                  @NonNull Ledger ledger) {
         List<@NonNull Action> actions = new ArrayList<>();
+        ConsistentResizer consistentResizer = new ConsistentResizer();
         float rateOfResize = economy.getSettings().getRateOfResize();
         for (Trader seller : economy.getTraders()) {
             ledger.calculateCommodityExpensesAndRevenuesForTrader(economy, seller);
@@ -78,9 +80,21 @@ public class Resizer {
                     continue;
                 }
                 IncomeStatement incomeStatement = incomeStatements.get(soldIndex);
-                if (evaluateEngageCriteria(economy, seller, commoditySold, incomeStatement)) {
+                CommoditySpecification resizedCommodity = basketSold.get(soldIndex);
+                boolean consistentResizing = seller.isInScalingGroup();
+                boolean engage = evaluateEngageCriteria(economy, seller, commoditySold,
+                    incomeStatement);
+                /*
+                 * All members of a scaling group are forced to generate a resize so that each
+                 * trader can generate (but not take) a resize with a potential new capacity.
+                 * These untaken resizes are called partial resizes, and are not taken until after
+                 * all traders in the group have generated their own partial resizes.  The
+                 * consistent resizer will then evaluate all of these partial resizes to determine
+                 * the best new capacity for the entire group.
+                 */
+                if (engage || consistentResizing) {
                     double expenses = incomeStatement.getExpenses();
-                    if (expenses > 0) {
+                    if (consistentResizing || expenses > 0) {
                         try {
                             double desiredROI = getDesiredROI(incomeStatement);
                             double newRevenue = expenses < incomeStatement.getMinDesiredExpenses()
@@ -91,31 +105,28 @@ public class Resizer {
                             double currentRevenue = incomeStatement.getRevenues();
                             double desiredCapacity =
                                calculateDesiredCapacity(commoditySold, newRevenue, seller, economy);
-                            CommoditySold rawMaterial = findSellerCommodity(economy, seller, soldIndex);
+                            Pair<CommoditySold, Trader> p = findSellerCommodityAndSupplier(economy,
+                                seller, soldIndex);
                             double newEffectiveCapacity = calculateEffectiveCapacity(seller,
-                                basketSold.get(soldIndex), desiredCapacity, commoditySold, rawMaterial,
-                                rateOfResize);
-                            if (Double.compare(newEffectiveCapacity,
-                                               commoditySold.getEffectiveCapacity()) != 0) {
-                                double oldCapacity = commoditySold.getCapacity();
+                                resizedCommodity, desiredCapacity, commoditySold,
+                                p.getFirst(), rateOfResize);
+                            if (consistentResizing || Double.compare(newEffectiveCapacity,
+                                        commoditySold.getEffectiveCapacity()) != 0) {
                                 double newCapacity = newEffectiveCapacity /
                                            commoditySold.getSettings().getUtilizationUpperBound();
                                 Resize resizeAction = new Resize(economy, seller,
-                                    basketSold.get(soldIndex), commoditySold, soldIndex, newCapacity);
-                                resizeAction.take(commoditySold.isHistoricalQuantitySet());
+                                    resizedCommodity, commoditySold, soldIndex, newCapacity);
                                 resizeAction.setImportance(currentRevenue - newRevenue);
-                                actions.add(resizeAction);
-                                if (logger.isTraceEnabled() || isDebugTrader) {
-                                    logger.info("{" + sellerDebugInfo +
-                                            "} A resize action was generated for the commodity "
-                                            + basketSold.get(soldIndex).getDebugInfoNeverUseInCode()
-                                            + " from " + oldCapacity + " to " + newCapacity + ".");
+                                if (consistentResizing) {
+                                    consistentResizer.addResize(resizeAction, engage, p);
+                                } else {
+                                    takeAndAddResizeAction(actions, resizeAction);
                                 }
                             } else {
                                 if (logger.isTraceEnabled() || isDebugTrader) {
                                     logger.info("{" + sellerDebugInfo
                                             + "} No resize for the commodity "
-                                            + basketSold.get(soldIndex).getDebugInfoNeverUseInCode()
+                                            + resizedCommodity.getDebugInfoNeverUseInCode()
                                             + " because the calculated capacity is the same to the"
                                             + " current one.");
                                 }
@@ -144,7 +155,7 @@ public class Resizer {
                         if (logger.isTraceEnabled() || isDebugTrader) {
                             logger.info("{" + sellerDebugInfo
                                         + "} No resize for the commodity "
-                                        + basketSold.get(soldIndex).getDebugInfoNeverUseInCode()
+                                        + resizedCommodity.getDebugInfoNeverUseInCode()
                                         + " because expenses are 0.");
                         }
                     }
@@ -152,14 +163,37 @@ public class Resizer {
                     if (logger.isTraceEnabled() || isDebugTrader) {
                         logger.info("{" + sellerDebugInfo
                                     + "} Resize engagement criteria are false for commodity "
-                                    + basketSold.get(soldIndex).getDebugInfoNeverUseInCode() + ".");
+                                    + resizedCommodity.getDebugInfoNeverUseInCode() + ".");
                     }
                 }
             }
         }
-
+        // Consistently resize commodities in scaling groups
+        consistentResizer.resizeScalingGroupCommodities(actions);
         return actions;
     }
+
+    /**
+     * Take an untaken Resize action and generate debugging logging if configured to so do.  Also
+     * adds the taken Resize action to the actions list.
+     * @param actions list to add this action to
+     * @param resizeAction the Resize action to take/log and add to actions list
+     */
+    static void takeAndAddResizeAction(final List<@NonNull Action> actions,
+                                       final Resize resizeAction) {
+        resizeAction.take(resizeAction.getResizedCommodity().isHistoricalQuantitySet());
+        actions.add(resizeAction);
+        Trader trader = resizeAction.getSellingTrader();
+        if (logger.isTraceEnabled() || trader.isDebugEnabled()) {
+            logger.info("{" + trader.getDebugInfoNeverUseInCode()
+                + "} A resize action was generated for the commodity "
+                + trader.getBasketSold().get(resizeAction.getSoldIndex())
+                    .getDebugInfoNeverUseInCode()
+                + " from " + resizeAction.getOldCapacity()
+                + " to " + resizeAction.getNewCapacity() + ".");
+        }
+    }
+
     /**
      * Given the desired effective capacity find the new effective capacity taking into
      * consideration capacity increment and rightsizing rate.
@@ -180,9 +214,9 @@ public class Resizer {
      * @return The recommended new capacity.
      */
     private static double calculateEffectiveCapacity(Trader seller, CommoditySpecification commSpec, double desiredCapacity,
-                                                     @NonNull CommoditySold resizeCommodity,
-                                                     CommoditySold rawMaterial,
-                                                     float rateOfRightSize) {
+                                             @NonNull CommoditySold resizeCommodity,
+                                             CommoditySold rawMaterial,
+                                             float rateOfRightSize) {
         checkArgument(rateOfRightSize > 0, "Expected rateOfRightSize to be > 0", rateOfRightSize);
 
         double currentCapacity = resizeCommodity.getEffectiveCapacity();
@@ -213,7 +247,7 @@ public class Resizer {
      * @param capacityIncrement the capacity increment for the {@link CommoditySold commodity} being resized.
      * @param rateOfRightSize the user configured rightsizing rate from {@link EconomySettings}.
      * @return the recommended amount of increase for {@link CommoditySold commodity} being resized; always non-negative
-     * */
+     */
     private static double calculateResizeUpAmount(Trader seller, CommoditySpecification commSpec,
                                                   double desiredAmount,
                                                   @NonNull CommoditySold resizeCommodity,
@@ -328,14 +362,15 @@ public class Resizer {
     }
 
     /**
-     * Find the commodity sold by the Seller which is raw material for the given commodity.
+     * Find the commodity sold and supplier by the Seller which is raw material for the given commodity.
      *
      * @param economy The Economy.
      * @param buyer The Buyer of the commodity in the Economy.
      * @param commoditySoldIndex The index of commodity for which we need to find the raw materials.
-     * @return The commodity sold.
+     * @return Pair containing the commodity sold and its supplier
      */
-    private static @Nullable CommoditySold findSellerCommodity(@NonNull Economy economy,
+    private static @Nullable Pair<CommoditySold, Trader>
+        findSellerCommodityAndSupplier(@NonNull Economy economy,
                                                @NonNull Trader buyer, int commoditySoldIndex) {
         List<Integer> typeOfCommsBought = economy.getRawMaterials(buyer.getBasketSold()
                                                      .get(commoditySoldIndex).getBaseType());
@@ -350,7 +385,7 @@ public class Resizer {
                 }
                 CommoditySold commSoldBySeller = supplier.getCommoditySold(basketBought
                                                                            .get(boughtIndex));
-                return commSoldBySeller;
+                return new Pair(commSoldBySeller, supplier);
             }
         }
         return null;

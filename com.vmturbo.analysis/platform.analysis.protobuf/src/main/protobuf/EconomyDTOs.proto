@@ -179,4 +179,7 @@ message TraderTO {
     // This field specifies the cause for the trader to be unplaced
     optional string unplacedExplanation = 15;
 
+    // Associated scaling group, if any
+    optional string scalingGroupId = 16;
+
 }
