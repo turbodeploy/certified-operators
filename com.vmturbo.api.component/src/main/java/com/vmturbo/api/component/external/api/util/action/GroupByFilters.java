@@ -111,6 +111,10 @@ public class GroupByFilters {
         setValue(StringConstants.TARGET_UUID_CC, String.valueOf(entityId));
     }
 
+    public void setTemplate(final String template) {
+        setValue(StringConstants.TEMPLATE, template);
+    }
+
     @Nonnull
     public List<StatFilterApiDTO> getFilters() {
         return Lists.newArrayList(filtersByName.values());

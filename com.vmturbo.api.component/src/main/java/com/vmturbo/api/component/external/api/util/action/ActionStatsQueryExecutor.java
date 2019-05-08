@@ -1,7 +1,9 @@
 package com.vmturbo.api.component.external.api.util.action;
 
 import java.time.Clock;
+import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -9,6 +11,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -19,6 +23,8 @@ import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
@@ -41,7 +47,13 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsResp
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.search.Search.Entity;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * A shared utility class to execute action stats queries, meant to be used by whichever
@@ -63,19 +75,23 @@ public class ActionStatsQueryExecutor {
 
     private final ActionStatsMapper actionStatsMapper;
 
+    private final SearchServiceBlockingStub searchServiceBlockingStub;
+
     public ActionStatsQueryExecutor(@Nonnull final Clock clock,
                                     @Nonnull final ActionsServiceBlockingStub actionsServiceBlockingStub,
                                     @Nonnull final ActionSpecMapper actionSpecMapper,
                                     @Nonnull final UuidMapper uuidMapper,
                                     @Nonnull final GroupExpander groupExpander,
                                     @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
-                                    @Nonnull final UserSessionContext userSessionContext) {
+                                    @Nonnull final UserSessionContext userSessionContext,
+                                    @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub) {
         this(actionsServiceBlockingStub,
             userSessionContext,
             uuidMapper,
             new HistoricalQueryMapper(actionSpecMapper),
             new CurrentQueryMapper(actionSpecMapper, groupExpander, supplyChainFetcherFactory, userSessionContext),
-            new ActionStatsMapper(clock, actionSpecMapper));
+            new ActionStatsMapper(clock, actionSpecMapper),
+            searchServiceBlockingStub);
     }
 
     /**
@@ -87,15 +103,16 @@ public class ActionStatsQueryExecutor {
                              @Nonnull final UuidMapper uuidMapper,
                              @Nonnull final HistoricalQueryMapper historicalQueryMapper,
                              @Nonnull final CurrentQueryMapper currentQueryMapper,
-                             @Nonnull final ActionStatsMapper actionStatsMapper) {
+                             @Nonnull final ActionStatsMapper actionStatsMapper,
+                             @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub) {
         this.actionsServiceBlockingStub = Objects.requireNonNull(actionsServiceBlockingStub);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
         this.historicalQueryMapper = Objects.requireNonNull(historicalQueryMapper);
         this.currentQueryMapper = Objects.requireNonNull(currentQueryMapper);
         this.actionStatsMapper = Objects.requireNonNull(actionStatsMapper);
+        this.searchServiceBlockingStub = Objects.requireNonNull(searchServiceBlockingStub);
     }
-
 
     /**
      * Retrieve the action stats targeted by an {@link ActionStatsQuery}.
@@ -150,12 +167,30 @@ public class ActionStatsQueryExecutor {
                 .build()));
         final GetCurrentActionStatsResponse curResponse =
             actionsServiceBlockingStub.getCurrentActionStats(curReqBldr.build());
+        final Map<Long, Entity> entityLookup;
+        // If the request was to group by templates, then we group by target id. For these
+        // requests, we need to get the names of the target ids from the search service
+        if (query.actionInput().getGroupBy().contains(StringConstants.TEMPLATE)) {
+            Set<Long> templatesToLookup = curResponse.getResponsesList().stream()
+                .flatMap(singleResponse -> singleResponse.getActionStatsList().stream())
+                .filter(stat -> stat.getStatGroup().hasTargetEntityId())
+                .map(stat -> stat.getStatGroup().getTargetEntityId())
+                .collect(Collectors.toSet());
+            SearchEntitiesResponse response = searchServiceBlockingStub.searchEntities(SearchEntitiesRequest.newBuilder()
+                .addAllEntityOid(templatesToLookup)
+                .setPaginationParams(PaginationParameters.newBuilder().setLimit(Integer.MAX_VALUE))
+                .build());
+            entityLookup = response.getEntitiesList().stream()
+                .collect(Collectors.toMap(Entity::getOid, Function.identity()));
+        } else {
+            entityLookup = Collections.emptyMap();
+        }
         curResponse.getResponsesList().forEach(singleResponse -> {
             final List<StatSnapshotApiDTO> snapshots = retStats.computeIfAbsent(
                 uuidMapper.fromOid(singleResponse.getQueryId()),
                 k -> new ArrayList<>(1));
             snapshots.add(actionStatsMapper.currentActionStatsToApiSnapshot(
-                singleResponse.getActionStatsList(), query));
+                singleResponse.getActionStatsList(), query, entityLookup));
         });
         return retStats;
     }

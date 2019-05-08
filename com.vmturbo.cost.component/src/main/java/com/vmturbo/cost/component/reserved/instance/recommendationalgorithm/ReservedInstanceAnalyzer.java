@@ -191,8 +191,8 @@ public class ReservedInstanceAnalyzer {
                                          .setTopologyContextId(planId)))
                             .build();
         } else {
-            actionPlan = result.createActionPlan();
             result.persistResults();
+            actionPlan = result.createActionPlan();
         }
         actionsSender.notifyActionsRecommended(actionPlan);
     }

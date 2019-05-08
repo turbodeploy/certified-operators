@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.util.action;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -25,6 +26,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionStats;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.components.common.utils.StringConstants;
 
 /**
@@ -59,17 +61,21 @@ class ActionStatsMapper {
      *
      * @param currentActionStats The current stats retrieved from the action orchestrator.
      * @param query The {@link ActionStatsQuery} the stats are for.
+     * @param entityLookup A map of entity oid to {@link Entity}. In the case of group by template
+     *                     requests, we need to have the name of the entity in the response.
+     *                     The names are looked up using this map.
      * @return The {@link StatSnapshotApiDTO} to return to the caller.
      */
     @Nonnull
     public StatSnapshotApiDTO currentActionStatsToApiSnapshot(
             @Nonnull final List<CurrentActionStat> currentActionStats,
-            @Nonnull final ActionStatsQuery query) {
+            @Nonnull final ActionStatsQuery query,
+            @Nonnull Map<Long, Entity> entityLookup) {
         final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
         statSnapshotApiDTO.setDate(query.currentTimeStamp().isPresent() ? query.currentTimeStamp().get()
                         : DateTimeUtil.toString(clock.millis()));
         statSnapshotApiDTO.setStatistics(currentActionStats.stream()
-            .flatMap(stat -> currentActionStatXlToApi(stat, query).stream())
+            .flatMap(stat -> currentActionStatXlToApi(stat, query, entityLookup).stream())
             .collect(Collectors.toList()));
         return statSnapshotApiDTO;
     }
@@ -100,7 +106,8 @@ class ActionStatsMapper {
 
     @Nonnull
     private List<StatApiDTO> currentActionStatXlToApi(@Nonnull final CurrentActionStat actionStat,
-                                                      @Nonnull final ActionStatsQuery query) {
+                                                      @Nonnull final ActionStatsQuery query,
+                                                      @Nonnull final Map<Long, Entity> entityLookup) {
         // The filters that applied to get this action stat
         final GroupByFilters groupByFilters = groupByFiltersFactory.filtersForQuery(query);
         if (actionStat.getStatGroup().hasActionCategory()) {
@@ -136,7 +143,17 @@ class ActionStatsMapper {
         }
 
         if (actionStat.getStatGroup().hasTargetEntityId()) {
-            groupByFilters.setTargetEntityId(actionStat.getStatGroup().getTargetEntityId());
+            if (query.actionInput().getGroupBy().contains(StringConstants.TEMPLATE)) {
+                Entity template = entityLookup.get(actionStat.getStatGroup().getTargetEntityId());
+                if (template != null) {
+                    groupByFilters.setTemplate(template.getDisplayName());
+                } else {
+                    // We do this as a fallback instead of throwing an exception
+                    groupByFilters.setTemplate(String.valueOf(actionStat.getStatGroup().getTargetEntityId()));
+                }
+            } else {
+                groupByFilters.setTargetEntityId(actionStat.getStatGroup().getTargetEntityId());
+            }
         }
 
         if (actionStat.getStatGroup().hasReasonCommodityBaseType()) {

@@ -9,19 +9,24 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
+import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -37,6 +42,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.Acti
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
+import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 public class ActionStatsQueryExecutorTest {
@@ -48,9 +57,19 @@ public class ActionStatsQueryExecutorTest {
     private UuidMapper uuidMapper = mock(UuidMapper.class);
     private CurrentQueryMapper currentQueryMapper = mock(CurrentQueryMapper.class);
     private ActionStatsMapper actionStatsMapper = mock(ActionStatsMapper.class);
+    SearchServiceMole searchServiceSpy = Mockito.spy(new SearchServiceMole());
+    private SearchServiceBlockingStub searchServiceBlockingStub;
 
     @Rule
     public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(actionsServiceMole);
+
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(searchServiceSpy);
+
+    @Before
+    public void init() throws Exception {
+        searchServiceBlockingStub = SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
+    }
 
     @Test
     public void testExecuteHistoricalQuery() throws OperationFailedException {
@@ -60,8 +79,12 @@ public class ActionStatsQueryExecutorTest {
             uuidMapper,
             historicalQueryMapper,
             currentQueryMapper,
-            actionStatsMapper);
+            actionStatsMapper,
+            searchServiceBlockingStub);
         final ActionStatsQuery actionStatsQuery = mock(ActionStatsQuery.class);
+        ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        inputDTO.setGroupBy(new ArrayList<>());
+        when(actionStatsQuery.actionInput()).thenReturn(inputDTO);
         when(actionStatsQuery.isHistorical()).thenReturn(true);
         EntityAccessScope userScope = mock(EntityAccessScope.class);
         when(userScope.containsAll()).thenReturn(true);
@@ -106,9 +129,13 @@ public class ActionStatsQueryExecutorTest {
             uuidMapper,
             historicalQueryMapper,
             currentQueryMapper,
-            actionStatsMapper);
+            actionStatsMapper,
+            searchServiceBlockingStub);
         final ActionStatsQuery actionStatsQuery = mock(ActionStatsQuery.class);
         when(actionStatsQuery.isHistorical()).thenReturn(false);
+        ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        inputDTO.setGroupBy(new ArrayList<>());
+        when(actionStatsQuery.actionInput()).thenReturn(inputDTO);
 
         CurrentActionStatsQuery grpcQuery = CurrentActionStatsQuery.newBuilder()
             .setActionGroupFilter(ActionGroupFilter.newBuilder()
@@ -124,7 +151,7 @@ public class ActionStatsQueryExecutorTest {
 
         final StatSnapshotApiDTO translatedLiveStat = new StatSnapshotApiDTO();
         when(actionStatsMapper.currentActionStatsToApiSnapshot(
-                Collections.singletonList(currentActionStat), actionStatsQuery))
+                Collections.singletonList(currentActionStat), actionStatsQuery, Maps.newHashMap()))
             .thenReturn(translatedLiveStat);
 
         doReturn(GetCurrentActionStatsResponse.newBuilder()

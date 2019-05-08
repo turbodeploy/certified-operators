@@ -14,6 +14,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
+import org.immutables.value.Value.NaturalOrder;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 
@@ -25,6 +26,7 @@ import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.BuyReservedInstanceRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisRecommendation;
 
 /**
  * This class is used to store the reserved instance to buy for plans or for real time
@@ -36,13 +38,6 @@ public class BuyReservedInstanceStore {
     private final IdentityProvider identityProvider;
 
     private final DSLContext dsl;
-
-    @Value.Immutable
-    public interface BuyReservedInstanceInfo {
-        long getTopologyContextId();
-        ReservedInstanceBoughtInfo getRiBoughtInfo();
-        ReservedInstanceSpec getRiSpec();
-    }
 
     public BuyReservedInstanceStore(@Nonnull final DSLContext dsl,
                                     @Nonnull final IdentityProvider identityProvider) {
@@ -62,30 +57,34 @@ public class BuyReservedInstanceStore {
     /**
      * Replaces all the Buy RIs for a topology context id. All the new Buy RIs are assumed to be
      * of the same topology context id.
-     * @param newReservedInstancesToBuy
+     * @param newRecommendations new Buy RI recommendations
+     * @param topologyContextId the topology context id
      */
-    public void udpateBuyReservedInstances(@Nonnull final Collection<BuyReservedInstanceInfo> newReservedInstancesToBuy) {
+    public void udpateBuyReservedInstances(@Nonnull final Collection<ReservedInstanceAnalysisRecommendation> newRecommendations,
+                                           final long topologyContextId) {
         // First, delete the existing buy RIs for the given topologyContextId. (Deleting applies
         // to real time buy RIs). Then create the new buy RIs.
-        if (newReservedInstancesToBuy.isEmpty()) {
+        if (newRecommendations.isEmpty()) {
             return;
         }
-        deleteBuyReservedInstances(newReservedInstancesToBuy.iterator().next().getTopologyContextId());
-        createBuyReservedInstances(newReservedInstancesToBuy);
+        deleteBuyReservedInstances(topologyContextId);
+        createBuyReservedInstances(newRecommendations, topologyContextId);
     }
 
     /**
-     * Creates BuyReservedInstanceRecords from a collection of new {@link ReservedInstanceBoughtInfo}
+     * Creates BuyReservedInstanceRecords from a collection of new {@link ReservedInstanceAnalysisRecommendation}
      * and inserts into table.
      *
-     * @param reservedInstancesToBuy a list of {@link ReservedInstanceBoughtInfo} to buy.
+     * @param recommendations a list of {@link ReservedInstanceAnalysisRecommendation} to buy.
+     * @param topologyContextId the topology context id
      */
-    private void createBuyReservedInstances(@Nonnull final Collection<BuyReservedInstanceInfo> reservedInstancesToBuy) {
-        final List<BuyReservedInstanceRecord> buyRisRecordsToAdd =
-                reservedInstancesToBuy.stream()
-                        .map(this::createBuyReservedInstance)
+    private void createBuyReservedInstances(@Nonnull final Collection<ReservedInstanceAnalysisRecommendation> recommendations,
+                                            final long topologyContextId) {
+        final List<BuyReservedInstanceRecord> buyRiRecordsToAdd =
+            recommendations.stream()
+                        .map(r -> createBuyReservedInstance(r, topologyContextId))
                         .collect(Collectors.toList());
-        dsl.batchInsert(buyRisRecordsToAdd).execute();
+        dsl.batchInsert(buyRiRecordsToAdd).execute();
     }
 
     /**
@@ -102,17 +101,20 @@ public class BuyReservedInstanceStore {
     /**
      * Create a new {@link ReservedInstanceBoughtRecord} based on input {@link ReservedInstanceBoughtInfo}.
      *
-     * @param buyRiInfo the buyRiInfo which consists of RIBoughtInfo and RISpec
+     * @param recommendation the recommendation
+     * @param topologyContextId the topology context id
      * @return The BuyReservedInstanceRecord created in the database
      */
     private BuyReservedInstanceRecord createBuyReservedInstance(
-            @Nonnull final BuyReservedInstanceInfo buyRiInfo) {
-        ReservedInstanceBoughtInfo riBoughtInfo = buyRiInfo.getRiBoughtInfo();
-        ReservedInstanceSpec riSpec = buyRiInfo.getRiSpec();
+            @Nonnull final ReservedInstanceAnalysisRecommendation recommendation,
+            final long topologyContextId) {
+        ReservedInstanceBoughtInfo riBoughtInfo = recommendation.getRiBoughtInfo();
+        ReservedInstanceSpec riSpec = recommendation.getRiSpec();
+        recommendation.setBuyRiId(identityProvider.next());
 
         return dsl.newRecord(BUY_RESERVED_INSTANCE, new BuyReservedInstanceRecord(
-                identityProvider.next(),
-                buyRiInfo.getTopologyContextId(),
+                recommendation.getBuyRiId(),
+                topologyContextId,
                 riBoughtInfo.getBusinessAccountId(),
                 riSpec.getReservedInstanceSpecInfo().getRegionId(),
                 riBoughtInfo.getReservedInstanceSpec(),

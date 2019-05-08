@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -20,6 +21,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.junit.Test;
+
+import com.google.common.collect.Maps;
 
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
 import com.vmturbo.api.component.external.api.util.action.GroupByFilters.GroupByFiltersFactory;
@@ -65,7 +68,7 @@ public class ActionStatsMapperTest {
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(stat1Filters);
 
         final StatSnapshotApiDTO snapshots = new ActionStatsMapper(clock, groupByFiltersFactory)
-            .currentActionStatsToApiSnapshot(Arrays.asList(stat1), query);
+            .currentActionStatsToApiSnapshot(Arrays.asList(stat1), query, Maps.newHashMap());
 
         assertThat(snapshots.getDate(), is(DateTimeUtil.toString(clock.millis())));
 
@@ -123,6 +126,9 @@ public class ActionStatsMapperTest {
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
         when(query.getCostType()).thenReturn(Optional.empty());
         when(query.currentTimeStamp()).thenReturn(Optional.empty());
+        ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        inputDTO.setGroupBy(new ArrayList<>());
+        when(query.actionInput()).thenReturn(inputDTO);
 
         final GroupByFilters stat1Filters = mock(GroupByFilters.class);
         final List<StatFilterApiDTO> stat1ApiFilters = Collections.singletonList(new StatFilterApiDTO());
@@ -135,7 +141,7 @@ public class ActionStatsMapperTest {
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(stat1Filters, stat2Filters);
 
         new ActionStatsMapper(clock, groupByFiltersFactory)
-            .currentActionStatsToApiSnapshot(Arrays.asList(stat1, stat2), query);
+            .currentActionStatsToApiSnapshot(Arrays.asList(stat1, stat2), query, Maps.newHashMap());
 
         // Should have been called twice - one for each action stat.
         verify(groupByFiltersFactory, times(2)).filtersForQuery(any());
@@ -335,7 +341,7 @@ public class ActionStatsMapperTest {
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(groupByFilters);
 
         final StatSnapshotApiDTO snapshot = new ActionStatsMapper(clock, groupByFiltersFactory)
-            .currentActionStatsToApiSnapshot(Arrays.asList(stat1), query);
+            .currentActionStatsToApiSnapshot(Arrays.asList(stat1), query, Maps.newHashMap());
 
         assertThat(snapshot.getDate(), is(DateTimeUtil.toString(clock.millis())));
         assertThat(snapshot.getStatistics().size(), is(1));
@@ -366,7 +372,7 @@ public class ActionStatsMapperTest {
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(groupByFilters);
 
         final StatSnapshotApiDTO snapshot = new ActionStatsMapper(clock, groupByFiltersFactory)
-            .currentActionStatsToApiSnapshot(Arrays.asList(stat1), query);
+            .currentActionStatsToApiSnapshot(Arrays.asList(stat1), query, Maps.newHashMap());
 
         assertThat(snapshot.getDate(), is(DateTimeUtil.toString(clock.millis())));
         assertThat(snapshot.getStatistics().size(), is(1));

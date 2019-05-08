@@ -161,8 +161,8 @@ class CombinedStatsBuckets {
 
         CombinedStatsBucket(@Nonnull final Predicate<ActionEntity> entityPredicate,
                             @Nonnull final StatGroup statGroup) {
-            this.statGroup = Objects.requireNonNull(statGroup);
             this.entityPredicate = Objects.requireNonNull(entityPredicate);
+            this.statGroup = Objects.requireNonNull(statGroup);
         }
 
         public void add(@Nonnull final SingleActionInfo actionInfo) {

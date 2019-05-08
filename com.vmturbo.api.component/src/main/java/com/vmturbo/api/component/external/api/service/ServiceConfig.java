@@ -569,7 +569,8 @@ public class ServiceConfig {
             mapperConfig.uuidMapper(),
             communicationConfig.groupExpander(),
             communicationConfig.supplyChainFetcher(),
-            userSessionContext());
+            userSessionContext(),
+            communicationConfig.searchServiceBlockingStub());
     }
 
     @Bean

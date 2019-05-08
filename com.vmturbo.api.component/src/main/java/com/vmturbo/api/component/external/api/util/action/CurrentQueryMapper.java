@@ -309,6 +309,8 @@ class CurrentQueryMapper {
                             return Optional.of(GroupBy.ACTION_TYPE);
                         case StringConstants.TARGET_TYPE:
                             return Optional.of(GroupBy.TARGET_ENTITY_TYPE);
+                        case StringConstants.TEMPLATE:
+                            // If the request is to group by template, we fall through to group by target entity id.
                         case StringConstants.TARGET_UUID_CC:
                             return Optional.of(GroupBy.TARGET_ENTITY_ID);
                         case StringConstants.REASON_COMMODITY:

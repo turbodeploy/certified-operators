@@ -44,6 +44,7 @@ public class ActionTypeMapper {
                 .put(ActionDTO.ActionType.ACTIVATE, ActionType.START)
                 .put(ActionDTO.ActionType.DEACTIVATE, ActionType.SUSPEND)
                 .put(ActionDTO.ActionType.DELETE, ActionType.DELETE)
+                .put(ActionDTO.ActionType.BUY_RI, ActionType.BUY_RI)
                 .build();
 
     private ActionTypeMapper() {}

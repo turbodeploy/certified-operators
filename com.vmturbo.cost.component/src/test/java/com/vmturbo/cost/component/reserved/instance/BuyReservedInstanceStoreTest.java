@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.reserved.instance;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -15,6 +16,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.ContextConfiguration;
@@ -32,7 +34,7 @@ import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.BuyReservedInstanceRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
-import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore.BuyReservedInstanceInfo;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisRecommendation;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.PaymentOption;
@@ -151,10 +153,11 @@ public class BuyReservedInstanceStoreTest {
     @Test
     public void testUpdateBuyRIs() {
         insertOldBuyRIRecords();
-        BuyReservedInstanceInfo newBuyRiInfo = ImmutableBuyReservedInstanceInfo.builder()
-                .riBoughtInfo(newRInfo).riSpec(riSpec).topologyContextId(1L).build();
+        ReservedInstanceAnalysisRecommendation recommendation = Mockito.mock(ReservedInstanceAnalysisRecommendation.class);
+        when(recommendation.getRiSpec()).thenReturn(riSpec);
+        when(recommendation.getRiBoughtInfo()).thenReturn(newRInfo);
 
-        buyRiStore.udpateBuyReservedInstances(Collections.singletonList(newBuyRiInfo));
+        buyRiStore.udpateBuyReservedInstances(Collections.singletonList(recommendation), 1L);
 
         final List<BuyReservedInstanceRecord> records = dsl.selectFrom(Tables.BUY_RESERVED_INSTANCE).fetch();
         Map<Long, List<BuyReservedInstanceRecord>> recordsByContextId = records.stream().collect(
@@ -173,10 +176,11 @@ public class BuyReservedInstanceStoreTest {
      */
     @Test
     public void testInsertBuyRIs() {
-        BuyReservedInstanceInfo newBuyRiInfo = ImmutableBuyReservedInstanceInfo.builder()
-                .riBoughtInfo(newRInfo).riSpec(riSpec).topologyContextId(1L).build();
+        ReservedInstanceAnalysisRecommendation recommendation = Mockito.mock(ReservedInstanceAnalysisRecommendation.class);
+        when(recommendation.getRiSpec()).thenReturn(riSpec);
+        when(recommendation.getRiBoughtInfo()).thenReturn(newRInfo);
 
-        buyRiStore.udpateBuyReservedInstances(Collections.singletonList(newBuyRiInfo));
+        buyRiStore.udpateBuyReservedInstances(Collections.singletonList(recommendation), 1L);
 
         final List<BuyReservedInstanceRecord> records = dsl.selectFrom(Tables.BUY_RESERVED_INSTANCE).fetch();
         assertEquals(1, records.size());
@@ -192,10 +196,11 @@ public class BuyReservedInstanceStoreTest {
                 .setReservedInstanceSpec(100L)
                 .setNumBought(18)
                 .build();
-        BuyReservedInstanceInfo newBuyRiInfo = ImmutableBuyReservedInstanceInfo.builder()
-                .riBoughtInfo(newRInfo).riSpec(riSpec).topologyContextId(1L).build();
+        ReservedInstanceAnalysisRecommendation recommendation = Mockito.mock(ReservedInstanceAnalysisRecommendation.class);
+        when(recommendation.getRiSpec()).thenReturn(riSpec);
+        when(recommendation.getRiBoughtInfo()).thenReturn(newRInfo);
 
-        buyRiStore.udpateBuyReservedInstances(Arrays.asList(newBuyRiInfo));
+        buyRiStore.udpateBuyReservedInstances(Arrays.asList(recommendation), 1L);
     }
 
     private void insertDefaultReservedInstanceSpec() {

@@ -193,6 +193,8 @@ public class ActionDTOUtil {
                 return actionInfo.getDeactivate().getTarget();
             case DELETE:
                 return actionInfo.getDelete().getTarget();
+            case BUYRI:
+                return actionInfo.getBuyRi().getComputeTier();
             default:
                 throw new UnsupportedActionException(action.getId(), actionInfo);
         }
@@ -284,6 +286,8 @@ public class ActionDTOUtil {
                 }
             case DELETE:
                 return Collections.singletonList(action.getInfo().getDelete().getTarget());
+            case BUYRI:
+                return Collections.singletonList(action.getInfo().getBuyRi().getComputeTier());
             default:
                 throw new UnsupportedActionException(action);
         }
@@ -364,6 +368,8 @@ public class ActionDTOUtil {
                 return ActionType.DEACTIVATE;
             case DELETE:
                 return ActionType.DELETE;
+            case BUYRI:
+                return ActionType.BUY_RI;
             default:
                 return ActionType.NONE;
         }

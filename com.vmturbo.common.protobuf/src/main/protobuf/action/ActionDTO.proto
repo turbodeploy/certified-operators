@@ -9,16 +9,17 @@ import "topology/TopologyDTO.proto";
 import "CloudCostDTO.proto";
 
 message Explanation {
-   oneof action_explanation_type {
-       MoveExplanation move = 1;
-       ResizeExplanation resize = 2;
-       ActivateExplanation activate = 3;
-       DeactivateExplanation deactivate = 4;
-       ReconfigureExplanation reconfigure = 5;
-       ProvisionExplanation provision = 6;
-       DeleteExplanation delete = 7;
-   }
-   // A list of explanations for move action.
+    oneof action_explanation_type {
+        MoveExplanation move = 1;
+        ResizeExplanation resize = 2;
+        ActivateExplanation activate = 3;
+        DeactivateExplanation deactivate = 4;
+        ReconfigureExplanation reconfigure = 5;
+        ProvisionExplanation provision = 6;
+        DeleteExplanation delete = 7;
+        BuyRIExplanation buyRI = 8;
+    }
+    // A list of explanations for move action.
     message MoveExplanation {
         repeated ChangeProviderExplanation change_provider_explanation = 1;
     }
@@ -103,11 +104,11 @@ message Explanation {
     // Deactivate explanation will always be improve overall efficiency.
     message DeactivateExplanation {}
 
-   // Delete - right now used for wasted files only
-   message DeleteExplanation {
-       // The size of the file to delete (needed for ON_PREM only)
-       optional int64 size_kb = 1;
-   }
+    // Delete - right now used for wasted files only
+    message DeleteExplanation {
+        // The size of the file to delete (needed for ON_PREM only)
+        optional int64 size_kb = 1;
+    }
 
     // Reconfigure explanation contains the base type of the reconfigure commodity.
     message ReconfigureExplanation {
@@ -159,6 +160,8 @@ message Explanation {
         }
     }
 
+    message BuyRIExplanation {
+    }
 }
 
 // Change one or more providers of an entity.
@@ -287,6 +290,18 @@ message Provision {
     optional sint64 provisioned_seller = 2;
 }
 
+// An action to Buy a reserved instance
+message BuyRI {
+    // The id of the buy ri. The id refers to the primary key in buy_reserved_instance table of
+    // the cost database. The cost-component generates Buy RI recommendations and stores these
+    // recommendations in the database.
+    optional int64 buy_ri_id = 1;
+
+    // The tier of the buy ri. For ex. for a Buy RI action like "Buy 2 t2.small RIs", the
+    // compute_tier will be the t2.small entity
+    optional ActionEntity compute_tier = 2;
+}
+
 // Contains the information describing the recommendation for what
 // action should be executed in the environment.
 message ActionInfo {
@@ -300,6 +315,7 @@ message ActionInfo {
         Activate activate = 5;
         Deactivate deactivate = 6;
         Delete delete = 7;
+        BuyRI buyRi = 8;
     }
 }
 
@@ -483,6 +499,9 @@ enum ActionType {
 
     // Delete a wasted file associated with a Storage or StorageTier
     DELETE = 9;
+
+    // Buy a reserved instance of the specification.
+    BUY_RI = 10;
 }
 
 // The ActionState describes the current state of an action.
@@ -601,7 +620,7 @@ message ActionDecision {
 enum Severity {
     NORMAL = 1;     // Indicates a normal state. An entity in a normal state is considered healthy.
     MINOR = 2;      // The action will improve the situation in the user's environment,
-                    // but if not addressed, unlikely to have serious consequences.
+    // but if not addressed, unlikely to have serious consequences.
     MAJOR = 3;      // The action has some urgency.
     CRITICAL = 4;   // The most critical category, these actions should be addressed immediately.
 }

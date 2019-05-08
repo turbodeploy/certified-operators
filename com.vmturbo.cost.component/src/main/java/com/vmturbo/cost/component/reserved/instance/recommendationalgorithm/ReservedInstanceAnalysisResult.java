@@ -24,7 +24,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.BuyRIActionPlanInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore;
-import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore.BuyReservedInstanceInfo;
 
 /**
  * The results of the reserved instance recommendation algorithms: a set of recommended actions, plus
@@ -206,11 +205,6 @@ public class ReservedInstanceAnalysisResult {
      * Creates RI Bought from the RI recommendations.
      */
     public void persistResults() {
-        // We create BuyReservedInstanceInfos from the recommendations and then persist them in the store.
-        Set<BuyReservedInstanceInfo> buyRiInfos = Sets.newHashSet();
-        for (ReservedInstanceAnalysisRecommendation recommendation : recommendations) {
-            buyRiInfos.add(recommendation.createBuyRiInfo(manifest.getTopologyContextId()));
-        }
-        buyRiStore.udpateBuyReservedInstances(buyRiInfos);
+        buyRiStore.udpateBuyReservedInstances(recommendations, manifest.getTopologyContextId());
     }
 }

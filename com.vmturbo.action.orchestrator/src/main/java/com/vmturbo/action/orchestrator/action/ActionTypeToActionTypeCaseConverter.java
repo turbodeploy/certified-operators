@@ -35,6 +35,7 @@ public class ActionTypeToActionTypeCaseConverter {
                     .put(ActionType.SUSPEND, ActionTypeCase.DEACTIVATE)
                     .put(ActionType.START, ActionTypeCase.ACTIVATE)
                     .put(ActionType.DELETE, ActionTypeCase.DELETE)
+                    .put(ActionType.BUY_RI, ActionTypeCase.BUYRI)
                     .build();
 
     /**
