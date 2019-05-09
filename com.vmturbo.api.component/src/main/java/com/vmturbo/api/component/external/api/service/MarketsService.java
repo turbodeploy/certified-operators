@@ -933,16 +933,20 @@ public class MarketsService implements IMarketsService {
     }
 
     @Override
+    /**
+     * {@inheritDoc}
+     * This api has both a group id as input and also a StatScopesApiInputDTO.  The StatScopesApiInputDTO may
+     * include a scope.  If the scope is specified, the logic will use the intersection of the group members and scope ids.
+     * It is typically expected that the users specify only a group id.
+     */
     public EntityStatsPaginationResponse getStatsByEntitiesInGroupInMarketQuery(final String marketUuid,
                                                                                 final String groupUuid,
                                                                                 final StatScopesApiInputDTO statScopesApiInputDTO,
                                                                                 final EntityStatsPaginationRequest paginationRequest)
             throws Exception {
-        // If there are explicit entities requested from the group, we can just request those
-        // entities directly. If there are no explicit entities, we look up the members
-        // of the group and get stats for them. If the plan was scoped to a different group
+        // Look up the group members and then check how the members overlap with an input scope, if specified
+        // If the plan was scoped to a different group
         // we won't return anything (since the requested entities won't be found in the repository).
-        if (CollectionUtils.isEmpty(statScopesApiInputDTO.getScopes())) {
             ApiId apiId = uuidMapper.fromUuid(marketUuid);
             // if this is for a plan market, we will not check user scope.
             boolean enforceUserScope = !apiId.isPlan();
@@ -955,10 +959,17 @@ public class MarketsService implements IMarketsService {
 
             final GetMembersResponse groupMembersResp =
                     groupRpcService.getMembers(getGroupMembersReq);
-            statScopesApiInputDTO.setScopes(groupMembersResp.getMembers().getIdsList().stream()
+            List<String> membersUuids = groupMembersResp.getMembers().getIdsList().stream()
                     .map(id -> Long.toString(id))
-                    .collect(Collectors.toList()));
+                    .collect(Collectors.toList());
+        // If an input scope was also specified, use the intersection.
+        if (!CollectionUtils.isEmpty(statScopesApiInputDTO.getScopes())) {
+            membersUuids.retainAll(statScopesApiInputDTO.getScopes());
+            if (membersUuids.isEmpty()) {
+                throw new IllegalArgumentException("Group scope: " + groupUuid + " and input scope conflict: " + statScopesApiInputDTO.getScopes());
+            }
         }
+        statScopesApiInputDTO.setScopes(membersUuids);
         return getStatsByEntitiesInMarketQuery(marketUuid, statScopesApiInputDTO, paginationRequest);
     }
 

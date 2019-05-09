@@ -8,22 +8,27 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Stream;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Matchers;
 import org.mockito.Mockito;
 import org.mockito.internal.matchers.Any;
 import org.springframework.beans.factory.BeanCreationException;
@@ -63,6 +68,7 @@ import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
@@ -74,7 +80,9 @@ import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.controller.MarketsController;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
+import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
+import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.serviceinterfaces.IBusinessUnitsService;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
 import com.vmturbo.api.serviceinterfaces.ISettingsPoliciesService;
@@ -91,6 +99,8 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -150,6 +160,9 @@ public class MarketsServiceTest {
     private MockMvc mockMvc;
     private static final Gson GSON = new Gson();
     private final PlanInstance planDefault;
+
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
     public MarketsServiceTest() {
         planDefault = PlanInstance.newBuilder()
@@ -366,6 +379,107 @@ public class MarketsServiceTest {
     }
 
     /**
+     * call the MarketsService group stats API and check the results
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testGetStatsByMarketAndGroup() throws Exception {
+        // Setup the test
+        final Set<Long> expandedUids = new HashSet<>();
+        expandedUids.add(1L);
+        expandedUids.add(2L);
+        expandedUids.add(3L);
+
+        // Mock expected members response
+        GetMembersResponse membersResponse = GetMembersResponse.newBuilder()
+                .setMembers(Members.newBuilder().addAllIds(expandedUids).build())
+                .build();
+        when(testConfig.groupService().getMembers(any())).thenReturn(membersResponse);
+
+        // Mock call to stats service which is called from MarketService
+        final EntityStatsPaginationRequest paginationRequest = new EntityStatsPaginationRequest(null, 100, true, null);
+
+        ArgumentCaptor<StatScopesApiInputDTO> scopeApiArgument = ArgumentCaptor.forClass(StatScopesApiInputDTO.class);
+
+        final MarketsService service = testConfig.marketsService();
+
+        ApiTestUtils.mockRealtimeId(StatsService.MARKET, REALTIME_PLAN_ID, testConfig.uuidMapper());
+
+        // Now execute the test
+        // Test the most basic case where a group uuid is specified and no other data in the input
+        StatScopesApiInputDTO inputDTO = new StatScopesApiInputDTO();
+        // Invoke the service and verify that it results in calling getStatsByUuidsQuery with a scope size of 3
+        service.getStatsByEntitiesInGroupInMarketQuery(StatsService.MARKET, "5", inputDTO, paginationRequest);
+        Mockito.verify(testConfig.statsService()).getStatsByUuidsQuery(scopeApiArgument.capture(), any());
+        assertEquals(3, scopeApiArgument.getValue().getScopes().size());
+
+        // Set the input scope to a subset of entities in the group membership
+        StatScopesApiInputDTO statScopesApiInputDTO = new StatScopesApiInputDTO();
+        List<String> scopes = new ArrayList<>();
+        scopes.add("1");
+        scopes.add("2");
+        scopes.add("4");
+        statScopesApiInputDTO.setScopes(scopes);
+        // Setting relatedType to VirtualMachine should have no impact on the results
+        statScopesApiInputDTO.setRelatedType(UIEntityType.VIRTUAL_MACHINE.getValue());
+        scopeApiArgument = ArgumentCaptor.forClass(StatScopesApiInputDTO.class);
+        // Invoke the service and then verify that the service calls getStatsByUuidsQuery with a scope size of 2, since this is the overlap of the
+        // group and the scope.
+        service.getStatsByEntitiesInGroupInMarketQuery(StatsService.MARKET, "5", statScopesApiInputDTO, paginationRequest);
+        Mockito.verify(testConfig.statsService(), Mockito.times(2)).getStatsByUuidsQuery(scopeApiArgument.capture(), any());
+        assertEquals(2, scopeApiArgument.getValue().getScopes().size());
+
+        // Set the input related entity type to PhysicalMachine
+        // This should be the same as the first test, but just verifying that the addition of the related entity
+        // type does not change the scope sent to the getStatsByUuidsQuery
+        inputDTO = new StatScopesApiInputDTO();
+        inputDTO.setRelatedType(UIEntityType.PHYSICAL_MACHINE.getValue());
+        service.getStatsByEntitiesInGroupInMarketQuery(StatsService.MARKET, "5", inputDTO, paginationRequest);
+        Mockito.verify(testConfig.statsService(), Mockito.times(3)).getStatsByUuidsQuery(scopeApiArgument.capture(), any());
+        assertEquals(3, scopeApiArgument.getValue().getScopes().size());
+    }
+
+    /**
+     * call the MarketsService group stats API with a group uuid
+     * and a scope, such that the scope does not overlap the group
+     * members.  So, the scope is effectively invalid.  This will
+     * throw an illegal argument exception
+     * @throws Exception
+     */
+    @Test
+    public void testGetStatsByMarketAndGroupError() throws Exception {
+        expectedException.expect(IllegalArgumentException.class);
+
+        // SETUP THE TEST
+        final Set<Long> expandedUids = new HashSet<>();
+        expandedUids.add(1L);
+        expandedUids.add(2L);
+        expandedUids.add(3L);
+
+        // Mock expected members response
+        GetMembersResponse membersResponse = GetMembersResponse.newBuilder()
+                .setMembers(Members.newBuilder().addAllIds(expandedUids).build())
+                .build();
+        when(testConfig.groupService().getMembers(any())).thenReturn(membersResponse);
+
+        ApiTestUtils.mockRealtimeId(StatsService.MARKET, REALTIME_PLAN_ID, testConfig.uuidMapper());
+
+        // Set the input scope to a subset of entities in the group membership
+        StatScopesApiInputDTO inputDTO = new StatScopesApiInputDTO();
+        EntityStatsPaginationRequest paginationRequest = new EntityStatsPaginationRequest(null, 100, true, null);
+
+        // Set the input scope to a set of uuids, none of the uuids overlap with the group uuids
+        List<String> testUuids = new ArrayList<>();
+        testUuids.add("6");
+        testUuids.add("7");
+        inputDTO.setScopes(testUuids);
+        // This should throw an exception since there are no members in the overlap of the group and the input scope
+        testConfig.marketsService().getStatsByEntitiesInGroupInMarketQuery(StatsService.MARKET, "5", inputDTO, paginationRequest);
+    }
+
+
+    /**
      * Spring configuration to startup all the beans, necessary for test execution.
      */
     @Configuration
@@ -385,7 +499,7 @@ public class MarketsServiceTest {
                     groupRpcService(), repositoryRpcService(), new UserSessionContext(),
                     uiNotificationChannel(), actionStatsQueryExecutor(), topologyProcessor(),
                     entitySeverityRpcService(), statsHistoryRpcService(),
-                    Mockito.mock(StatsService.class), REALTIME_CONTEXT_ID);
+                    statsService(), REALTIME_CONTEXT_ID);
         }
 
         @Bean
@@ -560,8 +674,8 @@ public class MarketsServiceTest {
         }
 
         @Bean
-        public IStatsService statsService() {
-            return Mockito.mock(IStatsService.class);
+        public StatsService statsService() {
+            return Mockito.mock(StatsService.class);
         }
 
         @Bean
