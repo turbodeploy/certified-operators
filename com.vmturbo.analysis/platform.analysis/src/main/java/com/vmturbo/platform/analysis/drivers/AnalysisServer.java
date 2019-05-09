@@ -31,6 +31,7 @@ import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomySettings;
+import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.ledger.PriceStatement;
@@ -416,6 +417,17 @@ public class AnalysisServer implements AutoCloseable {
                 }
                 builder.addAllNewShoppingListToBuyerEntry(AnalysisToProtobuf
                                                     .createNewShoppingListToBuyerMap(lastComplete));
+                // Recreate TraderTO in order to send back the updated TraderTO after actions from
+                // this provision round may have updated the trader.
+                for (Trader trader : secondRoundActions.stream().map(Action::getActionTarget)
+                                                                .collect(Collectors.toSet())) {
+                    if (!trader.isClone()) {
+                        builder.setProjectedTopoEntityTO(trader.getEconomyIndex(),
+                                        AnalysisToProtobuf.traderTO(economy, trader,
+                                                            lastComplete.getTraderOids(),
+                                                            lastComplete.getShoppingListOids()));
+                    }
+                }
                 results = builder.build();
             }
             if (isReplayOrRealTime) {
