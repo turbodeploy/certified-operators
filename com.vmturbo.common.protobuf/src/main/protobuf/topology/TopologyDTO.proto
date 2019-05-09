@@ -77,6 +77,9 @@ message TypeSpecificInfo {
 
         // The total number of CPU sockets on the host
         optional int32 num_cpu_sockets = 6;
+
+        // The CPU Core MHz on the host
+        optional int32 cpu_core_mhz = 7;
     }
 
     message BusinessAccountInfo {

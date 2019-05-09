@@ -1836,35 +1836,101 @@ public class TopologyConverter {
             peak = 0;
         }
 
-        final float peakQuantity = peak; // It must be final
+        float peakQuantity = peak;
 
-        return commodityConverter.economyToTopologyCommodity(commSoldTO.getSpecification())
-                .map(commType -> {
-                    // find original sold commodity of same type from original entity
-                    Optional<CommoditySoldDTO> originalCommoditySold =
-                        commodityIndex.getCommSold(traderOid, commType);
+        float capacity = commSoldTO.getCapacity();
+        // Get the cpuCoreMhz of the PM if the current commodityType is VCPU.
+        if (commSoldTO.getSpecification().getBaseType() == CommodityDTO.CommodityType.VCPU_VALUE) {
+            capacity = calculateVCPUResizeCapacity(traderOid, commSoldTO);
+        }
 
-                    CommoditySoldDTO.Builder commoditySoldBuilder = CommoditySoldDTO.newBuilder()
-                        .setCapacity(reverseScaleCommSold(commSoldTO.getCapacity(), originalCommoditySold))
-                        .setUsed(reverseScaleCommSold(commSoldTO.getQuantity(), originalCommoditySold))
-                        .setPeak(peakQuantity)
-                        .setMaxQuantity(commSoldTO.getMaxQuantity())
-                        .setIsResizeable(commSoldTO.getSettings().getResizable())
-                        .setEffectiveCapacityPercentage(
-                            commSoldTO.getSettings().getUtilizationUpperBound() * 100)
-                        .setCommodityType(commType)
-                        .setIsThin(commSoldTO.getThin())
-                        .setCapacityIncrement(
-                            commSoldTO.getSettings().getCapacityIncrement());
+        Optional<CommodityType> commTypeOptional =
+            commodityConverter.economyToTopologyCommodity(commSoldTO.getSpecification());
+        if (!commTypeOptional.isPresent()) {
+            return Optional.empty();
+        }
+        CommodityType commType = commTypeOptional.get();
+        // find original sold commodity of same type from original entity
+        Optional<CommoditySoldDTO> originalCommoditySold =
+            commodityIndex.getCommSold(traderOid, commType);
 
-                    // set hot add / hot remove, if present
-                    originalCommoditySold
-                        .filter(CommoditySoldDTO::hasHotResizeInfo)
-                        .map(CommoditySoldDTO::getHotResizeInfo)
-                        .ifPresent(commoditySoldBuilder::setHotResizeInfo);
+        CommoditySoldDTO.Builder commoditySoldBuilder = CommoditySoldDTO.newBuilder()
+            .setCapacity(reverseScaleCommSold(capacity, originalCommoditySold))
+            .setUsed(reverseScaleCommSold(commSoldTO.getQuantity(), originalCommoditySold))
+            .setPeak(peakQuantity)
+            .setMaxQuantity(commSoldTO.getMaxQuantity())
+            .setIsResizeable(commSoldTO.getSettings().getResizable())
+            .setEffectiveCapacityPercentage(
+                commSoldTO.getSettings().getUtilizationUpperBound() * 100)
+            .setCommodityType(commType)
+            .setIsThin(commSoldTO.getThin())
+            .setCapacityIncrement(
+                commSoldTO.getSettings().getCapacityIncrement());
 
-                    return commoditySoldBuilder.build();
-                });
+        // set hot add / hot remove, if present
+        originalCommoditySold
+            .filter(CommoditySoldDTO::hasHotResizeInfo)
+            .map(CommoditySoldDTO::getHotResizeInfo)
+            .ifPresent(commoditySoldBuilder::setHotResizeInfo);
+
+        return Optional.of(commoditySoldBuilder.build());
+    }
+
+    /**
+     * Calculate the correct VCPU capacity.
+     * For example, if the old capacity of the VCPU is 5200 MHz, the new capacity calculated by the
+     * market is 7000 MHz and the CPU Core MHz of the PM which the current trader stays on is 2600 MHz,
+     * 7000 MHz is not the correct VCPU capacity because 7000 MHz is not a multiplier of 2600, which
+     * doesn't make sense to resize the VCPU to 7000 / 2600 = 2.7 cores.
+     * So we need to round 7000 MHz up to the next multiplier of 2600 larger than 7000, which is 7800.
+     * Math formula: correctCapacity = Math.ceil(newCapacity / cpuCoreMhz) * cpuCoreMhz
+     *
+     * @param traderOid The ID of the trader selling the commodity
+     * @param commSoldTO the market CommdditySoldTO to convert
+     * @return the correct VCPU capacity
+     */
+    private float calculateVCPUResizeCapacity(final long traderOid,
+                                              @Nonnull final CommoditySoldTO commSoldTO) {
+        float capacity = commSoldTO.getCapacity();
+        CommoditySoldTO originalCommSoldTO = oidToOriginalTraderTOMap.get(traderOid)
+            .getCommoditiesSoldList().stream().filter(commoditySoldTO ->
+                commoditySoldTO.getSpecification().getBaseType() == CommodityDTO.CommodityType.VCPU_VALUE)
+            .findFirst().get();
+        // Check if VCPU is resized.
+        int isVCPUresized = Float.compare(capacity, originalCommSoldTO.getCapacity());
+        if (isVCPUresized == 0) {
+            return capacity;
+        }
+        // Get the id of the current PM provider of the current trader.
+        Optional<Long> providerIdOptional = oidToProjectedTraderTOMap.get(traderOid)
+            .getShoppingListsList().stream().filter(ShoppingListTO::hasSupplier)
+            .map(ShoppingListTO::getSupplier).filter(supplier ->
+                oidToProjectedTraderTOMap.get(supplier).getType() == EntityType.PHYSICAL_MACHINE_VALUE)
+            .findFirst();
+        if (providerIdOptional.isPresent() &&
+            oidToProjectedTraderTOMap.containsKey(providerIdOptional.get())) {
+            // Get the id of the original PM provider of the current trader.
+            long providerId = oidToProjectedTraderTOMap.get(providerIdOptional.get()).hasCloneOf() ?
+                oidToProjectedTraderTOMap.get(providerIdOptional.get()).getCloneOf() :
+                providerIdOptional.get();
+            boolean hasCpuCoreMhz = entityOidToDto.get(providerId).hasTypeSpecificInfo() &&
+                entityOidToDto.get(providerId).getTypeSpecificInfo().hasPhysicalMachine() &&
+                entityOidToDto.get(providerId).getTypeSpecificInfo().getPhysicalMachine().hasCpuCoreMhz();
+            if (hasCpuCoreMhz) {
+                // Always take the ceiling.
+                // Same as what we do in ActionTranslator#translateVcpuResizeInfo
+                int cpuCoreMhz = entityOidToDto.get(providerId).getTypeSpecificInfo()
+                    .getPhysicalMachine().getCpuCoreMhz();
+                capacity = (float) Math.ceil(capacity / cpuCoreMhz) * cpuCoreMhz;
+            } else {
+                logger.error("PM {} doesn't have cpuCoreMhz information.",
+                    entityOidToDto.get(providerId).getDisplayName());
+            }
+        } else {
+            logger.error("VM {} has no PM provider.",
+                entityOidToDto.get(traderOid).getDisplayName());
+        }
+        return capacity;
     }
 
     /**
