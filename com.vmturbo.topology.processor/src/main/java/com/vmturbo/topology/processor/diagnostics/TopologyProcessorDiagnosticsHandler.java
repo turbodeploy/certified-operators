@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -310,6 +311,29 @@ public class TopologyProcessorDiagnosticsHandler {
     private static final Pattern DEPLOYMENT_PROFILE_PATTERN =
         Pattern.compile("DiscoveredDeploymentProfilesAndTemplates\\.(\\d*)-(\\d*)\\.diags");
 
+    private Comparator<Diags> diagsRestoreComparator =
+        Comparator.comparingInt(TopologyProcessorDiagnosticsHandler::diagsRestorePriority);
+
+    /**
+     * Retrieve the priority level for restoring a diags file.
+     * Lower numbers represent a higher priority, with 1 being the highest priority.
+     *
+     * @param diags the diagnostics file to determine the load priority for
+     * @return
+     */
+    private static Integer diagsRestorePriority(Diags diags) {
+        final String diagsName = diags.getName();
+        switch (diagsName) {
+            case ID_DIAGS_FILE_NAME: return 1;
+            case PROBES_DIAGS_FILE_NAME: return 2;
+            case TARGET_IDENTIFIERS_DIAGS_FILE_NAME: return 3;
+            case TARGETS_DIAGS_FILE_NAME: return 4;
+            case SCHEDULES_DIAGS_FILE_NAME: return 5;
+            // All other diagnostics files receive equal priority and may be loaded in any order
+            default: return 6;
+        }
+    }
+
     /**
      * Restore topology processor diagnostics from a {@link ZipInputStream}.
      *
@@ -321,46 +345,40 @@ public class TopologyProcessorDiagnosticsHandler {
      */
     public List<Target> restore(InputStream zis) throws IOException, TargetDeserializationException,
                                                             InvalidTargetException {
-        Map<String, List<Diags>> diagnosticsByNameMap = Streams.stream(new RecursiveZipReader(zis))
-            .collect(Collectors.groupingBy(Diags::getName));
-//        Map<String, Diags> diagnosticsByNameMap = new HashMap<>();
-//        new RecursiveZipReader(zis).iterator()
-//            .forEachRemaining(diags -> diagnosticsByNameMap.put(diags.getName(), diags));
-
         // Ordering is important. The identityProvider diags must be restored before the probes diags.
         // Otherwise, a race condition occurs where if a probe (re)registers after the restore of
         // the probe diags and before the restore of the identityProvider diags, then a probeInfo
         // will be written to Consul with the old ID. This entry will later become a duplicate entry
         // and cause severe problems.
-        // Process the identityProvider diags (if any) before processing any other diags
-        List<Diags> identityDiags = diagnosticsByNameMap.get(ID_DIAGS_FILE_NAME);
-        if (!identityDiags.isEmpty()) {
-            identityDiags.forEach(diags -> {
-                try {
-                    identityProvider.restoreDiags(diags.getLines());
-                } catch (Exception e) {
-                    logger.error("Failed to restore Identity diags.", e);
-                }});
-            diagnosticsByNameMap.remove(ID_DIAGS_FILE_NAME);
-        }
+        List<Diags> sortedDiagnostics = Streams.stream(new RecursiveZipReader(zis))
+            .sorted(diagsRestoreComparator)
+            .collect(Collectors.toList());
 
-        for (List<Diags> diagsOfSpecificType : diagnosticsByNameMap.values()) {
-            for (Diags diags : diagsOfSpecificType) {
-                final String diagsName = diags.getName();
-                final List<String> diagsLines = diags.getLines();
-                if (diagsLines == null) {
-                    continue;
-                }
-                try {
-                    if (TARGET_IDENTIFIERS_DIAGS_FILE_NAME.equals(diagsName)) {
+        for (Diags diags : sortedDiagnostics) {
+            final String diagsName = diags.getName();
+            final List<String> diagsLines = diags.getLines();
+            if (diagsLines == null) {
+                continue;
+            }
+            try {
+                switch (diagsName) {
+                    case ID_DIAGS_FILE_NAME:
+                        identityProvider.restoreDiags(diagsLines);
+                        break;
+                    case TARGET_IDENTIFIERS_DIAGS_FILE_NAME:
                         restoreTargetIdentifiers(diagsLines);
-                    } else if (TARGETS_DIAGS_FILE_NAME.equals(diagsName)) {
+                        break;
+                    case TARGETS_DIAGS_FILE_NAME:
                         restoreTargets(diagsLines);
-                    } else if (SCHEDULES_DIAGS_FILE_NAME.equals(diagsName)) {
+                        break;
+                    case SCHEDULES_DIAGS_FILE_NAME:
                         restoreSchedules(diagsLines);
-                    } else if (PROBES_DIAGS_FILE_NAME.equals(diagsName)) {
+                        break;
+                    case PROBES_DIAGS_FILE_NAME:
                         restoreProbes(diagsLines);
-                    } else {
+                        break;
+                    default:
+                       // Other diags files should match a pattern
                         Matcher entitiesMatcher = ENTITIES_PATTERN.matcher(diagsName);
                         Matcher groupsMatcher = GROUPS_PATTERN.matcher(diagsName);
                         Matcher settingPolicyMatcher = SETTING_POLICIES_PATTERN.matcher(diagsName);
@@ -381,10 +399,9 @@ public class TopologyProcessorDiagnosticsHandler {
                         } else {
                             logger.warn("Did not recognize diags file {}", diagsName);
                         }
-                    }
-                } catch (Exception e) {
-                    logger.error("Failed to restore diags file {}", diagsName, e);
                 }
+            } catch (Exception e) {
+                logger.error("Failed to restore diags file " + diagsName, e);
             }
         }
         return targetStore.getAll();
