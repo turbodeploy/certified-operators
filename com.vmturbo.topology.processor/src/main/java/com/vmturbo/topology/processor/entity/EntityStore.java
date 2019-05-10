@@ -28,6 +28,7 @@ import com.google.common.collect.Maps;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -117,6 +118,62 @@ public class EntityStore {
     @Nonnull
     public Optional<Entity> getEntity(final long entityOid) {
         return Optional.ofNullable(entityMap.get(entityOid));
+    }
+
+    /**
+     * Choose an EntityDTO from the raw entity to use to represent this entity
+     *
+     * See {@link #chooseEntityDTO(Entity)} for more details on how the selection is performed
+     *
+     * @param entityOid the ID of an entity
+     * @return an EntityDTO representing the data discovered by the primary target for the entity
+     */
+    public EntityDTO chooseEntityDTO(final long entityOid) {
+        // choose an entityDTO to use based on its origin. The 'DISCOVERED' entityDTO is preferred.
+        return getEntity(entityOid).map(this::chooseEntityDTO).orElseThrow(() ->
+            new EntityNotFoundException("Could not find matching entity with oid " + entityOid +
+                " in the store of raw discovered entity data."));
+    }
+
+    /**
+     * Choose an EntityDTO from the raw entity to use to represent this entity
+     * An EntityDTO with origin set to 'discovered' will be preferred, followed by origins of
+     * "replaceable" and finally "proxy".
+     * In cases where multiple EntityDTOs have the same origin value, the first EntityDTO found will
+     * be chosen.
+     *
+     * Example: For a VM, the EntityDTO with origin of "DISCOVERED" would generally have been
+     *   discovered by a Hypervisor or a Cloud target
+     *
+     * @param entity an object representing the data discovered by all targets for the entity
+     * @return an EntityDTO representing the data discovered by the primary target for the entity
+     */
+    public EntityDTO chooseEntityDTO(final Entity entity) {
+        // This could alternatively be achieved by sorting the EntityDTOs by origin type and then
+        // picking the first element from the list. However, the intent seems more clear in the
+        // current implementation.
+        return findEntityDTObyOrigin(entity, EntityOrigin.DISCOVERED)
+            .orElseGet(() -> findEntityDTObyOrigin(entity, EntityOrigin.REPLACEABLE)
+                .orElseGet(() -> findEntityDTObyOrigin(entity, EntityOrigin.PROXY)
+                    .orElseThrow(() -> new EntityNotFoundException("Could not find EntityDTO " +
+                        "of origin 'DISCOVERED', 'REPLACEABLE' or 'PROXY' in the raw " +
+                        "entity data for entity " + entity.getId()))));
+    }
+
+    /**
+     * Find the first EntityDTO in the Entity that matches the provided EntityOrigin
+     *
+     * @param entity the Entity containing EntityDTOs to be searched
+     * @param entityOrigin the origin type being selected on
+     * @return the first EntityDTO in the Entity that matches the provided EntityOrigin
+     */
+    private Optional<EntityDTO> findEntityDTObyOrigin(final Entity entity,
+                                                      final EntityOrigin entityOrigin) {
+        return entity.allTargetInfo().stream()
+            .map(PerTargetInfo::getEntityInfo)
+            // Find the first EntityDTO whose origin matches the provided EntityOrigin
+            .filter(entityDTO -> entityOrigin.equals(entityDTO.getOrigin()))
+            .findFirst();
     }
 
     /**

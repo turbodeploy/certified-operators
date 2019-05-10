@@ -3,7 +3,6 @@ package com.vmturbo.topology.processor.targets;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -14,7 +13,6 @@ import org.apache.logging.log4j.util.Strings;
 
 import com.google.common.collect.ImmutableMap;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -30,8 +28,10 @@ import com.vmturbo.topology.processor.targets.GroupScopeResolver.GroupScopedEnti
 public class GroupScopePropertyExtractor {
     private static final Logger logger = LogManager.getLogger();
 
-    public static final char VSTORAGE_PREFIX_SEPARATOR = '_';
-    public static final String IP_ADDRESS_SEPARATOR = ",";
+    private static final String IP_ADDRESS_SEPARATOR = ",";
+    // the static string used by VC probe as a prefix when generating entity ids
+    private static final String VC_VSTORAGE_UUID_PREFIX = "_wK4GWWTbEd-Ea97W1fNhs6";
+    private static final String BACKSLASH = "\\";
 
     /**
      * A map from each property that might appear in the group scope to a
@@ -89,25 +89,28 @@ public class GroupScopePropertyExtractor {
                     .put(EntityPropertyName.VMEM_CAPACITY,
                             new CommodityCapacityExtractor(CommodityType.VMEM))
                     .put(EntityPropertyName.VSTORAGE_KEY_PREFIX, groupScopedEntity -> {
-                        // If the VStorage key prefixes are all identical, return the
-                        // prefix; otherwise, return Optional.empty
-                        Set<String> prefixes = groupScopedEntity.getTopologyEntityDTO()
-                                .getCommoditySoldListList()
-                                .stream()
-                                .filter(comm -> CommodityType.VSTORAGE.getNumber()
-                                        == comm.getCommodityType().getType())
-                                .map(CommoditySoldDTO::getCommodityType)
-                                .map(TopologyDTO.CommodityType::getKey)
-                                .map(key -> {
-                                    int index =
-                                            key.lastIndexOf(VSTORAGE_PREFIX_SEPARATOR);
-                                    return key.substring(0, index + 1);
-                                })
-                                .collect(Collectors.toSet());
-                        if (prefixes.size() == 1) {
-                            return Optional.of(prefixes.iterator().next());
+                        // construct the vstorage key prefix by combining the vc vstorage prefix,
+                        // target address and the vm local name, for example:
+                        //     _wK4GWWTbEd-Ea97W1fNhs6\vsphere-dc17.eng.vmturbo.com\vm-185
+                        // this will be sent to application probe, which will append a drive name:
+                        //     _wK4GWWTbEd-Ea97W1fNhs6\vsphere-dc17.eng.vmturbo.com\vm-185_C:\
+                        // then prepend "VirtualMachine::", hash and generate the same key as that
+                        // in VC like:
+                        //     VirtualMachine::c49e5dd7cb5863297b1196e1670f92cbb5f4c163
+                        final Optional<String> targetAddress = groupScopedEntity.getTargetAddress();
+                        final Optional<String> localName = groupScopedEntity.getLocalName();
+                        if (!targetAddress.isPresent()) {
+                            logger.error("Target address not found for entity: {}",
+                                groupScopedEntity.getTopologyEntityDTO().getOid());
+                            return Optional.empty();
                         }
-                        return Optional.empty();
+                        if (!localName.isPresent()) {
+                            logger.error("LocalName not found for entity: {}",
+                                groupScopedEntity.getTopologyEntityDTO().getOid());
+                            return Optional.empty();
+                        }
+                        return Optional.of(VC_VSTORAGE_UUID_PREFIX + BACKSLASH +
+                            targetAddress.get() + BACKSLASH + localName.get());
                     })
                     .build();
 

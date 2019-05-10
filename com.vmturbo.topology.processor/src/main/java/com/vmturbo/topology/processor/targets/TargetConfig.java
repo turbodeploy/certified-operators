@@ -15,6 +15,7 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
+import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 
 /**
@@ -42,6 +43,9 @@ public class TargetConfig {
 
     @Autowired
     private RepositoryClientConfig repositoryClientConfig;
+
+    @Autowired
+    private EntityConfig entityConfig;
 
     @Bean
     public TargetStore targetStore() {
@@ -72,12 +76,12 @@ public class TargetConfig {
         return new DerivedTargetParser(probeConfig.probeStore(), targetStore());
     }
 
-
     @Bean
     public GroupScopeResolver groupScopeResolver() {
         return new GroupScopeResolver(
                 groupClientConfig.groupChannel(),
                 repositoryClientConfig.repositoryChannel(),
-                targetStore());
+                targetStore(),
+                entityConfig.entityStore());
     }
 }

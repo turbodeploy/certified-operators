@@ -22,13 +22,13 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.PropertiesList;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
+import com.vmturbo.topology.processor.entity.EntityNotFoundException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -90,9 +90,21 @@ public class TopologyToSdkEntityConverter {
         // be added from the (stitched) TopologyEntityDTO. This additional data includes commodities
         // and entity properties.
         final long entityOid = topologyEntityDTO.getOid();
-        final Entity rawEntity = getRawEntity(entityOid);
-        // Choose an EntityDTO from among those available in the entity to use as a starting point
-        final EntityDTO prototype = chooseEntityDTO(rawEntity);
+        final Optional<Entity> optRawEntity = entityStore.getEntity(entityOid);
+        if (!optRawEntity.isPresent()) {
+            throw new EntityConversionException("Conversion of entity " + entityOid +
+                "failed since no matching entity could be found in the store of raw " +
+                "discovered entity data.");
+        }
+        final Entity rawEntity = optRawEntity.get();
+        final EntityDTO prototype;
+        try {
+            // Choose an EntityDTO from among those available in the entity to use as a starting point
+            prototype = entityStore.chooseEntityDTO(rawEntity);
+        } catch (EntityNotFoundException e) {
+            throw new EntityConversionException(e.getMessage(), e);
+        }
+
         final Builder builder = EntityDTO.newBuilder(prototype)
                 // no translation needed
                 .setDisplayName(topologyEntityDTO.getDisplayName());
@@ -107,78 +119,6 @@ public class TopologyToSdkEntityConverter {
         builder.addAllEntityProperties(getAllTargetSpecificEntityProperties(rawEntity));
 
         return builder.build();
-    }
-
-    /**
-     * Get the raw entity from the entity store, or throw an EntityConversionException
-     *
-     * @param entityOid the OID of an entity to fetch the raw discovered entity for
-     * @return the raw entity for the provided entity oid
-     * @throws EntityConversionException if the entity is missing from the entity store
-     */
-    private Entity getRawEntity(final long entityOid) {
-        return entityStore.getEntity(entityOid)
-                .orElseThrow(() -> new EntityConversionException("Conversion of entity " + entityOid
-                        + "failed since no matching entity could be found in the store of raw "
-                        + "discovered entity data."));
-    }
-
-    /**
-     * Choose an EntityDTO from the raw entity to use to represent this entity
-     *
-     * See {@link #chooseEntityDTO(Entity)} for more details on how the selection is performed
-     *
-     * @param entityOid the ID of an entity
-     * @return an EntityDTO representing the data discovered by the primary target for the entity
-     */
-    private EntityDTO chooseEntityDTO(final long entityOid) {
-        final Entity rawEntity = getRawEntity(entityOid);
-        // choose an entityDTO to use based on its origin. The 'DISCOVERED' entityDTO is preferred.
-        return chooseEntityDTO(rawEntity);
-    }
-
-    /**
-     * Choose an EntityDTO from the raw entity to use to represent this entity
-     * An EntityDTO with origin set to 'discovered' will be preferred, followed by origins of
-     * "replaceable" and finally "proxy".
-     * In cases where multiple EntityDTOs have the same origin value, the first EntityDTO found will
-     * be chosen.
-     *
-     * Example: For a VM, the EntityDTO with origin of "DISCOVERED" would generally have been
-     *   discovered by a Hypervisor or a Cloud target
-     *
-     * @param entity an object representing the data discovered by all targets for the entity
-     * @return an EntityDTO representing the data discovered by the primary target for the entity
-     */
-    private EntityDTO chooseEntityDTO(final Entity entity) {
-        // This could alternatively be achieved by sorting the EntityDTOs by origin type and then
-        // picking the first element from the list. However, the intent seems more clear in the
-        // current implementation.
-        return findEntityDTObyOrigin(entity, EntityOrigin.DISCOVERED)
-                .orElseGet(() -> findEntityDTObyOrigin(entity, EntityOrigin.REPLACEABLE)
-                        .orElseGet(() -> findEntityDTObyOrigin(entity, EntityOrigin.PROXY)
-                                .orElseThrow(() -> new EntityConversionException("Conversion of "
-                                        + "entity "
-                                        + entity.getId()
-                                        + " failed since no EntityDTO of origin 'DISCOVERED', "
-                                        + "'REPLACEABLE' or 'PROXY' could be found in the raw "
-                                        + "entity data."))));
-    }
-
-    /**
-     * Find the first EntityDTO in the Entity that matches the provided EntityOrigin
-     *
-     * @param entity the Entity containing EntityDTOs to be searched
-     * @param entityOrigin the origin type being selected on
-     * @return the first EntityDTO in the Entity that matches the provided EntityOrigin
-     */
-    private Optional<EntityDTO> findEntityDTObyOrigin(final Entity entity,
-                                                      final EntityOrigin entityOrigin) {
-        return entity.allTargetInfo().stream()
-                .map(PerTargetInfo::getEntityInfo)
-                // Find the first EntityDTO whose origin matches the provided EntityOrigin
-                .filter(entityDTO -> entityOrigin.equals(entityDTO.getOrigin()))
-                .findFirst();
     }
 
     /**
@@ -301,7 +241,8 @@ public class TopologyToSdkEntityConverter {
 
         // Retrieve the provider OID and convert it to a UUID that is meaningful to the probes
         final long providerOID = commoditiesBoughtFromProvider.getProviderId();
-        final String providerUUID = chooseEntityDTO(providerOID).getId();
+
+        final String providerUUID = entityStore.chooseEntityDTO(providerOID).getId();
         builder.setProviderId(providerUUID);
 
         // Convert the list of CommodityBoughtDTOs into a list of CommodityDTOs

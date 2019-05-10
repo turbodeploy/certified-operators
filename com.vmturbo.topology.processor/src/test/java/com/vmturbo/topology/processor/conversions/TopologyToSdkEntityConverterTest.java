@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.conversions;
 
+import java.time.Clock;
 import java.util.Optional;
 
 import org.junit.Assert;
@@ -15,19 +16,23 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
 public class TopologyToSdkEntityConverterTest {
 
-    private EntityStore entityStoreMock = Mockito.mock(EntityStore.class);
-
     private TargetStore targetStore = Mockito.mock(TargetStore.class);
+
+    private IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
+
+    private EntityStore entityStore = Mockito.spy(new EntityStore(targetStore, identityProvider,
+        Clock.systemUTC()));
 
     /**
      * The class under test
      */
     private TopologyToSdkEntityConverter topologyToSdkEntityConverter =
-            new TopologyToSdkEntityConverter(entityStoreMock, targetStore);
+        new TopologyToSdkEntityConverter(entityStore, targetStore);
 
     /**
      * A simple test verifying that basic data is carried over after converting a TopologyEntityDTO
@@ -56,7 +61,7 @@ public class TopologyToSdkEntityConverterTest {
                 .build();
         final int targetId = 8832213;
         matchingEntity.addTargetInfo(targetId, rawDiscoveredEntityDTO);
-        Mockito.doReturn(Optional.of(matchingEntity)).when(entityStoreMock).getEntity(oid);
+        Mockito.doReturn(Optional.of(matchingEntity)).when(entityStore).getEntity(oid);
 
         Mockito.doReturn(Optional.of("vmm-01")).when(targetStore).getTargetAddress(targetId);
         Mockito.doReturn(Optional.of(SDKProbeType.VMM))
@@ -109,7 +114,7 @@ public class TopologyToSdkEntityConverterTest {
                 .build();
         final int targetId = 8832213;
         matchingEntity.addTargetInfo(targetId, rawDiscoveredEntityDTO);
-        Mockito.doReturn(Optional.of(matchingEntity)).when(entityStoreMock).getEntity(oid);
+        Mockito.doReturn(Optional.of(matchingEntity)).when(entityStore).getEntity(oid);
 
         Mockito.doReturn(Optional.of("vmm-01")).when(targetStore).getTargetAddress(targetId);
         Mockito.doReturn(Optional.of(SDKProbeType.VMM))

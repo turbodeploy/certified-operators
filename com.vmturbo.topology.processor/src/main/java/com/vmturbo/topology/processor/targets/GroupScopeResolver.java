@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.commons.Pair;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue;
@@ -48,8 +49,11 @@ import com.vmturbo.platform.common.dto.Discovery.AccountValue.PropertyValueList;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.GroupScopeProperty;
 import com.vmturbo.platform.sdk.common.EntityPropertyName;
+import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.platform.sdk.common.util.SDKUtil;
+import com.vmturbo.topology.processor.entity.EntityStore;
 
 /**
  * Utility class for extracting group scope information from a probe's account definition list
@@ -80,6 +84,11 @@ public class GroupScopeResolver {
     private final TargetStore targetStore;
 
     /**
+     * Entity store to use for retrieving the original EntityDTO returned from probe.
+     */
+    private final EntityStore entityStore;
+
+    /**
      * The probe categories which discover the real VMs instead of proxy ones, and the guest load
      * entities of them must be discovered by these kinds of probes as well.
      */
@@ -88,7 +97,7 @@ public class GroupScopeResolver {
 
 
     /**
-     * Constructor of a GroupScoperResolver.
+     * Constructor of a GroupScopeResolver.
      *
      * @param groupChannel Channel to use for creating a blocking stub to query the Group Service.
      * @param repositoryChannel Channel to use for creating a blocking stub to query the
@@ -98,11 +107,13 @@ public class GroupScopeResolver {
      */
     public GroupScopeResolver(@Nonnull final Channel groupChannel,
                               @Nonnull final Channel repositoryChannel,
-                              @Nonnull final TargetStore targetStore) {
+                              @Nonnull final TargetStore targetStore,
+                              @Nonnull final EntityStore entityStore) {
         this.groupService = GroupServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
         this.searchService = SearchServiceGrpc.newBlockingStub(
                 Objects.requireNonNull(repositoryChannel));
         this.targetStore = Objects.requireNonNull(targetStore);
+        this.entityStore = Objects.requireNonNull(entityStore);
     }
 
     private Map<String, CustomAccountDefEntry> generateGroupScopeMap(
@@ -310,7 +321,18 @@ public class GroupScopeResolver {
             final Optional<String> guestLoadOid = providerToGuestLoad.containsKey(scopedEntityDTO) ?
                     Optional.of(String.valueOf(providerToGuestLoad.get(scopedEntityDTO).getOid())) :
                     Optional.empty();
-            groupScopedEntities.add(new GroupScopedEntity(scopedEntityDTO, guestLoadOid));
+            final Optional<String> targetAddress = scopedEntityDTO.getOrigin().getDiscoveryOrigin()
+                .getDiscoveringTargetIdsList().stream()
+                .findAny()
+                .flatMap(targetStore::getTargetAddress);
+            final Optional<String> localName = entityStore.chooseEntityDTO(scopedEntityDTO.getOid())
+                .getEntityPropertiesList().stream()
+                .filter(entityProperty -> SDKUtil.DEFAULT_NAMESPACE.equals(entityProperty.getNamespace()))
+                .filter(entityProperty -> SupplyChainConstants.LOCAL_NAME.equals(entityProperty.getName()))
+                .map(EntityProperty::getValue)
+                .findAny();
+            groupScopedEntities.add(new GroupScopedEntity(scopedEntityDTO, guestLoadOid,
+                targetAddress, localName));
         });
         return groupScopedEntities;
     }
@@ -423,19 +445,36 @@ public class GroupScopeResolver {
 
         private final Optional<String> guestLoadEntityOid;
 
+        private final Optional<String> targetAddress;
+
+        private final Optional<String> localName;
+
         public GroupScopedEntity(@Nonnull final TopologyEntityDTO topologyEntityDTO,
-                                 @Nonnull final Optional<String> guestLoadEntityOid) {
+                                 @Nonnull final Optional<String> guestLoadEntityOid,
+                                 @Nonnull final Optional<String> targetAddress,
+                                 @Nonnull final Optional<String> localName) {
             this.topologyEntityDTO = topologyEntityDTO;
             this.guestLoadEntityOid = guestLoadEntityOid;
+            this.targetAddress = targetAddress;
+            this.localName = localName;
         }
 
         public @Nonnull TopologyEntityDTO getTopologyEntityDTO() {
             return this.topologyEntityDTO;
         }
 
-
         public @Nonnull Optional<String> getGuestLoadEntityOid() {
             return this.guestLoadEntityOid;
+        }
+
+        @Nonnull
+        public Optional<String> getTargetAddress() {
+            return targetAddress;
+        }
+
+        @Nonnull
+        public Optional<String> getLocalName() {
+            return localName;
         }
     }
 }

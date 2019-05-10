@@ -41,6 +41,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue;
@@ -50,7 +52,10 @@ import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.GroupScop
 import com.vmturbo.platform.sdk.common.EntityPropertyName;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
+import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.platform.sdk.common.util.SDKUtil;
+import com.vmturbo.topology.processor.entity.EntityStore;
 
 /**
  * Test the functionality of the the class GroupScopeResolver.
@@ -75,7 +80,10 @@ public class GroupScopeResolverTest {
 
     private static String[] VSTORAGE_KEY = {"FooBar_Foo_Bar", "NewKey_fubar"};
 
-    private static String[] VSTORAGE_PREFIX = {"FooBar_Foo_", "NewKey_"};
+    private static String[] VSTORAGE_PREFIX = {
+        "_wK4GWWTbEd-Ea97W1fNhs6\\foo.eng.vmturbo.com\\vm-2",
+        "_wK4GWWTbEd-Ea97W1fNhs6\\foo.eng.vmturbo.com\\vm-22"
+    };
 
     private static String[] IP_ADDRESS = {"10.10.150.140", "10.10.150.125"};
 
@@ -228,12 +236,33 @@ public class GroupScopeResolverTest {
 
     private TargetStore targetStore = Mockito.mock(TargetStore.class);
 
+    private EntityStore entityStore = Mockito.mock(EntityStore.class);
+
+    private static final String TARGET_ADDRESS = "foo.eng.vmturbo.com";
+
     @Before
     public void setup() throws Exception {
         groupScopeResolver = new GroupScopeResolver(groupServer.getChannel(),
-                repositoryServer.getChannel(), targetStore);
+                repositoryServer.getChannel(), targetStore, entityStore);
         Mockito.when(targetStore.getProbeTypeForTarget(Mockito.anyLong()))
                 .thenReturn(Optional.of(validProbeType));
+        Mockito.when(targetStore.getTargetAddress(Mockito.anyLong())).thenReturn(Optional.of(TARGET_ADDRESS));
+        Mockito.when(entityStore.chooseEntityDTO(2)).thenReturn(EntityDTO.newBuilder()
+            .setId("fakeId1")
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .addEntityProperties(EntityProperty.newBuilder()
+                .setNamespace(SDKUtil.DEFAULT_NAMESPACE)
+                .setName(SupplyChainConstants.LOCAL_NAME)
+                .setValue("vm-2"))
+            .build());
+        Mockito.when(entityStore.chooseEntityDTO(22)).thenReturn(EntityDTO.newBuilder()
+            .setId("fakeId2")
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .addEntityProperties(EntityProperty.newBuilder()
+                .setNamespace(SDKUtil.DEFAULT_NAMESPACE)
+                .setName(SupplyChainConstants.LOCAL_NAME)
+                .setValue("vm-22"))
+            .build());
     }
 
     @Test

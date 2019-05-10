@@ -53,6 +53,11 @@ public class GroupScopePropertyExtractorTest {
 
     private static String ipAddress2 = "10.10.150.170";
 
+    private static String targetAddress = "foo.eng.vmturbo.com";
+
+    private static String localName = "vm123";
+
+    private static String expectedVStoragePrefix = "_wK4GWWTbEd-Ea97W1fNhs6\\foo.eng.vmturbo.com\\vm123";
 
     @Test
     public void testAllPropertiesPresent() throws Exception {
@@ -60,7 +65,8 @@ public class GroupScopePropertyExtractorTest {
                 vcpuCapacity, vmemCapacity, ballooningCapacity,
                 ImmutableList.of(ipAddress1, ipAddress2),
                 ImmutableList.of(storagePrefix + storageSuffix1, storagePrefix + storageSuffix2));
-        GroupScopedEntity vm = new GroupScopedEntity(vmDTO, Optional.of(String.valueOf(guestLoadOid)));
+        GroupScopedEntity vm = new GroupScopedEntity(vmDTO, Optional.of(String.valueOf(guestLoadOid)),
+            Optional.of(targetAddress), Optional.of(localName));
         Optional<String> testValue = GroupScopePropertyExtractor
                 .extractEntityProperty(EntityPropertyName.UUID, vm);
         assertTrue(testValue.isPresent());
@@ -92,7 +98,7 @@ public class GroupScopePropertyExtractorTest {
         testValue = GroupScopePropertyExtractor
                 .extractEntityProperty(EntityPropertyName.VSTORAGE_KEY_PREFIX, vm);
         assertTrue(testValue.isPresent());
-        assertEquals(storagePrefix, testValue.get());
+        assertEquals(expectedVStoragePrefix, testValue.get());
         testValue = GroupScopePropertyExtractor
                 .extractEntityProperty(EntityPropertyName.IP_ADDRESS, vm);
         assertTrue(testValue.isPresent());
@@ -108,7 +114,8 @@ public class GroupScopePropertyExtractorTest {
                 0, 0, 0,
                 Collections.EMPTY_LIST,
                 Collections.EMPTY_LIST);
-        GroupScopedEntity vm = new GroupScopedEntity(vmDTO, Optional.empty());
+        GroupScopedEntity vm = new GroupScopedEntity(vmDTO, Optional.empty(), Optional.empty(),
+            Optional.empty());
         // OID is always present
         Optional<String> testValue = GroupScopePropertyExtractor
                 .extractEntityProperty(EntityPropertyName.UUID, vm);
@@ -138,18 +145,6 @@ public class GroupScopePropertyExtractorTest {
         assertFalse(testValue.isPresent());
         testValue = GroupScopePropertyExtractor
                 .extractEntityProperty(EntityPropertyName.IP_ADDRESS, vm);
-        assertFalse(testValue.isPresent());
-    }
-
-    @Test
-    public void testMismatchedStoragePrefixes() throws Exception {
-        TopologyEntityDTO vmDTO = createTopologyEntity(oid, null, null,
-                0, 0, 0,
-                Collections.EMPTY_LIST,
-                ImmutableList.of(storagePrefix + storageSuffix1, "bogusPrefix" + storageSuffix2));
-        GroupScopedEntity vm = new GroupScopedEntity(vmDTO, Optional.empty());
-        Optional<String> testValue = GroupScopePropertyExtractor
-                .extractEntityProperty(EntityPropertyName.VSTORAGE_KEY_PREFIX, vm);
         assertFalse(testValue.isPresent());
     }
 
