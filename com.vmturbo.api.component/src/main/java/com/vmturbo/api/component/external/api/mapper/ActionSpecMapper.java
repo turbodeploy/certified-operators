@@ -251,33 +251,13 @@ public class ActionSpecMapper {
     }
 
     @Nonnull
-    public ActionState calculateApiActionState(@Nonnull final ActionSpec actionSpec) {
-        switch (actionSpec.getActionState()) {
-            case READY:
-                if (actionSpec.getActionMode() == ActionDTO.ActionMode.RECOMMEND ||
-                    !actionSpec.getIsExecutable()) {
-                    return ActionState.RECOMMENDED;
-                } else {
-                    return ActionState.PENDING_ACCEPT;
-                }
+    public ActionState mapXlActionStateToApi(@Nonnull final ActionDTO.ActionState actionState) {
+        switch (actionState) {
             case PRE_IN_PROGRESS:
             case POST_IN_PROGRESS:
                 return ActionState.IN_PROGRESS;
             default:
-                return ActionState.valueOf(actionSpec.getActionState().name());
-        }
-    }
-
-    @Nonnull
-    public ActionState mapXlActionStateToApi(@Nonnull final ActionDTO.ActionState actionState) {
-        if (actionState == ActionDTO.ActionState.READY) {
-            // (roman, Jan 7, 2019): We had a special case translation for the
-            // actionState: READY from A-O -> PENDING_ACCEPT for the UX when action mode is
-            // automated. However, it's not clear that we need this anymore because
-            // automatic-mode actions should get "QUEUED" immediately.
-            return ActionState.PENDING_ACCEPT;
-        } else {
-            return ActionState.valueOf(actionState.name());
+                return ActionState.valueOf(actionState.name());
         }
     }
 
@@ -322,10 +302,7 @@ public class ActionSpecMapper {
         // For plan action, set the state to successes, so it will not be selectable
         // TODO (Gary, Jan 17 2019): handle case when realtimeTopologyContextId is changed (if needed)
         if (topologyContextId == realtimeTopologyContextId) {
-            // The UI uses action states to determine whether to show an action as "executable"
-            // or not. So "ready" actions that we want to be non-executable (due to action
-            // mode) must have the "RECOMMENDED" state when they're returned to the UI.
-            actionApiDTO.setActionState(calculateApiActionState(actionSpec));
+            actionApiDTO.setActionState(mapXlActionStateToApi(actionSpec.getActionState()));
         } else {
             // In classic all the plan actions have "Succeeded" state; in XL all the plan actions
             // have default state (ready). Set the state to "Succeeded" here to make it Not selectable
@@ -1254,7 +1231,7 @@ public class ActionSpecMapper {
     @Nonnull
     public Optional<ActionDTO.ActionState> mapApiStateToXl(final ActionState stateStr) {
         switch (stateStr) {
-            case PENDING_ACCEPT:
+            case READY:
                 return Optional.of(ActionDTO.ActionState.READY);
             case ACCEPTED: case QUEUED:
                 return Optional.of(ActionDTO.ActionState.QUEUED);
@@ -1266,10 +1243,6 @@ public class ActionSpecMapper {
                 return Optional.of(ActionDTO.ActionState.FAILED);
             case CLEARED:
                 return Optional.of(ActionDTO.ActionState.CLEARED);
-            // These don't map to ActionStates directly, because in XL we separate the concept
-            // of a "decision" from the state of the action, and these relate to the decision.
-            case RECOMMENDED: case DISABLED:
-                return Optional.empty();
             default:
                 logger.error("Unknown action state {}", stateStr);
                 throw new IllegalArgumentException("Unsupported action state " + stateStr);

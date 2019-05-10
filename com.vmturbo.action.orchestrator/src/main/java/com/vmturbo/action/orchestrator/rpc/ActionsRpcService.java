@@ -713,8 +713,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
     /**
      * Build action state and mode counts by date.
-     * actionStateList:["PENDING_ACCEPT","RECOMMENDED","ACCEPTED","SUCCEEDED"]
-     * actionModeList:["MANUAL","AUTOMATIC","RECOMMEND"
+     * actionStateList:["READY","ACCEPTED","SUCCEEDED"]
+     * actionModeList:["MANUAL","AUTOMATIC","RECOMMEND"]
      *
      * @param actionViewsMap key is date(long type), and value is list of actions recommended on the date.
      * @return builder with {@link ActionCountsByDateEntry} objects. In {@link ActionCountsByDateEntry}

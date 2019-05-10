@@ -904,7 +904,7 @@ public class ActionSpecMapperTest {
 
         final ActionApiDTO realTimeActionApiDTO =
                 mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), REAL_TIME_TOPOLOGY_CONTEXT_ID);
-        assertEquals(com.vmturbo.api.enums.ActionState.PENDING_ACCEPT, realTimeActionApiDTO.getActionState());
+        assertEquals(com.vmturbo.api.enums.ActionState.READY, realTimeActionApiDTO.getActionState());
 
     }
 
@@ -918,9 +918,7 @@ public class ActionSpecMapperTest {
             .build();
         final ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
-        // This special case should get mapped to the RECOMMENDED state.
-        // This will make it non-selectable in the UI!
-        assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.RECOMMENDED));
+        assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.READY));
     }
 
     @Test
@@ -933,9 +931,7 @@ public class ActionSpecMapperTest {
             .build();
         final ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
-        // This special case should get mapped to the RECOMMENDED state.
-        // This will make it non-selectable in the UI!
-        assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.RECOMMENDED));
+        assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.READY));
     }
 
     @Test
@@ -948,9 +944,7 @@ public class ActionSpecMapperTest {
             .build();
         final ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
-        // This special case should get mapped to the RECOMMENDED state.
-        // This will make it non-selectable in the UI!
-        assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.PENDING_ACCEPT));
+        assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.READY));
     }
 
     @Test
@@ -963,9 +957,7 @@ public class ActionSpecMapperTest {
             .build();
         final ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
-        // This special case should get mapped to the RECOMMENDED state.
-        // This will make it non-selectable in the UI!
-        assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.RECOMMENDED));
+        assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.READY));
     }
 
     @Test
@@ -977,8 +969,6 @@ public class ActionSpecMapperTest {
             .build();
         final ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
-        // This special case should get mapped to the RECOMMENDED state.
-        // This will make it non-selectable in the UI!
         assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.QUEUED));
     }
 
@@ -1125,18 +1115,34 @@ public class ActionSpecMapperTest {
 
     @Test (expected = IllegalArgumentException.class)
     public void testRejectedStateMustReturnError() {
-        final ActionApiInputDTO inputDto = new ActionApiInputDTO();
-        List<com.vmturbo.api.enums.ActionState> actionStates = new ArrayList<>();
-        actionStates.add(com.vmturbo.api.enums.ActionState.REJECTED);
-        inputDto.setActionStateList(actionStates);
-        mapper.createActionFilter(inputDto, Optional.empty());
+        createActionFilterMustFail(com.vmturbo.api.enums.ActionState.REJECTED);
     }
 
     @Test (expected = IllegalArgumentException.class)
     public void testAccountingStateMustReturnError() {
+        createActionFilterMustFail(com.vmturbo.api.enums.ActionState.ACCOUNTING);
+    }
+
+    @Test (expected = IllegalArgumentException.class)
+    public void testPendingAcceptStateMustReturnError() {
+        createActionFilterMustFail(com.vmturbo.api.enums.ActionState.PENDING_ACCEPT);
+    }
+
+    @Test (expected = IllegalArgumentException.class)
+    public void testRecommendedStateMustReturnError() {
+        createActionFilterMustFail(com.vmturbo.api.enums.ActionState.RECOMMENDED);
+    }
+
+    /**
+     * A template for testing passing unsupported action states to createActionFilter method.
+     * The expected behavior is that the method should throw an IllegalArgumentException.
+     *
+     * @param state The unsupported ActionState
+     */
+    private void createActionFilterMustFail(com.vmturbo.api.enums.ActionState state) {
         final ActionApiInputDTO inputDto = new ActionApiInputDTO();
         List<com.vmturbo.api.enums.ActionState> actionStates = new ArrayList<>();
-        actionStates.add(com.vmturbo.api.enums.ActionState.ACCOUNTING);
+        actionStates.add(state);
         inputDto.setActionStateList(actionStates);
         mapper.createActionFilter(inputDto, Optional.empty());
     }
@@ -1146,7 +1152,7 @@ public class ActionSpecMapperTest {
         ActionSpec.Builder builder = ActionSpec.newBuilder()
             .setActionState(ActionState.POST_IN_PROGRESS);
         ActionSpec actionSpec = builder.build();
-        com.vmturbo.api.enums.ActionState actionState = mapper.calculateApiActionState(actionSpec);
+        com.vmturbo.api.enums.ActionState actionState = mapper.mapXlActionStateToApi(actionSpec.getActionState());
         assertThat(actionState, is(com.vmturbo.api.enums.ActionState.IN_PROGRESS));
     }
 
@@ -1155,7 +1161,7 @@ public class ActionSpecMapperTest {
         ActionSpec.Builder builder = ActionSpec.newBuilder()
             .setActionState(ActionState.PRE_IN_PROGRESS);
         ActionSpec actionSpec = builder.build();
-        com.vmturbo.api.enums.ActionState actionState = mapper.calculateApiActionState(actionSpec);
+        com.vmturbo.api.enums.ActionState actionState = mapper.mapXlActionStateToApi(actionSpec.getActionState());
         assertThat(actionState, is(com.vmturbo.api.enums.ActionState.IN_PROGRESS));
     }
 
