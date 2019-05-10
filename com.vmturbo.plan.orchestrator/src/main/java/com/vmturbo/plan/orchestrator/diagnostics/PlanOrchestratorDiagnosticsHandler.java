@@ -17,7 +17,7 @@ import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.Diags;
-import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory;
+import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileDaoImpl;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.project.PlanProjectDao;
@@ -30,7 +30,7 @@ public class PlanOrchestratorDiagnosticsHandler {
 
     private final DiagnosticsWriter diagnosticsWriter;
 
-    private final RecursiveZipReaderFactory zipReaderFactory;
+    private final DiagsZipReaderFactory zipReaderFactory;
 
     private static final String DEPLOYMENT_PROFILES = "DeploymentProfiles.diags";
     private static final String PLAN_INSTANCES = "PlanInstances.diags";
@@ -53,7 +53,7 @@ public class PlanOrchestratorDiagnosticsHandler {
                                               @Nonnull final TemplatesDao templateDao,
                                               @Nonnull final TemplateSpecParser templateSpecParser,
                                               @Nonnull final DeploymentProfileDaoImpl deploymentProfileDao,
-                                              @Nonnull final RecursiveZipReaderFactory readerFactory,
+                                              @Nonnull final DiagsZipReaderFactory readerFactory,
                                               @Nonnull final DiagnosticsWriter diagnosticsWriter) {
 
         this.filenameToDiagnosableMap = ImmutableBiMap.<String, Diagnosable>builder()

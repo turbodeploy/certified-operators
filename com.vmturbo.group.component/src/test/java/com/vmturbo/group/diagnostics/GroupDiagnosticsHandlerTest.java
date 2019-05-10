@@ -33,8 +33,8 @@ import io.prometheus.client.CollectorRegistry;
 import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.Diags;
-import com.vmturbo.components.common.diagnostics.RecursiveZipReader;
-import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory;
+import com.vmturbo.components.common.diagnostics.DiagsZipReader;
+import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.group.group.GroupStore;
 import com.vmturbo.group.policy.PolicyStore;
 import com.vmturbo.group.setting.SettingStore;
@@ -44,7 +44,7 @@ import com.vmturbo.group.setting.SettingStore;
  */
 @RunWith(MockitoJUnitRunner.class)
 public class GroupDiagnosticsHandlerTest {
-    private RecursiveZipReaderFactory zipReaderFactory = mock(RecursiveZipReaderFactory.class);
+    private DiagsZipReaderFactory zipReaderFactory = mock(DiagsZipReaderFactory.class);
 
     private DiagnosticsWriter diagnosticsWriter = mock(DiagnosticsWriter.class);
 
@@ -166,7 +166,7 @@ public class GroupDiagnosticsHandlerTest {
     }
 
     private void setupRestore(Diags diags, Diags... otherDiags) {
-        final RecursiveZipReader zipReader = mock(RecursiveZipReader.class);
+        final DiagsZipReader zipReader = mock(DiagsZipReader.class);
         final Iterator<Diags> diagsIt = (Iterator<Diags>)mock(Iterator.class);
 
         Boolean[] bools = new Boolean[otherDiags.length + 1];

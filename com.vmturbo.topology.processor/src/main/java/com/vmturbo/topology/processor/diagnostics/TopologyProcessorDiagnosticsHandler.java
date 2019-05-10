@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -41,7 +40,7 @@ import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.Diags;
-import com.vmturbo.components.common.diagnostics.RecursiveZipReader;
+import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.PersistentIdentityStore;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -350,7 +349,7 @@ public class TopologyProcessorDiagnosticsHandler {
         // the probe diags and before the restore of the identityProvider diags, then a probeInfo
         // will be written to Consul with the old ID. This entry will later become a duplicate entry
         // and cause severe problems.
-        List<Diags> sortedDiagnostics = Streams.stream(new RecursiveZipReader(zis))
+        List<Diags> sortedDiagnostics = Streams.stream(new DiagsZipReader(zis))
             .sorted(diagsRestoreComparator)
             .collect(Collectors.toList());
 
@@ -431,7 +430,7 @@ public class TopologyProcessorDiagnosticsHandler {
      */
     @VisibleForTesting
     void restoreTargets(@Nonnull final List<String> serializedTargets)
-                                                            throws TargetDeserializationException {
+        throws TargetDeserializationException {
         logger.info("Attempting to restore " + serializedTargets.size() + " targets");
         targetStore.removeAllTargets();
         final long restoredTargetsCount = serializedTargets.stream()

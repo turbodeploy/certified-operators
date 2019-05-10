@@ -31,8 +31,8 @@ import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.Diags;
-import com.vmturbo.components.common.diagnostics.RecursiveZipReader;
-import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory;
+import com.vmturbo.components.common.diagnostics.DiagsZipReader;
+import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
@@ -56,14 +56,14 @@ public class RepositoryDiagnosticsHandler {
 
     /**
      * The file name for the state of the {@link TopologyRelationshipRecorder}. It's a string file,
-     * so the "diags" extension is required for compatibility with {@link RecursiveZipReader}.
+     * so the "diags" extension is required for compatibility with {@link DiagsZipReader}.
      */
     @VisibleForTesting
     static final String SUPPLY_CHAIN_RELATIONSHIP_FILE = "provider-rels.diags";
 
     /**
      * The file name for the state of the {@link TopologyLifecycleManager}. It's a string file,
-     * so the "diags" extension is required for compatibility with {@link RecursiveZipReader}.
+     * so the "diags" extension is required for compatibility with {@link DiagsZipReader}.
      */
     @VisibleForTesting
     static final String ID_MGR_FILE = "database-metadata.diags";
@@ -71,7 +71,7 @@ public class RepositoryDiagnosticsHandler {
     /**
      * The file name for the source topology dump collected from the arangodb container.
      * It's a binary file, so the "binary" extension is required for compatibility
-     * with {@link RecursiveZipReader}.
+     * with {@link DiagsZipReader}.
      */
     @VisibleForTesting
     static final String SOURCE_TOPOLOGY_DUMP_FILE = "source_topology_dump.binary";
@@ -79,7 +79,7 @@ public class RepositoryDiagnosticsHandler {
     /**
      * The file name for the projected topology dump collected from the arangodb container.
      * It's a binary file, so the "binary" extension is required for compatibility
-     * with {@link RecursiveZipReader}.
+     * with {@link DiagsZipReader}.
      */
     @VisibleForTesting
     static final String PROJECTED_TOPOLOGY_DUMP_FILE = "projected_topology_dump.binary";
@@ -93,7 +93,7 @@ public class RepositoryDiagnosticsHandler {
 
     private final TopologyDiagnostics topologyDiagnostics;
 
-    private final RecursiveZipReaderFactory zipReaderFactory;
+    private final DiagsZipReaderFactory zipReaderFactory;
 
     private final DiagnosticsWriter diagnosticsWriter;
 
@@ -102,7 +102,7 @@ public class RepositoryDiagnosticsHandler {
                                         final TopologyRelationshipRecorder globalSupplyChainRecorder,
                                         final TopologyLifecycleManager topologyLifecycleManager,
                                         final RestTemplate restTemplate,
-                                        final RecursiveZipReaderFactory zipReaderFactory,
+                                        final DiagsZipReaderFactory zipReaderFactory,
                                         final DiagnosticsWriter diagnosticsWriter) {
         this.globalSupplyChainRecorder = Objects.requireNonNull(globalSupplyChainRecorder);
         this.topologyLifecycleManager = Objects.requireNonNull(topologyLifecycleManager);
@@ -115,7 +115,7 @@ public class RepositoryDiagnosticsHandler {
     @VisibleForTesting
     RepositoryDiagnosticsHandler(final TopologyRelationshipRecorder globalSupplyChainRecorder,
                                         final TopologyLifecycleManager topologyLifecycleManager,
-                                        final RecursiveZipReaderFactory zipReaderFactory,
+                                        final DiagsZipReaderFactory zipReaderFactory,
                                         final DiagnosticsWriter diagnosticsWriter,
                                         final TopologyDiagnostics topologyDiagnostics) {
         this.globalSupplyChainRecorder = Objects.requireNonNull(globalSupplyChainRecorder);

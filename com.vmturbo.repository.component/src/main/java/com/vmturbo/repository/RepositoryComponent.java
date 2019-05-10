@@ -54,8 +54,8 @@ import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.FileFolderZipper;
 import com.vmturbo.components.common.OsCommandProcessRunner;
-import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory;
-import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory.DefaultRecursiveZipReaderFactory;
+import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
+import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDiagsZipReader;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory.DefaultEntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
@@ -344,8 +344,8 @@ public class RepositoryComponent extends BaseVmtComponent {
     }
 
     @Bean
-    public RecursiveZipReaderFactory recursiveZipReaderFactory() {
-        return new DefaultRecursiveZipReaderFactory();
+    public DiagsZipReaderFactory recursiveZipReaderFactory() {
+        return new DefaultDiagsZipReader();
     }
 
     @Bean

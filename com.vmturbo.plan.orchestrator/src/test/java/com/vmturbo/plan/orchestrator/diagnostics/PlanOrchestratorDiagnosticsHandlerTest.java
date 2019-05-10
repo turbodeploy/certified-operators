@@ -26,8 +26,8 @@ import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.Diags;
-import com.vmturbo.components.common.diagnostics.RecursiveZipReader;
-import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory;
+import com.vmturbo.components.common.diagnostics.DiagsZipReader;
+import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileDaoImpl;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.project.PlanProjectDao;
@@ -55,8 +55,8 @@ public class PlanOrchestratorDiagnosticsHandlerTest {
         mockTemplateSpecParser, mockTemplateDao, mockScenarioDao, mockReservationDao,
         mockPlanProjectDao, mockPlanDao);
 
-    private final RecursiveZipReaderFactory mockReaderFactory =
-        mock(RecursiveZipReaderFactory.class);
+    private final DiagsZipReaderFactory mockReaderFactory =
+        mock(DiagsZipReaderFactory.class);
     private final DiagnosticsWriter mockWriter = mock(DiagnosticsWriter.class);
 
     @Test
@@ -131,7 +131,7 @@ public class PlanOrchestratorDiagnosticsHandlerTest {
         }
 
         final InputStream mockInputStream = mock(InputStream.class);
-        final RecursiveZipReader mockReader = mock(RecursiveZipReader.class);
+        final DiagsZipReader mockReader = mock(DiagsZipReader.class);
         when(mockReaderFactory.createReader(mockInputStream)).thenReturn(mockReader);
         when(mockReader.iterator()).thenReturn(diagsList.iterator());
 
@@ -161,7 +161,7 @@ public class PlanOrchestratorDiagnosticsHandlerTest {
         }
 
         final InputStream mockInputStream = mock(InputStream.class);
-        final RecursiveZipReader mockReader = mock(RecursiveZipReader.class);
+        final DiagsZipReader mockReader = mock(DiagsZipReader.class);
         when(mockReaderFactory.createReader(mockInputStream)).thenReturn(mockReader);
         when(mockReader.iterator()).thenReturn(diagsList.iterator());
 
@@ -196,7 +196,7 @@ public class PlanOrchestratorDiagnosticsHandlerTest {
         }
 
         final InputStream mockInputStream = mock(InputStream.class);
-        final RecursiveZipReader mockReader = mock(RecursiveZipReader.class);
+        final DiagsZipReader mockReader = mock(DiagsZipReader.class);
         when(mockReaderFactory.createReader(mockInputStream)).thenReturn(mockReader);
         when(mockReader.iterator()).thenReturn(diagsList.iterator());
 

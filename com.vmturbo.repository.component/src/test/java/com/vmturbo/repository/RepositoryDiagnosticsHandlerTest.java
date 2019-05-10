@@ -39,8 +39,8 @@ import com.vmturbo.arangodb.tool.ArangoRestore;
 import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.Diags;
-import com.vmturbo.components.common.diagnostics.RecursiveZipReader;
-import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory;
+import com.vmturbo.components.common.diagnostics.DiagsZipReader;
+import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.repository.RepositoryDiagnosticsHandler.DefaultTopologyDiagnostics;
 import com.vmturbo.repository.RepositoryDiagnosticsHandler.TopologyDiagnostics;
 import com.vmturbo.repository.topology.TopologyDatabase;
@@ -56,7 +56,7 @@ public class RepositoryDiagnosticsHandlerTest {
 
     private TopologyLifecycleManager lifecycleManager = mock(TopologyLifecycleManager.class);
 
-    private RecursiveZipReaderFactory zipReaderFactory = mock(RecursiveZipReaderFactory.class);
+    private DiagsZipReaderFactory zipReaderFactory = mock(DiagsZipReaderFactory.class);
 
     private DiagnosticsWriter diagnosticsWriter = mock(DiagnosticsWriter.class);
 
@@ -399,7 +399,7 @@ public class RepositoryDiagnosticsHandlerTest {
     }
 
     private void setupRestore(Diags diags, Diags... otherDiags) {
-        final RecursiveZipReader zipReader = mock(RecursiveZipReader.class);
+        final DiagsZipReader zipReader = mock(DiagsZipReader.class);
         final Iterator<Diags> diagsIt = (Iterator<Diags>)mock(Iterator.class);
 
         Boolean[] bools = new Boolean[otherDiags.length + 1];

@@ -6,14 +6,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.components.common.DiagnosticsWriter;
-import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory;
-import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory.DefaultRecursiveZipReaderFactory;
+import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
+import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDiagsZipReader;
 import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.project.PlanProjectConfig;
 import com.vmturbo.plan.orchestrator.reservation.ReservationConfig;
 import com.vmturbo.plan.orchestrator.scenario.ScenarioConfig;
-import com.vmturbo.plan.orchestrator.scheduled.PlanProjectSchedulerConfig;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
 
 /**
@@ -48,8 +47,8 @@ public class PlanOrchestratorDiagnosticsConfig {
     }
 
     @Bean
-    public RecursiveZipReaderFactory recursiveZipReaderFactory() {
-        return new DefaultRecursiveZipReaderFactory();
+    public DiagsZipReaderFactory recursiveZipReaderFactory() {
+        return new DefaultDiagsZipReader();
     }
 
     @Bean

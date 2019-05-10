@@ -23,8 +23,8 @@ import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.Diags;
-import com.vmturbo.components.common.diagnostics.RecursiveZipReader;
-import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory;
+import com.vmturbo.components.common.diagnostics.DiagsZipReader;
+import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.group.group.GroupStore;
 import com.vmturbo.group.policy.PolicyStore;
 import com.vmturbo.group.setting.SettingStore;
@@ -36,7 +36,7 @@ public class GroupDiagnosticsHandler {
     /**
      * The file name for the groups dump collected from the {@link GroupStore}.
      * It's a string file, so the "diags" extension is required for compatibility
-     * with {@link RecursiveZipReader}.
+     * with {@link DiagsZipReader}.
      */
     @VisibleForTesting
     static final String GROUPS_DUMP_FILE = "groups_dump.diags";
@@ -44,7 +44,7 @@ public class GroupDiagnosticsHandler {
     /**
      * The file name for the policies dump collected from the {@link PolicyStore}.
      * It's a string file, so the "diags" extension is required for compatibility
-     * with {@link RecursiveZipReader}.
+     * with {@link DiagsZipReader}.
      */
     @VisibleForTesting
     static final String POLICIES_DUMP_FILE = "policies_dump.diags";
@@ -52,7 +52,7 @@ public class GroupDiagnosticsHandler {
     /**
      * The file name for the settings dump collected from the {@link SettingStore}.
      * It's a string file, so the "diags" extension is required for compatibility
-     * with {@link RecursiveZipReader}.
+     * with {@link DiagsZipReader}.
      */
     @VisibleForTesting
     static final String SETTINGS_DUMP_FILE = "settings_dump.diags";
@@ -68,12 +68,12 @@ public class GroupDiagnosticsHandler {
 
     private final DiagnosticsWriter diagnosticsWriter;
 
-    private final RecursiveZipReaderFactory zipReaderFactory;
+    private final DiagsZipReaderFactory zipReaderFactory;
 
     public GroupDiagnosticsHandler(@Nonnull final GroupStore groupStore,
                                    @Nonnull final PolicyStore policyStore,
                                    @Nonnull final SettingStore settingStore,
-                                   @Nonnull final RecursiveZipReaderFactory zipReaderFactory,
+                                   @Nonnull final DiagsZipReaderFactory zipReaderFactory,
                                    @Nonnull final DiagnosticsWriter diagnosticsWriter) {
         this.groupStore = Objects.requireNonNull(groupStore);
         this.policyStore = Objects.requireNonNull(policyStore);

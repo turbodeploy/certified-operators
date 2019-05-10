@@ -6,7 +6,7 @@ import javax.annotation.Nullable;
 
 /**
  * A diagnostics item. Usually the content of one zip entry in a zip file.
- * Use with {@link RecursiveZipReader} to iterate over the content of a zip file.
+ * Use with {@link DiagsZipReader} to iterate over the content of a zip file.
  * The iterator returns an instance of Diags for every zipped file. It also
  * handles nested zip files.
  */
