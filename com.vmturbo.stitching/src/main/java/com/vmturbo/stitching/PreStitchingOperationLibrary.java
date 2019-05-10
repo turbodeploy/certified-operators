@@ -34,7 +34,7 @@ public class PreStitchingOperationLibrary {
                 new MergeSharedDatacentersPreStitchingOperation(),
                 new StorageVolumePreStitchingOperation(),
                 new SharedVirtualVolumePreStitchingOperation(),
-                new CreateVirtualVolumePreStitchingOperation(),
+//                new CreateVirtualVolumePreStitchingOperation(),
                 new ConnectedNetworkPreStitchingOperation()
         );
     }
