@@ -19,6 +19,7 @@ import com.arangodb.entity.CollectionType;
 import com.arangodb.entity.EdgeDefinition;
 import com.arangodb.entity.IndexType;
 import com.arangodb.model.CollectionCreateOptions;
+import com.arangodb.model.SkiplistIndexOptions;
 import com.arangodb.velocypack.VPackBuilder;
 import com.arangodb.velocypack.VPackSlice;
 import com.arangodb.velocypack.ValueType;
@@ -35,6 +36,7 @@ import com.vmturbo.repository.graph.parameter.EdgeDefParameter;
 import com.vmturbo.repository.graph.parameter.EdgeParameter;
 import com.vmturbo.repository.graph.parameter.GraphParameter;
 import com.vmturbo.repository.graph.parameter.IndexParameter;
+import com.vmturbo.repository.graph.parameter.IndexParameter.GraphIndexType;
 import com.vmturbo.repository.graph.parameter.VertexParameter;
 
 /**
@@ -259,6 +261,12 @@ public class ArangoGraphDatabaseDriver implements GraphDatabaseDriver {
                 ac.createFulltextIndex(p.getFieldNames(), null);
             } else if (IndexParameter.GraphIndexType.HASH.equals(p.getIndexType())) {
                 ac.createHashIndex(p.getFieldNames(), null);
+            } else if (GraphIndexType.SKIPLIST.equals(p.getIndexType())) {
+                SkiplistIndexOptions skiplistIndexOptions = new SkiplistIndexOptions();
+                skiplistIndexOptions.deduplicate(p.isDeduplicate());
+                skiplistIndexOptions.sparse(p.isSparse());
+                skiplistIndexOptions.unique(p.isUnique());
+                ac.ensureSkiplistIndex(p.getFieldNames(), skiplistIndexOptions);
             } else {
                 throw new IndexOperationException("Invalid index type: " + p.getIndexType());
             }

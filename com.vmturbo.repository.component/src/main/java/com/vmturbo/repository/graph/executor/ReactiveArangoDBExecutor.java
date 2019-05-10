@@ -99,7 +99,9 @@ public class ReactiveArangoDBExecutor implements ReactiveGraphDBExecutor {
     }
 
     private static String scopedEntitiesQuery(final String collection, final List<Long> oids) {
-        final String oidStrings = oids.map(l -> Long.toString(l)).mkString(", ");
+        // convert the list of longs to a comma-delimited list of strings, to be used in an IN clause.
+        // e.g. "1","2","3"
+        final String oidStrings = oids.map(l -> "\""+ Long.toString(l) +"\"").mkString(", ");
 
         final Map<String, String> valuesMap = new ImmutableMap.Builder<String, String>()
                 .put("collection", collection)

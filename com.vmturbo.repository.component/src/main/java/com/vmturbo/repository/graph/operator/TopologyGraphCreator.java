@@ -18,6 +18,7 @@ import com.vmturbo.repository.graph.driver.GraphDatabaseDriver;
 import com.vmturbo.repository.graph.parameter.EdgeDefParameter;
 import com.vmturbo.repository.graph.parameter.GraphParameter;
 import com.vmturbo.repository.graph.parameter.IndexParameter;
+import com.vmturbo.repository.graph.parameter.IndexParameter.GraphIndexType;
 
 /**
  * Constructs a topology graph in an associated graph database from input SE DTOs.
@@ -118,10 +119,22 @@ public class TopologyGraphCreator {
                                                           .unique(true)
                                                           .build();
 
+        // entity type, state index is for facilitating supply chain queries. We are using a skip
+        // list because the query will use it for sorting the results.
+        final IndexParameter entityTypeAndStateIndex = new IndexParameter.Builder(graphDefinition.getServiceEntityVertex(),
+                                                                                GraphIndexType.SKIPLIST)
+                .addField("entityType")
+                .addField("state")
+                .unique(false)
+                .sparse(false)
+                .deduplicate(true)
+                .build();
+
         graphDatabaseDriver.createIndex(displayNameIndex);
         graphDatabaseDriver.createIndex(entityTypeIndex);
         graphDatabaseDriver.createIndex(uuidIndex);
         graphDatabaseDriver.createIndex(oidIndex);
+        graphDatabaseDriver.createIndex(entityTypeAndStateIndex);
     }
 
     private void createTopologyGraph() throws GraphOperationException {

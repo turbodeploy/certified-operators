@@ -6,6 +6,7 @@ package com.vmturbo.repository.graph.executor;
 public class ArangoDBQueries {
 
     static final String SUPPLY_CHAIN_CONSUMER_QUERY_TEMPLATE =
+            "<if(hasAllowedOidList)>LET accessOids = [\"<allowedOidList;separator=\",\">\"]<endif>\n" +
             "   FOR v, e, p IN 0..10\n" +
             "       OUTBOUND '<startingId>'\n" +
             "       <edgeCollection>\n" +
@@ -13,11 +14,12 @@ public class ArangoDBQueries {
             "       <if(hasInclusionEntityTypes)>FILTER p.vertices[*].entityType ALL IN <inclusionEntityTypes><endif>\n" +
             "       <if(hasExclusionEntityTypes)>FILTER p.vertices[*].entityType NONE IN <exclusionEntityTypes><endif>\n" +
             "       <if(hasEnvType)>FILTER v.environmentType == '<envType>'<endif>\n" +
-            "       <if(hasAllowedOidList)>FILTER TO_NUMBER(v.oid) IN accessOids<endif>\n" +
+            "       <if(hasAllowedOidList)>FILTER v.oid IN accessOids<endif>\n" +
             "       RETURN DISTINCT { oid: v.oid, entityType: v.entityType, state: v.state, " +
             "           provider : SUBSTITUTE(e._from, '<vertexCollection>/', '')} ";
 
     static final String SUPPLY_CHAIN_PROVIDER_QUERY_TEMPLATE =
+            "<if(hasAllowedOidList)>LET accessOids = [\"<allowedOidList;separator=\",\">\"]<endif>\n" +
             "   FOR v, e, p IN 0..10\n" +
             "       INBOUND '<startingId>'\n" +
             "       <edgeCollection>\n" +
@@ -25,7 +27,7 @@ public class ArangoDBQueries {
             "       <if(hasInclusionEntityTypes)>FILTER p.vertices[*].entityType ALL IN <inclusionEntityTypes><endif>\n" +
             "       <if(hasExclusionEntityTypes)>FILTER p.vertices[*].entityType NONE IN <exclusionEntityTypes><endif>\n" +
             "       <if(hasEnvType)>FILTER v.environmentType == '<envType>'<endif>\n" +
-            "       <if(hasAllowedOidList)>FILTER TO_NUMBER(v.oid) IN accessOids<endif>\n" +
+            "       <if(hasAllowedOidList)>FILTER v.oid IN accessOids<endif>\n" +
             "       RETURN DISTINCT { oid: v.oid, entityType: v.entityType, state: v.state, " +
             "           consumer: SUBSTITUTE(e._to, '<vertexCollection>/', '')} ";
 
@@ -33,7 +35,7 @@ public class ArangoDBQueries {
      * New query for computing the global supply chain.
      */
     static final String GLOBAL_SUPPLY_CHAIN_QUERY_TEMPLATE =
-            "<if(hasAllowedOidList)>LET accessOids = [<allowedOidList;separator=\",\">]<endif>\n" +
+            "<if(hasAllowedOidList)>LET accessOids = [\"<allowedOidList;separator=\",\">\"]<endif>\n" +
             "FOR entity IN <seCollection>\n" +
             "<if(hasIgnoredEntityTypes)>" +
                 "FILTER entity.entityType NOT IN <ignoredEntityTypes>\n" +
@@ -42,7 +44,7 @@ public class ArangoDBQueries {
                 "FILTER entity.environmentType == '<envType>'\n" +
             "<endif>" +
             "<if(hasAllowedOidList)>" +
-                "FILTER TO_NUMBER(entity.oid) IN accessOids\n" +
+                "FILTER entity.oid IN accessOids\n" +
             "<endif>" +
             "COLLECT types = entity.entityType, states = entity.state \n" +
             "INTO oids = entity.oid\n" +
@@ -68,7 +70,7 @@ public class ArangoDBQueries {
      */
     static final String GET_ENTITIES_BY_OID =
             "FOR se IN ${collection}\n" +
-            "FILTER TO_NUMBER(se.oid) IN [${commaSepLongs}]\n" +
+            "FILTER se.oid IN [${commaSepLongs}]\n" +
             "RETURN se";
 
     /**
@@ -76,7 +78,7 @@ public class ArangoDBQueries {
      */
     static final String SCOPED_ENTITIES_BY_OID =
             "FOR se IN ${collection}\n" +
-            "FILTER TO_NUMBER(se.oid) IN [${oids}]\n" +
+            "FILTER se.oid IN [${oids}]\n" +
             "RETURN { " +
                 "oid: se.oid, " +
                 "displayName: se.displayName, " +

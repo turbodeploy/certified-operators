@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -145,7 +146,7 @@ public class ArangoDBExecutor implements GraphDBExecutor {
     }
 
     /**
-     * Convert the given set of entity types into the AQL string list representation.
+     * Convert the given set of integers into the AQL string list representation.
      *
      * @param entityTypes the set of entity types to convert
      * @return AQL string list representation of given set
@@ -278,12 +279,13 @@ public class ArangoDBExecutor implements GraphDBExecutor {
                     serviceEntityMultiGet.getCollection()));
             searchQuery = querySubstitutor.replace(ArangoDBQueries.GET_ALL_ENTITIES);
         } else {
+            // replace the "commaSepLongs" token with the list of entity ids, e.g. "1","2","3"
             querySubstitutor = new StrSubstitutor(ImmutableMap.of(
                     "collection",
                     serviceEntityMultiGet.getCollection(),
                     "commaSepLongs",
                     serviceEntityMultiGet.getEntityIds().stream()
-                            .map(id -> Long.toString(id))
+                            .map(id -> "\""+ Long.toString(id) +"\"")
                             .collect(Collectors.joining(","))));
             searchQuery = querySubstitutor.replace(ArangoDBQueries.GET_ENTITIES_BY_OID);
         }

@@ -4,10 +4,16 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+/**
+ * Encapsulates configuration of an index in ArangoDB.
+ *
+ * @see <a href="https://www.arangodb.com/docs/3.4/indexing-which-index.html">ArangoDB Index Overview</a>
+ */
 public class IndexParameter {
     public static enum GraphIndexType {
         HASH,
-        FULLTEXT
+        FULLTEXT,
+        SKIPLIST
     }
 
     private final GraphIndexType indexType;
@@ -18,11 +24,21 @@ public class IndexParameter {
 
     private final boolean unique;
 
+    // If the index is sparse, documents that have any null index field values will not included in
+    // the index. (hash and skiplist indices only -- fulltext is always sparse)
+    private final boolean sparse;
+
+    // If false, then a uniqueness constraint error will be thrown if a non-unique index field is
+    // added to the index. Defaults to true. Relevant to hash and skiplist indices only.
+    private boolean deduplicate = true;
+
     private IndexParameter(final Builder builder) {
         this.indexType = builder.indexType;
         this.fieldNames = builder.fields;
         this.collectionName = builder.collectionName;
         this.unique = builder.unique;
+        this.sparse = builder.sparse;
+        this.deduplicate = builder.deduplicate;
     }
 
     public GraphIndexType getIndexType() {
@@ -41,6 +57,14 @@ public class IndexParameter {
         return unique;
     }
 
+    public boolean isSparse() {
+        return sparse;
+    }
+
+    public boolean isDeduplicate() {
+        return deduplicate;
+    }
+
     public static class Builder {
 
         private final GraphIndexType indexType;
@@ -50,6 +74,10 @@ public class IndexParameter {
         private List<String> fields;
 
         private boolean unique;
+
+        private boolean sparse;
+
+        private boolean deduplicate;
 
         public Builder(final String collectionName, final GraphIndexType indexType) {
             this.fields = new ArrayList<>();
@@ -70,6 +98,16 @@ public class IndexParameter {
 
         public Builder unique(final boolean bool) {
             this.unique = bool;
+            return this;
+        }
+
+        public Builder sparse(final boolean bool) {
+            this.sparse = bool;
+            return this;
+        }
+
+        public Builder deduplicate(final boolean bool) {
+            this.deduplicate = bool;
             return this;
         }
 
