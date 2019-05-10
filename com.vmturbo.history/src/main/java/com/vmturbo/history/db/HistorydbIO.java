@@ -37,6 +37,7 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -518,11 +519,13 @@ public class HistorydbIO extends BasedbIO {
         final Condition condition =
                 HistoryStatsUtils.betweenStartEndTimestampCond(snapshotTimeField, timeFrame, startTime, endTime);
         return execute(Style.FORCED, getJooqBuilder()
-                .select(snapshotTimeField)
-                .from(table)
-                .where(condition)
-                // Most recent first.
-                .orderBy(snapshotTimeField.desc())).getValues(snapshotTimeField);
+            // The distinct is important! We will return lots of rows otherwise.
+            .selectDistinct(timestamp(snapshotTimeField))
+            .from(table)
+            .where(condition)
+            // Descending order - most recent first.
+            .orderBy(snapshotTimeField.desc()))
+                .getValues(snapshotTimeField);
     }
 
     /**
@@ -543,19 +546,20 @@ public class HistorydbIO extends BasedbIO {
     public Optional<Timestamp> getMostRecentTimestamp() {
         VmStatsLatest statsLatestTable = VM_STATS_LATEST;
         try (Connection conn = connection()) {
-            final Field<?> snapshotTimeField = dField(statsLatestTable, SNAPSHOT_TIME);
-            Record1<Timestamp> snapshotTimeRecord = using(conn)
-                    .select(timestamp(snapshotTimeField))
-                    .from(statsLatestTable)
-                    .orderBy(snapshotTimeField.desc())
-                    .limit(1)   // TODO: remove this - rows should be unique
-                    .fetchOne();
+            final Field<Timestamp> snapshotTimeField = (Field<Timestamp>)dField(statsLatestTable, SNAPSHOT_TIME);
+            final List<Timestamp> snapshotTimeRecords = execute(Style.FORCED, getJooqBuilder()
+                .select(timestamp(snapshotTimeField))
+                .from(statsLatestTable)
+                // Descending order (i.e. most recent first)
+                .orderBy(snapshotTimeField.desc())
+                // Take the first one - this will be the most recent.
+                .limit(1))
+                    .getValues(snapshotTimeField);
 
-            // The snapshotTimeField could be null when the database is empty.
-            if (snapshotTimeRecord != null) {
-                Timestamp t = snapshotTimeRecord.value1();
-                return Optional.of(t);
+            if (!snapshotTimeRecords.isEmpty()) {
+                return Optional.of(snapshotTimeRecords.get(0));
             }
+
         } catch (SQLException e) {
             logger.warn("Error fetching most recent timestamp: ", e);
         } catch (VmtDbException e) {
