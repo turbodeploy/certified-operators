@@ -46,35 +46,42 @@
                 <plugin>
                     <groupId>com.github.kongchen</groupId>
                     <artifactId>swagger-maven-plugin</artifactId>
-                    <configuration>
-                        <apiSources>
-                            <apiSource>
-                                <springmvc>true</springmvc>
-                                <schemes>
-                                    <scheme>http</scheme>
-                                </schemes>
-                                <basePath>${swagger.basepath}</basePath>
-                                <locations>
-                                    <location>com.vmturbo.components.common</location>
-                                </locations>
-                                <outputFormats>json</outputFormats>
-                                <info>
-                                    <title>${swagger.component.name}</title>
-                                    <version>${api.version}</version>
-                                    <description>REST API to access the ${swagger.component.name} functionality.</description>
-                                </info>
-                                <swaggerDirectory>${swagger.conf.directory}</swaggerDirectory>
-                                <outputPath>${swagger.conf.directory}</outputPath>
-                                <attachSwaggerArtifact>true</attachSwaggerArtifact>
-                            </apiSource>
-                        </apiSources>
-                    </configuration>
                     <executions>
                         <execution>
+                            <id>internal-swagger</id>
                             <phase>prepare-package</phase>
                             <goals>
                                 <goal>generate</goal>
                             </goals>
+                            <configuration>
+                                <apiSources>
+                                    <apiSource>
+                                        <springmvc>true</springmvc>
+                                        <schemes>
+                                            <scheme>http</scheme>
+                                        </schemes>
+                                        <basePath>${swagger.basepath}</basePath>
+                                        <locations>
+                                            <!--
+                                            components with internal APIs need to provide their list
+                                            of package names for scanning, as individual "location"
+                                            elements, each naming a package. The configuration
+                                            should be done in a matching "execution" element (with
+                                            "internal-swagger" id) in the component pom.
+                                            -->
+                                        </locations>
+                                        <outputFormats>json</outputFormats>
+                                        <info>
+                                            <title>${swagger.component.name}</title>
+                                            <version>${api.version}</version>
+                                            <description>REST API to access the ${swagger.component.name} functionality.</description>
+                                        </info>
+                                        <swaggerDirectory>${swagger.conf.directory}</swaggerDirectory>
+                                        <outputPath>${swagger.conf.directory}</outputPath>
+                                        <attachSwaggerArtifact>true</attachSwaggerArtifact>
+                                    </apiSource>
+                                </apiSources>
+                            </configuration>
                         </execution>
                     </executions>
                 </plugin>

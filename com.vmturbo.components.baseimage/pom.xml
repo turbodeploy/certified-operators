@@ -30,7 +30,7 @@
                         <artifactId>maven-dependency-plugin</artifactId>
                         <executions>
                             <execution>
-                                <id>unpack</id>
+                                <id>unpack-apidoc</id>
                                 <phase>package</phase>
                                 <goals>
                                     <goal>unpack</goal>
@@ -38,12 +38,15 @@
                                 <configuration>
                                     <artifactItems>
                                         <artifactItem>
-                                            <groupId>org.webjars</groupId>
-                                            <artifactId>swagger-ui</artifactId>
-                                            <version>${swagger-ui-version}</version>
+                                            <groupId>com.vmturbo</groupId>
+                                            <artifactId>com.vmturbo.api</artifactId>
+                                            <version>${vmturbo.mt.branch.version}</version>
+                                            <type>jar</type>
+                                            <outputDirectory>${project.build.directory}</outputDirectory>
+                                            <includes>apidoc/**/*</includes>
+                                            <excludes>**/swagger.*</excludes>
                                         </artifactItem>
                                     </artifactItems>
-                                    <excludes>**/*.gz</excludes>
                                 </configuration>
                             </execution>
                         </executions>
@@ -71,14 +74,9 @@
                                 </resource>
                                 <resource>
                                     <targetPath>/swagger</targetPath>
-                                    <directory>${project.build.directory}/dependency/META-INF/resources/webjars/swagger-ui/${swagger-ui-version}</directory>
+                                    <directory>${project.build.directory}/apidoc</directory>
                                     <include>**/*</include>
-                                    <exclude>index.html</exclude>
-                                </resource>
-                                <resource>
-                                    <targetPath>/swagger</targetPath>
-                                    <directory>${project.basedir}/swagger</directory>
-                                    <include>**/*</include>
+                                    <exclude>**/swagger.*</exclude>
                                 </resource>
                             </resources>
                             <runs>

@@ -30,19 +30,24 @@
             <plugin>
                 <groupId>com.github.kongchen</groupId>
                 <artifactId>swagger-maven-plugin</artifactId>
-                <configuration>
-                    <apiSources>
-                        <apiSource>
-                            <locations>
-                                <location>com.vmturbo.action</location>
-                                <location>com.vmturbo.common.protobuf.action</location>
-                                <location>com.vmturbo.common.protobuf.logging</location>
-                                <location>com.vmturbo.common.protobuf.workflow</location>
-                                <location>com.vmturbo.components.common</location>
-                            </locations>
-                        </apiSource>
-                    </apiSources>
-                </configuration>
+                <executions>
+                    <execution>
+                        <id>internal-swagger</id>
+                        <configuration>
+                            <apiSources>
+                                <apiSource>
+                                    <locations>
+                                        <location>com.vmturbo.action</location>
+                                        <location>com.vmturbo.common.protobuf.action</location>
+                                        <location>com.vmturbo.common.protobuf.logging</location>
+                                        <location>com.vmturbo.common.protobuf.workflow</location>
+                                        <location>com.vmturbo.components.common</location>
+                                    </locations>
+                                </apiSource>
+                            </apiSources>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>com.spotify</groupId>

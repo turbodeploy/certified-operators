@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
-import com.vmturbo.api.component.controller.ProbesController;
 import com.vmturbo.api.component.external.api.ApiSecurityConfig;
 import com.vmturbo.api.component.external.api.logging.GlobalExceptionHandler;
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
@@ -37,15 +36,16 @@ import com.vmturbo.api.controller.SettingsController;
 import com.vmturbo.api.controller.SettingsPoliciesController;
 import com.vmturbo.api.controller.StatsController;
 import com.vmturbo.api.controller.SupplyChainsController;
-import com.vmturbo.api.controller.TargetsController;
 import com.vmturbo.api.controller.TagsController;
+import com.vmturbo.api.controller.TargetsController;
 import com.vmturbo.api.controller.TemplatesController;
 import com.vmturbo.api.controller.UsersController;
 import com.vmturbo.api.controller.WidgetSetsController;
 import com.vmturbo.api.controller.WorkflowsController;
+import com.vmturbo.api.internal.controller.ClusterController;
+import com.vmturbo.api.external.controller.ProbesController;
+import com.vmturbo.api.external.controller.SAMLController;
 import com.vmturbo.api.validators.TemplatesValidator;
-import com.vmturbo.api.xlcontroller.ClusterController;
-import com.vmturbo.api.xlcontroller.SAMLController;
 
 /**
  * Configuration for the dispatcher servlet responsible for

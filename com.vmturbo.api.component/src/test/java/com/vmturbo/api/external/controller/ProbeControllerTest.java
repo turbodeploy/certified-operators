@@ -1,4 +1,4 @@
-package com.vmturbo.api.component.controller;
+package com.vmturbo.api.external.controller;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;

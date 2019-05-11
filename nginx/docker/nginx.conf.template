@@ -96,8 +96,24 @@ http {
         ssl_certificate_key /tmp/certs/cert.key;
         ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
 
-        # proxying default paths
-        location ~ (/$|/index|/app|/vmturbo(?!/messages)|/rest|/api|/cgi-bin|/swagger) {
+
+	# swagger-ui paths without trailing slash do 302 redirect to add the slash
+	rewrite ^(/apidoc(/v2)?)$ $scheme://$host/$1/ redirect;
+	rewrite ^(/swagger(/external)?)$ $scheme://$host/$1/ redirect;
+
+	# swagger-ui paths without index.html get it added on (internal, no redirect)
+	rewrite ^(/apidoc(/v2)?)/$ $1/index.html;
+	rewrite ^(/swagger(/external)?)/$ $1/index.html;
+
+	# all swagger-ui paths are routed to /swagger/external
+	rewrite ^/apidoc(/v2)?(.+)$ /swagger/external$2;
+	rewrite ^/swagger(/external)?(.+)$ /swagger/external$2;
+
+	# /api and /api/v2 paths route internally to /vmturbo/rest
+	rewrite ^/api(/v2)?(.+)$ /vmturbo/rest$2;
+
+	# proxying default paths
+        location ~ (/$|/index|/app|/vmturbo(?!/messages)|/rest|/cgi-bin|/swagger) {
             # we are using variables for the upstream servers instead of an upstream entry because
             # of the DNS caching problem -- only nginx plus will dynamically resolve the upstream
             # servers
@@ -208,6 +224,7 @@ http {
 
             proxy_intercept_errors on;
             proxy_cache_bypass $http_upgrade;
+
 
             access_log  /var/log/nginx/access.log  upstream_ws;
 

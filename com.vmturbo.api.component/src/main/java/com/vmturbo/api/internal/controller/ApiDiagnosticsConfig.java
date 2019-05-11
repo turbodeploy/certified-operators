@@ -1,4 +1,4 @@
-package com.vmturbo.api.component.diagnostics;
+package com.vmturbo.api.internal.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;

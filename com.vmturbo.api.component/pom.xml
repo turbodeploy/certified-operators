@@ -1,4 +1,6 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
@@ -11,6 +13,25 @@
     <artifactId>com.vmturbo.api.component</artifactId>
 
     <profiles>
+        <profile>
+            <!--
+            This profile is activated if the rebrand property is undefined, or if it is defined
+            with an empty value. An empty value cannot be used directly for branding, as it is not
+            a valid branding key. Here we ensure that in either scenario, the default branding
+            key will be used. If the rebrand property is defined, this profile will not be
+            activated, and its value will be used as the branding key, per the global
+            branding.key property definition.
+            -->
+            <id>branding.key</id>
+            <activation>
+                <property>
+                    <name>!rebrand</name>
+                </property>
+            </activation>
+            <properties>
+                <branding.key>${branding.key.default}</branding.key>
+            </properties>
+        </profile>
         <profile>
             <id>developer-api-profile</id>
             <activation>
@@ -25,45 +46,128 @@
     </profiles>
 
     <properties>
-        <external.swagger.name>Turbonomic External API</external.swagger.name>
-        <external.swagger.basepath>/vmturbo/rest</external.swagger.basepath>
-        <base.generated.docs.dir>${project.build.directory}/generated-docs/</base.generated.docs.dir>
+        <swagger.component.name>API Component</swagger.component.name>
+        <base.generated.docs.dir>${project.build.directory}/generated-docs/
+        </base.generated.docs.dir>
         <swagger.conf.directory>${base.generated.docs.dir}/swagger</swagger.conf.directory>
         <env.svn.revision>${env.SVN_REVISION}</env.svn.revision>
+        <api.version>v2</api.version>
+        <branding.key.default>vmturbo</branding.key.default>
+        <rebrand>${branding.key.default}</rebrand>
+        <branding.key>${rebrand}</branding.key>
+        <brand.locale>en</brand.locale>
+        <branding.properties.url>
+            classpath:brands/${branding.key}/i18n/locale-${brand.locale}.properties
+        </branding.properties.url>
     </properties>
 
     <build>
         <plugins>
             <!-- generate swagger.json for the External API - requires https -->
             <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>properties-maven-plugin</artifactId>
+                <version>1.0.0</version>
+                <executions>
+                    <execution>
+                        <id>establish-branding</id>
+                        <phase>process-test-resources</phase>
+                        <goals>
+                            <goal>read-project-properties</goal>
+                        </goals>
+                        <configuration>
+                            <urls>
+                                <url>${branding.properties.url}</url>
+                            </urls>
+                        </configuration>
+                    </execution>
+                </executions>
+                <dependencies>
+                    <dependency>
+                        <groupId>com.vmturbo</groupId>
+                        <artifactId>com.vmturbo.branding</artifactId>
+                        <version>${vmturbo.mt.branch.version}</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+            <plugin>
                 <groupId>com.github.kongchen</groupId>
                 <artifactId>swagger-maven-plugin</artifactId>
                 <executions>
                     <execution>
+                        <id>internal-swagger</id>
+                        <!--
+                        Here is the configuration for the execution defined in
+                        com.vmturbo.components.common (the "internal" API for this component)
+                        -->
                         <configuration>
                             <apiSources>
                                 <apiSource>
-                                    <schemes>
-                                        <scheme>https</scheme>
-                                    </schemes>
-                                    <basePath>/vmturbo/rest</basePath>
                                     <locations>
-                                        <location>com.vmturbo.api</location>
-                                        <location>com.vmturbo.api.xlcontroller</location>
+                                        <location>com.vmturbo.components.common</location>
+                                        <location>com.vmturbo.api.internal.controller</location>
                                         <location>com.vmturbo.common.protobuf.logging</location>
                                     </locations>
-                                    <info>
-                                        <title>${external.swagger.name}</title>
-                                        <version>${api.version}</version>
-                                        <description>REST API to access the ${external.swagger.name} functionality.</description>
-                                    </info>
                                 </apiSource>
                             </apiSources>
                         </configuration>
-                        <phase>prepare-package</phase>
+                    </execution>
+                    <execution>
+                        <id>external-swagger</id>
+                        <configuration>
+                            <apiSources>
+                                <apiSource>
+                                    <springmvc>true</springmvc>
+                                    <schemes>
+                                        <scheme>https</scheme>
+                                    </schemes>
+                                    <basePath>/api/v2</basePath>
+                                    <locations>
+                                        <location>com.vmturbo.api.controller</location>
+                                        <location>com.vmturbo.api.external.controller</location>
+                                    </locations>
+                                    <info>
+                                        <title>${swagger.info.title}</title>
+                                        <description>${swagger.info.description}</description>
+                                        <version>${api.version}</version>
+                                        <contact>
+                                            <email>${swagger.contact.email}</email>
+                                            <name>${swagger.contact.name}</name>
+                                            <url>${swagger.contact.url}</url>
+                                        </contact>
+                                    </info>
+                                    <swaggerDirectory>
+                                        ${project.build.directory}/generated-docs/swagger/external
+                                    </swaggerDirectory>
+                                    <outputFormats>json,yaml</outputFormats>
+                                </apiSource>
+                            </apiSources>
+                        </configuration>
+                        <phase>process-test-resources</phase>
                         <goals>
                             <goal>generate</goal>
                         </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy swagger file for tests</id>
+                        <phase>process-test-resources</phase>
+                        <goals>
+                            <goal>testResources</goal>
+                        </goals>
+                        <configuration>
+                            <resources>
+                                <resource>
+                                    <directory>${swagger.conf.directory}</directory>
+                                    <includes>external/*</includes>
+                                </resource>
+                            </resources>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
@@ -77,7 +181,6 @@
                         <goals>
                             <goal>copy</goal>
                         </goals>
-                        <inherited>false</inherited>
                         <configuration>
                             <artifactItems>
                                 <artifactItem>
@@ -105,12 +208,39 @@
                         </goals>
                         <configuration>
                             <target>
-                                <echo message="unpack jar file" />
+                                <echo message="unpack jar file"/>
                                 <mkdir dir="${project.build.directory}/www"/>
                                 <unzip src="${project.build.directory}/dependency/com.vmturbo.UX.zip"
-                                       dest="${project.build.directory}/www" failOnEmptyArchive="true">
+                                       dest="${project.build.directory}/www"
+                                       failOnEmptyArchive="true">
                                 </unzip>
                             </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>unpack-apidoc</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>unpack</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>com.vmturbo</groupId>
+                                    <artifactId>com.vmturbo.api</artifactId>
+                                    <version>${vmturbo.mt.branch.version}</version>
+                                    <type>jar</type>
+                                    <outputDirectory>${project.build.directory}</outputDirectory>
+                                    <includes>apidoc/**/*</includes>
+                                    <excludes>**/swagger.*</excludes>
+                                </artifactItem>
+                            </artifactItems>
                         </configuration>
                     </execution>
                 </executions>
@@ -132,17 +262,22 @@
                             <directory>${project.build.directory}/www</directory>
                         </resource>
                         <resource>
-                            <targetPath>/swagger</targetPath>
-                            <directory>${project.basedir}/src/swagger</directory>
-                        </resource>
-                        <resource>
                             <targetPath>/lib</targetPath>
                             <directory>${project.build.directory}/lib</directory>
                         </resource>
                         <resource>
                             <targetPath>/swagger</targetPath>
+                            <directory>${project.build.directory}/apidoc</directory>
+                            <excludes>swagger.*</excludes>
+                        </resource>
+                        <resource>
+                            <targetPath>/swagger/external</targetPath>
+                            <directory>${project.build.directory}/apidoc</directory>
+                            <excludes>swagger.*</excludes>
+                        </resource>
+                        <resource>
+                            <targetPath>/swagger</targetPath>
                             <directory>${swagger.conf.directory}</directory>
-                            <include>swagger.json</include>
                         </resource>
                     </resources>
                     <serverId>docker-registry</serverId>
@@ -216,6 +351,10 @@
         <!-- XL project dependencies -->
         <dependency>
             <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.components.common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.clustermgr.api</artifactId>
         </dependency>
         <dependency>
@@ -230,7 +369,7 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.group.api</artifactId>
         </dependency>
-         <dependency>
+        <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>history-component-api</artifactId>
         </dependency>

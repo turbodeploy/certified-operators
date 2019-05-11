@@ -1,4 +1,4 @@
-package com.vmturbo.api.component.controller;
+package com.vmturbo.api.internal.controller;
 
 import javax.annotation.Nonnull;
 
@@ -8,7 +8,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.converter.xml.Jaxb2RootElementHttpMessageConverter;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -16,20 +15,24 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
-import com.google.common.collect.ImmutableList;
 
-import com.vmturbo.auth.api.db.DBPasswordDTO;
-import com.vmturbo.components.api.ComponentRestTemplate;
+import com.google.common.collect.ImmutableList;
 
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.SwaggerDefinition;
+import io.swagger.annotations.Tag;
+
+import com.vmturbo.auth.api.db.DBPasswordDTO;
+import com.vmturbo.components.api.ComponentRestTemplate;
 
 /**
  * The DBAdminController provides methods for the RDBMS administration.
  */
 @RestController
 @RequestMapping("/dbadmin")
-@Api(value = "/dbadmin", description = "Methods for managing Secure Storage")
+@Api(tags = {"Admin"})
+@SwaggerDefinition(tags = {@Tag(name = "DBAdmin", description = "Methods for managing Secure Storage")})
 public class DBAdminController {
     @Value("${authHost:auth}")
     private String authHost;

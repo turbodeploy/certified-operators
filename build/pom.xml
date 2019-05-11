@@ -73,7 +73,7 @@
         <jersey-client.version>2.17</jersey-client.version>
         <jersey-media-jaxb.version>2.17</jersey-media-jaxb.version>
         <docker.maven.plugin.version>1.1.1</docker.maven.plugin.version>
-        <swagger-annotations.version>1.5.4</swagger-annotations.version>
+        <swagger-annotations.version>1.5.13</swagger-annotations.version>
         <swagger.codegen.plugin.version>2.2.3</swagger.codegen.plugin.version>
         <jackson-datatype-guava.version>2.6.5</jackson-datatype-guava.version>
         <jackson-core.version>2.9.5</jackson-core.version>
@@ -87,9 +87,8 @@
         <tomcat.version>8.5.15</tomcat.version>
         <start-class/>
         <api.version>${project.version}</api.version>
-        <springfox.version>2.4.0</springfox.version>
-        <swagger.plugin.version>3.1.5</swagger.plugin.version>
-        <swagger-ui-version>3.0.14</swagger-ui-version>
+        <springfox.version>2.7.0</springfox.version>
+        <swagger.plugin.version>3.1.7</swagger.plugin.version>
         <asciidoctor.plugin.version>1.5.3</asciidoctor.plugin.version>
         <swagger2markup.plugin.version>0.9.3</swagger2markup.plugin.version>
         <!-- END swagger properties -->

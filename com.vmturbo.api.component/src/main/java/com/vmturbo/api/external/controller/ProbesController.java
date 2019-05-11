@@ -1,12 +1,8 @@
-package com.vmturbo.api.component.controller;
+package com.vmturbo.api.external.controller;
 
 import java.nio.file.AccessDeniedException;
 import java.util.List;
 import java.util.Objects;
-
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -20,10 +16,16 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
+import io.swagger.annotations.SwaggerDefinition;
+import io.swagger.annotations.Tag;
+
 import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
-import com.vmturbo.api.dto.probe.ProbePropertyNameValuePairApiDTO;
 import com.vmturbo.api.dto.probe.ProbeApiDTO;
 import com.vmturbo.api.dto.probe.ProbePropertyApiDTO;
+import com.vmturbo.api.dto.probe.ProbePropertyNameValuePairApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -38,15 +40,16 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
  * GET /probes/{probeId}/targets/{targetId}/properties
  * GET /probes/{probeId}/targets/{targetId}/properties/{propertyName}
  * PUT /probes/{probeId}/properties
- * PUT /probes/{probeId}/properties/{name}
+ * PUT /probes/{probeId}/properties/{propertyName}
  * PUT /probes/{probeId}/targets/{targetId}/properties
- * PUT /probes/{probeId}/targets/{targetId}/properties/{name}
- * DELETE /probes/{probeId}/properties/{name}
- * DELETE /probes/{probeId}/targets/{targetId}/properties/{name}
+ * PUT /probes/{probeId}/targets/{targetId}/properties/{propertyName}
+ * DELETE /probes/{probeId}/properties/{propertyName}
+ * DELETE /probes/{probeId}/targets/{targetId}/properties/{propertyName}
  */
 @Controller
 @RequestMapping("/probes")
-@Api(value = "Probes", description = "Methods for managing probes and probe properties.")
+@Api(value = "Probes")
+@SwaggerDefinition(tags = {@Tag(name = "Probes", description = "Methods for managing probes and probe properties.")})
 @PreAuthorize("hasAnyRole('ADMINISTRATOR')")
 public class ProbesController {
     @Autowired
@@ -68,7 +71,7 @@ public class ProbesController {
         value = "Get a probe.",
         response = ProbeApiDTO.class)
     @RequestMapping(
-        path = "/{probeId}/",
+        path = "/{probeId}",
         method = RequestMethod.GET,
         produces = { MediaType.APPLICATION_JSON_VALUE })
     @ResponseBody
@@ -123,7 +126,7 @@ public class ProbesController {
         response = ProbePropertyNameValuePairApiDTO.class,
         responseContainer = "List")
     @RequestMapping(
-        path = "/{probeId}/properties/",
+        path = "/{probeId}/properties",
         method = RequestMethod.GET,
         produces = { MediaType.APPLICATION_JSON_VALUE })
     @ResponseBody
@@ -156,7 +159,7 @@ public class ProbesController {
         notes = "Response is empty if the probe exists but the probe property does not exist.",
         response = String.class)
     @RequestMapping(
-        path = "/{probeId}/properties/{propertyName:.+}/",
+        path = "/{probeId}/properties/{propertyName:.+}",
         method = RequestMethod.GET,
         produces = { MediaType.TEXT_PLAIN_VALUE })
     @ResponseBody
@@ -195,7 +198,7 @@ public class ProbesController {
         response = ProbePropertyNameValuePairApiDTO.class,
         responseContainer = "List")
     @RequestMapping(
-        path = "/{probeId}/targets/{targetId}/properties/",
+        path = "/{probeId}/targets/{targetId}/properties",
         method = RequestMethod.GET,
         produces = { MediaType.APPLICATION_JSON_VALUE })
     @ResponseBody
@@ -234,7 +237,7 @@ public class ProbesController {
         value = "Get a target-specific probe property.",
         notes = "Response is empty if the target exists but the probe property does not exist.")
     @RequestMapping(
-        path = "/{probeId}/targets/{targetId}/properties/{propertyName:.+}/",
+        path = "/{probeId}/targets/{targetId}/properties/{propertyName:.+}",
         method = RequestMethod.GET,
         produces = { MediaType.TEXT_PLAIN_VALUE })
     @ResponseBody
@@ -278,7 +281,7 @@ public class ProbesController {
         response = ProbePropertyNameValuePairApiDTO.class,
         responseContainer = "List")
     @RequestMapping(
-        path = "/{probeId}/properties/",
+        path = "/{probeId}/properties",
         method = RequestMethod.PUT,
         produces = { MediaType.APPLICATION_JSON_VALUE },
         consumes = { MediaType.APPLICATION_JSON_VALUE })
@@ -302,7 +305,7 @@ public class ProbesController {
 
     /**
      * Edit the value of one probe-specific probe property (Create if property does not exist).
-     * PUT /probes/{probeId}/properties/{name}
+     * PUT /probes/{probeId}/properties/{propertyName}
      *
      * @param probeId Uuid of the probe.
      * @param name name of the probe property.
@@ -320,7 +323,7 @@ public class ProbesController {
         response = ProbePropertyApiDTO.class,
         consumes = "text/plain")
     @RequestMapping(
-        path = "/{probeId}/properties/{name:.+}/",
+        path = "/{probeId}/properties/{propertyName:.+}",
         method = RequestMethod.PUT,
         consumes = { MediaType.TEXT_PLAIN_VALUE },
         produces = { MediaType.APPLICATION_JSON_VALUE })
@@ -332,7 +335,7 @@ public class ProbesController {
             String probeId,
 
             @ApiParam(value = "The name of the probe property.", required = true)
-            @PathVariable("name")
+            @PathVariable("propertyName")
             String name,
 
             @ApiParam(value = "The new value of the probe property.", required = true)
@@ -372,7 +375,7 @@ public class ProbesController {
         response = ProbePropertyNameValuePairApiDTO.class,
         responseContainer = "List")
     @RequestMapping(
-        path = "/{probeId}/targets/{targetId}/properties/",
+        path = "/{probeId}/targets/{targetId}/properties",
         method = RequestMethod.PUT,
         produces = { MediaType.APPLICATION_JSON_VALUE },
         consumes = { MediaType.APPLICATION_JSON_VALUE })
@@ -400,7 +403,7 @@ public class ProbesController {
 
     /**
      * Edit the value of one target-specific probe property (Create if property does not exist).
-     * PUT /probes/{probeId}/targets/{targetId}/properties/{name}
+     * PUT /probes/{probeId}/targets/{targetId}/properties/{propertyName}
      *
      * @param probeId Uuid of the probe discovering the target.
      * @param targetId Uuid of the target.
@@ -420,7 +423,7 @@ public class ProbesController {
         consumes = "text/plain")
     @RequestMapping(
         consumes = { MediaType.TEXT_PLAIN_VALUE },
-        path = "/{probeId}/targets/{targetId}/properties/{name:.+}/",
+        path = "/{probeId}/targets/{targetId}/properties/{propertyName:.+}",
         method = RequestMethod.PUT,
         produces = { MediaType.APPLICATION_JSON_VALUE })
     @ResponseBody
@@ -435,7 +438,7 @@ public class ProbesController {
             String targetId,
 
             @ApiParam(value = "The name of the probe property.", required = true)
-            @PathVariable("name")
+            @PathVariable("propertyName")
             String name,
 
             @ApiParam(value = "The new value of the probe property.", required = true)
@@ -457,7 +460,7 @@ public class ProbesController {
 
     /**
      * Delete one probe-specific probe property.
-     * DELETE /probes/{probeId}/properties/{name}
+     * DELETE /probes/{probeId}/properties/{propertyName}
      *
      * @param probeId Uuid of the probe.
      * @param name name of the probe property.
@@ -471,7 +474,7 @@ public class ProbesController {
         value = "Delete the value of one probe-specific probe property.",
         notes = "Probe will revert to the use of default value.")
     @RequestMapping(
-        path = "/{probeId}/properties/{name}/",
+        path = "/{probeId}/properties/{propertyName}",
         method = RequestMethod.DELETE,
         produces = { MediaType.APPLICATION_JSON_VALUE })
     @ResponseBody
@@ -483,7 +486,7 @@ public class ProbesController {
             String probeId,
 
             @ApiParam(value = "The name of the probe property.", required = true)
-            @PathVariable("name")
+            @PathVariable("propertyName")
             String name)
             throws Exception {
         probesService.deleteProbeSpecificProperty(
@@ -493,7 +496,7 @@ public class ProbesController {
 
     /**
      * Delete one target-specific probe property.
-     * DELETE /probes/{probeId}/targets/{targetId}/properties/{name}
+     * DELETE /probes/{probeId}/targets/{targetId}/properties/{propertyName}
      *
      * @param probeId Uuid of the probe that discovers the target.
      * @param targetId Uuid of the target.
@@ -509,7 +512,7 @@ public class ProbesController {
         notes = "Probe will revert to the use of default value."
     )
     @RequestMapping(
-        path = "/{probeId}/targets/{targetId}/properties/{name}/",
+        path = "/{probeId}/targets/{targetId}/properties/{propertyName}",
         method = RequestMethod.DELETE,
         produces = { MediaType.APPLICATION_JSON_VALUE })
     @ResponseBody
@@ -525,7 +528,7 @@ public class ProbesController {
             String targetId,
 
             @ApiParam(value = "The name of the probe property", required = true)
-            @PathVariable("name")
+            @PathVariable("propertyName")
             String name)
             throws Exception {
         probesService.deleteTargetSpecificProperty(

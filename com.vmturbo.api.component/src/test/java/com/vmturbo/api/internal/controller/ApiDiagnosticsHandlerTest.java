@@ -1,4 +1,4 @@
-package com.vmturbo.api.component.diagnostics;
+package com.vmturbo.api.internal.controller;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -20,7 +20,7 @@ import com.google.common.collect.ImmutableMap;
 
 import io.prometheus.client.CollectorRegistry;
 
-import com.vmturbo.api.component.diagnostics.ApiDiagnosticsHandler.VersionAndRevision;
+import com.vmturbo.api.internal.controller.ApiDiagnosticsHandler.VersionAndRevision;
 import com.vmturbo.api.component.external.api.service.AdminService;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.admin.ProductVersionDTO;

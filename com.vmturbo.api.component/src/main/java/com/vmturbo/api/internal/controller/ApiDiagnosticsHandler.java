@@ -1,4 +1,4 @@
-package com.vmturbo.api.component.diagnostics;
+package com.vmturbo.api.internal.controller;
 
 import java.io.InputStream;
 import java.util.ArrayList;

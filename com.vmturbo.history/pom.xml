@@ -21,21 +21,26 @@
             <plugin>
                 <groupId>com.github.kongchen</groupId>
                 <artifactId>swagger-maven-plugin</artifactId>
-                <configuration>
+                <executions>
+                    <execution>
+                        <id>internal-swagger</id>
+                        <configuration>
 
-                    <apiSources>
-                        <apiSource>
-                            <locations>
-                                <location>com.vmturbo.history</location>
-                                <location>com.vmturbo.common.protobuf.logging</location>
-                                <location>com.vmturbo.common.protobuf.stats</location>
-                                <location>com.vmturbo.history.component.api</location>
-                                <location>com.vmturbo.components.common</location>
-                            </locations>
-                        </apiSource>
-                    </apiSources>
+                            <apiSources>
+                                <apiSource>
+                                    <locations>
+                                        <location>com.vmturbo.history</location>
+                                        <location>com.vmturbo.common.protobuf.logging</location>
+                                        <location>com.vmturbo.common.protobuf.stats</location>
+                                        <location>com.vmturbo.history.component.api</location>
+                                        <location>com.vmturbo.components.common</location>
+                                    </locations>
+                                </apiSource>
+                            </apiSources>
 
-                </configuration>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
