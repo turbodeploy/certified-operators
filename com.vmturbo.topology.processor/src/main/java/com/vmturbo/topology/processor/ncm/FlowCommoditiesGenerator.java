@@ -95,9 +95,9 @@ public class FlowCommoditiesGenerator {
      */
     private Optional<StitchingEntity> getRegionForAZ(final @Nonnull TopologyStitchingEntity az) {
         for (Set<StitchingEntity> set : az.getConnectedFromByType().values()) {
-            Optional<StitchingEntity> region = az.getProviders().stream()
-                                                 .filter(p -> p.getEntityType().equals(REGION))
-                                                 .findFirst();
+            Optional<StitchingEntity> region = set.stream()
+                                                  .filter(p -> p.getEntityType().equals(REGION))
+                                                  .findFirst();
             if (region.isPresent()) {
                 return region;
             }
