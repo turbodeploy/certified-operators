@@ -268,12 +268,12 @@
                         <resource>
                             <targetPath>/swagger</targetPath>
                             <directory>${project.build.directory}/apidoc</directory>
-                            <excludes>swagger.*</excludes>
+                            <excludes><exclude>swagger.*</exclude></excludes>
                         </resource>
                         <resource>
                             <targetPath>/swagger/external</targetPath>
                             <directory>${project.build.directory}/apidoc</directory>
-                            <excludes>swagger.*</excludes>
+                            <excludes><exclude>swagger.*</exclude></excludes>
                         </resource>
                         <resource>
                             <targetPath>/swagger</targetPath>
