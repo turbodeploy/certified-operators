@@ -747,6 +747,18 @@ public class MarketsService implements IMarketsService {
     public MarketApiDTO applyAndRunScenario(@Nonnull String marketUuid,
                                             @Nonnull Long scenarioId,
                                             @Nullable Boolean ignoreConstraints,
+                                            @Nullable final String planMarketName,
+                                            final boolean savePlan) throws Exception {
+        // TODO (roman, May 8 2019): Right now we ignore "savePlan" because in XL we always save
+        // plan results. Consider whether or not we want to make saving plans optional in the
+        // future.
+        return applyAndRunScenario(marketUuid, scenarioId, ignoreConstraints, planMarketName);
+    }
+
+    @Override
+    public MarketApiDTO applyAndRunScenario(@Nonnull String marketUuid,
+                                            @Nonnull Long scenarioId,
+                                            @Nullable Boolean ignoreConstraints,
                                             // TODO (roman, June 6 2017): The plan market name
                                             // should be the display name of the plan. However,
                                             // the UI doesn't currently use it, so postponing
