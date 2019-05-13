@@ -79,8 +79,8 @@ fi
 
 # enable query cache
 # See https://www.arangodb.com/docs/3.3/aql/execution-and-performance-query-cache.html
-
-if ! grep -q cache-mode $ARANGO_CONF ; then
+grep -q cache-mode $ARANGO_CONF
+if [ "$?" != 0 ]; then
     echo "Enabling arangodb query cache" | $LOGGER_COMMAND
     sed  -i  '$a\\n\[query]\ncache-mode = on\n' $ARANGO_CONF
 fi
