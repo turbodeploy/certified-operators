@@ -907,11 +907,6 @@ public class Stages {
         @Override
         @Nonnull
         public Status passthrough(GraphWithSettings input) throws PipelineStageException {
-            // Don't make changes if there are no flows.
-            if (input != null && !matrix.isEmpty()) {
-                FlowCommoditiesGenerator commoditiesGenerator = new FlowCommoditiesGenerator(matrix);
-                commoditiesGenerator.setFlowCapacities(input.getTopologyGraph());
-            }
             return Status.success();
         }
     }
