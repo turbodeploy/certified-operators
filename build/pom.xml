@@ -930,6 +930,7 @@
                 <module>../db</module>
                 <module>../com.vmturbo.arangodb</module>
                 <module>../com.vmturbo.consul</module>
+                <module>../com.vmturbo.ml.datastore</module>
                 <module>../kafka</module>
                 <module>../zookeeper</module>
                 <module>../nginx</module>
