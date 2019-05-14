@@ -52,6 +52,7 @@ public class AnalysisConfig {
     @Bean
     public AnalysisRpcService analysisService() {
         return new AnalysisRpcService(topologyConfig.topologyPipelineFactory(),
+                topologyConfig.topologyHandler(),
                 identityProviderConfig.identityProvider(),
                 entityConfig.entityStore(),
                 stichingConfig.stitchingJournalFactory(),
