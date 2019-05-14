@@ -955,13 +955,15 @@ public class Analysis {
      * @return {@link Collection} of actions representing the wasted files or volumes.
      */
     private Collection<Action> getWastedFilesActions() {
-        if (topologyInfo.getAnalysisTypeList().contains(AnalysisType.WASTED_FILES)) {
+        // only generate wasted files actions for the realtime market
+        if (!topologyInfo.hasPlanInfo() &&
+            topologyInfo.getAnalysisTypeList().contains(AnalysisType.WASTED_FILES)) {
             wastedFilesAnalysis.execute();
             logger.debug("Getting wasted files actions.");
             if (wastedFilesAnalysis.getState() == AnalysisState.SUCCEEDED) {
                 return wastedFilesAnalysis.getActions();
             }
-        }
+        };
         return Collections.emptyList();
     }
 
