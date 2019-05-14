@@ -133,6 +133,7 @@ public class ActionSpecMapperTest {
     private CommodityType commodityCpu;
     private CommodityType commodityMem;
     private CommodityType commodityVMem;
+    private CommodityType commodityHeap;
 
     private static final String START = "Start";
     private static final String TARGET = "Target";
@@ -180,6 +181,10 @@ public class ActionSpecMapperTest {
             .build();
         commodityVMem = CommodityType.newBuilder()
             .setType(CommodityDTO.CommodityType.VMEM_VALUE)
+            .setKey("foo")
+            .build();
+        commodityHeap = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.HEAP_VALUE)
             .setKey("foo")
             .build();
     }
@@ -517,6 +522,37 @@ public class ActionSpecMapperTest {
         assertTrue(actionApiDTO.getDetails().contains(expectedDetailCapacityy));
         assertEquals(CommodityDTO.CommodityType.VMEM.name(),
                 actionApiDTO.getRisk().getReasonCommodity());
+    }
+
+
+    @Test
+    public void testResizeHeapDetail() throws Exception {
+        final long targetId = 1;
+        final ActionInfo resizeInfo = ActionInfo.newBuilder()
+            .setResize(Resize.newBuilder()
+                .setTarget(ApiUtilsTest.createActionEntity(targetId))
+                .setOldCapacity(1024 * 1024 * 2)
+                .setNewCapacity(1024 * 1024 * 1)
+                .setCommodityType(commodityHeap))
+            .build();
+        final String expectedDetailCapacityy = "from 2 GB to 1 GB";
+        Explanation resize = Explanation.newBuilder()
+            .setResize(ResizeExplanation.newBuilder()
+                .setStartUtilization(0.2f)
+                .setEndUtilization(0.4f).build())
+            .build();
+        Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
+            .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
+                .addAllTopologyEntityDtos(Lists.newArrayList(
+                    topologyEntityDTO(ENTITY_TO_RESIZE_NAME, targetId, EntityType.VIRTUAL_MACHINE_VALUE)
+                )).build());
+        final ActionApiDTO actionApiDTO =
+            mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize), contextId);
+
+        assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
+        assertTrue(actionApiDTO.getDetails().contains(expectedDetailCapacityy));
+        assertEquals(CommodityDTO.CommodityType.HEAP.name(),
+            actionApiDTO.getRisk().getReasonCommodity());
     }
 
     /**

@@ -133,6 +133,7 @@ public class ActionSpecMapper {
                     new ImmutableMap.Builder<CommodityDTO.CommodityType, Long>()
                         .put(CommodityDTO.CommodityType.VMEM, Units.KBYTE)
                         .put(CommodityDTO.CommodityType.STORAGE_AMOUNT, Units.MBYTE)
+                        .put(CommodityDTO.CommodityType.HEAP, Units.KBYTE)
                         .build();
 
     private final ActionSpecMappingContextFactory actionSpecMappingContextFactory;
