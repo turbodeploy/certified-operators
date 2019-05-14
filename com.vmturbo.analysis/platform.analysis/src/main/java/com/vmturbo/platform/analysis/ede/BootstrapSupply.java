@@ -995,7 +995,7 @@ public class BootstrapSupply {
         List<Trader> activeSellerThatCanAcceptNewCustomers = market.getActiveSellersAvailableForPlacement();
         // Return if there are active sellers and none of them are cloneable or resizeable through
         // supplier.
-        if (!activeSellerThatCanAcceptNewCustomers.isEmpty() && aactiveSellerThatCanAcceptNewCustomers.stream()
+        if (!activeSellerThatCanAcceptNewCustomers.isEmpty() && activeSellerThatCanAcceptNewCustomers.stream()
             .noneMatch(seller -> seller.getSettings().isCloneable()
                 || Utility.resizeThroughSupplier(seller, shoppingList, economy))) {
             if (logger.isTraceEnabled() || isDebugBuyer) {
