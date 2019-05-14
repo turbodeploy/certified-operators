@@ -1,4 +1,4 @@
-tag = "7.17.0-SNAPSHOT"
+tag = "7.18.0-SNAPSHOT"
 externalIP = "10.0.2.15"
 
 # Mediation
