@@ -102,7 +102,7 @@ public class TopologyHandler {
      *
      * @return true if any targets may contain wasted file information, false otherwise.
      */
-    protected boolean includesWastedFiles() {
+    public boolean includesWastedFiles() {
         return targetStore.getAll().stream()
             .map(Target::getProbeId)
             .map(id -> probeStore.getProbe(id))
