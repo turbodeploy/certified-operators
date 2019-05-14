@@ -964,6 +964,27 @@
                 </plugins>
             </build>
         </profile>
+        <profile>
+            <id>refresh-base-components</id>
+            <build>
+                <defaultGoal>exec:exec@refresh</defaultGoal>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>refresh</id>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <executable>${project.basedir}/refresh-base-components/refresh-base-components.sh</executable>
+                            <commandlineArgs>${version}</commandlineArgs>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
     </profiles>
     <build>
         <extensions>
