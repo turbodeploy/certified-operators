@@ -929,6 +929,7 @@
                 <module>../syslog</module>
                 <module>../db</module>
                 <module>../com.vmturbo.arangodb</module>
+                <module>../com.vmturbo.consul</module>
                 <module>../kafka</module>
                 <module>../zookeeper</module>
                 <module>../nginx</module>
