@@ -34,6 +34,26 @@ public class ProbeInfoCompatibilityCheckerTest {
             .setIsSecret(true))
         .build();
 
+    private final AccountDefEntry thirdEntry = AccountDefEntry.newBuilder()
+        .setMandatory(true)
+        .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+            .setName("name")
+            .setVerificationRegex("^$|(^([0-9]|[1-8][0-9]|9[0-9]|[1-8][0-9]")
+            .setDisplayName("displayName")
+            .setDescription("description")
+            .setIsSecret(true))
+        .build();
+
+    private final AccountDefEntry fourthEntry = AccountDefEntry.newBuilder()
+        .setMandatory(true)
+        .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+            .setName("name")
+            .setVerificationRegex(".*")
+            .setDisplayName("displayName")
+            .setDescription("description")
+            .setIsSecret(true))
+        .build();
+
     @Test
     public void testAreCompatibleProbeType() {
         final ProbeInfo foo = ProbeInfo.newBuilder()
@@ -64,18 +84,16 @@ public class ProbeInfoCompatibilityCheckerTest {
         assertTrue(checker.areCompatible(storage, storage));
     }
 
+    // Verify AccountDefinition is not checked anymore.
     @Test
     public void testAreCompatibleAccountDefinitions() {
         final ProbeInfo a = probeInfoBuilder()
-            .addAccountDefinition(firstEntry)
-            .addAccountDefinition(secondEntry)
+            .addAccountDefinition(thirdEntry)
             .build();
         final ProbeInfo b = probeInfoBuilder()
-            .addAccountDefinition(secondEntry) // Add account definitions in reverse order
-            .addAccountDefinition(firstEntry)
+            .addAccountDefinition(fourthEntry)
             .build();
 
-        // Order of account definitions should not be considered
         assertTrue(checker.areCompatible(a, b));
         assertTrue(checker.areCompatible(a, a));
     }

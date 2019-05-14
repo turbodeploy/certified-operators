@@ -83,8 +83,6 @@ public class ProbeInfoCompatibilityChecker {
         checks.add(new EqualityCheck(ProbeInfo::getProbeType, "type"));
         checks.add(new EqualityCheck(ProbeInfo::getProbeCategory, "category"));
         // Lists are converted to Sets so that ordering does not affect equality checking
-        checks.add(new EqualityCheck(probe -> new HashSet<>(probe.getAccountDefinitionList()),
-            "accountDefinitionList"));
         checks.add(new EqualityCheck(probe -> new HashSet<>(probe.getTargetIdentifierFieldList()),
             "targetIdentifierFieldList"));
         checks.add(new IdentityMetadataCheck());
