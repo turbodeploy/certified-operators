@@ -34,20 +34,7 @@ spec:
         image: {{ template "image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
-        - name: ZOO_MY_ID
-          value: "1"
-        - name: ZOO_SERVERS
-          value: zoo
-        - name: clustermgr_host
-          value: clustermgr
-        - name: clustermgr_port
-          value: "8080"
-        - name: clustermgr_retry_delay_sec
-          value: "10"
-        - name: consul_host
-          value: consul
-        ports:
-        - containerPort: 2181
+{{ toYaml .Values.env | indent 8 -}}
         readinessProbe:
           exec:
             command:

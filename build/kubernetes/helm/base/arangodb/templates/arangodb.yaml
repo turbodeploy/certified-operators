@@ -62,12 +62,7 @@ spec:
         image: {{ template "image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
-        - name: ARANGO_ROOT_PASSWORD
-          value: root
-        - name: ARANGODB_DEFAULT_ROOT_PASSWORD
-          value: root
-        ports:
-        - containerPort: 8529
+{{ toYaml .Values.env | indent 8 -}}
         readinessProbe:
           httpGet:
             port: 8529
