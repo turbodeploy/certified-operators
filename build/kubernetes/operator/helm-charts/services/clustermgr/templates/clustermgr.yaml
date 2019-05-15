@@ -44,26 +44,7 @@ spec:
 {{- else }}
           value: {{ .Values.java.options }}
 {{- end }}
-        - name: clustermgr_host
-          value: clustermgr
-        - name: clustermgr_port
-          value: "8080"
-        - name: server_port
-          value: "8080"
-        - name: serverHttpPort
-          value: "8080"
-        - name: clustermgr_retry_delay_sec
-          value: "10"
-        - name: component_type
-          value: clustermgr
-        - name: consul_host
-          value: consul
-        - name: instance_id
-          value: clustermgr-1
-        - name: kafkaServers
-          value: kafka:9092
-        - name: node_name
-          value: default
+{{ toYaml .Values.env | indent 8 -}}
         readinessProbe:
           httpGet:
             port: 8080

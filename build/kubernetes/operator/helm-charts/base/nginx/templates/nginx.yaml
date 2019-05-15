@@ -38,21 +38,7 @@ spec:
           value: api.{{ .Release.Namespace }}.svc.cluster.local
         - name: TOPOLOGY
           value: topology-processor.{{ .Release.Namespace }}.svc.cluster.local
-        - name: clustermgr_host
-          value: clustermgr
-        - name: clustermgr_port
-          value: "8080"
-        - name: clustermgr_retry_delay_sec
-          value: "10"
-        - name: component_type
-          value: nginx
-        - name: consul_host
-          value: consul
-        - name: instance_id
-          value: nginx-1
-        ports:
-        - containerPort: 8443
-        - containerPort: 8000
+{{ toYaml .Values.env | indent 8 -}}
         readinessProbe:
           tcpSocket:
             port: 8443

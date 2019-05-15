@@ -12,6 +12,22 @@ image:
 java:
   options: ""
 
+env:
+  - name: clustermgr_host
+    value: clustermgr
+  - name: clustermgr_port
+    value: "8080"
+  - name: clustermgr_retry_delay_sec
+    value: "10"
+  - name: component_type
+    value: cost
+  - name: consul_host
+    value: consul
+  - name: instance_id
+    value: cost-1
+  - name: kafkaServers
+    value: kafka:9092
+
 resources:
   limits:
     memory: 1024Mi
