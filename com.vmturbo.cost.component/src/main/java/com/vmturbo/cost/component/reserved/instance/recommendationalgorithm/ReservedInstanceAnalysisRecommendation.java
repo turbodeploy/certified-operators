@@ -307,6 +307,7 @@ public class ReservedInstanceAnalysisRecommendation {
         return riSpec;
     }
 
+    @Nonnull
     public ReservedInstanceBoughtInfo getRiBoughtInfo() {
         return riBoughtInfo;
     }
@@ -315,7 +316,11 @@ public class ReservedInstanceAnalysisRecommendation {
         return buyRiId;
     }
 
-    // Creates the RI Bought object from the buy RI recommendation
+    /**
+     * Creates the RI Bought object from the buy RI recommendation
+     * 
+     * @return The reserved instance bought info representing this Buy RI recommendation
+     */
     public ReservedInstanceBoughtInfo createRiBoughtInfo() {
         // TODO: Set the costs once it is ready
         ReservedInstanceBoughtCost.Builder riBoughtCost = ReservedInstanceBoughtCost.newBuilder()
