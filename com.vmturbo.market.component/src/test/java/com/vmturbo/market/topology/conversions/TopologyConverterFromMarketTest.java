@@ -69,6 +69,7 @@ public class TopologyConverterFromMarketTest {
     private static final long PM_OID = 10000L;
     private static final long VM_OID = 10001L;
     private static final long DS_OID = 20000L;
+    private static final long VOLUME_ID = 10L;
     private static final Float SCALING_FACTOR = 1.5F;
     private static final Float RAW_PM_USED = 0.5F;
     private static final Float RAW_VM_USED = 0.2177F;
@@ -489,6 +490,7 @@ public class TopologyConverterFromMarketTest {
             .addCommoditySoldList(topologyCPUSold)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(PM_OID)
+                .setVolumeId(VOLUME_ID)
                 .addAllCommodityBought(topologyCpuBought))
             .putEntityPropertyMap("dummy", "dummy")
             .build();
@@ -509,7 +511,7 @@ public class TopologyConverterFromMarketTest {
 
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
-        shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID, null,
+        shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID, VOLUME_ID,
                 EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
         Field commTypeAllocator =
                 TopologyConverter.class.getDeclaredField("commodityTypeAllocator");
@@ -635,6 +637,7 @@ public class TopologyConverterFromMarketTest {
             .addCommoditySoldList(topologyCPUSold)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(PM_OID)
+                .setVolumeId(VOLUME_ID)
                 .addAllCommodityBought(topologyCpuBought))
             .putEntityPropertyMap("dummy", "dummy")
             .build();
@@ -660,7 +663,7 @@ public class TopologyConverterFromMarketTest {
 
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
-        shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID, null,
+        shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID, VOLUME_ID,
                 EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
         Field commTypeAllocator =
                 TopologyConverter.class.getDeclaredField("commodityTypeAllocator");

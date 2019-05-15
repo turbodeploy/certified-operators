@@ -12,6 +12,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 
 /**
  * An index to keep track of commodities in the {@link TopologyEntityDTO}s received by the market.
@@ -63,7 +64,7 @@ public class CommodityIndex {
         topologyEntityDTO.getCommoditiesBoughtFromProvidersList().forEach(commBoughtFromProvider -> {
             commBoughtFromProvider.getCommodityBoughtList().forEach(commBought -> {
                 addCommBought(entityId, commBoughtFromProvider.getProviderId(),
-                    commBought);
+                    commBought, commBoughtFromProvider.getVolumeId());
             });
         });
     }
@@ -76,6 +77,7 @@ public class CommodityIndex {
      *                 {@link CommodityIndex#addEntity(TopologyEntityDTO)}.
      * @param providerId The provider for the commodity.
      * @param commType The {@link CommodityType} of the commodity being bought.
+     * @param volumeId The buying entity's volume Id.
      * @return An optional of the {@link CommodityBoughtDTO}, if present.
      *         Note - the (entityId, providerId, commType) tuple uniquely identifies a
      *                {@link CommodityBoughtDTO}. We enforce that constraint when adding entities
@@ -84,12 +86,9 @@ public class CommodityIndex {
     @Nonnull
     public Optional<CommodityBoughtDTO> getCommBought(final long entityId,
                                            final long providerId,
-                                           final CommodityType commType) {
-        final CommBoughtKey commBoughtKey = ImmutableCommBoughtKey.builder()
-            .entityId(entityId)
-            .providerId(providerId)
-            .commodityType(commType)
-            .build();
+                                           final CommodityType commType,
+                                           long volumeId) {
+        final CommBoughtKey commBoughtKey = constructCommBoughtKey(entityId, providerId, commType, volumeId);
         return Optional.ofNullable(commBoughtIndex.get(commBoughtKey));
     }
 
@@ -117,12 +116,9 @@ public class CommodityIndex {
 
     private void addCommBought(final long entityId,
                                final long providerId,
-                               @Nonnull final CommodityBoughtDTO commBought) {
-        final CommBoughtKey commBoughtKey = ImmutableCommBoughtKey.builder()
-            .entityId(entityId)
-            .providerId(providerId)
-            .commodityType(commBought.getCommodityType())
-            .build();
+                               @Nonnull final CommodityBoughtDTO commBought,
+                               final long volumeId) {
+        final CommBoughtKey commBoughtKey = constructCommBoughtKey(entityId, providerId, commBought.getCommodityType(), volumeId);
         final CommodityBoughtDTO oldCommBought = commBoughtIndex.put(commBoughtKey, commBought);
         if (oldCommBought != null) {
             // This means we have an entity buying multiple commodities of the same type
@@ -131,6 +127,28 @@ public class CommodityIndex {
                 " buying the same commodity from provider " + providerId + " more than once: " +
                 commBought.getCommodityType());
         }
+    }
+
+    /**
+     * Construct commBoughtKey
+     *
+     * @param entityId The entity ID
+     * @param providerId The provider ID
+     * @param commType The commodity bought type
+     * @param volumeId The volume ID
+     * @return @link{CommBoughtKey}
+     */
+    private CommBoughtKey constructCommBoughtKey(long entityId, long providerId,
+                                                 CommodityType commType, long volumeId) {
+        ImmutableCommBoughtKey.Builder commBoughtKeyBuilder = ImmutableCommBoughtKey.builder()
+                .entityId(entityId)
+                .providerId(providerId)
+                .commodityType(commType);
+        if (volumeId != 0) {
+            // set volumeId only if it really exists
+            commBoughtKeyBuilder.volumeId(volumeId);
+        }
+        return commBoughtKeyBuilder.build();
     }
 
     private void addCommSold(final long entityId,
@@ -162,6 +180,11 @@ public class CommodityIndex {
          * The ID of the seller entity providing the commodity
          */
         long providerId();
+
+        /**
+         * The volume ID of the buying entity
+         */
+        Optional<Long> volumeId();
 
         /**
          * The type and key of the commodity being sold.

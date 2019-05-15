@@ -853,7 +853,7 @@ public class TopologyConverter {
                         commList.add(newCommodity(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE, pmOid));
                     }
                 } else {
-                    commBoughtTOtoCommBoughtDTO(traderTO.getOid(), sl.getSupplier(), commBought)
+                    commBoughtTOtoCommBoughtDTO(traderTO.getOid(), sl.getSupplier(), commBought, sl.getOid())
                         .ifPresent(commList::add);
                 }
             }
@@ -1246,7 +1246,8 @@ public class TopologyConverter {
     @Nonnull
     private Optional<TopologyDTO.CommodityBoughtDTO> commBoughtTOtoCommBoughtDTO(
         final long traderOid, final long supplierOid,
-            @Nonnull final CommodityBoughtTO commBoughtTO) {
+            @Nonnull final CommodityBoughtTO commBoughtTO,
+            final long slOid) {
 
         float peak = commBoughtTO.getPeakQuantity();
         if (peak < 0) {
@@ -1259,10 +1260,12 @@ public class TopologyConverter {
 
         final float peakQuantity = peak; // It must be final
 
+        long volumeId = shoppingListOidToInfos.get(slOid).getResourceId().isPresent() ?
+                shoppingListOidToInfos.get(slOid).getResourceId().get() : 0;
         return commodityConverter.economyToTopologyCommodity(commBoughtTO.getSpecification())
                 .map(commType -> TopologyDTO.CommodityBoughtDTO.newBuilder()
                     .setUsed(reverseScaleCommBought(commBoughtTO.getQuantity(),
-                        commodityIndex.getCommBought(traderOid, supplierOid, commType)))
+                        commodityIndex.getCommBought(traderOid, supplierOid, commType, volumeId)))
                     .setCommodityType(commType)
                     .setPeak(peakQuantity)
                     .build());
