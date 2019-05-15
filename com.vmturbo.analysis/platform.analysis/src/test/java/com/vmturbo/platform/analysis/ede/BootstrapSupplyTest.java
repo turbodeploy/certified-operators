@@ -742,12 +742,10 @@ public class BootstrapSupplyTest {
         assertEquals(TestUtils.ST_PROV, r2.getResizedCommoditySpec());
         assertEquals(st1, r2.getSellingTrader());
 
-        Action compoundMove = bootStrapActionList.get(3);
         Move expectedMove1 = new Move(economy, sl1, pm1, prov.getProvisionedSeller());
         Move expectedMove2 = new Move(economy, sl2, pm1, prov.getProvisionedSeller());
-        List<Move> moves = ((CompoundMove)compoundMove).getConstituentMoves();
-        assertEquals(moves.size(), 1);
-        assertTrue(moves.get(0).equals(expectedMove1) || moves.get(0).equals(expectedMove2));
+        Move move = (Move)bootStrapActionList.get(3);
+        assertTrue(move.equals(expectedMove1) || move.equals(expectedMove2));
     }
 
     /**
