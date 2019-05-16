@@ -404,8 +404,6 @@ public class Ledger {
         for (int commSoldIndex = 0; commSoldIndex < commSoldList.size(); commSoldIndex++) {
             // cs is the CommoditySold by the buyer
             CommoditySold cs = commSoldList.get(commSoldIndex);
-            String commSoldInformationForLogs = buyer.getBasketSold()
-                        .get(commSoldIndex).getDebugInfoNeverUseInCode();
             // compute rev/exp for resizable commodities
             if (!cs.getSettings().isResizable()) {
                 continue;
@@ -441,7 +439,7 @@ public class Ledger {
 
             if (logger.isTraceEnabled() || isDebugTrader) {
                 logger.info("For the trader " + buyerDebugInfo + " and the commodity"
-                        + " sold " + commSoldInformationForLogs + " the revenues are "
+                        + " sold with index " + commSoldIndex + " the revenues are "
                         + revenues + ", the max desired revenues are " + maxDesiredRevenues
                         + ", the min desired revenues are " + minDesiredRevenues + " and"
                         + " the desired revenues are " + desiredRevenues + ".");
@@ -454,14 +452,9 @@ public class Ledger {
                 continue;
             }
 
-            boolean relevantShoppingListProcessed = false;
             for (ShoppingList shoppingList : economy.getMarketsAsBuyer(buyer).keySet()) {
-
-                if (relevantShoppingListProcessed) {
-                    break;
-                }
-
                 Basket basketBought = shoppingList.getBasket();
+
                 Trader supplier = shoppingList.getSupplier();
                 if (supplier == null) {
                     continue;
@@ -543,9 +536,8 @@ public class Ledger {
                             commSoldIS.setMinDesiredExpenses(1.0);
                             if (logger.isTraceEnabled() || isDebugTrader) {
                                 logger.info("No raw material found for the trader "
-                                        + buyerDebugInfo + " and shopping list " + shoppingList.getDebugInfoNeverUseInCode()
-                                        + " for commodity sold "
-                                        + commSoldInformationForLogs + ", thus the expenses, max desired"
+                                        + buyerDebugInfo + " and the commodity sold with index "
+                                        + commSoldIndex + ", thus the expenses, max desired"
                                         + " expenses and min desired expenses are all set to"
                                         + " 1.0.");
                             }
@@ -553,13 +545,9 @@ public class Ledger {
                         continue;
                     }
 
-                    // Set relevantShoppingList as it contains a valid bought index in current shopping list.
-                    relevantShoppingListProcessed = true;
-
                     // find the right provider comm and use it to compute the expenses
                     CommoditySold commSoldBySeller = supplier.getCommoditySold(basketBought
                             .get(boughtIndex));
-                    String commBoughtInformationForLogs = basketBought.get(boughtIndex).getDebugInfoNeverUseInCode();
                     // Use desired utilization if we are using historical quantity for populating
                     // income statement otherwise calculate the utilization based on shopping list
                     // quantity
@@ -582,10 +570,9 @@ public class Ledger {
                         commSoldIS.setMinDesiredExpenses(commSoldIS.getMinDesiredExpenses() + incomeStatementExpenses[2]);
 
                         if (logger.isTraceEnabled() || isDebugTrader) {
-                            logger.info("Using relevant shopping list " + shoppingList.getDebugInfoNeverUseInCode()
-                                    + " to set expenses for the trader " + buyerDebugInfo + ", the"
-                                    + " commodity sold " + commSoldInformationForLogs + " and"
-                                    + " the raw material bought " + commBoughtInformationForLogs
+                            logger.info("For the trader " + buyerDebugInfo + ", the"
+                                    + " commodity sold with index " + commSoldIndex + " and"
+                                    + " the raw material bought with index " + boughtIndex
                                     + " the expenses are " + incomeStatementExpenses[0] + ", the max desired"
                                     + " expenses are " + incomeStatementExpenses[1] + " and the min"
                                     + " desired expenses are " + incomeStatementExpenses[2] + ".");
