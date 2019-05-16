@@ -416,6 +416,30 @@ message GetEntityIdToEntityTypeMappingResponse {
     map<int64, common_dto.EntityDTO.EntityType> entityIdToEntityTypeMap = 1;
 }
 
+// Response for the percentile counts request.
+// Percentile feature design could be found
+// https://vmturbo.atlassian.net/wiki/spaces/PC/pages/592838759/Percentile+Service.
+message PercentileCountsResponse {
+    // Per-commodity record.
+    repeated PercentileRecord percentile_records = 1;
+
+    message PercentileRecord {
+        // Container entity oid.
+        required int64 oid = 1;
+
+        // Commodity type.
+        required topology.CommodityType commodity_type = 2;
+
+        // Commodity provider, if bought, unset if sold.
+        optional int64 provider_oid = 3;
+
+        // Utilization counts per percent value - an array of 100 entries.
+        // To calculate percentile value we are collecting amount of
+        // utilization values in percents met for specified entity/commodity pair.
+        repeated int32 utilization = 5;
+    }
+}
+
 // the gRPC API entry points for the Stats service
 service StatsHistoryService {
 
@@ -474,4 +498,12 @@ service StatsHistoryService {
     // Get the entityId and the corresponding entityType.
     // NOTE: This rpc call is used for a specific upgrade use case. DON'T USE THIS FOR OTHER SCENARIOS.
     rpc GetEntityIdToEntityTypeMapping(GetEntityIdToEntityTypeMappingRequest) returns (GetEntityIdToEntityTypeMappingResponse);
+
+    // Get the historical utilization data for the passed entities scope.
+    // Ignore the time range parameter and return 1 point per commodity.
+    // Historical utilizations to be returned in current_value field of statistics records.
+    rpc GetHistUtilization(GetEntityStatsRequest) returns (GetEntityStatsResponse);
+
+    // Get the percentile scores for the passed entities scope and time range.
+    rpc GetPercentileCounts(GetEntityStatsRequest) returns (PercentileCountsResponse);
 }
