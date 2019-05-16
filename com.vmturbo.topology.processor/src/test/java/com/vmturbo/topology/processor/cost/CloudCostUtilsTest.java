@@ -20,6 +20,15 @@ public class CloudCostUtilsTest {
     public void testDatabaseTierLocalNameToId() {
         Assert.assertEquals("No change", CloudCostUtils.databaseTierLocalNameToId("No change", null));
         Assert.assertEquals("aws::DBPROFILE::id", CloudCostUtils.databaseTierLocalNameToId("id", SDKProbeType.AWS_COST));
-        Assert.assertEquals("azure::DBPROFILE::id", CloudCostUtils.databaseTierLocalNameToId("id", SDKProbeType.AZURE));
+    }
+
+    @Test
+    public void testAzureDatabaseTierLocalNameToId() {
+        Assert.assertEquals("azure::DBPROFILE::Basic", CloudCostUtils
+            .databaseTierLocalNameToId("Basic / 2048.0 MegaBytes", SDKProbeType.AZURE));
+        Assert.assertEquals("azure::DBPROFILE::Standard_S6", CloudCostUtils
+            .databaseTierLocalNameToId("S6 / 1024.0 MegaBytes", SDKProbeType.AZURE));
+        Assert.assertEquals("azure::DBPROFILE::Premium_P11", CloudCostUtils
+            .databaseTierLocalNameToId("P11 / 512.0 MegaBytes", SDKProbeType.AZURE));
     }
 }

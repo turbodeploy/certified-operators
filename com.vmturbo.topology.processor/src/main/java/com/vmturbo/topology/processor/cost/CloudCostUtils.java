@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.cost;
 
 import java.util.Map;
+import java.util.function.BiFunction;
 
 import javax.annotation.Nonnull;
 
@@ -42,9 +43,12 @@ public class CloudCostUtils {
         return PLATFORM_OS_TYPE_MAP.getOrDefault(platform, OSType.UNKNOWN_OS);
     }
 
-    // Prefixes used when generating local id's for storage entities in the cloud discovery probes
+    // Prefixes used when generating local id's for entities in the cloud discovery probes
     public static final String AZURE_STORAGE_PREFIX = "azure::ST::";
     public static final String AWS_STORAGE_PREFIX = "aws::ST::";
+    public static final String AZURE_STANDARD_DATABASE_PREFIX = "Standard_";
+    public static final String AZURE_PREMIUM_DATABASE_PREFIX = "Premium_";
+    public static final String EMPTY_PREFIX = "";
 
     private static final Map<SDKProbeType, String> PROBE_TYPE_TO_STORAGE_PREFIX = ImmutableMap.of(
             SDKProbeType.AWS_COST, AWS_STORAGE_PREFIX,
@@ -52,6 +56,22 @@ public class CloudCostUtils {
             SDKProbeType.AWS_BILLING, AWS_STORAGE_PREFIX,
             SDKProbeType.AZURE, AZURE_STORAGE_PREFIX,
             SDKProbeType.AZURE_COST, AZURE_STORAGE_PREFIX
+    );
+
+    // Map for matching the Azure SDK Probe letter to Azure cost probe prefix
+    private static final Map<String, String> AZURE_DATABASE_LETTER_TO_NAME = ImmutableMap.of(
+        "S", AZURE_STANDARD_DATABASE_PREFIX,
+        "P", AZURE_PREMIUM_DATABASE_PREFIX,
+        "F", EMPTY_PREFIX,
+        "B", EMPTY_PREFIX
+    );
+
+    private static final Map<SDKProbeType, BiFunction<String, SDKProbeType, String>>
+        DB_TIER_LOCAL_NAME_TO_ID_FUNCTION = ImmutableMap.of(
+        SDKProbeType.AZURE, (localName, probeType) -> azureDatabaseTierLocalNameToId(localName, probeType),
+        SDKProbeType.AWS, (localName, probeType) -> awsDatabaseTierLocalNameToId(localName, probeType),
+        SDKProbeType.AWS_COST, (localName, probeType) -> awsDatabaseTierLocalNameToId(localName, probeType),
+        SDKProbeType.AWS_BILLING, (localName, probeType) -> awsDatabaseTierLocalNameToId(localName, probeType)
     );
 
     // prefixes used for database entities in the cloud discovery probes
@@ -113,9 +133,39 @@ public class CloudCostUtils {
      */
     public static String databaseTierLocalNameToId(@Nonnull String localName, @Nonnull SDKProbeType probeType) {
         if (PROBE_TYPE_TO_DATABASE_TIER_PREFIX.containsKey(probeType)) {
-            return PROBE_TYPE_TO_DATABASE_TIER_PREFIX.get(probeType) + localName;
+            return DB_TIER_LOCAL_NAME_TO_ID_FUNCTION.get(probeType).apply(localName, probeType);
         }
         // if a probe type is not found in the map, then return the original string unaltered.
         return localName;
+    }
+
+    /**
+     * Helper function to construct DB tier id in order to match the database tiers
+     * coming from regular Azure probe and the db costs coming from azure cost probe.
+     * e.g. "S6 / 2048.0 MegaBytes" -> "azure::DBPROFILE::Standard_S6"
+     *
+     * @param localName the local id of the database tier.
+     * @param probeType the {@link SDKProbeType} of the probe that discovered this entity.
+     * @return the string Azure db constructed id.
+     */
+    private static String azureDatabaseTierLocalNameToId(@Nonnull String localName,
+                                                         @Nonnull SDKProbeType probeType) {
+        String dbTypeName = localName.substring(0, localName.indexOf("/")).trim();
+        String dbTypeLetter = dbTypeName.substring(0, 1);
+        return PROBE_TYPE_TO_DATABASE_TIER_PREFIX.get(probeType) +
+            AZURE_DATABASE_LETTER_TO_NAME.get(dbTypeLetter) + dbTypeName;
+    }
+
+    /**
+     * Helper function to construct DB tier id in order to match the database tiers
+     * coming from regular AWS probe and the db costs coming from azure cost probe.
+     *
+     * @param localName the local id of the database tier.
+     * @param probeType the {@link SDKProbeType} of the probe that discovered this entity.
+     * @return the string AWS db constructed id.
+     */
+    private static String awsDatabaseTierLocalNameToId(@Nonnull String localName,
+                                                       @Nonnull SDKProbeType probeType) {
+        return PROBE_TYPE_TO_DATABASE_TIER_PREFIX.get(probeType) + localName;
     }
 }
