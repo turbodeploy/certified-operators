@@ -1,4 +1,4 @@
-package com.vmturbo.topology.processor.group.policy;
+package com.vmturbo.topology.processor.group.policy.application;
 
 import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntity;
 import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchParametersCollection;
@@ -14,7 +14,9 @@ import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.group.policy.PolicyFactory.PolicyEntities;
+import com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper;
+import com.vmturbo.topology.processor.group.policy.PolicyMatcher;
+import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 

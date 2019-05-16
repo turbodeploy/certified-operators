@@ -1,20 +1,19 @@
-package com.vmturbo.topology.processor.group.policy;
+package com.vmturbo.topology.processor.group.policy.application;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.immutables.value.Value;
 
-import com.google.common.base.Preconditions;
-
-import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -29,19 +28,14 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
- * A policy applies a constraint on a topology to restrict the possible options available to the market
- * during market analysis.
+ * Specifies how to apply a particular set {@link PlacementPolicy}.
  *
- * Policies work by adding, removing, or modifying commodities on a given topology during the policy application
- * process.
- *
- * Where possible, policies that create or modify commodities that require a key should use
- * the policy ID as the key.
- *
- * Subclassed by various specific policy types (ie Merge, BindToGroup, etc.).
+ * Each {@link PlacementPolicy} implementation should have an accompanying
+ * {@link PlacementPolicyApplication} implementation. The main reason to split the application from
+ * the policy definition is to allow for optimizations when applying multiple policies of the same
+ * type.
  */
-public abstract class PlacementPolicy {
-    private static final Logger logger = LogManager.getLogger();
+public abstract class PlacementPolicyApplication {
 
     /**
      * We can not set capacity to infinity, because database table can not store string "Infinity".
@@ -63,99 +57,96 @@ public abstract class PlacementPolicy {
      */
     public static final float SEGM_BOUGHT_USED_VALUE = 1.0f;
 
-    /**
-     * This is the capacity value that a segmentation commodity sold by a provider should have,
-     * if it want to accommodate only a single provider
-     */
-    public static final float SEGM_CAPACITY_VALUE_SINGLE_CONSUMER =
-            SEGM_BOUGHT_USED_VALUE + SMALL_DELTA_VALUE;
+    protected Logger logger = LogManager.getLogger(getClass());
+
+    protected final GroupResolver groupResolver;
+    protected final TopologyGraph topologyGraph;
 
     /**
-     * The policy definition describing the details of the policy to be applied.
+     * Counters for commodities added during this poloicy application.
+     * Just for logging/metric/debugging purposes.
+     * Populated while running {@link PlacementPolicyApplication#apply(List)}.
      */
-    protected final PolicyDTO.Policy policyDefinition;
+    private Map<CommodityDTO.CommodityType, MutableInt> addedCommodities = new HashMap<>();
 
-    /**
-     * Construct a new policy.
-     *
-     * Note that the Policy ID must be present for a policy to be successfully applied
-     * because the ID will be used as the key.
-     *
-     * @param policyDefinition The policy definition describing the details of the policy to be applied.
-     */
-    protected PlacementPolicy(@Nonnull final PolicyDTO.Policy policyDefinition) {
-        Preconditions.checkArgument(policyDefinition.hasId());
-        this.policyDefinition = Objects.requireNonNull(policyDefinition);
+    protected PlacementPolicyApplication(final GroupResolver groupResolver,
+                                         final TopologyGraph topologyGraph) {
+        this.groupResolver = groupResolver;
+        this.topologyGraph = topologyGraph;
     }
 
     /**
-     * Apply the given policy.
-     * If the policy is not enabled, it will not be applied.
+     * Apply a list of policies. Disabled policies will not be applied.
      *
-     * @param groupResolver The group resolver to be used in resolving the consumer and provider groups
-     *                      to which the policy applies.
-     * @param topologyGraph The {@link TopologyGraph} to which the policy should be applied.
-     * @throws GroupResolutionException If one or more group involved in the policy cannot be resolved.
-     * @throws PolicyApplicationException If the policy cannot be applied.
+     * @param policies The policies. Note - the input policies should be the right implementations
+     *                 of {@link PlacementPolicy} for the particular implementation of
+     *                 {@link PlacementPolicyApplication}.
+     * @return The {@link PlacementPolicyApplication} results.
      */
-    public void apply(@Nonnull final GroupResolver groupResolver,
-                               @Nonnull final TopologyGraph topologyGraph)
-        throws GroupResolutionException, PolicyApplicationException {
+    public PolicyApplicationResults apply(@Nonnull final List<PlacementPolicy> policies) {
 
-        if (!isEnabled()) {
-            logger.debug("Skipping application of disabled {} policy.", policyDefinition.getPolicyInfo().getPolicyDetailCase());
-            return; // Do not apply disabled policies.
-        }
+        final List<PlacementPolicy> policiesToApply = policies.stream()
+            .filter(policy -> {
+                if (!policy.isEnabled()) {
+                    logger.debug("Skipping application of disabled {} policy.",
+                        policy.getPolicyDefinition().getPolicyInfo().getPolicyDetailCase());
+                    return false; // Do not apply disabled policies.
+                } else {
+                    return true;
+                }
+            })
+            .collect(Collectors.toList());
 
-        applyInternal(groupResolver, topologyGraph);
+        final Map<PlacementPolicy, PolicyApplicationException> errors = applyInternal(policiesToApply);
+
+        ImmutablePolicyApplicationResults.Builder resBldr = ImmutablePolicyApplicationResults.builder()
+            .putAllErrors(errors);
+
+        // The added commodities map gets populated as the application implementation adds
+        // commodities during its "applyInternal" method execution.
+        addedCommodities.forEach((commType, count) -> {
+            resBldr.putAddedCommodities(commType, count.toInteger());
+        });
+        return resBldr.build();
     }
 
     /**
-     * Policy-variant-specific implementation that applies the policy.
-     *
-     * @param groupResolver The group resolver to be used in resolving the consumer and provider groups
-     *                      to which the policy applies.
-     * @param topologyGraph The {@link TopologyGraph} to which the policy should be applied.
-     * @throws GroupResolutionException If one or more group involved in the policy cannot be resolved.
-     * @throws PolicyApplicationException If the policy cannot be applied.
+     * The results of running a particular {@link PlacementPolicyApplication}.
      */
-    protected abstract void applyInternal(@Nonnull final GroupResolver groupResolver,
-                                          @Nonnull final TopologyGraph topologyGraph)
-        throws GroupResolutionException, PolicyApplicationException;
+    @Value.Immutable
+    public interface PolicyApplicationResults {
+        /**
+         * If any input {@link PlacementPolicy}s encountered an error, the error will be in this map.
+         */
+        Map<PlacementPolicy, PolicyApplicationException> errors();
 
-    /**
-     * Get the policy definition describing the details of the policy to be applied.
-     *
-     * @return The policy definition describing the details of the policy to be applied.
-     */
-    public PolicyDTO.Policy getPolicyDefinition() {
-        return policyDefinition;
+        /**
+         * The counts of commodities added by this {@link PlacementPolicyApplication}, indexed
+         * by commodity type. This is just for logging/metric purposes.
+         */
+        Map<CommodityDTO.CommodityType, Integer> addedCommodities();
     }
 
     /**
-     * Returns whether the policy is currently enabled. Policies that are not enabled should not be applied.
-     *
-     * @return Whether the policy is currently enabled.
+     * Policy-variant-specific implementation.
      */
-    public boolean isEnabled() {
-        return policyDefinition.getPolicyInfo().getEnabled();
-    }
-
+    protected abstract Map<PlacementPolicy, PolicyApplicationException> applyInternal(@Nonnull final List<PlacementPolicy> policies);
 
     /**
      * Segment the providers from the rest of the topology by having each of them sell a
      * segmentation commodity specific to this policy.
      *
      * @param providers The providers that belong to the segment.
-     * @param topologyGraph The graph containing the topology.
      * @param segmentationCommodity The commodity for use in segmenting the providers.
      */
     protected void addCommoditySold(@Nonnull final Set<Long> providers,
-                                    @Nonnull final TopologyGraph topologyGraph,
                                     @Nonnull final CommoditySoldDTO segmentationCommodity) {
         providers.forEach(providerId -> topologyGraph.getEntity(providerId)
             .map(TopologyEntity::getTopologyEntityDtoBuilder)
-            .ifPresent(provider -> provider.addCommoditySoldList(segmentationCommodity)));
+            .ifPresent(provider -> {
+                recordCommodityAddition(segmentationCommodity.getCommodityType().getType());
+                provider.addCommoditySoldList(segmentationCommodity);
+            }));
     }
 
     /**
@@ -168,18 +159,19 @@ public abstract class PlacementPolicy {
      *
      * @param providers The providers that belong to the segment.
      * @param consumerGroupIds The consumers that belong to the segment.
-     * @param topologyGraph The graph containing the topology.
      * @param commoditySoldCapacity The capacity for the commodity sold by the providers.
+     * @param policy The policy that's causing this commodity addition.
      */
     protected void addCommoditySold(@Nonnull final Set<Long> providers,
                                     @Nonnull final Set<Long> consumerGroupIds,
-                                    @Nonnull final TopologyGraph topologyGraph,
-                                    final float commoditySoldCapacity) {
+                                    final float commoditySoldCapacity,
+                                    final PlacementPolicy policy) {
         providers.forEach(providerId -> topologyGraph.getEntity(providerId)
             .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .ifPresent(provider -> {
                 final CommoditySoldDTO segmentationCommodity = commoditySold(commoditySoldCapacity,
-                    provider.getOid(), consumerGroupIds, topologyGraph);
+                    provider.getOid(), consumerGroupIds, policy);
+                recordCommodityAddition(segmentationCommodity.getCommodityType().getType());
                 provider.addCommoditySoldList(segmentationCommodity);
             }));
     }
@@ -190,41 +182,17 @@ public abstract class PlacementPolicy {
      *
      * @param providers The providers that belong to the segment.
      * @param providerEntityType The entity type of the providers.
-     * @param topologyGraph The graph containing the topology.
      * @param segmentationCommodity The commodity for use in segmenting the providers.
      */
     protected void addCommoditySoldToComplementaryProviders(@Nonnull final Set<Long> providers,
                                                             final long providerEntityType,
-                                                            @Nonnull final TopologyGraph topologyGraph,
                                                             @Nonnull final CommoditySoldDTO segmentationCommodity) {
         topologyGraph.entities()
             .filter(entity -> entity.getEntityType() == providerEntityType)
             .filter(vertex -> !providers.contains(vertex.getOid()))
             .map(TopologyEntity::getTopologyEntityDtoBuilder)
-            .forEach(provider -> provider.addCommoditySoldList(segmentationCommodity));
-    }
-
-    /**
-     * Adds a segmentation commodity sold (with specified capacity) to every entity of a particular
-     * type. Note that it's doing that for the entire topology.
-     *
-     * @param providerEntityType The entity type of the providers.
-     * @param consumerGroupIds The consumers that belong to the segment.
-     * @param topologyGraph The graph containing the topology.
-     * @param commoditySoldCapacity The capacity for the commodity sold by the providers.
-     */
-    protected void addCommoditySoldToSpecificEntityTypeProviders(
-            final long providerEntityType,
-            @Nonnull final Set<Long> consumerGroupIds,
-            @Nonnull final TopologyGraph topologyGraph,
-            final float commoditySoldCapacity) {
-
-        topologyGraph.entities()
-            .filter(entity -> entity.getEntityType() == providerEntityType)
-            .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .forEach(provider -> {
-                final CommoditySoldDTO segmentationCommodity = commoditySold(commoditySoldCapacity,
-                        provider.getOid(), consumerGroupIds, topologyGraph);
+                recordCommodityAddition(segmentationCommodity.getCommodityType().getType());
                 provider.addCommoditySoldList(segmentationCommodity);
             });
     }
@@ -234,14 +202,12 @@ public abstract class PlacementPolicy {
      * segmentation commodity specific to this policy.
      *
      * @param consumers The consumers that belong to the segment.
-     * @param topologyGraph The graph containing the topology.
      * @param providerType The type of provider that will be providing the segment commodity
      *                     these consumers must be buying.
      * @param segmentationCommodity The commodity for use in segmenting the consumers.
      * @throws PolicyApplicationException If the consumers cannot be segmented as desired.
      */
     protected void addCommodityBought(@Nonnull final Set<Long> consumers,
-                                      @Nonnull final TopologyGraph topologyGraph,
                                       final int providerType,
                                       @Nonnull final CommodityBoughtDTO segmentationCommodity)
         throws PolicyApplicationException {
@@ -333,23 +299,27 @@ public abstract class PlacementPolicy {
                                                 @Nonnull final List<CommoditiesBoughtFromProvider> nonProvidersOfType) {
         consumer.clearCommoditiesBoughtFromProviders();
         consumer.addAllCommoditiesBoughtFromProviders(nonProvidersOfType);
-        providersOfType.forEach(providerCommodityGrouping -> consumer.addCommoditiesBoughtFromProviders(
-            CommoditiesBoughtFromProvider.newBuilder(providerCommodityGrouping)
-                .addCommodityBought(segmentationCommodity)
-                .build()
-        ));
+        providersOfType.forEach(providerCommodityGrouping -> {
+            recordCommodityAddition(segmentationCommodity.getCommodityType().getType());
+            consumer.addCommoditiesBoughtFromProviders(
+                CommoditiesBoughtFromProvider.newBuilder(providerCommodityGrouping)
+                    .addCommodityBought(segmentationCommodity)
+                    .build()
+            );
+        });
     }
 
     /**
      * Construct a commodityType suitable for application with this policy.
      * It specifies a SEGMENTATION commodity with the key based on the policy ID.
      *
+     * @param policy The policy that's causing this commodity addition.
      * @return A {@link CommodityType} suitable for application with this policy.
      */
-    private CommodityType commodityType() {
+    private CommodityType commodityType(final PlacementPolicy policy) {
         return CommodityType.newBuilder()
             .setType(CommodityDTO.CommodityType.SEGMENTATION.getNumber())
-            .setKey(Long.toString(policyDefinition.getId()))
+            .setKey(Long.toString(policy.getPolicyDefinition().getId()))
             .build();
     }
 
@@ -364,13 +334,12 @@ public abstract class PlacementPolicy {
      * @param capacity The capacity for the commodity.
      * @param providerId The ID of the provider
      * @param consumerGroupIds The set of all members of the consumer group for the policy.
-     * @param topologyGraph The topology graph that the policy will be applied to.
      * @return An {@link CommoditySoldDTO} appropriate for the specified provider.
      */
     protected CommoditySoldDTO commoditySold(float capacity,
                                              final long providerId,
                                              final Set<Long> consumerGroupIds,
-                                             @Nonnull final TopologyGraph topologyGraph) {
+                                             final PlacementPolicy policy) {
         // Calculate used value.
         final long numConsumersInConsumerGroup = topologyGraph.getConsumers(providerId)
             .map(TopologyEntity::getOid)
@@ -379,7 +348,7 @@ public abstract class PlacementPolicy {
 
         return CommoditySoldDTO.newBuilder()
             .setCapacity(capacity)
-            .setCommodityType(commodityType())
+            .setCommodityType(commodityType(policy))
             .setUsed((float)numConsumersInConsumerGroup)
             .build();
     }
@@ -391,9 +360,9 @@ public abstract class PlacementPolicy {
      *
      * @return A {@link CommoditySoldDTO} that all members of the providers group of this policy should buy.
      */
-    protected CommoditySoldDTO commoditySold() {
+    protected CommoditySoldDTO commoditySold(final PlacementPolicy policy) {
         return CommoditySoldDTO.newBuilder()
-            .setCommodityType(commodityType())
+            .setCommodityType(commodityType(policy))
             .setCapacity(MAX_CAPACITY_VALUE)
             .build();
     }
@@ -403,9 +372,9 @@ public abstract class PlacementPolicy {
      *
      * @return A {@link CommodityBoughtDTO} that all members of the consumers group of this policy should buy.
      */
-    protected CommodityBoughtDTO commodityBought() {
+    protected CommodityBoughtDTO commodityBought(final PlacementPolicy policy) {
         return CommodityBoughtDTO.newBuilder()
-            .setCommodityType(commodityType())
+            .setCommodityType(commodityType(policy))
             .setUsed(SEGM_BOUGHT_USED_VALUE)
             .build();
     }
@@ -424,5 +393,19 @@ public abstract class PlacementPolicy {
         return topologyGraph.getEntity(providerId)
             .map(vertex -> vertex.getEntityType() == providerEntityType)
             .orElse(false);
+    }
+
+    /**
+     * Record the addition of a commodity.
+     *
+     * Most policy applications add commodities via calls to methods in {@link PlacementPolicyApplication},
+     * but some policy applications add additional commodities. In that case they should call
+     * this method to ensure the final commodity counts are correct.
+     *
+     * @param commType The type of the commodity being added.
+     */
+    protected void recordCommodityAddition(final int commType) {
+        addedCommodities.computeIfAbsent(CommodityDTO.CommodityType.forNumber(commType),
+            k -> new MutableInt(0)).increment();
     }
 }

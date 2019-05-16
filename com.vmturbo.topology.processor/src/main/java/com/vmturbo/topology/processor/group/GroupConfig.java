@@ -21,7 +21,8 @@ import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
-import com.vmturbo.topology.processor.group.policy.PolicyFactory;
+import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
+import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.policy.ReservationPolicyFactory;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
@@ -91,8 +92,19 @@ public class GroupConfig {
 
     @Bean
     public PolicyManager policyManager() {
-        return new PolicyManager(policyRpcService(), groupServiceBlockingStub(), new PolicyFactory(),
-                initialPlacementPolicyFactory(), planConfig.reservationServiceBlockingStub());
+        return new PolicyManager(policyRpcService(), groupServiceBlockingStub(), policyFactory(),
+            initialPlacementPolicyFactory(), planConfig.reservationServiceBlockingStub(),
+            policyApplicator());
+    }
+
+    @Bean
+    public PolicyFactory policyFactory() {
+        return new PolicyFactory();
+    }
+
+    @Bean
+    public PolicyApplicator policyApplicator() {
+        return new PolicyApplicator(policyFactory());
     }
 
     @Bean

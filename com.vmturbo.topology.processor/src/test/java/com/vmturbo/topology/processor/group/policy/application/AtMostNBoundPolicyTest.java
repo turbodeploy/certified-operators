@@ -1,10 +1,11 @@
-package com.vmturbo.topology.processor.group.policy;
+package com.vmturbo.topology.processor.group.policy.application;
 
 import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntity;
 import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchParametersCollection;
 import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.staticGroupMembers;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -12,6 +13,8 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+
+import javax.annotation.Nonnull;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -25,10 +28,13 @@ import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.group.policy.PolicyFactory.PolicyEntities;
+import com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper;
+import com.vmturbo.topology.processor.group.policy.PolicyMatcher;
+import com.vmturbo.topology.processor.group.policy.application.PlacementPolicyApplication.PolicyApplicationResults;
+import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 public class AtMostNBoundPolicyTest {
@@ -96,9 +102,8 @@ public class AtMostNBoundPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.<Long>emptySet());
 
-        new AtMostNBoundPolicy(policy, new PolicyEntities(consumerGroup, Collections.emptySet()),
-                new PolicyEntities(providerGroup))
-                .apply(groupResolver, topologyGraph);
+        applyPolicy(new AtMostNBoundPolicy(policy, new PolicyEntities(consumerGroup, Collections.emptySet()),
+                new PolicyEntities(providerGroup)));
         assertThat(topologyGraph.getEntity(1L).get(),
             not(policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, 1.0f)));
         assertThat(topologyGraph.getEntity(2L).get(),
@@ -116,9 +121,8 @@ public class AtMostNBoundPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.<Long>emptySet());
 
-        new AtMostNBoundPolicy(policy, new PolicyEntities(consumerGroup, Sets.newHashSet(8L)),
-                new PolicyEntities(providerGroup))
-                .apply(groupResolver, topologyGraph);
+        applyPolicy(new AtMostNBoundPolicy(policy, new PolicyEntities(consumerGroup, Sets.newHashSet(8L)),
+                new PolicyEntities(providerGroup)));
         assertThat(topologyGraph.getEntity(1L).get(),
             not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(2L).get(),
@@ -138,9 +142,8 @@ public class AtMostNBoundPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Sets.newHashSet(1L));
 
-        new AtMostNBoundPolicy(policy, new PolicyEntities(consumerGroup, Sets.newHashSet(8L)),
-                new PolicyEntities(providerGroup))
-                .apply(groupResolver, topologyGraph);
+        applyPolicy(new AtMostNBoundPolicy(policy, new PolicyEntities(consumerGroup, Sets.newHashSet(8L)),
+                new PolicyEntities(providerGroup)));
         assertThat(topologyGraph.getEntity(1L).get(),
             policyMatcher.hasProviderSegmentWithCapacityAndUsed(POLICY_ID, 1.0f, 3.0f));
         assertThat(topologyGraph.getEntity(2L).get(),
@@ -181,9 +184,18 @@ public class AtMostNBoundPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.singleton(3L));
 
-        expectedException.expect(PolicyApplicationException.class);
-        new AtMostNBoundPolicy(policy, new PolicyEntities(consumerGroup, Collections.emptySet()),
-                new PolicyEntities(providerGroup))
-                .apply(groupResolver, topologyGraph);
+        final AtMostNBoundPolicy atMostNBound = new AtMostNBoundPolicy(policy,
+                new PolicyEntities(consumerGroup, Collections.emptySet()),
+                new PolicyEntities(providerGroup));
+        PolicyApplicationResults results = applyPolicy(atMostNBound);
+        assertTrue(results.errors().containsKey(atMostNBound));
+    }
+
+    @Nonnull
+    private PolicyApplicationResults applyPolicy(
+                @Nonnull final AtMostNBoundPolicy policy) {
+        final AtMostNBoundPolicyApplication application =
+            new AtMostNBoundPolicyApplication(groupResolver, topologyGraph);
+        return application.apply(Collections.singletonList(policy));
     }
 }

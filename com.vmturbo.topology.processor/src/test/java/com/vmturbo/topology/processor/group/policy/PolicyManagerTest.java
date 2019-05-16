@@ -7,9 +7,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -23,11 +21,9 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.google.common.collect.Lists;
@@ -60,8 +56,10 @@ import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.policy.application.ImmutableResults;
+import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
+import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
@@ -79,6 +77,8 @@ public class PolicyManagerTest {
     private final GroupResolver groupResolver = Mockito.mock(GroupResolver.class);
 
     private final TopologyGraph topologyGraph = Mockito.mock(TopologyGraph.class);
+
+    private final PolicyApplicator policyApplicator = Mockito.mock(PolicyApplicator.class);
 
     private final ReservationPolicyFactory reservationPolicyFactory =
             Mockito.mock(ReservationPolicyFactory.class);
@@ -143,55 +143,19 @@ public class PolicyManagerTest {
         // set up the GroupService to test
         policyManager = new com.vmturbo.topology.processor.group.policy.PolicyManager(
             policyRpcService, groupServiceStub, new PolicyFactory(), reservationPolicyFactory,
-                reservationServiceStub);
-    }
-
-    @Test
-    public void testApplyPoliciesResolvesGroups() throws Exception {
-        ArgumentCaptor<Group> groupArguments = ArgumentCaptor.forClass(Group.class);
-        when(topologyGraph.entities()).thenReturn(Stream.empty());
-
-        policyManager.applyPolicies(topologyGraph, groupResolver);
-
-        verify(groupResolver, times(4)).resolve(groupArguments.capture(), eq(topologyGraph));
-        assertThat(groupArguments.getAllValues(), containsInAnyOrder(group1, group2, group3, group4));
-    }
-
-    @Test
-    public void testGroupResolutionErrorDoesNotStopProcessing() throws Exception {
-        // The first policy will have an exception, but the second one should still be run.
-        ArgumentCaptor<Group> groupArguments = ArgumentCaptor.forClass(Group.class);
-        when(topologyGraph.entities()).thenReturn(Stream.empty());
-        when(groupResolver.resolve(eq(group1), eq(topologyGraph)))
-            .thenThrow(new GroupResolutionException("error!"));
-
-        policyManager.applyPolicies(topologyGraph, groupResolver);
-
-        verify(groupResolver, atLeast(2)).resolve(groupArguments.capture(), eq(topologyGraph));
-        assertThat(groupArguments.getAllValues(), hasItems(group3, group4));
+                reservationServiceStub, policyApplicator);
     }
 
     @Test
     public void testNoPoliciesNoGroupRPC() {
         when(policyServiceMole.getAllPolicies(any())).thenReturn(Collections.emptyList());
         when(topologyGraph.entities()).thenReturn(Stream.empty());
-        policyManager.applyPolicies(topologyGraph, groupResolver);
+        when(policyApplicator.applyPolicies(any(), eq(groupResolver), eq(topologyGraph)))
+            .thenReturn(ImmutableResults.builder().build());
+        policyManager.applyPolicies(topologyGraph, groupResolver, Collections.emptyList());
 
         // There shouldn't be a call to get groups if there are no policies.
         verify(groupServiceMole, never()).getGroups(any());
-    }
-
-    @Test
-    public void testPoliciesWithChanges() throws GroupResolutionException {
-        ArgumentCaptor<Group> groupArguments = ArgumentCaptor.forClass(Group.class);
-        when(topologyGraph.entities()).thenReturn(Stream.empty());
-
-        policyManager.applyPolicies(topologyGraph, groupResolver, changes());
-
-        // groups are resolved 6 times: two per policy (group3 twice)
-        verify(groupResolver, times(6)).resolve(groupArguments.capture(), eq(topologyGraph));
-        assertThat(groupArguments.getAllValues(),
-            containsInAnyOrder(group1, group2, group3, group3, group4, group5));
     }
 
     @Test
@@ -222,8 +186,8 @@ public class PolicyManagerTest {
                                         .setConstraintId(34)))
                         .build()));
         final Map<Long, Set<Long>> policyConstraintMap =
-                policyManager.handleReservationConstraints(topologyGraph, groupResolver,
-                        scenarioChanges, Collections.emptyMap());
+                policyManager.handleReservationConstraints(topologyGraph,
+                        scenarioChanges, Collections.emptyList());
         assertEquals(2L, policyConstraintMap.keySet().size());
         final Set<Long> reservationIds = policyConstraintMap.get(34L);
         final Set<Long> initialPlacementIds = policyConstraintMap.get(33L);

@@ -1,4 +1,4 @@
-package com.vmturbo.topology.processor.group.policy;
+package com.vmturbo.topology.processor.group.policy.application;
 
 import java.util.Collections;
 import java.util.List;
@@ -8,11 +8,14 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
+import org.apache.commons.lang3.NotImplementedException;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
+import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
  * A factory for constructing policies based on policy definitions.
@@ -24,6 +27,34 @@ public class PolicyFactory {
      */
     public PolicyFactory() {
 
+    }
+
+    public PlacementPolicyApplication newPolicyApplication(
+            @Nonnull final PolicyDetailCase policyType,
+            @Nonnull final GroupResolver groupResolver,
+            @Nonnull final TopologyGraph topologyGraph) {
+        switch (policyType) {
+            case AT_MOST_N:
+                return new AtMostNPolicyApplication(groupResolver, topologyGraph);
+            case AT_MOST_NBOUND:
+                return new AtMostNBoundPolicyApplication(groupResolver, topologyGraph);
+            case BIND_TO_COMPLEMENTARY_GROUP:
+                return new BindToComplementaryGroupPolicyApplication(groupResolver, topologyGraph);
+            case BIND_TO_GROUP:
+                return new BindToGroupPolicyApplication(groupResolver, topologyGraph);
+            case MERGE:
+                return new MergePolicyApplication(groupResolver, topologyGraph);
+            case MUST_RUN_TOGETHER:
+                return new MustRunTogetherPolicyApplication(groupResolver, topologyGraph);
+            case MUST_NOT_RUN_TOGETHER:
+                return new MustNotRunTogetherPolicyApplication(groupResolver, topologyGraph);
+            case BIND_TO_GROUP_AND_LICENSE:
+                throw new NotImplementedException(policyType + " not supported.");
+            case BIND_TO_GROUP_AND_GEO_REDUNDANCY:
+                throw new NotImplementedException(policyType + " not supported.");
+            default:
+                throw new IllegalArgumentException("Invalid policy type: " + policyType);
+        }
     }
 
     /**
@@ -77,11 +108,11 @@ public class PolicyFactory {
                 //TODO: support additionalConsumers and additionalProviders
                 return buildMergePolicy(policyDefinition, groups);
             case BIND_TO_GROUP_AND_LICENSE:
-                throw new NotImplementedException();
+                throw new NotImplementedException(policyInfo.getPolicyDetailCase() + " not supported.");
             case BIND_TO_GROUP_AND_GEO_REDUNDANCY:
-                throw new NotImplementedException();
+                throw new NotImplementedException(policyInfo.getPolicyDetailCase() + " not supported.");
             default:
-                throw new NotImplementedException();
+                throw new IllegalArgumentException(policyInfo.getPolicyDetailCase() + " invalid.");
         }
     }
 

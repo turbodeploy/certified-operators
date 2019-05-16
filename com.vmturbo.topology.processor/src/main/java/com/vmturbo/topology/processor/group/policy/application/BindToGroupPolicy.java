@@ -1,7 +1,6 @@
-package com.vmturbo.topology.processor.group.policy;
+package com.vmturbo.topology.processor.group.policy.application;
 
 import java.util.Objects;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -9,15 +8,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
-import com.vmturbo.topology.processor.group.GroupResolutionException;
-import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.group.policy.PolicyFactory.PolicyEntities;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
 
 /**
  * A policy that limits the entities in the consumer group to run only on the entities in the provider group.
@@ -28,6 +23,7 @@ public class BindToGroupPolicy extends PlacementPolicy {
     private static final Logger logger = LogManager.getLogger();
 
     private final PolicyDTO.PolicyInfo.BindToGroupPolicy bindToGroup;
+
     private final PolicyEntities consumerPolicyEntities;
     private final PolicyEntities providerPolicyEntities;
 
@@ -52,27 +48,18 @@ public class BindToGroupPolicy extends PlacementPolicy {
         GroupProtoUtil.checkEntityType(providerPolicyEntities.getGroup());
     }
 
-    /**
-     * Constrain entities in the consumer group to be forced to reside on entities in the providers group
-     * by creating a segmentation commodity bought by the consumers and sold ONLY by the providers.
-     *
-     * {@inheritDoc}
-     */
-    @Override
-    public void applyInternal(@Nonnull final GroupResolver groupResolver, @Nonnull final TopologyGraph topologyGraph)
-        throws GroupResolutionException, PolicyApplicationException {
-        logger.debug("Applying bindToGroup policy.");
-        final Group providerGroup = providerPolicyEntities.getGroup();
-        final Group consumerGroup = consumerPolicyEntities.getGroup();
-        // Resolve the relevant groups
-        final Set<Long> providers = Sets.union(groupResolver.resolve(providerGroup, topologyGraph),
-                providerPolicyEntities.getAdditionalEntities());
-        final Set<Long> consumers = Sets.union(groupResolver.resolve(consumerGroup, topologyGraph),
-                consumerPolicyEntities.getAdditionalEntities());
+    @Nonnull
+    public PolicyInfo.BindToGroupPolicy getDetails() {
+        return bindToGroup;
+    }
 
-        // Add the commodity to the appropriate entities.
-        addCommoditySold(providers, topologyGraph, commoditySold());
-        addCommodityBought(consumers, topologyGraph,
-                GroupProtoUtil.getEntityType(providerGroup), commodityBought());
+    @Nonnull
+    public PolicyEntities getConsumerPolicyEntities() {
+        return consumerPolicyEntities;
+    }
+
+    @Nonnull
+    public PolicyEntities getProviderPolicyEntities() {
+        return providerPolicyEntities;
     }
 }

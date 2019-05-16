@@ -1,7 +1,6 @@
-package com.vmturbo.topology.processor.group.policy;
+package com.vmturbo.topology.processor.group.policy.application;
 
 import java.util.Objects;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -9,15 +8,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
-import com.vmturbo.topology.processor.group.GroupResolutionException;
-import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.group.policy.PolicyFactory.PolicyEntities;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
 
 /**
  * Requires that all entities in the consumer group must run in separate providers of the
@@ -55,28 +49,14 @@ public class MustNotRunTogetherPolicy extends PlacementPolicy {
         this.policyEntities = Objects.requireNonNull(policyEntities);
     }
 
-    @Override
-    protected void applyInternal(@Nonnull final GroupResolver groupResolver, @Nonnull final TopologyGraph topologyGraph)
-            throws GroupResolutionException, PolicyApplicationException {
-        logger.debug("Applying MustNotRunTogether policy.");
-
-        // get group of entities that need to not run together (consumers)
-        final Group consumerGroup = policyEntities.getGroup();
-        Set<Long> additionalEntities = policyEntities.getAdditionalEntities();
-        final Set<Long> consumers = Sets.union(groupResolver.resolve(consumerGroup, topologyGraph),
-                additionalEntities);
-
-        // if there are no consumers, we don't need to do any changes
-        if (!consumers.isEmpty()) {
-            // add the commodity sold to all the entities of a particular type.
-            addCommoditySoldToSpecificEntityTypeProviders(mustNotRunTogetherPolicy.getProviderEntityType(),
-                    consumers,
-                    topologyGraph,
-                    SEGM_CAPACITY_VALUE_SINGLE_CONSUMER);
-
-            // add the commodity bought to the entities that need to run separate
-            addCommodityBought(consumers, topologyGraph, mustNotRunTogetherPolicy.getProviderEntityType(),
-                    commodityBought());
-        }
+    @Nonnull
+    public PolicyInfo.MustNotRunTogetherPolicy getDetails() {
+        return mustNotRunTogetherPolicy;
     }
+
+    @Nonnull
+    public PolicyEntities getPolicyEntities() {
+        return policyEntities;
+    }
+
 }

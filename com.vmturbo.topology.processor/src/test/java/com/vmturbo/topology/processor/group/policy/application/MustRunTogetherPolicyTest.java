@@ -1,4 +1,4 @@
-package com.vmturbo.topology.processor.group.policy;
+package com.vmturbo.topology.processor.group.policy.application;
 
 import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntity;
 import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchParametersCollection;
@@ -11,6 +11,8 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+
+import javax.annotation.Nonnull;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -26,7 +28,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.group.policy.PolicyFactory.PolicyEntities;
+import com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper;
+import com.vmturbo.topology.processor.group.policy.PolicyMatcher;
+import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
@@ -99,8 +103,8 @@ public class MustRunTogetherPolicyTest {
         when(groupResolver.resolve(eq(group), eq(topologyGraph)))
             .thenReturn(Collections.emptySet());
 
-        new MustRunTogetherPolicy(policy, new PolicyEntities(group, Collections.emptySet()))
-                .apply(groupResolver, topologyGraph);
+        applyPolicy(new MustRunTogetherPolicy(policy,
+            new PolicyEntities(group, Collections.emptySet())));
         assertThat(topologyGraph.getEntity(1L).get(),
                 not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(2L).get(),
@@ -120,8 +124,8 @@ public class MustRunTogetherPolicyTest {
         when(groupResolver.resolve(eq(group), eq(topologyGraph)))
                 .thenReturn(Sets.newHashSet(5L, 6L, 7L));
 
-        new MustRunTogetherPolicy(policy, new PolicyEntities(group, Collections.emptySet()))
-                .apply(groupResolver, topologyGraph);
+        applyPolicy(new MustRunTogetherPolicy(policy,
+            new PolicyEntities(group, Collections.emptySet())));
 
         // check consumers
         assertThat(topologyGraph.getEntity(5L).get(),
@@ -151,8 +155,8 @@ public class MustRunTogetherPolicyTest {
         when(groupResolver.resolve(eq(group), eq(topologyGraph)))
                 .thenReturn(Sets.newHashSet(6L, 7L));
 
-        new MustRunTogetherPolicy(policyStorage, new PolicyEntities(group, Collections.emptySet()))
-                .apply(groupResolver, topologyGraph);
+        applyPolicy(new MustRunTogetherPolicy(policyStorage,
+            new PolicyEntities(group, Collections.emptySet())));
 
         // check consumers
         assertThat(topologyGraph.getEntity(5L).get(),
@@ -175,6 +179,12 @@ public class MustRunTogetherPolicyTest {
                 policyMatcher.hasProviderSegment(POLICY_ST_ID));
         assertThat(topologyGraph.getEntity(4L).get(),
                 not(policyMatcher.hasProviderSegment(POLICY_ST_ID)));
+    }
+
+    private void applyPolicy(@Nonnull final MustRunTogetherPolicy policy) {
+        MustRunTogetherPolicyApplication application =
+            new MustRunTogetherPolicyApplication(groupResolver, topologyGraph);
+        application.apply(Collections.singletonList(policy));
     }
 
 }

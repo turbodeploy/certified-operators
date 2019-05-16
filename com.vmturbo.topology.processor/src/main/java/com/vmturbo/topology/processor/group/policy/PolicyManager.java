@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.group.policy;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -8,8 +9,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
@@ -26,7 +29,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
@@ -45,8 +47,10 @@ import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.DiscoveryOriginBuilder;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
+import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
+import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
@@ -62,21 +66,23 @@ public class PolicyManager {
     /**
      * The policy service from which to retrieve policy definitions.
      */
-    final PolicyServiceBlockingStub policyService;
+    private final PolicyServiceBlockingStub policyService;
 
-    final GroupServiceBlockingStub groupServiceBlockingStub;
+    private final GroupServiceBlockingStub groupServiceBlockingStub;
 
-    final ReservationServiceBlockingStub reservationService;
+    private final ReservationServiceBlockingStub reservationService;
 
     /**
      * The factory to use to create policies.
      */
-    final PolicyFactory policyFactory;
+    private final PolicyFactory policyFactory;
+
+    private final PolicyApplicator policyApplicator;
 
     /**
      * The factory to create policy for initial placement and reservation purpose.
      */
-    final ReservationPolicyFactory reservationPolicyFactory;
+    private final ReservationPolicyFactory reservationPolicyFactory;
 
     private static final DataMetricSummary POLICY_APPLICATION_SUMMARY = DataMetricSummary.builder()
         .withName("tp_policy_application_duration_seconds")
@@ -95,41 +101,28 @@ public class PolicyManager {
                          @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
                          @Nonnull final PolicyFactory policyFactory,
                          @Nonnull final ReservationPolicyFactory reservationPolicyFactory,
-                         @Nonnull final ReservationServiceBlockingStub reservationService) {
+                         @Nonnull final ReservationServiceBlockingStub reservationService,
+                         @Nonnull final PolicyApplicator policyApplicator) {
         this.policyService = Objects.requireNonNull(policyService);
         this.groupServiceBlockingStub = Objects.requireNonNull(groupServiceBlockingStub);
         this.policyFactory = Objects.requireNonNull(policyFactory);
         this.reservationPolicyFactory = Objects.requireNonNull(reservationPolicyFactory);
         this.reservationService = Objects.requireNonNull(reservationService);
-    }
-
-    /**
-     * Apply policies from the policy service to the entities in the topology graph.
-     * This is used in the realtime pipeline.
-     *
-     * @param graph The topology graph on which to apply the policies.
-     * @param groupResolver The resolver for the groups that the policy applies to.
-     */
-    public void applyPolicies(@Nonnull final TopologyGraph graph,
-                    @Nonnull final GroupResolver groupResolver) {
-        applyPolicies(graph, groupResolver, Collections.emptyList());
+        this.policyApplicator = Objects.requireNonNull(policyApplicator);
     }
 
     /**
      * Apply policies from the policy service, possibly modified by plan changes,
      * to the entities in the topology graph.
      *
-     * TODO: This is a stub implementation that only exists right now to exercise
-     * group resolution for policy-groups.
-     *
      * @param graph The topology graph on which to apply the policies.
      * @param groupResolver The resolver for the groups that the policy applies to.
      * @param changes list of plan changes to be applied to the policies
      * @return Map from (type of policy) -> (num of policies of the type)
      */
-    public Map<PolicyDetailCase, Integer> applyPolicies(@Nonnull final TopologyGraph graph,
-                              @Nonnull final GroupResolver groupResolver,
-                              List<ScenarioChange> changes) {
+    public PolicyApplicator.Results applyPolicies(@Nonnull final TopologyGraph graph,
+                                                  @Nonnull final GroupResolver groupResolver,
+                                                  @Nonnull final List<ScenarioChange> changes) {
         try (DataMetricTimer timer = POLICY_APPLICATION_SUMMARY.startTimer()) {
             final long startTime = System.currentTimeMillis();
             final Iterator<PolicyResponse> policyIter =
@@ -138,17 +131,33 @@ public class PolicyManager {
             List<Policy> planOnlyPolicies = planOnlyPolicies(changes);
             final Map<Long, Group> groupsById = groupsById(policyResponses, planOnlyPolicies);
             final Map<PolicyDetailCase, Integer> policyTypeCounts = Maps.newEnumMap(PolicyDetailCase.class);
-            final Map<Long, Set<Long>> policyConstraintMap =
-            handleReservationConstraints(graph, groupResolver, changes, policyTypeCounts);
 
-            applyServerPolicies(graph, groupResolver, changes,
-                            policyResponses, groupsById, policyTypeCounts, policyConstraintMap);
-            applyPlanOnlyPolicies(graph, groupResolver, planOnlyPolicies,
-                            groupsById, policyTypeCounts);
+            final List<PlacementPolicy> policiesToApply = new ArrayList<>();
+
+            final Map<Long, Set<Long>> policyConstraintMap =
+                handleReservationConstraints(graph, changes, policiesToApply);
+
+            getServerPolicies(changes, policyResponses, groupsById, policyConstraintMap)
+                .forEach(policiesToApply::add);
+
+            getPlanOnlyPolicies(planOnlyPolicies, groupsById)
+                .forEach(policiesToApply::add);
+
+            final PolicyApplicator.Results results =
+                policyApplicator.applyPolicies(policiesToApply, groupResolver, graph);
 
             final long durationMs = System.currentTimeMillis() - startTime;
             logger.info("Completed application of {} policies in {}ms.", policyTypeCounts, durationMs);
-            return policyTypeCounts;
+
+            if (!results.errors().isEmpty()) {
+                logger.error(results.errors().size() + " policies could not be applied " +
+                    "(error messages printed at debug level).");
+                logger.debug(() -> results.errors().entrySet().stream()
+                    .map(entry -> entry.getKey().getPolicyDefinition().getId() + " : " + entry.getValue().getMessage())
+                    .collect(Collectors.joining("\n")));
+            }
+
+            return results;
         }
     }
 
@@ -159,16 +168,14 @@ public class PolicyManager {
      * policy to related consumer and providers.
      *
      * @param graph The topology graph on which to apply the policies.
-     * @param groupResolver The resolver for the groups that the policy applies to.
      * @param scenarioChanges list of plan changes to be applied to the policies
-     * @param policyTypeCounts policy type count map.
+     * @param policies The list of policies to add the reservation policies to. THIS METHOD MODIFIES THIS ARGUMENT.
      * @return a Map the key is policy id, value is related initial placement or reservation entity ids.
      */
     @VisibleForTesting
     Map<Long, Set<Long>> handleReservationConstraints(@Nonnull final TopologyGraph graph,
-                                              @Nonnull final GroupResolver groupResolver,
                                               @Nonnull final List<ScenarioChange> scenarioChanges,
-                                              @Nonnull Map<PolicyDetailCase, Integer> policyTypeCounts) {
+                                              @Nonnull List<PlacementPolicy> policies) {
         final Map<Long, Set<Long>> policyConstraintMap = new HashMap<>();
         // for all current active reservation, their status are RESERVED, and also
         // for reservations which just started, their status also have been
@@ -198,10 +205,11 @@ public class PolicyManager {
                 .forEach(entry -> policyConstraintMap.computeIfAbsent(entry.getKey(),
                         constraint -> new HashSet<>()).addAll(entry.getValue()));
 
-        applyPolicyForInitialPlacement(graph, groupResolver, scenarioChanges, policyTypeCounts,
+        policies.addAll(createPoliciesForReservation(graph, activeReservations));
+        createPolicyForInitialPlacement(graph, scenarioChanges,
                 initialPlacementEntityIds.isEmpty() ? getNotDiscoveredEntityIds(graph) :
-                Collections.emptySet());
-        applyPolicyForReservation(graph, groupResolver, policyTypeCounts, activeReservations);
+                Collections.emptySet()).ifPresent(policies::add);
+
         return policyConstraintMap;
     }
 
@@ -283,13 +291,10 @@ public class PolicyManager {
         return policyGroupsById(policies);
     }
 
-    private void applyServerPolicies(
-                    @Nonnull final TopologyGraph graph,
-                    @Nonnull final GroupResolver groupResolver,
+    private Stream<PlacementPolicy> getServerPolicies(
                     @Nonnull List<ScenarioChange> changes,
                     @Nonnull List<PolicyResponse> policyResponses,
                     @Nonnull Map<Long, Group> groupsById,
-                    @Nonnull Map<PolicyDetailCase, Integer> policyTypeCounts,
                     @Nonnull Map<Long, Set<Long>> policyConstraintMap) {
         // Map from policy ID to whether it is enabled or disabled in the plan
         Map<Long, Boolean> policyOverrides = changes.stream()
@@ -299,43 +304,42 @@ public class PolicyManager {
                 .filter(PolicyChange::hasPolicyId)
                 .collect(Collectors.toMap(
                         PolicyChange::getPolicyId, PolicyChange::getEnabled));
-        for (PolicyResponse response : policyResponses) {
-            PlacementPolicy policy = policyFactory.newPolicy(response.getPolicy(), groupsById,
+
+        return policyResponses.stream()
+            .map(response -> {
+                PlacementPolicy policy = policyFactory.newPolicy(response.getPolicy(), groupsById,
                     policyConstraintMap.getOrDefault(response.getPolicy().getId(),
-                            Collections.emptySet()), Collections.emptySet());
-            final Policy policyDef = policy.getPolicyDefinition();
-            final long policyId = policyDef.getId();
-            final Boolean enabledOverride = policyOverrides.get(policyId);
-            if (enabledOverride != null) {
-                final Boolean enabled = policyDef.getPolicyInfo().getEnabled();
-                if (enabled != enabledOverride) {
-                    // Create a copy of the policy with the 'enable' field taken from the plan
-                    final Policy altPolicyDef = policyDef.toBuilder()
+                        Collections.emptySet()), Collections.emptySet());
+                final Policy policyDef = policy.getPolicyDefinition();
+                final long policyId = policyDef.getId();
+                final Boolean enabledOverride = policyOverrides.get(policyId);
+                if (enabledOverride != null) {
+                    final Boolean enabled = policyDef.getPolicyInfo().getEnabled();
+                    if (enabled != enabledOverride) {
+                        // Create a copy of the policy with the 'enable' field taken from the plan
+                        final Policy altPolicyDef = policyDef.toBuilder()
                             .setPolicyInfo(policyDef.getPolicyInfo().toBuilder()
                                 .setEnabled(enabledOverride))
                             .build();
-                    policy = policyFactory.newPolicy(altPolicyDef, groupsById,
+                        policy = policyFactory.newPolicy(altPolicyDef, groupsById,
                             policyConstraintMap.getOrDefault(altPolicyDef.getId(),
-                                    Collections.emptySet()), Collections.emptySet());
+                                Collections.emptySet()), Collections.emptySet());
+                    }
                 }
-            }
-            applyPolicy(groupResolver, policy, graph, policyTypeCounts);
-        }
+                return policy;
+            });
     }
 
-    private void applyPlanOnlyPolicies(
-                    @Nonnull final TopologyGraph graph,
-                    @Nonnull final GroupResolver groupResolver,
+    private Stream<PlacementPolicy> getPlanOnlyPolicies(
                     @Nonnull List<Policy> planOnlyPolicies,
-                    @Nonnull Map<Long, Group> groupsById,
-                    @Nonnull Map<PolicyDetailCase, Integer> policyTypeCounts) {
-        for (Policy policyDefinition : planOnlyPolicies) {
-            // Policy definition needs an ID, but plan-only policies don't have one
-            policyDefinition = Policy.newBuilder(policyDefinition).setId(0).build();
-            PlacementPolicy policy = policyFactory.newPolicy(policyDefinition, groupsById,
+                    @Nonnull Map<Long, Group> groupsById) {
+        return planOnlyPolicies.stream()
+            .map(policyDefinition -> {
+                // Policy definition needs an ID, but plan-only policies don't have one
+                policyDefinition = Policy.newBuilder(policyDefinition).setId(0).build();
+                return policyFactory.newPolicy(policyDefinition, groupsById,
                     Collections.emptySet(), Collections.emptySet());
-            applyPolicy(groupResolver, policy, graph, policyTypeCounts);
-        }
+            });
     }
 
     private List<Policy> planOnlyPolicies(List<ScenarioChange> changes) {
@@ -354,15 +358,12 @@ public class PolicyManager {
      * this policy.
      *
      * @param graph The topology graph on which to apply the policies.
-     * @param groupResolver The resolver for the groups that the policy applies to.
      * @param scenarioChanges list of plan changes to be applied to the policies.
-     * @param policyTypeCounts policy type count map.
      */
-    private void applyPolicyForInitialPlacement(@Nonnull final TopologyGraph graph,
-                                                @Nonnull final GroupResolver groupResolver,
-                                                @Nonnull final List<ScenarioChange> scenarioChanges,
-                                                @Nonnull Map<PolicyDetailCase, Integer> policyTypeCounts,
-                                                @Nonnull final Set<Long> consumers) {
+    private Optional<PlacementPolicy> createPolicyForInitialPlacement(
+                @Nonnull final TopologyGraph graph,
+                @Nonnull final List<ScenarioChange> scenarioChanges,
+                @Nonnull final Set<Long> consumers) {
         final List<ReservationConstraintInfo> constraints = scenarioChanges.stream()
                 .filter(ScenarioChange::hasPlanChanges)
                 .map(ScenarioChange::getPlanChanges)
@@ -374,61 +375,34 @@ public class PolicyManager {
                 .filter(constraint -> constraint.getType() != ReservationConstraintInfo.Type.POLICY)
                 .collect(Collectors.toList());
         if (!constraints.isEmpty()) {
-            final PlacementPolicy policy =
-                    reservationPolicyFactory.generatePolicyForInitialPlacement(graph, constraints, consumers);
-            applyPolicy(groupResolver, policy, graph, policyTypeCounts);
+            return Optional.of(reservationPolicyFactory.generatePolicyForInitialPlacement(
+                graph, constraints, consumers));
+        } else {
+            return Optional.empty();
         }
     }
 
-    private void applyPolicyForReservation(@Nonnull final TopologyGraph graph,
-                                           @Nonnull final GroupResolver groupResolver,
-                                           @Nonnull Map<PolicyDetailCase, Integer> policyTypeCounts,
-                                           @Nonnull Iterable<Reservation> activeReservations) {
-        StreamSupport.stream(activeReservations.spliterator(), false)
-                .filter(reservation ->  reservation.getConstraintInfoCollection()
-                        .getReservationConstraintInfoList().stream()
-                    // filter out policy constraint, because all policy constraint will been applied
-                    // along with service policy.
-                                .filter(ReservationConstraintInfo::hasType)
-                                .filter(constraint -> constraint.getType()
-                                        != ReservationConstraintInfo.Type.POLICY)
-                                .count() > 0)
-                .forEach(reservation -> {
-                    final List<ReservationConstraintInfo> constraintInfos =
-                            reservation.getConstraintInfoCollection()
-                                    .getReservationConstraintInfoList();
-                    final PlacementPolicy policy =
-                            reservationPolicyFactory.generatePolicyForReservation(graph,
-                                    constraintInfos, reservation);
-                    applyPolicy(groupResolver, policy, graph, policyTypeCounts);
-                });
+    private List<PlacementPolicy> createPoliciesForReservation(@Nonnull final TopologyGraph graph,
+                                            @Nonnull Iterable<Reservation> activeReservations) {
+        return StreamSupport.stream(activeReservations.spliterator(), false)
+            .filter(reservation ->  reservation.getConstraintInfoCollection()
+                    .getReservationConstraintInfoList().stream()
+                        // filter out policy constraint, because all policy constraint will been applied
+                        // along with service policy.
+                        .filter(ReservationConstraintInfo::hasType)
+                        .filter(constraint -> constraint.getType()
+                                != ReservationConstraintInfo.Type.POLICY)
+                        .count() > 0)
+            .map(reservation -> {
+                final List<ReservationConstraintInfo> constraintInfos =
+                        reservation.getConstraintInfoCollection()
+                                .getReservationConstraintInfoList();
+                return reservationPolicyFactory.generatePolicyForReservation(graph,
+                                constraintInfos, reservation);
+            })
+            .collect(Collectors.toList());
     }
 
-    /**
-     * Apply a policy and handle any resulting errors.
-     * TODO: What should we do when a policy cannot be applied? Is this sufficient ground to completely
-     * cancel a broadcast?
-     *
-     * @param groupResolver The resolver for the groups that the policy applies to.
-     * @param policy The policy to be applied.
-     * @param topologyGraph The topology graph on which to apply the policies.
-     * @param policyTypeCounts counts how many policies of each type were applied
-     */
-    private void applyPolicy(@Nonnull final GroupResolver groupResolver,
-                             @Nonnull final PlacementPolicy policy,
-                             @Nonnull final TopologyGraph topologyGraph,
-                             @Nonnull Map<PolicyDetailCase, Integer> policyTypeCounts) {
-        try {
-            policy.apply(groupResolver, topologyGraph);
-            final PolicyDetailCase policyType = policy.getPolicyDefinition().getPolicyInfo().getPolicyDetailCase();
-            int curCountOfType = policyTypeCounts.getOrDefault(policyType, 0);
-            policyTypeCounts.put(policyType, curCountOfType + 1);
-        } catch (GroupResolutionException e) {
-            logger.error("Failed to resolve group: ", e);
-        } catch (PolicyApplicationException e) {
-            logger.error("Failed to apply policy: ", e);
-        }
-    }
 
     /**
      * Get all entities which created from templates. It use {@link TopologyEntity}

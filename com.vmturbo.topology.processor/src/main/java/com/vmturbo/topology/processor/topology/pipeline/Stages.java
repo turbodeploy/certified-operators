@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -18,6 +19,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
+import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.ncm.FlowCommoditiesGenerator;
 
 import org.apache.commons.lang3.mutable.MutableInt;
@@ -27,7 +29,6 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
@@ -750,15 +751,32 @@ public class Stages {
 
         @Override
         public Status passthrough(@Nonnull final TopologyGraph input) {
-            final Map<PolicyDetailCase, Integer> policyTypeCount =
+            final PolicyApplicator.Results applicationResults =
                     policyManager.applyPolicies(input, getContext().getGroupResolver(), changes);
-            if (policyTypeCount.isEmpty()) {
-                return Status.success("No policies to apply.");
+            final StringJoiner statusMsg = new StringJoiner("\n")
+                .setEmptyValue("No policies to apply.");
+            final boolean errors = applicationResults.errors().size() > 0;
+            if (errors) {
+                statusMsg.add(applicationResults.errors().size() +
+                    " policies encountered errors and failed to run!\n");
+            }
+            if (applicationResults.appliedCounts().size() > 0) {
+                statusMsg.add("(policy type) : (num applied)\n" +
+                    applicationResults.appliedCounts().entrySet().stream()
+                        .map(entry -> entry.getKey() + " : " + entry.getValue())
+                        .collect(Collectors.joining("\n")));
+            }
+            if (applicationResults.addedCommodityCounts().size() > 0) {
+                statusMsg.add("(commodity type) : (num commodities added)\n" +
+                    applicationResults.addedCommodityCounts().entrySet().stream()
+                        .map(entry -> entry.getKey() + " : " + entry.getValue())
+                        .collect(Collectors.joining("\n")));
+            }
+
+            if (errors) {
+                return Status.withWarnings(statusMsg.toString());
             } else {
-                return Status.success("(policy type) : (num applied)\n" +
-                        policyTypeCount.entrySet().stream()
-                                .map(entry -> entry.getKey() + " : " + entry.getValue())
-                                .collect(Collectors.joining("\n")));
+                return Status.success(statusMsg.toString());
             }
         }
     }

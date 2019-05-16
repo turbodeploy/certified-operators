@@ -1,4 +1,4 @@
-package com.vmturbo.topology.processor.group.policy;
+package com.vmturbo.topology.processor.group.policy.application;
 
 import static junit.framework.TestCase.fail;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -31,7 +31,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.group.policy.PolicyFactory.PolicyEntities;
+import com.vmturbo.topology.processor.group.policy.PolicyMatcher;
+import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
@@ -69,8 +70,8 @@ public class MergePolicyTestBase {
                 .thenReturn(Sets.newHashSet(1L, 2L));
 
         // invoke Merge Policy
-        MergePolicy mergePolicy = new MergePolicy(policy, mergePolicyEntities);
-        mergePolicy.apply(groupResolver, topologyGraph);
+        final MergePolicy mergePolicy = new MergePolicy(policy, mergePolicyEntities);
+        applyPolicy(mergePolicy);
 
         // ensure PMs or Storage changed the key of the cluster commodity to the policy OID.
         assertThat(topologyGraph.getEntity(1L).get(),
@@ -95,8 +96,7 @@ public class MergePolicyTestBase {
         final double value = 99.0;
 
         updateTopologyGraph(value, mergePolicy); // add two new DTOs to commodity sold list
-        new MergePolicy(policy, mergePolicyEntities)
-                .apply(groupResolver, topologyGraph);
+        applyPolicy(new MergePolicy(policy, mergePolicyEntities));
 
         // ensure PMs or Storage changed the key of the cluster commodity to the policy OID.
         assertThat(topologyGraph.getEntity(1L).get(),
@@ -278,8 +278,7 @@ public class MergePolicyTestBase {
         // invoke Merge Policy should failed with IllegalArgumentException.
         expectedException
                 .expect(IllegalArgumentException.class);
-        new MergePolicy(policy, mergePolicyEntities)
-                .apply(groupResolver, topologyGraph);
+        applyPolicy(new MergePolicy(policy, mergePolicyEntities));
     }
 
     @Test
@@ -298,7 +297,7 @@ public class MergePolicyTestBase {
 
         // invoke Merge Policy
         MergePolicy mergePolicy = new MergePolicy(policy, mergePolicyEntities);
-        mergePolicy.apply(groupResolver, topologyGraph);
+        applyPolicy(mergePolicy);
 
         assertThat(topologyGraph.getEntity(1L).get(),
                 not(policyMatcher.hasCommoditySoldClusterType(mergePolicy, null)));
@@ -326,7 +325,7 @@ public class MergePolicyTestBase {
                 .thenReturn(Sets.newHashSet(4L, 5L));
 
         MergePolicy mergePolicy = new MergePolicy(policy, mergePolicyEntities);
-        mergePolicy.apply(groupResolver, topologyGraph);
+        applyPolicy(mergePolicy);
 
         assertThat(topologyGraph.getEntity(1L).get(),
                 not(policyMatcher.hasCommoditySoldClusterType(mergePolicy, null)));
@@ -355,7 +354,7 @@ public class MergePolicyTestBase {
                 .thenReturn(Collections.<Long>emptySet());
 
         MergePolicy mergePolicy = new MergePolicy(policy, mergePolicyEntities);
-        mergePolicy.apply(groupResolver, topologyGraph);
+        applyPolicy(mergePolicy);
 
 
         assertThat(topologyGraph.getEntity(1L).get(),
@@ -389,11 +388,15 @@ public class MergePolicyTestBase {
                     .thenReturn(Sets.newHashSet(1L, 2L));
 
             // invoke Merge Policy
-            new MergePolicy(policy, mergePolicyEntities)
-                    .apply(groupResolver, topologyGraph);
+            applyPolicy(new MergePolicy(policy, mergePolicyEntities));
         } catch (Exception e) {
             fail("Should not have thrown any exception");
         }
 
+    }
+
+    private void applyPolicy(@Nonnull final MergePolicy mergePolicy) {
+        final MergePolicyApplication application = new MergePolicyApplication(groupResolver, topologyGraph);
+        application.apply(Collections.singletonList(mergePolicy));
     }
 }

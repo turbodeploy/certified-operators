@@ -37,7 +37,9 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.group.policy.PolicyFactory.PolicyEntities;
+import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
+import com.vmturbo.topology.processor.group.policy.application.BindToGroupPolicy;
+import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
 import com.vmturbo.topology.processor.topology.TopologyEditorException;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
