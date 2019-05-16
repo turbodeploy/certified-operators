@@ -1,7 +1,9 @@
 package com.vmturbo.cost.component.topology;
 
 
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Set;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -73,7 +75,7 @@ public class TopologyListenerConfig {
     @Autowired
     private CostConfig costConfig;
 
-    @Value("${enabled:true}")
+    @Value("${enableTopologyListener:true}")
     private boolean enabled;
 
     @Bean
@@ -96,7 +98,9 @@ public class TopologyListenerConfig {
 
     @Bean
     public TopologyProcessor topologyProcessor() {
-        return topologyClientConfig.topologyProcessor(EnumSet.of(Subscription.LiveTopologies));
+        // only add the live topology topic listener if we plan on processing them.
+        Set<Subscription> subscriptions = enabled ? EnumSet.of(Subscription.LiveTopologies) : Collections.emptySet();
+        return topologyClientConfig.topologyProcessor(subscriptions);
     }
 
     @Bean
