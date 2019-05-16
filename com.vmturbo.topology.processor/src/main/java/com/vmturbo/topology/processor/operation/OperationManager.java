@@ -586,12 +586,6 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                     .setDiscoveryContext(currentTargetDiscoveryContext.getOrDefault(
                         targetId, DiscoveryContextDTO.getDefaultInstance()))
                     .build();
-
-            discoveryMessageHandler =
-                    new DiscoveryMessageHandler(this,
-                            discovery,
-                            remoteMediationServer.getMessageHandlerExpirationClock(),
-                            discoveryTimeoutMs);
         }
 
         // If the probe has not yet registered, the semaphore won't be initialized.
@@ -641,6 +635,11 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             targetId);
                     return currentDiscovery.get();
                 }
+                discoveryMessageHandler =
+                    new DiscoveryMessageHandler(this,
+                        discovery,
+                        remoteMediationServer.getMessageHandlerExpirationClock(),
+                        discoveryTimeoutMs);
                 operationStart(discovery);
                 currentTargetDiscoveries.put(targetId, discovery);
                 remoteMediationServer.sendDiscoveryRequest(probeId,
