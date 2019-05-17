@@ -3,6 +3,7 @@ dependencies:
   - name: arangodb
     repository: file://../base/arangodb
     version: 0.1.0
+    condition: platform.enabled
   - name: consul
     repository: file://../base/consul
     version: 0.1.0
@@ -38,22 +39,26 @@ dependencies:
   - name: action-orchestrator
     repository: file://../services/action-orchestrator
     version: 0.1.0
+    condition: platform.enabled
   - name: clustermgr
     repository: file://../services/clustermgr
     version: 0.1.0
   - name: cost
     repository: file://../services/cost
     version: 0.1.0
+    condition: platform.enabled
   - name: group
     repository: file://../services/group
     version: 0.1.0
+    condition: platform.enabled
   - name: history
     repository: file://../services/history
     version: 0.1.0
-    condition: history.enabled
+    condition: platform.enabled
   - name: market
     repository: file://../services/market
     version: 0.1.0
+    condition: platform.enabled
   - name: ml-datastore
     repository: file://../services/ml-datastore
     version: 0.1.0
@@ -65,13 +70,15 @@ dependencies:
   - name: plan-orchestrator
     repository: file://../services/plan-orchestrator
     version: 0.1.0
+    condition: platform.enabled
   - name: reporting
     repository: file://../services/reporting
     version: 0.1.0
-    condition: reporting.enabled
+    condition: platform.enabled
   - name: repository
     repository: file://../services/repository
     version: 0.1.0
+    condition: platform.enabled
   - name: topology-processor
     repository: file://../services/topology-processor
     version: 0.1.0

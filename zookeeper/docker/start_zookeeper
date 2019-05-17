@@ -44,7 +44,7 @@ echo "$ZOO_MY_ID" > $ZOOCFGDIR/myid
 ln -fs /opt/zookeeper/conf/log4j.properties $ZOOCFGDIR/log4j.properties || exit_error "Could not create log4j config"
 
 # Autoconfigure the max java heap based on container limit
-SERVER_JVMFLAGS="-Xms16m -Xss512k -XX:MaxRAMPercentage=75.0"
+SERVER_JVMFLAGS="-Xms16m -XX:MaxRAMPercentage=75.0"
 
 env
 

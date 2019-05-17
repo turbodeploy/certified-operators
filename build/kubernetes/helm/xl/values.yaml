@@ -22,9 +22,7 @@ global:
 
 ui:
   enabled: true
-history:
-  enabled: true
-reporting:
+platform:
   enabled: true
 metron:
   enabled: false
