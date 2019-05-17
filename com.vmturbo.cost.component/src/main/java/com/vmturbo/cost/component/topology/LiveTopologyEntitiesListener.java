@@ -48,7 +48,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
 
     private final CostJournalRecorder journalRecorder;
 
-    public LiveTopologyEntitiesListener(long realtimeTopologyContextId,
+    public LiveTopologyEntitiesListener(final long realtimeTopologyContextId,
                                         @Nonnull final ComputeTierDemandStatsWriter computeTierDemandStatsWriter,
                                         @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
                                         @Nonnull final TopologyCostCalculatorFactory topologyCostCalculatorFactory,
@@ -81,24 +81,30 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
         final CloudTopology<TopologyEntityDTO> cloudTopology =
                 cloudTopologyFactory.newCloudTopology(topologyContextId, entityIterator);
 
-        computeTierDemandStatsWriter.calculateAndStoreRIDemandStats(topologyInfo, cloudTopology.getEntities(), false);
+        // if no Cloud entity, skip further processing
+        if (cloudTopology.size() > 0) {
+            computeTierDemandStatsWriter.calculateAndStoreRIDemandStats(topologyInfo, cloudTopology.getEntities(), false);
 
-        storeBusinessAccountIdToTargetIdMapping(cloudTopology.getEntities());
+            storeBusinessAccountIdToTargetIdMapping(cloudTopology.getEntities());
 
-        final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory.newCalculator(topologyInfo);
-        final Map<Long, CostJournal<TopologyEntityDTO>> costs =
+            final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory.newCalculator(topologyInfo);
+            final Map<Long, CostJournal<TopologyEntityDTO>> costs =
                 topologyCostCalculator.calculateCosts(cloudTopology);
 
-        journalRecorder.recordCostJournals(costs);
+            journalRecorder.recordCostJournals(costs);
 
-        try {
-            entityCostStore.persistEntityCost(costs);
-        } catch (DbException e) {
-            logger.error("Failed to persist entity costs.", e);
+            try {
+                entityCostStore.persistEntityCost(costs);
+            } catch (DbException e) {
+                logger.error("Failed to persist entity costs.", e);
+            }
+
+            // update reserved instance coverage data.
+            reservedInstanceCoverageUpdate.updateAllEntityRICoverageIntoDB(topologyInfo.getTopologyId(), cloudTopology);
+        } else {
+            logger.info("live topology with topologyId: {}  doesn't have Cloud entity, skip processing",
+                topologyInfo.getTopologyId());
         }
-
-        // update reserved instance coverage data.
-        reservedInstanceCoverageUpdate.updateAllEntityRICoverageIntoDB(topologyInfo.getTopologyId(), cloudTopology);
     }
 
    // store the mapping between business account id to discovered target id
