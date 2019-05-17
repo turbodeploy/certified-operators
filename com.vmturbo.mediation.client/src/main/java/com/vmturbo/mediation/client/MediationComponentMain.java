@@ -41,6 +41,8 @@ public class MediationComponentMain extends BaseVmtComponent {
     private long negotiationTimeoutSec;
     @Value("${chunk.send.delay.msec:50}")
     private long chunkSendDelay;
+    @Value("${chunk.timeout.sec:900}")
+    private long chunkTimeoutSec;
 
     private Logger log = LogManager.getLogger();
 
@@ -52,7 +54,7 @@ public class MediationComponentMain extends BaseVmtComponent {
     public RemoteComposer remoteComposer() {
         try {
             return new RemoteComposer(probePropertiesCollection(), config(), lifecycleListener(), threadPool(),
-                negotiationTimeoutSec, keepAliveIntervalSec, chunkSendDelay);
+                negotiationTimeoutSec, keepAliveIntervalSec, chunkSendDelay, chunkTimeoutSec);
         } catch (ProbeConfigurationLoadException e) {
             throw new RuntimeException(e);
         }
