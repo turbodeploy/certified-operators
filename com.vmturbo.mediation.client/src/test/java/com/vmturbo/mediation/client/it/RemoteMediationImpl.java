@@ -25,8 +25,6 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
-import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
-import com.vmturbo.platform.common.dto.PlanExport.PlanExportDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionProgress;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
@@ -34,7 +32,6 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ActionResult;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
-import com.vmturbo.platform.sdk.common.MediationMessage.PlanExportResult;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.operation.IOperationMessageHandler;
@@ -169,12 +166,6 @@ public class RemoteMediationImpl implements IRemoteMediation {
     @Override
     public Collection<ActionErrorDTO> auditActions(@Nonnull SdkTarget target,
             @Nonnull Collection<ActionEventDTO> actionEvents) throws InterruptedException {
-        throw new NotImplementedException("Feature is not implemented for in XL now");
-    }
-
-    @Nonnull
-    @Override
-    public PlanExportResult exportPlan(@Nonnull final SdkTarget target, @Nonnull final PlanExportDTO exportData, @Nonnull final NonMarketEntityDTO planDestination, @Nonnull final PlanExportProgressProcessor progressProcessor) throws InterruptedException {
         throw new NotImplementedException("Feature is not implemented for in XL now");
     }
 
