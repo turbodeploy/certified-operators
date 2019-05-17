@@ -1,6 +1,8 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
@@ -82,6 +84,11 @@ public class ActionTypeMapper {
     public static Set<ActionDTO.ActionType> fromApi(@Nonnull final ActionType actionType) {
         final Set<ActionDTO.ActionType> matchingTypes =
                 XL_TO_API_APPROXIMATE_TYPE.asMultimap().inverse().get(actionType);
-        return matchingTypes == null ? Collections.emptySet() : matchingTypes;
+        if (matchingTypes == null || matchingTypes.size() == 0) {
+            // If the ActionType is not mapped, return NONE. If we don't return NONE, requesting
+            // unmapped types will return all results.
+            return new HashSet<>(Arrays.asList(ActionDTO.ActionType.NONE));
+        }
+        return  matchingTypes;
     }
 }

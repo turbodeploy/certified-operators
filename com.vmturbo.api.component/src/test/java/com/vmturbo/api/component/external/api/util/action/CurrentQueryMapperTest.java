@@ -353,7 +353,8 @@ public class CurrentQueryMapperTest {
                 .actionInput(inputDTO)
                 .build());
         assertThat(groupFilter.getActionTypeList(),
-            containsInAnyOrder(ActionDTO.ActionType.MOVE, ActionDTO.ActionType.SUSPEND, ActionDTO.ActionType.DEACTIVATE));
+            containsInAnyOrder(ActionDTO.ActionType.MOVE, ActionDTO.ActionType.SUSPEND,
+                ActionDTO.ActionType.DEACTIVATE,ActionDTO.ActionType.NONE));
     }
 
     @Test

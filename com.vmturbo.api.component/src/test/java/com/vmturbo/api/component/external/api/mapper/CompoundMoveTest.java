@@ -173,7 +173,7 @@ public class CompoundMoveTest {
                     InterruptedException {
         ActionDTO.Action moveStorage = makeAction(TARGET_ID, VM, ST1_ID, ST, ST2_ID, ST, null);
         ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveStorage), 77L);
-        assertSame(ActionType.CHANGE, apiDto.getActionType());
+        assertSame(ActionType.MOVE, apiDto.getActionType());
         assertEquals(1, apiDto.getCompoundActions().size());
         assertEquals(String.valueOf(ST1_ID), apiDto.getCurrentValue());
         assertEquals(String.valueOf(ST2_ID), apiDto.getNewValue());
@@ -194,7 +194,7 @@ public class CompoundMoveTest {
             InterruptedException {
         ActionDTO.Action moveVolume = makeAction(TARGET_ID, VM, ST1_ID, ST, ST2_ID, ST, VOL1_ID);
         ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveVolume), 77L);
-        assertSame(ActionType.CHANGE, apiDto.getActionType());
+        assertSame(ActionType.MOVE, apiDto.getActionType());
         assertEquals(1, apiDto.getCompoundActions().size());
         assertEquals(String.valueOf(ST1_ID), apiDto.getCurrentValue());
         assertEquals(String.valueOf(ST2_ID), apiDto.getNewValue());

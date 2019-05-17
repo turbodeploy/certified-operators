@@ -57,6 +57,7 @@ import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
@@ -332,11 +333,13 @@ public class ActionSpecMapper {
         actionApiDTO.setStats(createStats(actionSpec));
 
         final ActionDTO.ActionInfo info = recommendation.getInfo();
+        ActionDTO.ActionType actionType = ActionDTOUtil.getActionInfoActionType(recommendation);
+
         // handle different action types
-        switch (info.getActionTypeCase()) {
+        switch (actionType) {
             case MOVE:
                 addMoveInfo(actionApiDTO, info.getMove(),
-                    recommendation.getExplanation().getMove(), context);
+                    recommendation.getExplanation().getMove(), context, ActionType.MOVE);
                 break;
             case RECONFIGURE:
                 addReconfigureInfo(actionApiDTO, info.getReconfigure(),
@@ -346,10 +349,24 @@ public class ActionSpecMapper {
                 addProvisionInfo(actionApiDTO, info.getProvision(), context);
                 break;
             case RESIZE:
-                addResizeInfo(actionApiDTO, info.getResize(), context);
+                // if the RESIZE action was originally a MOVE, we need to set the action details as
+                // if it was a MOVE, otherwise we call the RESIZE method.
+                if (info.getActionTypeCase() == ActionTypeCase.MOVE) {
+                    addMoveInfo(actionApiDTO, info.getMove(),
+                        recommendation.getExplanation().getMove(), context, ActionType.RESIZE);
+                } else {
+                    addResizeInfo(actionApiDTO, info.getResize(), context);
+                }
                 break;
             case ACTIVATE:
-                addActivateInfo(actionApiDTO, info.getActivate(), context);
+                // if the ACTIVATE action was originally a MOVE, we need to set the action details
+                // as if it was a MOVE, otherwise we call the ACTIVATE method.
+                if (info.getActionTypeCase() == ActionTypeCase.MOVE) {
+                    addMoveInfo(actionApiDTO, info.getMove(),
+                        recommendation.getExplanation().getMove(), context, ActionType.START);
+                } else {
+                    addActivateInfo(actionApiDTO, info.getActivate(), context);
+                }
                 break;
             case DEACTIVATE:
                 addDeactivateInfo(actionApiDTO, info.getDeactivate(), context);
@@ -358,10 +375,8 @@ public class ActionSpecMapper {
                 addDeleteInfo(actionApiDTO, info.getDelete(),
                     recommendation.getExplanation().getDelete(), context);
                 break;
-            default: {
-                logger.info("Unhandled action, type: {}", info.getActionTypeCase().toString());
-                break;
-            }
+            default:
+                throw new IllegalArgumentException("Unsupported action type " + actionType);
         }
 
         // record the times for this action
@@ -636,13 +651,15 @@ public class ActionSpecMapper {
      * @param move A Move recommendation with one or more provider changes
      * @param moveExplanation wraps the explanations for the provider changes
      * @param context mapping from {@link ActionSpec} to {@link ActionApiDTO}
+     * @param actionType {@link ActionType} that will be assigned to wrapperDto param
      * @throws UnknownObjectException when the actions involve an unrecognized (out of
      * context) oid
      */
     private void addMoveInfo(@Nonnull final ActionApiDTO wrapperDto,
                              @Nonnull final Move move,
                              final MoveExplanation moveExplanation,
-                             @Nonnull final ActionSpecMappingContext context)
+                             @Nonnull final ActionSpecMappingContext context,
+                             @Nonnull final ActionType actionType)
                     throws UnknownObjectException, ExecutionException, InterruptedException {
 
         // If any part of the compound move is an initial placement, the whole move is an initial
@@ -661,7 +678,7 @@ public class ActionSpecMapper {
             moveExplanation.getChangeProviderExplanationList().stream()
                 .anyMatch(ChangeProviderExplanation::hasInitialPlacement);
 
-        wrapperDto.setActionType(initialPlacement ? ActionType.START : actionType(move, context));
+        wrapperDto.setActionType(actionType);
         // Set entity DTO fields for target, source (if needed) and destination entities
         wrapperDto.setTarget(
             ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(move.getTarget().getId())));
@@ -686,7 +703,7 @@ public class ActionSpecMapper {
 
         List<ActionApiDTO> actions = Lists.newArrayList();
         for (ChangeProvider change : move.getChangesList()) {
-            actions.add(singleMove(move, wrapperDto, move.getTarget().getId(), change, context));
+            actions.add(singleMove(actionType, wrapperDto, move.getTarget().getId(), change, context));
         }
         wrapperDto.addCompoundActions(actions);
         wrapperDto.setDetails(actionDetails(hasPrimarySource, wrapperDto, primaryChange, context));
@@ -714,7 +731,7 @@ public class ActionSpecMapper {
                 .collect(Collectors.joining(", "));
     }
 
-    private ActionApiDTO singleMove(Move move, ActionApiDTO compoundDto,
+    private ActionApiDTO singleMove(ActionType actionType, ActionApiDTO compoundDto,
                     final long targetId,
                     @Nonnull final ChangeProvider change,
                     @Nonnull final ActionSpecMappingContext context)
@@ -730,7 +747,7 @@ public class ActionSpecMapper {
 
         final long destinationId = change.getDestination().getId();
 
-        actionApiDTO.setActionType(actionType(move, context));
+        actionApiDTO.setActionType(actionType);
         // Set entity DTO fields for target, source (if needed) and destination entities
         actionApiDTO.setTarget(ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetId)));
 
@@ -788,92 +805,6 @@ public class ActionSpecMapper {
 
         }
     }
-
-    /**
-     * If the move contains multiple changes then it is MOVE.
-     * If move action doesn't have the source entity/id, it's START except Storage;
-     * If one Storage change it is a CHANGE and if one host change then a MOVE.
-     *
-     * @param move a Move action
-     * @param context mapping from {@link ActionSpec} to {@link ActionApiDTO}
-     * @return CHANGE or MOVE type.
-     */
-    private ActionType actionType(@Nonnull final Move move,
-                    @Nonnull final ActionSpecMappingContext context)
-                    throws ExecutionException, InterruptedException {
-        if (move.getChangesCount() > 1) {
-            return ActionType.MOVE;
-        }
-
-        long destinationId = move.getChanges(0).getDestination().getId();
-        Optional<ServiceEntityApiDTO> destination = context.getOptionalEntity(destinationId);
-        if (move.getChanges(0).hasSource()) {
-            long sourceId = move.getChanges(0).getSource().getId();
-            Optional<ServiceEntityApiDTO> source = context.getOptionalEntity(sourceId);
-            if (destination.isPresent() && source.isPresent()) {
-                // If the destination is any of the primary cloud tiers like compute tier, then we
-                // change the action type to a scale because the action's details also will say "Scale
-                // from A to B". The primary tier change is viewed as a scale.
-                if (PRIMARY_TIER_VALUES.contains(destination.get().getClassName())
-                        && PRIMARY_TIER_VALUES.contains(source.get().getClassName())) {
-                    return ActionType.RIGHT_SIZE;
-                }
-            }
-        }
-        boolean isStorage = destination.isPresent() &&
-                STORAGE_VALUES.contains(destination.get().getClassName());
-        // if move action doesn't have the source entity/id, it's START except Storage
-        if (!move.getChanges(0).hasSource()) {
-            return isStorage ? ActionType.ADD_PROVIDER : ActionType.START;
-        }
-        return  isStorage ? ActionType.CHANGE : ActionType.MOVE;
-    }
-
-    /**
-     * Similar to 6.1, if entity is Disk Array, then it's DELETE, else it's SUSPEND.
-     *
-     * @param deactivate Deactivate action
-     * @param context mapping from {@link ActionSpec} to {@link ActionApiDTO}
-     * @return DELETE or SUSPEND type
-     */
-    private ActionType actionType(@Nonnull final Deactivate deactivate,
-                                  @Nonnull final ActionSpecMappingContext context)
-                    throws ExecutionException, InterruptedException {
-        if (deactivate.hasTarget()) {
-            long targetId = deactivate.getTarget().getId();
-            return context.getOptionalEntity(targetId)
-                    .map(ServiceEntityApiDTO::getClassName)
-                    .map(DISK_ARRAY_VALUE::equals)
-                    .orElseGet(() -> false)
-                    ? ActionType.DELETE
-                    : ActionType.SUSPEND;
-        }
-        return ActionType.SUSPEND;
-    }
-
-    /**
-     * Similar to 6.1, if entity is STORAGE, then it's ADD_PROVIDER, else it's START.
-     *
-     * @param activate activate action
-     * @param context mapping from {@link ActionSpec} to {@link ActionApiDTO}
-     * @return ADD_PROVIDER or START
-     */
-    private ActionType actionType(@Nonnull final Activate activate,
-                                  @Nonnull final ActionSpecMappingContext context)
-                    throws ExecutionException, InterruptedException {
-
-        if (activate.hasTarget()) {
-            long targetId = activate.getTarget().getId();
-            return context.getOptionalEntity(targetId)
-                    .map(ServiceEntityApiDTO::getClassName)
-                    .map(STORAGE_VALUE::equals)
-                    .orElseGet(() -> false)
-                    ? ActionType.ADD_PROVIDER
-                    : ActionType.START;
-        }
-        return ActionType.START;
-    }
-
 
     private void addReconfigureInfo(@Nonnull final ActionApiDTO actionApiDTO,
                                     @Nonnull final Reconfigure reconfigure,
@@ -992,8 +923,7 @@ public class ActionSpecMapper {
                                  @Nonnull final Activate activate,
                                  @Nonnull final ActionSpecMappingContext context)
                     throws UnknownObjectException, ExecutionException, InterruptedException {
-        ActionType actionType = actionType(activate, context);
-        actionApiDTO.setActionType(actionType);
+        actionApiDTO.setActionType(ActionType.START);
         final long targetEntityId = activate.getTarget().getId();
         actionApiDTO.setTarget(
             ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
@@ -1001,23 +931,19 @@ public class ActionSpecMapper {
             ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
 
         final List<String> reasonCommodityNames =
-                activate.getTriggeringCommoditiesList().stream()
-                        .map(commodityType -> CommodityDTO.CommodityType
-                                .forNumber(commodityType.getType()))
-                        .map(CommodityDTO.CommodityType::name)
-                        .collect(Collectors.toList());
+            activate.getTriggeringCommoditiesList().stream()
+                .map(commodityType -> CommodityDTO.CommodityType
+                    .forNumber(commodityType.getType()))
+                .map(CommodityDTO.CommodityType::name)
+                .collect(Collectors.toList());
 
         actionApiDTO.getRisk()
-                .setReasonCommodity(reasonCommodityNames.stream().collect(Collectors.joining(",")));
+            .setReasonCommodity(reasonCommodityNames.stream().collect(Collectors.joining(",")));
 
-        String detailsMessage;
-        if (actionType == ActionType.START) {
-            detailsMessage = MessageFormat.format("Start {0} due to increased demand for resources",
-                readableEntityTypeAndName(actionApiDTO.getTarget()));
-        } else {
-            detailsMessage = MessageFormat.format("Add provider {0} due to increased demand for resources",
-                readableEntityTypeAndName(actionApiDTO.getTarget()));
-        }
+        String detailsMessage = MessageFormat.format(
+            "Start {0} due to increased demand for resources",
+            readableEntityTypeAndName(actionApiDTO.getTarget()));
+
         actionApiDTO.setDetails(detailsMessage);
     }
 
@@ -1031,9 +957,7 @@ public class ActionSpecMapper {
         actionApiDTO.setCurrentEntity(
             ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
 
-        // Similar to 6.1, if entity is Disk Array, then it's DELETE, else it's SUSPEND
-        ActionType actionType = actionType(deactivate, context);
-        actionApiDTO.setActionType(actionType);
+        actionApiDTO.setActionType(ActionType.SUSPEND);
 
         final List<String> reasonCommodityNames =
                 deactivate.getTriggeringCommoditiesList().stream()
@@ -1047,8 +971,8 @@ public class ActionSpecMapper {
 
         String detailsMessage = MessageFormat.format("{0} {1}",
             // this will convert from "SUSPEND" to "Suspend" case format
-            // we need to do it dynamically because also a "Delete" can be generated as action type
-            CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_CAMEL, actionType.name().toLowerCase()),
+            CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_CAMEL, ActionType.SUSPEND.name()
+                .toLowerCase()),
             readableEntityTypeAndName(actionApiDTO.getTarget()));
         actionApiDTO.setDetails(detailsMessage);
     }

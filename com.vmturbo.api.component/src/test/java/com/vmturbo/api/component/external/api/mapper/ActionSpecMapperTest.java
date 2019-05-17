@@ -275,7 +275,7 @@ public class ActionSpecMapperTest {
         assertEquals(DESTINATION, first.getNewEntity().getDisplayName());
         assertEquals("2", first.getNewValue());
 
-        assertEquals(ActionType.CHANGE, actionApiDTO.getActionType());
+        assertEquals(ActionType.MOVE, actionApiDTO.getActionType());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
     }
 
@@ -307,7 +307,7 @@ public class ActionSpecMapperTest {
         assertEquals(DESTINATION, first.getNewEntity().getDisplayName());
         assertEquals("2", first.getNewValue());
 
-        assertEquals(ActionType.ADD_PROVIDER, actionApiDTO.getActionType());
+        assertEquals(ActionType.START, actionApiDTO.getActionType());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
     }
 
@@ -658,11 +658,11 @@ public class ActionSpecMapperTest {
                 buildActionSpec(deactivateInfo, activate), contextId);
         assertEquals(entityToActivateName, actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
-        assertEquals(ActionType.ADD_PROVIDER, actionApiDTO.getActionType());
+        assertEquals(ActionType.START, actionApiDTO.getActionType());
         assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
                 IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
                         CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
-        assertThat(actionApiDTO.getDetails(), containsString("Add provider " + prettyClassName ));
+        assertThat(actionApiDTO.getDetails(), containsString("Start " + prettyClassName ));
     }
 
     @Test
@@ -750,11 +750,11 @@ public class ActionSpecMapperTest {
                 buildActionSpec(deactivateInfo, deactivate), contextId);
         assertEquals(entityToDeactivateName, actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
-        assertEquals(ActionType.DELETE, actionApiDTO.getActionType());
+        assertEquals(ActionType.SUSPEND, actionApiDTO.getActionType());
         assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
                 IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
                         CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
-        assertThat(actionApiDTO.getDetails(), is("Delete " + prettyClassName +
+        assertThat(actionApiDTO.getDetails(), is("Suspend " + prettyClassName +
                 " " + entityToDeactivateName));
     }
 

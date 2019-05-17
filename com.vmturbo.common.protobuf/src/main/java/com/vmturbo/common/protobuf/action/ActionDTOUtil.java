@@ -337,21 +337,11 @@ public class ActionDTOUtil {
         switch (action.getInfo().getActionTypeCase()) {
             case MOVE:
                 final Explanation explanation = action.getExplanation();
-                // if Move has initial placement explanation, it should be START.
-                // When a change within a move has initial placement, all changes will.
                 if (explanation.hasMove()) {
-                    MoveExplanation moveExplanation = explanation.getMove();
-                    if (moveExplanation.getChangeProviderExplanationCount() > 0
-                            && moveExplanation.getChangeProviderExplanationList().stream()
-                            .anyMatch(m -> m.hasInitialPlacement())) {
-                        return ActionType.START;
+                    if (isMoveActivate(action)) {
+                        return ActionType.ACTIVATE;
                     }
-                    // If the source and destination is one of the cloud tiers, then the
-                    // action type is considered a resize instead of a move.
-                    if (action.getInfo().getMove().getChangesList().stream().anyMatch(
-                            m -> m.hasSource()
-                                    && TopologyDTOUtil.isTierEntityType(m.getDestination().getType())
-                                    && TopologyDTOUtil.isTierEntityType(m.getSource().getType()))) {
+                    if (isMoveResize(action)) {
                         return ActionType.RESIZE;
                     }
                 }
@@ -373,6 +363,42 @@ public class ActionDTOUtil {
             default:
                 return ActionType.NONE;
         }
+    }
+
+    /**
+     * Checks if a given MOVE action is actually an ACTIVATE based on the following two cases:
+     * <ul>
+     *     <li>if Move has initial placement explanation, it should be ACTIVATE. When a change
+     *     within a move has initial placement, all changes will.</li>
+     *     <li>If the action doesn't have a source, it's ACTIVATE.</li>
+     * </ul>
+     *
+     * @param action The given MOVE {@link Action}
+     * @return true if the given MOVE is ACTIVATE, false otherwise.
+     */
+    private static Boolean isMoveActivate(@Nonnull final Action action) {
+        MoveExplanation moveExplanation = action.getExplanation().getMove();
+        return (moveExplanation.getChangeProviderExplanationCount() > 0
+            && moveExplanation.getChangeProviderExplanationList().stream()
+            .anyMatch(m -> m.hasInitialPlacement())) ||
+            action.getInfo().getMove().getChangesList().stream().anyMatch(m -> !m.hasSource());
+    }
+
+    /**
+     * Checks if a given MOVE action is actually a RESIZE based on the following case:
+     * <ul>
+     *     <li>If the source and destination is one of the cloud tiers, then the action type is
+     *     considered a resize instead of a move.</li>
+     * </ul>
+     *
+     * @param action The given MOVE {@link Action}
+     * @return true if the given MOVE is a RESIZE, false otherwise.
+     */
+    private static Boolean isMoveResize(@Nonnull final Action action) {
+        return action.getInfo().getMove().getChangesList().stream().anyMatch(
+            m -> m.hasSource()
+                && TopologyDTOUtil.isTierEntityType(m.getDestination().getType())
+                && TopologyDTOUtil.isTierEntityType(m.getSource().getType()));
     }
 
     /**

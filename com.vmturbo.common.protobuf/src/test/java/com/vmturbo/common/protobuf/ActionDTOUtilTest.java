@@ -158,7 +158,7 @@ public class ActionDTOUtilTest {
 
     @Test
     public void testMapMoveToStart() {
-        assertEquals(ActionType.START, ActionDTOUtil.getActionInfoActionType(action));
+        assertEquals(ActionType.ACTIVATE, ActionDTOUtil.getActionInfoActionType(action));
     }
 
     /**
