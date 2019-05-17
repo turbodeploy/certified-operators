@@ -1850,7 +1850,7 @@ public class TopologyConverter {
         float capacity = commSoldTO.getCapacity();
         // Get the cpuCoreMhz of the PM if the current commodityType is VCPU.
         if (commSoldTO.getSpecification().getBaseType() == CommodityDTO.CommodityType.VCPU_VALUE) {
-            capacity = calculateVCPUResizeCapacity(traderOid, commSoldTO);
+            capacity = calculateVCPUResizeCapacityForVM(traderOid, commSoldTO);
         }
 
         Optional<CommodityType> commTypeOptional =
@@ -1886,7 +1886,7 @@ public class TopologyConverter {
     }
 
     /**
-     * Calculate the correct VCPU capacity.
+     * Calculate the correct VCPU capacity only for VM. We don't need to consider Container.
      * For example, if the old capacity of the VCPU is 5200 MHz, the new capacity calculated by the
      * market is 7000 MHz and the CPU Core MHz of the PM which the current trader stays on is 2600 MHz,
      * 7000 MHz is not the correct VCPU capacity because 7000 MHz is not a multiplier of 2600, which
@@ -1898,10 +1898,16 @@ public class TopologyConverter {
      * @param commSoldTO the market CommdditySoldTO to convert
      * @return the correct VCPU capacity
      */
-    private float calculateVCPUResizeCapacity(final long traderOid,
-                                              @Nonnull final CommoditySoldTO commSoldTO) {
+    private float calculateVCPUResizeCapacityForVM(final long traderOid,
+                                                   @Nonnull final CommoditySoldTO commSoldTO) {
         float capacity = commSoldTO.getCapacity();
-        CommoditySoldTO originalCommSoldTO = oidToOriginalTraderTOMap.get(traderOid)
+        if (oidToProjectedTraderTOMap.get(traderOid).getType() != EntityType.VIRTUAL_MACHINE_VALUE) {
+            return capacity;
+        }
+        // A VM may be cloned from another VM.
+        long originalTraderOid = oidToProjectedTraderTOMap.get(traderOid).hasCloneOf() ?
+            oidToProjectedTraderTOMap.get(traderOid).getCloneOf() : traderOid;
+        CommoditySoldTO originalCommSoldTO = oidToOriginalTraderTOMap.get(originalTraderOid)
             .getCommoditiesSoldList().stream().filter(commoditySoldTO ->
                 commoditySoldTO.getSpecification().getBaseType() == CommodityDTO.CommodityType.VCPU_VALUE)
             .findFirst().get();
