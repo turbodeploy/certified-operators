@@ -185,7 +185,7 @@ public class ActionSpecMapper {
         final ActionSpecMappingContext context =
             actionSpecMappingContextFactory.createActionSpecMappingContext(recommendations, topologyContextId);
         final ImmutableList.Builder<ActionApiDTO> actionApiDTOS = ImmutableList.builder();
-
+        int unresolvedEntities = 0;
         for (ActionSpec spec : actionSpecs) {
             try {
                 final ActionApiDTO actionApiDTO = mapActionSpecToActionApiDTOInternal(spec, context, topologyContextId);
@@ -193,8 +193,12 @@ public class ActionSpecMapper {
                     actionApiDTOS.add(actionApiDTO);
                 }
             } catch (UnknownObjectException e) {
-                logger.error(String.format("Couldn't resolve entity from spec %s", spec), e);
+                unresolvedEntities+=1;
+                logger.debug("Couldn't resolve entity from spec {} {}", spec, e);
             }
+        }
+        if (unresolvedEntities > 0) {
+            logger.error("Couldn't resolve {}", (unresolvedEntities > 1 ? "entities" : "entity"));
         }
         return actionApiDTOS.build();
     }
