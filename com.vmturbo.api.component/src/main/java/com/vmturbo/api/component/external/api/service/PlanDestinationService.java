@@ -16,7 +16,7 @@ public class PlanDestinationService implements IPlanDestinationService {
      *
      * @param businessUnitId, id of the business unit to filter list of plan destinations.
      * @return List of PlanDestinationApiDTO.
-     * @throws Exception thrown if issues in converting PlanDestination to PlanDestinationApiDTO.
+     * @throws Exception, thrown if issues in converting PlanDestination to PlanDestinationApiDTO.
      */
     @Override
     public @Nonnull List<PlanDestinationApiDTO> getPlanDestinations(@Nullable String businessUnitId)
@@ -29,7 +29,7 @@ public class PlanDestinationService implements IPlanDestinationService {
      *
      * @param uuid, The uuid of the plan destination.
      * @return PlanDestinationApiDTO.
-     * @throws Exception thrown if issues in converting PlanDestination to PlanDestinationApiDTO.
+     * @throws Exception, thrown if issues in converting PlanDestination to PlanDestinationApiDTO.
      */
     @Override
     public PlanDestinationApiDTO getPlanDestinationById(@Nonnull final String uuid) throws Exception {
@@ -43,11 +43,10 @@ public class PlanDestinationService implements IPlanDestinationService {
      * @param planDestinationId,  Plan destination id,
      *                            this is the plan destination where we would upload plan results to.
      *
-     * @return PlanDestinationApiDTO, with export state and description.
-     * @throws Exception thrown if issues in error in upload or invalid plan.
+     * @return boolean, true of upload was successful.
      */
     @Override
-    public PlanDestinationApiDTO uploadToPlanDestination(@Nonnull String planMarketId,
+    public Boolean uploadToPlanDestination(@Nonnull String planMarketId,
                                            @Nonnull String planDestinationId)
             throws Exception {
         throw ApiUtils.notImplementedInXL();
