@@ -504,7 +504,8 @@ public class ServiceConfig {
                 communicationConfig.severityPopulator(),
                 mapperConfig.actionSpecMapper(),
                 communicationConfig.actionsRpcService(),
-                communicationConfig.getRealtimeTopologyContextId());
+                communicationConfig.getRealtimeTopologyContextId(),
+                websocketConfig.websocketHandler());
     }
 
     @Bean

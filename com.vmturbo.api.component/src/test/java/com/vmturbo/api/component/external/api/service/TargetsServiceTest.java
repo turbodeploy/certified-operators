@@ -2,8 +2,10 @@ package com.vmturbo.api.component.external.api.service;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
@@ -20,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -55,14 +58,19 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
+import org.springframework.web.socket.BinaryMessage;
+import org.springframework.web.socket.WebSocketSession;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.gson.Gson;
 
+import com.vmturbo.api.NotificationDTO.Notification;
+import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification.TargetStatus;
 import com.vmturbo.api.component.communication.ApiComponentTargetListener;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.service.MarketsServiceTest.PlanServiceMock;
+import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.controller.TargetsController;
 import com.vmturbo.api.dto.ErrorApiDTO;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
@@ -77,6 +85,7 @@ import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -138,6 +147,7 @@ public class TargetsServiceTest {
     private long idCounter;
 
     private static final long REALTIME_CONTEXT_ID = 7777777;
+    private ApiWebsocketHandler apiWebsocketHandler;
 
     @Before
     public void init() throws TopologyProcessorException, CommunicationException {
@@ -202,6 +212,7 @@ public class TargetsServiceTest {
                 return new HashSet<>(registeredTargets.values());
             }
         });
+        apiWebsocketHandler = new ApiWebsocketHandler(60 * 30, TimeUnit.SECONDS);
     }
 
     private ProbeInfo createMockProbeInfo(long probeId, String type, String category,
@@ -644,7 +655,7 @@ public class TargetsServiceTest {
         final TargetsService targetsService = new TargetsService(
             topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
             Duration.ofMillis(50), Duration.ofMillis(100), null,
-            apiComponentTargetListener,searchServiceRpc,severityPopulator,actionSpecMapper,actionsRpcService,REALTIME_CONTEXT_ID);
+            apiComponentTargetListener,searchServiceRpc,severityPopulator,actionSpecMapper,actionsRpcService,REALTIME_CONTEXT_ID, apiWebsocketHandler);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -660,6 +671,36 @@ public class TargetsServiceTest {
     }
 
     @Test
+    public void testFailedTargetValidationNotification() throws Exception {
+        WebSocketSession session = mock(WebSocketSession.class);
+        apiWebsocketHandler.afterConnectionEstablished(session);
+        ArgumentCaptor<BinaryMessage> notificationCaptor = ArgumentCaptor.forClass(BinaryMessage.class);
+        IdentityGenerator.initPrefix(0);
+
+        final long targetId = 1;
+        final TopologyProcessor topologyProcessor = Mockito.mock(TopologyProcessor.class);
+        final TargetsService targetsService = new TargetsService(
+            topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
+            Duration.ofMillis(50), Duration.ofMillis(100), null, apiComponentTargetListener,
+            searchServiceRpc, severityPopulator, actionSpecMapper, actionsRpcService, REALTIME_CONTEXT_ID,
+            apiWebsocketHandler);
+
+        final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
+        when(targetInfo.getId()).thenReturn(targetId);
+        when(targetInfo.getStatus()).thenReturn("Validation failed.");
+
+        when(topologyProcessor.getTarget(targetId)).thenReturn(targetInfo);
+        targetsService.validateTargetSynchronously(targetId);
+
+        verify(session).sendMessage(notificationCaptor.capture());
+        final Notification notification = Notification.parseFrom(
+            notificationCaptor.getValue().getPayload().array());
+        Assert.assertEquals("1", notification.getTargetNotification().getTargetId());
+        Assert.assertEquals("Validation failed.", notification.getTargetNotification().getStatusNotification().getDescription());
+        Assert.assertEquals(TargetStatus.NOT_VALIDATED, notification.getTargetNotification().getStatusNotification().getStatus());
+    }
+
+    @Test
     public void testSynchronousDiscoveryTimeout() throws Exception {
         final long probeId = 2;
         final long targetId = 3;
@@ -668,7 +709,7 @@ public class TargetsServiceTest {
         final TargetsService targetsService = new TargetsService(
             topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
             Duration.ofMillis(50), Duration.ofMillis(100), null,
-            apiComponentTargetListener,searchServiceRpc,severityPopulator,actionSpecMapper,actionsRpcService,REALTIME_CONTEXT_ID);
+            apiComponentTargetListener,searchServiceRpc,severityPopulator,actionSpecMapper,actionsRpcService,REALTIME_CONTEXT_ID, apiWebsocketHandler);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -956,7 +997,8 @@ public class TargetsServiceTest {
                 apiComponentTargetListener(), searchServiceRpc(), severityPopulator(),
                 actionSpecMapper(),
                 actionRpcService(),
-                REALTIME_CONTEXT_ID);
+                REALTIME_CONTEXT_ID,
+                new ApiWebsocketHandler(60 * 30, TimeUnit.SECONDS));
         }
 
         @Bean

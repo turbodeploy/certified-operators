@@ -33,11 +33,15 @@ import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
 
+import com.vmturbo.api.TargetNotificationDTO.TargetNotification;
+import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification;
+import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification.TargetStatus;
 import com.vmturbo.api.component.communication.ApiComponentTargetListener;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -172,6 +176,14 @@ public class TargetsService implements ITargetsService {
 
     private static final ZoneOffset ZONE_OFFSET = OffsetDateTime.now().getOffset();
 
+    /**
+     * Target status set that contains non-failed validation status from topology processor, including
+     * "Validated", "Validation in progress" and "Discovery in progress".
+     */
+    private static final Set<String> NON_VALIDATION_FAILED_STATUS_SET =
+        Sets.newHashSet(TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS, TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS,
+            TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+
     private final Logger logger = LogManager.getLogger();
 
     private final TopologyProcessor topologyProcessor;
@@ -198,6 +210,8 @@ public class TargetsService implements ITargetsService {
 
     private final long realtimeTopologyContextId;
 
+    private final ApiWebsocketHandler apiWebsocketHandler;
+
     public TargetsService(@Nonnull final TopologyProcessor topologyProcessor,
                           @Nonnull final Duration targetValidationTimeout,
                           @Nonnull final Duration targetValidationPollInterval,
@@ -209,7 +223,8 @@ public class TargetsService implements ITargetsService {
                           @Nonnull final SeverityPopulator severityPopulator,
                           @Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
-                          final long realtimeTopologyContextId) {
+                          final long realtimeTopologyContextId,
+                          @Nonnull final ApiWebsocketHandler apiWebsocketHandler) {
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.targetValidationTimeout = Objects.requireNonNull(targetValidationTimeout);
         this.targetValidationPollInterval = Objects.requireNonNull(targetValidationPollInterval);
@@ -222,6 +237,7 @@ public class TargetsService implements ITargetsService {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.apiWebsocketHandler = Objects.requireNonNull(apiWebsocketHandler);
         logger.debug("Created TargetsService with topology processor instance {}",
                         topologyProcessor);
     }
@@ -773,10 +789,48 @@ public class TargetsService implements ITargetsService {
     @VisibleForTesting
     TargetInfo validateTargetSynchronously(final long targetId)
         throws CommunicationException, TopologyProcessorException, InterruptedException {
-
-        topologyProcessor.validateTarget(targetId);
-        return pollForTargetStatus(targetId, targetValidationTimeout,
+        try {
+            topologyProcessor.validateTarget(targetId);
+            TargetInfo targetInfo = pollForTargetStatus(targetId, targetValidationTimeout,
                 targetValidationPollInterval, TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS);
+            // If target status is not validated or in progress from topology processor, the target
+            // validation fails. Send failed validation message to UI.
+            if (!NON_VALIDATION_FAILED_STATUS_SET.contains(targetInfo.getStatus())) {
+                String statusDescription = targetInfo.getStatus() == null ? "Target validation failed." :
+                    targetInfo.getStatus();
+                TargetNotification targetNotification =
+                    buildTargetValidationNotification(targetId, statusDescription);
+                apiWebsocketHandler.broadcastTargetValidationNotification(targetNotification);
+
+            }
+            return targetInfo;
+        } catch (CommunicationException | TopologyProcessorException | InterruptedException e) {
+            // If there's any exception when validating the target, send failed validation message to UI.
+            TargetNotification targetNotification =
+                buildTargetValidationNotification(targetId, "Validation failed due to interruption or communication error.");
+             apiWebsocketHandler.broadcastTargetValidationNotification(targetNotification);
+            throw e;
+        }
+
+    }
+
+    /**
+     * Build a TargetNotification with NOT_VALIDATED status and failed validation description.
+     *
+     * @param targetId          The ID of the target.
+     * @param statusDescription Description of the failed validation.
+     * @return Notification related to a single target with NOT_VALIDATED status.
+     */
+    private TargetNotification buildTargetValidationNotification(final long targetId,
+                                                                 @Nonnull String statusDescription) {
+        TargetStatusNotification statusNotification = TargetStatusNotification.newBuilder()
+            .setStatus(TargetStatus.NOT_VALIDATED)
+            .setDescription(statusDescription)
+            .build();
+        return TargetNotification.newBuilder()
+            .setStatusNotification(statusNotification)
+            .setTargetId(String.valueOf(targetId))
+            .build();
     }
 
     /**
