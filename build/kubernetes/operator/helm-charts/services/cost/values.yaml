@@ -35,9 +35,9 @@ env:
     value: cost-1
   - name: kafkaServers
     value: kafka:9092
+  # Enables the realtime topology listener. Should be "true" for cloud support.
   - name: enableTopologyListener
-    # Enables the realtime topology listener. Should be "true" for cloud support.
-    value: false
+    value: "false"
 
 resources:
   limits:
