@@ -12,6 +12,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.vmturbo.common.protobuf.cost.Pricing;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
@@ -21,7 +23,6 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.cost.Pricing;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
@@ -186,7 +187,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 final long regionId = entityInfoExtractor.getId(region);
                 final long storageTierId = entityInfoExtractor.getId(storageTier);
                 final OnDemandPriceTable onDemandPriceTable =
-                    cloudCostData.getPriceTable().getOnDemandPriceByRegionIdMap().get(regionId);
+                        cloudCostData.getPriceTable().getOnDemandPriceByRegionIdMap().get(regionId);
                 if (onDemandPriceTable != null) {
                     final StorageTierPriceList storageTierPrices =
                             onDemandPriceTable.getCloudStoragePricesByTierIdMap().get(storageTierId);
@@ -293,8 +294,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         final long entityId = entityInfoExtractor.getId(entity);
         logger.trace("Starting entity cost calculation for vm {}", entityId);
         final ReservedInstanceApplicator<ENTITY_CLASS> reservedInstanceApplicator =
-                reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
-                    journal, entityInfoExtractor, cloudCostData, topologyRICoverage);
+                reservedInstanceApplicatorFactory.newReservedInstanceApplicator(journal, entityInfoExtractor, cloudCostData, topologyRICoverage);
 
         // For storage costs, the primary entity for cost calculation is the volume.
         // The VM's storage cost just inherits the volumes.
@@ -311,15 +311,13 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             cloudTopology.getComputeTier(entityId).ifPresent(computeTier -> {
                 // Apply the reserved instance coverage, and return the percent of the entity's compute
                 // that's covered by reserved instances.
-                final double riComputeCoveragePercent =
-                                reservedInstanceApplicator.recordRICoverage(computeTier);
-                Preconditions.checkArgument(
-                    riComputeCoveragePercent >= 0.0 && riComputeCoveragePercent <= 1.0);
+                final double riComputeCoveragePercent = reservedInstanceApplicator.recordRICoverage(computeTier);
+                Preconditions.checkArgument(riComputeCoveragePercent >= 0.0 && riComputeCoveragePercent <= 1.0);
 
                 final long regionId = entityInfoExtractor.getId(region);
                 if (computeConfig.getBillingType() == VMBillingType.BIDDING) {
-                    final Pricing.SpotInstancePriceTable spotPriceTable =
-                        cloudCostData.getPriceTable().getSpotPriceByRegionIdMap().get(regionId);
+                    final Pricing.SpotInstancePriceTable spotPriceTable = cloudCostData.getPriceTable()
+                            .getSpotPriceByRegionIdMap().get(regionId);
                     if (spotPriceTable != null) {
                         Price spotPrice = spotPriceTable.getSpotPriceByInstanceIdMap()
                                 .get(entityInfoExtractor.getId(computeTier));
@@ -329,8 +327,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
 
                     }
                 }
-                final OnDemandPriceTable onDemandPriceTable =
-                    cloudCostData.getPriceTable().getOnDemandPriceByRegionIdMap().get(regionId);
+                final OnDemandPriceTable onDemandPriceTable = cloudCostData.getPriceTable()
+                        .getOnDemandPriceByRegionIdMap().get(regionId);
                 if (onDemandPriceTable != null) {
                     if (computeConfig.getBillingType() != VMBillingType.BIDDING) {
                         final ComputeTierPriceList computePriceList =
@@ -353,11 +351,6 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                                                 computeTier,
                                                 priceAdjustmentConfig.getPricesList().get(0), unitsBought));
                             }
-                            cloudCostData.getLicensePrice(
-                                computeConfig.getOs(), computeConfig.getNumCores())
-                                    .ifPresent(licensePrice -> journal.recordOnDemandCost(
-                                        CostCategory.LICENSE, computeTier,
-                                        licensePrice.getPrice(), 1.0));
                         }
                     }
 
@@ -396,8 +389,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             // cloudTopology.get
             cloudTopology.getDatabaseTier(entityId).ifPresent(databaseTier -> {
                 final long regionId = entityInfoExtractor.getId(region);
-                final OnDemandPriceTable onDemandPriceTable =
-                    cloudCostData.getPriceTable().getOnDemandPriceByRegionIdMap().get(regionId);
+                final OnDemandPriceTable onDemandPriceTable = cloudCostData.getPriceTable()
+                        .getOnDemandPriceByRegionIdMap().get(regionId);
                 if (onDemandPriceTable != null) {
                     final DatabaseTierPriceList dbPriceList =
                             onDemandPriceTable.getDbPricesByInstanceIdMap()

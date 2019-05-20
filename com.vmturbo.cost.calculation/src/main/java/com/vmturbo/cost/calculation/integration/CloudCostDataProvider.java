@@ -3,7 +3,6 @@ package com.vmturbo.cost.calculation.integration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -14,9 +13,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -24,9 +20,6 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
-import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceByOsEntry;
-import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceByOsEntry.LicensePrice;
 
 /**
  * An interface provided by the users of the cost calculation library to get the
@@ -42,7 +35,7 @@ public interface CloudCostDataProvider {
      * Get the cloud cost data from this particular provider. The cloud cost data is retrieved
      * in bulk via a single call.
      *
-     * @param topoInfo contains information about the topology
+     * @param topologyInfo
      * @return The {@link CloudCostData}.
      * @throws CloudCostDataRetrievalException If there is an error retrieving the data.
      */
@@ -71,11 +64,6 @@ public interface CloudCostDataProvider {
 
         private final Map<Long, ReservedInstanceData> buyRIBoughtDataById;
 
-        private final Map<OSType, List<LicensePrice>> licensePrices;
-
-        private final Map<OSType, Map<Integer, Optional<LicensePrice>>>
-                    licensePriceByOsTypeByNumCores = Maps.newHashMap();
-
         public CloudCostData(@Nonnull final PriceTable priceTable,
                              @Nonnull final Map<Long, Discount> discountsByAccount,
                              @Nonnull final Map<Long, EntityReservedInstanceCoverage> riCoverageByEntityId,
@@ -95,43 +83,11 @@ public interface CloudCostDataProvider {
                             .filter(riBought -> riSpecById.containsKey(riBought.getReservedInstanceBoughtInfo().getReservedInstanceSpec()))
                             .map(riBought -> new ReservedInstanceData(riBought, riSpecById.get(riBought.getReservedInstanceBoughtInfo().getReservedInstanceSpec())))
                             .collect(Collectors.toMap(riData -> riData.getReservedInstanceBought().getId(), Function.identity()));
-            licensePrices = priceTable.getLicensePricesList().stream()
-                            .collect(Collectors.toMap(LicensePriceByOsEntry::getOsType,
-                                LicensePriceByOsEntry::getLicensePricesList,
-                                    // if there are duplicate OS types then merge their price lists
-                                    (list1, list2) -> {
-                                        List<LicensePrice> list3 = Lists.newArrayList();
-                                        list3.addAll(list1);
-                                        list3.addAll(list2);
-                                        return list3;
-                                    }));
         }
 
         @Nonnull
         public PriceTable getPriceTable() {
             return combinedPriceTable;
-        }
-
-        /**
-         * Return the license price that matches the OS and has the minimal number of
-         * cores that is .GE. the numCores argument. If numCores is too high then
-         * return {@link Optional#empty}. This will have effect on Azure instances.
-         *
-         * @param os VM OS
-         * @param numCores VM number of CPUs
-         * @return the matching license price
-         */
-        public Optional<LicensePrice> getLicensePrice(OSType os, int numCores) {
-            List<LicensePrice> prices = licensePrices.get(os);
-            if (prices == null) {
-                return Optional.empty();
-            }
-            // Lazily populate licensePriceByOsTypeByNumCores
-            Map<Integer, Optional<LicensePrice>> perOsEntry =
-                licensePriceByOsTypeByNumCores.computeIfAbsent(os, key -> Maps.newHashMap());
-            return perOsEntry.computeIfAbsent(numCores, n -> prices.stream()
-                    .filter(license -> license.getNumberOfCores() >= n)
-                    .min(Comparator.comparing(LicensePrice::getNumberOfCores)));
         }
 
         @Nonnull
@@ -199,7 +155,7 @@ public interface CloudCostDataProvider {
      * A semantically-meaningful tuple of information about an RI purchase.
      */
     @Immutable
-    class ReservedInstanceData {
+    public class ReservedInstanceData {
         /**
          * The {@link ReservedInstanceBought} object describing the RI purchase.
          */
