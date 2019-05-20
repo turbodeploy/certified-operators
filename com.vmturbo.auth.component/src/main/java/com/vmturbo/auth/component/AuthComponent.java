@@ -80,8 +80,14 @@ public class AuthComponent extends BaseVmtComponent {
         logger.info("Adding MariaDB health check to the component health monitor.");
         getHealthMonitor()
             .addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
-                                    authDBConfig.dataSource()::getConnection))
-            .addHealthCheck(licensingConfig.kafkaProducerHealthMonitor());
+                                    authDBConfig.dataSource()::getConnection));
+                    // (May 20, 2019, Gary Zeng) Current Kafka monitor only updates status when
+                    // "SendMessageCallbackHandler" is triggered. We do trigger "handler" when
+                    // auth start (to send out license related to notification ), so if Kafka is down,
+                    // the status will be updated as "not healthy" to K8s. But auth will NOT trigger
+                    // the "handler", until the "updateLicenseSummaryPeriodically" logic kicked in,
+                    // which is everyday at midnight. OM-46416 is opened to fix the monitor.
+                    // .addHealthCheck(licensingConfig.kafkaProducerHealthMonitor());
     }
 
     /**
