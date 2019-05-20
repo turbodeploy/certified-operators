@@ -117,11 +117,14 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
         private final OSType os;
         private final Tenancy tenancy;
         private final VMBillingType billingType;
+        private final int numCores;
 
-        public ComputeConfig(final OSType os, final Tenancy tenancy, final VMBillingType billingType) {
+        public ComputeConfig(final OSType os, final Tenancy tenancy,
+                        final VMBillingType billingType, final int numCores) {
             this.os = os;
             this.tenancy = tenancy;
             this.billingType = billingType;
+            this.numCores = numCores;
         }
 
         @Nonnull
@@ -137,6 +140,10 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
         @Nonnull
         public VMBillingType getBillingType() {
             return billingType;
+        }
+
+        public int getNumCores() {
+            return numCores;
         }
 
         public boolean matchesPriceTableConfig(@Nonnull final ComputeTierConfigPrice computeTierConfigPrice) {

@@ -53,7 +53,8 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
 
             return Optional.of(new ComputeConfig(vmConfig.getGuestOsInfo().getGuestOsType(),
                     vmConfig.getTenancy(),
-                    vmConfig.getBillingType()));
+                    vmConfig.getBillingType(),
+                    vmConfig.getNumCpus()));
         }
 
         return Optional.empty();
