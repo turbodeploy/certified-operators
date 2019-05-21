@@ -99,8 +99,8 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
     @Override
     public Optional<DatabaseConfig> getDatabaseConfig(
             TopologyEntityDTO entity) {
-        if (entity.getEntityType() != EntityType.DATABASE_SERVER_VALUE ||
-                entity.getEntityType() != EntityType.DATABASE_VALUE) {
+        if (entity.getEntityType() != EntityType.DATABASE_SERVER_VALUE
+            && entity.getEntityType() != EntityType.DATABASE_VALUE) {
             return Optional.empty();
         }
 

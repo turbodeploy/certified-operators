@@ -457,17 +457,25 @@ public class CostJournal<ENTITY_CLASS> {
             logger.trace("Calculating hourly cost for purchase from entity {} of type {}",
                     infoExtractor.getId(payee), infoExtractor.getEntityType(payee));
             final CurrencyAmount cost;
+            final CurrencyAmount unitPrice = price.getPriceAmount();
+            final double discountPercentage = discountApplicator.getDiscountPercentage(payee);
+            final double discountedUnitPrice = unitPrice.getAmount() * (1.0 - discountPercentage);
+            final double totalPrice = unitsBought * discountedUnitPrice;
+            logger.trace("Buying {} units at unit price {} with discount percentage {}",
+                unitsBought, price.getUnit().name(), unitPrice.getAmount(), discountPercentage);
             switch (price.getUnit()) {
                 case HOURS: {
-                    final CurrencyAmount unitPrice = price.getPriceAmount();
-                    final double discountPercentage = discountApplicator.getDiscountPercentage(payee);
-                    final double discountedUnitPrice = unitPrice.getAmount() * (1.0 - discountPercentage);
-                    logger.trace("Buying {} units at unit price {} with discount percentage {}",
-                            unitsBought, unitPrice.getAmount(), discountPercentage);
                     cost = unitPrice.toBuilder()
-                            .setAmount(unitsBought * discountedUnitPrice)
+                            .setAmount(totalPrice)
                             // Currency inherited from unit price.
                             .build();
+                    break;
+                }
+                case DAYS: {
+                    cost = unitPrice.toBuilder()
+                        .setAmount(totalPrice / CostProtoUtil.HOURS_IN_DAY)
+                        // Currency inherited from unit price.
+                        .build();
                     break;
                 }
                 case MONTH:
@@ -475,13 +483,8 @@ public class CostJournal<ENTITY_CLASS> {
                 case GB_MONTH: {
                     // In all of these cases, the key distinction is that the price is monthly,
                     // so to get the hourly price we need to divide.
-                    final CurrencyAmount unitPrice = price.getPriceAmount();
-                    final double discountPercentage = discountApplicator.getDiscountPercentage(payee);
-                    final double discountedUnitPrice = unitPrice.getAmount() * (1.0 - discountPercentage);
-                    logger.trace("Buying {} units at monthly unit price {} with discount percentage {}",
-                            unitsBought, unitPrice.getAmount(), discountPercentage);
                     cost = unitPrice.toBuilder()
-                            .setAmount((unitsBought * discountedUnitPrice) / CostProtoUtil.HOURS_IN_MONTH)
+                            .setAmount(totalPrice / CostProtoUtil.HOURS_IN_MONTH)
                             // Currency inherited from unit price.
                             .build();
                     break;
