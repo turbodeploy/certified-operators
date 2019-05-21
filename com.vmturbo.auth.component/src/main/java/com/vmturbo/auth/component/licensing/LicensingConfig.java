@@ -47,7 +47,7 @@ public class LicensingConfig {
     private GroupClientConfig groupClientConfig;
 
     /**
-     * The number of days before sending license expiration warning
+     * The number of days before sending license expiration warning.
      */
     @Value("${numBeforeLicenseExpirationDays:2}")
     private int numBeforeLicenseExpirationDays;
@@ -90,7 +90,8 @@ public class LicensingConfig {
                 notificationApiConfig.notificationMessageSender(),
                 mailManager(),
                 Clock.systemUTC(),
-                numBeforeLicenseExpirationDays);
+                numBeforeLicenseExpirationDays,
+                true);
     }
 
     @Bean

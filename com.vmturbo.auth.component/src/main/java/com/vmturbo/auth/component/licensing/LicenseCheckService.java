@@ -81,12 +81,12 @@ import com.vmturbo.repository.api.RepositoryListener;
  * *
  */
 public class LicenseCheckService extends LicenseCheckServiceImplBase implements RepositoryListener {
-    static private final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * A special constant LicenseSummary that is returned when there are no licenses.
      */
-    static private final LicenseSummary NO_LICENSES_SUMMARY = LicenseSummary.getDefaultInstance();
+    private static final LicenseSummary NO_LICENSES_SUMMARY = LicenseSummary.getDefaultInstance();
     @VisibleForTesting
     public static final String TURBONOMIC_LICENSE_HAS_EXPIRED_PLEASE_UPDATE_IT
             = "Turbonomic license has expired, please update it";
@@ -157,7 +157,8 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
                                @Nonnull final IMessageSender<SystemNotification> notificationSender,
                                @Nonnull final MailManager mailManager,
                                @Nonnull final Clock clock,
-                               final int numBeforeLicenseExpirationDays) {
+                               final int numBeforeLicenseExpirationDays,
+                               boolean scheduleUpdates) {
         this.licenseManagerService = licenseManagerService;
         // subscribe to the license manager event stream. This will trigger license check updates
         // whenever licenses are added / removed
@@ -180,7 +181,11 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         repositoryListener.addListener(this);
         // schedule time-based updates. The first update will happen immediately (but on a separate
         // thread), and others will be triggered at the start of a new day.
-        scheduleUpdates();
+        if (scheduleUpdates) {
+            scheduleUpdates();
+        } else {
+            logger.info("Not scheduling daily license check updates");
+        }
     }
 
     /**
@@ -216,7 +221,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
     }
 
     /**
-     * Publish a new {@link LicenseSummary}
+     * Publish a new {@link LicenseSummary}.
      *
      * @param newSummary The new license summary to publish.
      */
@@ -269,7 +274,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
      *
      * When the new summary is ready, it will be published for the rest of the system to consume.
      */
-    synchronized private void updateLicenseSummary() {
+    private synchronized void updateLicenseSummary() {
         logger.info("Updating license summary.");
         Collection<LicenseDTO> licenseDTOs = Collections.emptyList();
         try {
@@ -309,7 +314,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
      * @return true if the license is going to expire
      */
     @VisibleForTesting
-    boolean isGoingToExpired(@Nonnull final String expirationDate,
+    boolean isGoingToExpire(@Nonnull final String expirationDate,
                              final int numBeforeLicenseExpirationDays) {
         if (ILicense.PERM_LIC.equals(expirationDate)) {
             return false;
@@ -323,7 +328,8 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
 
 
     /**
-     * Publish notification to UI and license owner
+     * Publish notification to UI and license owner.
+     *
      * @param isOverLimit is over workload license limit?
      * @param licenseDTOs collection of license DTOs
      * @param aggregateLicense aggregated license
@@ -339,7 +345,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
                                 LICENSE_HAS_EXPIRED, license);
                         return;
                     }
-                    if (isGoingToExpired(license.getExpirationDate(), numBeforeLicenseExpirationDays)) {
+                    if (isGoingToExpire(license.getExpirationDate(), numBeforeLicenseExpirationDays)) {
                         final String description = String.format(TURBONOMIC_LICENSE_WILL_EXPIRE,
                                 AuditLogUtils.getLocalIpAddress(), license.getExpirationDate());
                         notifyLicenseExpiration(description, description, license);
@@ -535,7 +541,8 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
 
         @Override
         protected String describeMessage(@Nonnull final LicenseSummary licenseSummary) {
-            return LicenseSummary.class.getSimpleName() +"[generated "+ licenseSummary.getGenerationDate() +"]";
+            return LicenseSummary.class.getSimpleName()
+                    + "[generated " + licenseSummary.getGenerationDate() + "]";
         }
 
         /**
@@ -546,7 +553,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
          * @param summary the message to send
          * @return our static String key to use for the message.
          */
-        static public String generateMessageKey(LicenseSummary summary) {
+        public static String generateMessageKey(LicenseSummary summary) {
             return LICENSE_SUMMARY_KEY;
         }
 
