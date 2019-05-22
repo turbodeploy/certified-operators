@@ -2,6 +2,8 @@ package com.vmturbo.repository.graph.parameter;
 
 public class CollectionParameter {
 
+    // See ArangoDB documentation for the meaning of these parameters
+    // https://www.arangodb.com/docs/3.4/http/document-working-with-documents.html#create-document
     private String name;
 
     private boolean isEdge;

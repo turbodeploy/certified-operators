@@ -217,7 +217,7 @@ public class ArangoDBExecutorTest {
             BaseDocument.class))
             .thenReturn(searchResultCursor);
         when(searchResultCursor.asListRemaining()).thenReturn(documents);
-        mockDatabase.collection(arangoDBExecutor.SUPPLY_CHAIN_RELS_COLLECTION).insertDocument(document);
+        mockDatabase.collection(arangoDBExecutor.GLOBAL_SUPPLY_CHAIN_RELS_COLLECTION).insertDocument(document);
         when(TopologyDatabases.getDbName(db)).thenReturn("topology-id");
 
         assertThat(arangoDBExecutor.getSupplyChainRels(db)).isEqualToComparingFieldByField(mockResult);

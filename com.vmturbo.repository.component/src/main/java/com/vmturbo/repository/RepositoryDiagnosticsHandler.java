@@ -33,10 +33,12 @@ import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsExceptio
 import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
+import com.vmturbo.repository.graph.executor.GraphDBExecutor;
+import com.vmturbo.repository.topology.GlobalSupplyChain;
+import com.vmturbo.repository.topology.GlobalSupplyChainManager;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
-import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
 
 /**
  * The {@link RepositoryDiagnosticsHandler} controls the dumping and restoring of the Repository's
@@ -44,7 +46,7 @@ import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
  * <p>
  * The state has two parts:
  * 1) Various files collected from {@link Diagnosable} objects injected into the handler,
- *    such as the {@link TopologyRelationshipRecorder}.
+ *    such as the {@link GlobalSupplyChainManager}.
  * 2) A binary file representing the Arangodb state collected via arangodump. See
  *    arango_dump_restore.py in com.vmturbo.arangodb for the python server that we run
  *    on the arangodb container to collect the state.
@@ -55,11 +57,11 @@ public class RepositoryDiagnosticsHandler {
     private final Logger logger = LogManager.getLogger();
 
     /**
-     * The file name for the state of the {@link TopologyRelationshipRecorder}. It's a string file,
+     * The file name for the state of the {@link GlobalSupplyChainManager}. It's a string file,
      * so the "diags" extension is required for compatibility with {@link DiagsZipReader}.
      */
     @VisibleForTesting
-    static final String SUPPLY_CHAIN_RELATIONSHIP_FILE = "provider-rels.diags";
+    static final String GLOBAL_SUPPLY_CHAIN_DIAGS_FILE = "global-supply-chain.diags";
 
     /**
      * The file name for the state of the {@link TopologyLifecycleManager}. It's a string file,
@@ -87,7 +89,7 @@ public class RepositoryDiagnosticsHandler {
     @VisibleForTesting
     static final String ERRORS_FILE = "dump_errors";
 
-    private final TopologyRelationshipRecorder globalSupplyChainRecorder;
+    private final GlobalSupplyChainManager globalSupplyChainManager;
 
     private final TopologyLifecycleManager topologyLifecycleManager;
 
@@ -97,31 +99,37 @@ public class RepositoryDiagnosticsHandler {
 
     private final DiagnosticsWriter diagnosticsWriter;
 
+    private final GraphDBExecutor graphDBExecutor;
+
     public RepositoryDiagnosticsHandler(final ArangoDump arangoDump,
                                         final ArangoRestore arangoRestore,
-                                        final TopologyRelationshipRecorder globalSupplyChainRecorder,
+                                        final GlobalSupplyChainManager globalSupplyChainManager,
                                         final TopologyLifecycleManager topologyLifecycleManager,
+                                        final GraphDBExecutor graphDBExecutor,
                                         final RestTemplate restTemplate,
                                         final DiagsZipReaderFactory zipReaderFactory,
                                         final DiagnosticsWriter diagnosticsWriter) {
-        this.globalSupplyChainRecorder = Objects.requireNonNull(globalSupplyChainRecorder);
+        this.globalSupplyChainManager = Objects.requireNonNull(globalSupplyChainManager);
         this.topologyLifecycleManager = Objects.requireNonNull(topologyLifecycleManager);
         this.zipReaderFactory = Objects.requireNonNull(zipReaderFactory);
         this.diagnosticsWriter = Objects.requireNonNull(diagnosticsWriter);
+        this.graphDBExecutor = Objects.requireNonNull(graphDBExecutor);
         this.topologyDiagnostics = new DefaultTopologyDiagnostics(arangoDump, arangoRestore,
                 topologyLifecycleManager, restTemplate);
     }
 
     @VisibleForTesting
-    RepositoryDiagnosticsHandler(final TopologyRelationshipRecorder globalSupplyChainRecorder,
+    RepositoryDiagnosticsHandler(final GlobalSupplyChainManager globalSupplyChainManager,
                                         final TopologyLifecycleManager topologyLifecycleManager,
                                         final DiagsZipReaderFactory zipReaderFactory,
                                         final DiagnosticsWriter diagnosticsWriter,
+                                        final GraphDBExecutor graphDBExecutor,
                                         final TopologyDiagnostics topologyDiagnostics) {
-        this.globalSupplyChainRecorder = Objects.requireNonNull(globalSupplyChainRecorder);
+        this.globalSupplyChainManager = Objects.requireNonNull(globalSupplyChainManager);
         this.topologyLifecycleManager = Objects.requireNonNull(topologyLifecycleManager);
         this.zipReaderFactory = Objects.requireNonNull(zipReaderFactory);
         this.diagnosticsWriter = Objects.requireNonNull(diagnosticsWriter);
+        this.graphDBExecutor = Objects.requireNonNull(graphDBExecutor);
         this.topologyDiagnostics = Objects.requireNonNull(topologyDiagnostics);
     }
 
@@ -133,6 +141,15 @@ public class RepositoryDiagnosticsHandler {
      */
     public List<String> dump(@Nonnull final ZipOutputStream diagnosticZip) {
         final List<String> errors = new ArrayList<>();
+
+        // Dumps the topology id and database name
+        logger.info("Dumping topology IDs and database names");
+        try {
+            diagnosticsWriter.writeZipEntry(ID_MGR_FILE,
+                    topologyLifecycleManager.collectDiags(), diagnosticZip);
+        } catch (DiagnosticsException e) {
+            errors.addAll(e.getErrors());
+        }
 
         final Optional<TopologyID> sourceTopologyId =
                 topologyLifecycleManager.getRealtimeTopologyId(TopologyType.SOURCE);
@@ -160,22 +177,15 @@ public class RepositoryDiagnosticsHandler {
             }
         }
 
-        // Dumps the SE provider relationship
-        logger.info("Dumping provider relationships");
-        try {
-            diagnosticsWriter.writeZipEntry(SUPPLY_CHAIN_RELATIONSHIP_FILE,
-                globalSupplyChainRecorder.collectDiags(), diagnosticZip);
-        } catch (DiagnosticsException e) {
-            errors.addAll(e.getErrors());
-        }
-
-        // Dumps the topology id and database name
-        logger.info("Dumping topology IDs and database names");
-        try {
-            diagnosticsWriter.writeZipEntry(ID_MGR_FILE,
-                topologyLifecycleManager.collectDiags(), diagnosticZip);
-        } catch (DiagnosticsException e) {
-            errors.addAll(e.getErrors());
+        if (sourceTopologyId.isPresent()) {
+            Optional<GlobalSupplyChain> globalSupplyChain =
+                    globalSupplyChainManager.getGlobalSupplyChain(sourceTopologyId.get());
+            // Dumps the SE provider relationship
+            if (globalSupplyChain.isPresent()) {
+                logger.info("Dumping global supply chain");
+                diagnosticsWriter.writeZipEntry(GLOBAL_SUPPLY_CHAIN_DIAGS_FILE,
+                        globalSupplyChain.get().collectDiags(), diagnosticZip);
+            }
         }
 
         diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry, diagnosticZip);
@@ -219,14 +229,24 @@ public class RepositoryDiagnosticsHandler {
                         errors.addAll(e.getErrors());
                     }
                 }
-            } else if (name.equals(SUPPLY_CHAIN_RELATIONSHIP_FILE)) {
+            } else if (name.equals(GLOBAL_SUPPLY_CHAIN_DIAGS_FILE)) {
                 if (diags.getLines() == null) {
-                    errors.add("The file " + SUPPLY_CHAIN_RELATIONSHIP_FILE + " was not saved as" +
+                    errors.add("The file " + GLOBAL_SUPPLY_CHAIN_DIAGS_FILE + " was not saved as" +
                             " lines of strings with the appropriate suffix!");
                 } else {
                     try {
-                        globalSupplyChainRecorder.restoreDiags(diags.getLines());
-                        logger.info("Restored {} ", SUPPLY_CHAIN_RELATIONSHIP_FILE);
+                        Optional<TopologyID> realtimeTopologyId =
+                                topologyLifecycleManager.getRealtimeTopologyId();
+                        if (realtimeTopologyId.isPresent()) {
+                            GlobalSupplyChain globalSupplyChain =
+                                    new GlobalSupplyChain(realtimeTopologyId.get(), graphDBExecutor);
+                            globalSupplyChain.restoreDiags(diags.getLines());
+                            globalSupplyChainManager.addNewGlobalSupplyChain(realtimeTopologyId.get(),
+                                    globalSupplyChain);
+                            logger.info("Restored {} ", GLOBAL_SUPPLY_CHAIN_DIAGS_FILE);
+                        } else {
+                            logger.info("Cannot restore global supply chain as no realtimeTopologyId is available");
+                        }
                     } catch (DiagnosticsException e) {
                         errors.addAll(e.getErrors());
                     }

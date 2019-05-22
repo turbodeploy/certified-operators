@@ -10,6 +10,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import javax.annotation.Nonnull;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,13 +29,13 @@ import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.repository.graph.GraphDefinition;
 import com.vmturbo.repository.graph.executor.ReactiveGraphDBExecutor;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
-import com.vmturbo.repository.graph.result.GlobalSupplyChainFluxResult;
 import com.vmturbo.repository.graph.result.ScopedEntity;
-import com.vmturbo.repository.graph.result.SupplyChainResultsConverter;
+import com.vmturbo.repository.topology.GlobalSupplyChainFilter;
+import com.vmturbo.repository.topology.GlobalSupplyChainManager;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
-import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
+import com.vmturbo.repository.topology.GlobalSupplyChain;
 
 /**
  * The service for handling supply chain request.
@@ -45,22 +47,22 @@ public class SupplyChainService {
 
     private final ReactiveGraphDBExecutor executor;
     private final GraphDefinition graphDefinition;
-    private final TopologyRelationshipRecorder globalSupplyChainRecorder;
     private final GraphDBService graphDBService;
     private final TopologyLifecycleManager lifecycleManager;
+    private final GlobalSupplyChainManager globalSupplyChainManager;
     private final UserSessionContext userSessionContext;
 
-    public SupplyChainService(final ReactiveGraphDBExecutor executorArg,
-                              final GraphDBService graphDBServiceArg,
-                              final GraphDefinition graphDefinitionArg,
-                              final TopologyRelationshipRecorder globalSupplyChainRecorderArg,
-                              final TopologyLifecycleManager lifecycleManager,
+    public SupplyChainService(@Nonnull final ReactiveGraphDBExecutor executorArg,
+                              @Nonnull final GraphDBService graphDBServiceArg,
+                              @Nonnull final GraphDefinition graphDefinitionArg,
+                              @Nonnull final TopologyLifecycleManager lifecycleManager,
+                              @Nonnull final GlobalSupplyChainManager globalSupplyChainManager,
                               final UserSessionContext userSessionContext) {
-        executor = Objects.requireNonNull(executorArg);
-        graphDBService = Objects.requireNonNull(graphDBServiceArg);
-        graphDefinition = Objects.requireNonNull(graphDefinitionArg);
-        globalSupplyChainRecorder = Objects.requireNonNull(globalSupplyChainRecorderArg);
+        this.executor = Objects.requireNonNull(executorArg);
+        this.graphDBService = Objects.requireNonNull(graphDBServiceArg);
+        this.graphDefinition = Objects.requireNonNull(graphDefinitionArg);
         this.lifecycleManager = Objects.requireNonNull(lifecycleManager);
+        this.globalSupplyChainManager = Objects.requireNonNull(globalSupplyChainManager);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
     }
 
@@ -86,19 +88,23 @@ public class SupplyChainService {
             return Mono.just(new java.util.HashMap<>());
         }
 
-        final GraphCmd.GetGlobalSupplyChain cmd = new GraphCmd.GetGlobalSupplyChain(
-                targetTopology.get().database(),
-                graphDefinition.getServiceEntityVertex(),
-                environmentType,
-                Optional.of(userSessionContext.getUserAccessScope()),
-                ignoredEntityTypes);
+        Optional<GlobalSupplyChain> globalSupplyChain =
+                globalSupplyChainManager.getGlobalSupplyChain(targetTopology.get());
 
-        final GlobalSupplyChainFluxResult results = executor.executeGlobalSupplyChainCmd(cmd);
+        if (!globalSupplyChain.isPresent()) {
+            LOGGER.warn("No global supply chain present for topology: {}", targetTopology.get());
+            return Mono.fromCallable(() -> Collections.emptyMap());
+        }
 
-        // Using the mapping, construct a supply chain.
-        return SupplyChainResultsConverter.toSupplyChainNodes(results,
-                globalSupplyChainRecorder.getGlobalSupplyChainProviderStructures())
-            .doOnError(err -> LOGGER.error("Error while computing supply chain", err));
+        final GlobalSupplyChainFilter globalSupplyChainFilter =
+                new GlobalSupplyChainFilter(ignoredEntityTypes,
+                        userSessionContext.getUserAccessScope().hasRestrictions() ?
+                                userSessionContext.getUserAccessScope().accessibleOids().toSet()
+                                : Collections.emptySet(),
+                        environmentType.isPresent() ?  environmentType.get().toEnvType()
+                                : Optional.empty());
+
+        return Mono.fromCallable(() -> globalSupplyChain.get().toSupplyChainNodes(globalSupplyChainFilter));
     }
 
     /**

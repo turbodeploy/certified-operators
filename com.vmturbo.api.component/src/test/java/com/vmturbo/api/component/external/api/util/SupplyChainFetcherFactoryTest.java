@@ -196,7 +196,8 @@ public class SupplyChainFetcherFactoryTest {
     public void testSupplyChainNodeFetcher() throws Exception {
         final SupplyChainNode vms = SupplyChainNode.newBuilder()
                 .setEntityType(VM)
-                .addMemberOids(1L)
+                .putMembersByState(EntityState.POWERED_ON.getNumber(),
+                        MemberList.newBuilder().addMemberOids(1L).build())
                 .build();
         when(supplyChainServiceBackend.getSupplyChain(GetSupplyChainRequest.newBuilder()
                 .addEntityTypesToInclude(VM)
@@ -211,6 +212,7 @@ public class SupplyChainFetcherFactoryTest {
                 .fetch();
         assertThat(nodes.size(), is(1));
         assertThat(nodes.get(VM), is(vms));
+        assertThat(nodes.get(VM).containsMembersByState(EntityState.POWERED_ON.getNumber()), is(true));
     }
 
     /**

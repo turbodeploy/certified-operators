@@ -25,7 +25,6 @@ import com.vmturbo.repository.RepositoryNotificationSender;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.SourceTopologyCreator;
-import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
 import com.vmturbo.repository.util.RepositoryTestUtil;
 
 /**
@@ -39,9 +38,6 @@ public class TopologyEntitiesListenerTest {
 
     @Mock
     private TopologyLifecycleManager topologyManager;
-
-    @Mock
-    private TopologyRelationshipRecorder globalSupplyChainRecorder;
 
     @Mock
     private SourceTopologyCreator topologyCreator;
@@ -68,7 +64,6 @@ public class TopologyEntitiesListenerTest {
     public void setUp() throws Exception {
         topologyEntitiesListener = new TopologyEntitiesListener(
                 topologyManager,
-                globalSupplyChainRecorder,
                 notificationSender);
 
         // Simulates three DTOs with two chunks received by the listener.
@@ -97,8 +92,6 @@ public class TopologyEntitiesListenerTest {
         verify(topologyManager).newSourceTopologyCreator(tid);
         verify(topologyCreator).complete();
         verify(topologyCreator, times(2)).addEntities(any());
-        verify(globalSupplyChainRecorder, times(1))
-                .createGlobalSupplyChainProviderRels(any(),any());
         verify(notificationSender).onSourceTopologyAvailable(eq(topologyId), eq(topologyContextId));
     }
 

@@ -80,7 +80,7 @@ public class ArangoGraphDatabaseDriver implements GraphDatabaseDriver {
     /**
      * Constructs the ArangoGraphDatabaseDriver.
      *
-     * @param arangoDatabase   The underlying arangodb driver
+     * @param arangoDB   The underlying arangodb driver
      * @param database The associated database name
      */
     public ArangoGraphDatabaseDriver(final @Nonnull ArangoDB arangoDB,

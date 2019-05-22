@@ -7,6 +7,7 @@ import javax.annotation.Nonnull;
 
 import com.arangodb.ArangoDBException;
 import com.arangodb.entity.BaseDocument;
+import com.arangodb.model.DocumentCreateOptions;
 
 import javaslang.control.Try;
 
@@ -31,7 +32,28 @@ public interface GraphDBExecutor {
      * @param database The database in which the document will be stored.
      */
     void insertNewDocument(final @Nonnull BaseDocument newDocument,
-                                   String collection, String database) throws GlobalSupplyChainProviderRelsException;
+                           String collection, String database,
+                           final DocumentCreateOptions documentCreateOptions) throws ArangoDBException;
+
+    /**
+     * Insert a new document into a given collection and database.
+     * @param pojo The pojo to store in the db.
+     * @param database The collection in which the document will be stored.
+     * @param database The database in which the document will be stored.
+     */
+    <T> void insertNewDocument(final @Nonnull T pojo,
+                           String collection, String database,
+                           final DocumentCreateOptions documentCreateOptions) throws ArangoDBException;
+
+    /**
+     * Insert a new document into a given collection and database.
+     * @param key The key of the document to fetch.
+     * @param database The collection in which the document will be stored.
+     * @param database The database in which the document will be stored.
+     */
+    public BaseDocument getDocument(final String key,
+                     String collection, String database) throws ArangoDBException;
+
 
     /**
      * Get relationship for the supply chain.

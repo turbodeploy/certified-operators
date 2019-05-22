@@ -16,6 +16,7 @@ import org.junit.Test;
 
 import com.vmturbo.repository.graph.driver.GraphDatabaseDriver;
 import com.vmturbo.repository.graph.driver.GraphDatabaseDriverBuilder;
+import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.graph.operator.TopologyGraphCreator;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.EntityConverter;
@@ -48,6 +49,11 @@ public class TopologyCreatorTest {
 
     private final TopologyGraphCreator graphCreator = mock(TopologyGraphCreator.class);
 
+    private final GlobalSupplyChainManager globalSupplyChainManager =
+            mock(GlobalSupplyChainManager.class);
+
+    private final GraphDBExecutor graphDBExecutor = mock(GraphDBExecutor.class);
+
     private final TopologyID realtimeSourceId =
             new TopologyID(realtimeTopologyContextId, 1L, TopologyType.SOURCE);
     private final TopologyID realtimeProjectedId =
@@ -72,7 +78,10 @@ public class TopologyCreatorTest {
                 graphDatabaseDriverBuilder,
                 onComplete,
                 graphCreatorFactory,
-                entityConverter, realtimeTopologyContextId, 2, 2);
+                entityConverter,
+                globalSupplyChainManager,
+                graphDBExecutor,
+                realtimeTopologyContextId, 2, 2);
 
         verify(graphDatabaseDriverBuilder).build(eq(realtimeSourceId.toDatabaseName()));
         verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
@@ -87,6 +96,8 @@ public class TopologyCreatorTest {
                 onComplete,
                 graphCreatorFactory,
                 entityConverter,
+                globalSupplyChainManager,
+                graphDBExecutor,
                 realtimeTopologyContextId, 2, 2);
 
         verify(graphDatabaseDriverBuilder).build(eq(realtimeProjectedId.toDatabaseName()));
@@ -100,7 +111,10 @@ public class TopologyCreatorTest {
                 graphDatabaseDriverBuilder,
                 onComplete,
                 graphCreatorFactory,
-                entityConverter, realtimeTopologyContextId, 2, 2);
+                entityConverter,
+                globalSupplyChainManager,
+                graphDBExecutor,
+                realtimeTopologyContextId, 2, 2);
 
         verify(graphDatabaseDriverBuilder).build(eq(planSourceId.toDatabaseName()));
         verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
@@ -115,6 +129,8 @@ public class TopologyCreatorTest {
                 onComplete,
                 graphCreatorFactory,
                 entityConverter,
+                globalSupplyChainManager,
+                graphDBExecutor,
                 realtimeTopologyContextId, 2, 2);
 
         verify(graphDatabaseDriverBuilder).build(eq(planProjectedId.toDatabaseName()));
@@ -181,7 +197,10 @@ public class TopologyCreatorTest {
                 graphDatabaseDriverBuilder,
                 onComplete,
                 graphCreatorFactory,
-                entityConverter, realtimeTopologyContextId, 2, 2);
+                entityConverter,
+                globalSupplyChainManager,
+                graphDBExecutor,
+                realtimeTopologyContextId, 2, 2);
     }
 
     private ProjectedTopologyCreator newProjectedTopologyCreator(TopologyID tid) {
@@ -191,6 +210,8 @@ public class TopologyCreatorTest {
                 onComplete,
                 graphCreatorFactory,
                 entityConverter,
+                globalSupplyChainManager,
+                graphDBExecutor,
                 realtimeTopologyContextId, 2, 2);
     }
 }

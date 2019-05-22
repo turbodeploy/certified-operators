@@ -28,7 +28,6 @@ import com.vmturbo.repository.graph.driver.GraphDatabaseDriver;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.SourceTopologyCreator;
-import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
 import com.vmturbo.repository.util.RepositoryTestUtil;
 
 /**
@@ -43,9 +42,6 @@ public class TopologyEntitiesListenerExceptionTest {
 
     @Mock
     private GraphDatabaseDriver graphDatabaseBuilder;
-
-    @Mock
-    private TopologyRelationshipRecorder globalSupplyChainRecorder;
 
     @Mock
     private TopologyLifecycleManager topologyManager;
@@ -73,7 +69,6 @@ public class TopologyEntitiesListenerExceptionTest {
     public void setUp() throws Exception {
         topologyEntitiesListener = new TopologyEntitiesListener(
                 topologyManager,
-                globalSupplyChainRecorder,
                 notificationSender);
 
         // Simulates one chunk and then an exception
@@ -104,7 +99,6 @@ public class TopologyEntitiesListenerExceptionTest {
         verify(topologyCreator, never()).complete();
         verify(topologyCreator, times(1)).rollback();
         verify(topologyCreator, times(1)).addEntities(any());
-        verify(globalSupplyChainRecorder, never()).setGlobalSupplyChainProviderRels(any());
         verify(notificationSender, never()).onSourceTopologyAvailable(anyLong(), anyLong());
         verify(notificationSender).onSourceTopologyFailure(anyLong(), anyLong(), anyString());
     }

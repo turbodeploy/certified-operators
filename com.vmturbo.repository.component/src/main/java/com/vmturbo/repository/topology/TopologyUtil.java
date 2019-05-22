@@ -1,7 +1,5 @@
 package com.vmturbo.repository.topology;
 
-import java.util.function.Predicate;
-
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 
 public class TopologyUtil {

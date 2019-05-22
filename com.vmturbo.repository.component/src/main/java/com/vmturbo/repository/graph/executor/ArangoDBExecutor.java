@@ -27,6 +27,7 @@ import com.arangodb.ArangoDB;
 import com.arangodb.ArangoDBException;
 import com.arangodb.entity.BaseDocument;
 import com.arangodb.model.AqlQueryOptions;
+import com.arangodb.model.DocumentCreateOptions;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -57,7 +58,11 @@ public class ArangoDBExecutor implements GraphDBExecutor {
 
     // TODO: Temporary place holder for topology database name.
     public static final String DEFAULT_PLACEHOLDER_DATABASE = "";
-    public static final String SUPPLY_CHAIN_RELS_COLLECTION = "globalSupplyChainProviderRels";
+
+    public static final String GLOBAL_SUPPLY_CHAIN_RELS_COLLECTION = "globalSupplyChainProviderRels";
+
+    public static final String GLOBAL_SUPPLY_CHAIN_ENTITIES_COLLECTION = "globalSupplyChainEntitiesInfo";
+
     private static final Logger logger = LoggerFactory.getLogger(ArangoDBExecutor.class);
 
     private final ArangoDatabaseFactory arangoDatabaseFactory;
@@ -223,14 +228,33 @@ public class ArangoDBExecutor implements GraphDBExecutor {
     }
 
     public  void insertNewDocument(final @Nonnull BaseDocument newDocument,
-                                   String collection, String database) throws GlobalSupplyChainProviderRelsException
-    {
+                                   String collection,
+                                   String database,
+                                   DocumentCreateOptions documentCreateOptions)
+            throws ArangoDBException {
+
         final ArangoDB driver = arangoDatabaseFactory.getArangoDriver();
-        try {
-            driver.db(database).collection(collection).insertDocument(newDocument);
-        } catch (ArangoDBException e) {
-            throw new GlobalSupplyChainProviderRelsException(e.getMessage(), e);
-        }
+        driver.db(database).collection(collection).insertDocument(newDocument, documentCreateOptions);
+    }
+
+    public <T> void insertNewDocument(final T doc,
+                                      String collection,
+                                      String database,
+                                      DocumentCreateOptions documentCreateOptions)
+            throws ArangoDBException {
+
+        final ArangoDB driver = arangoDatabaseFactory.getArangoDriver();
+        driver.db(database).collection(collection).insertDocument(doc,
+                documentCreateOptions);
+    }
+
+    public BaseDocument getDocument(final String key,
+                                    String collection,
+                                    String database)
+            throws ArangoDBException {
+
+        final ArangoDB driver = arangoDatabaseFactory.getArangoDriver();
+        return driver.db(database).collection(collection).getDocument(key, BaseDocument.class);
     }
 
     @Override

@@ -1,6 +1,7 @@
 package com.vmturbo.repository.topology;
 
 import java.io.Serializable;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -96,12 +97,7 @@ public class TopologyID implements Serializable {
 
     @Override
     public int hashCode() {
-        final int prime = 31;
-        int result = 1;
-        result = prime * result + (int)(contextId ^ (contextId >>> 32));
-        result = prime * result + (int)(topologyId ^ (topologyId >>> 32));
-        result = prime * result + ((type == null) ? 0 : type.hashCode());
-        return result;
+        return Objects.hash(contextId, topologyId, type);
     }
 
     @Override
@@ -112,7 +108,7 @@ public class TopologyID implements Serializable {
         if (obj == null) {
             return false;
         }
-        if (getClass() != obj.getClass()) {
+        if (!(obj instanceof TopologyID)) {
             return false;
         }
         TopologyID other = (TopologyID)obj;

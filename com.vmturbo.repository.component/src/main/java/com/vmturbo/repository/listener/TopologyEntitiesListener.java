@@ -20,12 +20,11 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.RepositoryNotificationSender;
 import com.vmturbo.repository.SharedMetrics;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
-import com.vmturbo.repository.topology.IncrementalTopologyRelationshipRecorder;
+import com.vmturbo.repository.topology.GlobalSupplyChain;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.SourceTopologyCreator;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyEntitiesException;
-import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
 import com.vmturbo.topology.processor.api.EntitiesListener;
 import com.vmturbo.topology.processor.api.TopologySummaryListener;
 
@@ -36,8 +35,6 @@ import com.vmturbo.topology.processor.api.TopologySummaryListener;
 public class TopologyEntitiesListener implements EntitiesListener, TopologySummaryListener {
     private final Logger logger = LoggerFactory.getLogger(TopologyEntitiesListener.class);
 
-    private final TopologyRelationshipRecorder globalSupplyChainRecorder;
-
     private final RepositoryNotificationSender notificationSender;
     private final TopologyLifecycleManager topologyManager;
 
@@ -47,9 +44,7 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
     private TopologyInfo latestKnownRealtimeTopologyInfo = null;
 
     public TopologyEntitiesListener(@Nonnull final TopologyLifecycleManager topologyManager,
-                                    @Nonnull final TopologyRelationshipRecorder globalSupplyChainRecorder,
                                     @Nonnull final RepositoryNotificationSender sender) {
-        this.globalSupplyChainRecorder = Objects.requireNonNull(globalSupplyChainRecorder);
         this.notificationSender = Objects.requireNonNull(sender);
         this.topologyManager = Objects.requireNonNull(topologyManager);
     }
@@ -152,18 +147,14 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
         try {
             logger.info("Start updating topology {}", tid);
             topologyCreator.initialize();
-            IncrementalTopologyRelationshipRecorder recorder = new IncrementalTopologyRelationshipRecorder();
             int numberOfEntities = 0;
             int chunkNumber = 0;
             while (entityIterator.hasNext()) {
                 Collection<TopologyEntityDTO> chunk = entityIterator.nextChunk();
                 logger.debug("Received chunk #{} of size {} for topology {}", ++chunkNumber, chunk.size(), tid);
-                recorder.processChunk(chunk);
                 topologyCreator.addEntities(chunk);
                 numberOfEntities += chunk.size();
             }
-            globalSupplyChainRecorder.createGlobalSupplyChainProviderRels(recorder.supplyChain(),
-                tid);
             topologyCreator.complete();
             SharedMetrics.TOPOLOGY_ENTITY_COUNT_GAUGE
                 .labels(SharedMetrics.SOURCE_LABEL)

@@ -81,24 +81,36 @@ public class ServiceEntitySubGraphCreator {
      * @throws CollectionOperationException
      */
     void init() throws CollectionOperationException {
-        logger.debug("Creating vertex collection: " + graphDefinition.getServiceEntityVertex());
+        logger.debug("Creating vertex collection: {}", graphDefinition.getServiceEntityVertex());
         CollectionParameter paramSeVertexCollection =
                 new CollectionParameter.Builder(graphDefinition.getServiceEntityVertex()).build();
         graphDatabaseDriver.createCollection(paramSeVertexCollection);
 
-        logger.debug("Creating edge collection: " + graphDefinition.getProviderRelationship());
+        logger.debug("Creating edge collection: {}", graphDefinition.getProviderRelationship());
         CollectionParameter paramSeProvEdgeCollection =
                 new CollectionParameter.Builder(graphDefinition.getProviderRelationship())
-                                           .edge().build();
+                        .edge()
+                        .waitForSync()
+                        .build();
         graphDatabaseDriver.createCollection(paramSeProvEdgeCollection);
 
-        logger.debug("Creating supply chain relationship collection: "
-            + ArangoDBExecutor.SUPPLY_CHAIN_RELS_COLLECTION);
+        logger.debug("Creating supply chain relationship collection: {}",
+                ArangoDBExecutor.GLOBAL_SUPPLY_CHAIN_RELS_COLLECTION);
         CollectionParameter globalSupplyChainProviderRels =
             new CollectionParameter
-                .Builder(ArangoDBExecutor.SUPPLY_CHAIN_RELS_COLLECTION)
-                .build();
+                    .Builder(ArangoDBExecutor.GLOBAL_SUPPLY_CHAIN_RELS_COLLECTION)
+                    .waitForSync()
+                    .build();
         graphDatabaseDriver.createCollection(globalSupplyChainProviderRels);
+
+        logger.debug("Creating supply chain relationship collection: {}",
+                ArangoDBExecutor.GLOBAL_SUPPLY_CHAIN_ENTITIES_COLLECTION);
+        CollectionParameter globalSupplyChainEntitiesCollection =
+                new CollectionParameter
+                        .Builder(ArangoDBExecutor.GLOBAL_SUPPLY_CHAIN_ENTITIES_COLLECTION)
+                        .waitForSync()
+                        .build();
+        graphDatabaseDriver.createCollection(globalSupplyChainEntitiesCollection);
     }
 
     /**

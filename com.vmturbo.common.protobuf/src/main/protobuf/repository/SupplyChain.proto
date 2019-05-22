@@ -33,11 +33,6 @@ message SupplyChainNode {
 
     // A map from entity state -> members of that state.
     map<int32, MemberList> members_by_state = 6;
-
-    // The OIDs of entities belonging to this node.
-    // This field is deprecated - you can get the member OIDs from the
-    // members by state map.
-    repeated int64 __member_oids = 5 [deprecated = true];
 }
 
 // A description of a supply chain returned by the service.

@@ -4,7 +4,7 @@ import static com.vmturbo.repository.RepositoryDiagnosticsHandler.ERRORS_FILE;
 import static com.vmturbo.repository.RepositoryDiagnosticsHandler.ID_MGR_FILE;
 import static com.vmturbo.repository.RepositoryDiagnosticsHandler.PROJECTED_TOPOLOGY_DUMP_FILE;
 import static com.vmturbo.repository.RepositoryDiagnosticsHandler.SOURCE_TOPOLOGY_DUMP_FILE;
-import static com.vmturbo.repository.RepositoryDiagnosticsHandler.SUPPLY_CHAIN_RELATIONSHIP_FILE;
+import static com.vmturbo.repository.RepositoryDiagnosticsHandler.GLOBAL_SUPPLY_CHAIN_DIAGS_FILE;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
@@ -43,20 +43,24 @@ import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.repository.RepositoryDiagnosticsHandler.DefaultTopologyDiagnostics;
 import com.vmturbo.repository.RepositoryDiagnosticsHandler.TopologyDiagnostics;
+import com.vmturbo.repository.graph.executor.GraphDBExecutor;
+import com.vmturbo.repository.topology.GlobalSupplyChain;
+import com.vmturbo.repository.topology.GlobalSupplyChainManager;
 import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
-import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
 
 public class RepositoryDiagnosticsHandlerTest {
-
-    private TopologyRelationshipRecorder relationshipRecorder =
-            mock(TopologyRelationshipRecorder.class);
 
     private TopologyLifecycleManager lifecycleManager = mock(TopologyLifecycleManager.class);
 
     private DiagsZipReaderFactory zipReaderFactory = mock(DiagsZipReaderFactory.class);
+
+    private GlobalSupplyChainManager globalSupplyChainManager =
+            mock(GlobalSupplyChainManager.class);
+
+    private GraphDBExecutor graphDBExecutor = mock(GraphDBExecutor.class);
 
     private DiagnosticsWriter diagnosticsWriter = mock(DiagnosticsWriter.class);
 
@@ -69,7 +73,8 @@ public class RepositoryDiagnosticsHandlerTest {
     private RestTemplate restTemplate = mock(RestTemplate.class);
 
     private final List<String> idMgrDiagLines = Collections.singletonList("idMgr");
-    private final List<String> relationshipRecorderDiagLines = Collections.singletonList("rshp");
+    private final List<String> globalSupplyChainOutput =
+            Collections.singletonList("global-supply-chain");
     private final String endpoint = "endpoint";
     private final String dbName = "db";
     private final String expectedUrl = endpoint + "/" + dbName;
@@ -83,8 +88,9 @@ public class RepositoryDiagnosticsHandlerTest {
                 .thenReturn(Optional.empty());
 
         final RepositoryDiagnosticsHandler handler =
-                new RepositoryDiagnosticsHandler(relationshipRecorder, lifecycleManager,
-                        zipReaderFactory, diagnosticsWriter, topologyDiagnostics);
+                new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager,
+                        zipReaderFactory, diagnosticsWriter,
+                        graphDBExecutor, topologyDiagnostics);
         ZipOutputStream zos = mock(ZipOutputStream.class);
         List<String> errors = handler.dump(zos);
         // One because source topology wasn't found, one because projected topology wasn't found.
@@ -93,23 +99,24 @@ public class RepositoryDiagnosticsHandlerTest {
         // Make sure the errors get written to the diags.
         verify(diagnosticsWriter).writeZipEntry(eq(ERRORS_FILE), eq(errors), eq(zos));
     }
-
     @Test
     public void testDump() throws DiagnosticsException {
         setupDump();
 
         final RepositoryDiagnosticsHandler handler =
-                new RepositoryDiagnosticsHandler(relationshipRecorder, lifecycleManager,
-                        zipReaderFactory, diagnosticsWriter, topologyDiagnostics);
+                new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager,
+                        zipReaderFactory, diagnosticsWriter,
+                        graphDBExecutor, topologyDiagnostics);
         final ZipOutputStream zos = mock(ZipOutputStream.class);
+
         handler.dump(zos);
 
         verify(diagnosticsWriter).writeZipEntry(eq(SOURCE_TOPOLOGY_DUMP_FILE),
                 eq(sourceTopoDump), eq(zos));
         verify(diagnosticsWriter).writeZipEntry(eq(PROJECTED_TOPOLOGY_DUMP_FILE),
                 eq(projectedTopoDump), eq(zos));
-        verify(diagnosticsWriter).writeZipEntry(eq(SUPPLY_CHAIN_RELATIONSHIP_FILE),
-                eq(relationshipRecorderDiagLines), eq(zos));
+        verify(diagnosticsWriter).writeZipEntry(eq(GLOBAL_SUPPLY_CHAIN_DIAGS_FILE),
+                eq(globalSupplyChainOutput), eq(zos));
         verify(diagnosticsWriter).writeZipEntry(eq(ID_MGR_FILE), eq(idMgrDiagLines), eq(zos));
         verify(diagnosticsWriter).writePrometheusMetrics(any(CollectorRegistry.class), eq(zos));
         verify(diagnosticsWriter, times(0)).writeZipEntry(eq(ERRORS_FILE), any(List.class), any());
@@ -121,13 +128,20 @@ public class RepositoryDiagnosticsHandlerTest {
 
         final TopologyID sourceTopologyId = mock(TopologyID.class);
         when(lifecycleManager.getRealtimeTopologyId(eq(TopologyType.SOURCE)))
-                .thenReturn(Optional.of(sourceTopologyId));
+               .thenReturn(Optional.of(sourceTopologyId));
         when(topologyDiagnostics.dumpTopology(eq(sourceTopologyId)))
             .thenThrow(new DiagnosticsException(Collections.singletonList("ERROR")));
 
+        GlobalSupplyChain globalSupplyChain = mock(GlobalSupplyChain.class);
+        when(globalSupplyChainManager.getGlobalSupplyChain(sourceTopologyId))
+                .thenReturn(Optional.of(globalSupplyChain));
+
+        when(globalSupplyChain.collectDiags()).thenReturn(globalSupplyChainOutput);
+
         final RepositoryDiagnosticsHandler handler =
-                new RepositoryDiagnosticsHandler(relationshipRecorder, lifecycleManager,
-                        zipReaderFactory, diagnosticsWriter, topologyDiagnostics);
+                new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager,
+                        zipReaderFactory, diagnosticsWriter,
+                        graphDBExecutor, topologyDiagnostics);
         final ZipOutputStream zos = mock(ZipOutputStream.class);
 
         final List<String> errors = handler.dump(zos);
@@ -138,8 +152,8 @@ public class RepositoryDiagnosticsHandlerTest {
                 .writeZipEntry(eq(SOURCE_TOPOLOGY_DUMP_FILE), any(byte[].class), eq(zos));
         verify(diagnosticsWriter).writeZipEntry(eq(PROJECTED_TOPOLOGY_DUMP_FILE),
                 eq(projectedTopoDump), eq(zos));
-        verify(diagnosticsWriter).writeZipEntry(eq(SUPPLY_CHAIN_RELATIONSHIP_FILE),
-                eq(relationshipRecorderDiagLines), eq(zos));
+        verify(diagnosticsWriter).writeZipEntry(eq(GLOBAL_SUPPLY_CHAIN_DIAGS_FILE),
+                eq(globalSupplyChainOutput), eq(zos));
         verify(diagnosticsWriter).writeZipEntry(eq(ID_MGR_FILE), eq(idMgrDiagLines), eq(zos));
         // Make sure the errors get written to the diags.
         verify(diagnosticsWriter).writeZipEntry(eq(ERRORS_FILE), eq(errors), eq(zos));
@@ -156,8 +170,9 @@ public class RepositoryDiagnosticsHandlerTest {
                 .thenThrow(new DiagnosticsException(Collections.singletonList("ERROR")));
 
         final RepositoryDiagnosticsHandler handler =
-                new RepositoryDiagnosticsHandler(relationshipRecorder, lifecycleManager,
-                        zipReaderFactory, diagnosticsWriter, topologyDiagnostics);
+                new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager,
+                        zipReaderFactory, diagnosticsWriter,
+                        graphDBExecutor, topologyDiagnostics);
         final ZipOutputStream zos = mock(ZipOutputStream.class);
 
         final List<String> errors = handler.dump(zos);
@@ -168,8 +183,8 @@ public class RepositoryDiagnosticsHandlerTest {
                 .writeZipEntry(eq(PROJECTED_TOPOLOGY_DUMP_FILE), any(byte[].class), eq(zos));
         verify(diagnosticsWriter).writeZipEntry(eq(SOURCE_TOPOLOGY_DUMP_FILE),
                 eq(sourceTopoDump), eq(zos));
-        verify(diagnosticsWriter).writeZipEntry(eq(SUPPLY_CHAIN_RELATIONSHIP_FILE),
-                eq(relationshipRecorderDiagLines), eq(zos));
+        verify(diagnosticsWriter).writeZipEntry(eq(GLOBAL_SUPPLY_CHAIN_DIAGS_FILE),
+                eq(globalSupplyChainOutput), eq(zos));
         verify(diagnosticsWriter).writeZipEntry(eq(ID_MGR_FILE), eq(idMgrDiagLines), eq(zos));
         // Make sure the errors get written to the diags.
         verify(diagnosticsWriter).writeZipEntry(eq(ERRORS_FILE), eq(errors), eq(zos));
@@ -181,8 +196,8 @@ public class RepositoryDiagnosticsHandlerTest {
         when(idMgrDiags.getName()).thenReturn(ID_MGR_FILE);
         when(idMgrDiags.getLines()).thenReturn(idMgrDiagLines);
         final Diags rshpDiags = mock(Diags.class);
-        when(rshpDiags.getName()).thenReturn(SUPPLY_CHAIN_RELATIONSHIP_FILE);
-        when(rshpDiags.getLines()).thenReturn(relationshipRecorderDiagLines);
+        when(rshpDiags.getName()).thenReturn(GLOBAL_SUPPLY_CHAIN_DIAGS_FILE);
+        when(rshpDiags.getLines()).thenReturn(globalSupplyChainOutput);
         final Diags srcDumpDiags = mock(Diags.class);
         when(srcDumpDiags.getName()).thenReturn(SOURCE_TOPOLOGY_DUMP_FILE);
         final Diags projectedDumpDiags = mock(Diags.class);
@@ -191,12 +206,13 @@ public class RepositoryDiagnosticsHandlerTest {
         setupRestore(idMgrDiags, rshpDiags, srcDumpDiags, projectedDumpDiags);
 
         final RepositoryDiagnosticsHandler handler =
-                new RepositoryDiagnosticsHandler(relationshipRecorder, lifecycleManager,
-                        zipReaderFactory, diagnosticsWriter, topologyDiagnostics);
+                new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager,
+                        zipReaderFactory, diagnosticsWriter,
+                        graphDBExecutor, topologyDiagnostics);
+        when(lifecycleManager.getRealtimeTopologyId()).thenReturn(Optional.empty());
         List<String> errors = handler.restore(mock(InputStream.class));
         assertTrue(errors.isEmpty());
         verify(lifecycleManager).restoreDiags(eq(idMgrDiagLines));
-        verify(relationshipRecorder).restoreDiags(eq(relationshipRecorderDiagLines));
         verify(topologyDiagnostics).restoreTopology(eq(Optional.of(srcDumpDiags)),
                 eq(TopologyType.SOURCE));
         verify(topologyDiagnostics).restoreTopology(eq(Optional.of(projectedDumpDiags)),
@@ -206,24 +222,24 @@ public class RepositoryDiagnosticsHandlerTest {
     @Test
     public void testRestoreNoId() throws DiagnosticsException {
         final Diags rshpDiags = mock(Diags.class);
-        when(rshpDiags.getName()).thenReturn(SUPPLY_CHAIN_RELATIONSHIP_FILE);
-        when(rshpDiags.getLines()).thenReturn(relationshipRecorderDiagLines);
+        when(rshpDiags.getName()).thenReturn(GLOBAL_SUPPLY_CHAIN_DIAGS_FILE);
+        when(rshpDiags.getLines()).thenReturn(globalSupplyChainOutput);
         final Diags srcDumpDiags = mock(Diags.class);
         when(srcDumpDiags.getName()).thenReturn(SOURCE_TOPOLOGY_DUMP_FILE);
         final Diags projectedDumpDiags = mock(Diags.class);
         when(projectedDumpDiags.getName()).thenReturn(PROJECTED_TOPOLOGY_DUMP_FILE);
-
+        when(lifecycleManager.getRealtimeTopologyId()).thenReturn(Optional.empty());
         setupRestore(rshpDiags, srcDumpDiags, projectedDumpDiags);
 
         final RepositoryDiagnosticsHandler handler =
-                new RepositoryDiagnosticsHandler(relationshipRecorder, lifecycleManager,
-                        zipReaderFactory, diagnosticsWriter, topologyDiagnostics);
+                new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager,
+                        zipReaderFactory, diagnosticsWriter,
+                        graphDBExecutor, topologyDiagnostics);
         List<String> errors = handler.restore(mock(InputStream.class));
         assertEquals(1, errors.size());
 
         // The relationships still get restored, but the topology dump doesn't get uploaded to
         // arangodb because there is no ID information.
-        verify(relationshipRecorder).restoreDiags(eq(relationshipRecorderDiagLines));
         verify(lifecycleManager, never()).restoreDiags(eq(idMgrDiagLines));
         verify(topologyDiagnostics, never()).restoreTopology(any(), any());
     }
@@ -234,10 +250,12 @@ public class RepositoryDiagnosticsHandlerTest {
         when(idMgrDiags.getName()).thenReturn(ID_MGR_FILE);
         when(idMgrDiags.getLines()).thenReturn(idMgrDiagLines);
         final Diags rshpDiags = mock(Diags.class);
-        when(rshpDiags.getName()).thenReturn(SUPPLY_CHAIN_RELATIONSHIP_FILE);
-        when(rshpDiags.getLines()).thenReturn(relationshipRecorderDiagLines);
+        when(rshpDiags.getName()).thenReturn(GLOBAL_SUPPLY_CHAIN_DIAGS_FILE);
+        when(rshpDiags.getLines()).thenReturn(globalSupplyChainOutput);
         final Diags projectedDumpDiags = mock(Diags.class);
         when(projectedDumpDiags.getName()).thenReturn(PROJECTED_TOPOLOGY_DUMP_FILE);
+
+        when(lifecycleManager.getRealtimeTopologyId()).thenReturn(Optional.empty());
 
         // Restoring source topology fails.
         final Diags srcDumpDiags = mock(Diags.class);
@@ -250,14 +268,14 @@ public class RepositoryDiagnosticsHandlerTest {
         setupRestore(idMgrDiags, rshpDiags, srcDumpDiags, projectedDumpDiags);
 
         final RepositoryDiagnosticsHandler handler =
-                new RepositoryDiagnosticsHandler(relationshipRecorder, lifecycleManager,
-                        zipReaderFactory, diagnosticsWriter, topologyDiagnostics);
+                new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager,
+                        zipReaderFactory, diagnosticsWriter,
+                        graphDBExecutor, topologyDiagnostics);
 
         List<String> errors = handler.restore(mock(InputStream.class));
         assertThat(errors, containsInAnyOrder("ERROR"));
 
         verify(lifecycleManager).restoreDiags(eq(idMgrDiagLines));
-        verify(relationshipRecorder).restoreDiags(eq(relationshipRecorderDiagLines));
         // Make sure it still tries to restore the projected topology.
         verify(topologyDiagnostics).restoreTopology(eq(Optional.of(projectedDumpDiags)),
                 eq(TopologyType.PROJECTED));
@@ -269,11 +287,11 @@ public class RepositoryDiagnosticsHandlerTest {
         when(idMgrDiags.getName()).thenReturn(ID_MGR_FILE);
         when(idMgrDiags.getLines()).thenReturn(idMgrDiagLines);
         final Diags rshpDiags = mock(Diags.class);
-        when(rshpDiags.getName()).thenReturn(SUPPLY_CHAIN_RELATIONSHIP_FILE);
-        when(rshpDiags.getLines()).thenReturn(relationshipRecorderDiagLines);
+        when(rshpDiags.getName()).thenReturn(GLOBAL_SUPPLY_CHAIN_DIAGS_FILE);
+        when(rshpDiags.getLines()).thenReturn(globalSupplyChainOutput);
         final Diags srcDumpDiags = mock(Diags.class);
         when(srcDumpDiags.getName()).thenReturn(SOURCE_TOPOLOGY_DUMP_FILE);
-
+        when(lifecycleManager.getRealtimeTopologyId()).thenReturn(Optional.empty());
         // Restoring projected topology fails.
         final Diags projectedDumpDiags = mock(Diags.class);
         when(projectedDumpDiags.getName()).thenReturn(PROJECTED_TOPOLOGY_DUMP_FILE);
@@ -285,14 +303,14 @@ public class RepositoryDiagnosticsHandlerTest {
         setupRestore(idMgrDiags, rshpDiags, srcDumpDiags, projectedDumpDiags);
 
         final RepositoryDiagnosticsHandler handler =
-                new RepositoryDiagnosticsHandler(relationshipRecorder, lifecycleManager,
-                        zipReaderFactory, diagnosticsWriter, topologyDiagnostics);
+                new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager,
+                        zipReaderFactory, diagnosticsWriter,
+                        graphDBExecutor, topologyDiagnostics);
 
         List<String> errors = handler.restore(mock(InputStream.class));
         assertThat(errors, containsInAnyOrder("ERROR"));
 
         verify(lifecycleManager).restoreDiags(eq(idMgrDiagLines));
-        verify(relationshipRecorder).restoreDiags(eq(relationshipRecorderDiagLines));
         // Make sure it still tries to restore the source topology.
         verify(topologyDiagnostics).restoreTopology(eq(Optional.of(srcDumpDiags)),
                 eq(TopologyType.SOURCE));
@@ -379,7 +397,7 @@ public class RepositoryDiagnosticsHandlerTest {
         when(idMgrDiags.getName()).thenReturn(ID_MGR_FILE);
         when(idMgrDiags.getLines()).thenReturn(null);
         final Diags rshpDiags = mock(Diags.class);
-        when(rshpDiags.getName()).thenReturn(SUPPLY_CHAIN_RELATIONSHIP_FILE);
+        when(rshpDiags.getName()).thenReturn(GLOBAL_SUPPLY_CHAIN_DIAGS_FILE);
         when(rshpDiags.getLines()).thenReturn(null);
 
         // The topology dumps get handled inside the TopologyDiagnostics interface, so ignore them.
@@ -387,15 +405,15 @@ public class RepositoryDiagnosticsHandlerTest {
         setupRestore(idMgrDiags, rshpDiags);
 
         final RepositoryDiagnosticsHandler handler =
-                new RepositoryDiagnosticsHandler(relationshipRecorder, lifecycleManager,
-                        zipReaderFactory, diagnosticsWriter, topologyDiagnostics);
+                new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager,
+                        zipReaderFactory, diagnosticsWriter,
+                        graphDBExecutor, topologyDiagnostics);
         List<String> errors = handler.restore(mock(InputStream.class));
         // 2 errors because of the nulls (the dump file doesn't get checked unless ID got restored),
         // and one error because the ID doesn't end up getting restored.
         assertEquals(3, errors.size());
 
         verify(lifecycleManager, never()).restoreDiags(eq(idMgrDiagLines));
-        verify(relationshipRecorder, never()).restoreDiags(eq(relationshipRecorderDiagLines));
     }
 
     private void setupRestore(Diags diags, Diags... otherDiags) {
@@ -422,6 +440,14 @@ public class RepositoryDiagnosticsHandlerTest {
         when(restoreResponse.getStatusCode()).thenReturn(HttpStatus.CREATED);
         when(restTemplate.postForEntity(eq(expectedUrl), any(), eq(String.class)))
                 .thenReturn(restoreResponse);
+
+        final TopologyID sourceTopologyId = mock(TopologyID.class);
+        when(lifecycleManager.getRealtimeTopologyId(eq(TopologyType.SOURCE)))
+                .thenReturn(Optional.of(sourceTopologyId));
+
+        GlobalSupplyChain globalSupplyChain = mock(GlobalSupplyChain.class);
+        when(globalSupplyChainManager.getGlobalSupplyChain(sourceTopologyId))
+                .thenReturn(Optional.of(globalSupplyChain));
     }
 
     /**
@@ -440,10 +466,14 @@ public class RepositoryDiagnosticsHandlerTest {
         when(lifecycleManager.getRealtimeTopologyId(eq(TopologyType.PROJECTED)))
                 .thenReturn(Optional.of(projectedTopologyId));
 
+        GlobalSupplyChain globalSupplyChain = mock(GlobalSupplyChain.class);
+        when(globalSupplyChainManager.getGlobalSupplyChain(sourceTopologyId))
+                .thenReturn(Optional.of(globalSupplyChain));
+
+        when(globalSupplyChain.collectDiags()).thenReturn(globalSupplyChainOutput);
         when(topologyDiagnostics.dumpTopology(eq(sourceTopologyId))).thenReturn(sourceTopoDump);
         when(topologyDiagnostics.dumpTopology(eq(projectedTopologyId))).thenReturn(projectedTopoDump);
 
         when(lifecycleManager.collectDiags()).thenReturn(idMgrDiagLines);
-        when(relationshipRecorder.collectDiags()).thenReturn(relationshipRecorderDiagLines);
     }
 }

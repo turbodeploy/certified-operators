@@ -84,8 +84,8 @@ import com.vmturbo.repository.service.RepositoryRpcService;
 import com.vmturbo.repository.service.SearchRpcService;
 import com.vmturbo.repository.service.SupplyChainRpcService;
 import com.vmturbo.repository.service.SupplyChainService;
+import com.vmturbo.repository.topology.GlobalSupplyChainManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
-import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
@@ -279,7 +279,9 @@ public class RepositoryComponent extends BaseVmtComponent {
                 new ScheduledThreadPoolExecutor(1),
                 repositoryRealtimeTopologyDropDelaySecs,
                 numberOfExpectedRealtimeSourceDB,
-                numberOfExpectedRealtimeProjectedDB);
+                numberOfExpectedRealtimeProjectedDB,
+                globalSupplyChainManager(),
+                arangoDBExecutor());
     }
 
     @Bean
@@ -331,8 +333,9 @@ public class RepositoryComponent extends BaseVmtComponent {
     public RepositoryDiagnosticsHandler repositoryDiagnosticsHandler() {
         return new RepositoryDiagnosticsHandler(arangoDump(),
                 arangoRestore(),
-                topologyRelationshipRecorder(),
+                globalSupplyChainManager(),
                 topologyManager(),
+                arangoDBExecutor(),
                 restTemplate(),
                 recursiveZipReaderFactory(),
                 diagnosticsWriter());
@@ -356,12 +359,17 @@ public class RepositoryComponent extends BaseVmtComponent {
     }
 
     @Bean
+    public GlobalSupplyChainManager globalSupplyChainManager() {
+        return new GlobalSupplyChainManager(arangoDBExecutor());
+    }
+
+    @Bean
     public SupplyChainService supplyChainService() throws InterruptedException, URISyntaxException, CommunicationException {
         return new SupplyChainService(arangoReactiveDBExecutor(),
                                       graphDBService(),
                                       graphDefinition(),
-                                      topologyRelationshipRecorder(),
                                       topologyManager(),
+                                      globalSupplyChainManager(),
                                       userSessionConfig.userSessionContext());
     }
 
@@ -481,15 +489,8 @@ public class RepositoryComponent extends BaseVmtComponent {
     }
 
     @Bean
-    public TopologyRelationshipRecorder topologyRelationshipRecorder() {
-        return new TopologyRelationshipRecorder(arangoDBExecutor(),
-            topologyManager());
-    }
-
-    @Bean
     public TopologyEntitiesListener topologyEntitiesListener() throws GraphDatabaseException {
         return new TopologyEntitiesListener(topologyManager(),
-                                            topologyRelationshipRecorder(),
                                             apiConfig.repositoryNotificationSender());
     }
 
