@@ -163,7 +163,7 @@ public class ServiceConfig {
     @Bean
     public AdminService adminService() {
         return new AdminService(clusterService(), keyValueStoreConfig.keyValueStore(),
-            communicationConfig.clusterMgr());
+            communicationConfig.clusterMgr(), communicationConfig.serviceRestTemplate());
     }
 
     @Bean

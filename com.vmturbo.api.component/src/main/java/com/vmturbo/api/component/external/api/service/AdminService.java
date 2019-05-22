@@ -1,17 +1,28 @@
 package com.vmturbo.api.component.external.api.service;
 
 import java.text.MessageFormat;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.gson.Gson;
 
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.admin.HttpProxyDTO;
@@ -20,9 +31,18 @@ import com.vmturbo.api.dto.admin.ProductVersionDTO;
 import com.vmturbo.api.dto.admin.SystemStatusApiDTO;
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
 import com.vmturbo.api.enums.ConfigurationType;
+import com.vmturbo.api.enums.LoggingLevel;
 import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.serviceinterfaces.IAdminService;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
+import com.vmturbo.common.protobuf.logging.Logging.GetLogLevelsRequest;
+import com.vmturbo.common.protobuf.logging.Logging.GetLogLevelsResponse;
+import com.vmturbo.common.protobuf.logging.Logging.LogLevel;
+import com.vmturbo.common.protobuf.logging.Logging.SetLogLevelsRequest;
+import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController.LogConfigurationServiceResponse;
+import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.utils.LoggingUtils;
 import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
 
@@ -67,28 +87,159 @@ public class AdminService implements IAdminService {
     @Value("${build-number.package}")
     private String buildPackage;
 
+    @Value("${apiHost}")
+    private String apiHost;
+
+    @Value("${serverHttpPort}")
+    private Integer httpPort;
+
+    private static final Gson GSON = ComponentGsonFactory.createGson();
+
     private final ClusterService clusterService;
 
-    private final Logger log = LogManager.getLogger();
+    private final Logger logger = LogManager.getLogger();
 
     private ClusterMgrRestClient clusterMgrApi;
 
+    private RestTemplate restTemplate;
+
     AdminService(@Nonnull final ClusterService clusterService,
                  @Nonnull final KeyValueStore keyValueStore,
-                 @Nonnull final ClusterMgrRestClient clusterMgrApi) {
+                 @Nonnull final ClusterMgrRestClient clusterMgrApi,
+                 @Nonnull final RestTemplate restTemplate) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
         this.clusterMgrApi = Objects.requireNonNull(clusterMgrApi);
+        this.restTemplate = Objects.requireNonNull(restTemplate);
     }
 
     @Override
     public LoggingApiDTO getLoggingLevels() {
-        throw ApiUtils.notImplementedInXL();
+        final Map<String, LoggingLevel> componentLoggingLevels = new HashMap<>();
+        final Set<String> components = clusterService.getKnownComponents();
+        for (String component : components) {
+            if (component.equals(apiHost)) {
+                // no need for rest call for API component since we are in API component
+                final LoggerContext logContext = (LoggerContext) LogManager.getContext(false);
+                componentLoggingLevels.put(apiHost, LoggingUtils.protoLogLevelToApiLogLevel(
+                    LoggingUtils.log4jLevelToProtoLogLevel(logContext.getRootLogger().getLevel())));
+            } else {
+                getLoggingLevel(component).ifPresent(loggingLevel ->
+                    componentLoggingLevels.put(component, loggingLevel));
+            }
+        }
+        final LoggingApiDTO loggingApiDTO = new LoggingApiDTO();
+        loggingApiDTO.setComponentLoggingLevel(componentLoggingLevels);
+        return loggingApiDTO;
     }
 
     @Override
-    public LoggingApiDTO setLoggingLevelForGivenComponent(final LoggingApiDTO loggingDTO) {
-        throw ApiUtils.notImplementedInXL();
+    public LoggingApiDTO setLoggingLevelForGivenComponent(final LoggingApiDTO loggingDTO)
+            throws OperationFailedException {
+        final Map<String, LoggingLevel> inputLoggingLevels = loggingDTO.getComponentLoggingLevel();
+        if (inputLoggingLevels == null) {
+            throw new IllegalArgumentException("LoggingApiDTO must not be null");
+        }
+
+        final Map<String, LoggingLevel> newLoggingLevelsByComponent = new HashMap<>();
+        for (Map.Entry<String, LoggingLevel> entry : inputLoggingLevels.entrySet()) {
+            final String component = entry.getKey();
+            final LoggingLevel newLoggingLevel = entry.getValue();
+            if (component.equals(apiHost)) {
+                logger.info("Setting root logging level to: {}", newLoggingLevel);
+                // no need for rest call for API component since we are in API component
+                Configurator.setRootLevel(LoggingUtils.protoLogLevelToLog4jLevel(
+                    LoggingUtils.apiLogLevelToProtoLogLevel(newLoggingLevel)));
+                newLoggingLevelsByComponent.put(component, newLoggingLevel);
+            } else {
+                setLoggingLevel(component, newLoggingLevel).ifPresent(level ->
+                    newLoggingLevelsByComponent.put(component, level));
+            }
+        }
+        final LoggingApiDTO loggingApiDTO = new LoggingApiDTO();
+        loggingApiDTO.setComponentLoggingLevel(newLoggingLevelsByComponent);
+        return loggingApiDTO;
+    }
+
+    /**
+     * Get logging level for the given component. We do REST call here rather than gRPC call
+     * because lots of components don't support gRPC server, for example: all probes, which don't
+     * extend BaseVmtComponent; market, which doesn't override method buildGrpcServer, etc.
+     *
+     * @param component name of the component
+     * @return optional logging level in the form of {@link LoggingLevel}, or empty if any error
+     */
+    private Optional<LoggingLevel> getLoggingLevel(@Nonnull String component) {
+        UriComponentsBuilder builder = UriComponentsBuilder.newInstance()
+            .scheme("http")
+            .host(component)
+            .port(httpPort)
+            .path("/LogConfigurationService/getLogLevels");
+        try {
+            LogConfigurationServiceResponse logConfigResponse = restTemplate.postForObject(
+                builder.build().toUriString(), new HttpEntity<>(GetLogLevelsRequest.getDefaultInstance()),
+                LogConfigurationServiceResponse.class);
+            if (logConfigResponse.error != null) {
+                logger.error("Error getting logging levels for component {}: {}", component,
+                    logConfigResponse.error);
+                return Optional.empty();
+            }
+
+            final GetLogLevelsResponse logLevelsResponse = GSON.fromJson(
+                GSON.toJson(logConfigResponse.response), GetLogLevelsResponse.class);
+            final LogLevel rootLogLevel = logLevelsResponse.getLogLevelsMap().get(
+                LogManager.ROOT_LOGGER_NAME);
+            if (rootLogLevel == null) {
+                logger.error("Root logging level is not defined for component {}", component);
+                return Optional.empty();
+            }
+            return Optional.of(LoggingUtils.protoLogLevelToApiLogLevel(rootLogLevel));
+        } catch (ResourceAccessException e) {
+            // component may be down
+            logger.error("Unable to get logging levels for component {}", component, e);
+            return Optional.empty();
+        } catch (UnsupportedOperationException e) {
+            logger.error("Proto logging level for component {} is not supported by API", component, e);
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Set logging level for the given component. We do REST call here rather than gRPC call
+     * because lots of components don't support gRPC server, for example: all probes, which don't
+     * extend BaseVmtComponent; market, which doesn't override method buildGrpcServer, etc.
+     *
+     * @param component name of the component
+     * @param newloggingLevel new logging level to set
+     * @return optional logging level in the form of {@link LoggingLevel}, or empty if any error
+     */
+    private Optional<LoggingLevel> setLoggingLevel(@Nonnull String component,
+                                                   @Nonnull LoggingLevel newloggingLevel)
+            throws OperationFailedException {
+        UriComponentsBuilder builder = UriComponentsBuilder.newInstance()
+            .scheme("http")
+            .host(component)
+            .port(httpPort)
+            .path("/LogConfigurationService/setLogLevels");
+        try {
+            final SetLogLevelsRequest setLogLevelsRequest = SetLogLevelsRequest.newBuilder()
+                .putLogLevels(LogManager.ROOT_LOGGER_NAME,
+                    LoggingUtils.apiLogLevelToProtoLogLevel(newloggingLevel))
+                .build();
+            LogConfigurationServiceResponse logConfigResponse = restTemplate.postForObject(
+                builder.build().toUriString(), new HttpEntity<>(setLogLevelsRequest),
+                LogConfigurationServiceResponse.class);
+            if (logConfigResponse.error != null) {
+                logger.error("Error setting logging levels for component {}: {}", component,
+                    logConfigResponse.error);
+                return Optional.empty();
+            }
+            return Optional.of(newloggingLevel);
+        } catch (ResourceAccessException e) {
+            // component may be down
+            throw new OperationFailedException("Unable to set logging levels for component: " +
+                component + ", error: " + e.getMessage());
+        }
     }
 
     @Override
@@ -185,14 +336,14 @@ public class AdminService implements IAdminService {
         if (isSecureProxy && (StringUtils.isEmpty(plainTextPassword) ||
             plainTextPassword.equalsIgnoreCase(ClusterService.ASTERISKS))) {
             final String message = "plainTextPassword cannot be asterisks or empty";
-            log.warn(message);
+            logger.warn(message);
             throw new IllegalArgumentException(message);
         }
         if (isProxyEnabled) {
             if (StringUtils.isEmpty(httpProxyDTO.getProxyHost()) ||
                 StringUtils.isEmpty(httpProxyDTO.getPortNumber())) {
                 final String message = "proxy server requires both host and port number";
-                log.warn(message);
+                logger.warn(message);
                 throw new InvalidOperationException(message);
             }
         }

@@ -28,6 +28,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.base.Throwables;
 
 import com.vmturbo.api.dto.ErrorApiDTO;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.ServiceUnavailableException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.validators.settings.OsMigrationManagerInputException;
@@ -194,6 +195,12 @@ public class GlobalExceptionHandler {
             ex.getResponseBodyAsString(),
             ex.getStackTrace());
         return new ResponseEntity<>(err, ex.getStatusCode());
+    }
+
+    @ExceptionHandler(OperationFailedException.class)
+    @ResponseBody
+    public ResponseEntity<ErrorApiDTO> handleOperationFailedException(HttpServletRequest req, OperationFailedException ex) {
+        return createErrorDTO(req, ex, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     protected ResponseEntity<ErrorApiDTO> createErrorDTO(@Nonnull HttpServletRequest req, @Nonnull Exception ex,
