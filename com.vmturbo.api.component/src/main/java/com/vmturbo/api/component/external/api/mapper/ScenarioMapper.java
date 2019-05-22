@@ -668,7 +668,10 @@ public class ScenarioMapper {
             scenarioChanges.add(buildPlanChanges(configChanges));
         }
         if (configChanges.getRiSettingList() != null && !configChanges.getRiSettingList().isEmpty()) {
-            scenarioChanges.add(buildRISettingChanges(configChanges.getRiSettingList()));
+            @Nullable ScenarioChange riSetting = buildRISettingChanges(configChanges.getRiSettingList());
+            if (riSetting != null) {
+                scenarioChanges.add(riSetting);
+            }
         }
         return scenarioChanges.build();
     }
@@ -679,7 +682,12 @@ public class ScenarioMapper {
      * @param riSettingList a list of ri settings
      * @return a ScenarioChange
      */
-    private ScenarioChange buildRISettingChanges(List<SettingApiDTO> riSettingList) {
+    private @Nullable ScenarioChange buildRISettingChanges(List<SettingApiDTO> riSettingList) {
+        if (riSettingList.stream().anyMatch(r -> r.getUuid().equals(StringConstants.RI_PURCHASE)
+                && !Boolean.getBoolean(r.getValue()))) {
+            // only run optimize workload, no need to run buy RI
+            return null;
+        }
         ScenarioChange.RISetting.Builder riSetting = RISetting.newBuilder();
         riSettingList.forEach(r -> {
             if (r.getUuid().equals(StringConstants.PREFERRED_OFFERING_CLASS)) {
