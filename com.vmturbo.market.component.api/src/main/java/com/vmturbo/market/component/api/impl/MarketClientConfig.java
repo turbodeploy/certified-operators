@@ -18,6 +18,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
@@ -42,6 +43,13 @@ public class MarketClientConfig {
         return baseKafkaConfig.kafkaConsumer().messageReceiver(
                 MarketComponentNotificationReceiver.ACTION_PLANS_TOPIC,
                 ActionPlan::parseFrom);
+    }
+
+    @Bean
+    protected IMessageReceiver<AnalysisSummary> analysisSummaryReceiver() {
+        return baseKafkaConfig.kafkaConsumer().messageReceiver(
+            MarketComponentNotificationReceiver.ANALYSIS_RESULTS,
+            AnalysisSummary::parseFrom);
     }
 
     @Bean
@@ -94,12 +102,16 @@ public class MarketClientConfig {
         final IMessageReceiver<Topology> planAnalysisTopologyReceiver =
                 subscriptions.contains(Subscription.PlanAnalysisTopologies) ?
                         planAnalysisTopologyReceiver() : null;
+        final IMessageReceiver<AnalysisSummary> analysisSummaryReceiver =
+            subscriptions.contains(Subscription.AnalysisSummary) ?
+                analysisSummaryReceiver() : null;
         return new MarketComponentNotificationReceiver(projectedTopologyReceiver,
                 projectedEntityCostReceiver, projectedEntityRiCoverageReceiver, actionPlansReceiver,
-                planAnalysisTopologyReceiver, marketClientThreadPool());
+                planAnalysisTopologyReceiver, analysisSummaryReceiver, marketClientThreadPool());
     }
 
     public enum Subscription {
-        ActionPlans, ProjectedTopologies, ProjectedEntityCosts, ProjectedEntityRiCoverage, PriceIndexes, PlanAnalysisTopologies;
+        AnalysisSummary, ActionPlans, ProjectedTopologies, ProjectedEntityCosts,
+        ProjectedEntityRiCoverage, PriceIndexes, PlanAnalysisTopologies;
     }
 }

@@ -167,7 +167,8 @@ public class HistoryStatPaginationSysTest {
                 // Entity ID = price index.
                 .setProjectedPriceIndex(entity.getOid())
                 .build())
-            .collect(Collectors.toList()));
+            .collect(Collectors.toList()),
+            4L);
 
 
         logger.info("Waiting for stats to be available...");

@@ -62,6 +62,7 @@ public abstract class HistoryPerformanceTest {
     protected final long SOURCE_TOPOLOGY_ID = 1234;
     protected final long PROJECTED_TOPOLOGY_ID = 5678;
     protected final long CREATION_TIME = System.currentTimeMillis();
+    protected final long ACTION_PLAN_ID = 9123;
 
     protected final TopologyInfo.Builder TOPOLOGY_INFO = TopologyInfo.newBuilder()
         .setTopologyId(SOURCE_TOPOLOGY_ID)
@@ -165,7 +166,8 @@ public abstract class HistoryPerformanceTest {
                     .setEntity(entity)
                     .setProjectedPriceIndex(1.0)
                     .setOriginalPriceIndex(2.0)
-                    .build()));
+                    .build()),
+                ACTION_PLAN_ID);
     }
 
     protected void fetchStats(final long topologyContextId){

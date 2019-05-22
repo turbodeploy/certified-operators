@@ -86,6 +86,8 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
@@ -152,6 +154,7 @@ public class PlacementPolicySysTest {
     private IMessageReceiver<Topology> tpTopologyReceiver;
     private IMessageReceiver<ProjectedTopology> projectedTopologyReceiver;
     private IMessageReceiver<ProjectedEntityCosts> projectedEntityCostReceiver;
+    private IMessageReceiver<AnalysisSummary> analysisSummaryReceiver;
     private IMessageReceiver<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageReceiver;
     private IMessageReceiver<ActionPlan> actionsReceiver;
 
@@ -275,9 +278,12 @@ public class PlacementPolicySysTest {
                 ProjectedEntityReservedInstanceCoverage::parseFrom);
         actionsReceiver = kafkaMessageConsumer.messageReceiver(
                 MarketComponentNotificationReceiver.ACTION_PLANS_TOPIC, ActionPlan::parseFrom);
+        analysisSummaryReceiver = kafkaMessageConsumer.messageReceiver(
+            MarketComponentNotificationReceiver.ANALYSIS_RESULTS,
+            TopologyDTO.AnalysisSummary::parseFrom);
         marketComponent = new MarketComponentNotificationReceiver(
                 projectedTopologyReceiver, projectedEntityCostReceiver, projectedEntityRiCoverageReceiver,
-                actionsReceiver, tpTopologyReceiver, threadPool);
+                actionsReceiver, tpTopologyReceiver, analysisSummaryReceiver, threadPool);
         kafkaMessageConsumer.start();
     }
 

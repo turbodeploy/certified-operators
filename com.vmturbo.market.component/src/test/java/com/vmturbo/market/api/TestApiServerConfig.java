@@ -7,6 +7,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.commons.idgen.IdentityInitializer;
@@ -30,7 +31,7 @@ public class TestApiServerConfig {
     public MarketNotificationSender marketNotificationSender() {
         return new MarketNotificationSender(projectedTopologySender(), projectedEntityCostSender(),
                         projectedEntityRiCoverageSender(), planAnalysisTopologySender(),
-                        actionPlanSender());
+                        actionPlanSender(), analysisSummarySender());
     }
 
     @Bean
@@ -58,4 +59,8 @@ public class TestApiServerConfig {
         return new SenderReceiverPair<>();
     }
 
+    @Bean
+    public IMessageSender<AnalysisSummary> analysisSummarySender() {
+        return new SenderReceiverPair<>();
+    }
 }

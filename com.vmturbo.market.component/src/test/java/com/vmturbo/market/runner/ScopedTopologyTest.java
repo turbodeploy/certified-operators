@@ -327,7 +327,8 @@ public class ScopedTopologyTest {
         // MockitoMatcher using anyLong to represent this parameter
         Mockito.verify(serverApi, Mockito.times(1))
                 .notifyProjectedTopology(eq(topologyInfo), anyLong(),
-                        eq(analysis.getProjectedTopology().get()));
+                        eq(analysis.getProjectedTopology().get()),
+                    analysis.getActionPlan().get().getId());
 
         // check the original topology size
         assertThat(analysis.getOriginalInputTopology().size(), equalTo(topologyDTOs.size()));

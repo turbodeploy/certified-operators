@@ -18,7 +18,9 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.repository.RepositoryNotificationSender;
@@ -106,12 +108,20 @@ public class MarketTopologyListenerTest {
 
     @Test
     public void testOnStaleProjectedTopologyReceived() throws Exception {
-        // verify that the projected topology will get skipped if it's for a source topology older
-        // than the "current" one.
+        // verify that the projected topology will get skipped if a newer projected topolgy has
+        // been received. In this case we skip since id 3 is "bigger" than id 2.
         final long topologyContextId = 11L;
         final long srcTopologyId = 1;
-        final long projectedTopologyId = 33333L;
+        final long projectedTopologyId = 2L;
         final long creationTime = 44444L;
+
+        marketTopologyListener.onAnalysisSummary(AnalysisSummary.newBuilder()
+            .setProjectedTopologyInfo(
+                ProjectedTopologyInfo.newBuilder()
+                    .setProjectedTopologyId(3L)
+                    .build()
+            ).build());
+
         when(topologyManager.getRealtimeTopologyId())
                 .thenReturn(TopologyID.fromDatabaseName("topology-11-SOURCE-2"));
         final TopologyID tid = new TopologyID(topologyContextId, projectedTopologyId, TopologyID.TopologyType.PROJECTED);

@@ -802,6 +802,10 @@ message DiskTypeInfo {
     // Number of discovered VSeries disks.
     optional int64 num_v_series_disks = 5;
 }
+// A message containing the id of a projected topology
+message ProjectedTopologyInfo {
+    optional int64 projected_topology_id = 1;
+}
 
 // Aggregated commodity historical values for analysis.
 // Certain commodities may have more than one kind of a value.
@@ -840,6 +844,18 @@ message TopologySummary {
     optional TopologyInfo topology_info = 1;
     // TBD: a summary of the contents of the topology, including the workload count or the raw
     // data that can be used to derive the workload count, so that we can resolve OM-37431
+}
+
+// A message that contains the id of the action plan
+message ActionPlanInfo {
+    optional int64 action_plan_id = 1;
+}
+
+// A message containing the results obtained by the analysis of the market
+message AnalysisSummary {
+    optional ProjectedTopologyInfo projected_topology_info = 1;
+    optional TopologyInfo source_topology_info = 2;
+    optional ActionPlanInfo action_plan_info = 3;
 }
 
 // A request to assemble the current topology and broadcast it to all listeners for the topology.

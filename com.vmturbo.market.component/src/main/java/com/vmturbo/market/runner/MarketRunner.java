@@ -215,7 +215,8 @@ public class MarketRunner {
                     // want to minimize the risk of the projected topology being unavailable.
                     serverApi.notifyProjectedTopology(analysis.getTopologyInfo(),
                                     analysis.getProjectedTopologyId().get(),
-                                    analysis.getProjectedTopology().get());
+                                    analysis.getProjectedTopology().get(),
+                                    analysis.getActionPlan().get().getId());
                     serverApi.notifyActionsRecommended(analysis.getActionPlan().get());
 
                     // Send projected entity costs. We only send them for the real time topology.

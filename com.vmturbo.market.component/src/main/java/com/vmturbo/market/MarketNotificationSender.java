@@ -11,11 +11,14 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ActionPlanInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Data;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.End;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -31,6 +34,7 @@ import com.vmturbo.components.api.server.IMessageSender;
 public class MarketNotificationSender extends
         ComponentNotificationSender<ActionPlan> {
 
+    private final IMessageSender<AnalysisSummary> analysisSummarySender;
     private final IMessageSender<ProjectedTopology> projectedTopologySender;
     private final IMessageSender<ProjectedEntityCosts> projectedEntityCostsSender;
     private final IMessageSender<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageSender;
@@ -42,12 +46,14 @@ public class MarketNotificationSender extends
             @Nonnull IMessageSender<ProjectedEntityCosts> projectedEntityCostsSender,
             @Nonnull IMessageSender<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageSender,
             @Nonnull IMessageSender<Topology> planAnalysisTopologySender,
-            @Nonnull IMessageSender<ActionPlan> actionPlanSender) {
+            @Nonnull IMessageSender<ActionPlan> actionPlanSender,
+            @Nonnull IMessageSender<AnalysisSummary> analysisSummarySender) {
         this.projectedTopologySender = Objects.requireNonNull(projectedTopologySender);
         this.projectedEntityCostsSender = Objects.requireNonNull(projectedEntityCostsSender);
         this.projectedEntityRiCoverageSender = Objects.requireNonNull(projectedEntityRiCoverageSender);
         this.planAnalysisTopologySender = Objects.requireNonNull(planAnalysisTopologySender);
         this.actionPlanSender = Objects.requireNonNull(actionPlanSender);
+        this.analysisSummarySender = Objects.requireNonNull(analysisSummarySender);
     }
 
     /**
@@ -113,7 +119,8 @@ public class MarketNotificationSender extends
      */
     public void notifyProjectedTopology(@Nonnull final TopologyInfo originalTopologyInfo,
                                     final long projectedTopologyId,
-                                    @Nonnull final Collection<ProjectedTopologyEntity> projectedTopo)
+                                    @Nonnull final Collection<ProjectedTopologyEntity> projectedTopo,
+                                        final long actionPlanId)
             throws CommunicationException, InterruptedException {
         sendProjectedTopologySegment(ProjectedTopology.newBuilder()
                 .setStart(Start.newBuilder()
@@ -135,6 +142,7 @@ public class MarketNotificationSender extends
                 .setTopologyId(projectedTopologyId)
                 .setEnd(End.newBuilder().setTotalCount(totalCount).build())
                 .build());
+        sendAnalysisSummary(projectedTopologyId, originalTopologyInfo, actionPlanId);
     }
 
     /**
@@ -240,6 +248,23 @@ public class MarketNotificationSender extends
         getLogger().debug("Sending topology {} segment {}", segment::getTopologyId,
                 segment::getSegmentCase);
         projectedTopologySender.sendMessage(segment);
+    }
+
+    private void sendAnalysisSummary(@Nonnull final long projectdTopologyId,
+                                       @Nonnull final TopologyInfo sourceTopologyInfo,
+                                     @Nonnull final long actionPlanId) {
+        try {
+            analysisSummarySender.sendMessage(
+                AnalysisSummary.newBuilder()
+                    .setProjectedTopologyInfo(ProjectedTopologyInfo.newBuilder().setProjectedTopologyId(projectdTopologyId))
+                    .setSourceTopologyInfo(sourceTopologyInfo)
+                    .setActionPlanInfo(ActionPlanInfo.newBuilder().setActionPlanId(actionPlanId).build())
+                    .build());
+            getLogger().debug("Sending analysys results for projected topology with id {}",
+                projectdTopologyId);
+        } catch (CommunicationException|InterruptedException e) {
+            getLogger().error("Could not send TopologySummary message", e);
+        }
     }
 
     @Override

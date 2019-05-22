@@ -7,17 +7,22 @@ import java.util.Set;
 import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.GuardedBy;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.arangodb.ArangoDBException;
 
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.market.component.api.AnalysisSummaryListener;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.RepositoryNotificationSender;
@@ -31,12 +36,16 @@ import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyEntities
 /**
  * Listens to changes in the topology after running the market.
  */
-public class MarketTopologyListener implements ProjectedTopologyListener {
+public class MarketTopologyListener implements ProjectedTopologyListener, AnalysisSummaryListener {
 
     private static final Logger logger = LogManager.getLogger();
 
     private final RepositoryNotificationSender notificationSender;
     private final TopologyLifecycleManager topologyManager;
+    private final Object topologyInfoLock = new Object();
+
+    @GuardedBy("topologyInfoLock")
+    private long latestKnownProjectedTopologyId;
 
     public MarketTopologyListener(@Nonnull final RepositoryNotificationSender notificationSender,
                                   @Nonnull final TopologyLifecycleManager topologyManager) {
@@ -57,19 +66,28 @@ public class MarketTopologyListener implements ProjectedTopologyListener {
                     "Faled to send notification about received topology " + projectedTopologyId, e);
         }
     }
-
-    private boolean shouldProcessTopology(TopologyInfo originalTopologyInfo) {
-        // should we skip this one? We will skip it if it's a projection of a realtime topology id
-        // that is "older" than our current realtime topology id.
-        if (originalTopologyInfo.getTopologyType() == TopologyType.REALTIME) {
-            Optional<TopologyID> optionalTopologyID = topologyManager.getRealtimeTopologyId();
-            if (optionalTopologyID.isPresent()) {
-                long currentRealtimeTopologyId = optionalTopologyID.get().getTopologyId();
-                // don't process if the original topology id is older than the current realtime id
-                if (currentRealtimeTopologyId > originalTopologyInfo.getTopologyId()) {
-                    return false;
+    @Override
+    public void onAnalysisSummary(@Nonnull final AnalysisSummary analysisSummary){
+            TopologyInfo topologyInfo = analysisSummary.getSourceTopologyInfo();
+            if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
+                synchronized (topologyInfoLock) {
+                    latestKnownProjectedTopologyId =
+                        analysisSummary.getProjectedTopologyInfo().getProjectedTopologyId();
+                    logger.info("Setting latest known projected realtime topology id to {}, " +
+                            "referring to source topology {}",
+                        latestKnownProjectedTopologyId, topologyInfo.getTopologyId());
                 }
             }
+    }
+    private boolean shouldProcessTopology(TopologyInfo originalTopologyInfo, long projectedTopologyId) {
+        // should we skip this one? We will skip it only if the most up to date projected
+        // topology received so far, is "newer" than the one we just received.
+        if (originalTopologyInfo.getTopologyType() == TopologyType.REALTIME) {
+                // don't process if this projected topology is older than the once we already
+            // received.
+                if (latestKnownProjectedTopologyId > projectedTopologyId) {
+                    return false;
+                }
         }
         return true;
     }
@@ -82,7 +100,7 @@ public class MarketTopologyListener implements ProjectedTopologyListener {
         final TopologyID tid = new TopologyID(topologyContextId, projectedTopologyId,
             TopologyID.TopologyType.PROJECTED);
 
-        if (!shouldProcessTopology(originalTopologyInfo)) {
+        if (!shouldProcessTopology(originalTopologyInfo, projectedTopologyId)) {
             // skip this realtime topology project cause it looks stale.
             logger.info("Skipping stale realtime projected topology id {} for source topology id {}",
                     projectedTopologyId, originalTopologyInfo.getTopologyId());

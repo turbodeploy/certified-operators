@@ -83,7 +83,9 @@ public class MarketApiIntegrationTest {
                         integrationTestServer.getBean("projectedEntityCostSender"),
                         integrationTestServer.getBean("projectedEntityRiCoverageSender"),
                         integrationTestServer.getBean("actionPlanSender"),
-                        integrationTestServer.getBean("planAnalysisTopologySender"), threadPool);
+                        integrationTestServer.getBean("planAnalysisTopologySender"),
+                        integrationTestServer.getBean("analysisSummarySender"),
+                        threadPool);
 
         notificationSender = integrationTestServer.getBean(MarketNotificationSender.class);
 

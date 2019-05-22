@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
@@ -31,6 +32,7 @@ import com.vmturbo.components.api.client.ApiClientException;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.market.component.api.ActionsListener;
+import com.vmturbo.market.component.api.AnalysisSummaryListener;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.PlanAnalysisTopologyListener;
 import com.vmturbo.market.component.api.ProjectedEntityCostsListener;
@@ -68,6 +70,11 @@ public class MarketComponentNotificationReceiver extends
      */
     public static final String ACTION_PLANS_TOPIC = "action-plans";
 
+    /**
+     * Analysis results topic.
+     */
+    public static final String ANALYSIS_RESULTS = "analysis-results";
+
     private final Set<ActionsListener> actionsListenersSet;
 
     private final Set<ProjectedTopologyListener> projectedTopologyListenersSet;
@@ -78,6 +85,20 @@ public class MarketComponentNotificationReceiver extends
     private final ChunkingReceiver<ProjectedTopologyEntity> projectedTopologyChunkReceiver;
     private final ChunkingReceiver<EntityCost> projectedEntityCostChunkReceiver;
     private final ChunkingReceiver<EntityReservedInstanceCoverage> projectedEntityRiCoverageChunkReceiver;
+    private final Set<AnalysisSummaryListener> analysisSummaryListenerSet;
+
+    private <LISTENER_TYPE> void doWithListeners(@Nonnull final Set<LISTENER_TYPE> listeners,
+                                                 final Consumer<LISTENER_TYPE> command) {
+        for (final LISTENER_TYPE listener : listeners) {
+            getExecutorService().submit(() -> {
+                try {
+                    command.accept(listener);
+                } catch (RuntimeException e) {
+                    getLogger().error("Error executing command for listener " + listener, e);
+                }
+            });
+        }
+    }
 
     public MarketComponentNotificationReceiver(
             @Nullable final IMessageReceiver<ProjectedTopology> projectedTopologyReceiver,
@@ -85,6 +106,7 @@ public class MarketComponentNotificationReceiver extends
             @Nullable final IMessageReceiver<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageReceiver,
             @Nullable final IMessageReceiver<ActionPlan> actionPlanReceiver,
             @Nullable final IMessageReceiver<Topology> planAnalysisTopologyReceiver,
+            @Nullable final IMessageReceiver<AnalysisSummary> analysisSummaryReceiver,
             @Nonnull final ExecutorService executorService) {
         super(actionPlanReceiver, executorService);
         if (projectedTopologyReceiver != null) {
@@ -124,6 +146,12 @@ public class MarketComponentNotificationReceiver extends
         } else {
             planAnalysisTopologyListenersSet = Collections.emptySet();
         }
+        if (analysisSummaryReceiver == null) {
+            analysisSummaryListenerSet = Sets.newConcurrentHashSet();
+        } else {
+            analysisSummaryListenerSet = Collections.newSetFromMap(new ConcurrentHashMap<>());
+            analysisSummaryReceiver.addListener(this::processAnalysisSummary);
+        }
     }
 
     @Override
@@ -150,6 +178,11 @@ public class MarketComponentNotificationReceiver extends
     @Override
     public void addPlanAnalysisTopologyListener(@Nonnull final PlanAnalysisTopologyListener listener) {
         planAnalysisTopologyListenersSet.add(Objects.requireNonNull(listener));
+    }
+
+    @Override
+    public void addAnalysisSummaryListener(@Nonnull final AnalysisSummaryListener listener) {
+        analysisSummaryListenerSet.add(Objects.requireNonNull(listener));
     }
 
     @Override
@@ -254,6 +287,19 @@ public class MarketComponentNotificationReceiver extends
                 getLogger().warn("Unknown broadcast data segment received: {}",
                                 projectedCoverageSegment.getSegmentCase());
         }
+    }
+
+    /**
+     * Process the Analysis results.
+     *
+     * @param analysisSummary the analysis results to process
+     * @param commitCommand a Runnable command to be processed when the whole stream has been processed
+     */
+    private void processAnalysisSummary( final AnalysisSummary analysisSummary,
+                                         @Nonnull Runnable commitCommand){
+
+        doWithListeners(analysisSummaryListenerSet, l -> l.onAnalysisSummary(analysisSummary));
+        commitCommand.run();
     }
 
     /**
