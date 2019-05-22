@@ -25,7 +25,9 @@
         "isThin": true,
         "active": true,
         "capacityIncrement": 1048576.0,
-        "maxQuantity": 0.0
+        "historicalUsed": {
+          "maxQuantity": 0.0
+        }
       },
       {
         "commodityType": {
@@ -39,7 +41,9 @@
         "isThin": true,
         "active": true,
         "capacityIncrement": 1800.0,
-        "maxQuantity": 10.33388904322368
+        "historicalUsed": {
+          "maxQuantity": 10.33388904322368
+        }
       },
       {
         "commodityType": {

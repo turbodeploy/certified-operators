@@ -108,7 +108,11 @@ class CommodityMapper {
         commRepo.setResizeable(comm.getIsResizeable());
         commRepo.setThin(comm.getIsThin());
         commRepo.setCapacityIncrement(comm.getCapacityIncrement());
-        commRepo.setMaxQuantity(comm.getMaxQuantity());
+        // TODO should repo DTO contain all kinds of historical values? or any?
+        // histUtilization is already not in there
+        if (comm.hasHistoricalUsed() && comm.getHistoricalUsed().hasMaxQuantity()) {
+            commRepo.setMaxQuantity(comm.getHistoricalUsed().getMaxQuantity());
+        }
         commRepo.setScalingFactor(comm.getScalingFactor());
 
         if (comm.hasHotResizeInfo()) {

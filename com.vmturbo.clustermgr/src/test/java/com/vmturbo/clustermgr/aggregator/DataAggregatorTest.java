@@ -1,5 +1,11 @@
 package com.vmturbo.clustermgr.aggregator;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -14,12 +20,11 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.Mockito;
+
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.proactivesupport.DataMetric;
 import com.vmturbo.proactivesupport.DataMetricLOB;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.*;
 
 /**
  * The DataAggregatorTest implements data aggregator tests.
@@ -47,7 +52,7 @@ public class DataAggregatorTest {
     public void testBasePoint() {
         DataAggregator aggregator = new DataAggregator();
         Calendar calendar = Calendar.getInstance();
-        String base = DataAggregator.BASE_PATH + "/" + calendar.get(Calendar.YEAR) + "_" +
+        String base = DataAggregator.BASE_PATH + File.separator + calendar.get(Calendar.YEAR) + "_" +
                       calendar.get(Calendar.MONTH) + "_" +
                       calendar.get(Calendar.DAY_OF_MONTH) + "_" +
                       calendar.get(Calendar.HOUR_OF_DAY) + "_" +

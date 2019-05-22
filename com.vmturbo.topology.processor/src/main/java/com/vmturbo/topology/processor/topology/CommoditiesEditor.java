@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.annotation.Nonnull;
 
 import org.apache.commons.collections4.CollectionUtils;
@@ -21,7 +22,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
@@ -38,6 +38,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -145,7 +146,7 @@ public class CommoditiesEditor {
                             final CommodityType commType = ClassicEnumMapper.COMMODITY_TYPE_MAPPINGS
                                 .get(statRecord.getName());
                             updateCommodityValuesForVmAndProvider(vm, commType, graph, providerIdsByCommodityType,
-                                statRecord.getPeak().getAvg(), statRecord.getUsed().getAvg());
+                                statRecord.getPeak().getAvg(), statRecord.getUsed().getAvg(), false);
                         });
                     });
                 });
@@ -185,12 +186,14 @@ public class CommoditiesEditor {
      * @param providerIdsByCommodityType provides relationship between commodity type and its providers for commodities bought by VM.
      * @param peak value as fetched from database for this VM's commodity.
      * @param used value as fetched from database for this VM's commodity.
+     * @param addHistorical when true, add to history values as SystemLoad, otherwise replace real-time used/peak
      */
     private void updateCommodityValuesForVmAndProvider(TopologyEntity vm, CommodityType commType,
                     final TopologyGraph graph,
                     final Map<Integer, Queue<Long>> providerIdsByCommodityType,
                     final double peak,
-                    final double used) {
+                    final double used,
+                    boolean addHistorical) {
         // We skip access commodities
         if (commType == null || ACCESS_COMMODITIES.contains(commType)) {
             return;
@@ -204,14 +207,19 @@ public class CommoditiesEditor {
                 .filter(comm -> comm.getCommodityType().getType() == commType.getNumber())
                 .findFirst();
         if (commoditySold.isPresent()) {
-            commoditySold.get().setUsed(used);
-
+            CommoditySoldDTO.Builder commBuilder = commoditySold.get();
             if (peak < 0) {
                 logger.error("Peak quantity = {} for commodity type {} of topology entity {}",
                         peak, commoditySold.get().getCommodityType(), vm.getDisplayName());
             }
 
-            commoditySold.get().setPeak(peak);
+            if (addHistorical) {
+                commBuilder.getHistoricalUsedBuilder().setSystemLoad(used);
+                commBuilder.getHistoricalPeakBuilder().setSystemLoad(peak);
+            } else {
+                commBuilder.setUsed(used);
+                commBuilder.setPeak(peak);
+            }
         // Otherwise, handle commodity bought by VM
         } else if (providerIdsByCommodityType.containsKey(commType.getNumber())) {
             // Get first provider and add it to the end because we want
@@ -252,9 +260,14 @@ public class CommoditiesEditor {
                             logger.error("Peak quantity = {} for commodity type {} of topology entity {}"
                                     , newPeak, commSold.getCommodityType(), provider.getDisplayName());
                         }
-                        commSold.setPeak(newPeak);
-                        commSold.setUsed(Math.max(commSold.getUsed() - commodityBought.getUsed(), 0)
-                                        + used);
+                        double newUsed = Math.max(commSold.getUsed() - commodityBought.getUsed(), 0) + used;
+                        if (addHistorical) {
+                            commSold.getHistoricalUsedBuilder().setSystemLoad(newUsed);
+                            commSold.getHistoricalPeakBuilder().setSystemLoad(newPeak);
+                        } else {
+                            commSold.setUsed(newUsed);
+                            commSold.setPeak(newPeak);
+                        }
                     }
 
                     // Set value for consumer.
@@ -262,8 +275,13 @@ public class CommoditiesEditor {
                     // we will set value for commodity bought from last record. It is not a problem because
                     // price in market is calculated by providers based on commodity sold. Mismatch in commodity
                     // bought and sold values will be reflected as overhead.
-                   commodityBought.setPeak(peak);
-                   commodityBought.setUsed(used);
+                    if (addHistorical) {
+                        commodityBought.getHistoricalUsedBuilder().setSystemLoad(used);
+                        commodityBought.getHistoricalPeakBuilder().setSystemLoad(peak);
+                    } else {
+                        commodityBought.setUsed(used);
+                        commodityBought.setPeak(peak);
+                    }
                 });
             });
         }
@@ -367,9 +385,10 @@ public class CommoditiesEditor {
                     // Update commodity value for this entity
                     CommodityType commType = CommodityType.valueOf(record.getPropertyType());
                     updateCommodityValuesForVmAndProvider(vm, commType, graph,
-                                    providerIdsByCommodityType, peak, used);
+                                    providerIdsByCommodityType, peak, used, true);
                 });
             });
         });
     }
+
 }

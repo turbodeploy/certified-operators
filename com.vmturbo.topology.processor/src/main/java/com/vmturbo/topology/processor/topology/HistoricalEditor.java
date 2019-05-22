@@ -322,8 +322,8 @@ public class HistoricalEditor {
                         histSoldInfoList.set(i, histSoldInfo);
                         histSeInfo.setHistoricalCommoditySold(histSoldInfoList);
                         historicalInfo.replace(topoEntity.getOid(), histSeInfo);
-                        topoCommSold.setHistoricalUsed(used);
-                        topoCommSold.setHistoricalPeak(peak);
+                        topoCommSold.getHistoricalUsedBuilder().setHistUtilization(used);
+                        topoCommSold.getHistoricalPeakBuilder().setHistUtilization(peak);
                         break;
                     }
                 }
@@ -544,9 +544,10 @@ public class HistoricalEditor {
                         }
                     }
                 }
-                topoCommBought.setHistoricalUsed(usedQuantity);
-                topoCommBought.setHistoricalPeak(peakQuantity);
+                topoCommBought.getHistoricalUsedBuilder().setHistUtilization(usedQuantity);
+                topoCommBought.getHistoricalPeakBuilder().setHistUtilization(peakQuantity);
             }
         }
     }
+
 }

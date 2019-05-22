@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
@@ -783,6 +784,9 @@ public class TopologyConverterToMarketTest {
         CommodityBoughtDTO commBought = CommodityBoughtDTO.newBuilder()
                 .setCommodityType(CommodityType.newBuilder()
                         .setType(commBoughtType)).build();
+        HistoricalValues histValue = HistoricalValues.newBuilder()
+                        .setMaxQuantity(commSoldMax)
+                        .build();
         TopologyEntityDTO vmEntityDTO = TopologyEntityDTO.newBuilder()
                 .setEntityType(entityType)
                 .setEnvironmentType(EnvironmentType.CLOUD)
@@ -792,7 +796,7 @@ public class TopologyConverterToMarketTest {
                                 .setType(commSoldType).build())
                         .setUsed(commSoldUsed)
                         .setPeak(commSoldPeak)
-                        .setMaxQuantity(commSoldMax)
+                        .setHistoricalUsed(histValue)
                         .setCapacity(commSoldCap)
                         .setResizeTargetUtilization(commSoldRtu)
                         .build())

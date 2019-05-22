@@ -48,6 +48,7 @@ import com.google.protobuf.util.JsonFormat;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -459,116 +460,115 @@ public class TopologyEntitiesHandlerTest {
     }
 
     @Test
-    public void testMoveToCheaperComputeTier_ShopTogether() {
+    public void testMoveToCheaperComputeTier_ShopTogether()
+                    throws FileNotFoundException, InvalidProtocolBufferException {
         testMoveToCheaperComputeTier(true);
     }
 
     @Test
-    public void testMoveToCheaperComputeTier_ShopAlone() {
+    public void testMoveToCheaperComputeTier_ShopAlone()
+                    throws FileNotFoundException, InvalidProtocolBufferException {
         testMoveToCheaperComputeTier(false);
     }
 
-    public void testMoveToCheaperComputeTier(boolean isVMShopTogether) {
-        try {
-            // Read file
-            Set<TopologyEntityDTO.Builder> topologyEntityDTOBuilders = readCloudTopologyFromJsonFile();
-            TopologyEntityDTO.Builder vm = topologyEntityDTOBuilders.stream().filter(
-                    builder -> builder.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
-                    .collect(Collectors.toList()).get(0);
-            final Set<Integer> entityTypesToSkip = new HashSet<>();
-            entityTypesToSkip.add(EntityType.DATABASE_SERVER_VALUE);
-            entityTypesToSkip.add(EntityType.DATABASE_TIER_VALUE);
-            entityTypesToSkip.add(EntityType.DATABASE_VALUE);
-            // Set the shopTogether flag
-            vm.getAnalysisSettingsBuilder().setShopTogether(isVMShopTogether);
-            Set<TopologyEntityDTO> topologyEntityDTOs = topologyEntityDTOBuilders.stream()
-                    .map(TopologyEntityDTO.Builder::build).collect(Collectors.toSet());
+    public void testMoveToCheaperComputeTier(boolean isVMShopTogether)
+                    throws FileNotFoundException, InvalidProtocolBufferException {
+        // Read file
+        Set<TopologyEntityDTO.Builder> topologyEntityDTOBuilders = readCloudTopologyFromJsonFile();
+        TopologyEntityDTO.Builder vm = topologyEntityDTOBuilders.stream().filter(
+                builder -> builder.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                .collect(Collectors.toList()).get(0);
+        final Set<Integer> entityTypesToSkip = new HashSet<>();
+        entityTypesToSkip.add(EntityType.DATABASE_SERVER_VALUE);
+        entityTypesToSkip.add(EntityType.DATABASE_TIER_VALUE);
+        entityTypesToSkip.add(EntityType.DATABASE_VALUE);
+        // Set the shopTogether flag
+        vm.getAnalysisSettingsBuilder().setShopTogether(isVMShopTogether);
+        Set<TopologyEntityDTO> topologyEntityDTOs = topologyEntityDTOBuilders.stream()
+                .map(TopologyEntityDTO.Builder::build).collect(Collectors.toSet());
 
-            Set<TopologyEntityDTO> dtosToProcess = topologyEntityDTOs.stream().filter(dto ->
-                    (!entityTypesToSkip.contains(dto.getEntityType())))
-                        .collect(Collectors.toSet());
+        Set<TopologyEntityDTO> dtosToProcess = topologyEntityDTOs.stream().filter(dto ->
+                (!entityTypesToSkip.contains(dto.getEntityType())))
+                    .collect(Collectors.toSet());
 
-            // Get handle to the templates, region and BA TopologyEntityDTO
-            TopologyEntityDTO m1Medium = null;
-            TopologyEntityDTO m1Large = null;
-            TopologyEntityDTO region = null;
-            TopologyEntityDTO ba = null;
-            for (TopologyEntityDTO topologyEntityDTO : dtosToProcess) {
-                if (topologyEntityDTO.getDisplayName().contains("m1.large")
-                        && topologyEntityDTO.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
-                    m1Large = topologyEntityDTO;
-                } else if (topologyEntityDTO.getDisplayName().contains("m1.medium")
-                        && topologyEntityDTO.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
-                    m1Medium = topologyEntityDTO;
-                } else if (topologyEntityDTO.getEntityType() == EntityType.REGION_VALUE) {
-                    region = topologyEntityDTO;
-                } else if (topologyEntityDTO.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
-                    ba = topologyEntityDTO;
-                }
+        // Get handle to the templates, region and BA TopologyEntityDTO
+        TopologyEntityDTO m1Medium = null;
+        TopologyEntityDTO m1Large = null;
+        TopologyEntityDTO region = null;
+        TopologyEntityDTO ba = null;
+        for (TopologyEntityDTO topologyEntityDTO : dtosToProcess) {
+            if (topologyEntityDTO.getDisplayName().contains("m1.large")
+                    && topologyEntityDTO.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
+                m1Large = topologyEntityDTO;
+            } else if (topologyEntityDTO.getDisplayName().contains("m1.medium")
+                    && topologyEntityDTO.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
+                m1Medium = topologyEntityDTO;
+            } else if (topologyEntityDTO.getEntityType() == EntityType.REGION_VALUE) {
+                region = topologyEntityDTO;
+            } else if (topologyEntityDTO.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
+                ba = topologyEntityDTO;
             }
-
-            Map<OSType, Double> m1LargePrices = new HashMap<>();
-            m1LargePrices.put(OSType.LINUX, 5d);
-            m1LargePrices.put(OSType.RHEL, 3d);
-            Map<OSType, Double> m1MediumPrices = new HashMap<>();
-            m1MediumPrices.put(OSType.LINUX, 4d);
-            m1MediumPrices.put(OSType.RHEL, 2d);
-            when(marketPriceTable.getComputePriceBundle(m1Large.getOid(), region.getOid()))
-                    .thenReturn(mockComputePriceBundle(ba.getOid(), m1LargePrices));
-            when(marketPriceTable.getComputePriceBundle(m1Medium.getOid(), region.getOid()))
-                    .thenReturn(mockComputePriceBundle(ba.getOid(), m1MediumPrices));
-            when(ccd.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
-            final TopologyConverter converter =
-                    new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable,
-                        ccd, CommodityIndex.newFactory());
-            final Set<EconomyDTOs.TraderTO> traderTOs =
-                    converter.convertToMarket(dtosToProcess.stream()
-                            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
-            traderTOs.forEach(t -> System.out.println(t));
-            // Get handle to the traders which will be used in asserting
-            TraderTO m1MediumTrader = null;
-            TraderTO m1LargeTrader = null;
-            TraderTO testVMTrader = null;
-            ShoppingListTO slToMove = null;
-            for (TraderTO traderTO : traderTOs) {
-                if (traderTO.getType() == EntityType.COMPUTE_TIER_VALUE &&
-                        traderTO.getDebugInfoNeverUseInCode().contains("m1.medium")) {
-                    m1MediumTrader = traderTO;
-                } else if (traderTO.getType() == EntityType.COMPUTE_TIER_VALUE &&
-                        traderTO.getDebugInfoNeverUseInCode().contains("m1.large")) {
-                    m1LargeTrader = traderTO;
-                } else if (traderTO.getType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                    testVMTrader = traderTO;
-                }
-            }
-            long m1LargeOid = m1LargeTrader.getOid();
-            slToMove = testVMTrader.getShoppingListsList().stream().filter(
-                    sl -> sl.getSupplier() == m1LargeOid).collect(Collectors.toList()).get(0);
-            Analysis analysis = mock(Analysis.class);
-
-            final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(AnalysisUtil.QUOTE_FACTOR,
-                AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
-                Collections.emptyMap())
-                    .setRightsizeLowerWatermark(rightsizeLowerWatermark)
-                    .setRightsizeUpperWatermark(rightsizeUpperWatermark)
-                    .setMaxPlacementsOverride(maxPlacementIterations)
-                    .build();
-            // Call analysis
-            AnalysisResults results =
-                    TopologyEntitiesHandler.performAnalysis(
-                            traderTOs, REALTIME_TOPOLOGY_INFO, analysisConfig, analysis);
-            System.out.println(results.getActionsList());
-
-            // Asserts
-            assertEquals(1, results.getActionsCount());
-            List<ActionTO> actions = results.getActionsList();
-            MoveTO move = actions.get(0).getMove();
-            assertEquals(slToMove.getOid(), move.getShoppingListToMove());
-            assertEquals(m1LargeTrader.getOid(), move.getSource());
-            assertEquals(m1MediumTrader.getOid(), move.getDestination());
-        } catch (Exception e) {
-            Assert.fail(e.getMessage());
         }
+
+        Map<OSType, Double> m1LargePrices = new HashMap<>();
+        m1LargePrices.put(OSType.LINUX, 5d);
+        m1LargePrices.put(OSType.RHEL, 3d);
+        Map<OSType, Double> m1MediumPrices = new HashMap<>();
+        m1MediumPrices.put(OSType.LINUX, 4d);
+        m1MediumPrices.put(OSType.RHEL, 2d);
+        when(marketPriceTable.getComputePriceBundle(m1Large.getOid(), region.getOid()))
+                .thenReturn(mockComputePriceBundle(ba.getOid(), m1LargePrices));
+        when(marketPriceTable.getComputePriceBundle(m1Medium.getOid(), region.getOid()))
+                .thenReturn(mockComputePriceBundle(ba.getOid(), m1MediumPrices));
+        when(ccd.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
+        final TopologyConverter converter =
+                new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable,
+                    ccd, CommodityIndex.newFactory());
+        final Set<EconomyDTOs.TraderTO> traderTOs =
+                converter.convertToMarket(dtosToProcess.stream()
+                        .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
+        traderTOs.forEach(t -> System.out.println(t));
+        // Get handle to the traders which will be used in asserting
+        TraderTO m1MediumTrader = null;
+        TraderTO m1LargeTrader = null;
+        TraderTO testVMTrader = null;
+        ShoppingListTO slToMove = null;
+        for (TraderTO traderTO : traderTOs) {
+            if (traderTO.getType() == EntityType.COMPUTE_TIER_VALUE &&
+                    traderTO.getDebugInfoNeverUseInCode().contains("m1.medium")) {
+                m1MediumTrader = traderTO;
+            } else if (traderTO.getType() == EntityType.COMPUTE_TIER_VALUE &&
+                    traderTO.getDebugInfoNeverUseInCode().contains("m1.large")) {
+                m1LargeTrader = traderTO;
+            } else if (traderTO.getType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                testVMTrader = traderTO;
+            }
+        }
+        long m1LargeOid = m1LargeTrader.getOid();
+        slToMove = testVMTrader.getShoppingListsList().stream().filter(
+                sl -> sl.getSupplier() == m1LargeOid).collect(Collectors.toList()).get(0);
+        Analysis analysis = mock(Analysis.class);
+
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(AnalysisUtil.QUOTE_FACTOR,
+            AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
+            Collections.emptyMap())
+                .setRightsizeLowerWatermark(rightsizeLowerWatermark)
+                .setRightsizeUpperWatermark(rightsizeUpperWatermark)
+                .setMaxPlacementsOverride(maxPlacementIterations)
+                .build();
+        // Call analysis
+        AnalysisResults results =
+                TopologyEntitiesHandler.performAnalysis(
+                        traderTOs, REALTIME_TOPOLOGY_INFO, analysisConfig, analysis);
+        System.out.println(results.getActionsList());
+
+        // Asserts
+        assertEquals(1, results.getActionsCount());
+        List<ActionTO> actions = results.getActionsList();
+        MoveTO move = actions.get(0).getMove();
+        assertEquals(slToMove.getOid(), move.getShoppingListToMove());
+        assertEquals(m1LargeTrader.getOid(), move.getSource());
+        assertEquals(m1MediumTrader.getOid(), move.getDestination());
     }
 
     public void testMoveToCheaperDatabaseTier() {
@@ -774,8 +774,8 @@ public class TopologyEntitiesHandlerTest {
             List<CommoditySoldDTO.Builder> commSoldBuilder = entityBuilder.getCommoditySoldListBuilderList();
             for (int j = 0; j < commSoldBuilder.size(); j++) {
                 CommoditySoldDTO.Builder commSold = commSoldBuilder.get(j);
-                commSold.setHistoricalUsed(commSold.getUsed())
-                        .setHistoricalPeak(commSold.getPeak());
+                commSold.setHistoricalUsed(createHistUsedValue(commSold.getUsed()))
+                        .setHistoricalPeak(createHistUsedValue(commSold.getPeak()));
             }
             List<CommoditySoldDTO> soldList = new ArrayList<>();
             for (CommoditySoldDTO.Builder commSold : commSoldBuilder) {
@@ -788,8 +788,8 @@ public class TopologyEntitiesHandlerTest {
                 List<CommodityBoughtDTO.Builder> commBoughtBuilder = commBoughtFromProviderBuilder.get(j).getCommodityBoughtBuilderList();
                 for (int k = 0; k < commBoughtBuilder.size(); k++) {
                     CommodityBoughtDTO.Builder commBought = commBoughtBuilder.get(k);
-                    commBought.setHistoricalUsed(commBought.getUsed())
-                            .setHistoricalPeak(commBought.getPeak());
+                    commBought.setHistoricalUsed(createHistUsedValue(commBought.getUsed()))
+                              .setHistoricalPeak(createHistUsedValue(commBought.getPeak()));
                 }
             }
             List<CommoditiesBoughtFromProvider> boughtList = new ArrayList<>();
@@ -805,6 +805,10 @@ public class TopologyEntitiesHandlerTest {
 
             map.put((long) i, entity);
         }
+    }
+
+    private static HistoricalValues createHistUsedValue(double value) {
+        return HistoricalValues.newBuilder().setHistUtilization(value).build();
     }
 
     private long countSoldCommodities(Set<TraderTO> traderDTOs, String pattern) {

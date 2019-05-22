@@ -21,9 +21,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
-
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesMaxValuesRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
@@ -44,6 +41,9 @@ import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal.FormatRecommendation;
+
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 
 /**
  * Post-stitching operation for setting maxQuantity values of the commodities for each entity.
@@ -365,8 +365,8 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
                                             ? newValue : oldValue));
 
                 final double newMaxValue = newMax.getMaxValue();
-                resultBuilder.queueUpdateEntityAlone(entity, toUpdate ->
-                    commoditySoldDTO.setMaxQuantity(newMaxValue));
+                resultBuilder.queueUpdateEntityAlone(entity, toUpdate -> commoditySoldDTO
+                                .getHistoricalUsedBuilder().setMaxQuantity(newMaxValue));
                 commoditiesCount++;
             }
         }

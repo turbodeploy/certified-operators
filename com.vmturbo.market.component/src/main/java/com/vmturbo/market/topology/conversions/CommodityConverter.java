@@ -6,9 +6,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,6 +20,7 @@ import com.google.common.collect.Table;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.conversions.ConversionErrorCounts.ErrorCategory;
@@ -97,8 +100,16 @@ public class CommodityConverter {
             @Nonnull TopologyDTO.TopologyEntityDTO dto) {
         final CommodityType commodityType = topologyCommSold.getCommodityType();
         float capacity = (float)topologyCommSold.getCapacity();
-        float used = (float)(topologyCommSold.hasHistoricalUsed() ?
-            topologyCommSold.getHistoricalUsed() : topologyCommSold.getUsed());
+
+        float used = getUsedValue(topologyCommSold, TopologyDTO.CommoditySoldDTO::getUsed,
+                                  topologyCommSold.hasHistoricalUsed()
+                                                  ? TopologyDTO.CommoditySoldDTO::getHistoricalUsed
+                                                  : null);
+        float peak = getUsedValue(topologyCommSold, TopologyDTO.CommoditySoldDTO::getPeak,
+                                  topologyCommSold.hasHistoricalPeak()
+                                                  ? TopologyDTO.CommoditySoldDTO::getHistoricalPeak
+                                                  : null);
+
         // if this commodity has a scaling factor set, then scale up the
         // USED and CAPACITY by scalingFactor for use in the new CommoditySoldTO
         if (topologyCommSold.hasScalingFactor()) {
@@ -131,7 +142,7 @@ public class CommodityConverter {
                 logger.warn("Setting negative used value for "
                         + commodityType + " to 0.");
             }
-            used = 0;
+            used = 0f;
         } else if (used > capacity) {
             if (AnalysisUtil.COMMODITIES_TO_CAP.contains(type)) {
                 float cappedUsed = capacity * TopologyConversionConstants.CAPACITY_FACTOR;
@@ -167,23 +178,30 @@ public class CommodityConverter {
                         .setUpdateFunction(updateFunction(topologyCommSold))
                         .build();
 
-        double maxQuantity = topologyCommSold.getMaxQuantity();
-        float maxQuantityFloat = (float) maxQuantity;
+        // not mandatory (e.g. for access commodities)
+        double maxQuantity = topologyCommSold.hasHistoricalUsed()
+                             && topologyCommSold.getHistoricalUsed().hasMaxQuantity()
+                                             ? topologyCommSold.getHistoricalUsed().getMaxQuantity()
+                                             : 0;
+        float maxQuantityFloat;
         if (maxQuantity < 0) {
             conversionErrorCounts.recordError(ErrorCategory.MAX_QUANTITY_NEGATIVE,
                 sdkCommType == null ? "UNKNOWN" : sdkCommType.name());
             logger.trace("maxQuantity: {} is less than 0. Setting it 0.", maxQuantity);
             maxQuantityFloat = 0;
-        } else if (maxQuantityFloat < 0) {
-            logger.warn("Float to double cast error. maxQuantity:{}. maxQuantityFloat:{}.",
-                    maxQuantity, maxQuantityFloat);
-            maxQuantityFloat = 0;
+        } else {
+            maxQuantityFloat = (float)maxQuantity;
+            if (maxQuantityFloat < 0) {
+                logger.warn("Float to double cast error. maxQuantity:{}. maxQuantityFloat:{}.",
+                            maxQuantity, maxQuantityFloat);
+                maxQuantityFloat = 0;
+            }
         }
         // if entry not present, initialize to 0
         int numConsumers = Optional.ofNullable(numConsumersOfSoldCommTable.get(dto.getOid(),
                 topologyCommSold.getCommodityType())).map(o -> o.intValue()).orElse(0);
         return CommodityDTOs.CommoditySoldTO.newBuilder()
-                .setPeakQuantity((float)topologyCommSold.getHistoricalPeak())
+                .setPeakQuantity(peak)
                 .setCapacity(capacity)
                 .setQuantity(used)
                 // Warning: we are down casting from double to float.
@@ -468,4 +486,34 @@ public class CommodityConverter {
                     .build();
         }
     }
+
+    /**
+     * Fetch the single used or peak value for a topology commodity.
+     * System load > history utilization > real-time usage.
+     *
+     * @param <DtoType> sold or bought topology commodity dto type
+     * @param commDto sold or bought commodity dto
+     * @param usedExtractor how to get real-time usage from dto
+     * @param historicalExtractor how to get history usage from dto, null if dto has no history values
+     * @return non-null value (ultimately there are 0 defaults)
+     */
+    public static <DtoType> float
+           getUsedValue(@Nonnull DtoType commDto,
+                        @Nonnull Function<DtoType, Double> usedExtractor,
+                        @Nullable Function<DtoType, HistoricalValues> historicalExtractor) {
+        if (historicalExtractor != null) {
+            HistoricalValues hv = historicalExtractor.apply(commDto);
+            // if system load is present, it takes precedence
+            if (hv.hasSystemLoad()) {
+                return (float)hv.getSystemLoad();
+            } else if (hv.hasHistUtilization()) {
+                // if not then hist utilization
+                return (float)hv.getHistUtilization();
+            }
+        }
+        // otherwise take real-time 'used'
+        // real-time values have 0 defaults so there cannot be nulls
+        return usedExtractor.apply(commDto).floatValue();
+    }
+
 }

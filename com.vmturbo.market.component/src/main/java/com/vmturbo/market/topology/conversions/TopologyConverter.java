@@ -33,12 +33,11 @@ import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
 import com.google.gson.Gson;
 
-import com.vmturbo.common.protobuf.topology.StitchingErrors;
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -52,6 +51,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.cost.calculation.CostJournal;
@@ -153,9 +153,6 @@ public class TopologyConverter {
 
     // used in double comparision
     public static final double EPSILON = 1e-5;
-
-    // used in double comparision
-    private static final double ZERO = 0.0;
 
     /**
      * Map from entity OID to original topology entity DTO.
@@ -1161,13 +1158,18 @@ public class TopologyConverter {
      * @return an array of two elements, the first element is new used value, the second is the new peak value
      */
     protected float[] getResizedCapacityForCloud(@Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO,
-                                               @Nonnull final TopologyDTO.CommodityBoughtDTO commBought) {
+                                                 @Nonnull final TopologyDTO.CommodityBoughtDTO commBought) {
 
-
-        float used = commBought.hasHistoricalUsed() ? (float)commBought.getHistoricalUsed() :
-            (float)commBought.getUsed();
-        float peak = commBought.hasHistoricalPeak() ? (float)commBought.getHistoricalPeak() :
-            (float)commBought.getPeak();
+        float used = CommodityConverter
+                        .getUsedValue(commBought, TopologyDTO.CommodityBoughtDTO::getUsed,
+                                      commBought.hasHistoricalUsed()
+                                                      ? TopologyDTO.CommodityBoughtDTO::getHistoricalUsed
+                                                      : null);
+        float peak = CommodityConverter
+                        .getUsedValue(commBought, TopologyDTO.CommodityBoughtDTO::getPeak,
+                                      commBought.hasHistoricalPeak()
+                                                      ? TopologyDTO.CommodityBoughtDTO::getHistoricalPeak
+                                                      : null);
         float[] newQuantity = {used, peak};
         Integer drivingCommSoldType = TopologyConversionConstants.commDependancyMapForCloudResize
                 .get(commBought.getCommodityType().getType());
@@ -1180,9 +1182,9 @@ public class TopologyConverter {
         if (drivingCommSold.size() == 1 && topologyDTO.getEnvironmentType() == EnvironmentType.CLOUD) {
             CommoditySoldDTO commSold = drivingCommSold.get(0);
             double targetUtil = commSold.getResizeTargetUtilization();
-            logger.debug("Resizing {} of {}. Used = {}, Max = {}, Peak = {}, RTU = {}",
+            logger.debug("Resizing {} of {}. Used = {}, Peak = {}, RTU = {}",
                     commSold.getCommodityType().getType(), topologyDTO.getDisplayName(),
-                    commSold.getUsed(), commSold.getMaxQuantity(), commSold.getPeak(), targetUtil);
+                    commSold.getUsed(), commSold.getPeak(), targetUtil);
             double resizeUpDemand = commSold.getUsed();
             // For cloud resize down where instead of using the max we use weighted average
             double resizeDownDemand = getWeightedUsed(commSold);
@@ -1226,9 +1228,14 @@ public class TopologyConverter {
      * Calculates the weighted usage which will be used for resize down for cloud resource.
      */
     private double getWeightedUsed(@Nonnull final TopologyDTO.CommoditySoldDTO commodity) {
-        return commodity.getMaxQuantity() <= 0 ? commodity.getMaxQuantity()
+        Double maxQuantity = commodity.hasHistoricalUsed()
+                        && commodity.getHistoricalUsed().hasMaxQuantity()
+                                        ? commodity.getHistoricalUsed().getMaxQuantity()
+                                        : null;
+        float max = maxQuantity == null ? 0f : maxQuantity.floatValue();
+        return max <= 0 ? max
                 : TopologyConversionConstants.RESIZE_AVG_WEIGHT * commodity.getUsed()
-                + TopologyConversionConstants.RESIZE_MAX_WEIGHT * commodity.getMaxQuantity()
+                + TopologyConversionConstants.RESIZE_MAX_WEIGHT * max
                 + TopologyConversionConstants.RESIZE_PEAK_WEIGHT * commodity.getPeak();
     }
 
@@ -1867,7 +1874,6 @@ public class TopologyConverter {
             .setCapacity(reverseScaleCommSold(capacity, originalCommoditySold))
             .setUsed(reverseScaleCommSold(commSoldTO.getQuantity(), originalCommoditySold))
             .setPeak(peakQuantity)
-            .setMaxQuantity(commSoldTO.getMaxQuantity())
             .setIsResizeable(commSoldTO.getSettings().getResizable())
             .setEffectiveCapacityPercentage(
                 commSoldTO.getSettings().getUtilizationUpperBound() * 100)

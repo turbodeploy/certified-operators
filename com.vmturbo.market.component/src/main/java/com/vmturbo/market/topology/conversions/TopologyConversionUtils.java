@@ -11,11 +11,11 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.market.settings.EntitySettings;
 import com.vmturbo.market.topology.TopologyConversionConstants;
@@ -24,10 +24,10 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class TopologyConversionUtils {
-    private static final Logger logger = LogManager.getLogger();
-
     public static final float MIN_DESIRED_UTILIZATION_VALUE = 0.0f;
     public static final float MAX_DESIRED_UTILIZATION_VALUE = 1.0f;
+
+    private static final Logger logger = LogManager.getLogger();
 
     @Nonnull
     public static EconomyDTOs.TraderStateTO traderState(
@@ -149,4 +149,5 @@ public class TopologyConversionUtils {
         return !(TopologyConversionConstants.STATIC_INFRASTRUCTURE.contains(entityType)
                 || EntityType.VIRTUAL_VOLUME_VALUE == entityType);
     }
+
 }

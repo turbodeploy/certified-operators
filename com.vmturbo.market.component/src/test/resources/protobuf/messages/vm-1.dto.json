@@ -14,8 +14,12 @@
       "effectiveCapacityPercentage": 0.0,
       "reservedCapacity": 0.0,
       "isThin": true,
-      "historicalUsed": 50.0,
-      "historicalPeak": 80.0
+      "historicalUsed": {
+        "histUtilization": 50.0
+      },
+      "historicalPeak": {
+        "histUtilization": 80.0
+      }
     },
     {
       "commodityType": {
@@ -28,8 +32,12 @@
       "effectiveCapacityPercentage": 0.0,
       "reservedCapacity": 0.0,
       "isThin": true,
-      "historicalUsed": 50.0,
-      "historicalPeak": 80.0
+      "historicalUsed": {
+        "histUtilization": 50.0
+      },
+      "historicalPeak": {
+        "histUtilization": 80.0
+      }
     },
     {
       "commodityType": {
@@ -42,8 +50,12 @@
       "effectiveCapacityPercentage": 0.0,
       "reservedCapacity": 0.0,
       "isThin": true,
-      "historicalUsed": 50.0,
-      "historicalPeak": 80.0
+      "historicalUsed": {
+        "histUtilization": 50.0
+      },
+      "historicalPeak": {
+        "histUtilization": 80.0
+      }
     }
   ],
   "commoditiesBoughtFromProviders" : [
@@ -58,8 +70,12 @@
           },
           "used": 50.0,
           "peak": 80.0,
-          "historicalUsed": 50.0,
-          "historicalPeak": 80.0
+          "historicalUsed": {
+            "histUtilization": 50.0
+          },
+          "historicalPeak": {
+            "histUtilization": 80.0
+          }
         },
         {
           "commodityType": {
@@ -68,8 +84,12 @@
           },
           "used": 10.0,
           "peak": 20.0,
-          "historicalUsed": 10.0,
-          "historicalPeak": 20.0
+          "historicalUsed": {
+            "histUtilization": 10.0
+          },
+          "historicalPeak": {
+            "histUtilization": 20.0
+          }
         }
       ],
       "volumeId": 9876
@@ -84,8 +104,12 @@
           },
           "used": 2048.0,
           "peak": 0.0,
-          "historicalUsed": 2048.0,
-          "historicalPeak": 0.0
+          "historicalUsed": {
+            "histUtilization": 2048.0
+          },
+          "historicalPeak": {
+            "histUtilization": 0.0
+          }
         }
       ]
     },
@@ -99,8 +123,12 @@
           },
           "used": 1024.0,
           "peak": 0.0,
-          "historicalUsed": 1024.0,
-          "historicalPeak": 0.0
+          "historicalUsed": {
+            "histUtilization": 1024.0
+          },
+          "historicalPeak": {
+            "histUtilization": 0.0
+          }
         }
       ]
     }

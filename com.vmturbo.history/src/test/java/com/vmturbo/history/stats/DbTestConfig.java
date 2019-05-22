@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
+import org.springframework.core.Ordered;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.history.db.HistorydbIO;
@@ -29,16 +30,20 @@ public class DbTestConfig {
 
     @Bean
     public static PropertySourcesPlaceholderConfigurer propertiesResolver() {
-        final PropertySourcesPlaceholderConfigurer propertiesConfigureer
+        final PropertySourcesPlaceholderConfigurer propertiesConfigurer
                 = new PropertySourcesPlaceholderConfigurer();
 
         Properties properties = new Properties();
         properties.setProperty("databaseName", "vmt_testdb_" + System.nanoTime());
         properties.setProperty("adapter", "mysql");
         properties.setProperty("hostName", "localhost");
+        // there is a USERNAME system variable in Windows
+        properties.setProperty("userName", "vmtplatform");
 
-        propertiesConfigureer.setProperties(properties);
-        return propertiesConfigureer;
+        propertiesConfigurer.setProperties(properties);
+        // take precedence over env
+        propertiesConfigurer.setLocalOverride(true);
+        return propertiesConfigurer;
     }
 
     @Bean

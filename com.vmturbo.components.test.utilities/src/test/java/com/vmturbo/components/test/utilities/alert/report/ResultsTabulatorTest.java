@@ -53,12 +53,12 @@ public class ResultsTabulatorTest {
             .collect(Collectors.joining("\n\n"));
 
         assertEquals(
-            "+------------------------------------------------------------------------------+\n" +
-            "|class (metric: metric)                                                        |\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|Test Name            |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|test                 |4         |1         |2          |3         |normal     |\n" +
+            "+------------------------------------------------------------------------------+" + System.lineSeparator() +
+            "|class (metric: metric)                                                        |" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|Test Name            |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|test                 |4         |1         |2          |3         |normal     |" + System.lineSeparator() +
             "+---------------------+----------+----------+-----------+----------+-----------+",
             table);
     }
@@ -71,12 +71,12 @@ public class ResultsTabulatorTest {
             .collect(Collectors.joining("\n\n"));
 
         assertEquals(
-            "+------------------------------------------------------------------------------+\n" +
-            "|class (metric: metric)                                                        |\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|Test Name            |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|test                 |4         |1         |2          |undefined |normal     |\n" +
+            "+------------------------------------------------------------------------------+" + System.lineSeparator() +
+            "|class (metric: metric)                                                        |" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|Test Name            |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|test                 |4         |1         |2          |undefined |normal     |" + System.lineSeparator() +
             "+---------------------+----------+----------+-----------+----------+-----------+",
             table);
     }
@@ -90,12 +90,12 @@ public class ResultsTabulatorTest {
             .collect(Collectors.joining("\n\n"));
 
         assertEquals(
-            "+------------------------------------------------------------------------------+\n" +
-            "|class (metric: metric)                                                        |\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|Test Name            |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|test                 |4         |1         |2          |3         |improvement|\n" +
+            "+------------------------------------------------------------------------------+" + System.lineSeparator() +
+            "|class (metric: metric)                                                        |" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|Test Name            |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|test                 |4         |1         |2          |3         |improvement|" + System.lineSeparator() +
             "+---------------------+----------+----------+-----------+----------+-----------+",
             table);
     }
@@ -109,12 +109,12 @@ public class ResultsTabulatorTest {
             .collect(Collectors.joining("\n\n"));
 
         assertEquals(
-            "+------------------------------------------------------------------------------+\n" +
-            "|class (metric: metric)                                                        |\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|Test Name            |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|test                 |4         |4         |2          |3         |regression |\n" +
+            "+------------------------------------------------------------------------------+" + System.lineSeparator() +
+            "|class (metric: metric)                                                        |" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|Test Name            |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|test                 |4         |4         |2          |3         |regression |" + System.lineSeparator() +
             "+---------------------+----------+----------+-----------+----------+-----------+",
             table);
     }
@@ -128,12 +128,12 @@ public class ResultsTabulatorTest {
             .collect(Collectors.joining("\n\n"));
 
         assertEquals(
-            "+------------------------------------------------------------------------------+\n" +
-            "|class (metric: metric)                                                        |\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|Test Name            |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|test                 |4         |4         |2          |3         |sla violatn|\n" +
+            "+------------------------------------------------------------------------------+" + System.lineSeparator() +
+            "|class (metric: metric)                                                        |" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|Test Name            |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|test                 |4         |4         |2          |3         |sla violatn|" + System.lineSeparator() +
             "+---------------------+----------+----------+-----------+----------+-----------+",
             table);
     }
@@ -147,14 +147,14 @@ public class ResultsTabulatorTest {
             )).collect(Collectors.joining("\n\n"));
 
         assertEquals(
-            "+--------------------------------------------------------------------------------------+\n" +
-            "|class (metric: metric)                                                                |\n" +
-            "+-----------------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|Test Name                    |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|\n" +
-            "+-----------------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|testDiscoveryAndBroadcast100K|4         |1         |2          |3         |normal     |\n" +
-            "+-----------------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|testDiscoveryAndBroadcast200K|4         |1         |2          |3         |normal     |\n" +
+            "+--------------------------------------------------------------------------------------+" + System.lineSeparator() +
+            "|class (metric: metric)                                                                |" + System.lineSeparator() +
+            "+-----------------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|Test Name                    |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|" + System.lineSeparator() +
+            "+-----------------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|testDiscoveryAndBroadcast100K|4         |1         |2          |3         |normal     |" + System.lineSeparator() +
+            "+-----------------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|testDiscoveryAndBroadcast200K|4         |1         |2          |3         |normal     |" + System.lineSeparator() +
             "+-----------------------------+----------+----------+-----------+----------+-----------+",
             table);
     }
@@ -168,20 +168,20 @@ public class ResultsTabulatorTest {
             )).collect(Collectors.joining("\n\n"));
 
         assertEquals(
-            "+------------------------------------------------------------------------------+\n" +
-            "|class (metric: metric1)                                                       |\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|Test Name            |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|test1                |4         |1         |2          |3         |normal     |\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "\n" +
-            "+------------------------------------------------------------------------------+\n" +
-            "|class (metric: metric2)                                                       |\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|Test Name            |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|test2                |4         |1         |2          |3         |normal     |\n" +
+            "+------------------------------------------------------------------------------+" + System.lineSeparator() +
+            "|class (metric: metric1)                                                       |" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|Test Name            |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|test1                |4         |1         |2          |3         |normal     |" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" +
+            "\n\n" +
+            "+------------------------------------------------------------------------------+" + System.lineSeparator() +
+            "|class (metric: metric2)                                                       |" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|Test Name            |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|test2                |4         |1         |2          |3         |normal     |" + System.lineSeparator() +
             "+---------------------+----------+----------+-----------+----------+-----------+",
             table);
     }
@@ -193,13 +193,13 @@ public class ResultsTabulatorTest {
         ).collect(Collectors.joining("\n\n"));
 
         assertEquals(
-            "+----------------------------------------------------------------------------------------+\n" +
-            "|class (metric: metric)                                                                  |\n" +
-            "+-------------------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|Test Name                      |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|\n" +
-            "+-------------------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|testDiscoveryAndBroadcastLongNa|4         |1         |2          |3         |normal     |\n" +
-            "|me200K                         |          |          |           |          |           |\n" +
+            "+----------------------------------------------------------------------------------------+" + System.lineSeparator() +
+            "|class (metric: metric)                                                                  |" + System.lineSeparator() +
+            "+-------------------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|Test Name                      |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|" + System.lineSeparator() +
+            "+-------------------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|testDiscoveryAndBroadcastLongNa|4         |1         |2          |3         |normal     |" + System.lineSeparator() +
+            "|me200K                         |          |          |           |          |           |" + System.lineSeparator() +
             "+-------------------------------+----------+----------+-----------+----------+-----------+",
             table);
     }
@@ -212,12 +212,12 @@ public class ResultsTabulatorTest {
         ).collect(Collectors.joining("\n\n"));
 
         assertEquals(
-            "+------------------------------------------------------------------------------+\n" +
-            "|class (metric: metric)                                                        |\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|Test Name            |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|test                 |4         |1.28936   |2          |3         |normal     |\n" +
+            "+------------------------------------------------------------------------------+" + System.lineSeparator() +
+            "|class (metric: metric)                                                        |" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|Test Name            |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|test                 |4         |1.28936   |2          |3         |normal     |" + System.lineSeparator() +
             "+---------------------+----------+----------+-----------+----------+-----------+",
             table);
     }
@@ -229,12 +229,12 @@ public class ResultsTabulatorTest {
         ).collect(Collectors.joining("\n\n"));
 
         assertEquals(
-            "+------------------------------------------------------------------------------+\n" +
-            "|class (metric: metric)                                                        |\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|Test Name            |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|test                 |4         |12.89T    |2          |3         |normal     |\n" +
+            "+------------------------------------------------------------------------------+" + System.lineSeparator() +
+            "|class (metric: metric)                                                        |" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|Test Name            |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|test                 |4         |12.89T    |2          |3         |normal     |" + System.lineSeparator() +
             "+---------------------+----------+----------+-----------+----------+-----------+",
             table);
     }
@@ -248,13 +248,13 @@ public class ResultsTabulatorTest {
         ).collect(Collectors.joining("\n\n"));
 
         assertEquals(
-            "+------------------------------------------------------------------------------+\n" +
-            "|ActionOrchestratorPerformanceTest (metric:                                    |\n" +
-            "|ao_populate_store_duration_seconds_sum{store_type='Live'})                    |\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|Test Name            |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|test100kActionPlan   |4         |12.89T    |2          |3         |normal     |\n" +
+            "+------------------------------------------------------------------------------+" + System.lineSeparator() +
+            "|ActionOrchestratorPerformanceTest (metric:                                    |" + System.lineSeparator() +
+            "|ao_populate_store_duration_seconds_sum{store_type='Live'})                    |" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|Test Name            |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|test100kActionPlan   |4         |12.89T    |2          |3         |normal     |" + System.lineSeparator() +
             "+---------------------+----------+----------+-----------+----------+-----------+",
             table);
     }
@@ -283,24 +283,24 @@ public class ResultsTabulatorTest {
         ).collect(Collectors.joining("\n\n"));
 
         assertEquals(
-            "+------------------------------------------------------------------------------+\n" +
-            "|MarketPerformanceTest (metric: mkt_analysis_duration_seconds_sum)             |\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|Test Name            |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|test75kTopology      |4         |1         |2          |3         |normal     |\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|test200kTopology     |4         |1         |2          |3         |normal     |\n" +
-            "+---------------------+----------+----------+-----------+----------+-----------+\n" +
-            "\n" +
-            "+--------------------------------------------------------------------------------------+\n" +
-            "|TopologyProcessorPerformanceTest (metric: tp_discovery_duration_seconds_sum)          |\n" +
-            "+-----------------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|Test Name                    |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|\n" +
-            "+-----------------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|testDiscoveryAndBroadcast50K |4         |1         |2          |3         |normal     |\n" +
-            "+-----------------------------+----------+----------+-----------+----------+-----------+\n" +
-            "|testDiscoveryAndBroadcast100K|4         |1         |2          |3         |normal     |\n" +
+            "+------------------------------------------------------------------------------+" + System.lineSeparator() +
+            "|MarketPerformanceTest (metric: mkt_analysis_duration_seconds_sum)             |" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|Test Name            |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|test75kTopology      |4         |1         |2          |3         |normal     |" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|test200kTopology     |4         |1         |2          |3         |normal     |" + System.lineSeparator() +
+            "+---------------------+----------+----------+-----------+----------+-----------+" +
+            "\n\n" +
+            "+--------------------------------------------------------------------------------------+" + System.lineSeparator() +
+            "|TopologyProcessorPerformanceTest (metric: tp_discovery_duration_seconds_sum)          |" + System.lineSeparator() +
+            "+-----------------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|Test Name                    |Latest    |RecentAvg |BaselineAvg|Std Dev   |AlertStatus|" + System.lineSeparator() +
+            "+-----------------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|testDiscoveryAndBroadcast50K |4         |1         |2          |3         |normal     |" + System.lineSeparator() +
+            "+-----------------------------+----------+----------+-----------+----------+-----------+" + System.lineSeparator() +
+            "|testDiscoveryAndBroadcast100K|4         |1         |2          |3         |normal     |" + System.lineSeparator() +
             "+-----------------------------+----------+----------+-----------+----------+-----------+",
             table);
     }

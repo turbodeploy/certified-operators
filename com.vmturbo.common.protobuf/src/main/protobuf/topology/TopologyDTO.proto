@@ -664,13 +664,11 @@ message CommodityBoughtDTO {
     // A scale factor to multiply this commodity by before analysis, if present
     optional double scaling_factor = 5;
 
-    // A historical value which is used in conjunction to the used value to calculate a
-    // weighted used value
-    optional double historical_used = 6;
+    // A collection of aggregated in different ways history values.
+    optional HistoricalValues historical_used = 6;
 
-    // A historical value which is used in conjunction to the peak value to calculate a
-    // weighted peak value
-    optional double historical_peak = 7;
+    // A collection of aggregated in different ways history peak values.
+    optional HistoricalValues historical_peak = 7;
 
     // The display name for specific commodity like port channel and net throughput.
     optional string display_name = 8;
@@ -680,6 +678,11 @@ message CommodityBoughtDTO {
     // a port channel may be combined with multiple net throughputs, and these net throughputs are
     // the aggregates.
     repeated string aggregates = 9;
+
+    // Collection of commodity utilization points. The collection contains series of usage points
+    // with given timestamp and interval between points.
+    // Certain probes may send more than one point per discovery request.
+    optional UtilizationData utilizationData = 10;
 }
 
 message CommoditySoldDTO {
@@ -711,9 +714,6 @@ message CommoditySoldDTO {
     // related to resize increment
     optional float capacity_increment = 11 [default = 1.0];
 
-    // The historic max value(within the data retention period)
-    optional double max_quantity = 12;
-
     // A scale factor to multiply this commodity by before analysis, if present
     optional double scaling_factor = 13;
 
@@ -726,13 +726,11 @@ message CommoditySoldDTO {
     // The max ratio between this commodity and a base commodity
     optional RatioDependency ratio_dependency = 16;
 
-    // A historical value which is used in conjunction to the used value to calculate a
-    // weighted used value
-    optional double historical_used = 17 [default = 0.0];
+    // A collection of aggregated in different ways history values.
+    optional HistoricalValues historical_used = 17;
 
-    // A historical value which is used in conjunction to the peak value to calculate a
-    // weighted peak value
-    optional double historical_peak = 18 [default = 0.0];
+    // A collection of aggregated in different ways history peak values.
+    optional HistoricalValues historical_peak = 18;
 
     // The resize target utilization. This will be used to resize entities already on cloud or
     // moving to the cloud in cloud migration plans.
@@ -749,6 +747,11 @@ message CommoditySoldDTO {
     // a port channel may be combined with multiple net throughputs, and these net throughputs are
     // the aggregates.
     repeated string aggregates = 22;
+
+    // Collection of commodity utilization points. The collection contains series of usage points
+    // with given timestamp and interval between points.
+    // Certain probes may send more than one point per discovery request.
+    optional UtilizationData utilizationData = 23;
 
     // The max amount resource will be decided by another commodity's usage on the consumer
     message RatioDependency {
@@ -798,6 +801,37 @@ message DiskTypeInfo {
 
     // Number of discovered VSeries disks.
     optional int64 num_v_series_disks = 5;
+}
+
+// Aggregated commodity historical values for analysis.
+// Certain commodities may have more than one kind of a value.
+message HistoricalValues {
+    // Absolute maximum value within retention period.
+    optional double max_quantity = 1;
+
+    // Weighted average with previous utilization - peaks are smoothed out.
+    // The latest point is the most significant one.
+    optional double hist_utilization = 2;
+
+    // How much 'load' exists in the system for cluster headroom planning.
+    optional double system_load = 3;
+
+    // Values averaged across equal time periods within a day for specified observation window.
+    repeated double time_slot = 4;
+
+    // Nth percentile of utilizations across specified observation window.
+    optional double percentile = 5;
+}
+
+// Represents a collection of raw utilization data points.
+// Some probes send more points than one per discovery period.
+message UtilizationData {
+    // Array of data points. The last element in the array refers to the latest point in time.
+    repeated double point = 1;
+    // The timestamp of the last (the most recent) point in the array.
+    required int64 lastPointTimestampMs = 2;
+    // Interval in milliseconds between 2 consecutive points in the array.
+    required int32 intervalMs = 3;
 }
 
 // A short description of what a topology contains. The description is useful when you are interested

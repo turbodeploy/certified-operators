@@ -24,12 +24,16 @@ public class DiscoveryDumpFilenameTest {
         Assert.assertEquals(timeStamp, ddFileName.getTimestamp());
         Assert.assertEquals(discoveryType, ddFileName.getDiscoveryType());
 
-        final File dumpDirectory = new File("/");
+        String tmpDir = System.getProperty("java.io.tmpdir");
+        if (tmpDir != null && !tmpDir.endsWith(File.separator)) {
+            tmpDir += File.separator;
+        }
+        final File dumpDirectory = new File(tmpDir);
         Assert.assertEquals(
-            "/" + filename.substring(0, filename.length() - 3) + "txt",
+            tmpDir + filename.substring(0, filename.length() - 3) + "txt",
             ddFileName.getFile(dumpDirectory, true, false).getAbsolutePath());
         Assert.assertEquals(
-            "/" + filename.substring(0, filename.length() - 3) + "txt.gz",
+            tmpDir + filename.substring(0, filename.length() - 3) + "txt.gz",
             ddFileName.getFile(dumpDirectory, true, true).getAbsolutePath());
     }
 

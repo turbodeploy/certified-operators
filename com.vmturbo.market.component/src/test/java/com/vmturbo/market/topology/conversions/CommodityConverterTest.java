@@ -13,6 +13,7 @@ import com.google.common.collect.Table;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
@@ -47,12 +48,15 @@ public class CommodityConverterTest {
         CommodityConverter converterToTest = new CommodityConverter(commodityTypeAllocator,
                 commoditySpecMap, includeGuaranteedBuyer,  dsBasedBicliquer,
                 numConsumersOfSoldCommTable, new ConversionErrorCounts());
+        HistoricalValues histUsed = HistoricalValues.newBuilder()
+                        .setHistUtilization(RAW_USED)
+                        .build();
         final TopologyEntityDTO originalTopologyEntityDTO = TopologyEntityDTO.newBuilder()
                 .setOid(PM_OID)
                 .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                         .setCapacity(RAW_CAPACITY)
-                        .setHistoricalUsed(RAW_USED)
+                        .setHistoricalUsed(histUsed)
                         .setCommodityType(CommodityType.newBuilder()
                                 .setType(CommodityDTO.CommodityType.CPU_VALUE)
                                 .build())

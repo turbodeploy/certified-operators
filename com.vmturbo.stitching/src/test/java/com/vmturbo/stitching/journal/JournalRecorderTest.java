@@ -182,10 +182,10 @@ public class JournalRecorderTest {
 
         recorder.recordTargets(Collections.singletonList(targetEntry));
         assertEquals(
-            "+--------------+---------------------+----------+----------+\n" +
-            "|Target OID    |Target Name          |Type      |EntityCnt |\n" +
-            "+--------------+---------------------+----------+----------+\n" +
-            "|72434315331516|hp-dl.345.vmturbo.com|Hyperflex |123,456   |\n" +
+            "+--------------+---------------------+----------+----------+" + System.lineSeparator() +
+            "|Target OID    |Target Name          |Type      |EntityCnt |" + System.lineSeparator() +
+            "+--------------+---------------------+----------+----------+" + System.lineSeparator() +
+            "|72434315331516|hp-dl.345.vmturbo.com|Hyperflex |123,456   |" + System.lineSeparator() +
             "+--------------+---------------------+----------+----------+\n\n",
             builder.toString());
     }

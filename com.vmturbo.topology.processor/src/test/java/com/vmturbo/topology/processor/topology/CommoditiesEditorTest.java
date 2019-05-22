@@ -517,17 +517,17 @@ public class CommoditiesEditorTest {
         // Expected value used for PM : used - currUsedForVM + usedFromSystemLoad : 70 - 10 + 50
         // Expected value used for VM : as fetched from SystemLoad : 50
         Assert.assertEquals(70 - 10 + 50, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getUsed(), 0.0001);
+                        .get(0).getHistoricalUsed().getSystemLoad(), 0.0001);
         Assert.assertEquals(50, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getUsed(), 0.0001);
+                        .get(0).getCommodityBoughtList().get(0).getHistoricalUsed().getSystemLoad(), 0.0001);
 
         // Compare peak
         // Expected value peak for PM : peak - currPeakForVM + peakFromSystemLoad : 80 - 20 + 100
         // Expected value peak for VM : as fetched from SystemLoad : 100
         Assert.assertEquals(80 - 20 + 100, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getPeak(), 0.0001);
+                        .get(0).getHistoricalPeak().getSystemLoad(), 0.0001);
         Assert.assertEquals(100, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getPeak(), 0.0001);
+                        .get(0).getCommodityBoughtList().get(0).getHistoricalPeak().getSystemLoad(), 0.0001);
     }
 
     @Test
@@ -575,9 +575,9 @@ public class CommoditiesEditorTest {
         // Compare used and peak
         // Expected value used for VM : as fetched from SystemLoad : 50
         Assert.assertEquals(50, vm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getUsed(), 0.0001);
+                        .get(0).getHistoricalUsed().getSystemLoad(), 0.0001);
         Assert.assertEquals(100, vm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getPeak(), 0.0001);
+                        .get(0).getHistoricalPeak().getSystemLoad(), 0.0001);
     }
 
 }
