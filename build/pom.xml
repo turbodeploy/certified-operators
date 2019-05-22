@@ -805,7 +805,6 @@
         <profile>
             <id>release</id>
             <modules>
-                <module>../com.vmturbo.influxdb</module>
                 <module>../protoc-plugin-common</module>
                 <module>../protoc-spring-rest</module>
                 <module>../protoc-grpc-moles</module>
