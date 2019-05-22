@@ -1,16 +1,5 @@
 package com.vmturbo.topology.processor.conversions;
 
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.APPLICATION_DATA;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.BUSINESS_ACCOUNT_DATA;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.COMPUTE_TIER_DATA;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.DISK_ARRAY_DATA;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.LOGICAL_POOL_DATA;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.PHYSICAL_MACHINE_DATA;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.STORAGE_CONTROLLER_DATA;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.STORAGE_DATA;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.VIRTUAL_MACHINE_DATA;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.VIRTUAL_VOLUME_DATA;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -62,6 +51,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.topology.processor.conversions.typespecific.ApplicationInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.BusinessAccountInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.BusinessUserMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.ComputeTierInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.DiskArrayInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.LogicalPoolInfoMapper;
@@ -71,6 +61,7 @@ import com.vmturbo.topology.processor.conversions.typespecific.StorageInfoMapper
 import com.vmturbo.topology.processor.conversions.typespecific.TypeSpecificInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.VirtualMachineInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.VirtualVolumeInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.DesktopPoolInfoMapper;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
 /**
@@ -79,29 +70,33 @@ import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 public class SdkToTopologyEntityConverter {
 
     /**
-     * Map from an {@link EntityDataCase} to a {@link TypeSpecificInfoMapper} instance  that will
+     * Map from an {@link EntityType} to a {@link TypeSpecificInfoMapper} instance  that will
      * extract the relevent data from an @link EntityDTO} and populate a {@link TypeSpecificInfo}.
      *
      * This map has placeholders in comments for the full set of TypeSpecificInfo we may want for the future
      */
-    private static final Map<EntityDataCase, TypeSpecificInfoMapper> TYPE_SPECIFIC_INFO_MAPPERS =
-            ImmutableMap.<EntityDataCase, TypeSpecificInfoMapper>builder()
-                    .put(APPLICATION_DATA, new ApplicationInfoMapper())
-                    .put(BUSINESS_ACCOUNT_DATA, new BusinessAccountInfoMapper())
-                    .put(COMPUTE_TIER_DATA, new ComputeTierInfoMapper())
+    private static final Map<EntityType, TypeSpecificInfoMapper> TYPE_SPECIFIC_INFO_MAPPERS =
+            ImmutableMap.<EntityType, TypeSpecificInfoMapper>builder()
+                    .put(EntityType.APPLICATION, new ApplicationInfoMapper())
+                    .put(EntityType.DATABASE_SERVER, new ApplicationInfoMapper())
+                    .put(EntityType.DATABASE, new ApplicationInfoMapper())
+                    .put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountInfoMapper())
+                    .put(EntityType.COMPUTE_TIER, new ComputeTierInfoMapper())
                     // CONTAINER_DATA
                     // CONTAINER_POD_DATA
-                    .put(PHYSICAL_MACHINE_DATA, new PhysicalMachineInfoMapper())
+                    .put(EntityType.PHYSICAL_MACHINE, new PhysicalMachineInfoMapper())
                     // PROCESSOR_POOL_DATA
                     // RESERVED_INSTANCE_DATA
-                    .put(STORAGE_DATA, new StorageInfoMapper())
-                    .put(DISK_ARRAY_DATA, new DiskArrayInfoMapper())
-                    .put(LOGICAL_POOL_DATA, new LogicalPoolInfoMapper())
-                    .put(STORAGE_CONTROLLER_DATA, new StorageControllerInfoMapper())
+                    .put(EntityType.STORAGE, new StorageInfoMapper())
+                    .put(EntityType.DISK_ARRAY, new DiskArrayInfoMapper())
+                    .put(EntityType.LOGICAL_POOL, new LogicalPoolInfoMapper())
+                    .put(EntityType.STORAGE_CONTROLLER, new StorageControllerInfoMapper())
                     // VIRTUAL_APPLICATION_DATA
                     // VIRTUAL_DATACENTER_DATA
-                    .put(VIRTUAL_MACHINE_DATA, new VirtualMachineInfoMapper())
-                    .put(VIRTUAL_VOLUME_DATA, new VirtualVolumeInfoMapper())
+                    .put(EntityType.VIRTUAL_MACHINE, new VirtualMachineInfoMapper())
+                    .put(EntityType.VIRTUAL_VOLUME, new VirtualVolumeInfoMapper())
+                    .put(EntityType.DESKTOP_POOL, new DesktopPoolInfoMapper())
+                    .put(EntityType.BUSINESS_USER, new BusinessUserMapper())
                     .build();
 
     private static Set<CommodityDTO.CommodityType> DSPM_OR_DATASTORE =
@@ -300,7 +295,7 @@ public class SdkToTopologyEntityConverter {
             @Nonnull final CommonDTO.EntityDTOOrBuilder sdkEntity,
             @Nonnull final Map<String, String> entityPropertyMap) {
         Objects.requireNonNull(sdkEntity, "sdkEntity parameter must not be null");
-        return Optional.ofNullable(TYPE_SPECIFIC_INFO_MAPPERS.get(sdkEntity.getEntityDataCase()))
+        return Optional.ofNullable(TYPE_SPECIFIC_INFO_MAPPERS.get(sdkEntity.getEntityType()))
                 .map(mapper -> mapper.mapEntityDtoToTypeSpecificInfo(sdkEntity, entityPropertyMap))
                 .orElse(TypeSpecificInfo.getDefaultInstance());
     }
