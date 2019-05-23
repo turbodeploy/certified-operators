@@ -8,6 +8,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
@@ -70,6 +71,7 @@ import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IStatsService;
@@ -581,6 +583,8 @@ public class StatsService implements IStatsService {
                 }
                 final Optional<Integer> globalTempGroupEntityType = getGlobalTempGroupEntityType(groupOptional);
 
+                boolean isCloudEntityAndNotFullMarket = !fullMarketRequest && isCloudServiceEntity(uuid);
+
                 // convert the stats snapshots to the desired ApiDTO and return them. Also, insert
                 // them before any projected stats in the output collection, since the UI expects
                 // the projected stats to always come last.
@@ -615,7 +619,7 @@ public class StatsService implements IStatsService {
                                         targetsService))
                                 .collect(Collectors.toList()));
 
-                    } else if (uuid != null || isDefaultCloudGroupUuid || fullMarketRequest) {
+                    } else if ((uuid != null && isCloudEntityAndNotFullMarket) || isDefaultCloudGroupUuid || fullMarketRequest) {
                         final Set<Long> cloudEntityOids;
                         if (optPlan.isPresent()) {
                             cloudEntityOids = fetchRelatedEntitiesForScopes(MarketMapper.getPlanScopeIds(optPlan.get()),
@@ -661,8 +665,6 @@ public class StatsService implements IStatsService {
                         }
                         stats.clear();
                         stats.addAll(statSnapshots);
-                    } else {
-                        throw ApiUtils.notImplementedInXL();
                     }
                 }
 
@@ -700,6 +702,25 @@ public class StatsService implements IStatsService {
 
         // filter out those commodities listed in BLACK_LISTED_STATS in StatsUtils
         return StatsUtils.filterStats(stats, targets != null ? targets : getTargets());
+    }
+
+    /**
+     * A helper method to find if the entity with a specific uuid is a cloud entity.
+     *
+     * @param uuid The uuid of the service entity
+     * @return true if it is a cloud service entity, false otherwise
+     * @throws UnknownObjectException
+     */
+    public boolean isCloudServiceEntity(final String uuid) throws UnknownObjectException {
+        // Finding if the service entity is a cloud service entity
+        ServiceEntityApiDTO entity = repositoryApi.getServiceEntityForUuid(Long.valueOf(uuid));
+
+        if (entity != null) {
+            return entity.getEnvironmentType()
+                    == com.vmturbo.api.enums.EnvironmentType.CLOUD;
+        } else {
+            return false;
+        }
     }
 
     /**

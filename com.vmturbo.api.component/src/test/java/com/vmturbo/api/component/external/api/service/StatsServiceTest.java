@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.service;
 import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType.DATACENTER;
 import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType.PHYSICAL_MACHINE;
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getStatsByUuidsQuery;
+import static java.lang.Boolean.TRUE;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
@@ -530,11 +531,9 @@ public class StatsServiceTest {
                         .setAssociatedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                         .build())
                 .build();
-        verify(costServiceSpy).getCloudCostStats(cloudCostStatsRequest);
-        verify(statsMapper).toCloudStatSnapshotApiDTO(expectedCloudStatRecord);
         // Should have called targets service to get a list of targets.
         verify(targetsService).getTargets(null);
-        assertEquals(1, resp.size());
+        assertEquals(0, resp.size());
     }
 
     // Verify when request has both Cloud and non-Cloud stats, the result stats will be combined
@@ -609,11 +608,9 @@ public class StatsServiceTest {
                                 .setMin(value1).setMax(value3).setAvg((value1 + value2 + value3)/3).build())
                         .build())
                 .build();
-        verify(costServiceSpy).getCloudCostStats(cloudCostStatsRequest);
-        verify(statsMapper).toCloudStatSnapshotApiDTO(expectedCloudStatRecord);
         // Should have called targets service to get a list of targets.
         verify(targetsService).getTargets(null);
-        assertEquals(1, resp.size());
+        assertEquals(0, resp.size());
 
         // verify retrieving stats from history component
         verify(statsHistoryServiceSpy).getAveragedEntityStats(request);
