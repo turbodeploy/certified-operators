@@ -161,7 +161,9 @@ public class LiveStatsReader {
     public StatRecordPage getPaginatedStatsRecords(@Nonnull final EntityStatsScope entityStatsScope,
                                      @Nonnull final StatsFilter statsFilter,
                                      @Nonnull final EntityStatsPaginationParams paginationParams) throws VmtDbException {
-        final Optional<TimeRange> timeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter);
+
+        final Optional<TimeRange> timeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter,
+            Optional.empty(), Optional.empty());
         if (!timeRangeOpt.isPresent()) {
             // no data persisted yet; just return an empty answer
             logger.warn("Stats filter with start {} and end {} does not resolve to any timestamps." +
@@ -235,23 +237,19 @@ public class LiveStatsReader {
     public List<Record> getStatsRecords(@Nonnull final Set<String> entityIds,
                                         @Nonnull final StatsFilter statsFilter)
             throws VmtDbException {
+
         final DataMetricTimer timer = GET_STATS_RECORDS_DURATION_SUMMARY.startTimer();
-        final Optional<TimeRange> timeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter);
-        if (!timeRangeOpt.isPresent()) {
-            // no data persisted yet; just return an empty answer
-            logger.warn("Stats filter with start {} and end {} does not resolve to any timestamps." +
-                    " There may not be any data.", statsFilter.getStartDate(), statsFilter.getEndDate());
-            return Collections.emptyList();
-        }
-        final TimeRange timeRange = timeRangeOpt.get();
 
+        // find out of which types those entities are ...(Map<oid, type>)
         final Map<String, String> entityClsMap = historydbIO.getTypesForEntities(entityIds);
-
+        // ... and create a reverse map (type -> list of oid)
         final Multimap<String, String> entityIdsByType = HashMultimap.create();
         for (final String serviceEntityId : entityIds) {
             String entityClass = entityClsMap.get(serviceEntityId);
             entityIdsByType.put(entityClass, serviceEntityId);
         }
+
+        Optional<TimeRange> timeRangeOpt = Optional.empty();
 
         // Accumulate stats records, iterating by entity type at the top level
         final List<Record> answer = new ArrayList<>();
@@ -259,15 +257,32 @@ public class LiveStatsReader {
             final String entityClsName = entityTypeAndId.getKey();
             logger.debug("fetch stats for entity type {}", entityClsName);
 
-            final Optional<EntityType> entityType = EntityType.getTypeForName(entityClsName);
-            if (!entityType.isPresent()) {
+            // get the entity type
+            final Optional<EntityType> entityTypeOpt = EntityType.getTypeForName(entityClsName);
+            if (!entityTypeOpt.isPresent()) {
                 // no entity type found for this class name; not supposed to happen
                 logger.warn("DB Entity type not found for clsName {}", entityClsName);
                 continue;
             }
+            final EntityType entityType = entityTypeOpt.get();
+
+            // get the entities of that type
             final List<String> entityIdsForType  = Lists.newArrayList(entityTypeAndId.getValue());
             final int numberOfEntitiesToPersist = entityIdsForType.size();
             logger.debug("entity count for {} = {}", entityClsName, numberOfEntitiesToPersist);
+
+            // create a timerange, given the start/end range in the filter
+            // use also the entities in order to be more exact on the timerange calculation
+            timeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter, Optional.of(entityIdsForType),
+                Optional.of(entityType));
+            if (!timeRangeOpt.isPresent()) {
+                // no data persisted yet; just return an empty answer
+                logger.warn("Stats filter with start {} and end {} does not resolve to any timestamps." +
+                    " There may not be any data.", statsFilter.getStartDate(), statsFilter.getEndDate());
+                continue;
+            }
+            final TimeRange timeRange = timeRangeOpt.get();
+
             final Instant start = Instant.now();
 
             int entityIndex = 0;
@@ -275,7 +290,7 @@ public class LiveStatsReader {
                 final int nextIndex = Math.min(entityIndex+ENTITIES_PER_CHUNK, numberOfEntitiesToPersist);
                 final List<String> entityIdChunk = entityIdsForType.subList(entityIndex, nextIndex);
                 final Optional<Select<?>> query = statsQueryFactory.createStatsQuery(entityIdChunk,
-                        statsTableByTimeFrame(entityType.get(), timeRange.getTimeFrame()),
+                        statsTableByTimeFrame(entityType, timeRange.getTimeFrame()),
                         statsFilter.getCommodityRequestsList(), timeRange, AGGREGATE.NO_AGG);
                 if (!query.isPresent()) {
                     continue;
@@ -297,8 +312,11 @@ public class LiveStatsReader {
             }
         }
 
-        addCountStats(timeRange.getMostRecentSnapshotTime(),
-            entityClsMap, statsFilter.getCommodityRequestsList(), answer);
+        // in thise case the timerange will be the value retrieved from the last loop
+        if (timeRangeOpt.isPresent()) {
+            addCountStats(timeRangeOpt.get().getMostRecentSnapshotTime(),
+                entityClsMap, statsFilter.getCommodityRequestsList(), answer);
+        }
 
         final double elapsedSeconds = timer.observe();
         logger.debug("total stats returned: {}, overall elapsed: {}", answer.size(), elapsedSeconds);
@@ -340,11 +358,13 @@ public class LiveStatsReader {
     public @Nonnull List<Record> getFullMarketStatsRecords(@Nonnull final StatsFilter statsFilter,
                                                  @Nonnull Optional<String> entityType)
             throws VmtDbException {
-        final Optional<TimeRange> timeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter);
+
+        final Optional<TimeRange> timeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter,
+            Optional.empty(), Optional.empty());
         if (!timeRangeOpt.isPresent()) {
             // no data persisted yet; just return an empty answer
             logger.warn("Stats filter with start {} and end {} does not resolve to any timestamps." +
-                    " There may not be any data.", statsFilter.getStartDate(), statsFilter.getEndDate());
+                " There may not be any data.", statsFilter.getStartDate(), statsFilter.getEndDate());
             return Collections.emptyList();
         }
         final TimeRange timeRange = timeRangeOpt.get();
