@@ -269,8 +269,10 @@ public class ReportDataUtils {
         }
     }
 
-    public static Map<Long, ReportTemplate> getReportMap() {
-        final GroupGeneratorDelegate delegate = new GroupGeneratorDelegate();
+    public static Map<Long, ReportTemplate> getReportMap(final long maxConnectRetryCount,
+                                                         final long retryDelayInMilliSec) {
+        final GroupGeneratorDelegate delegate =
+            new GroupGeneratorDelegate(maxConnectRetryCount, retryDelayInMilliSec);
         return ImmutableMap.<Long, ReportTemplate>builder().
             // standard reports
             // daily_infra_30_days_avg_stats_vs_thresholds_grid

@@ -20,6 +20,8 @@ import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import javaslang.Tuple;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
@@ -54,24 +56,23 @@ public class GroupGeneratorDelegateTest {
     private ReportDBDataWriter reportDBDataWriter = mock(ReportDBDataWriter.class);
     private EntitiesTableGeneratedId results = mock(EntitiesTableGeneratedId.class);
     private EntitiesTableGeneratedId newResults = mock(EntitiesTableGeneratedId.class);
+    private final GetSupplyChainResponse response = GetSupplyChainResponse
+        .newBuilder()
+        .setSupplyChain(SupplyChain.newBuilder()
+            .addSupplyChainNodes(SupplyChainNode.newBuilder()
+                .putMembersByState(EntityState.POWERED_ON_VALUE,
+                    MemberList.newBuilder().addMemberOids(1L)
+                        .build()).build()).build()).build();
 
     @Before
     public void init() throws Exception {
-        groupGeneratorDelegate = new GroupGeneratorDelegate();
+        groupGeneratorDelegate = new GroupGeneratorDelegate(60, 100000);
         context = mock(ReportsDataContext.class);
         Mockito.when(groupServiceMole.getGroup(any()))
             .thenReturn(GetGroupResponse.newBuilder()
                 .setGroup(Group.newBuilder()
                     .setType(Group.Type.CLUSTER))
                 .build());
-
-        final GetSupplyChainResponse response = GetSupplyChainResponse
-            .newBuilder()
-            .setSupplyChain(SupplyChain.newBuilder()
-                .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                    .putMembersByState(EntityState.POWERED_ON_VALUE,
-                        MemberList.newBuilder().addMemberOids(1L)
-                        .build()).build()).build()).build();
 
         Mockito.when(supplyChainServiceMole.getSupplyChain(any()))
             .thenReturn(response);
@@ -93,6 +94,50 @@ public class GroupGeneratorDelegateTest {
 
     @After
     public void cleanup() {
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testRetryRepositoryLogicInvalidArgment1() throws DbException {
+        new GroupGeneratorDelegate(1, 1);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testRetryRepositoryLogicInvalidArgment2() throws DbException {
+        new GroupGeneratorDelegate(100, 10);
+    }
+
+    /**
+     * Verify if the retries <= maxConnectRetryCount (2), it will retry again.
+     */
+    @Test
+    public void testRetryRepositoryLogicWithGrpcException() throws DbException {
+        GroupGeneratorDelegate groupGeneratorDelegate = new GroupGeneratorDelegate(2, 1001);
+        Mockito.when(supplyChainServiceMole.getSupplyChain(any()))
+            .thenThrow(new StatusRuntimeException(Status.INTERNAL)).
+            thenThrow(new StatusRuntimeException(Status.INTERNAL)).
+            thenReturn(response);
+        groupGeneratorDelegate.insertVMClusterRelationships(context);
+        verify(context).getGroupService();
+        verify(results).getGroupToPK();
+        verify(context, times(7)).getReportDataWriter();
+        verify(reportDBDataWriter,times(2)).cleanUpEntity_Assns(anyList());
+        verify(reportDBDataWriter).insertEntityAssns(any());
+        verify(reportDBDataWriter).insertEntityAssnsMembersEntities(anyMap());
+        verify(reportDBDataWriter).insertEntityAttrs(anyList(), any());
+    }
+
+    /**
+     * Verify if the retried > maxConnectRetryCount (2 in this case), a RuntimeException will throw.
+     */
+    @Test(expected = RuntimeException.class)
+    public void testRetryRepositoryLogicWithGrpcExceptionBeyondFix() throws DbException {
+        GroupGeneratorDelegate groupGeneratorDelegate = new GroupGeneratorDelegate(2, 1001);
+        Mockito.when(supplyChainServiceMole.getSupplyChain(any()))
+            .thenThrow(new StatusRuntimeException(Status.INTERNAL)).
+            thenThrow(new StatusRuntimeException(Status.INTERNAL)).
+            thenThrow(new StatusRuntimeException(Status.INTERNAL)).
+            thenReturn(response);
+        groupGeneratorDelegate.insertVMClusterRelationships(context);
     }
 
     @Test

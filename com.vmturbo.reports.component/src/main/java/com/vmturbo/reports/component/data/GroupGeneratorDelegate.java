@@ -19,8 +19,10 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
+import io.grpc.StatusRuntimeException;
 import javaslang.Tuple2;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
@@ -57,6 +59,14 @@ import com.vmturbo.sql.utils.DbException;
 public class GroupGeneratorDelegate {
     private static final Logger logger = LogManager.getLogger();
     public static final String FAKE_VM_GROUP = "fake_vm_group";
+    private final long maxConnectRetryCount;
+    private final long retryDelayInMilliSec;
+
+    public GroupGeneratorDelegate(final long maxConnectRetryCount, final long retryDelayInMilliSec) {
+        Preconditions.checkArgument(maxConnectRetryCount > 1 && retryDelayInMilliSec > 1000);
+        this.maxConnectRetryCount = maxConnectRetryCount;
+        this.retryDelayInMilliSec= retryDelayInMilliSec;
+    }
 
     /**
      * Insert compute clusters and their members to database.
@@ -114,7 +124,6 @@ public class GroupGeneratorDelegate {
         return Optional.empty();
 
     }
-
 
     /**
      * Insert system discovered or user created PM group and their members to database.
@@ -253,10 +262,42 @@ public class GroupGeneratorDelegate {
             .addAllStartingEntityOid(staticMemberOidsList)
             .addAllEntityTypesToInclude(Collections.singleton(entityType))
             .build();
-        final GetSupplyChainResponse response = context.getSupplyChainRpcService().getSupplyChain(request);
+        final GetSupplyChainResponse response = getGetSupplyChainResponse(context, request);
         return response.getSupplyChain().getSupplyChainNodesList();
     }
 
+    /*
+     (May 21, 2019, Gary Zeng) XL recently have following exception in BoA environment,
+      while trying to get cluster/members relationships from repository:
+      io.grpc.StatusRuntimeException: INTERNAL: java.util.concurrent.ExecutionException:
+      com.arangodb.ArangoDBException: java.io.IOException: Reached the end of the stream.
+      TODO: Currently, gRPC retry logic is not available (issues/284), but consider replace following codes
+      when it's ready.
+     */
+    private GetSupplyChainResponse getGetSupplyChainResponse(@Nonnull final ReportsDataContext context,
+                                                             @Nonnull final GetSupplyChainRequest request) {
+        int count = 0;
+        while (true) {
+            try {
+                return context.getSupplyChainRpcService().getSupplyChain(request);
+            } catch (StatusRuntimeException e) {
+                if (count++ >= maxConnectRetryCount) {
+                    logger.error("Cannot get response from repository component with "
+                        + maxConnectRetryCount + " retries");
+                    throw e;
+                }
+
+                logger.error("Failed to get response from repository: ", e);
+                logger.info("Waiting for repository to response. Retry #" + count);
+                try {
+                    Thread.sleep(retryDelayInMilliSec);
+                } catch (InterruptedException e1) {
+                    throw new RuntimeException(
+                        "Exception while retrying connection to repository", e1);
+                }
+            }
+        }
+    }
 
     // 1. Insert ENTITIES table with group names.
     // 2. Get members from the clusters

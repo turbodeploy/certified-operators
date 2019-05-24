@@ -25,6 +25,7 @@ import org.jooq.Result;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.jooq.types.ULong;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.util.StringUtils;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -188,6 +189,8 @@ public class ReportDBDataWriter {
 
         } catch (DataAccessException e) {
             throw new DbException("Error cleaning up entity_assns table." + e);
+        } catch (RuntimeException e2) {
+            logger.warn("runtime exception", e2);
         }
     }
 
@@ -225,6 +228,8 @@ public class ReportDBDataWriter {
                         transactionContext.insertInto(ENTITY_ASSNS)
                             .set(ENTITY_ASSNS.NAME, "")
                             .set(ENTITY_ASSNS.ENTITY_ENTITY_ID, 0L)
+                            .onDuplicateKeyIgnore()
+
                     );
                     chunk.forEach(id -> batch.bind(ALL_GROUP_MEMBERS, id));
 
@@ -258,7 +263,9 @@ public class ReportDBDataWriter {
                         transactionContext.insertInto(ENTITY_ATTRS)
                             .set(ENTITY_ATTRS.NAME, "")
                             .set(ENTITY_ATTRS.VALUE, "")
-                            .set(ENTITY_ATTRS.ENTITY_ENTITY_ID, 0L)
+                            .set(ENTITY_ATTRS.ENTITY_ENTITY_ID, 0L).
+                            onDuplicateKeyIgnore()
+
                     );
 
                     chunk.forEach(id -> batch.bind(S_E_TYPE_NAME, entityType, id));
@@ -291,6 +298,7 @@ public class ReportDBDataWriter {
                             transactionContext.insertInto(ENTITY_ASSNS_MEMBERS_ENTITIES)
                                 .set(ENTITY_ASSNS_MEMBERS_ENTITIES.ENTITY_ASSN_SRC_ID, 0L)
                                 .set(ENTITY_ASSNS_MEMBERS_ENTITIES.ENTITY_DEST_ID, 0L)
+                                .onDuplicateKeyIgnore()
                         );
 
                         chunk.forEach(id -> batch.bind(entry.getKey(), id));
@@ -302,6 +310,10 @@ public class ReportDBDataWriter {
             });
         } catch (DataAccessException e) {
             throw new DbException("Error inserting group members to entity_assn_members_entities table." + e);
+        } catch (DataIntegrityViolationException e1) {
+            // it's possible a VM in different group, and cause key violation exception when trying to add to default
+            // VM group again.
+            logger.warn("Data integrity violation exception", e1);
         }
     }
 
@@ -327,6 +339,7 @@ public class ReportDBDataWriter {
                             .set(ENTITY_ATTRS.NAME, "")
                             .set(ENTITY_ATTRS.VALUE, "")
                             .set(ENTITY_ATTRS.ENTITY_ENTITY_ID, 0L)
+                            .onDuplicateKeyIgnore()
                     );
 
                     chunk.forEach(action -> {
@@ -336,7 +349,7 @@ public class ReportDBDataWriter {
                             batch.bind(RIGHTSIZING_INFO, json,
                                 action.getRecommendation().getInfo().getResize().getTarget().getId());
                         } catch (JsonProcessingException e) {
-                            e.printStackTrace();
+                            logger.error("Failed to process Json: ", e);
                         }
                     });
                     if (batch.size() > 0) {
@@ -347,6 +360,8 @@ public class ReportDBDataWriter {
             });
         } catch (DataAccessException e) {
             throw new DbException("Error inserting right size actions to entity_attrs table." + e);
+        } catch (RuntimeException e2) {
+            logger.warn("runtime exception", e2);
         }
 
     }
