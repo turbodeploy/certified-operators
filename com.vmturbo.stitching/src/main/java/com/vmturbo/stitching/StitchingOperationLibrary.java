@@ -11,6 +11,8 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.ImmutableList;
+
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.cloudfoundry.CloudFoundryVMStitchingOperation;
@@ -19,6 +21,11 @@ import com.vmturbo.stitching.fabric.FabricPMStitchingOperation;
 import com.vmturbo.stitching.compute.IaasVMStitchingOperation;
 import com.vmturbo.stitching.vcd.ElasticVDCStitchingOperation;
 import com.vmturbo.stitching.vcd.VcdVMStitchingOperation;
+import com.vmturbo.stitching.vdi.DesktopPoolMasterImageStitchingOperation;
+import com.vmturbo.stitching.vdi.PMStitchingOperation;
+import com.vmturbo.stitching.vdi.StorageStitchingOperation;
+import com.vmturbo.stitching.vdi.VDCStitchingOperation;
+import com.vmturbo.stitching.vdi.VMStitchingOperation;
 
 /**
  * A library of stitching operations. Maps probe type and category to operations that to be used for
@@ -83,6 +90,13 @@ public class StitchingOperationLibrary {
                 return Collections.emptyList();
             case CUSTOM:
                 return Collections.emptyList();
+            case VIRTUAL_DESKTOP_INFRASTRUCTURE:
+                return ImmutableList.of(
+                        new StorageStitchingOperation(),
+                        new VDCStitchingOperation(),
+                        new PMStitchingOperation(),
+                        new VMStitchingOperation(),
+                        new DesktopPoolMasterImageStitchingOperation());
             default:
                 logger.warn("Unknown probe type {} and category {}.", probeType, probeCategory);
                 return Collections.emptyList();
