@@ -17,12 +17,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.ActionView;
-import com.vmturbo.action.orchestrator.action.QueryFilter;
-import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.action.orchestrator.store.query.QueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 
 /**
  * Maintain a cache of entity severities. Refreshing the entire cache causes the recomputation of the
@@ -54,12 +55,6 @@ public class EntitySeverityCache {
     private final Map<Long, Severity> severities = Collections.synchronizedMap(new HashMap<>());
 
     private final SeverityComparator severityComparator = new SeverityComparator();
-
-    private final QueryFilter visibilityQueryFilter;
-
-    public EntitySeverityCache(@Nonnull final QueryFilter visibilityQueryFilter) {
-        this.visibilityQueryFilter = visibilityQueryFilter;
-    }
 
     /**
      * Invalidate and refresh the calculated severity based on the current
@@ -187,8 +182,10 @@ public class EntitySeverityCache {
     }
 
     private Stream<ActionView> visibleReadyActionViews(@Nonnull final ActionStore actionStore) {
-        return visibilityQueryFilter.filteredActionViews(actionStore)
-            .filter(actionView -> actionView.getState() == ActionState.READY);
+        return actionStore.getActionViews().get(ActionQueryFilter.newBuilder()
+            .setVisible(true)
+            .addStates(ActionState.READY)
+            .build());
     }
 
     /**

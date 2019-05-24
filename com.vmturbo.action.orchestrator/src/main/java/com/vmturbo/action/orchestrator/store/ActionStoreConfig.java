@@ -98,7 +98,8 @@ public class ActionStoreConfig {
             actionExecutionConfig.targetCapabilityCache(),
             entitySettingsCache(),
             actionStatsConfig.actionsStatistician(),
-            actionTranslationConfig.actionTranslator());
+            actionTranslationConfig.actionTranslator(),
+            actionOrchestratorGlobalConfig.actionOrchestratorClock());
     }
 
     @Bean

@@ -40,5 +40,6 @@ public interface ActionHistoryDao {
      * @return List of {@link Action} within the startDate and endDate.
      */
     @Nonnull
-    List<ActionView> getActionHistoryByDate(LocalDateTime startDate, LocalDateTime endDate);
+    List<ActionView> getActionHistoryByDate(@Nonnull final LocalDateTime startDate,
+                                            @Nonnull final LocalDateTime endDate);
 }

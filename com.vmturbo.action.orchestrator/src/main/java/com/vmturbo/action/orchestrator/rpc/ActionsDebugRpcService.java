@@ -44,7 +44,7 @@ public class ActionsDebugRpcService extends ActionsDebugServiceImplBase {
     public void overrideActionPlan(ActionPlan request, StreamObserver<GetActionCountsResponse> responseObserver) {
         try {
             ActionStore actionStore = actionStorehouse.storeActions(request);
-            final Stream<ActionView> actionViewStream = actionStore.getActionViews().values().stream();
+            final Stream<ActionView> actionViewStream = actionStore.getActionViews().getAll();
 
             ActionsRpcService.observeActionCounts(actionViewStream, responseObserver);
         } catch (RuntimeException e) {

@@ -35,7 +35,6 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionViews;
 import com.vmturbo.action.orchestrator.action.ActionView;
-import com.vmturbo.action.orchestrator.action.QueryFilter;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
@@ -46,6 +45,7 @@ import com.vmturbo.action.orchestrator.stats.query.live.FailedActionQueryExcepti
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionException;
+import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.auditing.AuditAction;
@@ -262,8 +262,9 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                     // We do translation after pagination because translation failures may
                     // succeed on retry. If we do translation before pagination, success after
                     // failure will mix up the pagination limit.
-                    final Stream<ActionView> resultViews = new QueryFilter(filter)
-                            .filteredActionViews(store.get());
+                    final Stream<ActionView> resultViews = request.hasFilter() ?
+                        store.get().getActionViews().get(request.getFilter()) :
+                        store.get().getActionViews().getAll();
 
                     final FilteredActionResponse.Builder responseBuilder =
                             FilteredActionResponse.newBuilder()
@@ -319,7 +320,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             return;
         }
 
-        final Map<Long, ActionView> actionViews = optionalStore.get().getActionViews();
+        Map<Long, ActionView> actionViews = optionalStore.get().getActionViews().get(actionIds)
+            .collect(Collectors.toMap(ActionView::getId, Function.identity()));
         final Set<Long> contained = new HashSet<>(actionIds);
         contained.retainAll(actionViews.keySet()); // Contained (Intersection)
         actionIds.removeAll(actionViews.keySet()); // Missing (Difference)
@@ -525,7 +527,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         }
 
         // group by {ActionCategory, numAction|numEntities, costPrice(savings|investment)}
-        actionTranslator.translateToSpecs(actionStore.get().getActionViews().values().stream())
+        actionTranslator.translateToSpecs(actionStore.get().getActionViews().getAll())
                 .forEach(actionSpec -> {
                     ActionCategory category = actionSpec.getCategory();
                     switch (category) {
@@ -786,8 +788,10 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     @Nonnull
     private Stream<ActionView> filteredTranslatedActionViews(Optional<ActionQueryFilter> requestFilter,
                                                              ActionStore actionStore) {
-        return actionTranslator.translate(new QueryFilter(requestFilter)
-                .filteredActionViews(actionStore));
+        QueryableActionViews actionViews = actionStore.getActionViews();
+        return actionTranslator.translate(requestFilter
+            .map(actionViews::get)
+            .orElseGet(actionViews::getAll));
     }
 
     private static Map<ActionType, Long> getActionsByType(@Nonnull final Stream<ActionView> actionViewStream) {

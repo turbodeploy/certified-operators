@@ -1,6 +1,5 @@
-package com.vmturbo.action.orchestrator.action;
+package com.vmturbo.action.orchestrator.store.query;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -11,15 +10,18 @@ import static org.mockito.Mockito.when;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mockito;
 
+import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
+import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
+import com.vmturbo.action.orchestrator.store.query.QueryFilter;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -76,15 +78,15 @@ public class QueryFilterTest {
 
     @Test
     public void testEmptyFilter() throws Exception {
-        final QueryFilter filter = new QueryFilter(Optional.empty());
+        // Even if the visibility is false, the spec should still pass the test if no visibility
+        // filter is included.
+        final QueryFilter filter = new QueryFilter(ActionQueryFilter.newBuilder().build(), view -> false);
         final ActionView actionView =
             notExecutableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
         when(actionView.getMode()).thenReturn(ActionMode.DISABLED);
 
-        // Even if the visibility is false, the spec should still pass the test if no visibility
-        // filter is included.
-        assertTrue(filter.test(actionView, view -> false));
-        assertTrue(filter.test(executableMoveAction(0L, 4L, 1, 5L, 1, 6L), actionSpec -> false));
+        assertTrue(filter.test(actionView));
+        assertTrue(filter.test(executableMoveAction(0L, 4L, 1, 5L, 1, 6L)));
     }
 
     @Test
@@ -93,10 +95,10 @@ public class QueryFilterTest {
             notExecutableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
         when(actionView.getMode()).thenReturn(ActionMode.DISABLED);
 
-        assertFalse(new QueryFilter(Optional.of(visibleFilter))
-            .test(actionView, LiveActionStore.VISIBILITY_PREDICATE));
-        assertTrue(new QueryFilter(Optional.of(notVisibleFilter))
-            .test(actionView, LiveActionStore.VISIBILITY_PREDICATE));
+        assertFalse(new QueryFilter(visibleFilter, LiveActionStore.VISIBILITY_PREDICATE)
+            .test(actionView));
+        assertTrue(new QueryFilter(notVisibleFilter, LiveActionStore.VISIBILITY_PREDICATE)
+            .test(actionView));
     }
 
     @Test
@@ -105,8 +107,8 @@ public class QueryFilterTest {
             notExecutableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
         when(actionView.getMode()).thenReturn(ActionMode.MANUAL);
 
-        assertTrue(new QueryFilter(Optional.of(visibleFilter)).test(actionView, LiveActionStore.VISIBILITY_PREDICATE));
-        assertFalse(new QueryFilter(Optional.of(notVisibleFilter)).test(actionView, LiveActionStore.VISIBILITY_PREDICATE));
+        assertTrue(new QueryFilter(visibleFilter, LiveActionStore.VISIBILITY_PREDICATE).test(actionView));
+        assertFalse(new QueryFilter(notVisibleFilter, LiveActionStore.VISIBILITY_PREDICATE).test(actionView));
     }
 
     @Test
@@ -115,10 +117,10 @@ public class QueryFilterTest {
             executableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
         when(actionView.getMode()).thenReturn(ActionMode.MANUAL);
 
-        assertTrue(new QueryFilter(Optional.of(visibleFilter))
-            .test(actionView, LiveActionStore.VISIBILITY_PREDICATE));
-        assertFalse(new QueryFilter(Optional.of(notVisibleFilter))
-            .test(actionView, LiveActionStore.VISIBILITY_PREDICATE));
+        assertTrue(new QueryFilter(visibleFilter, LiveActionStore.VISIBILITY_PREDICATE)
+            .test(actionView));
+        assertFalse(new QueryFilter(notVisibleFilter, LiveActionStore.VISIBILITY_PREDICATE)
+            .test(actionView));
     }
 
     @Test
@@ -127,7 +129,7 @@ public class QueryFilterTest {
             notExecutableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
         when(actionView.getMode()).thenReturn(ActionMode.MANUAL);
 
-        assertTrue(new QueryFilter(Optional.of(allFilter)).test(actionView, LiveActionStore.VISIBILITY_PREDICATE));
+        assertTrue(new QueryFilter(allFilter, LiveActionStore.VISIBILITY_PREDICATE).test(actionView));
     }
 
     @Test
@@ -136,7 +138,7 @@ public class QueryFilterTest {
             notExecutableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
         when(actionView.getMode()).thenReturn(ActionMode.RECOMMEND);
 
-        assertTrue(new QueryFilter(Optional.of(allFilter)).test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+        assertTrue(new QueryFilter(allFilter, PlanActionStore.VISIBILITY_PREDICATE).test(actionView));
     }
 
     @Test
@@ -146,8 +148,8 @@ public class QueryFilterTest {
         when(actionView.getMode()).thenReturn(ActionMode.RECOMMEND);
         when(actionView.getState()).thenReturn(ActionState.SUCCEEDED);
 
-        assertTrue(new QueryFilter(Optional.of(succeededFilter))
-                .test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+        assertTrue(new QueryFilter(succeededFilter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
     }
 
     @Test
@@ -156,26 +158,26 @@ public class QueryFilterTest {
             notExecutableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
         when(actionView.getMode()).thenReturn(ActionMode.RECOMMEND);
 
-        assertFalse(new QueryFilter(Optional.of(succeededFilter))
-                .test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+        assertFalse(new QueryFilter(succeededFilter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
     }
 
     @Test
     public void testTypeFilterNoMatch() throws Exception {
         final ActionView actionView =
                 notExecutableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
-        assertFalse(new QueryFilter(Optional.of(ActionQueryFilter.newBuilder()
+        assertFalse(new QueryFilter(ActionQueryFilter.newBuilder()
                 .addTypes(ActionType.PROVISION)
-                .build())).test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+                .build(), PlanActionStore.VISIBILITY_PREDICATE).test(actionView));
     }
 
     @Test
     public void testTypeFilterMatch() throws Exception {
         final ActionView actionView =
                 notExecutableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
-        assertTrue(new QueryFilter(Optional.of(ActionQueryFilter.newBuilder()
+        assertTrue(new QueryFilter(ActionQueryFilter.newBuilder()
                 .addTypes(ActionType.MOVE)
-                .build())).test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+                .build(), PlanActionStore.VISIBILITY_PREDICATE).test(actionView));
     }
 
     @Test
@@ -190,9 +192,9 @@ public class QueryFilterTest {
                         .setInitialPlacement(InitialPlacement.getDefaultInstance()))))
                 .build();
         final ActionView actionView = new Action(action, ACTION_PLAN_ID, actionModeCalculator);
-        assertTrue(new QueryFilter(Optional.of(ActionQueryFilter.newBuilder()
+        assertTrue(new QueryFilter(ActionQueryFilter.newBuilder()
                 .addCategories(ActionCategory.EFFICIENCY_IMPROVEMENT)
-                .build())).test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+                .build(), PlanActionStore.VISIBILITY_PREDICATE).test(actionView));
     }
 
     @Test
@@ -207,9 +209,9 @@ public class QueryFilterTest {
                                 .setInitialPlacement(InitialPlacement.getDefaultInstance()))))
                 .build();
         final ActionView actionView = new Action(action, ACTION_PLAN_ID, actionModeCalculator);
-        assertFalse(new QueryFilter(Optional.of(ActionQueryFilter.newBuilder()
+        assertFalse(new QueryFilter(ActionQueryFilter.newBuilder()
                 .addCategories(ActionCategory.COMPLIANCE)
-                .build())).test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+                .build(), PlanActionStore.VISIBILITY_PREDICATE).test(actionView));
     }
 
     @Test
@@ -220,13 +222,13 @@ public class QueryFilterTest {
 
         // Using PlanActionStore's visibility predicate, so the
         // action spec should be visible.
-        assertTrue(new QueryFilter(Optional.of(readyVisibleFilter))
-                .test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+        assertTrue(new QueryFilter(readyVisibleFilter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
 
         // Using LiveActionStore's visibility predicate, so the
         // action spec should be visible.
-        assertTrue(new QueryFilter(Optional.of(readyVisibleFilter))
-                .test(actionView, LiveActionStore.VISIBILITY_PREDICATE));
+        assertTrue(new QueryFilter(readyVisibleFilter, LiveActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
     }
 
     @Test
@@ -240,8 +242,8 @@ public class QueryFilterTest {
                 .addAllOids(involvedEntities).build())
             .build();
 
-        assertFalse(new QueryFilter(Optional.of(filter))
-            .test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+        assertFalse(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+            .test(actionView));
     }
 
     @Test
@@ -255,8 +257,8 @@ public class QueryFilterTest {
                 .addAllOids(involvedEntities).build())
             .build();
 
-        assertFalse(new QueryFilter(Optional.of(filter))
-            .test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+        assertFalse(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+            .test(actionView));
     }
 
     @Test
@@ -270,8 +272,8 @@ public class QueryFilterTest {
                 .addAllOids(involvedEntities).build())
             .build();
 
-        assertTrue(new QueryFilter(Optional.of(filter))
-                                    .test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                                    .test(actionView));
     }
 
     @Test
@@ -294,8 +296,8 @@ public class QueryFilterTest {
             .build();
         final ActionView actionView = mock(ActionView.class);
         when(actionView.getRecommendation()).thenReturn(action);
-        assertTrue(new QueryFilter(Optional.of(filter))
-            .test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+            .test(actionView));
     }
 
     @Test
@@ -318,8 +320,8 @@ public class QueryFilterTest {
             .build();
         final ActionView actionView = mock(ActionView.class);
         when(actionView.getRecommendation()).thenReturn(action);
-        assertFalse(new QueryFilter(Optional.of(filter))
-            .test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+        assertFalse(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+            .test(actionView));
     }
 
     @Test
@@ -342,8 +344,8 @@ public class QueryFilterTest {
         final ActionView actionView = mock(ActionView.class);
         when(actionView.getRecommendation()).thenReturn(action);
         // Should pass the filter, since no environment type is specified.
-        assertTrue(new QueryFilter(Optional.of(filter))
-            .test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+            .test(actionView));
     }
 
     @Test
@@ -362,8 +364,8 @@ public class QueryFilterTest {
             .build();
         final ActionView actionView = mock(ActionView.class);
         when(actionView.getRecommendation()).thenReturn(action);
-        assertFalse(new QueryFilter(Optional.of(filter))
-            .test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+        assertFalse(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+            .test(actionView));
     }
 
     private ActionView executableMoveAction(long id, long sourceId, int sourceType, long destId, int destType, long targetId) {

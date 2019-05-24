@@ -161,7 +161,7 @@ public class PlanActionStoreTest {
         final ActionPlan actionPlan = marketActionPlan(firstPlanId, firstContextId, Collections.singletonList(action));
         actionStore.populateRecommendedActions(actionPlan);
 
-        Collection<ActionView> actionViews = actionStore.getActionViews().values();
+        Collection<ActionView> actionViews = actionStore.getActionViews().getAll().collect(Collectors.toList());
         assertEquals(1, actionViews.size());
         assertEquals(action, actionViews.iterator().next().getRecommendation());
     }

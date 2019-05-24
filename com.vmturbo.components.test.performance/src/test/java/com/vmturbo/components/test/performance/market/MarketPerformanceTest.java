@@ -108,7 +108,7 @@ public class MarketPerformanceTest {
                 MarketComponentNotificationReceiver.PROJECTED_ENTITY_COSTS_TOPIC,
                 ProjectedEntityCosts::parseFrom);
         analysisSummaryReceiver = kafkaMessageConsumer.messageReceiver(
-                MarketComponentNotificationReceiver.ANALYSIS_RESULTS,
+                MarketComponentNotificationReceiver.ANALYSIS_SUMMARY_TOPIC,
             AnalysisSummary::parseFrom);
         marketComponent = new MarketComponentNotificationReceiver(projectedTopologyReceiver,
                 projectedEntityCostReceiver, projectedEntityRiCoverageReceiver, actionsReceiver,

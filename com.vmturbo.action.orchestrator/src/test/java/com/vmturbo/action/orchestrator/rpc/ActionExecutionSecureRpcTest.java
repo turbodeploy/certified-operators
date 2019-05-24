@@ -206,7 +206,7 @@ public class ActionExecutionSecureRpcTest {
         // mock action store
         actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
             actionTargetSelector, probeCapabilityCache, entitySettingsCache,
-            actionHistoryDao, actionsStatistician, actionTranslator));
+            actionHistoryDao, actionsStatistician, actionTranslator, clock));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");

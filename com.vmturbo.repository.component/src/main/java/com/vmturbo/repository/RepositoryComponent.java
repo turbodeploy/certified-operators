@@ -61,6 +61,8 @@ import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFacto
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
+import com.vmturbo.market.component.api.impl.MarketSubscription;
+import com.vmturbo.market.component.api.impl.MarketSubscription.Topic;
 import com.vmturbo.repository.controller.GraphServiceEntityController;
 import com.vmturbo.repository.controller.GraphTopologyController;
 import com.vmturbo.repository.controller.RepositoryDiagnosticController;
@@ -522,8 +524,8 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Bean
     public MarketComponent marketComponent() {
         final MarketComponent market = marketClientConfig.marketComponent(
-                EnumSet.of(MarketClientConfig.Subscription.AnalysisSummary,
-                    MarketClientConfig.Subscription.ProjectedTopologies));
+            MarketSubscription.forTopic(Topic.ProjectedTopologies),
+            MarketSubscription.forTopic(Topic.AnalysisSummary));
         market.addProjectedTopologyListener(marketTopologyListener());
         market.addAnalysisSummaryListener(marketTopologyListener());
         return market;

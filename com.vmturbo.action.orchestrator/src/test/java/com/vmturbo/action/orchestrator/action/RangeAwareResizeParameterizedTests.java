@@ -20,6 +20,7 @@ import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.store.EntitiesCache;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -180,16 +181,18 @@ public class RangeAwareResizeParameterizedTests {
                 .setId(10289)
                 .setExplanation(Explanation.getDefaultInstance())
                 .setImportance(0);
-        final ActionDTO.Action recommendation = actionBuilder.setInfo(ActionInfo.newBuilder()
+        final ActionDTO.Action recommendation = actionBuilder
+            .setSupportingLevel(SupportLevel.SUPPORTED)
+            .setInfo(ActionInfo.newBuilder()
                 .setResize(Resize.newBuilder()
-                        .setTarget(ActionEntity.newBuilder()
-                                .setId(7L)
-                                .setType(entityType))
-                        .setCommodityAttribute(changedAttribute)
-                        .setCommodityType(CommodityType.newBuilder().setType(commodityType))
-                        .setOldCapacity(oldCapacity)
-                        .setNewCapacity(newCapacity)))
-                .build();
+                    .setTarget(ActionEntity.newBuilder()
+                        .setId(7L)
+                        .setType(entityType))
+                    .setCommodityAttribute(changedAttribute)
+                    .setCommodityType(CommodityType.newBuilder().setType(commodityType))
+                    .setOldCapacity(oldCapacity)
+                    .setNewCapacity(newCapacity)))
+            .build();
         Action action = new Action(recommendation, 1l, actionModeCalculator);
         when(entitySettingsCache.getSettingsForEntity(7L)).thenReturn(rangeAwareSettingsForEntity);
         ActionMode actualMode = actionModeCalculator.calculateActionMode(action, entitySettingsCache);

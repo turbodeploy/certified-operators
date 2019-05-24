@@ -57,6 +57,7 @@ import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
+import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -226,11 +227,10 @@ public class ActionQueryRpcTest {
         final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
         final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
         doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
-        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+        final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
             visibleAction.getId(), visibleAction,
-            disabledAction.getId(), disabledAction);
+            disabledAction.getId(), disabledAction), PlanActionStore.VISIBILITY_PREDICATE);
         when(actionStore.getActionViews()).thenReturn(actionViews);
-        when(actionStore.getVisibilityPredicate()).thenReturn(PlanActionStore.VISIBILITY_PREDICATE);
 
         FilteredActionRequest actionRequest = FilteredActionRequest.newBuilder()
             .setTopologyContextId(topologyContextId)
@@ -263,8 +263,8 @@ public class ActionQueryRpcTest {
                         ActionInfo.newBuilder(resizeAction.getRecommendation().getInfo())
                                 .setResize(newResize).build())
                         .build());
-        final Map<Long, ActionView> actionViews = ImmutableMap.of(
-                resizeAction.getId(), resizeAction               );
+        final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
+                resizeAction.getId(), resizeAction), PlanActionStore.VISIBILITY_PREDICATE);
         when(actionStore.getActionViews()).thenReturn(actionViews);
         when(actionStore.getVisibilityPredicate()).thenReturn(PlanActionStore.VISIBILITY_PREDICATE);
 
@@ -282,8 +282,8 @@ public class ActionQueryRpcTest {
     @Test
     public void testGetAllActionsPaginationParamsSetWithCursor() {
         final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
-        final Map<Long, ActionView> actionViews = ImmutableMap.of(
-                visibleAction.getId(), visibleAction);
+        final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
+                visibleAction.getId(), visibleAction), PlanActionStore.VISIBILITY_PREDICATE);
         when(actionStore.getActionViews()).thenReturn(actionViews);
         when(actionStore.getVisibilityPredicate()).thenReturn(PlanActionStore.VISIBILITY_PREDICATE);
 
@@ -314,8 +314,8 @@ public class ActionQueryRpcTest {
     @Test
     public void testGetAllActionsPaginationParamsSetNoCursor() {
         final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
-        final Map<Long, ActionView> actionViews = ImmutableMap.of(
-                visibleAction.getId(), visibleAction);
+        final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
+                visibleAction.getId(), visibleAction), PlanActionStore.VISIBILITY_PREDICATE);
         when(actionStore.getActionViews()).thenReturn(actionViews);
         when(actionStore.getVisibilityPredicate()).thenReturn(PlanActionStore.VISIBILITY_PREDICATE);
 
@@ -347,11 +347,10 @@ public class ActionQueryRpcTest {
         final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
         final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
         doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
-        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+        final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
             visibleAction.getId(), visibleAction,
-            disabledAction.getId(), disabledAction);
+            disabledAction.getId(), disabledAction), LiveActionStore.VISIBILITY_PREDICATE);
         when(actionStore.getActionViews()).thenReturn(actionViews);
-        when(actionStore.getVisibilityPredicate()).thenReturn(LiveActionStore.VISIBILITY_PREDICATE);
 
         final FilteredActionRequest actionRequest = FilteredActionRequest.newBuilder()
             .setTopologyContextId(topologyContextId)
@@ -374,9 +373,9 @@ public class ActionQueryRpcTest {
         final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
         final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
         doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
-        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+        final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
             visibleAction.getId(), visibleAction,
-            disabledAction.getId(), disabledAction);
+            disabledAction.getId(), disabledAction), PlanActionStore.VISIBILITY_PREDICATE);
         when(actionStore.getActionViews()).thenReturn(actionViews);
         when(actionStore.getVisibilityPredicate()).thenReturn(PlanActionStore.VISIBILITY_PREDICATE);
 
@@ -427,10 +426,10 @@ public class ActionQueryRpcTest {
         final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
         final ActionView notRetrievedAction = ActionOrchestratorTestUtils.createMoveAction(3, actionPlanId);
         doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
-        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+        final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
             visibleAction.getId(), visibleAction,
             disabledAction.getId(), disabledAction,
-            notRetrievedAction.getId(), notRetrievedAction);
+            notRetrievedAction.getId(), notRetrievedAction));
         when(actionStore.getActionViews()).thenReturn(actionViews);
 
         MultiActionRequest actionRequest = MultiActionRequest.newBuilder()
@@ -455,9 +454,9 @@ public class ActionQueryRpcTest {
         final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
         final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
         doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
-        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+        final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
             visibleAction.getId(), visibleAction,
-            disabledAction.getId(), disabledAction);
+            disabledAction.getId(), disabledAction));
         when(actionStore.getActionViews()).thenReturn(actionViews);
 
         MultiActionRequest actionRequest = MultiActionRequest.newBuilder()
@@ -548,23 +547,23 @@ public class ActionQueryRpcTest {
     public void testGetAllActionCounts() throws Exception {
         final int moveActions = 3;
         final int resizeActions = 4;
-        final Map<Long, ActionView> actionViews = new HashMap<>();
+        final Map<Long, ActionView> actionViewMap = new HashMap<>();
 
         LongStream.range(0, moveActions).forEach(i -> {
             final ActionView actionView = ActionOrchestratorTestUtils.createMoveAction(i, actionPlanId);
-            actionViews.put(actionView.getId(), actionView);
+            actionViewMap.put(actionView.getId(), actionView);
         });
 
         // Need to add "moveActions" to the ID to avoid having ovelapping IDs.
         LongStream.range(0, resizeActions).map(actionNum -> moveActions + actionNum).forEach(i -> {
             final ActionView actionView = new Action(
                 ActionOrchestratorTestUtils.createResizeRecommendation(i, CommodityType.VMEM), actionPlanId, actionModeCalculator);
-            actionViews.put(actionView.getId(), actionView);
+            actionViewMap.put(actionView.getId(), actionView);
         });
 
 
         final ActionStore store = Mockito.mock(ActionStore.class);
-        when(store.getActionViews()).thenReturn(actionViews);
+        when(store.getActionViews()).thenReturn(new MapBackedActionViews(actionViewMap));
 
         when(actionStorehouse.getStore(eq(topologyContextId)))
             .thenReturn(Optional.of(store));
@@ -593,9 +592,9 @@ public class ActionQueryRpcTest {
         final ActionView firstAction = spy(ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId));
         when(firstAction.getState()).thenReturn(ActionState.QUEUED);
         final ActionView secondAction = ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId);
-        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+        final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
             firstAction.getId(), firstAction,
-            secondAction.getId(), secondAction);
+            secondAction.getId(), secondAction));
         when(actionStore.getActionViews()).thenReturn(actionViews);
 
         final ActionStore store = Mockito.mock(ActionStore.class);
@@ -644,9 +643,9 @@ public class ActionQueryRpcTest {
                 1, 7, 77, 1, 777, 1), actionPlanId, actionModeCalculator));
         final ActionView invisibleAction = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(
                 2, 8, 88, 1, 888, 1), actionPlanId, actionModeCalculator));
-        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+        final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
                 visibleAction.getId(), visibleAction,
-                invisibleAction.getId(), invisibleAction);
+                invisibleAction.getId(), invisibleAction));
         when(actionStore.getActionViews()).thenReturn(actionViews);
         when(actionStore.getVisibilityPredicate()).thenReturn(view -> view.getId() == visibleAction.getId());
 
@@ -719,8 +718,8 @@ public class ActionQueryRpcTest {
                 visibleQueuedAction.getId(), visibleQueuedAction,
                 invisibleAction.getId(), invisibleAction);
 
-        when(actionStore.getActionViewsByDate(any(), any())).thenReturn(actionViews);
-        when(actionStore.getVisibilityPredicate()).thenReturn(view -> view.getId() != invisibleAction.getId());
+        when(actionStore.getActionViews()).thenReturn(new MapBackedActionViews(actionViews,
+            view -> view.getId() != invisibleAction.getId()));
 
         final GetActionCountsByDateResponse response =
                 actionOrchestratorServiceClient.getActionCountsByDate(
