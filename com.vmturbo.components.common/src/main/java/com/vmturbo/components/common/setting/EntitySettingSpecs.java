@@ -183,7 +183,7 @@ public enum EntitySettingSpecs {
             Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(10f, 100f, 50f), true),
     /**
-     * Network througput utilization threshold.
+     * Network throughput utilization threshold.
      */
     NetThroughput("netThroughput", "Net Throughput",
             Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
@@ -197,13 +197,13 @@ public enum EntitySettingSpecs {
             Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 100f, 20f), true),
     /**
-     * Ready queu utilization threshold.
+     * Ready queue utilization threshold.
      */
     ReadyQueueUtilization("readyQueueUtilization", "Ready Queue Utilization",
             Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 100f, 50f), true),
     /**
-     * Storage utilization threshould.
+     * Storage utilization threshold.
      */
     StorageAmountUtilization("storageAmountUtilization", "Storage Amount Utilization",
             Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
@@ -211,7 +211,16 @@ public enum EntitySettingSpecs {
             numeric(0f, 100f, 90f),
             true),
     /**
-     * IOPS utilization threshould.
+     * VCPURequest utilization threshold.
+     * Setting VCPURequest utilization threshold to 0.9999 to avoid rounding errors due to
+     * conversion from kubernetes millicores to MHz.
+     */
+    VCPURequestUtilization("vcpuRequestUtilization", "VCPU Request Utilization",
+            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD),
+            numeric(0f, 100f, 99.99f), true),
+    /**
+     * IOPS utilization threshold.
      */
     IopsUtilization("iopsUtilization", "IOPS Utilization",
             Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,

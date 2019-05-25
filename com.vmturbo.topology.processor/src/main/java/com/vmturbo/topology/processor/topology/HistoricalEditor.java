@@ -73,8 +73,14 @@ public class HistoricalEditor {
                     .withHelp("Time taken to load the historical used and peak values from history.")
                     .build();
 
-    static final ImmutableSet<Integer> accessCommodities =
+    /**
+     * A set that holds the commodities that do not use historical values.
+     * These include access commodities, and commodities that do not exhibit spikes, volatility,
+     * or any other types of noises so data smoothing is not needed.
+     */
+    private static final ImmutableSet<Integer> COMMODITIES_TO_SKIP_HISTORICAL_EDITOR =
             ImmutableSet.<Integer>builder()
+            // Access commodities
             .add(CommonDTO.CommodityDTO.CommodityType.CLUSTER_VALUE)
             .add(CommonDTO.CommodityDTO.CommodityType.SEGMENTATION_VALUE)
             .add(CommonDTO.CommodityDTO.CommodityType.DATASTORE_VALUE)
@@ -95,6 +101,9 @@ public class HistoricalEditor {
             .add(CommonDTO.CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
             .add(CommonDTO.CommodityDTO.CommodityType.TEMPLATE_ACCESS_VALUE)
             .add(CommonDTO.CommodityDTO.CommodityType.ZONE_VALUE)
+            // Commodities that do not exhibit volatility
+            .add(CommonDTO.CommodityDTO.CommodityType.VCPU_REQUEST_VALUE)
+            .add(CommonDTO.CommodityDTO.CommodityType.VMEM_REQUEST_VALUE)
             .build();
 
     public HistoricalEditor(HistoricalUtilizationDatabase historicalUtilizationDatabase, ExecutorService executorService) {
@@ -214,6 +223,10 @@ public class HistoricalEditor {
         executorService.submit(() -> historicalUtilizationDatabase.saveInfo(historicalInfo));
     }
 
+    private boolean useHistoricalValues(int commodityType) {
+        return !COMMODITIES_TO_SKIP_HISTORICAL_EDITOR.contains(commodityType);
+    }
+
     /**
      * This method calculates the used and peak values for all the sold commodities
      * considering the values read from mediation and the historical values from
@@ -231,7 +244,7 @@ public class HistoricalEditor {
             // Add all the sold commodities info
             List<HistoricalCommodityInfo> histSoldInfoList = new ArrayList<>();
             for (CommoditySoldDTO.Builder commSold : entityBuilder.getCommoditySoldListBuilderList()) {
-                if (!accessCommodities.contains(commSold.getCommodityType().getType())) {
+                if (useHistoricalValues(commSold.getCommodityType().getType())) {
                     HistoricalCommodityInfo histSoldInfo = new HistoricalCommodityInfo();
                     histSoldInfo.setCommodityTypeAndKey(commSold.getCommodityType());
                     histSoldInfo.setHistoricalUsed(-1.0f);
@@ -248,7 +261,7 @@ public class HistoricalEditor {
             // Add new sold commodities info, match the old ones
             List<HistoricalCommodityInfo> histSoldInfoList = null;
             for (CommoditySoldDTO.Builder commSold : entityBuilder.getCommoditySoldListBuilderList()) {
-                if (!accessCommodities.contains(commSold.getCommodityType().getType())) {
+                if (useHistoricalValues(commSold.getCommodityType().getType())) {
                     histSoldInfoList = histSeInfo.getHistoricalCommoditySold();
                     boolean isMatched = false;
                     for (int i = 0; i < histSoldInfoList.size(); i++) {
@@ -292,7 +305,7 @@ public class HistoricalEditor {
                 topoCommSold.getCommodityType().getType(), used, peak);
 
         // Using historical values in calculation of used and peak
-        if (!accessCommodities.contains(commodityType.getType())) {
+        if (useHistoricalValues(commodityType.getType())) {
             HistoricalServiceEntityInfo histSeInfo = historicalInfo.get(topoEntity.getOid());
             if (histSeInfo == null) {
                 logger.error("A HistoricalServiceEntityInfo data structure is missing for the service entity {}", topoEntity.getOid());
@@ -367,7 +380,7 @@ public class HistoricalEditor {
                         logger.error("No volumeId or providerId exists for a bought commodity");
                     }
                     for (CommodityBoughtDTO.Builder commBought : commBoughtProvider.getCommodityBoughtBuilderList()) {
-                        if (!accessCommodities.contains(commBought.getCommodityType().getType())) {
+                        if (useHistoricalValues(commBought.getCommodityType().getType())) {
                             HistoricalCommodityInfo histBoughtInfo = new HistoricalCommodityInfo();
                             histBoughtInfo.setCommodityTypeAndKey(commBought.getCommodityType());
                             histBoughtInfo.setHistoricalUsed(-1.0f);
@@ -393,7 +406,7 @@ public class HistoricalEditor {
                         logger.error("No volumeId or providerId exists for a bought commodity");
                     }
                     for (CommodityBoughtDTO.Builder commBought : commBoughtProvider.getCommodityBoughtBuilderList()) {
-                        if (!accessCommodities.contains(commBought.getCommodityType().getType())) {
+                        if (useHistoricalValues(commBought.getCommodityType().getType())) {
                             boolean isMatched = false;
                             List<HistoricalCommodityInfo> histBoughtInfoList = histSeInfo.getHistoricalCommodityBought();
                             for (int i = 0; i < histBoughtInfoList.size(); i++) {
@@ -442,7 +455,7 @@ public class HistoricalEditor {
                 topoCommBought.getCommodityType().getType(), usedQuantity, peakQuantity);
 
         if ((!(topoEntity.getEnvironmentType() == EnvironmentType.CLOUD)) &&
-                (!accessCommodities.contains(topoCommBought.getCommodityType().getType()))) {
+                (useHistoricalValues(topoCommBought.getCommodityType().getType()))) {
             // Using historical values in calculation of used and peak
             HistoricalServiceEntityInfo histSeInfo = historicalInfo.get(topoEntity.getOid());
             if (histSeInfo == null) {

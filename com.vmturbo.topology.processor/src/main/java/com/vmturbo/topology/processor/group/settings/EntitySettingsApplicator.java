@@ -118,6 +118,8 @@ public class EntitySettingsApplicator {
                         CommodityType.HEAP),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.CollectionTimeUtilization,
                         CommodityType.COLLECTION_TIME),
+                new UtilizationThresholdApplicator(EntitySettingSpecs.VCPURequestUtilization,
+                        CommodityType.VCPU_REQUEST),
                 new UtilTargetApplicator(),
                 new TargetBandApplicator(),
                 new HaDependentUtilizationApplicator(topologyInfo),

@@ -411,6 +411,10 @@ public class EntitySettingsApplicatorTest {
                 EntitySettingSpecs.StorageAmountUtilization);
         testUtilizationSettings(EntityType.STORAGE_CONTROLLER, CommodityType.CPU,
                 EntitySettingSpecs.CpuUtilization);
+        testUtilizationSettings(EntityType.VIRTUAL_MACHINE, CommodityType.VCPU_REQUEST,
+                EntitySettingSpecs.VCPURequestUtilization);
+        testUtilizationSettings(EntityType.CONTAINER_POD, CommodityType.VCPU_REQUEST,
+                EntitySettingSpecs.VCPURequestUtilization);
     }
 
     private TopologyEntityDTO.Builder createEntityWithCommodity(@Nonnull EntityType entityType,

@@ -20,6 +20,7 @@ public enum UICommodityType {
     CPU("CPU", CommodityType.CPU),
     CPU_ALLOCATION("CPUAllocation", CommodityType.CPU_ALLOCATION),
     CPU_PROVISIONED("CPUProvisioned", CommodityType.CPU_PROVISIONED),
+    CPU_REQUEST_ALLOCATION("CPURequestAllocation", CommodityType.CPU_REQUEST_ALLOCATION),
     CROSS_CLOUD_MOVE_SVC("CrossCloudMoveSvc", CommodityType.CROSS_CLOUD_MOVE_SVC),
     CROSS_CLUSTER_MOVE_SVC("CrossClusterMoveSvc", CommodityType.CROSS_CLUSTER_MOVE_SVC),
     DATACENTER("DataCenterCommodity", CommodityType.DATACENTER),
@@ -38,6 +39,7 @@ public enum UICommodityType {
     LICENSE_ACCESS("LICENSE_ACCESS", CommodityType.LICENSE_ACCESS),
     MEM("Mem", CommodityType.MEM),
     MEM_ALLOCATION("MemAllocation", CommodityType.MEM_ALLOCATION),
+    MEM_REQUEST_ALLOCATION("MemRequestAllocation", CommodityType.MEM_REQUEST_ALLOCATION),
     MEM_PROVISIONED("MemProvisioned", CommodityType.MEM_PROVISIONED),
     NET_THROUGHPUT("NetThroughput", CommodityType.NET_THROUGHPUT),
     NETWORK("NetworkCommodity", CommodityType.NETWORK),
@@ -67,8 +69,10 @@ public enum UICommodityType {
     TRANSACTION("Transaction", CommodityType.TRANSACTION),
     TRANSACTION_LOG("TransactionLog", CommodityType.TRANSACTION_LOG),
     VCPU("VCPU", CommodityType.VCPU),
+    VCPU_REQUEST("VCPURequest", CommodityType.VCPU_REQUEST),
     VDC("VDCCommodity", CommodityType.VDC),
     VMEM("VMem", CommodityType.VMEM),
+    VMEM_REQUEST("VMemRequest", CommodityType.VMEM_REQUEST),
     VSTORAGE("VStorage", CommodityType.VSTORAGE),
     UNKNOWN("Unknown", CommodityType.UNKNOWN);
 
@@ -126,7 +130,7 @@ public enum UICommodityType {
         return fromType(type.getType());
     }
 
-                                           @Nonnull
+    @Nonnull
     public static UICommodityType fromEntity(@Nonnull final TopologyEntityDTOOrBuilder entity) {
         return fromType(entity.getEntityType());
     }
