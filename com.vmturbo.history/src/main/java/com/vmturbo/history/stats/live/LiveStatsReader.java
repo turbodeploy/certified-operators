@@ -163,7 +163,7 @@ public class LiveStatsReader {
                                      @Nonnull final EntityStatsPaginationParams paginationParams) throws VmtDbException {
 
         final Optional<TimeRange> timeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter,
-            Optional.empty(), Optional.empty());
+            Optional.empty(), Optional.empty(), Optional.of(paginationParams));
         if (!timeRangeOpt.isPresent()) {
             // no data persisted yet; just return an empty answer
             logger.warn("Stats filter with start {} and end {} does not resolve to any timestamps." +
@@ -274,7 +274,7 @@ public class LiveStatsReader {
             // create a timerange, given the start/end range in the filter
             // use also the entities in order to be more exact on the timerange calculation
             timeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter, Optional.of(entityIdsForType),
-                Optional.of(entityType));
+                Optional.of(entityType), Optional.empty());
             if (!timeRangeOpt.isPresent()) {
                 // no data persisted yet; just return an empty answer
                 logger.warn("Stats filter with start {} and end {} does not resolve to any timestamps." +
@@ -360,7 +360,7 @@ public class LiveStatsReader {
             throws VmtDbException {
 
         final Optional<TimeRange> timeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter,
-            Optional.empty(), Optional.empty());
+            Optional.empty(), Optional.empty(), Optional.empty());
         if (!timeRangeOpt.isPresent()) {
             // no data persisted yet; just return an empty answer
             logger.warn("Stats filter with start {} and end {} does not resolve to any timestamps." +

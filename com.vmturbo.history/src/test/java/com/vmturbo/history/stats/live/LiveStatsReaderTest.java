@@ -94,7 +94,7 @@ public class LiveStatsReaderTest {
         final TimeRange timeRange = mock(TimeRange.class);
         when(timeRange.getMostRecentSnapshotTime()).thenReturn(TIMESTAMP);
         when(timeRange.getTimeFrame()).thenReturn(TIME_FRAME);
-        when(timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(), Optional.empty())).thenReturn(Optional.of(timeRange));
+        when(timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(), Optional.empty(), Optional.of(paginationParams))).thenReturn(Optional.of(timeRange));
 
         final NextPageInfo nextPageInfo = mock(NextPageInfo.class);
         when(nextPageInfo.getEntityOids()).thenReturn(Lists.newArrayList(entityIds));
@@ -119,7 +119,7 @@ public class LiveStatsReaderTest {
         final StatRecordPage result =
                 liveStatsReader.getPaginatedStatsRecords(scope, statsFilter, paginationParams);
 
-        verify(timeRangeFactory).resolveTimeRange(statsFilter, Optional.empty(), Optional.empty());
+        verify(timeRangeFactory).resolveTimeRange(statsFilter, Optional.empty(), Optional.empty(), Optional.of(paginationParams));
         verify(mockHistorydbIO).getNextPage(scope, TIMESTAMP, TIME_FRAME, paginationParams);
         verify(statsQueryFactory).createStatsQuery(nextPageInfo.getEntityOids(), TABLE, statsFilter.getCommodityRequestsList(), timeRange, AGGREGATE.NO_AGG);
 
@@ -142,7 +142,7 @@ public class LiveStatsReaderTest {
         final TimeRange timeRange = mock(TimeRange.class);
         when(timeRange.getMostRecentSnapshotTime()).thenReturn(TIMESTAMP);
         when(timeRange.getTimeFrame()).thenReturn(TIME_FRAME);
-        when(timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(), Optional.empty())).thenReturn(Optional.of(timeRange));
+        when(timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(), Optional.empty(), Optional.of(paginationParams))).thenReturn(Optional.of(timeRange));
 
         final NextPageInfo nextPageInfo = mock(NextPageInfo.class);
         // entity OIDs are empty
@@ -155,7 +155,7 @@ public class LiveStatsReaderTest {
         final StatRecordPage result =
                 liveStatsReader.getPaginatedStatsRecords(scope, statsFilter, paginationParams);
 
-        verify(timeRangeFactory).resolveTimeRange(statsFilter, Optional.empty(), Optional.empty());
+        verify(timeRangeFactory).resolveTimeRange(statsFilter, Optional.empty(), Optional.empty(), Optional.of(paginationParams));
         verify(mockHistorydbIO).getNextPage(scope, TIMESTAMP, TIME_FRAME, paginationParams);
         // verify early return
         verify(statsQueryFactory, never()).createStatsQuery(nextPageInfo.getEntityOids(), TABLE, statsFilter.getCommodityRequestsList(), timeRange, AGGREGATE.NO_AGG);
@@ -174,7 +174,7 @@ public class LiveStatsReaderTest {
         final TimeRange timeRange = mock(TimeRange.class);
         when(timeRange.getMostRecentSnapshotTime()).thenReturn(TIMESTAMP);
         when(timeRange.getTimeFrame()).thenReturn(TIME_FRAME);
-        when(timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(), Optional.empty())).thenReturn(Optional.of(timeRange));
+        when(timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(), Optional.empty(), Optional.empty())).thenReturn(Optional.of(timeRange));
 
         final FullMarketRatioProcessor ratioProcessor = mock(FullMarketRatioProcessor.class);
         final StatsFilter statsFilterWithCounts = StatsFilter.newBuilder()
@@ -208,7 +208,7 @@ public class LiveStatsReaderTest {
         // ASSERT
         // Verify the individual steps - this should help track down what failed if the final
         // assertion does not pass.
-        verify(timeRangeFactory).resolveTimeRange(statsFilter, Optional.empty(), Optional.empty());
+        verify(timeRangeFactory).resolveTimeRange(statsFilter, Optional.empty(), Optional.empty(), Optional.empty());
         verify(fullMarketRatioProcessor).newProcessor(statsFilter);
         verify(ratioProcessor).getFilterWithCounts();
         verify(statsQueryFactory)

@@ -81,6 +81,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityMaxValue;
 import com.vmturbo.common.protobuf.stats.Stats.EntityCommoditiesMaxValues;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
@@ -559,13 +561,16 @@ public class HistorydbIO extends BasedbIO {
      * only in the specified entity type table. If a specific entity oid is also added, then we will look for that
      * oid, inside the specified table (which will give us a more accurate results).
      *
+     * @param statsFilter          stats filter used to check if priceIndex is a required property or not.
      * @param entityTypeOpt        entity type to use for getting the most recent timestamp.
      * @param specificEntityOidOpt entity to use for the lookup in the table.
      * @return a {@link Timestamp} for the most recent snapshot recorded in the xxx_stats_latest.
      * tables.
      */
-    public Optional<Timestamp> getMostRecentTimestamp(@Nonnull final Optional<EntityType> entityTypeOpt,
-                                                      @Nonnull final Optional<String> specificEntityOidOpt) {
+    public Optional<Timestamp> getMostRecentTimestamp(@Nonnull final StatsFilter statsFilter,
+                                                      @Nonnull final Optional<EntityType> entityTypeOpt,
+                                                      @Nonnull final Optional<String> specificEntityOidOpt,
+                                                      @Nonnull final Optional<EntityStatsPaginationParams> paginationParams) {
 
         try (Connection conn = connection()) {
 
@@ -579,15 +584,40 @@ public class HistorydbIO extends BasedbIO {
 
             final Field<Timestamp> snapshotTimeField = (Field<Timestamp>) dField(latestEntityTable, SNAPSHOT_TIME);
 
-            final Condition whereCondition;
+            // where condition
+            List<Condition> whereConditions = new ArrayList<>(3);
+            // always true condition, in case special cases are not specified
+            whereConditions.add(DSL.trueCondition());
+
+            // check if priceindex is NOT part of the stats requested
+            // if not, then we can filter it out from the query. This will give us more accurate results
+            // when the market is faster than the history component (because price index is generated
+            // by the market component, and can come to db at a different time than commodities).
+            // in this case we might have a record in the db with the priceindex, but not the real
+            // commodities yet (because history is still writing to db), and this means that the
+            // timestamp of the price index record is taken, which will in reality return no commodities
+            final boolean priceIndexNotRequiredInFilter = statsFilter.getCommodityRequestsList().stream()
+                .map(CommodityRequest::getCommodityName)
+                .noneMatch(PRICE_INDEX::equalsIgnoreCase);
+
+            // check if the pagination is requiring the price index to be present, because it's using
+            // it to sort entities. In this case we cannot exclude the price index from our query
+            final boolean priceIndexRequiredInPagination = paginationParams.map(EntityStatsPaginationParams::getSortCommodity)
+                .map(PRICE_INDEX::equalsIgnoreCase)
+                .orElse(false);
+
+            if (priceIndexNotRequiredInFilter && !priceIndexRequiredInPagination) {
+                // filter out the priceindex from the query, in order to get the timestamp of the
+                // most recent commodities
+                final Field<String> propertyTypeField = (Field<String>) dField(latestEntityTable, PROPERTY_TYPE);
+                whereConditions.add(str(propertyTypeField).ne(PRICE_INDEX));
+            }
+
             // we can add the specific entity only if also the type has been specified
             if (specificEntityOidOpt.isPresent() && entityTypeOpt.isPresent()) {
                 // select only the single entity
                 final Field<String> uuidField = (Field<String>) dField(latestEntityTable, UUID);
-                whereCondition = str(uuidField).eq(specificEntityOidOpt.get());
-            } else {
-                // always true condition, in case a single entity is not specified
-                whereCondition = DSL.trueCondition();
+                whereConditions.add(str(uuidField).eq(specificEntityOidOpt.get()));
             }
 
             // create select query
@@ -595,7 +625,7 @@ public class HistorydbIO extends BasedbIO {
                 .select(timestamp(snapshotTimeField))
                 .from(latestEntityTable)
                 //it's not a real where, unless we specified an entity
-                .where(whereCondition)
+                .where(whereConditions)
                 // Descending order (i.e. most recent first)
                 .orderBy(snapshotTimeField.desc())
                 // Take the first one - this will be the most recent.

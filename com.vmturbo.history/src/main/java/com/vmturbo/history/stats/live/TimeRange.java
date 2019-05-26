@@ -12,6 +12,7 @@ import javax.annotation.Nonnull;
 import com.google.common.base.Preconditions;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.TimeFrame;
@@ -107,6 +108,7 @@ public class TimeRange {
          * @param statsFilter The {@link StatsFilter}.
          * @param entityOIDsOpt  List of entities that we want to get the timeframe for
          * @param entityTypeOpt  Type of those entities
+         * @param paginationParams
          * @return An {@link Optional} containing the time range, or an empty optional if
          * there is no data in the time range specified by the filter.
          * @throws VmtDbException           If there is an error connecting to the database.
@@ -115,7 +117,8 @@ public class TimeRange {
         @Nonnull
         Optional<TimeRange> resolveTimeRange(@Nonnull final StatsFilter statsFilter,
                                              @Nonnull final Optional<List<String>> entityOIDsOpt,
-                                             @Nonnull final Optional<EntityType> entityTypeOpt)
+                                             @Nonnull final Optional<EntityType> entityTypeOpt,
+                                             @Nonnull final Optional<EntityStatsPaginationParams> paginationParams)
             throws IllegalArgumentException, VmtDbException;
 
         /**
@@ -143,7 +146,8 @@ public class TimeRange {
             @Nonnull
             public Optional<TimeRange> resolveTimeRange(@Nonnull final StatsFilter statsFilter,
                                                         @Nonnull final Optional<List<String>> entityOIDsOpt,
-                                                        @Nonnull final Optional<EntityType> entityTypeOpt)
+                                                        @Nonnull final Optional<EntityType> entityTypeOpt,
+                                                        @Nonnull final Optional<EntityStatsPaginationParams> paginationParams)
                 throws IllegalArgumentException, VmtDbException {
 
                 // assume that either both startTime and endTime are null, or startTime and endTime are set
@@ -171,8 +175,8 @@ public class TimeRange {
                     // in db is taking a long time, different entities/entities types might have
                     // different "most recent "timestamps and we might not get data for some of them
 
-                    final Optional<Timestamp> mostRecentDbTimestamp = historydbIO.getMostRecentTimestamp(entityTypeOpt,
-                        entityOidForQuery);
+                    final Optional<Timestamp> mostRecentDbTimestamp = historydbIO.getMostRecentTimestamp(
+                        statsFilter, entityTypeOpt, entityOidForQuery, paginationParams);
 
                     if (!mostRecentDbTimestamp.isPresent()) {
                         // no data persisted yet; just return an empty answer
