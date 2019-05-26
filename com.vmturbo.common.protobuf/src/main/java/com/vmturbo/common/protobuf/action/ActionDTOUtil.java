@@ -21,6 +21,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.base.CaseFormat;
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -287,7 +288,13 @@ public class ActionDTOUtil {
             case DELETE:
                 return Collections.singletonList(action.getInfo().getDelete().getTarget());
             case BUYRI:
-                return Collections.singletonList(action.getInfo().getBuyRi().getComputeTier());
+                final BuyRI buyRi = action.getInfo().getBuyRi();
+                List<ActionEntity> actionEntities = new ArrayList<>();
+                actionEntities.add(buyRi.getComputeTier());
+                actionEntities.add(buyRi.getRegionId());
+                actionEntities.add(buyRi.getMasterAccount());
+                actionEntities.add(buyRi.getComputeTier());
+                return actionEntities;
             default:
                 throw new UnsupportedActionException(action);
         }

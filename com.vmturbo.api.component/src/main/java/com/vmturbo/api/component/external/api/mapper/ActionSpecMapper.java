@@ -38,7 +38,11 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
+import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFactory.ActionSpecMappingContext;
+import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundMatchOfferingClassException;
+import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundMatchPaymentOptionException;
+import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundMatchTenancyException;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -46,6 +50,7 @@ import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
+import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ActionMode;
@@ -53,6 +58,7 @@ import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.auth.api.Pair;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
@@ -61,6 +67,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
+import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
@@ -74,6 +81,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
@@ -82,6 +91,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 
@@ -143,6 +153,12 @@ public class ActionSpecMapper {
 
     private static final Logger logger = LogManager.getLogger();
 
+    private final CostClientConfig costClientConfig;
+
+    private final CommunicationConfig communicationConfig;
+
+    private final MapperConfig mapperConfig;
+
     /**
      * The set of action states for operational actions (ie actions that have not
      * completed execution).
@@ -154,9 +170,13 @@ public class ActionSpecMapper {
     };
 
     public ActionSpecMapper(@Nonnull ActionSpecMappingContextFactory actionSpecMappingContextFactory,
-                            final long realtimeTopologyContextId) {
+                            final long realtimeTopologyContextId,@Nonnull CostClientConfig costClientConfig,
+                            @Nonnull CommunicationConfig communicationConfig, @Nonnull MapperConfig mapperConfig) {
         this.actionSpecMappingContextFactory = Objects.requireNonNull(actionSpecMappingContextFactory);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.costClientConfig = Objects.requireNonNull(costClientConfig);
+        this.communicationConfig = Objects.requireNonNull(communicationConfig);
+        this.mapperConfig = Objects.requireNonNull(mapperConfig);
     }
 
     /**
@@ -378,6 +398,9 @@ public class ActionSpecMapper {
             case DELETE:
                 addDeleteInfo(actionApiDTO, info.getDelete(),
                     recommendation.getExplanation().getDelete(), context);
+                break;
+            case BUY_RI:
+                addBuyRIInfo(actionApiDTO, info.getBuyRi(), context);
                 break;
             default:
                 throw new IllegalArgumentException("Unsupported action type " + actionType);
@@ -906,6 +929,65 @@ public class ActionSpecMapper {
         actionApiDTO.setResizeToValue(Float.toString(resize.getNewCapacity()));
     }
 
+    /**
+     * Adds information to a RI Buy Action.
+     * @param actionApiDTO Action API DTO.
+     * @param buyRI Buy RI DTO.
+     * @param context ActionSpecMappingContext.
+     * @throws UnknownObjectException
+     */
+    private void addBuyRIInfo(@Nonnull final ActionApiDTO actionApiDTO,
+                              @Nonnull final BuyRI buyRI,
+                              @Nonnull final ActionSpecMappingContext context)
+                              throws UnknownObjectException {
+        actionApiDTO.setActionType(ActionType.BUY_RI);
+
+        final Pair<ReservedInstanceBought, ReservedInstanceSpec> pair = context
+                .getRIBoughtandRISpec(buyRI.getBuyRiId());
+
+        final ReservedInstanceBought ri = pair.first;
+        final ReservedInstanceSpec riSpec = pair.second;
+
+        final ReservedInstanceMapper reservedInstanceMapper = mapperConfig.reservedInstanceMapper();
+        try {
+            ReservedInstanceApiDTO riApiDTO = reservedInstanceMapper
+                    .mapToReservedInstanceApiDTO(ri, riSpec, context.getServiceEntityApiDTOs());
+            actionApiDTO.setReservedInstance(riApiDTO);
+            actionApiDTO.setDetails(getRIBuyActionDetails(buyRI, context.getServiceEntityApiDTOs()));
+        } catch (NotFoundMatchPaymentOptionException e) {
+            logger.error("Payment Option not found for RI : {}", buyRI.getBuyRiId(),  e);
+        } catch (NotFoundMatchTenancyException e) {
+            logger.error("Tenancy not found for RI : {}", buyRI.getBuyRiId(), e);
+        } catch (NotFoundMatchOfferingClassException e) {
+            logger.error("Offering Class not found for RI : {}", buyRI.getBuyRiId(), e);
+        }
+    }
+
+    private String getRIBuyActionDetails(@Nonnull final BuyRI buyRI,
+                                       Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOs)  {
+        String count = String.valueOf(buyRI.getCount());
+        ServiceEntityApiDTO computeTier = serviceEntityApiDTOs.get(buyRI.getComputeTier().getId());
+        String computeTierName = "";
+        if (computeTier != null) {
+            computeTierName = computeTier.getDisplayName();
+        }
+
+        ServiceEntityApiDTO masterAccount = serviceEntityApiDTOs.get(buyRI.getMasterAccount().getId());
+        String masterAccountName = "";
+        if (masterAccount != null) {
+            masterAccountName = masterAccount.getDisplayName();
+        }
+
+        ServiceEntityApiDTO region = serviceEntityApiDTOs.get(buyRI.getRegionId().getId());
+        String regionName = "";
+        if (region != null) {
+            regionName = region.getDisplayName();
+        }
+
+        String detail = "Buy " + count + " " + computeTierName + " RI's for " + masterAccountName +
+                        " in " + regionName;
+        return detail;
+    }
     /**
      * Format resize actions commodity capacity value to more readable format.
      *

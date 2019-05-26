@@ -36,6 +36,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFactory.ActionSpecMappingContext;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
@@ -96,6 +97,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -125,6 +127,12 @@ public class ActionSpecMapperTest {
     private GrpcTestServer grpcServer;
 
     private PolicyServiceGrpc.PolicyServiceBlockingStub policyService;
+
+    private CostClientConfig costClientConfig;
+
+    private CommunicationConfig communicationConfig;
+
+    private MapperConfig mapperConfig;
 
     private SearchServiceMole searchMole;
 
@@ -165,12 +173,17 @@ public class ActionSpecMapperTest {
         cloudAspectMapper = Mockito.mock(CloudAspectMapper.class);
         vmAspectMapper = Mockito.mock(VirtualMachineAspectMapper.class);
         volumeAspectMapper = Mockito.mock(VirtualVolumeAspectMapper.class);
+        costClientConfig = Mockito.mock(CostClientConfig.class);
+        communicationConfig = Mockito.mock(CommunicationConfig.class);
+        mapperConfig = Mockito.mock(MapperConfig.class);
 
         actionSpecMappingContextFactory = new ActionSpecMappingContextFactory(policyService,
             Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()),
             searchServiceBlockingStub, cloudAspectMapper, vmAspectMapper, volumeAspectMapper,
-            REAL_TIME_TOPOLOGY_CONTEXT_ID);
-        mapper = new ActionSpecMapper(actionSpecMappingContextFactory, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+            REAL_TIME_TOPOLOGY_CONTEXT_ID, costClientConfig, null,
+            null);
+        mapper = new ActionSpecMapper(actionSpecMappingContextFactory, REAL_TIME_TOPOLOGY_CONTEXT_ID,
+                costClientConfig, communicationConfig, mapperConfig);
         commodityCpu = CommodityType.newBuilder()
             .setType(CommodityDTO.CommodityType.CPU_VALUE)
             .setKey("blah")
@@ -1111,7 +1124,7 @@ public class ActionSpecMapperTest {
         entitiesMap.put(1L, entity);
         ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesMap,
             Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-            Collections.emptyMap(), Collections.emptyMap());
+            Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
         context.getOptionalEntity(1L).get().setCostPrice(1.0f);
 
         String noTranslationNeeded = "Simple string";

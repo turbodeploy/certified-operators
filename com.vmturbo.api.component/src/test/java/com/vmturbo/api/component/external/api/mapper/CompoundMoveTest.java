@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualMachineAspectMapper;
@@ -54,6 +55,7 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -118,9 +120,13 @@ public class CompoundMoveTest {
             Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()),
             searchServiceBlockingStub, Mockito.mock(CloudAspectMapper.class),
             Mockito.mock(VirtualMachineAspectMapper.class),
-            Mockito.mock(VirtualVolumeAspectMapper.class), REAL_TIME_TOPOLOGY_CONTEXT_ID);
+            Mockito.mock(VirtualVolumeAspectMapper.class), REAL_TIME_TOPOLOGY_CONTEXT_ID,
+            Mockito.mock(CostClientConfig.class), null,
+            null);
 
-        mapper = new ActionSpecMapper(actionSpecMappingContextFactory, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+        mapper = new ActionSpecMapper(actionSpecMappingContextFactory, REAL_TIME_TOPOLOGY_CONTEXT_ID,
+                 Mockito.mock(CostClientConfig.class), Mockito.mock(CommunicationConfig.class),
+                 Mockito.mock(MapperConfig.class));
         IdentityGenerator.initPrefix(0);
         Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
             .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()

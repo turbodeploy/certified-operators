@@ -31,16 +31,28 @@ import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.auth.api.Pair;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
+import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsResponse;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchPlanTopologyEntityDTOsRequest;
@@ -50,6 +62,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -72,13 +85,22 @@ public class ActionSpecMappingContextFactory {
 
     private final long realtimeTopologyContextId;
 
+    private final CostClientConfig costClientConfig;
+
+    private final BuyReservedInstanceServiceBlockingStub buyRIServiceClient;
+
+    private final ReservedInstanceSpecServiceBlockingStub riSpecServiceClient;
+
     public ActionSpecMappingContextFactory(@Nonnull PolicyServiceBlockingStub policyService,
                                            @Nonnull ExecutorService executorService,
                                            @Nonnull SearchServiceBlockingStub searchServiceRpc,
                                            @Nonnull CloudAspectMapper cloudAspectMapper,
                                            @Nonnull VirtualMachineAspectMapper vmAspectMapper,
                                            @Nonnull VirtualVolumeAspectMapper volumeAspectMapper,
-                                           final long realtimeTopologyContextId) {
+                                           final long realtimeTopologyContextId,
+                                           @Nonnull CostClientConfig costClientConfig,
+                                           @Nonnull BuyReservedInstanceServiceBlockingStub buyRIServiceClient,
+                                           @Nonnull ReservedInstanceSpecServiceBlockingStub riSpecServiceClient) {
         this.policyService = Objects.requireNonNull(policyService);
         this.executorService = Objects.requireNonNull(executorService);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
@@ -86,6 +108,57 @@ public class ActionSpecMappingContextFactory {
         this.vmAspectMapper = Objects.requireNonNull(vmAspectMapper);
         this.volumeAspectMapper = Objects.requireNonNull(volumeAspectMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.costClientConfig = costClientConfig;
+        this.buyRIServiceClient = buyRIServiceClient;
+        this.riSpecServiceClient = riSpecServiceClient;
+    }
+
+    /**
+     * Returns a mapping of buy RI id to a pair of RI Bought and RI Spec.
+     * @param buyRIActions The Buy RI actions we need to generate the mapping for.
+     * @return mapping of buy RI id to a pair of RI Bought and RI Spec.
+     */
+    private Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>>
+                                                        getBuyRIIdToRIBoughtandRISpec(List<BuyRI> buyRIActions) {
+        Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>> buyRIIdToRIBoughtandRISpec =
+                                                                                    new HashMap<>();
+
+        if (!buyRIActions.isEmpty()) {
+            final List<Long> buyRIIds = buyRIActions.stream().map(a -> a.getBuyRiId())
+                    .collect(Collectors.toList());
+
+            final Cost.GetBuyReservedInstancesByFilterResponse buyRIBoughtResponse =
+                    buyRIServiceClient.getBuyReservedInstancesByFilter(GetBuyReservedInstancesByFilterRequest
+                            .newBuilder().addAllBuyRiId(buyRIIds).build());
+
+            final List<Long> riSpecs = buyRIBoughtResponse.getReservedInstanceBoughtsList().stream()
+                    .map(r -> r.getReservedInstanceBoughtInfo().getReservedInstanceSpec())
+                    .collect(Collectors.toList());
+
+            final GetReservedInstanceSpecByIdsResponse riSpecResponse = riSpecServiceClient
+                    .getReservedInstanceSpecByIds(GetReservedInstanceSpecByIdsRequest.newBuilder()
+                            .addAllReservedInstanceSpecIds(riSpecs)
+                            .build());
+
+            final Map<Long, ReservedInstanceBought> buyRIIdToRIBought = buyRIBoughtResponse
+                                                .getReservedInstanceBoughtsList().stream()
+                                                .collect(Collectors.toMap(a -> a.getId(), a -> a));
+
+            final Map<Long, ReservedInstanceSpec> specIdToRISpec = riSpecResponse
+                                                .getReservedInstanceSpecList().stream()
+                                                .collect(Collectors.toMap(a -> a.getId(), a -> a));
+
+            for (Entry<Long, ReservedInstanceBought> entry : buyRIIdToRIBought.entrySet()) {
+                Long buyRIId = entry.getKey();
+                ReservedInstanceBought riBought = entry.getValue();
+                ReservedInstanceSpec riSpec = specIdToRISpec.get(riBought.getReservedInstanceBoughtInfo()
+                                                .getReservedInstanceSpec());
+                Pair<ReservedInstanceBought, ReservedInstanceSpec> pair
+                        = new Pair<>(riBought, riSpec);
+                buyRIIdToRIBoughtandRISpec.put(buyRIId, pair);
+            }
+        }
+        return  buyRIIdToRIBoughtandRISpec;
     }
 
     /**
@@ -108,11 +181,17 @@ public class ActionSpecMappingContextFactory {
             .submit(() -> fetchTopologyEntityDTOs(topologyContextId, involvedEntities));
         List<TopologyEntityDTO> topologyEntityDTOs = entities.get();
 
+        Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>> buyRIIdToRIBoughtandRISpec  =
+                                        getBuyRIIdToRIBoughtandRISpec(actions.stream()
+                                        .filter(a -> a.getInfo().hasBuyRi())
+                                        .map(a -> a.getInfo().getBuyRi())
+                                        .collect(Collectors.toList()));
+
         if (topologyContextId == realtimeTopologyContextId) {
             final Map<Long, TopologyEntityDTO> entitiesById = topologyEntityDTOs.stream()
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
             return new ActionSpecMappingContext(entitiesById, policies.get(), Collections.emptyMap(),
-                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
+                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), buyRIIdToRIBoughtandRISpec);
         }
 
         // fetch more info for plan actions
@@ -141,7 +220,7 @@ public class ActionSpecMappingContextFactory {
             }
         }
         return new ActionSpecMappingContext(entitiesById, policies.get(), zoneIdToRegion,
-            volumesAspectsByVM, cloudAspects, vmAspects);
+            volumesAspectsByVM, cloudAspects, vmAspects, buyRIIdToRIBoughtandRISpec);
     }
 
     @Nonnull
@@ -272,12 +351,16 @@ public class ActionSpecMappingContextFactory {
 
         private final Map<Long, EntityAspect> vmAspects;
 
+        private final Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>> buyRIIdToRIBoughtandRISpec;
+
         ActionSpecMappingContext(@Nonnull Map<Long, TopologyEntityDTO> topologyEntityDTOs,
                                  @Nonnull Map<Long, PolicyDTO.Policy> policies,
                                  @Nonnull Map<Long, TopologyEntityDTO> zoneIdToRegion,
                                  @Nonnull Map<Long, List<VirtualDiskApiDTO>> volumeAspectsByVM,
                                  @Nonnull Map<Long, EntityAspect> cloudAspects,
-                                 @Nonnull Map<Long, EntityAspect> vmAspects) {
+                                 @Nonnull Map<Long, EntityAspect> vmAspects,
+                                 @Nonnull Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>>
+                                 buyRIIdToRIBoughtandRISpec) {
             this.topologyEntityDTOs = topologyEntityDTOs;
             this.serviceEntityApiDTOs = topologyEntityDTOs.entrySet().stream()
                 .collect(Collectors.toMap(Entry::getKey, entry ->
@@ -287,6 +370,7 @@ public class ActionSpecMappingContextFactory {
             this.volumeAspectsByVM = Objects.requireNonNull(volumeAspectsByVM);
             this.cloudAspects = Objects.requireNonNull(cloudAspects);
             this.vmAspects = Objects.requireNonNull(vmAspects);
+            this.buyRIIdToRIBoughtandRISpec = buyRIIdToRIBoughtandRISpec;
         }
 
         PolicyDTO.Policy getPolicy(long id) {
@@ -337,6 +421,14 @@ public class ActionSpecMappingContextFactory {
 
         Optional<EntityAspect> getVMAspect(@Nonnull Long entityId) {
             return Optional.ofNullable(vmAspects.get(entityId));
+        }
+
+        public Pair<ReservedInstanceBought, ReservedInstanceSpec> getRIBoughtandRISpec(Long id) {
+            return buyRIIdToRIBoughtandRISpec.get(id);
+        }
+
+        public Map<Long, ServiceEntityApiDTO> getServiceEntityApiDTOs() {
+            return Collections.unmodifiableMap(serviceEntityApiDTOs);
         }
     }
 }

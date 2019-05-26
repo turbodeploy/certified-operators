@@ -138,6 +138,11 @@ public class BuyReservedInstanceStore {
             conditions.add(Tables.BUY_RESERVED_INSTANCE.BUSINESS_ACCOUNT_ID.in(
                     request.getAccountFilter().getAccountIdList()));
         }
+
+        if (request.getBuyRiIdCount() > 0) {
+            conditions.add(Tables.BUY_RESERVED_INSTANCE.ID.in(
+                    request.getBuyRiIdList()));
+        }
         return conditions;
     }
 

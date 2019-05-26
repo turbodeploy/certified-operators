@@ -300,6 +300,15 @@ message BuyRI {
     // The tier of the buy ri. For ex. for a Buy RI action like "Buy 2 t2.small RIs", the
     // compute_tier will be the t2.small entity
     optional ActionEntity compute_tier = 2;
+
+    // The number of RI's recommended.
+    optional int32 count = 3;
+
+    // The master account for which we are buying this RI.
+    optional ActionEntity masterAccount = 4;
+
+    // The region in which we are buying this RI.
+    optional ActionEntity regionId = 5;
 }
 
 // Contains the information describing the recommendation for what

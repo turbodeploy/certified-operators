@@ -594,6 +594,9 @@ message GetBuyReservedInstancesByFilterRequest {
 
     // get buy reserved instance recommendations filter by account ids.
     optional AccountFilter account_filter = 3;
+
+    // buy ri ids.
+    repeated int64 buy_ri_id = 4;
 }
 
 // A response contains a list of buy RIs represented as reserved instance bought.
