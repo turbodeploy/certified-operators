@@ -7,11 +7,9 @@ dependencies:
   - name: consul
     repository: file://../base/consul
     version: 0.1.0
-    condition: platform.enabled
   - name: db
     repository: file://../base/db
     version: 0.1.0
-    condition: platform.enabled
   - name: influxdb
     repository: file://../base/influxdb
     version: 0.1.0
@@ -19,7 +17,6 @@ dependencies:
   - name: kafka
     repository: file://../base/kafka
     version: 0.1.0
-    condition: platform.enabled
   - name: nginx
     repository: file://../base/nginx
     version: 0.1.0
@@ -30,7 +27,6 @@ dependencies:
   - name: zookeeper
     repository: file://../base/zookeeper
     version: 0.1.0
-    condition: platform.enabled
 
 # Services dependencies
   - name: api
@@ -40,7 +36,6 @@ dependencies:
   - name: auth
     repository: file://../services/auth
     version: 0.1.0
-    condition: platform.enabled
   - name: action-orchestrator
     repository: file://../services/action-orchestrator
     version: 0.1.0
@@ -48,7 +43,6 @@ dependencies:
   - name: clustermgr
     repository: file://../services/clustermgr
     version: 0.1.0
-    condition: platform.enabled
   - name: cost
     repository: file://../services/cost
     version: 0.1.0
@@ -88,7 +82,6 @@ dependencies:
   - name: topology-processor
     repository: file://../services/topology-processor
     version: 0.1.0
-    condition: platform.enabled
 
 # Logging dependencies
   - name: elasticsearch

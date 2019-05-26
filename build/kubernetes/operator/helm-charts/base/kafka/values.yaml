@@ -26,6 +26,14 @@ env:
     value: "67108864"
   - name: ZOOKEEPER_HOSTS
     value: zookeeper:2181
+  - name: clustermgr_host
+    value: clustermgr
+  - name: clustermgr_port
+    value: "8080"
+  - name: clustermgr_retry_delay_sec
+    value: "10"
+  - name: consul_host
+    value: consul
 
 resources:
   limits:
