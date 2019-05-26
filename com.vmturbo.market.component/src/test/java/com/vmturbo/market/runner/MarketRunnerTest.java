@@ -71,6 +71,7 @@ public class MarketRunnerTest {
 
     private long topologyContextId = 1000;
     private long topologyId = 2000;
+    private long rtContextId = 777777;
     private long creationTime = 3000;
     private final GroupServiceMole testGroupService = spy(new GroupServiceMole());
     private final SettingPolicyServiceMole testSettingPolicyService =
@@ -90,6 +91,13 @@ public class MarketRunnerTest {
             .setTopologyContextId(topologyContextId)
             .setCreationTime(creationTime)
             .setTopologyType(TopologyType.PLAN)
+            .build();
+
+    private TopologyInfo rtTopologyInfo = TopologyInfo.newBuilder()
+            .setTopologyId(topologyId)
+            .setTopologyContextId(rtContextId)
+            .setCreationTime(creationTime)
+            .setTopologyType(TopologyType.REALTIME)
             .build();
 
     private AnalysisFactory analysisFactory = mock(AnalysisFactory.class);
@@ -211,6 +219,18 @@ public class MarketRunnerTest {
         verify(analysis).isDone();
 
         assertFalse(runner.getRuns().contains(analysis));
+    }
+
+    /**
+     * Test if analysis is marked as running for a RT topology upon scheduling
+     */
+    @Test
+    public void testMarketRunning() {
+        runner.scheduleAnalysis(rtTopologyInfo, dtos(true), true,
+                maxPlacementsOverride, rightsizeLowerWatermark, rightsizeUpperWatermark);
+        assertTrue(runner.isAnalysisRunningForRtTopology(rtTopologyInfo));
+        // assert if the plan analysis is not running
+        assertFalse(runner.isAnalysisRunningForRtTopology(topologyInfo));
     }
 
     private long entityCount = 0;

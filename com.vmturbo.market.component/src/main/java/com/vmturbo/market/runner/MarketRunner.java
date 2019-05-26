@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.collect.Sets;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
@@ -100,9 +101,10 @@ public class MarketRunner {
 
         synchronized (analysisMap) {
             if (analysisMap.containsKey(topologyContextId)) {
-                logger.info("Analysis {} is already running with topology {}. Discarding.",
-                        topologyContextId, topologyId);
-                return analysisMap.get(topologyContextId);
+                analysis = analysisMap.get(topologyContextId);
+                logger.info("Analysis {} is already running with topology {}. Discarding {}.",
+                        topologyContextId, analysis.getTopologyId(), topologyId);
+                return analysis;
             }
             logger.info("Received analysis {}: topology {}" +
                     " with {} topology DTOs from TopologyProcessor",
@@ -239,6 +241,25 @@ public class MarketRunner {
                 }
             }
         }
+    }
+
+    /**
+     * Check if a round of analysis is already running for the realtime-topology
+     * @return a collection of the analysis runs
+     */
+    public boolean isAnalysisRunningForRtTopology(TopologyDTO.TopologyInfo topologyInfo) {
+        synchronized (analysisMap) {
+            long topologyContextId = topologyInfo.getTopologyContextId();
+            long topologyId = topologyInfo.getTopologyId();
+            if (topologyInfo.getTopologyType() == TopologyDTO.TopologyType.REALTIME &&
+                    analysisMap.containsKey(topologyContextId)) {
+                Analysis analysis = analysisMap.get(topologyContextId);
+                logger.info("Analysis {} is already running with topology {}. Discarding new {}.",
+                        topologyContextId, analysis.getTopologyId(), topologyId);
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
