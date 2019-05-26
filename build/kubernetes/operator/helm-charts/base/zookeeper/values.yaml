@@ -14,14 +14,6 @@ env:
     value: "1"
   - name: ZOO_SERVERS
     value: zoo
-  - name: clustermgr_host
-    value: clustermgr
-  - name: clustermgr_port
-    value: "8080"
-  - name: clustermgr_retry_delay_sec
-    value: "10"
-  - name: consul_host
-    value: consul
 
 resources:
   limits:

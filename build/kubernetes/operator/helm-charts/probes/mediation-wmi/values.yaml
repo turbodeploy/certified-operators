@@ -18,23 +18,31 @@ java:
             -Djavax.xml.soap.SAAJMetaFactory=com.sun.xml.messaging.saaj.soap.SAAJMetaFactoryImpl
             -Djava.security.egd=file:/dev/./urandom -Djava.net.preferIPv4Stack=true -XX:-OmitStackTraceInFastThrow
             -Dnetworkaddress.cache.ttl=0 -Dnetworkaddress.cache.negative.ttl=0
-            -DLog4jContextSelector=${LOG4J_CONTEXT_SELECTOR:-org.apache.logging.log4j.core.async.AsyncLoggerContextSelector}"
+            -DLog4jContextSelector=com.vmturbo.mediation.common.context.ThreadGroupPrefixContextSelector"
 
 env:
-  - name: LOG4J_CONTEXT_SELECTOR
-    value: com.vmturbo.mediation.common.context.ThreadGroupPrefixContextSelector
   - name: clustermgr_host
     value: clustermgr
   - name: clustermgr_port
     value: "8080"
   - name: clustermgr_retry_delay_sec
     value: "10"
-  - name: component_type
-    value: mediation-wmi
   - name: consul_host
     value: consul
+  - name: consul_port
+    value: "8500"
+  - name: kvStoreRetryIntervalMillis
+    value: "1"
+  - name: serverHttpPort
+    value: "8080"
+  - name: serverGrpcPort
+    value: "9001"
+  - name: component_type
+    value: mediation-wmi
   - name: instance_id
     value: mediation-wmi-1
+  - name: serverAddress
+    value: ws://topology-processor:8080/remoteMediation
 
 resources:
   limits:
