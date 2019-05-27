@@ -180,8 +180,10 @@ public class LiveStatsReaderTest {
         final StatsFilter statsFilterWithCounts = StatsFilter.newBuilder()
             .setStartDate(123L)
             // Something to distinguish it from the regular stats filter.
-            .addCommodityRequests(CommodityRequest.newBuilder()
-                .setCommodityName("foo"))
+            .addCommodityRequests(
+                CommodityRequest.newBuilder()
+                    .setCommodityName("foo")
+                    .setRelatedEntityType(StringConstants.VIRTUAL_MACHINE))
             .build();
         when(ratioProcessor.getFilterWithCounts()).thenReturn(statsFilterWithCounts);
         when(fullMarketRatioProcessor.newProcessor(statsFilter)).thenReturn(ratioProcessor);

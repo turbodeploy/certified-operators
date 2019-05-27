@@ -14,7 +14,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -391,35 +390,11 @@ public class StatsMapper {
         final GetAveragedEntityStatsRequest.Builder entityStatsRequest =
             GetAveragedEntityStatsRequest.newBuilder()
                 .setFilter(newPeriodStatsFilter(statApiInput, globalTempGroupEntityType));
-
-        // If the stats query is for global temp group, we can speed up the query by setting entity
-        // list as empty and set the related entity type which will query the pre-aggregated
-        // market stats table. The related entity type should get set in the stats filter.
-        if (!globalTempGroupEntityType.isPresent()) {
+        if (entityIds != null && !entityIds.isEmpty()) {
             entityStatsRequest.addAllEntities(entityIds);
-            // If globalTempGroupEntityType is not present, get the relatedEntityType from the
-            // statistics in the given inputDTO and set to entityStatsRequest. Print a warn message
-            // if more than one entity type is requested as we always request for stats of one certain
-            // entity type, and select the first data from the statistic list as the relatedEntityType.
-            // TODO (OM-45015): This is a workaround for a specific issue, where we wanted to return
-            // limited stats based on the relatedEntityType for the global scope. We need to properly
-            // handle relatedEntityTypes for all stats requests.
-            if (statApiInput != null && statApiInput.getStatistics() != null) {
-                Set<String> relatedEntityTypeSet = statApiInput.getStatistics().stream()
-                    .map(StatApiInputDTO::getRelatedEntityType)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toSet());
-                if (relatedEntityTypeSet.size() > 1) {
-                    logger.warn("More than one entity type is requested for statistics. Select " +
-                        "the first one as the relatedEntityType set to entityStatsRequest.");
-                }
-                String relatedEntityType = relatedEntityTypeSet.stream().findFirst().orElse(StringUtils.EMPTY);
-                entityStatsRequest.setRelatedEntityType(relatedEntityType);
-            }
-        } else {
-            entityStatsRequest.setRelatedEntityType(
-                ServiceEntityMapper.toUIEntityType(globalTempGroupEntityType.get()));
         }
+        globalTempGroupEntityType.ifPresent(entityType ->
+            entityStatsRequest.setRelatedEntityType(ServiceEntityMapper.toUIEntityType(entityType)));
         return entityStatsRequest.build();
     }
 
@@ -508,39 +483,47 @@ public class StatsMapper {
             }
             if (statApiInput.getStatistics() != null) {
                 for (StatApiInputDTO stat : statApiInput.getStatistics()) {
+                    CommodityRequest.Builder commodityRequestBuilder = CommodityRequest.newBuilder();
                     if (stat.getName() != null) {
-                        CommodityRequest.Builder commodityRequestBuilder = CommodityRequest.newBuilder();
                         commodityRequestBuilder.setCommodityName(stat.getName());
-                        // Pass filters, relatedEntityType, and groupBy as part of the request
-                        if (stat.getFilters() != null && !stat.getFilters().isEmpty()) {
-                            stat.getFilters().forEach(statFilterApiDto ->
-                                    commodityRequestBuilder.addPropertyValueFilter(
-                                            StatsFilter.PropertyValueFilter.newBuilder()
-                                                    .setProperty(statFilterApiDto.getType())
-                                                    .setValue(statFilterApiDto.getValue())
-                                                    .build()));
-                        }
-                        if (stat.getGroupBy() != null && !stat.getGroupBy().isEmpty()) {
-                            commodityRequestBuilder.addAllGroupBy(stat.getGroupBy());
-                        }
-                        if (globalTempGroupEntityType.isPresent()) {
-                            commodityRequestBuilder.setRelatedEntityType(
-                                    ServiceEntityMapper.toUIEntityType(globalTempGroupEntityType.get()));
-                        } else if (stat.getRelatedEntityType() != null) {
-                            if (globalTempGroupEntityType.isPresent() &&
-                                    !ServiceEntityMapper.toUIEntityType(globalTempGroupEntityType.get())
-                                            .equals(stat.getRelatedEntityType())) {
-                                logger.error("Api input related entity type: {} is not consistent with " +
-                                                "group entity type: {}", stat.getRelatedEntityType(),
-                                        ServiceEntityMapper.toUIEntityType(globalTempGroupEntityType.get()));
-                                throw new IllegalArgumentException("Related entity type is not same as group entity type");
-                            }
-                            commodityRequestBuilder.setRelatedEntityType(stat.getRelatedEntityType());
-                        }
-                        filterRequestBuilder.addCommodityRequests(commodityRequestBuilder.build());
-                    } else {
-                        logger.warn("null stat name in request: ", stat);
+                    } else if (stat.getRelatedEntityType() == null) {
+                        // too little information
+                        final String errorMessage =
+                            "Statistics commodity request contains neither commodity name nor "
+                                + "related entity type";
+                        logger.error(errorMessage);
+                        throw new IllegalArgumentException(errorMessage);
                     }
+                    // Pass filters, relatedEntityType, and groupBy as part of the request
+                    if (stat.getFilters() != null && !stat.getFilters().isEmpty()) {
+                        stat.getFilters().forEach(statFilterApiDto ->
+                                commodityRequestBuilder.addPropertyValueFilter(
+                                        StatsFilter.PropertyValueFilter.newBuilder()
+                                                .setProperty(statFilterApiDto.getType())
+                                                .setValue(statFilterApiDto.getValue())
+                                                .build()));
+                    }
+                    if (stat.getGroupBy() != null && !stat.getGroupBy().isEmpty()) {
+                        commodityRequestBuilder.addAllGroupBy(stat.getGroupBy());
+                    }
+                    globalTempGroupEntityType.ifPresent(globalType ->
+                        commodityRequestBuilder.setRelatedEntityType(
+                            ServiceEntityMapper.toUIEntityType(globalType)));
+                    if (stat.getRelatedEntityType() != null) {
+                        if (commodityRequestBuilder.hasRelatedEntityType()
+                                && !commodityRequestBuilder.getRelatedEntityType()
+                                        .equals(stat.getRelatedEntityType())) {
+                            logger.error(
+                                "Api input related entity type: {} is not consistent with "
+                                        + "group entity type: {}",
+                                    stat.getRelatedEntityType(),
+                                    ServiceEntityMapper.toUIEntityType(globalTempGroupEntityType.get()));
+                            throw new IllegalArgumentException(
+                                "Related entity type is not same as group entity type");
+                        }
+                        commodityRequestBuilder.setRelatedEntityType(stat.getRelatedEntityType());
+                    }
+                    filterRequestBuilder.addCommodityRequests(commodityRequestBuilder.build());
                 }
             }
         }

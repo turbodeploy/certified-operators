@@ -4,7 +4,6 @@ import static com.vmturbo.components.common.utils.StringConstants.SNAPSHOT_TIME;
 import static com.vmturbo.components.common.utils.StringConstants.UUID;
 import static com.vmturbo.history.db.jooq.JooqUtils.dField;
 import static com.vmturbo.history.db.jooq.JooqUtils.statsTableByTimeFrame;
-import static com.vmturbo.history.db.jooq.JooqUtils.str;
 import static com.vmturbo.history.utils.HistoryStatsUtils.betweenStartEndTimestampCond;
 import static com.vmturbo.history.utils.HistoryStatsUtils.countPerSEsMetrics;
 import static com.vmturbo.history.utils.HistoryStatsUtils.countSEsMetrics;
@@ -46,7 +45,6 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.BasedbIO.Style;
 import com.vmturbo.history.db.EntityType;
@@ -371,14 +369,15 @@ public class LiveStatsReader {
             fullMarketRatioProcessorFactory.newProcessor(statsFilter);
 
         // add select on the given commodity requests; if no commodityRequests specified,
-        // leave out the were clause and thereby include all commodities.
+        // leave out the where clause and thereby include all commodities.
         final Optional<Condition> commodityRequestsCond =
                 statsQueryFactory.createCommodityRequestsCond(
                     ratioProcessor.getFilterWithCounts().getCommodityRequestsList(), table);
         commodityRequestsCond.ifPresent(whereConditions::add);
 
-        // if no entity type provided, it will include all entity type.
-        Optional<Condition> entityTypeCond = entityTypeCond(entityType, table);
+        // if no entity type provided, it will include all entity types.
+        Optional<Condition> entityTypeCond =
+            entityType.map(type -> StatsQueryFactory.DefaultStatsQueryFactory.entityTypeCond(type, table));
         entityTypeCond.ifPresent(whereConditions::add);
 
         // Format the query.
@@ -459,21 +458,6 @@ public class LiveStatsReader {
             }
             countStatsRecords.add(countRecord);
         }
-    }
-
-    /**
-     * Create a Jooq conditional clause to filter on entity type if it is present.
-     *
-     * @param entityType entity type need to filter on.
-     * @param table the DB table from which these stats will be collected
-     * @return an Optional contains a Jooq condition to filter on entity type.
-     */
-    private Optional<Condition> entityTypeCond(@Nonnull final Optional<String> entityType,
-                                               @Nonnull final Table<?> table) {
-        return entityType
-                .filter(serviceEntityType -> !serviceEntityType.isEmpty())
-                .map(serviceEntityType ->
-                        str(dField(table, StringConstants.ENTITY_TYPE)).in(serviceEntityType));
     }
 
     /**

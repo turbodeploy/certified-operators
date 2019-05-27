@@ -31,6 +31,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.service.StatsService;
 import com.vmturbo.api.component.external.api.service.TargetsService;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -446,9 +447,11 @@ public class StatsMapperTest {
 
         final GetAveragedEntityStatsRequest request =
                 statsMapper.toAveragedEntityStatsRequest(uuids, period, tempGroupType);
-        assertTrue(request.getEntitiesList().isEmpty());
+        assertTrue(request.getEntitiesList().containsAll(uuids));
+        assertEquals(2, request.getEntitiesCount());
         assertThat(request.getFilter(), is(STATS_FILTER));
-        assertThat(request.getRelatedEntityType(), is(VIRTUAL_MACHINE));
+        assertEquals(
+            ServiceEntityMapper.toUIEntityType(tempGroupType.get()), request.getRelatedEntityType());
     }
 
     @Test
@@ -460,16 +463,36 @@ public class StatsMapperTest {
 
         final GetAveragedEntityStatsRequest request =
                 statsMapper.toAveragedEntityStatsRequest(uuids, null, tempGroupType);
-        assertTrue(request.getEntitiesList().isEmpty());
+        assertTrue(request.getEntitiesList().containsAll(uuids));
         assertThat(request.getFilter(), is(STATS_FILTER));
         assertThat(request.getRelatedEntityType(), is(VIRTUAL_MACHINE));
     }
 
     @Test
+    public void testAverageEntityStatsRequestWithMultipleEntityTypes() {
+        final StatPeriodApiInputDTO periodApiInputDTO = new StatPeriodApiInputDTO();
+        final StatApiInputDTO apiInputDTO1 = new StatApiInputDTO();
+        final StatApiInputDTO apiInputDTO2 = new StatApiInputDTO();
+        periodApiInputDTO.setStatistics(ImmutableList.of(apiInputDTO1, apiInputDTO2));
+        apiInputDTO1.setRelatedEntityType(UIEntityType.APPLICATION.getValue());
+        apiInputDTO1.setName("name1");
+        apiInputDTO2.setRelatedEntityType(UIEntityType.VIRTUAL_MACHINE.getValue());
+        apiInputDTO2.setName("name2");
+        final GetAveragedEntityStatsRequest request =
+            statsMapper.toAveragedEntityStatsRequest(
+                Collections.emptySet(), periodApiInputDTO, Optional.empty());
+        assertEquals(2, request.getFilter().getCommodityRequestsCount());
+        assertEquals(
+            UIEntityType.APPLICATION.getValue(),
+            request.getFilter().getCommodityRequests(0).getRelatedEntityType());
+        assertEquals(
+            UIEntityType.VIRTUAL_MACHINE.getValue(),
+            request.getFilter().getCommodityRequests(1).getRelatedEntityType());
+    }
+
+    @Test
     public void testAveragedEntityStatsRequestWithStatistics() {
         final StatPeriodApiInputDTO statPeriodApiInputDTO = new StatPeriodApiInputDTO();
-        when(statsMapper.newPeriodStatsFilter(statPeriodApiInputDTO,
-            Optional.empty())).thenReturn(STATS_FILTER);
         StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
         statApiInputDTO.setRelatedEntityType(VIRTUAL_MACHINE);
         statPeriodApiInputDTO.setStatistics(Lists.newArrayList(statApiInputDTO));
@@ -477,8 +500,20 @@ public class StatsMapperTest {
             statsMapper.toAveragedEntityStatsRequest(new HashSet<>(), statPeriodApiInputDTO,
                 Optional.empty());
         assertTrue(request.getEntitiesList().isEmpty());
-        assertThat(request.getFilter(), is(STATS_FILTER));
-        assertThat(request.getRelatedEntityType(), is(VIRTUAL_MACHINE));
+        assertEquals(
+            UIEntityType.VIRTUAL_MACHINE.getValue(),
+            request.getFilter().getCommodityRequests(0).getRelatedEntityType());
+        assertFalse(request.hasRelatedEntityType());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testAveragedEntityStatsNotMatchingRelatedEntityTypes() {
+        final StatPeriodApiInputDTO statPeriodApiInputDTO = new StatPeriodApiInputDTO();
+        StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
+        statApiInputDTO.setRelatedEntityType(VIRTUAL_MACHINE);
+        statPeriodApiInputDTO.setStatistics(Lists.newArrayList(statApiInputDTO));
+        statsMapper.toAveragedEntityStatsRequest(
+            new HashSet<>(), statPeriodApiInputDTO, Optional.of(UIEntityType.PHYSICAL_MACHINE.ordinal()));
     }
 
     @Test
