@@ -15,7 +15,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.service.GroupsService;
 import com.vmturbo.api.dto.group.GroupApiDTO;
@@ -25,6 +24,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 public class MagicScopeGatewayTest {
@@ -67,7 +67,7 @@ public class MagicScopeGatewayTest {
         verify(groupsService).createGroup(groupCreateRequestCaptor.capture());
         final GroupApiDTO groupRequest = groupCreateRequestCaptor.getValue();
         assertThat(groupRequest.getTemporary(), is(true));
-        assertThat(groupRequest.getGroupType(), is(UIEntityType.PHYSICAL_MACHINE.getValue()));
+        assertThat(groupRequest.getGroupType(), is(UIEntityType.PHYSICAL_MACHINE.apiStr()));
         assertThat(groupRequest.getScope(), contains(UuidMapper.UI_REAL_TIME_MARKET_STR));
         assertThat(groupRequest.getEnvironmentType(), is(EnvironmentType.ONPREM));
     }

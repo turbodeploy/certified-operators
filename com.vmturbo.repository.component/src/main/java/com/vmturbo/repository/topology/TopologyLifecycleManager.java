@@ -19,14 +19,14 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.arangodb.ArangoDBException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Collections2;
-
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import javaslang.Function1;
 
@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.CollectionOperationException;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.EdgeOperationException;
@@ -44,6 +45,9 @@ import com.vmturbo.repository.graph.driver.GraphDatabaseDriver;
 import com.vmturbo.repository.graph.driver.GraphDatabaseDriverBuilder;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.graph.operator.TopologyGraphCreator;
+import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
+import com.vmturbo.repository.listener.realtime.ProjectedRealtimeTopology.ProjectedTopologyBuilder;
+import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology.SourceRealtimeTopologyBuilder;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufHandler;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufWriter;
@@ -87,6 +91,10 @@ public class TopologyLifecycleManager implements Diagnosable {
     // how many expected real time "Projected" DB to be kept with full clean up?
     private final int numberOfExpectedRealtimeProjectedDB;
 
+    private final LiveTopologyStore liveTopologyStore;
+
+    private final boolean realtimeInMemory;
+
     private final GlobalSupplyChainManager globalSupplyChainManager;
 
     private final GraphDBExecutor graphDbExecutor;
@@ -96,33 +104,39 @@ public class TopologyLifecycleManager implements Diagnosable {
                                     @Nonnull final TopologyProtobufsManager topologyProtobufsManager,
                                     final long realtimeTopologyContextId,
                                     @Nonnull final ScheduledExecutorService scheduler,
+                                    @Nonnull final LiveTopologyStore liveTopologyStore,
+                                    final boolean realtimeInMemory,
                                     final long realtimeTopologyDropDelaySecs,
                                     final int numberOfExpectedRealtimeSourceDB,
                                     final int numberOfExpectedRealtimeProjectedDB,
                                     @Nonnull final GlobalSupplyChainManager globalSupplyChainManager,
                                     @Nonnull final GraphDBExecutor graphDBExecutor) {
         this(graphDatabaseDriverBuilder, graphDefinition, topologyProtobufsManager, realtimeTopologyContextId,
-            scheduler, realtimeTopologyDropDelaySecs, numberOfExpectedRealtimeSourceDB,
+            scheduler, liveTopologyStore, realtimeInMemory, realtimeTopologyDropDelaySecs, numberOfExpectedRealtimeSourceDB,
             numberOfExpectedRealtimeProjectedDB, globalSupplyChainManager, graphDBExecutor, true);
     }
 
     @VisibleForTesting
     TopologyLifecycleManager(@Nonnull final GraphDatabaseDriverBuilder graphDatabaseDriverBuilder,
-                                    @Nonnull final GraphDefinition graphDefinition,
-                                    @Nonnull final TopologyProtobufsManager topologyProtobufsManager,
-                                    final long realtimeTopologyContextId,
-                                    @Nonnull final ScheduledExecutorService scheduler,
-                                    final long realtimeTopologyDropDelaySecs,
-                                    final int numberOfExpectedRealtimeSourceDB,
-                                    final int numberOfExpectedRealtimeProjectedDB,
-                                    @Nonnull final GlobalSupplyChainManager globalSupplyChainManager,
-                                    @Nonnull final GraphDBExecutor graphDbExecutor,
-                                    final boolean loadExisting) {
+            @Nonnull final GraphDefinition graphDefinition,
+            @Nonnull final TopologyProtobufsManager topologyProtobufsManager,
+            final long realtimeTopologyContextId,
+            @Nonnull final ScheduledExecutorService scheduler,
+            @Nonnull final LiveTopologyStore liveTopologyStore,
+            final boolean realtimeInMemory,
+            final long realtimeTopologyDropDelaySecs,
+            final int numberOfExpectedRealtimeSourceDB,
+            final int numberOfExpectedRealtimeProjectedDB,
+            @Nonnull final GlobalSupplyChainManager globalSupplyChainManager,
+            @Nonnull final GraphDBExecutor graphDbExecutor,
+            final boolean loadExisting) {
         this.graphDatabaseDriverBuilder = graphDatabaseDriverBuilder;
         this.graphDefinition = graphDefinition;
         this.topologyProtobufsManager = topologyProtobufsManager;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.scheduler = scheduler;
+        this.liveTopologyStore = liveTopologyStore;
+        this.realtimeInMemory = realtimeInMemory;
         this.realtimeTopologyDropDelaySecs = realtimeTopologyDropDelaySecs;
         this.numberOfExpectedRealtimeSourceDB = numberOfExpectedRealtimeSourceDB;
         this.numberOfExpectedRealtimeProjectedDB = numberOfExpectedRealtimeProjectedDB;
@@ -322,8 +336,12 @@ public class TopologyLifecycleManager implements Diagnosable {
         }
     }
 
-    public SourceTopologyCreator newSourceTopologyCreator(@Nonnull final TopologyID topologyID) {
-        return new SourceTopologyCreator(
+    public TopologyCreator<TopologyEntityDTO> newSourceTopologyCreator(@Nonnull final TopologyID topologyID,
+                                                                       @Nonnull final TopologyInfo topologyInfo) {
+        if (realtimeInMemory && topologyID.getContextId() == realtimeTopologyContextId) {
+            return new InMemorySourceTopologyCreator(liveTopologyStore.newRealtimeTopology(topologyInfo));
+        } else {
+            return new ArangoSourceTopologyCreator(
                 topologyID,
                 graphDatabaseDriverBuilder,
                 this::registerTopology,
@@ -334,10 +352,16 @@ public class TopologyLifecycleManager implements Diagnosable {
                 realtimeTopologyContextId,
                 numberOfExpectedRealtimeSourceDB,
                 numberOfExpectedRealtimeProjectedDB);
+        }
     }
 
-    public ProjectedTopologyCreator newProjectedTopologyCreator(@Nonnull final TopologyID topologyID) {
-        return new ProjectedTopologyCreator(
+    public TopologyCreator<ProjectedTopologyEntity> newProjectedTopologyCreator(@Nonnull final TopologyID topologyID,
+                                                                                @Nonnull final TopologyInfo originalTopologyInfo) {
+        if (realtimeInMemory && topologyID.getContextId() == realtimeTopologyContextId) {
+            return new InMemoryProjectedTopologyCreator(
+                liveTopologyStore.newProjectedTopology(topologyID.getTopologyId(), originalTopologyInfo));
+        } else {
+            return new ArangoProjectedTopologyCreator(
                 topologyID,
                 graphDatabaseDriverBuilder,
                 topologyProtobufsManager,
@@ -349,6 +373,7 @@ public class TopologyLifecycleManager implements Diagnosable {
                 realtimeTopologyContextId,
                 numberOfExpectedRealtimeSourceDB,
                 numberOfExpectedRealtimeProjectedDB);
+        }
     }
 
     /**
@@ -561,13 +586,87 @@ public class TopologyLifecycleManager implements Diagnosable {
         Set<ServiceEntityRepoDTO> convert(Collection<TopologyEntityDTO> entities);
     }
 
+    public interface TopologyCreator<ENTITY_DTO_TYPE> {
+        void initialize() throws GraphDatabaseException;
+
+        void addEntities(final Collection<ENTITY_DTO_TYPE> entities) throws TopologyEntitiesException;
+
+        /**
+         * Finalize the topology. To be called after all the entities are added.
+         *
+         * @throws GraphDatabaseException If there is an issue with the underlying graph database.
+         */
+        void complete() throws GraphDatabaseException, TopologyEntitiesException;
+
+        /**
+         * Roll back the topology, deleting any entities written so far.
+         */
+        void rollback();
+
+    }
+
+    public static class InMemorySourceTopologyCreator implements TopologyCreator<TopologyEntityDTO> {
+        private final SourceRealtimeTopologyBuilder sourceRealtimeTopologyBuilder;
+
+        public InMemorySourceTopologyCreator(@Nonnull final SourceRealtimeTopologyBuilder sourceRealtimeTopologyBuilder) {
+            this.sourceRealtimeTopologyBuilder = sourceRealtimeTopologyBuilder;
+        }
+
+        @Override
+        public void initialize() throws GraphDatabaseException {
+            // Nothing to initialize.
+        }
+
+        @Override
+        public void addEntities(final Collection<TopologyEntityDTO> entities) throws TopologyEntitiesException {
+            sourceRealtimeTopologyBuilder.addEntities(entities);
+        }
+
+        @Override
+        public void complete() throws GraphDatabaseException {
+            sourceRealtimeTopologyBuilder.finish();
+        }
+
+        @Override
+        public void rollback() {
+            // Nothing to roll back - keep the previous topology.
+        }
+    }
+
+    public static class InMemoryProjectedTopologyCreator implements TopologyCreator<ProjectedTopologyEntity> {
+        private final ProjectedTopologyBuilder projectedTopologyBuilder;
+
+        public InMemoryProjectedTopologyCreator(@Nonnull final ProjectedTopologyBuilder projectedTopologyBuilder) {
+            this.projectedTopologyBuilder = projectedTopologyBuilder;
+        }
+
+        @Override
+        public void initialize() throws GraphDatabaseException {
+            // Nothing to initialize.
+        }
+
+        @Override
+        public void addEntities(final Collection<ProjectedTopologyEntity> entities) throws TopologyEntitiesException {
+            projectedTopologyBuilder.addEntities(entities);
+        }
+
+        @Override
+        public void complete() throws GraphDatabaseException {
+            projectedTopologyBuilder.finish();
+        }
+
+        @Override
+        public void rollback() {
+            // Nothing to roll back - keep the previous topology.
+        }
+    }
     /**
-     * A {@link TopologyCreator} is responsible for storing a topology (i.e. a set of
-     * {@link TopologyEntityDTO}s) in the repository.
+     * A {@link ArangoTopologyCreator} is responsible for storing a topology (i.e. a set of
+     * {@link TopologyEntityDTO}s) in ArangoDB.
      * <p>
      * The user obtains an instance via
-     * {@link TopologyLifecycleManager#newSourceTopologyCreator(TopologyID)} or
-     * {@link TopologyLifecycleManager#newProjectedTopologyCreator(TopologyID)}, and is responsible
+     * {@link TopologyLifecycleManager#newSourceTopologyCreator(TopologyID, TopologyInfo)} or
+     * {@link TopologyLifecycleManager#newProjectedTopologyCreator(TopologyID, TopologyInfo)}, and is responsible
      * for calling the methods in the following order:
      *
      *  {@link TopologyCreator#initialize()}
@@ -576,7 +675,7 @@ public class TopologyLifecycleManager implements Diagnosable {
      *     |
      *  {@link TopologyCreator#complete()} or {@link TopologyCreator#rollback()}.
      */
-    public abstract static class TopologyCreator<ENTITY_DTO_TYPE> {
+    public abstract static class ArangoTopologyCreator<ENTITY_DTO_TYPE> implements TopologyCreator<ENTITY_DTO_TYPE> {
 
         private final GraphDatabaseDriver graphDatabaseDriver;
 
@@ -596,7 +695,7 @@ public class TopologyLifecycleManager implements Diagnosable {
         private final int numberOfExpectedRealtimeSourceDB;
         private final int numberOfExpectedRealtimeProjectedDB;
 
-        TopologyCreator(@Nonnull final TopologyID topologyID,
+        ArangoTopologyCreator(@Nonnull final TopologyID topologyID,
                         @Nonnull final GraphDatabaseDriverBuilder graphDatabaseDriverBuilder,
                         @Nonnull final Optional<TopologyProtobufWriter> topologyProtobufWriter,
                         @Nonnull final Consumer<TopologyID> onComplete,
@@ -630,18 +729,17 @@ public class TopologyLifecycleManager implements Diagnosable {
          *
          * @throws GraphDatabaseException If there is an issue with the underlying graph database.
          */
+        @Override
         public void initialize() throws GraphDatabaseException {
             topologyGraphCreator.init();
         }
-
-        public abstract void addEntities(final Collection<ENTITY_DTO_TYPE> entities)
-                throws TopologyEntitiesException;
 
         /**
          * Finalize the topology. To be called after all the entities are added.
          *
          * @throws GraphDatabaseException If there is an issue with the underlying graph database.
          */
+        @Override
         public void complete() throws GraphDatabaseException, TopologyEntitiesException {
             onComplete.accept(topologyID);
         }
@@ -649,6 +747,7 @@ public class TopologyLifecycleManager implements Diagnosable {
         /**
          * Roll back the topology, deleting any entities written so far.
          */
+        @Override
         public void rollback() {
             deleteObsoletedRealtimeDB(topologyID, graphDatabaseDriverBuilder,
                     globalSupplyChainManager, realtimeTopologyContextId,
@@ -660,11 +759,12 @@ public class TopologyLifecycleManager implements Diagnosable {
     /**
      * The {@link TopologyCreator} to use for the source topology.
      */
-    public static class SourceTopologyCreator extends TopologyCreator<TopologyEntityDTO> {
+    @VisibleForTesting
+    static class ArangoSourceTopologyCreator extends ArangoTopologyCreator<TopologyEntityDTO> {
 
         private final GlobalSupplyChain globalSupplyChain;
 
-        SourceTopologyCreator(@Nonnull final TopologyID topologyID,
+        ArangoSourceTopologyCreator(@Nonnull final TopologyID topologyID,
                               @Nonnull final GraphDatabaseDriverBuilder graphDatabaseDriverBuilder,
                               @Nonnull final Consumer<TopologyID> onComplete,
                               @Nonnull final TopologyGraphCreatorFactory topologyGraphCreatorFactory,
@@ -717,8 +817,9 @@ public class TopologyLifecycleManager implements Diagnosable {
     /**
      * The {@link TopologyCreator} to use for the projected topology.
      */
-    public static class ProjectedTopologyCreator extends TopologyCreator<ProjectedTopologyEntity> {
-        ProjectedTopologyCreator(@Nonnull final TopologyID topologyID,
+    @VisibleForTesting
+    static class ArangoProjectedTopologyCreator extends ArangoTopologyCreator<ProjectedTopologyEntity> {
+        ArangoProjectedTopologyCreator(@Nonnull final TopologyID topologyID,
                                  @Nonnull final GraphDatabaseDriverBuilder graphDatabaseDriverBuilder,
                                  @Nonnull final TopologyProtobufsManager protobufsManager,
                                  @Nonnull final Consumer<TopologyID> onComplete,

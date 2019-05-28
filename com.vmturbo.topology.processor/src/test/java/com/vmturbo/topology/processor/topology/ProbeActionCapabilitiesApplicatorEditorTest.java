@@ -39,6 +39,7 @@ import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -78,7 +79,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()
             , EntityType.DATABASE_VALUE, 1L));
 
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
 
         EditorSummary movableEditSummary = editor.applyPropertiesEdits(graph);
         // movable is set to true for Database.
@@ -128,7 +129,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         when(target2.getId()).thenReturn(secondTargetId);
         when(targetStore.getAll()).thenReturn(ImmutableList.of(target1, target2));
 
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
 
         validateCommodityMovable(graph,
             getTopologyEntityPredicate(EntityType.DATABASE_VALUE),
@@ -182,7 +183,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         when(target2.getId()).thenReturn(secondTargetId);
         when(targetStore.getAll()).thenReturn(ImmutableList.of(target1, target2));
 
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
 
         validateCommodityMovable(graph,
             getTopologyEntityPredicate(EntityType.DATABASE_VALUE),
@@ -217,7 +218,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()
             , EntityType.DATABASE_VALUE, 1L));
 
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
 
         // validate the movable are false before this stage
         validateCommodityMovable(graph,
@@ -251,7 +252,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         topology.put(1l, buildTopologyEntity(1l, CommodityDTO.CommodityType.CLUSTER.getNumber()
             , EntityType.VIRTUAL_DATACENTER_VALUE, 1L));
 
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
 
         EditorSummary movableEditSummary = editor.applyPropertiesEdits(graph);
         // verify movable is true.
@@ -278,7 +279,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()
             , EntityType.VIRTUAL_MACHINE_VALUE, 1L));
 
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
 
         // validate the movable are false before this stage
         validateCommodityMovable(graph,
@@ -311,7 +312,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()
             , EntityType.VIRTUAL_MACHINE_VALUE, 1L));
 
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
 
         // validate the movable are false before this stage
         validateCommodityMovable(graph,
@@ -344,7 +345,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()
             , EntityType.VIRTUAL_MACHINE_VALUE, 1L));
 
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
 
         // validate the movable are false before this stage
         validateCommodityMovable(graph,
@@ -377,7 +378,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()
             , EntityType.VIRTUAL_MACHINE_VALUE, 1L));
 
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
 
         // validate the movable are false before this stage
         validateCommodityMovable(graph,
@@ -426,7 +427,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()
             , EntityType.DATABASE_VALUE, false));
 
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
 
         EditorSummary summary = editor.applyPropertiesEdits(graph);
 
@@ -466,7 +467,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()
             , EntityType.DATABASE_VALUE, 1L));
 
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
 
         EditorSummary summary = editor.applyPropertiesEdits(graph);
 
@@ -504,7 +505,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()
             , EntityType.DATABASE_VALUE, 1L));
 
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
 
         // validate the movable are false before this stage
         validateCommodityMovable(graph,
@@ -575,7 +576,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         when(target2.getId()).thenReturn(secondTargetId);
         when(targetStore.getAll()).thenReturn(ImmutableList.of(target1, target2));
 
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
 
         // validate the movable are false before this stage
         validateCommodityMovable(graph,
@@ -639,7 +640,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         when(target2.getId()).thenReturn(secondTargetId);
         when(targetStore.getAll()).thenReturn(ImmutableList.of(target1, target2));
 
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
 
         // validate the movable are false before this stage
         validateCommodityMovable(graph,
@@ -664,7 +665,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         assertEquals(0, summary.getSuspendableToFalseCounter());
     }
 
-    public void verifyAnalysisSettingProperty(final TopologyGraph graph, final int entityTypeValue,
+    public void verifyAnalysisSettingProperty(final TopologyGraph<TopologyEntity> graph, final int entityTypeValue,
                                               final Predicate<AnalysisSettings> cloneablePredicate,
                                               final Predicate<AnalysisSettings> suspendablePredicate) {
         graph.entities().filter(getTopologyEntityPredicate(entityTypeValue)).forEach(entity -> {
@@ -677,7 +678,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
     }
 
     @Nonnull
-    private void validateCommodityMovable(final TopologyGraph graph,
+    private void validateCommodityMovable(final TopologyGraph<TopologyEntity> graph,
                                           final Predicate<TopologyEntity> predicate,
                                           final Predicate<CommoditiesBoughtFromProvider> movable) {
         assertTrue(graph.entities().filter(predicate).count() > 0);

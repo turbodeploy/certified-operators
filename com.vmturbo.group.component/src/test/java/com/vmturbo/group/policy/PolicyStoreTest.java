@@ -37,7 +37,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
-import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.tables.pojos.PolicyGroup;
 import com.vmturbo.group.db.tables.records.GroupingRecord;

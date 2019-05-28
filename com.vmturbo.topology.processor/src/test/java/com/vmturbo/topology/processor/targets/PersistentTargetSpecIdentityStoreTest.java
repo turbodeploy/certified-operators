@@ -30,7 +30,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.attributes.SimpleMatchingAttributes;
 import com.vmturbo.identity.exceptions.IdentityStoreException;

@@ -1,0 +1,385 @@
+package com.vmturbo.repository.listener.realtime;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
+
+import javax.annotation.Nonnull;
+
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.search.Search.Entity;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.topology.graph.TopologyGraphEntity;
+
+/**
+ * {@link TopologyGraphEntity} for use in the repository. The intention is to make it as small
+ * as possible while supporting all the searches and {@link com.vmturbo.common.protobuf.search.SearchableProperties}.
+ */
+public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
+
+    private final long oid;
+
+    private final String displayName;
+
+    private final TypeSpecificInfo typeSpecificInfo;
+
+    private final int type;
+
+    private final EnvironmentType environmentType;
+
+    private final EntityState state;
+    private final Map<String, List<String>> tags;
+    private final Map<Integer, CommoditySoldDTO> soldCommodities;
+    private final List<Long> discoveringTargetIds;
+
+    private List<RepoGraphEntity> connectedTo = Collections.emptyList();
+    private List<RepoGraphEntity> connectedFrom = Collections.emptyList();
+    private List<RepoGraphEntity> providers = Collections.emptyList();
+    private List<RepoGraphEntity> consumers = Collections.emptyList();
+
+    /**
+     * The full {@link TopologyEntityDTO}, compressed in case we want to retrieve it.
+     */
+    private final byte[] compressedEntityBytes;
+
+    private RepoGraphEntity(@Nonnull final TopologyEntityDTO src) {
+        this.oid = src.getOid();
+        this.displayName = src.getDisplayName();
+        this.typeSpecificInfo = src.getTypeSpecificInfo();
+        this.type = src.getEntityType();
+        this.environmentType = src.getEnvironmentType();
+        this.state = src.getEntityState();
+
+        // Will be an empty list if the entity was not discovered.
+        if (src.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList().isEmpty()) {
+            this.discoveringTargetIds = Collections.emptyList();
+        } else {
+            final ArrayList<Long> discoveringTargets = new ArrayList<>(src.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList());
+            discoveringTargets.trimToSize();
+            this.discoveringTargetIds = discoveringTargets;
+        }
+
+        if (src.getTags().getTagsCount() > 0) {
+            tags = new HashMap<>(src.getTags().getTagsCount());
+            src.getTags().getTagsMap().forEach((tagName, tagValues) -> {
+                ArrayList<String> vals = new ArrayList<>(tagValues.getValuesList());
+                vals.trimToSize();
+                tags.put(tagName, vals);
+            });
+        } else {
+            tags = Collections.emptyMap();
+        }
+
+        final List<CommoditySoldDTO> commsToPersist = src.getCommoditySoldListList().stream()
+            .filter(commSold -> COMM_SOLD_TYPES_TO_PERSIST.contains(commSold.getCommodityType().getType()))
+            .collect(Collectors.toList());
+        if (commsToPersist.isEmpty()) {
+            soldCommodities = Collections.emptyMap();
+        } else {
+            soldCommodities = new HashMap<>(commsToPersist.size());
+            commsToPersist.forEach(comm -> soldCommodities.put(comm.getCommodityType().getType(), comm));
+        }
+
+        byte[] bytes = null;
+        try (final ByteArrayOutputStream bos = new ByteArrayOutputStream();
+             final GZIPOutputStream gos = new GZIPOutputStream(bos)) {
+            gos.write(src.toByteArray());
+            gos.finish();
+            bytes = bos.toByteArray();
+        } catch (IOException e) {
+            // boo
+        }
+        this.compressedEntityBytes = bytes;
+    }
+
+    @Nonnull
+    public static Builder newBuilder(@Nonnull final TopologyEntityDTO entity) {
+        return new Builder(entity);
+    }
+
+    private void addConnectedTo(@Nonnull final RepoGraphEntity entity) {
+        if (this.connectedTo.isEmpty()) {
+            this.connectedTo = new ArrayList<>(1);
+        }
+        this.connectedTo.add(entity);
+    }
+
+    private void addConnectedFrom(@Nonnull final RepoGraphEntity entity) {
+        if (this.connectedFrom.isEmpty()) {
+            this.connectedFrom = new ArrayList<>(1);
+        }
+        this.connectedFrom.add(entity);
+    }
+
+    private void addProvider(@Nonnull final RepoGraphEntity entity) {
+        if (this.providers.isEmpty()) {
+            this.providers = new ArrayList<>(1);
+        }
+        this.providers.add(entity);
+    }
+
+    private void addConsumer(@Nonnull RepoGraphEntity entity) {
+        if (this.consumers.isEmpty()) {
+            this.consumers = new ArrayList<>(1);
+        }
+        this.consumers.add(entity);
+    }
+
+    /**
+     * Trim all the arrays containing references to related entities to size.
+     * This can save several MB in a large topology!
+     */
+    private void trimToSize() {
+        if (!consumers.isEmpty()) {
+            ((ArrayList<RepoGraphEntity>)consumers).trimToSize();
+        }
+        if (!providers.isEmpty()) {
+            ((ArrayList<RepoGraphEntity>)providers).trimToSize();
+        }
+        if (!connectedTo.isEmpty()) {
+            ((ArrayList<RepoGraphEntity>)connectedTo).trimToSize();
+        }
+        if (!connectedFrom.isEmpty()) {
+            ((ArrayList<RepoGraphEntity>)connectedFrom).trimToSize();
+        }
+    }
+
+    private void clearConsumersAndProviders() {
+        if (!consumers.isEmpty()) {
+            consumers.clear();
+        }
+        if (!providers.isEmpty()) {
+            providers.clear();
+        }
+        if (!connectedTo.isEmpty()) {
+            connectedTo.clear();
+        }
+        if (!connectedFrom.isEmpty()) {
+            connectedFrom.clear();
+        }
+    }
+
+    @Override
+    public long getOid() {
+        return oid;
+    }
+
+    @Nonnull
+    @Override
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    @Nonnull
+    @Override
+    public TypeSpecificInfo getTypeSpecificInfo() {
+        return typeSpecificInfo;
+    }
+
+    @Override
+    public int getEntityType() {
+        return type;
+    }
+
+    @Nonnull
+    @Override
+    public EnvironmentType getEnvironmentType() {
+        return environmentType;
+    }
+
+    @Nonnull
+    @Override
+    public EntityState getEntityState() {
+        return state;
+    }
+
+    @Nonnull
+    @Override
+    public Map<Integer, CommoditySoldDTO> soldCommoditiesByType() {
+        return soldCommodities;
+    }
+
+    /**
+     * Get the FULL topology entity, including all the commodities. This is the entity
+     * that was received from the Topology Processor.
+     */
+    @Nonnull
+    public TopologyEntityDTO getFullTopologyEntity() {
+        try (final ByteArrayInputStream bis = new ByteArrayInputStream(compressedEntityBytes)) {
+            GZIPInputStream zis = new GZIPInputStream(bis);
+            return TopologyEntityDTO.parseFrom(zis);
+        } catch (IOException e) {
+            return getTopologyEntity();
+        }
+    }
+
+    /**
+     * Get a topology entity containing the important (i.e. searchable) fields. This is smaller
+     * than the entity returned by {@link RepoGraphEntity#getFullTopologyEntity()}.
+     */
+    @Nonnull
+    public TopologyEntityDTO getTopologyEntity() {
+        final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
+            .setOid(oid)
+            .setDisplayName(displayName)
+            .setEntityState(state)
+            .setTypeSpecificInfo(typeSpecificInfo)
+            .setEntityType(type);
+        Tags.Builder tagsBuilder = Tags.newBuilder();
+        tags.forEach((key, vals) -> {
+            tagsBuilder.putTags(key, TagValuesDTO.newBuilder()
+                .addAllValues(vals)
+                .build());
+        });
+        builder.setTags(tagsBuilder);
+
+        if (!discoveringTargetIds.isEmpty()) {
+            builder.setOrigin(Origin.newBuilder()
+                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                    .addAllDiscoveringTargetIds(discoveringTargetIds)));
+        }
+
+        builder.addAllCommoditySoldList(soldCommodities.values());
+        return builder.build();
+    }
+
+    @Nonnull
+    public Entity getThinEntity() {
+        return Entity.newBuilder()
+            .setDisplayName(displayName)
+            .setOid(oid)
+            .setState(state)
+            .setType(type)
+            .addAllTargetIds(discoveringTargetIds)
+            .build();
+    }
+
+    @Nonnull
+    @Override
+    public Map<String, List<String>> getTags() {
+        return tags;
+    }
+
+    @Nonnull
+    @Override
+    public List<RepoGraphEntity> getConsumers() {
+        return consumers;
+    }
+
+    @Nonnull
+    @Override
+    public List<RepoGraphEntity> getProviders() {
+        return providers;
+    }
+
+    @Nonnull
+    @Override
+    public List<RepoGraphEntity> getConnectedToEntities() {
+        return connectedTo;
+    }
+
+    @Nonnull
+    @Override
+    public List<RepoGraphEntity> getConnectedFromEntities() {
+        return connectedFrom;
+    }
+
+    @Nonnull
+    @Override
+    public Stream<Long> getDiscoveringTargetIds() {
+        return discoveringTargetIds.stream();
+    }
+
+
+    /**
+     * Builder for {@link RepoGraphEntity}.
+     */
+    public static class Builder implements TopologyGraphEntity.Builder<Builder, RepoGraphEntity> {
+        private final RepoGraphEntity repoGraphEntity;
+        private final Set<Long> providerIds;
+        private final Set<Long> connectedIds;
+
+        private Builder(@Nonnull final TopologyEntityDTO dto) {
+            this.providerIds = dto.getCommoditiesBoughtFromProvidersList().stream()
+                .filter(CommoditiesBoughtFromProvider::hasProviderId)
+                .map(CommoditiesBoughtFromProvider::getProviderId)
+                .collect(Collectors.toSet());
+            this.connectedIds = dto.getConnectedEntityListList().stream()
+                .map(ConnectedEntity::getConnectedEntityId)
+                .collect(Collectors.toSet());
+            this.repoGraphEntity = new RepoGraphEntity(dto);
+        }
+
+        @Override
+        public void clearConsumersAndProviders() {
+            repoGraphEntity.clearConsumersAndProviders();
+        }
+
+        @Nonnull
+        @Override
+        public Set<Long> getProviderIds() {
+            return providerIds;
+        }
+
+        @Nonnull
+        @Override
+        public Set<Long> getConnectionIds() {
+            return connectedIds;
+        }
+
+        @Override
+        public long getOid() {
+            return repoGraphEntity.oid;
+        }
+
+        @Override
+        public RepoGraphEntity build() {
+            repoGraphEntity.trimToSize();
+            return repoGraphEntity;
+        }
+
+        @Override
+        public Builder addConnectedFrom(final Builder connectedFrom) {
+            repoGraphEntity.addConnectedFrom(connectedFrom.repoGraphEntity);
+            return this;
+        }
+
+        @Override
+        public Builder addConnectedTo(final Builder connectedTo) {
+            repoGraphEntity.addConnectedTo(connectedTo.repoGraphEntity);
+            return this;
+        }
+
+        @Override
+        public Builder addProvider(final Builder provider) {
+            repoGraphEntity.addProvider(provider.repoGraphEntity);
+            return this;
+        }
+
+        @Override
+        public Builder addConsumer(final Builder consumer) {
+            repoGraphEntity.addConsumer(consumer.repoGraphEntity);
+            return this;
+        }
+    }
+
+}

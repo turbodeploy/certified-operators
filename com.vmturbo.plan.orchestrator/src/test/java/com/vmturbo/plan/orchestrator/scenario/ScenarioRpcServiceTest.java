@@ -51,7 +51,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 @RunWith(SpringJUnit4ClassRunner.class)

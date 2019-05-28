@@ -59,6 +59,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -370,7 +371,7 @@ public class ReservationMapper {
             return constraint.setType(ReservationConstraintInfo.Type.POLICY).build();
         }
         final ServiceEntityApiDTO serviceEntityApiDTO = repositoryApi.getServiceEntityForUuid(constraintId);
-        final int entityType = ServiceEntityMapper.fromUIEntityType(serviceEntityApiDTO.getClassName());
+        final int entityType = UIEntityType.fromString(serviceEntityApiDTO.getClassName()).typeNumber();
         if (entityType == EntityType.DATACENTER_VALUE) {
             return constraint.setType(ReservationConstraintInfo.Type.DATA_CENTER).build();
         } else if (entityType == EntityType.VIRTUAL_DATACENTER_VALUE) {
@@ -461,8 +462,8 @@ public class ReservationMapper {
     private BaseApiDTO generateTemplateBaseApiDTO(@Nonnull final Template template) {
         BaseApiDTO templateApiDTO = new BaseApiDTO();
         templateApiDTO.setDisplayName(template.getTemplateInfo().getName());
-        templateApiDTO.setClassName(ServiceEntityMapper.toUIEntityType(
-                template.getTemplateInfo().getEntityType()) + TemplatesUtils.PROFILE);
+        templateApiDTO.setClassName(UIEntityType.fromType(
+                template.getTemplateInfo().getEntityType()).apiStr() + TemplatesUtils.PROFILE);
         templateApiDTO.setUuid(String.valueOf(template.getId()));
         return templateApiDTO;
     }
@@ -499,7 +500,7 @@ public class ReservationMapper {
         if (!serviceEntityApiDTO.isPresent()) {
             throw  new ProviderIdNotRecognizedException(providerId);
         }
-        final int entityType = ServiceEntityMapper.fromUIEntityType(serviceEntityApiDTO.get().getClassName());
+        final int entityType = UIEntityType.fromString(serviceEntityApiDTO.get().getClassName()).typeNumber();
         switch (entityType) {
             case EntityType.PHYSICAL_MACHINE_VALUE:
                 final List<ResourceApiDTO> computeResources =

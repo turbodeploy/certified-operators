@@ -15,7 +15,7 @@ topics:
   - topic: tp-notifications
     properties:
       retention.ms: 604800000 # 604800000 ms = 7 days
-  - topic: analysis-results
+  - topic: analysis-summary
     properties:
       retention.ms: 7200000 # 7200k ms = 2 hr
   - topic: topology-summaries # a topic containing short summaries of topologies

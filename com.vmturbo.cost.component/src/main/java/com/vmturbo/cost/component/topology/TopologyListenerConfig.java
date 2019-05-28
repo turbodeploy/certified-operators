@@ -1,10 +1,6 @@
 package com.vmturbo.cost.component.topology;
 
 
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.Set;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,7 +29,8 @@ import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
-import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Subscription;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
 
 /**
  * Setup listener for topologies from Topology Processor.
@@ -99,8 +96,12 @@ public class TopologyListenerConfig {
     @Bean
     public TopologyProcessor topologyProcessor() {
         // only add the live topology topic listener if we plan on processing them.
-        Set<Subscription> subscriptions = enabled ? EnumSet.of(Subscription.LiveTopologies) : Collections.emptySet();
-        return topologyClientConfig.topologyProcessor(subscriptions);
+        if (enabled) {
+            return topologyClientConfig.topologyProcessor(
+                TopologyProcessorSubscription.forTopic(Topic.LiveTopologies));
+        } else {
+            return topologyClientConfig.topologyProcessor();
+        }
     }
 
     @Bean

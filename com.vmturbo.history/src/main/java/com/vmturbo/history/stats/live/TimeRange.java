@@ -12,6 +12,8 @@ import javax.annotation.Nonnull;
 import com.google.common.base.Preconditions;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
+import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.TimeFrame;
 import com.vmturbo.history.db.VmtDbException;
@@ -31,9 +33,9 @@ public class TimeRange {
     private final List<Timestamp> timestampsInRange;
 
     private TimeRange(final long startTime,
-                     final long endTime,
-                     @Nonnull final TimeFrame timeFrame,
-                     @Nonnull final List<Timestamp> timestampsInRange) {
+                      final long endTime,
+                      @Nonnull final TimeFrame timeFrame,
+                      @Nonnull final List<Timestamp> timestampsInRange) {
         Preconditions.checkArgument(!timestampsInRange.isEmpty());
         this.startTime = startTime;
         this.endTime = endTime;
@@ -45,7 +47,7 @@ public class TimeRange {
      * Get the list of snapshot times in the range.
      *
      * @return The list of {@link Timestamp} objects that can be used to query specific
-     *         snapshots. The list will be non-empty.
+     * snapshots. The list will be non-empty.
      */
     @Nonnull
     public List<Timestamp> getSnapshotTimesInRange() {
@@ -99,17 +101,25 @@ public class TimeRange {
     public interface TimeRangeFactory {
 
         /**
-         * Resolve the time range that a {@link StatsFilter} specifies.
+         * Resolve the time range that a {@link StatsFilter} specifies. In order to have more accurate
+         * results, the method can also use the list of entities that we need the timeframe for, and
+         * the type of those entities. Note that all the entities should be of the same type.
          *
          * @param statsFilter The {@link StatsFilter}.
+         * @param entityOIDsOpt  List of entities that we want to get the timeframe for
+         * @param entityTypeOpt  Type of those entities
+         * @param paginationParams
          * @return An {@link Optional} containing the time range, or an empty optional if
-         *         there is no data in the time range specified by the filter.
-         * @throws VmtDbException If there is an error connecting to the database.
+         * there is no data in the time range specified by the filter.
+         * @throws VmtDbException           If there is an error connecting to the database.
          * @throws IllegalArgumentException If the filter is misconfigured.
          */
         @Nonnull
-        Optional<TimeRange> resolveTimeRange(@Nonnull final StatsFilter statsFilter)
-                throws IllegalArgumentException, VmtDbException;
+        Optional<TimeRange> resolveTimeRange(@Nonnull final StatsFilter statsFilter,
+                                             @Nonnull final Optional<List<String>> entityOIDsOpt,
+                                             @Nonnull final Optional<EntityType> entityTypeOpt,
+                                             @Nonnull final Optional<EntityStatsPaginationParams> paginationParams)
+            throws IllegalArgumentException, VmtDbException;
 
         /**
          * The default implementation of {@link TimeRangeFactory} used in production.
@@ -134,22 +144,40 @@ public class TimeRange {
 
             @Override
             @Nonnull
-            public Optional<TimeRange> resolveTimeRange(@Nonnull final StatsFilter statsFilter)
-                    throws IllegalArgumentException, VmtDbException {
+            public Optional<TimeRange> resolveTimeRange(@Nonnull final StatsFilter statsFilter,
+                                                        @Nonnull final Optional<List<String>> entityOIDsOpt,
+                                                        @Nonnull final Optional<EntityType> entityTypeOpt,
+                                                        @Nonnull final Optional<EntityStatsPaginationParams> paginationParams)
+                throws IllegalArgumentException, VmtDbException {
+
                 // assume that either both startTime and endTime are null, or startTime and endTime are set
                 if (statsFilter.hasStartDate() != statsFilter.hasEndDate()) {
                     throw new IllegalArgumentException("one of 'startTime', 'endTime' null but not both: "
-                            + statsFilter.getStartDate() + ":" + statsFilter.getEndDate());
+                        + statsFilter.getStartDate() + ":" + statsFilter.getEndDate());
                 }
 
                 final long resolvedStartTime;
                 final long resolvedEndTime;
                 final List<Timestamp> timestampsInRange;
                 final TimeFrame timeFrame;
+
+                // Right now we are only dealing with a single specific entity, not a group
+                // of them. let's check if a single entity has been specified
+                Optional<String> entityOidForQuery = Optional.empty();
+                if (entityOIDsOpt.isPresent() && entityOIDsOpt.get().size() == 1) {
+                    entityOidForQuery = Optional.of(entityOIDsOpt.get().get(0));
+                }
+
                 if (!statsFilter.hasStartDate()) {
                     // if startTime / endtime are not set, use the most recent timestamp
-                    // get most recent snapshot_time from _latest database
-                    final Optional<Timestamp> mostRecentDbTimestamp = historydbIO.getMostRecentTimestamp();
+                    // in order to have a more accurate timestamp, we need to check it related to
+                    // the entities that we are looking for, because especially if storing topology
+                    // in db is taking a long time, different entities/entities types might have
+                    // different "most recent "timestamps and we might not get data for some of them
+
+                    final Optional<Timestamp> mostRecentDbTimestamp = historydbIO.getMostRecentTimestamp(
+                        statsFilter, entityTypeOpt, entityOidForQuery, paginationParams);
+
                     if (!mostRecentDbTimestamp.isPresent()) {
                         // no data persisted yet; just return an empty answer
                         return Optional.empty();
@@ -157,19 +185,25 @@ public class TimeRange {
                     timestampsInRange = Collections.singletonList(mostRecentDbTimestamp.get());
                     resolvedStartTime = resolvedEndTime = mostRecentDbTimestamp.get().getTime();
                     timeFrame = timeFrameCalculator.millis2TimeFrame(resolvedStartTime);
+
                 } else {
+                    // in this case we have a start and end date
+
                     Preconditions.checkArgument(statsFilter.hasEndDate());
                     // if the startTime and endTime are equal, and within the LATEST table window, open
                     // up the window a bit so that we will catch a stats value
                     timeFrame = timeFrameCalculator.millis2TimeFrame(statsFilter.getStartDate());
+
                     if (statsFilter.getStartDate() == statsFilter.getEndDate() &&
-                            timeFrame.equals(TimeFrame.LATEST)) {
+                        timeFrame.equals(TimeFrame.LATEST)) {
                         resolvedStartTime = statsFilter.getStartDate() - latestTableTimeWindowMS;
                     } else {
                         resolvedStartTime = statsFilter.getStartDate();
                     }
                     resolvedEndTime = statsFilter.getEndDate();
-                    timestampsInRange = historydbIO.getTimestampsInRange(timeFrame, resolvedStartTime, resolvedEndTime);
+
+                    timestampsInRange = historydbIO.getTimestampsInRange(timeFrame, resolvedStartTime,
+                        resolvedEndTime, entityTypeOpt, entityOidForQuery);
                 }
 
                 if (timestampsInRange.isEmpty()) {
@@ -179,7 +213,9 @@ public class TimeRange {
                     // Now that we have the page of records, get all the records to use.
                     return Optional.of(new TimeRange(resolvedStartTime, resolvedEndTime, timeFrame, timestampsInRange));
                 }
+
             }
+
         }
     }
 

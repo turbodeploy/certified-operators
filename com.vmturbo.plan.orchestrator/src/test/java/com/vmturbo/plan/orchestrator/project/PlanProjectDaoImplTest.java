@@ -29,7 +29,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.Schedule;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.TimeOfRun;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
-import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 /**

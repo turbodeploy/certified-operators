@@ -28,6 +28,7 @@ import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.stats.query.live.CombinedStatsBuckets.CombinedStatsBucketsFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
+import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -146,11 +147,13 @@ public class CurrentActionStatReaderTest {
         final QueryInfo queryInfo1 = mock(QueryInfo.class);
         when(queryInfo1.queryId()).thenReturn(query1.getQueryId());
         when(queryInfo1.topologyContextId()).thenReturn(context1);
+        when(queryInfo1.query()).thenReturn(query1.getQuery());
         when(queryInfoFactory.extractQueryInfo(query1)).thenReturn(queryInfo1);
 
         final QueryInfo queryInfo2 = mock(QueryInfo.class);
         when(queryInfo2.queryId()).thenReturn(query2.getQueryId());
         when(queryInfo2.topologyContextId()).thenReturn(context2);
+        when(queryInfo2.query()).thenReturn(query2.getQuery());
         when(queryInfoFactory.extractQueryInfo(query2)).thenReturn(queryInfo2);
 
         final CombinedStatsBuckets bucket1 = mock(CombinedStatsBuckets.class);
@@ -182,8 +185,8 @@ public class CurrentActionStatReaderTest {
         when(queryInfo2.viewPredicate()).thenReturn(actionInfo -> actionInfo.action() == actionView2);
         when(actionView1.getRecommendation()).thenReturn(ACTION);
         when(actionView2.getRecommendation()).thenReturn(ACTION);
-        when(actionStore1.getActionViews()).thenReturn(ImmutableMap.of(1L, actionView1));
-        when(actionStore2.getActionViews()).thenReturn(ImmutableMap.of(2L, actionView2));
+        when(actionStore1.getActionViews()).thenReturn(new MapBackedActionViews(ImmutableMap.of(1L, actionView1)));
+        when(actionStore2.getActionViews()).thenReturn(new MapBackedActionViews(ImmutableMap.of(2L, actionView2)));
 
         final GetCurrentActionStatsRequest req = GetCurrentActionStatsRequest.newBuilder()
             .addQueries(query1)
@@ -198,13 +201,6 @@ public class CurrentActionStatReaderTest {
         verify(statsBucketsFactory).bucketsForQuery(queryInfo2);
         verify(actionStorehouse).getStore(context1);
         verify(actionStorehouse).getStore(context2);
-        // Make sure we applied the visibility predicates to the action views.
-        // This means we'll filter out invisible actions from the counts.
-        verify(visibilityPredicate1).test(actionView1);
-        verify(visibilityPredicate2).test(actionView2);
-        // Make sure we translate actions.
-        // Once for each involved action store.
-        verify(actionTranslator, times(2)).translate(isA(Stream.class));
 
         assertThat(statsByQueryId.get(query1.getQueryId()), contains(stat1));
         assertThat(statsByQueryId.get(query2.getQueryId()), contains(stat2));

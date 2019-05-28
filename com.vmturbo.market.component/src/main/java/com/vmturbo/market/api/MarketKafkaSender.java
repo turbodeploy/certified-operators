@@ -32,6 +32,6 @@ public class MarketKafkaSender {
                 kafkaMessageProducer.messageSender(
                         MarketComponentNotificationReceiver.ACTION_PLANS_TOPIC),
                 kafkaMessageProducer.messageSender(
-                    MarketComponentNotificationReceiver.ANALYSIS_RESULTS));
+                    MarketComponentNotificationReceiver.ANALYSIS_SUMMARY_TOPIC));
     }
 }

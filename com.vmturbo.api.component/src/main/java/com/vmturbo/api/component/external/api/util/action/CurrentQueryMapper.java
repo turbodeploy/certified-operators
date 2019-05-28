@@ -22,7 +22,6 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionTypeMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -37,6 +36,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.Scop
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter.EntityScope;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter.GlobalScope;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 
 /**
@@ -195,7 +195,8 @@ class CurrentQueryMapper {
                 final SupplyChainNodeFetcherBuilder builder =
                     supplyChainFetcherFactory.newNodeFetcher()
                         .entityTypes(relatedEntityTypes.stream()
-                            .map(ServiceEntityMapper::toUIEntityType)
+                            .map(UIEntityType::fromType)
+                            .map(UIEntityType::apiStr)
                             .collect(Collectors.toList()));
                 oids.stream()
                     .map(oid -> oid.toString())

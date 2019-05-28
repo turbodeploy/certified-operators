@@ -14,11 +14,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ApplicationInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.RedundancyType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
-import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.dto.ApplicationInfoRepoDTO;
 import com.vmturbo.repository.dto.GuestOSRepoDTO;
 import com.vmturbo.repository.dto.IpAddressRepoDTO;
@@ -124,8 +124,7 @@ public class ConvertToTopologyDTOTest {
         final ServiceEntityRepoDTO serviceEntityRepoDTO = new ServiceEntityRepoDTO();
         serviceEntityRepoDTO.setOid(SE_OID_STRING);
         serviceEntityRepoDTO.setDisplayName("SE_DISPLAY_NAME");
-        serviceEntityRepoDTO.setEntityType(RepoObjectType
-            .mapEntityType(entityType));
+        serviceEntityRepoDTO.setEntityType(UIEntityType.fromType(entityType).apiStr());
         return serviceEntityRepoDTO;
     }
 }

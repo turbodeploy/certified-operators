@@ -708,6 +708,7 @@
                 <module>../com.vmturbo.repository.component</module>
                 <module>../com.vmturbo.ml.datastore</module>
                 <module>../com.vmturbo.stitching</module>
+                <module>../com.vmturbo.topology.graph</module>
                 <module>../com.vmturbo.topology.processor.api</module>
                 <module>../com.vmturbo.topology.processor</module>
                 <module>../com.vmturbo.history</module>
@@ -779,6 +780,7 @@
                 <module>../com.vmturbo.repository.component</module>
                 <module>../com.vmturbo.ml.datastore</module>
                 <module>../com.vmturbo.stitching</module>
+                <module>../com.vmturbo.topology.graph</module>
                 <module>../com.vmturbo.topology.processor.api</module>
                 <module>../com.vmturbo.topology.processor</module>
                 <module>../com.vmturbo.history</module>
@@ -838,6 +840,7 @@
                 <module>../com.vmturbo.repository.component</module>
                 <module>../com.vmturbo.ml.datastore</module>
                 <module>../com.vmturbo.stitching</module>
+                <module>../com.vmturbo.topology.graph</module>
                 <module>../com.vmturbo.topology.processor.api</module>
                 <module>../com.vmturbo.topology.processor</module>
                 <module>../com.vmturbo.history</module>
@@ -856,27 +859,34 @@
 
                 <!-- Probe components. These are ALL the probes. -->
                 <module>../com.vmturbo.mediation.probe.parent</module>
+                <module>../com.vmturbo.mediation.client</module>
+                <module>../com.vmturbo.mediation.client.bootstrap</module>
+                <module>../versioning</module>
+
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
-                <module>../com.vmturbo.mediation.delegatingprobe.component</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
-                <module>../com.vmturbo.mediation.actionscript.component</module>
+                <module>../com.vmturbo.mediation.aws.conversion</module>
+                <module>../com.vmturbo.mediation.azure.conversion</module>
+                <module>../com.vmturbo.mediation.azure.volumes.conversion</module>
+                <module>../com.vmturbo.mediation.cloud.conversion</module>
+
+                <!-- Mediation container with all the probes inside. -->
+                <module>../com.vmturbo.mediation.component</module>
+
+                <!-- Individual components -->
                 <module>../com.vmturbo.mediation.aix.component</module>
+                <module>../com.vmturbo.mediation.delegatingprobe.component</module>
+                <module>../com.vmturbo.mediation.actionscript.component</module>
                 <module>../com.vmturbo.mediation.apm.snmp.component</module>
                 <module>../com.vmturbo.mediation.apm.wmi.component</module>
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
                 <module>../com.vmturbo.mediation.aws.billing.component</module>
                 <module>../com.vmturbo.mediation.aws.component</module>
-                <module>../com.vmturbo.mediation.aws.conversion</module>
                 <module>../com.vmturbo.mediation.aws.cost.component</module>
                 <module>../com.vmturbo.mediation.aws.lambda.component</module>
                 <module>../com.vmturbo.mediation.azure.component</module>
-                <module>../com.vmturbo.mediation.azure.conversion</module>
-                <module>../com.vmturbo.mediation.azure.volumes.conversion</module>
                 <module>../com.vmturbo.mediation.azure.volumes.component</module>
                 <module>../com.vmturbo.mediation.azure.cost.component</module>
-                <module>../com.vmturbo.mediation.client</module>
-                <module>../com.vmturbo.mediation.client.bootstrap</module>
-                <module>../com.vmturbo.mediation.cloud.conversion</module>
                 <module>../com.vmturbo.mediation.cloudfoundry.component</module>
                 <module>../com.vmturbo.mediation.compellent.component</module>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
@@ -909,10 +919,6 @@
                 <module>../com.vmturbo.mediation.vmm.component</module>
                 <module>../com.vmturbo.mediation.vplex.component</module>
                 <module>../com.vmturbo.mediation.xtremio.component</module>
-                <module>../versioning</module>
-
-                <!-- Mediation container with all the probes inside. -->
-                <module>../com.vmturbo.mediation.component</module>
 
 
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
@@ -1594,6 +1600,11 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>stitching</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>topology-graph</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

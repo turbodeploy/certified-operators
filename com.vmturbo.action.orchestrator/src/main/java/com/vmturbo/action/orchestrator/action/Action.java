@@ -16,7 +16,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.StringUtils;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 
 import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceEvent;
@@ -41,7 +40,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ExecutionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionPhase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
@@ -98,6 +96,25 @@ public class Action implements ActionView {
      * </code>
      */
     private final Object recommendationLock = new Object();
+
+    /**
+     * The cached action mode for the action. This is not final, because for "live" actions it
+     * can change during the lifetime of the action. We save it because action mode computation
+     * is always necessary, rarely changes, and fairly expensive.
+     * <p>
+     * Plans/BuyRI:
+     * In plans, and for Buy RI actions, this action mode is always the same.
+     * <p>
+     * Live:
+     * Every broadcast the Topology Processor updates the per-entity settings in the group
+     * component according to the group and setting policies defined by the user. When the
+     * Action Orchestrator processes an action plan it gets these per-entity settings, and
+     * can then determine the new action mode. The processing code is responsible for calling
+     * {@link Action#refreshActionMode()} for all live actions when the per-entity settings
+     * are updated.
+     * <p>
+     */
+    private volatile ActionMode actionMode;
 
     /**
      * The time at which this action was recommended.
@@ -339,47 +356,31 @@ public class Action implements ActionView {
     }
 
     /**
-     * Calculate the {@link ActionMode} of the action. Check first for a Workflow Action, where
-     * the Action Mode is determined by the Workflow Policy. If not a Workflow Action,
-     * then the mode is determined by the  strictest policy that applies to the entity
-     * involved in the action.
+     * Refresh the currently saved action mode.
+     * <p>
+     * This should only be called during live action plan processing, after the {@link EntitiesCache}
+     * is updated with the new snapshot of the settings and entities needed to resolve action modes.
+     */
+    public void refreshActionMode() {
+        synchronized (recommendationLock) {
+            actionMode = actionModeCalculator.calculateActionMode(this, entitiesCache);
+        }
+    }
+
+    /**
+     * Return the {@link ActionMode} of the action.
      *
      * @return The {@link ActionMode} that currently applies to the action.
      */
     @Override
     public ActionMode getMode() {
-        return actionModeCalculator.calculateWorkflowActionMode(this, entitiesCache)
-                .orElseGet(() -> getClippedActionMode());
-    }
-
-    /**
-     * Calculate the {@link ActionMode} for this action based on the mode default for this action,
-     * limited by (clipped by) the action modes supported by the probe for this action.
-     *
-     * The mode is determined by the strictest policy that applies to any entity involved in the action.
-     * The default mode is RECOMMEND for actions of unrecognized type, and MANUAL for actions of
-     * recognized type with sufficient SupportLevel.
-     *
-     * @return The {@link ActionMode} that currently applies to the action.
-     * @throws IllegalArgumentException if the Action SupportLevel is not supported.
-     */
-    private ActionMode getClippedActionMode() {
-        switch (getRecommendation().getSupportingLevel()) {
-            case UNSUPPORTED:
-            case UNKNOWN:
-                return ActionMode.DISABLED;
-            case SHOW_ONLY:
-                final ActionMode mode = actionModeCalculator.calculateActionMode(
-                        this, entitiesCache);
-                return (mode.getNumber() > ActionMode.RECOMMEND_VALUE)
-                        ? ActionMode.RECOMMEND
-                        : mode;
-            case SUPPORTED:
-                return actionModeCalculator.calculateActionMode(
-                        this, entitiesCache);
-            default:
-                throw new IllegalArgumentException("Action SupportLevel is of unrecognized type.");
+        if (actionMode == null) {
+            // If multiple threads hit this at the same time we may end up refreshing
+            // the action mode multiple times, but it's (relatively) quick and deterministic
+            // so it should be safe.
+            refreshActionMode();
         }
+        return actionMode;
     }
 
     /**

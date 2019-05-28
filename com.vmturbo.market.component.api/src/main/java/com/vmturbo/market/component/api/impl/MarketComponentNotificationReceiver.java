@@ -73,7 +73,7 @@ public class MarketComponentNotificationReceiver extends
     /**
      * Analysis results topic.
      */
-    public static final String ANALYSIS_RESULTS = "analysis-results";
+    public static final String ANALYSIS_SUMMARY_TOPIC = "analysis-summary";
 
     private final Set<ActionsListener> actionsListenersSet;
 
@@ -295,8 +295,8 @@ public class MarketComponentNotificationReceiver extends
      * @param analysisSummary the analysis results to process
      * @param commitCommand a Runnable command to be processed when the whole stream has been processed
      */
-    private void processAnalysisSummary( final AnalysisSummary analysisSummary,
-                                         @Nonnull Runnable commitCommand){
+    private void processAnalysisSummary(final AnalysisSummary analysisSummary,
+                                        @Nonnull Runnable commitCommand){
 
         doWithListeners(analysisSummaryListenerSet, l -> l.onAnalysisSummary(analysisSummary));
         commitCommand.run();

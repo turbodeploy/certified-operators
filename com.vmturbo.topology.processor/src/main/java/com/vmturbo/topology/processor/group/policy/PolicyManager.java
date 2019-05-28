@@ -47,11 +47,11 @@ import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.DiscoveryOriginBuilder;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
  * Responsible for the application of policies that affect the operation of the market.
@@ -120,7 +120,7 @@ public class PolicyManager {
      * @param changes list of plan changes to be applied to the policies
      * @return Map from (type of policy) -> (num of policies of the type)
      */
-    public PolicyApplicator.Results applyPolicies(@Nonnull final TopologyGraph graph,
+    public PolicyApplicator.Results applyPolicies(@Nonnull final TopologyGraph<TopologyEntity> graph,
                                                   @Nonnull final GroupResolver groupResolver,
                                                   @Nonnull final List<ScenarioChange> changes) {
         try (DataMetricTimer timer = POLICY_APPLICATION_SUMMARY.startTimer()) {
@@ -173,7 +173,7 @@ public class PolicyManager {
      * @return a Map the key is policy id, value is related initial placement or reservation entity ids.
      */
     @VisibleForTesting
-    Map<Long, Set<Long>> handleReservationConstraints(@Nonnull final TopologyGraph graph,
+    Map<Long, Set<Long>> handleReservationConstraints(@Nonnull final TopologyGraph<TopologyEntity> graph,
                                               @Nonnull final List<ScenarioChange> scenarioChanges,
                                               @Nonnull List<PlacementPolicy> policies) {
         final Map<Long, Set<Long>> policyConstraintMap = new HashMap<>();
@@ -361,7 +361,7 @@ public class PolicyManager {
      * @param scenarioChanges list of plan changes to be applied to the policies.
      */
     private Optional<PlacementPolicy> createPolicyForInitialPlacement(
-                @Nonnull final TopologyGraph graph,
+                @Nonnull final TopologyGraph<TopologyEntity> graph,
                 @Nonnull final List<ScenarioChange> scenarioChanges,
                 @Nonnull final Set<Long> consumers) {
         final List<ReservationConstraintInfo> constraints = scenarioChanges.stream()
@@ -382,7 +382,7 @@ public class PolicyManager {
         }
     }
 
-    private List<PlacementPolicy> createPoliciesForReservation(@Nonnull final TopologyGraph graph,
+    private List<PlacementPolicy> createPoliciesForReservation(@Nonnull final TopologyGraph<TopologyEntity> graph,
                                             @Nonnull Iterable<Reservation> activeReservations) {
         return StreamSupport.stream(activeReservations.spliterator(), false)
             .filter(reservation ->  reservation.getConstraintInfoCollection()
@@ -412,7 +412,7 @@ public class PolicyManager {
      * @param graph The topology graph contains all entities and relations between entities.
      * @return a set of entities id which created from templates.
      */
-    private Set<Long> getNotDiscoveredEntityIds(@Nonnull final TopologyGraph graph) {
+    private Set<Long> getNotDiscoveredEntityIds(@Nonnull final TopologyGraph<TopologyEntity> graph) {
         // only cloned or template entities' last update time are never been updated,
         // for initial placement, it only has template entities, so we use it to tell which
         // entities are created from templates.

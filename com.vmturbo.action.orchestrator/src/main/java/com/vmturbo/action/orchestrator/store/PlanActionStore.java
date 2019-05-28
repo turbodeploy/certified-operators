@@ -11,7 +11,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -33,12 +32,16 @@ import io.prometheus.client.Summary;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionView;
-import com.vmturbo.action.orchestrator.action.QueryFilter;
 import com.vmturbo.action.orchestrator.db.tables.pojos.MarketAction;
 import com.vmturbo.action.orchestrator.db.tables.records.MarketActionRecord;
+import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
+import com.vmturbo.action.orchestrator.store.query.QueryFilter;
+import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 
 /**
@@ -134,7 +137,7 @@ public class PlanActionStore implements ActionStore {
         this.actionPlanIdByActionPlanType = Maps.newHashMap();
         this.recommendationTimeByActionPlanId = Maps.newHashMap();
         this.topologyContextId = topologyContextId;
-        this.severityCache = new EntitySeverityCache(QueryFilter.VISIBILITY_FILTER);
+        this.severityCache = new EntitySeverityCache();
     }
 
     /**
@@ -202,17 +205,11 @@ public class PlanActionStore implements ActionStore {
      */
     @Nonnull
     @Override
-    public Map<Long, ActionView> getActionViews() {
-        return Collections.unmodifiableMap(getActions());
-    }
-
-    /**
-     * Plan action store doesn't support get action views by date, will just return all the actions.
-     */
-    @Nonnull
-    @Override
-    public Map<Long, ActionView> getActionViewsByDate(final LocalDateTime startDate, final LocalDateTime endDate) {
-        return Collections.unmodifiableMap(getActions());
+    public QueryableActionViews getActionViews() {
+        // In the future this can be optimized a lot more by (among other things) moving more fields to the
+        // database, caching the retrieved actions for a particular plan for a configurable
+        // period of time, etc.
+        return new MapBackedActionViews(Collections.unmodifiableMap(getActions()));
     }
 
     /**

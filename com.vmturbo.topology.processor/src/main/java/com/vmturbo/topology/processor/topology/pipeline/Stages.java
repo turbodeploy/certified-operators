@@ -15,27 +15,24 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Sets;
-
-import com.vmturbo.common.protobuf.topology.StitchingErrors;
-import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
-import com.vmturbo.topology.processor.ncm.FlowCommoditiesGenerator;
-
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
+
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
+import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.matrix.component.external.MatrixInterface;
@@ -47,6 +44,8 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.IStitchingJournal.StitchingMetrics;
 import com.vmturbo.stitching.journal.TopologyEntitySemanticDiffer;
+import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.controllable.ControllableManager;
@@ -59,12 +58,13 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
-import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
+import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.group.settings.SettingOverrides;
+import com.vmturbo.topology.processor.ncm.FlowCommoditiesGenerator;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
@@ -85,7 +85,7 @@ import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicator
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor.EditorSummary;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PassthroughStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
@@ -329,7 +329,7 @@ public class Stages {
      * unique across the whole environment.
      * See {@link ApplicationCommodityKeyChanger} for further details.
      */
-    public static class ChangeAppCommodityKeyOnVMAndAppStage extends PassthroughStage<TopologyGraph> {
+    public static class ChangeAppCommodityKeyOnVMAndAppStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
 
         private final ApplicationCommodityKeyChanger applicationCommodityKeyChanger;
 
@@ -339,7 +339,7 @@ public class Stages {
         }
 
         @Override
-        public Status passthrough(final TopologyGraph topologyGraph) {
+        public Status passthrough(final TopologyGraph<TopologyEntity> topologyGraph) {
             final int keysChanged = applicationCommodityKeyChanger.execute(topologyGraph);
             return Status.success(keysChanged + " commodity keys changed.");
         }
@@ -348,7 +348,7 @@ public class Stages {
     /**
      * This stage is for adding cluster commodities to relate TopologyEntityDTO.
      */
-    public static class ApplyClusterCommodityStage extends PassthroughStage<TopologyGraph> {
+    public static class ApplyClusterCommodityStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
         private final DiscoveredClusterConstraintCache discoveredClusterConstraintCache;
 
         public ApplyClusterCommodityStage(
@@ -358,7 +358,7 @@ public class Stages {
 
         @Nonnull
         @Override
-        public Status passthrough(@Nonnull final TopologyGraph topologyGraph) {
+        public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
             discoveredClusterConstraintCache.applyClusterCommodity(topologyGraph);
             // TODO (roman, Oct 23 2018): Provide some information about modified commodities.
             return Status.success();
@@ -461,11 +461,14 @@ public class Stages {
 
         private final TopologyEditor topologyEditor;
         private final List<ScenarioChange> changes;
+        private final SearchResolver<TopologyEntity> searchResolver;
 
         public TopologyEditStage(@Nonnull final TopologyEditor topologyEditor,
+                                 @Nonnull final SearchResolver<TopologyEntity> searchResolver,
                                  @Nonnull final List<ScenarioChange> scenarioChanges) {
             this.topologyEditor = Objects.requireNonNull(topologyEditor);
             this.changes = Objects.requireNonNull(scenarioChanges);
+            this.searchResolver = Objects.requireNonNull(searchResolver);
         }
 
         @Override
@@ -474,7 +477,7 @@ public class Stages {
             // This is so that pre-edit group membership lookups don't get cached in the "main"
             // group resolver, preventing post-edit group membership lookups from seeing members
             // added or removed during editing.
-            final GroupResolver groupResolver = new GroupResolver(new TopologyFilterFactory());
+            final GroupResolver groupResolver = new GroupResolver(searchResolver);
             topologyEditor.editTopology(input, changes, getContext().getTopologyInfo(), groupResolver);
             // TODO (roman, Oct 23 2018): Add some information about the number/type of
             // modifications made.
@@ -534,7 +537,7 @@ public class Stages {
      * types will be resolved to a list of group member entities, and each of those will be added
      * to the "seed entities" list.
      */
-    public static class ScopeResolutionStage extends PassthroughStage<TopologyGraph> {
+    public static class ScopeResolutionStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
         private static final Logger logger = LogManager.getLogger();
 
         private static final String GROUP_TYPE = "Group";
@@ -551,7 +554,7 @@ public class Stages {
         }
 
         @Override
-        public Status passthrough(final TopologyGraph input) throws PipelineStageException {
+        public Status passthrough(final TopologyGraph<TopologyEntity> input) throws PipelineStageException {
             // if no scope to apply, this function does nothing.
             if (planScope.getScopeEntriesCount() == 0) {
                 return Status.success("No scope to apply.");
@@ -609,14 +612,14 @@ public class Stages {
     }
 
     /**
-     * This stage creates a {@link TopologyGraph} out of the topology entities.
+     * This stage creates a {@link TopologyGraph<TopologyEntity>} out of the topology entities.
      */
-    public static class GraphCreationStage extends Stage<Map<Long, TopologyEntity.Builder>, TopologyGraph> {
+    public static class GraphCreationStage extends Stage<Map<Long, TopologyEntity.Builder>, TopologyGraph<TopologyEntity>> {
 
         @Nonnull
         @Override
-        public StageResult<TopologyGraph> execute(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
-            final TopologyGraph graph = TopologyGraph.newGraph(input);
+        public StageResult<TopologyGraph<TopologyEntity>> execute(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
+            final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(input);
             return StageResult.withResult(graph)
                 .andStatus(Status.success());
         }
@@ -625,7 +628,7 @@ public class Stages {
     /**
      * Stage to apply changes to commodities values like used,peak etc.
      */
-    public static class CommoditiesEditStage extends PassthroughStage<TopologyGraph> {
+    public static class CommoditiesEditStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
 
         private final List<ScenarioChange> changes;
 
@@ -642,7 +645,7 @@ public class Stages {
         }
 
         @Override
-        public Status passthrough(@Nonnull TopologyGraph graph) throws PipelineStageException {
+        public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
             commoditiesEditor.applyCommodityEdits(graph, changes, getContext().getTopologyInfo(), scope);
             // TODO (roman, 23 Oct 2018): Add some information about number/type of modified commodities?
             return Status.success();
@@ -652,7 +655,7 @@ public class Stages {
     /**
      * Stage to apply some constraint-specific changes like disabling of ignored commodities.
      */
-    public static class IgnoreConstraintsStage extends PassthroughStage<TopologyGraph> {
+    public static class IgnoreConstraintsStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
 
         private final GroupResolver groupResolver;
 
@@ -671,7 +674,7 @@ public class Stages {
         }
 
         @Override
-        public Status passthrough(TopologyGraph input) throws PipelineStageException {
+        public Status passthrough(TopologyGraph<TopologyEntity> input) throws PipelineStageException {
             boolean isPressurePlan = TopologyDTOUtil.isAlleviatePressurePlan(getContext().getTopologyInfo());
             constraintsEditor.editConstraints(input, changes, isPressurePlan);
             // TODO (roman, 23 Oct 2018): Add some high-level information about modifications made.
@@ -686,9 +689,9 @@ public class Stages {
      * policy/setting application in case we we have environment-type-specific
      * groups/policies/settings policies.
      *
-     * This stage modifies the entities in the input {@link TopologyGraph}.
+     * This stage modifies the entities in the input {@link TopologyGraph<TopologyEntity>}.
      */
-    public static class EnvironmentTypeStage extends PassthroughStage<TopologyGraph> {
+    public static class EnvironmentTypeStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
 
         private final EnvironmentTypeInjector environmentTypeInjector;
 
@@ -698,7 +701,7 @@ public class Stages {
 
         @Nonnull
         @Override
-        public Status passthrough(final TopologyGraph input) {
+        public Status passthrough(final TopologyGraph<TopologyEntity> input) {
             final InjectionSummary injectionSummary =
                     environmentTypeInjector.injectEnvironmentType(input);
 
@@ -731,11 +734,11 @@ public class Stages {
     }
 
     /**
-     * This stage applies policies to a {@link TopologyGraph}. This makes changes
-     * to the commodities of entities in the {@link TopologyGraph} to reflect the
+     * This stage applies policies to a {@link TopologyGraph<TopologyEntity>}. This makes changes
+     * to the commodities of entities in the {@link TopologyGraph<TopologyEntity>} to reflect the
      * applied policies.
      */
-    public static class PolicyStage extends PassthroughStage<TopologyGraph> {
+    public static class PolicyStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
 
         private final PolicyManager policyManager;
         private final List<ScenarioChange> changes;
@@ -750,7 +753,7 @@ public class Stages {
         }
 
         @Override
-        public Status passthrough(@Nonnull final TopologyGraph input) {
+        public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> input) {
             final PolicyApplicator.Results applicationResults =
                     policyManager.applyPolicies(input, getContext().getGroupResolver(), changes);
             final StringJoiner statusMsg = new StringJoiner("\n")
@@ -782,12 +785,12 @@ public class Stages {
     }
 
     /**
-     * This stages resolves per-entity settings in the {@link TopologyGraph}.
+     * This stages resolves per-entity settings in the {@link TopologyGraph<TopologyEntity>}.
      * It's responsible for determining which settings apply to which entities, performing
      * conflict resolution (when multiple setting policies apply to a single entity), and
      * applying setting overrides from plan scenarios.
      */
-    public static class SettingsResolutionStage extends Stage<TopologyGraph, GraphWithSettings> {
+    public static class SettingsResolutionStage extends Stage<TopologyGraph<TopologyEntity>, GraphWithSettings> {
         private final Logger logger = LogManager.getLogger();
 
         private final SettingOverrides settingOverrides;
@@ -812,7 +815,7 @@ public class Stages {
 
         @Nonnull
         @Override
-        public StageResult<GraphWithSettings> execute(@Nonnull final TopologyGraph topologyGraph) {
+        public StageResult<GraphWithSettings> execute(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
             try {
                 final GraphWithSettings graphWithSettings = entitySettingsResolver.resolveSettings(
                     getContext().getGroupResolver(), topologyGraph,
@@ -854,7 +857,7 @@ public class Stages {
 
     /**
      * This stage applies settings resolved in {@link SettingsResolutionStage} to the
-     * {@link TopologyGraph} the settings got resolved on. For example, if "suspend" is disabled
+     * {@link TopologyGraph<TopologyEntity>} the settings got resolved on. For example, if "suspend" is disabled
      * for entity 10, this stage is responsible for making sure that the relevant property
      * in {@link TopologyEntityDTO} reflects that.
      */
@@ -1049,17 +1052,17 @@ public class Stages {
     }
 
     /**
-     * Placeholder stage to extract the {@link TopologyGraph} for the {@link BroadcastStage}
+     * Placeholder stage to extract the {@link TopologyGraph<TopologyEntity>} for the {@link BroadcastStage}
      * in the live and plan (but not plan-over-plan) topology.
      * <p>
      * Also records {@link TopologyInfo} to the {@link StitchingJournal}.
      * <p>
      * We shouldn't need this once plan-over-plan supports policies and settings.
      */
-    public static class ExtractTopologyGraphStage extends Stage<GraphWithSettings, TopologyGraph> {
+    public static class ExtractTopologyGraphStage extends Stage<GraphWithSettings, TopologyGraph<TopologyEntity>> {
         @Nonnull
         @Override
-        public StageResult<TopologyGraph> execute(@Nonnull final GraphWithSettings graphWithSettings)
+        public StageResult<TopologyGraph<TopologyEntity>> execute(@Nonnull final GraphWithSettings graphWithSettings)
                 throws PipelineStageException, InterruptedException {
             return StageResult.withResult(graphWithSettings.getTopologyGraph())
                 .andStatus(Status.success());
@@ -1067,10 +1070,10 @@ public class Stages {
     }
 
     /**
-     * This stage broadcasts the topology represented by a {@link TopologyGraph} out of the
+     * This stage broadcasts the topology represented by a {@link TopologyGraph<TopologyEntity>} out of the
      * topology processor.
      */
-    public static class BroadcastStage extends Stage<TopologyGraph, TopologyBroadcastInfo> {
+    public static class BroadcastStage extends Stage<TopologyGraph<TopologyEntity>, TopologyBroadcastInfo> {
 
         private final Logger logger = LogManager.getLogger();
 
@@ -1083,7 +1086,7 @@ public class Stages {
 
         @Nonnull
         @Override
-        public StageResult<TopologyBroadcastInfo> execute(@Nonnull final TopologyGraph input)
+        public StageResult<TopologyBroadcastInfo> execute(@Nonnull final TopologyGraph<TopologyEntity> input)
             throws PipelineStageException, InterruptedException {
 
             // Record TopologyInfo and Metrics to the journal if there is one.
@@ -1173,7 +1176,7 @@ public class Stages {
     /**
      * Stage to apply changes to commodities values like used,peak etc.
      */
-    public static class HistoricalUtilizationStage extends PassthroughStage<TopologyGraph> {
+    public static class HistoricalUtilizationStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
 
         private final HistoricalEditor historicalEditor;
 
@@ -1182,7 +1185,7 @@ public class Stages {
         }
 
         @Override
-        public Status passthrough(@Nonnull TopologyGraph graph) throws PipelineStageException {
+        public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
             historicalEditor.applyCommodityEdits(graph);
             return Status.success();
         }
@@ -1191,7 +1194,7 @@ public class Stages {
     /**
      * Stage to apply changes to properties based on action capabilities.
      */
-    public static class ProbeActionCapabilitiesApplicatorStage extends PassthroughStage<TopologyGraph> {
+    public static class ProbeActionCapabilitiesApplicatorStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
         private final ProbeActionCapabilitiesApplicatorEditor probeActionCapabilitiesApplicatorEditor;
 
         public ProbeActionCapabilitiesApplicatorStage(@Nonnull ProbeActionCapabilitiesApplicatorEditor editor) {
@@ -1199,7 +1202,7 @@ public class Stages {
         }
 
         @Override
-        public Status passthrough(@Nonnull TopologyGraph graph) {
+        public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) {
             final EditorSummary editorSummary = probeActionCapabilitiesApplicatorEditor
                 .applyPropertiesEdits(graph);
             final String statusSummary =

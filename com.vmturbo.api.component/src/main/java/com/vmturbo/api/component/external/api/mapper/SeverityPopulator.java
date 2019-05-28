@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -37,9 +38,14 @@ public class SeverityPopulator {
      * If the ActionOrchestrator is unreachable, severity will not be populated.
      *
      * @param topologyContextId The ID of the topology context from which to retrieve the severity.
-     * @param entityDtos The DTOs whose severity should be updated.
+     * @param entity The DTO whose severity should be updated.
      * @return The updated DTOs.
      */
+    public ServiceEntityApiDTO populate(final long topologyContextId,
+                                        @Nonnull final ServiceEntityApiDTO entity) {
+        return populate(topologyContextId, Collections.singleton(entity)).iterator().next();
+    }
+
     @Nonnull
     public Collection<ServiceEntityApiDTO> populate(final long topologyContextId,
         @Nonnull final Collection<ServiceEntityApiDTO> entityDtos) {

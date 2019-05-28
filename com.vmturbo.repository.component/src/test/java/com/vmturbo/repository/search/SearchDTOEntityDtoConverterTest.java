@@ -264,7 +264,7 @@ public class SearchDTOEntityDtoConverterTest {
 
         assertEquals(name, entity.getDisplayName());
         assertEquals(EntityDTO.EntityType.VIRTUAL_MACHINE.getNumber(), entity.getType());
-        assertEquals(TopologyDTO.EntityState.POWERED_ON.getNumber(), entity.getState());
+        assertEquals(TopologyDTO.EntityState.POWERED_ON, entity.getState());
         assertEquals(oid, entity.getOid());
     }
 
@@ -282,7 +282,7 @@ public class SearchDTOEntityDtoConverterTest {
 
         assertEquals(name, entity.getDisplayName());
         assertEquals(EntityDTO.EntityType.PHYSICAL_MACHINE.getNumber(), entity.getType());
-        assertEquals(TopologyDTO.EntityState.SUSPENDED.getNumber(), entity.getState());
+        assertEquals(TopologyDTO.EntityState.SUSPENDED, entity.getState());
         assertEquals(oid, entity.getOid());
     }
 }

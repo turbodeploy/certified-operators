@@ -14,6 +14,8 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.repository.api.RepositoryClient;
+import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.controllable.ControllableManager;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
@@ -23,7 +25,6 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
-import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
@@ -109,7 +110,7 @@ public class TopologyPipelineFactory {
 
     private final RepositoryClient repositoryClient;
 
-    private final TopologyFilterFactory topologyFilterFactory;
+    private final SearchResolver<TopologyEntity> searchResolver;
 
     private final GroupServiceBlockingStub groupServiceClient;
 
@@ -148,7 +149,7 @@ public class TopologyPipelineFactory {
                                    @Nonnull final EnvironmentTypeInjector environmentTypeInjector,
                                    @Nonnull final TopologyEditor topologyEditor,
                                    @Nonnull final RepositoryClient repositoryClient,
-                                   @Nonnull final TopologyFilterFactory topologyFilterFactory,
+                                   @Nonnull final SearchResolver<TopologyEntity> searchResolver,
                                    @Nonnull final GroupServiceBlockingStub groupServiceClient,
                                    @Nonnull final ReservationManager reservationManager,
                                    @Nonnull final DiscoveredSettingPolicyScanner discoveredSettingPolicyScanner,
@@ -174,7 +175,7 @@ public class TopologyPipelineFactory {
         this.environmentTypeInjector = Objects.requireNonNull(environmentTypeInjector);
         this.topologyEditor = Objects.requireNonNull(topologyEditor);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
-        this.topologyFilterFactory = Objects.requireNonNull(topologyFilterFactory);
+        this.searchResolver = Objects.requireNonNull(searchResolver);
         this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
         this.reservationManager = Objects.requireNonNull(reservationManager);
         this.discoveredSettingPolicyScanner = Objects.requireNonNull(discoveredSettingPolicyScanner);
@@ -210,7 +211,7 @@ public class TopologyPipelineFactory {
             @Nonnull final TopologyInfo topologyInfo,
             @Nonnull final List<TopoBroadcastManager> additionalBroadcastManagers,
             @Nonnull final StitchingJournalFactory journalFactory) {
-        final GroupResolver groupResolver = new GroupResolver(topologyFilterFactory);
+        final GroupResolver groupResolver = new GroupResolver(searchResolver);
         final TopologyPipelineContext context =
             new TopologyPipelineContext(groupResolver, topologyInfo);
         final List<TopoBroadcastManager> managers = new ArrayList<>(additionalBroadcastManagers.size() + 1);
@@ -273,9 +274,8 @@ public class TopologyPipelineFactory {
             @Nonnull final List<ScenarioChange> changes,
             @Nullable final PlanScope scope,
             @Nonnull final StitchingJournalFactory journalFactory) {
-        final TopologyFilterFactory topologyFilterFactory = new TopologyFilterFactory();
         final TopologyPipelineContext context =
-                new TopologyPipelineContext(new GroupResolver(topologyFilterFactory), topologyInfo);
+                new TopologyPipelineContext(new GroupResolver(searchResolver), topologyInfo);
         return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
                 .addStage(new StitchingStage(stitchingManager, journalFactory))
                 .addStage(new CloudPlanScopingStage(cloudTopologyScopeEditor, scope, journalFactory))
@@ -286,7 +286,7 @@ public class TopologyPipelineFactory {
                 // TODO: Move the ToplogyEditStage after the GraphCreationStage
                 // That way the editstage can work on the graph instead of a
                 // separate structure.
-                .addStage(new TopologyEditStage(topologyEditor, changes))
+                .addStage(new TopologyEditStage(topologyEditor, searchResolver, changes))
                 .addStage(new GraphCreationStage())
                 .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
                 .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
@@ -319,12 +319,11 @@ public class TopologyPipelineFactory {
             @Nonnull final TopologyInfo topologyInfo,
             @Nonnull final List<ScenarioChange> changes,
             @Nullable final PlanScope scope) {
-        final TopologyFilterFactory topologyFilterFactory = new TopologyFilterFactory();
         final TopologyPipelineContext context =
-                new TopologyPipelineContext(new GroupResolver(topologyFilterFactory), topologyInfo);
+                new TopologyPipelineContext(new GroupResolver(searchResolver), topologyInfo);
         return TopologyPipeline.<Long, TopologyBroadcastInfo>newBuilder(context)
                 .addStage(new TopologyAcquisitionStage(repositoryClient))
-                .addStage(new TopologyEditStage(topologyEditor, changes))
+                .addStage(new TopologyEditStage(topologyEditor, searchResolver, changes))
                 .addStage(new GraphCreationStage())
                 .addStage(new ScopeResolutionStage(groupServiceClient, scope))
                 .addStage(new CommoditiesEditStage(commoditiesEditor, changes, scope))

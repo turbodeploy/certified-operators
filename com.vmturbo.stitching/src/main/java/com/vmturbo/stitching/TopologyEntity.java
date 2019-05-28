@@ -3,20 +3,27 @@ package com.vmturbo.stitching;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.journal.JournalableEntity;
+import com.vmturbo.topology.graph.TopologyGraphEntity;
 
 /**
  * A wrapper around {@link TopologyEntityDTO.Builder}.Properties of the entity such as commodity values
@@ -27,7 +34,7 @@ import com.vmturbo.stitching.journal.JournalableEntity;
  *
  * The TopologyEntityDTO.Builder within a TopologyEntity may be edited but the TopologyEntity is immutable otherwise.
  */
-public class TopologyEntity implements JournalableEntity<TopologyEntity> {
+public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, JournalableEntity<TopologyEntity> {
 
     /**
      * A builder for the entity in the topology corresponding to this TopologyEntity.
@@ -63,40 +70,35 @@ public class TopologyEntity implements JournalableEntity<TopologyEntity> {
     }
 
     /**
-     * Get the OID for this TopologyEntity.
-     *
-     * @return the OID for this TopologyEntity.
+     * {@inheritDoc}
      */
+    @Override
     public long getOid() {
         return entityBuilder.getOid();
     }
 
     /**
-     * Get the entityType. This field corresponds to {@link TopologyEntityDTO#getEntityType()}
-     *
-     * @return The entityType for the entityBuilder corresponding to this node.
+     * {@inheritDoc}
      */
+    @Override
     public int getEntityType() {
         return entityBuilder.getEntityType();
     }
 
     /**
-     * Get the entity's state. This field corresponds to {@link TopologyEntityDTO#getEntityState}
-     *
-     * @return The {@link EntityState} for the entity builder corresponding to this node.
+     * {@inheritDoc}
      */
     @Nonnull
+    @Override
     public EntityState getEntityState() {
         return entityBuilder.getEntityState();
     }
 
     /**
-     * Get the entity's environment type. This field corresponds to
-     * {@link TopologyEntityDTO#getEnvironmentType()}
-     *
-     * @return The {@link EnvironmentType} for the entity builder corresponding to this node.
+     * {@inheritDoc}
      */
     @Nonnull
+    @Override
     public EnvironmentType getEnvironmentType() {
         return entityBuilder.getEnvironmentType();
     }
@@ -144,9 +146,7 @@ public class TopologyEntity implements JournalableEntity<TopologyEntity> {
     }
 
     /**
-     * Get the display name for this entity.
-     *
-     * @return The display name for this entity.
+     * {@inheritDoc}
      */
     @Nonnull
     @Override
@@ -156,10 +156,30 @@ public class TopologyEntity implements JournalableEntity<TopologyEntity> {
 
     @Nonnull
     @Override
+    public TypeSpecificInfo getTypeSpecificInfo() {
+        return entityBuilder.getTypeSpecificInfo();
+    }
+
+    @Nonnull
+    @Override
     public Stream<Long> getDiscoveringTargetIds() {
         return hasDiscoveryOrigin()
             ? entityBuilder.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList().stream()
             : Stream.empty();
+    }
+
+    @Nonnull
+    @Override
+    public Map<Integer, CommoditySoldDTO> soldCommoditiesByType() {
+        return entityBuilder.getCommoditySoldListList().stream()
+            .collect(Collectors.toMap(commSold -> commSold.getCommodityType().getType(), Function.identity()));
+    }
+
+    @Nonnull
+    @Override
+    public Map<String, List<String>> getTags() {
+        return entityBuilder.getTags().getTagsMap().entrySet().stream()
+            .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().getValuesList()));
     }
 
     /**
@@ -180,57 +200,34 @@ public class TopologyEntity implements JournalableEntity<TopologyEntity> {
     }
 
     /**
-     * Get the set of all entities in the topology that consume commodities from this TopologyEntity.
-     *
-     * Note that although the consumers are held in a list (for memory consumption reasons), entries
-     * in the list are unique.
-     *
-     * If a {@link TopologyEntity} is in this list, it indicates that entity buys one or more commodities from
-     * this {@link TopologyEntity}. A consumes relationship is one-to-one with a provides relation, so if an
-     * {@link TopologyEntity} appears in this entity's consumers list, this {@link TopologyEntity} will appear
-     * in that entity's providers list.
-     *
-     * The consumers list cannot be modified.
-     *
-     * @return  All {@link TopologyEntity}s that consume commodities from this {@link TopologyEntity}.
+     * {@inheritDoc}
      */
     @Nonnull
+    @Override
     public List<TopologyEntity> getConsumers() {
         return Collections.unmodifiableList(consumers);
     }
 
     /**
-     * Get the set of all entities in the topology that provide commodities to this TopologyEntity.
-     *
-     * Note that although the providers are held in a list (for memory consumption reasons), entries
-     * in the list are unique.
-     *
-     * If a {@link TopologyEntity} is in this list, it indicates this entity sells one or more commodities to
-     * that {@link TopologyEntity}. A provides relationship is one-to-one with a consumes relation, so if an
-     * {@link TopologyEntity} appears in this entity's providers list, this {@link TopologyEntity} will appear
-     * in that entity's consumers list.
-     *
-     * The providers list cannot be modified.
-     *
-     * @return  All {@link TopologyEntity}s that provide commodities to this {@link TopologyEntity}.
+     * {@inheritDoc}
      */
     @Nonnull
+    @Override
     public List<TopologyEntity> getProviders() {
         return Collections.unmodifiableList(providers);
     }
 
     /**
-     * Get the set of all entities in the topology that are connected to this TopologyEntity.
+     * {@inheritDoc}
      */
     @Nonnull
+    @Override
     public List<TopologyEntity> getConnectedFromEntities() {
         return Collections.unmodifiableList(connectedFromEntities);
     }
 
-    /**
-     * Get the set of all entities in the topology that this TopologyEntity are connected to.
-     */
     @Nonnull
+    @Override
     public List<TopologyEntity> getConnectedToEntities() {
         return Collections.unmodifiableList(connectedToEntities);
     }
@@ -307,7 +304,7 @@ public class TopologyEntity implements JournalableEntity<TopologyEntity> {
      * A builder for constructing a {@link TopologyEntity}.
      * See {@link TopologyEntity} for further details.
      */
-    public static class Builder {
+    public static class Builder implements TopologyGraphEntity.Builder<Builder, TopologyEntity> {
         /**
          * Consumers and providers are ArrayLists so that {@link ArrayList#trimToSize()} can be called
          * upon building the {@link TopologyEntity}.
@@ -328,26 +325,31 @@ public class TopologyEntity implements JournalableEntity<TopologyEntity> {
                     this.providers, this.connectedFromEntities, this.connectedToEntities);
         }
 
-        public void addConsumer(@Nonnull final TopologyEntity.Builder consumer) {
+        @Override
+        public Builder addConsumer(@Nonnull final TopologyEntity.Builder consumer) {
             consumers.add(consumer.associatedTopologyEntity);
+            return this;
         }
 
-        public void addProvider(@Nonnull final TopologyEntity.Builder provider) {
+        @Override
+        public Builder addProvider(@Nonnull final TopologyEntity.Builder provider) {
             providers.add(provider.associatedTopologyEntity);
+            return this;
         }
 
-        public void addConnectedFrom(@Nonnull final TopologyEntity.Builder connectedFromEntity) {
+        @Override
+        public Builder addConnectedFrom(@Nonnull final TopologyEntity.Builder connectedFromEntity) {
             this.connectedFromEntities.add(connectedFromEntity.associatedTopologyEntity);
+            return this;
         }
 
-        public void addConnectedTo(@Nonnull final TopologyEntity.Builder connectedToEntity) {
+        @Override
+        public Builder addConnectedTo(@Nonnull final TopologyEntity.Builder connectedToEntity) {
             this.connectedToEntities.add(connectedToEntity.associatedTopologyEntity);
+            return this;
         }
 
-        /**
-         * Clear the consumer and provider lists. Call only if rebuilding a new graph
-         * because this will invalidate any prior graphs in which this entity was a participant.
-         */
+        @Override
         public void clearConsumersAndProviders() {
             consumers.clear();
             providers.clear();
@@ -355,6 +357,21 @@ public class TopologyEntity implements JournalableEntity<TopologyEntity> {
             connectedToEntities.clear();
         }
 
+        @Nonnull
+        @Override
+        public Set<Long> getProviderIds() {
+            return TopologyGraphEntity.Builder.extractProviderIds(
+                associatedTopologyEntity.getTopologyEntityDtoBuilder());
+        }
+
+        @Nonnull
+        @Override
+        public Set<Long> getConnectionIds() {
+            return TopologyGraphEntity.Builder.extractConnectionIds(
+                associatedTopologyEntity.getTopologyEntityDtoBuilder());
+        }
+
+        @Override
         public long getOid() {
             return associatedTopologyEntity.getOid();
         }
@@ -375,6 +392,7 @@ public class TopologyEntity implements JournalableEntity<TopologyEntity> {
             return consumers;
         }
 
+        @Override
         public TopologyEntity build() {
             // Trim the arrays to their capacity to reduce memory consumption since
             // the consumers and providers will not be modified after the entity has been built.

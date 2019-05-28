@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -36,8 +37,23 @@ public class DiagnosticsWriter {
      * @throws IOException if an I/O error occurs
      */
     public void writeZipEntry(String entryName, List<String> values, ZipOutputStream zos) {
+        writeZipEntry(entryName, values.stream(), zos);
+    }
+
+    /**
+     * Write a stream of strings to a new {@link ZipEntry} in a zip output stream.
+     * When the zip output stream gets written to a zip file, that zip file will
+     * contain one text file for each zip entry created through this method, and
+     * the text file will contain the strings added, one per line.
+     *
+     * @param entryName the name of the text file to be created in the zip file.
+     * @param values a {@link Stream} of {@link String}s to write
+     * @param zos the {@link ZipOutputStream} to write to
+     * @throws IOException if an I/O error occurs
+     */
+    public void writeZipEntry(String entryName, Stream<String> values, ZipOutputStream zos) {
         try {
-            logger.debug("Creating zip entry " + entryName + " with " + values.size() + " values");
+            logger.debug("Creating zip entry " + entryName + " with a stream of values.");
             ZipEntry ze = new ZipEntry(entryName);
             ze.setTime(System.currentTimeMillis());
             zos.putNextEntry(ze);

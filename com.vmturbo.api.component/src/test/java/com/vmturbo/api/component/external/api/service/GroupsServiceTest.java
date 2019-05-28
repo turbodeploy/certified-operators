@@ -40,7 +40,6 @@ import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequ
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
@@ -102,6 +101,7 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockin
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -660,7 +660,7 @@ public class GroupsServiceTest {
 
         // with related entity type
         expandedIds = groupsService.expandUuids(Sets.newHashSet(target1, target2),
-            Lists.newArrayList(UIEntityType.VIRTUAL_MACHINE.getValue()), null);
+            Lists.newArrayList(UIEntityType.VIRTUAL_MACHINE.apiStr()), null);
         assertThat(expandedIds, containsInAnyOrder(entityId11, entityId21));
     }
 
@@ -674,7 +674,7 @@ public class GroupsServiceTest {
 
         // expand a VM group, provide no entity type and expect to get all vms in the group
         SupplyChainNodeFetcherBuilder fetcherBuilder = ApiTestUtils.mockNodeFetcherBuilder(
-                ImmutableMap.of(UIEntityType.VIRTUAL_MACHINE.getValue(), SupplyChainNode.newBuilder()
+                ImmutableMap.of(UIEntityType.VIRTUAL_MACHINE.apiStr(), SupplyChainNode.newBuilder()
                     .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                         .addMemberOids(vm1).addMemberOids(vm2).build())
                     .build()));
@@ -685,14 +685,14 @@ public class GroupsServiceTest {
 
         // expand a VM group, provide PM entity type and expect to get all related PMs in the group
         fetcherBuilder = ApiTestUtils.mockNodeFetcherBuilder(
-            ImmutableMap.of(UIEntityType.PHYSICAL_MACHINE.getValue(), SupplyChainNode.newBuilder()
+            ImmutableMap.of(UIEntityType.PHYSICAL_MACHINE.apiStr(), SupplyChainNode.newBuilder()
                 .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                     .addMemberOids(pm1).build())
                 .build()));
         when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(fetcherBuilder);
 
         expandedIds = groupsService.expandUuids(Sets.newHashSet(groupId11),
-            Lists.newArrayList(UIEntityType.PHYSICAL_MACHINE.getValue()), null);
+            Lists.newArrayList(UIEntityType.PHYSICAL_MACHINE.apiStr()), null);
         assertThat(expandedIds, containsInAnyOrder(pm1));
     }
 }

@@ -508,7 +508,7 @@ public class Scheduler implements TargetStoreListener {
         synchedDiscoverySchedules.stream().forEach(targetId -> {
             try {
                 setBroadcastSynchedDiscoverySchedule(targetId);
-            } catch (TargetNotFoundException e) {
+            } catch (TargetNotFoundException|IllegalStateException e) {
                 logger.error("Unable to update synched discovery schedule for target " + targetId, e);
             }
         });

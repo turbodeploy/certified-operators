@@ -62,7 +62,6 @@ import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
@@ -117,6 +116,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositorySe
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -411,7 +411,7 @@ public class MarketsServiceTest {
         scopes.add("4");
         statScopesApiInputDTO.setScopes(scopes);
         // Setting relatedType to VirtualMachine should have no impact on the results
-        statScopesApiInputDTO.setRelatedType(UIEntityType.VIRTUAL_MACHINE.getValue());
+        statScopesApiInputDTO.setRelatedType(UIEntityType.VIRTUAL_MACHINE.apiStr());
         scopeApiArgument = ArgumentCaptor.forClass(StatScopesApiInputDTO.class);
         // Invoke the service and then verify that the service calls getStatsByUuidsQuery with a scope size of 2, since this is the overlap of the
         // group and the scope.
@@ -423,7 +423,7 @@ public class MarketsServiceTest {
         // This should be the same as the first test, but just verifying that the addition of the related entity
         // type does not change the scope sent to the getStatsByUuidsQuery
         inputDTO = new StatScopesApiInputDTO();
-        inputDTO.setRelatedType(UIEntityType.PHYSICAL_MACHINE.getValue());
+        inputDTO.setRelatedType(UIEntityType.PHYSICAL_MACHINE.apiStr());
         service.getStatsByEntitiesInGroupInMarketQuery(StatsService.MARKET, "5", inputDTO, paginationRequest);
         Mockito.verify(testConfig.statsService(), Mockito.times(3)).getStatsByUuidsQuery(scopeApiArgument.capture(), any());
         assertEquals(3, scopeApiArgument.getValue().getScopes().size());

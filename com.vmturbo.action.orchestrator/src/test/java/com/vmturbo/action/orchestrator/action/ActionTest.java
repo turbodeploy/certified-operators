@@ -7,7 +7,11 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -63,7 +67,7 @@ public class ActionTest {
 
     private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
 
-    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
+    private ActionModeCalculator actionModeCalculator = spy(new ActionModeCalculator(actionTranslator));
 
     @Before
     public void setup() {
@@ -166,6 +170,31 @@ public class ActionTest {
         final Action notExecutable = new Action(recommendation, 1, actionModeCalculator);
 
         assertFalse(notExecutable.determineExecutability());
+    }
+
+    @Test
+    public void testInvalidateAction() {
+        doReturn(ActionMode.MANUAL).when(actionModeCalculator)
+            .calculateActionMode(moveAction, entitySettingsCache);
+
+        assertThat(moveAction.getMode(), is(ActionMode.MANUAL));
+
+        // Action mode calculator should have been called the first call to getMode()
+        verify(actionModeCalculator, times(1))
+            .calculateActionMode(moveAction, entitySettingsCache);
+
+        // Subsequent calls to getMode shouldn't fall through to the action mode calculator.
+        assertThat(moveAction.getMode(), is(ActionMode.MANUAL));
+        assertThat(moveAction.getMode(), is(ActionMode.MANUAL));
+        verify(actionModeCalculator, times(1))
+            .calculateActionMode(moveAction, entitySettingsCache);
+
+        // Invalidate
+        moveAction.refreshActionMode();
+
+        // The next call to getMode() should result in another call to actionModeCalculator
+        assertThat(moveAction.getMode(), is(ActionMode.MANUAL));
+        verify(actionModeCalculator, times(2)).calculateActionMode(moveAction, entitySettingsCache);
     }
 
     @Test

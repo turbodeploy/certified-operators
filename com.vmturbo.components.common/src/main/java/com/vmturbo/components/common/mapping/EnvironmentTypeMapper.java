@@ -5,7 +5,7 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.components.common.mapping.UIEnvironmentType;
+import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 
 /**
  * Conversions between different classes that represent environment types.

@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
@@ -24,6 +23,7 @@ import com.google.gson.reflect.TypeToken;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpec;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 
 /**
  * Parse a Template spec Json file, it contains pre-defined template specs which contains information

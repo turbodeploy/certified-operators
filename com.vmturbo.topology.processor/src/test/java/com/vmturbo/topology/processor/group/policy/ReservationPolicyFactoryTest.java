@@ -1,7 +1,7 @@
 package com.vmturbo.topology.processor.group.policy;
 
-import static com.vmturbo.topology.processor.group.filter.FilterUtils.neverDiscoveredTopologyEntity;
-import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntity;
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.neverDiscoveredTopologyEntity;
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -27,8 +27,9 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 /**
  * Topology Graph for tests:
@@ -46,7 +47,7 @@ public class ReservationPolicyFactoryTest {
 
     private ReservationPolicyFactory reservationPolicyFactory;
 
-    private TopologyGraph topologyGraph;
+    private TopologyGraph<TopologyEntity> topologyGraph;
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceMole);
@@ -71,7 +72,7 @@ public class ReservationPolicyFactoryTest {
         reservationPolicyFactory = new ReservationPolicyFactory(
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
 
-        topologyGraph = TopologyGraph.newGraph(topologyMap);
+        topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
     }
 
     @Test

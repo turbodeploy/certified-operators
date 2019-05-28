@@ -42,6 +42,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
  * Test editing of commodities.
@@ -74,7 +75,7 @@ public class CommoditiesEditorTest {
         return TopologyDTO.TopologyInfo.newBuilder().addAllScopeSeedOids(oids).build();
     }
 
-    private TopologyGraph createGraph(CommodityDTO.CommodityType commType) {
+    private TopologyGraph<TopologyEntity> createGraph(CommodityDTO.CommodityType commType) {
         final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
 
         // Set physical machine with commodities sold.
@@ -86,7 +87,7 @@ public class CommoditiesEditorTest {
                         EntityType.VIRTUAL_MACHINE_VALUE, 1L));
 
 
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
         return graph;
     }
 
@@ -138,7 +139,7 @@ public class CommoditiesEditorTest {
         // Get graph
         // Sets value for VM(Used :10 , Peak : 20)
         // Sets value for PM(Used : 70, Peak : 80)
-        TopologyGraph g = createGraph(CommodityDTO.CommodityType.MEM);
+        TopologyGraph<TopologyEntity> g = createGraph(CommodityDTO.CommodityType.MEM);
 
         TopologyEntity pm = g.getEntity(1L).get();
         TopologyEntity vm = g.getEntity(2L).get();
@@ -195,7 +196,7 @@ public class CommoditiesEditorTest {
         // Get graph
         // Sets value for VM(Used :10 , Peak : 20)
         // Sets value for PM(Used : 70, Peak : 80)
-        TopologyGraph g = createGraph(CommodityDTO.CommodityType.MEM);
+        TopologyGraph<TopologyEntity> g = createGraph(CommodityDTO.CommodityType.MEM);
 
         TopologyEntity pm = g.getEntity(1L).get();
         TopologyEntity vm = g.getEntity(2L).get();
@@ -276,7 +277,7 @@ public class CommoditiesEditorTest {
                         EntityType.STORAGE_VALUE));
         topology.put(3L, vmBuilder);
 
-        final TopologyGraph g = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> g = TopologyEntityTopologyGraphCreator.newGraph(topology);
 
         TopologyEntity st1 = g.getEntity(1L).get();
         TopologyEntity st2 = g.getEntity(2L).get();
@@ -352,7 +353,7 @@ public class CommoditiesEditorTest {
         // Get graph
         // Sets value for VM(Used :10 , Peak : 20)
         // Sets value for PM(Used : 70, Peak : 80)
-        TopologyGraph g = createGraph(CommodityDTO.CommodityType.STORAGE_ACCESS);
+        TopologyGraph<TopologyEntity> g = createGraph(CommodityDTO.CommodityType.STORAGE_ACCESS);
 
         TopologyEntity pm = g.getEntity(1L).get();
         TopologyEntity vm = g.getEntity(2L).get();
@@ -406,7 +407,7 @@ public class CommoditiesEditorTest {
         // Get graph
         // Sets value for VM(Used :10 , Peak : 20)
         // Sets value for PM(Used : 70, Peak : 80)
-        TopologyGraph g = createGraph(CommodityDTO.CommodityType.MEM);
+        TopologyGraph<TopologyEntity> g = createGraph(CommodityDTO.CommodityType.MEM);
 
         TopologyEntity pm = g.getEntity(1L).get();
         TopologyEntity vm = g.getEntity(2L).get();
@@ -469,7 +470,7 @@ public class CommoditiesEditorTest {
         // Get graph
         // Sets value for VM(Used :10 , Peak : 20)
         // Sets value for PM(Used : 70, Peak : 80)
-        TopologyGraph g = createGraph(CommodityDTO.CommodityType.MEM);
+        TopologyGraph<TopologyEntity> g = createGraph(CommodityDTO.CommodityType.MEM);
 
         TopologyEntity pm = g.getEntity(1L).get();
         TopologyEntity vm = g.getEntity(2L).get();
@@ -537,7 +538,7 @@ public class CommoditiesEditorTest {
         // Sets commodity value as - Used : 70, Peak : 80
         topology.put(1L, buildTopologyEntityWithCommSold(1L, CommodityDTO.CommodityType.VMEM.getNumber(),
                         EntityType.VIRTUAL_MACHINE_VALUE));
-        final TopologyGraph g = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> g = TopologyEntityTopologyGraphCreator.newGraph(topology);
         // Check values before calling CommoditiesEditor.
         // Compare used
         TopologyEntity vm = g.getEntity(1L).get();

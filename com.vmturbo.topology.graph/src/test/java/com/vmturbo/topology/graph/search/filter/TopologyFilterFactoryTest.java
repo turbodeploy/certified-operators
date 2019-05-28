@@ -1,0 +1,965 @@
+package com.vmturbo.topology.graph.search.filter;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import javax.annotation.Nonnull;
+
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExpectedException;
+
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ObjectFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter;
+import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
+import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.common.protobuf.topology.UIEntityState;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.graph.TestGraphEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.graph.search.filter.TraversalFilter.TraversalToDepthFilter;
+import com.vmturbo.topology.graph.search.filter.TraversalFilter.TraversalToPropertyFilter;
+
+public class TopologyFilterFactoryTest {
+    private final TopologyFilterFactory<TestGraphEntity> filterFactory = new TopologyFilterFactory<>();
+    private final TopologyGraph<TestGraphEntity> graph = mock(TopologyGraph.class);
+
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
+
+    @Test
+    public void testSearchFilterForOid() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName("oid")
+                .setNumericFilter(NumericFilter.newBuilder()
+                    .setValue(1234L)
+                    .setComparisonOperator(ComparisonOperator.EQ)
+                ))
+            .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE).build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE).build();
+        assertTrue(propertyFilter.test(entity1));
+        assertFalse(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testSearchFilterForOidRegex() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName("oid")
+                .setStringFilter(StringFilter.newBuilder()
+                    .addOptions("1234")
+                    .addOptions("4321")))
+            .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE).build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(4321L, UIEntityType.VIRTUAL_MACHINE).build();
+        final TestGraphEntity entity3 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE).build();
+        assertTrue(propertyFilter.test(entity1));
+        assertTrue(propertyFilter.test(entity2));
+        assertFalse(propertyFilter.test(entity3));
+    }
+
+    @Test
+    public void testSearchFilterForOidOption() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName("oid")
+                .setStringFilter(StringFilter.newBuilder()
+                    .setStringPropertyRegex("1234")))
+            .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE).build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE).build();
+        assertTrue(propertyFilter.test(entity1));
+        assertFalse(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testSearchFilterForEntityType() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName("entityType")
+                .setNumericFilter(NumericFilter.newBuilder()
+                        .setValue(EntityType.VIRTUAL_MACHINE.getNumber())
+                        .setComparisonOperator(ComparisonOperator.EQ)
+                ))
+            .build();
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE).build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.PHYSICAL_MACHINE).build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        assertTrue(propertyFilter.test(entity1));
+        assertFalse(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testSearchFilterForDisplayNameEquality() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName("displayName")
+                .setStringFilter(StringFilter.newBuilder()
+                        .setStringPropertyRegex("foo")
+                ))
+            .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+            .setName("foo")
+            .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+            .setName("bar")
+            .build();
+
+        assertTrue(propertyFilter.test(entity1));
+        assertFalse(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testSearchFilterForDisplayCaseSensitive() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+                .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName("displayName")
+                        .setStringFilter(StringFilter.newBuilder()
+                                .setStringPropertyRegex("MyEntity")
+                                .setCaseSensitive(true)
+                        ))
+                .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+            .setName("MyEntity")
+            .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+            .setName("myentity")
+            .build();
+
+
+        assertTrue(propertyFilter.test(entity1));
+        assertFalse(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testSearchFilterForDisplayCaseInsensitive() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+                .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName("displayName")
+                        .setStringFilter(StringFilter.newBuilder()
+                                .setStringPropertyRegex("myentity")
+                                .setCaseSensitive(false)
+                        ))
+                .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+            .setName("MyEntity")
+            .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+            .setName("myentity")
+            .build();
+
+        assertTrue(propertyFilter.test(entity1));
+        assertTrue(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testSearchFilterForDisplayNameRegex() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName("displayName")
+                .setStringFilter(StringFilter.newBuilder()
+                        .setStringPropertyRegex("f.*")
+                ))
+            .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+            .setName("foo")
+            .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+            .setName("bar")
+            .build();
+
+
+        assertTrue(propertyFilter.test(entity1));
+        assertFalse(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testSearchFilterForDisplayNameRegexNegated() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName("displayName")
+                .setStringFilter(StringFilter.newBuilder()
+                        .setPositiveMatch(false)
+                        .setStringPropertyRegex("f.*")
+                ))
+            .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+            .setName("foo")
+            .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+            .setName("bar")
+            .build();
+
+
+        assertFalse(propertyFilter.test(entity1));
+        assertTrue(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testSearchFilterForEntityStateOptions() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName("state")
+                .setStringFilter(StringFilter.newBuilder()
+                    .addOptions(UIEntityState.ACTIVE.apiStr())
+                    .addOptions(UIEntityState.IDLE.apiStr())
+                    .setPositiveMatch(true)))
+            .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+            .setState(EntityState.POWERED_ON)
+            .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(4321L, UIEntityType.VIRTUAL_MACHINE)
+            .setState(EntityState.POWERED_OFF)
+            .build();
+        final TestGraphEntity entity3 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+            .setState(EntityState.FAILOVER)
+            .build();
+
+        assertTrue(propertyFilter.test(entity1));
+        assertTrue(propertyFilter.test(entity2));
+        assertFalse(propertyFilter.test(entity3));
+    }
+
+    @Test
+    public void testSearchFilterForEntityStateMatch() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+                .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName("state")
+                        .setStringFilter(StringFilter.newBuilder()
+                                .addOptions("ACTIVE")
+                                .setPositiveMatch(true)
+                                .setStringPropertyRegex("ACTIVE")))
+                .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+            .setState(EntityState.POWERED_ON)
+            .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+            .setState(EntityState.POWERED_OFF)
+            .build();
+
+        assertTrue(propertyFilter.test(entity1));
+        assertFalse(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testSearchFilterForEntityStateNoMatch() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+                .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName("state")
+                        .setStringFilter(StringFilter.newBuilder()
+                                .addOptions("ACTIVE")
+                                // Match set to false, so "ACTIVE" entities shouldn't match.
+                                .setPositiveMatch(false)
+                                .setStringPropertyRegex("ACTIVE")))
+                .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+            .setState(EntityState.POWERED_ON)
+            .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+            .setState(EntityState.POWERED_OFF)
+            .build();
+        final TestGraphEntity entity3 = TestGraphEntity.newBuilder(5678L, UIEntityType.VIRTUAL_MACHINE)
+            .setState(EntityState.FAILOVER)
+            .build();
+
+        assertFalse(propertyFilter.test(entity1));
+        assertTrue(propertyFilter.test(entity2));
+        assertTrue(propertyFilter.test(entity3));
+    }
+
+    @Test
+    public void testSearchFilterForEnvironmentTypeMatch() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName("environmentType")
+                .setStringFilter(StringFilter.newBuilder()
+                    .setPositiveMatch(true)
+                    .setStringPropertyRegex("CLOUD")))
+            .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+            .setEnvironmentType(EnvironmentType.ON_PREM)
+            .build();
+
+        assertTrue(propertyFilter.test(entity1));
+        assertFalse(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testSearchFilterForEnvironmentTypeNoMatch() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+                .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName("environmentType")
+                        .setStringFilter(StringFilter.newBuilder()
+                                // Match set to false, so "CLOUD" entities shouldn't match.
+                                .setPositiveMatch(false)
+                                .setStringPropertyRegex("CLOUD")))
+                .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+            .setEnvironmentType(EnvironmentType.ON_PREM)
+            .build();
+        final TestGraphEntity entity3 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+            .setEnvironmentType(EnvironmentType.UNKNOWN_ENV)
+            .build();
+
+
+        assertFalse(propertyFilter.test(entity1));
+        assertTrue(propertyFilter.test(entity2));
+        assertTrue(propertyFilter.test(entity3));
+    }
+
+    @Test
+    public void testSearchFilterForEnvironmentTypeCaseInsensitive() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+                .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName("environmentType")
+                        .setStringFilter(StringFilter.newBuilder()
+                                .setPositiveMatch(true)
+                                .setStringPropertyRegex("cLoUD")
+                                // Ignore case sensitive flag.
+                                .setCaseSensitive(true)))
+                .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .build();
+        assertTrue(propertyFilter.test(entity1));
+    }
+
+    @Test
+    public void testSearchFilterForStringEntityTypeNumericMatch() {
+        final SearchFilter searchFilter = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.ENTITY_TYPE)
+                .setNumericFilter(NumericFilter.newBuilder()
+                    .setValue(UIEntityType.VIRTUAL_MACHINE.typeNumber())))
+            .build();
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
+
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+            .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, UIEntityType.PHYSICAL_MACHINE)
+            .build();
+
+        assertTrue(propertyFilter.test(entity1));
+        assertFalse(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testSearchFilterForStringEntityTypeNumericNoMatch() {
+        final SearchFilter searchFilter = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.ENTITY_TYPE)
+                .setNumericFilter(NumericFilter.newBuilder()
+                    .setComparisonOperator(ComparisonOperator.NE)
+                    .setValue(UIEntityType.VIRTUAL_MACHINE.typeNumber())))
+            .build();
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
+
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+            .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, UIEntityType.PHYSICAL_MACHINE)
+            .build();
+
+        assertFalse(propertyFilter.test(entity1));
+        assertTrue(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testSearchFilterForStringEntityTypeRegexMatch() {
+        final SearchFilter searchFilter = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.ENTITY_TYPE)
+                .setStringFilter(StringFilter.newBuilder()
+                    .setStringPropertyRegex(UIEntityType.VIRTUAL_MACHINE.apiStr())))
+            .build();
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
+
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+            .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, UIEntityType.PHYSICAL_MACHINE)
+            .build();
+
+        assertTrue(propertyFilter.test(entity1));
+        assertFalse(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testSearchFilterForEntityTypeRegexNoMatch() {
+        SearchFilter searchFilter = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.ENTITY_TYPE)
+                .setStringFilter(StringFilter.newBuilder()
+                    .setStringPropertyRegex(UIEntityType.VIRTUAL_MACHINE.apiStr())
+                    .setPositiveMatch(false)))
+            .build();
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
+
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+            .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, UIEntityType.PHYSICAL_MACHINE)
+            .build();
+
+        assertFalse(propertyFilter.test(entity1));
+        assertTrue(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testSearchFilterForEntityTypeOptions() {
+        SearchFilter searchFilter = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.ENTITY_TYPE)
+                .setStringFilter(StringFilter.newBuilder()
+                    .addOptions(UIEntityType.VIRTUAL_MACHINE.apiStr())
+                    .addOptions(UIEntityType.PHYSICAL_MACHINE.apiStr())))
+            .build();
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
+
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+            .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, UIEntityType.PHYSICAL_MACHINE)
+            .build();
+        final TestGraphEntity entity3 = TestGraphEntity.newBuilder(1234L, UIEntityType.STORAGE)
+            .build();
+
+        assertTrue(propertyFilter.test(entity1));
+        assertTrue(propertyFilter.test(entity2));
+        assertFalse(propertyFilter.test(entity3));
+    }
+
+    @Test
+    public void testSearchFilterForEnvironmentTypeOptions() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.ENVIRONMENT_TYPE)
+                .setStringFilter(StringFilter.newBuilder()
+                    .addOptions(UIEnvironmentType.ON_PREM.getApiEnumStringValue())
+                    .addOptions(UIEnvironmentType.CLOUD.getApiEnumStringValue())))
+            .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+            .setEnvironmentType(EnvironmentType.ON_PREM)
+            .build();
+        final TestGraphEntity entity3 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+            .setEnvironmentType(EnvironmentType.UNKNOWN_ENV)
+            .build();
+
+        assertTrue(propertyFilter.test(entity1));
+        assertTrue(propertyFilter.test(entity2));
+        assertFalse(propertyFilter.test(entity3));
+    }
+
+    @Test
+    public void testNumericDisplayNameIllegal() {
+        expectedException.expect(IllegalArgumentException.class);
+
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                    .setPropertyName("displayName")
+                    .setNumericFilter(NumericFilter.getDefaultInstance())
+            ).build();
+        filterFactory.filterFor(searchCriteria);
+    }
+
+    @Test
+    public void testStringOid() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                    .setPropertyName("oid")
+                    .setStringFilter(StringFilter.newBuilder()
+                        .setStringPropertyRegex("1234")
+                    )
+            ).build();
+
+        final TestGraphEntity entity = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE).build();;
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertThat(
+            filter.apply(Stream.of(entity), graph).collect(Collectors.toList()),
+            contains(entity));
+    }
+
+    @Test
+    public void testStringOidNegation() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                    .setPropertyName("oid")
+                    .setStringFilter(StringFilter.newBuilder()
+                            .setPositiveMatch(false)
+                            .setStringPropertyRegex("1234")
+                    )
+            ).build();
+
+        final TestGraphEntity entity = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE).build();;
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter.apply(Stream.of(entity), graph).collect(Collectors.toList()).isEmpty());
+    }
+
+    private class NumericFilterTest {
+        private final ComparisonOperator operator;
+        private final Collection<TestGraphEntity> expectedMatches;
+
+        public NumericFilterTest(final ComparisonOperator operator,
+                                 @Nonnull final Collection<TestGraphEntity> expectedMatches) {
+            this.operator = operator;
+            this.expectedMatches = expectedMatches;
+        }
+
+        public ComparisonOperator getOperator() {
+            return operator;
+        }
+
+        public Collection<TestGraphEntity> getExpectedMatches() {
+            return expectedMatches;
+        }
+    }
+
+    @Test
+    public void testIntNumericComparisons() {
+        final TestGraphEntity entity1 = mock(TestGraphEntity.class);
+        final TestGraphEntity entity2 = mock(TestGraphEntity.class);
+        final TestGraphEntity entity3 = mock(TestGraphEntity.class);
+
+        final List<TestGraphEntity> testCases = Arrays.asList(entity1, entity2, entity3);
+        when(entity1.getEntityType()).thenReturn(1);
+        when(entity2.getEntityType()).thenReturn(2);
+        when(entity3.getEntityType()).thenReturn(3);
+
+        final NumericFilter.Builder numericBuilder = NumericFilter.newBuilder()
+            .setValue(2);
+        final Search.PropertyFilter.Builder propertyBuilder = Search.PropertyFilter.newBuilder()
+            .setPropertyName("entityType");
+
+        // Execute the comparison on entities with entityType 1,2,3 with the value 2 passed to the filter.
+        Stream.of(
+            new NumericFilterTest(ComparisonOperator.EQ, Collections.singletonList(entity2)),
+            new NumericFilterTest(ComparisonOperator.NE, Arrays.asList(entity1, entity3)),
+            new NumericFilterTest(ComparisonOperator.GT, Collections.singletonList(entity3)),
+            new NumericFilterTest(ComparisonOperator.GTE, Arrays.asList(entity2, entity3)),
+            new NumericFilterTest(ComparisonOperator.LT, Collections.singletonList(entity1)),
+            new NumericFilterTest(ComparisonOperator.LTE, Arrays.asList(entity1, entity2))
+        ).forEach(testCase -> {
+            final SearchFilter searchCriteria = SearchFilter.newBuilder()
+                .setPropertyFilter(propertyBuilder.setNumericFilter(
+                    numericBuilder.setComparisonOperator(testCase.getOperator())))
+                .build();
+
+            final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+
+            assertThat(
+                "Test for: " + testCase.getOperator().toString(),
+                filter.apply(testCases.stream(), graph).collect(Collectors.toList()),
+                containsInAnyOrder(testCase.getExpectedMatches().toArray())
+            );
+        });
+    }
+
+    @Test
+    public void testLongNumericComparisons() {
+        final TestGraphEntity entity1 = mock(TestGraphEntity.class);
+        final TestGraphEntity entity2 = mock(TestGraphEntity.class);
+        final TestGraphEntity entity3 = mock(TestGraphEntity.class);
+
+        final List<TestGraphEntity> testCases = Arrays.asList(entity1, entity2, entity3);
+        when(entity1.getOid()).thenReturn(1L);
+        when(entity2.getOid()).thenReturn(2L);
+        when(entity3.getOid()).thenReturn(3L);
+
+        final NumericFilter.Builder numericBuilder = NumericFilter.newBuilder()
+            .setValue(2L);
+        final Search.PropertyFilter.Builder propertyBuilder = Search.PropertyFilter.newBuilder()
+            .setPropertyName("oid");
+
+        // Execute the comparison on entities with oid 1,2,3 with the value 2 passed to the filter.
+        Stream.of(
+            new NumericFilterTest(ComparisonOperator.EQ, Collections.singletonList(entity2)),
+            new NumericFilterTest(ComparisonOperator.NE, Arrays.asList(entity1, entity3)),
+            new NumericFilterTest(ComparisonOperator.GT, Collections.singletonList(entity3)),
+            new NumericFilterTest(ComparisonOperator.GTE, Arrays.asList(entity2, entity3)),
+            new NumericFilterTest(ComparisonOperator.LT, Collections.singletonList(entity1)),
+            new NumericFilterTest(ComparisonOperator.LTE, Arrays.asList(entity1, entity2))
+        ).forEach(testCase -> {
+            final SearchFilter searchCriteria = SearchFilter.newBuilder()
+                .setPropertyFilter(propertyBuilder.setNumericFilter(
+                    numericBuilder.setComparisonOperator(testCase.getOperator())))
+                .build();
+
+            final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+
+            assertThat(
+                "Test for: " + testCase.getOperator().toString(),
+                filter.apply(testCases.stream(), graph).collect(Collectors.toList()),
+                containsInAnyOrder(testCase.getExpectedMatches().toArray())
+            );
+        });
+    }
+
+    @Test
+    public void testTraversalToDepthFilter() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+            .setTraversalFilter(Search.TraversalFilter.newBuilder()
+                .setTraversalDirection(TraversalDirection.CONSUMES)
+                .setStoppingCondition(StoppingCondition.newBuilder().setNumberHops(3)))
+            .build();
+
+        final TopologyFilter filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof TraversalToDepthFilter);
+        final TraversalToDepthFilter depthFilter = (TraversalToDepthFilter)filter;
+        assertEquals(TraversalDirection.CONSUMES, depthFilter.getTraversalDirection());
+    }
+
+    @Test
+    public void testTraversalToPropertyFilter() {
+        final Search.PropertyFilter stoppingFilter = Search.PropertyFilter.newBuilder()
+            .setPropertyName("displayName")
+            .setStringFilter(StringFilter.newBuilder().setStringPropertyRegex("foo"))
+            .build();
+
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+            .setTraversalFilter(Search.TraversalFilter.newBuilder()
+                .setTraversalDirection(TraversalDirection.PRODUCES)
+                .setStoppingCondition(StoppingCondition.newBuilder()
+                    .setStoppingPropertyFilter(stoppingFilter)))
+            .build();
+
+        final TopologyFilter filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof TraversalToPropertyFilter);
+        final TraversalToPropertyFilter propertyFilter = (TraversalToPropertyFilter)filter;
+        assertEquals(TraversalDirection.PRODUCES, propertyFilter.getTraversalDirection());
+    }
+
+    @Test
+    public void testRegexContainsMatch() {
+        final PropertyFilter<TestGraphEntity> displayNameFilter =
+            filterFactory.filterFor(Search.PropertyFilter.newBuilder()
+                .setPropertyName("displayName")
+                .setStringFilter(StringFilter.newBuilder()
+                        .setStringPropertyRegex("in-group")
+                ).build());
+
+
+        final TestGraphEntity entity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
+            .setName("entity-in-group-1")
+            .build();
+
+        assertThat(
+            displayNameFilter.apply(Stream.of(entity), graph).collect(Collectors.toList()),
+            contains(entity));
+    }
+
+    @Test
+    public void testRegexAnchorMatch() {
+        final PropertyFilter<TestGraphEntity> displayNameFilter =
+            filterFactory.filterFor(Search.PropertyFilter.newBuilder()
+                .setPropertyName("displayName")
+                .setStringFilter(StringFilter.newBuilder()
+                        .setStringPropertyRegex("^entity")
+                ).build());
+
+        final TestGraphEntity entity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
+            .setName("entity-in-group-1")
+            .build();
+
+        assertThat(
+            displayNameFilter.apply(Stream.of(entity), graph).collect(Collectors.toList()),
+            contains(entity));
+    }
+
+    @Test
+    public void testRegexWildcardMatch() {
+        final PropertyFilter<TestGraphEntity> displayNameFilter =
+            filterFactory.filterFor(Search.PropertyFilter.newBuilder()
+                .setPropertyName("displayName")
+                .setStringFilter(StringFilter.newBuilder()
+                        .setStringPropertyRegex(".*group.+")
+                ).build());
+
+        final TestGraphEntity entity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
+            .setName("entity-in-group-1")
+            .build();
+
+        assertThat(
+            displayNameFilter.apply(Stream.of(entity), graph).collect(Collectors.toList()),
+            contains(entity));
+    }
+
+    @Test
+    public void testStringStateActiveOption() {
+        final PropertyFilter<TestGraphEntity> stringFilter =
+            filterFactory.filterFor(Search.PropertyFilter.newBuilder()
+                .setPropertyName("state")
+                .setStringFilter(StringFilter.newBuilder()
+                    .setStringPropertyRegex("")
+                    .addOptions("ACTIVE")
+                ).build());
+
+        final TestGraphEntity entity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
+            .setState(EntityState.POWERED_ON)
+            .build();
+
+        assertThat(
+            stringFilter.apply(Stream.of(entity), graph).collect(Collectors.toList()),
+            contains(entity));
+    }
+
+    /**
+     * Checks various cases of the tags-related filter.
+     */
+    @Test
+    public void testMapFilter() {
+        final PropertyFilter<TestGraphEntity> filter = filterFactory.filterFor(
+                Search.PropertyFilter
+                    .newBuilder()
+                    .setPropertyName(SearchableProperties.TAGS_TYPE_PROPERTY_NAME)
+                    .setMapFilter(
+                        MapFilter
+                            .newBuilder()
+                            .setKey("KEY")
+                            .addValues("VALUE1")
+                            .addValues("VALUE2")
+                    ).build()
+        );
+
+        // entity has no tags
+        final TestGraphEntity noTagsEntity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
+            .build();
+        assertFalse(filter.test(noTagsEntity));
+
+        // entity does not have the key
+        final TestGraphEntity noKeyEntity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
+            .addTag("OTHERKEY", Collections.singletonList("VALUE1"))
+            .build();
+        assertFalse(filter.test(noKeyEntity));
+
+        // entity has the key, but not one of the values
+        final TestGraphEntity wrongValueEntity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
+            .addTag("OTHERKEY", Arrays.asList("VALUE1"))
+            .addTag("KEY", Arrays.asList("VALUE3", "VALUE4"))
+            .build();
+        assertFalse(filter.test(wrongValueEntity));
+
+        // entity has the key, and one of the values
+        final TestGraphEntity rightValueEntity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
+            .addTag("KEY", Arrays.asList("VALUE2", "VALUE4"))
+            .build();
+        assertTrue(filter.test(rightValueEntity));
+    }
+
+    @Test
+    public void testVmemCapacityFilter() {
+        final SearchFilter searchFilter = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.COMMODITY_SOLD_LIST_PROPERTY_NAME)
+                .setListFilter(ListFilter.newBuilder()
+                    .setObjectFilter(ObjectFilter.newBuilder()
+                        .addFilters(Search.PropertyFilter.newBuilder()
+                            .setPropertyName(SearchableProperties.COMMODITY_TYPE_PROPERTY_NAME)
+                            .setStringFilter(StringFilter.newBuilder()
+                                .setStringPropertyRegex("^" + UICommodityType.VMEM.apiStr() + "$")
+                                .build()))
+                        .addFilters(Search.PropertyFilter.newBuilder()
+                            .setPropertyName(SearchableProperties.COMMODITY_CAPACITY_PROPERTY_NAME)
+                            .setNumericFilter(NumericFilter.newBuilder()
+                                .setComparisonOperator(ComparisonOperator.GT)
+                                .setValue(5))))))
+            .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
+
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+            .addCommSold(CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                    .setType(UICommodityType.VMEM.typeNumber()))
+                .setCapacity(10)
+                .build())
+            .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+            .addCommSold(CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                    .setType(UICommodityType.VMEM.typeNumber()))
+                .setCapacity(1)
+                .build())
+            .build();
+
+        assertTrue(propertyFilter.test(entity1));
+        assertFalse(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testMemCapacityFilter() {
+        final SearchFilter searchFilter = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.COMMODITY_SOLD_LIST_PROPERTY_NAME)
+                .setListFilter(ListFilter.newBuilder()
+                    .setObjectFilter(ObjectFilter.newBuilder()
+                        .addFilters(Search.PropertyFilter.newBuilder()
+                            .setPropertyName(SearchableProperties.COMMODITY_TYPE_PROPERTY_NAME)
+                            .setStringFilter(StringFilter.newBuilder()
+                                .setStringPropertyRegex("^" + UICommodityType.MEM.apiStr() + "$")
+                                .build()))
+                        .addFilters(Search.PropertyFilter.newBuilder()
+                            .setPropertyName(SearchableProperties.COMMODITY_CAPACITY_PROPERTY_NAME)
+                            .setNumericFilter(NumericFilter.newBuilder()
+                                .setComparisonOperator(ComparisonOperator.GT)
+                                .setValue(5))))))
+            .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
+
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+            .addCommSold(CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                    .setType(UICommodityType.MEM.typeNumber()))
+                .setCapacity(10)
+                .build())
+            .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+            .addCommSold(CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                    .setType(UICommodityType.MEM.typeNumber()))
+                .setCapacity(1)
+                .build())
+            .build();
+
+        assertTrue(propertyFilter.test(entity1));
+        assertFalse(propertyFilter.test(entity2));
+    }
+}

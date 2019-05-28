@@ -19,9 +19,7 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
-import com.google.common.primitives.ImmutableIntArray;
 
-import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -44,9 +42,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
  * Responsible for resolving the Entities -> Settings mapping as well as
@@ -107,7 +105,7 @@ public class EntitySettingsResolver {
      */
     public GraphWithSettings resolveSettings(
             @Nonnull final GroupResolver groupResolver,
-            @Nonnull final TopologyGraph topologyGraph,
+            @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
             @Nonnull final SettingOverrides settingOverrides,
             @Nonnull final TopologyInfo topologyInfo) {
 
@@ -397,7 +395,7 @@ public class EntitySettingsResolver {
      *  @param userSettings List of user Setting
      *  @param defaultSettingPoliciesByEntityType Mapping of entityType to SettingPolicyId
      *  @param settingOverrides The map of overrides, by setting name. See
-           {@link EntitySettingsResolver#resolveSettings(GroupResolver, TopologyGraph, SettingOverrides, TopologyInfo)}
+           {@link EntitySettingsResolver#resolveSettings(GroupResolver, TopologyGraph<TopologyEntity>, SettingOverrides, TopologyInfo)}
      *  @return EntitySettings message
      *
      */

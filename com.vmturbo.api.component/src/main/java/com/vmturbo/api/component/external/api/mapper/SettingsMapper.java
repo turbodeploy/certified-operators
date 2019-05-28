@@ -33,7 +33,6 @@ import com.google.common.collect.Sets;
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingSpecStyleMappingLoader.SettingSpecStyleMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
@@ -86,6 +85,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
@@ -166,7 +166,7 @@ public class SettingsMapper {
      */
     public static final Map<String, String> GLOBAL_SETTING_ENTITY_TYPES =
         ImmutableMap.<String, String>builder()
-            .put(GlobalSettingSpecs.RateOfResize.getSettingName(), UIEntityType.VIRTUAL_MACHINE.getValue())
+            .put(GlobalSettingSpecs.RateOfResize.getSettingName(), UIEntityType.VIRTUAL_MACHINE.apiStr())
             .put(GlobalSettingSpecs.DisableAllActions.getSettingName(), SERVICE_ENTITY)
             .build();
 
@@ -758,7 +758,7 @@ public class SettingsMapper {
             // We need this check because some inject some fake setting policies without any entity
             // type to show in UI (like Global Action Mode Defaults.)
             if (info.hasEntityType()) {
-                apiDto.setEntityType(ServiceEntityMapper.toUIEntityType(info.getEntityType()));
+                apiDto.setEntityType(UIEntityType.fromType(info.getEntityType()).apiStr());
             }
             apiDto.setDisabled(!info.getEnabled());
             apiDto.setDefault(settingPolicy.getSettingPolicyType().equals(Type.DEFAULT));
@@ -1239,11 +1239,11 @@ public class SettingsMapper {
             switch (scope.getScopeCase()) {
                 case ENTITY_TYPE_SET:
                     scope.getEntityTypeSet().getEntityTypeList().forEach(entityType ->
-                            applicableTypes.add(ServiceEntityMapper.toUIEntityType(entityType)));
+                            applicableTypes.add(UIEntityType.fromType(entityType).apiStr()));
                     break;
                 case ALL_ENTITY_TYPE:
                     for (UIEntityType validType : UIEntityType.values()) {
-                        applicableTypes.add(validType.getValue());
+                        applicableTypes.add(validType.apiStr());
                     }
                     break;
                 default:

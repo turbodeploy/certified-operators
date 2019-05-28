@@ -30,8 +30,9 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
  * A helper class to capture the {@link SettingOverride}s defined for a scenario and index
@@ -134,7 +135,7 @@ public class SettingOverrides {
      * @param topologyGraph the topology graph used for finding group members
      */
     public void resolveGroupOverrides(@Nonnull Map<Long, Group> groupsById,
-                                      @Nonnull GroupResolver groupResolver, TopologyGraph topologyGraph) {
+                                      @Nonnull GroupResolver groupResolver, TopologyGraph<TopologyEntity> topologyGraph) {
 
 
         for (MaxUtilizationLevel maxUtilizationLevel : maxUtilizationLevels) {

@@ -24,7 +24,6 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -53,6 +52,7 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -138,7 +138,7 @@ public class CurrentQueryMapperTest {
         final Set<Integer> relatedTypes = Sets.newHashSet(EntityType.VIRTUAL_MACHINE_VALUE);
 
         final SupplyChainNodeFetcherBuilder nodeFetcherBuilder = ApiTestUtils.mockNodeFetcherBuilder(
-            ImmutableMap.of(UIEntityType.VIRTUAL_MACHINE.getValue(), SupplyChainNode.newBuilder()
+            ImmutableMap.of(UIEntityType.VIRTUAL_MACHINE.apiStr(), SupplyChainNode.newBuilder()
                 .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                     .addAllMemberOids(relatedVms)
                     .build())
@@ -151,7 +151,7 @@ public class CurrentQueryMapperTest {
             userScope);
 
         verify(nodeFetcherBuilder).entityTypes(Collections.singletonList(
-            UIEntityType.VIRTUAL_MACHINE.getValue()));
+            UIEntityType.VIRTUAL_MACHINE.apiStr()));
         verify(nodeFetcherBuilder).addSeedUuid("1");
         verify(nodeFetcherBuilder).addSeedUuid("2");
         verify(nodeFetcherBuilder).environmentType(EnvironmentType.ON_PREM);

@@ -22,15 +22,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.PowerState;
 public class ClassicEnumMapper {
     private static final Logger logger = LogManager.getLogger();
 
-    public static EntityType entityType(@Nonnull final String classicEntityTypeName) {
-        final EntityType entityType = ENTITY_TYPE_MAPPINGS.get(classicEntityTypeName);
-        if (entityType == null) {
-            logger.info("Missing entity type information for: " + classicEntityTypeName);
-        }
-
-        return entityType;
-    }
-
     public static CommodityType commodityType(@Nonnull final String classicCommodityTypeName) {
         final CommodityType commodityType = COMMODITY_TYPE_MAPPINGS.get(classicCommodityTypeName);
         if (commodityType == null) {
@@ -60,39 +51,6 @@ public class ClassicEnumMapper {
         }
         return commodityString;
     }
-
-    /**
-     * Mappings between entityType enum values in SDK DTO's to strings that are stored
-     * in Classic OpsManager topology files.
-     */
-    public static final BiMap<String, EntityType> ENTITY_TYPE_MAPPINGS =
-        new ImmutableBiMap.Builder<String, EntityType>()
-            .put("VirtualMachine",          EntityType.VIRTUAL_MACHINE)
-            .put("PhysicalMachine",         EntityType.PHYSICAL_MACHINE)
-            .put("Storage",                 EntityType.STORAGE)
-            .put("DiskArray",               EntityType.DISK_ARRAY)
-            .put("DataCenter",              EntityType.DATACENTER)
-            .put("VirtualDataCenter",       EntityType.VIRTUAL_DATACENTER)
-            .put("Application",             EntityType.APPLICATION)
-            .put("VirtualApplication",      EntityType.VIRTUAL_APPLICATION)
-            .put("Container",               EntityType.CONTAINER)
-            .put("StorageController",       EntityType.STORAGE_CONTROLLER)
-            .put("IOModule",                EntityType.IO_MODULE)
-            .put("Internet",                EntityType.INTERNET)
-            .put("Switch",                  EntityType.SWITCH)
-            .put("Chassis",                 EntityType.CHASSIS)
-            .put("Network",                 EntityType.NETWORK)
-            .put("Database",                EntityType.DATABASE)
-            .put("ApplicationServer",       EntityType.APPLICATION_SERVER)
-            .put("DPod",                    EntityType.DPOD)
-            .put("VPod",                    EntityType.VPOD)
-            .put("ContainerPod",            EntityType.CONTAINER_POD)
-            .put("LogicalPool",             EntityType.LOGICAL_POOL)
-            .put("CloudService",            EntityType.CLOUD_SERVICE)
-            .put("DistributedVirtualPortgroup", EntityType.DISTRIBUTED_VIRTUAL_PORTGROUP)
-            .put("BusinessAccount",         EntityType.BUSINESS_ACCOUNT)
-            .put("Unknown",                 EntityType.UNKNOWN)
-            .build();
 
     /**
      * Mappings between commodityType enum values in SDK DTO's to strings that are stored

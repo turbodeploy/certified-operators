@@ -111,7 +111,7 @@ class CombinedStatsBuckets {
         if (groupBy.contains(GroupBy.REASON_COMMODITY)) {
             ActionDTOUtil.getReasonCommodities(actionInfo.action().getRecommendation())
                 .findFirst()
-                .map(CommodityType::getType)
+                .map(reason -> reason.getCommodityType().getType())
                 .ifPresent(keyBuilder::reasonCommodityBaseType);
         }
         if (groupBy.contains(GroupBy.TARGET_ENTITY_TYPE)) {

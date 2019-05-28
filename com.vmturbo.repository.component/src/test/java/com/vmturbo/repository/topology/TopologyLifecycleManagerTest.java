@@ -34,6 +34,7 @@ import com.vmturbo.repository.graph.GraphDefinition;
 import com.vmturbo.repository.graph.driver.GraphDatabaseDriver;
 import com.vmturbo.repository.graph.driver.GraphDatabaseDriverBuilder;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;
+import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.RegisteredTopologyLoader;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
@@ -47,6 +48,8 @@ public class TopologyLifecycleManagerTest {
 
     private TopologyProtobufsManager topologyProtobufsManager =
             mock(TopologyProtobufsManager.class);
+
+    private LiveTopologyStore liveTopologyStore = mock(LiveTopologyStore.class);
 
     private final long realtimeContextId = 7;
 
@@ -62,8 +65,9 @@ public class TopologyLifecycleManagerTest {
     @Before
     public void setup() {
         topologyLifecycleManager = new TopologyLifecycleManager(graphDatabaseDriverBuilder,
-                graphDefinition, topologyProtobufsManager, realtimeContextId, scheduler, 0, 2, 2,
-                globalSupplyChainManager, graphDBExecutor,false);
+            graphDefinition, topologyProtobufsManager, realtimeContextId, scheduler,
+            liveTopologyStore, false, 0, 2, 2,
+            globalSupplyChainManager, graphDBExecutor,false);
     }
 
     @Test
@@ -103,8 +107,8 @@ public class TopologyLifecycleManagerTest {
         final TopologyLifecycleManager topologyLifecycleManager =
             new TopologyLifecycleManager(graphDatabaseDriverBuilder, graphDefinition,
                     topologyProtobufsManager, realtimeContextId, mock(ScheduledExecutorService.class),
-                0, 2, 2,
-                    globalSupplyChainManager, graphDBExecutor,false);
+                liveTopologyStore, false,
+                0, 2, 2, globalSupplyChainManager, graphDBExecutor,false);
 
         final TopologyID source =
                 new TopologyID(1L, 1L, TopologyType.SOURCE);
@@ -280,8 +284,9 @@ public class TopologyLifecycleManagerTest {
     public void testDelayedDrop() {
         // create a lifecycle manager with a delayed drop setting of 5 seconds.
         TopologyLifecycleManager lifecycleManager = new TopologyLifecycleManager(graphDatabaseDriverBuilder,
-                graphDefinition, topologyProtobufsManager, realtimeContextId, scheduler, 5, 2, 2,
-                globalSupplyChainManager, graphDBExecutor,false);
+                graphDefinition, topologyProtobufsManager, realtimeContextId,
+            scheduler, liveTopologyStore, false, 5, 2, 2,
+            globalSupplyChainManager, graphDBExecutor,false);
 
         // register a topology
         final TopologyID source = new TopologyID(realtimeContextId, 1L, TopologyType.SOURCE);

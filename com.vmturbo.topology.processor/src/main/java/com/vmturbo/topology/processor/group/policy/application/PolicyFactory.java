@@ -14,8 +14,9 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
+import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
  * A factory for constructing policies based on policy definitions.
@@ -32,7 +33,7 @@ public class PolicyFactory {
     public PlacementPolicyApplication newPolicyApplication(
             @Nonnull final PolicyDetailCase policyType,
             @Nonnull final GroupResolver groupResolver,
-            @Nonnull final TopologyGraph topologyGraph) {
+            @Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
         switch (policyType) {
             case AT_MOST_N:
                 return new AtMostNPolicyApplication(groupResolver, topologyGraph);

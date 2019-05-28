@@ -4,6 +4,7 @@ import static com.vmturbo.components.common.utils.StringConstants.AVG_VALUE;
 import static com.vmturbo.components.common.utils.StringConstants.CAPACITY;
 import static com.vmturbo.components.common.utils.StringConstants.COMMODITY_KEY;
 import static com.vmturbo.components.common.utils.StringConstants.EFFECTIVE_CAPACITY;
+import static com.vmturbo.components.common.utils.StringConstants.ENTITY_TYPE;
 import static com.vmturbo.components.common.utils.StringConstants.ENVIRONMENT_TYPE;
 import static com.vmturbo.components.common.utils.StringConstants.MAX_VALUE;
 import static com.vmturbo.components.common.utils.StringConstants.MIN_VALUE;
@@ -37,14 +38,16 @@ import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.Select;
 import org.jooq.Table;
+import org.jooq.impl.DSL;
 
 import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.PropertyValueFilter;
-import com.vmturbo.components.common.mapping.UIEnvironmentType;
+import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.history.db.HistorydbIO;
+import com.vmturbo.history.db.jooq.JooqUtils;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsLatest;
 import com.vmturbo.history.utils.HistoryStatsUtils;
@@ -92,7 +95,6 @@ public interface StatsQueryFactory {
      *                          if there are more than commodity requests, then the filters
      *                          are 'or'ed together; an empty list implies no commodity names
      *                          filter condition at all, i.e. all commodities will be returned
-     *                          TODO: Implement relatedEntity filtering
      * @param table the DB table from which these stats will be collected
      * @return an Optional containing a Jooq conditional to only include the desired commodities
      * with associated filters (if any) 'and'ed in; Optional.empty() if no commodity selection is desired
@@ -112,6 +114,18 @@ public interface StatsQueryFactory {
 
         public DefaultStatsQueryFactory(@Nonnull final HistorydbIO historydbIO) {
             this.historydbIO = Objects.requireNonNull(historydbIO);
+        }
+
+        /**
+         * Create a Jooq conditional clause to filter on entity type if it is present.
+         *
+         * @param entityType entity type need to filter on.
+         * @param table the DB table from which these stats will be collected
+         * @return a Jooq condition to filter on entity type.
+         */
+        public static Condition entityTypeCond(
+                @Nonnull final String entityType, @Nonnull final Table<?> table) {
+            return str(dField(table, ENTITY_TYPE)).eq(entityType);
         }
 
         @Override
@@ -217,9 +231,17 @@ public interface StatsQueryFactory {
             }
             Condition commodityTests = null;
             for (CommodityRequest commodityRequest : commodityRequests) {
-                // create a conditional for this commodity
-                Condition commodityTest = str(dField(table, PROPERTY_TYPE))
-                        .eq(commodityRequest.getCommodityName());
+                Condition commodityTest = DSL.trueCondition();
+                if (commodityRequest.hasCommodityName()) {
+                    commodityTest =
+                        commodityTest.and(
+                            str(dField(table, PROPERTY_TYPE)).eq(commodityRequest.getCommodityName()));
+                }
+                if (commodityRequest.hasRelatedEntityType()
+                        && commodityRequest.getRelatedEntityType() != null) {
+                    commodityTest =
+                        commodityTest.and(entityTypeCond(commodityRequest.getRelatedEntityType(), table));
+                }
                 // add an 'and' for each property value filter specified
                 for (PropertyValueFilter propertyValueFilter : commodityRequest.getPropertyValueFilterList()) {
                     // add a relationType filter if specified

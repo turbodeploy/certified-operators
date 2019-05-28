@@ -16,21 +16,21 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.policy.application.InvalidMergePolicyTypeException;
 import com.vmturbo.topology.processor.group.policy.application.MergePolicy;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
  * A helper for constructing matchers that make assertions about the behavior of policies.
  */
 public class PolicyMatcher {
 
-    private final TopologyGraph topologyGraph;
+    private final TopologyGraph<TopologyEntity> topologyGraph;
 
     /**
      * Prevent construction.
      */
-    public PolicyMatcher(@Nonnull final TopologyGraph topologyGraph) {
+    public PolicyMatcher(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
         this.topologyGraph = topologyGraph;
     }
 

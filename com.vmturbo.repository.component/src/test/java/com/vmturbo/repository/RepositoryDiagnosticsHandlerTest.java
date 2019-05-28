@@ -1,10 +1,10 @@
 package com.vmturbo.repository;
 
 import static com.vmturbo.repository.RepositoryDiagnosticsHandler.ERRORS_FILE;
+import static com.vmturbo.repository.RepositoryDiagnosticsHandler.GLOBAL_SUPPLY_CHAIN_DIAGS_FILE;
 import static com.vmturbo.repository.RepositoryDiagnosticsHandler.ID_MGR_FILE;
 import static com.vmturbo.repository.RepositoryDiagnosticsHandler.PROJECTED_TOPOLOGY_DUMP_FILE;
 import static com.vmturbo.repository.RepositoryDiagnosticsHandler.SOURCE_TOPOLOGY_DUMP_FILE;
-import static com.vmturbo.repository.RepositoryDiagnosticsHandler.GLOBAL_SUPPLY_CHAIN_DIAGS_FILE;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 import java.util.zip.ZipOutputStream;
 
 import org.junit.Test;
@@ -37,13 +38,16 @@ import io.prometheus.client.CollectorRegistry;
 import com.vmturbo.arangodb.tool.ArangoDump;
 import com.vmturbo.arangodb.tool.ArangoRestore;
 import com.vmturbo.components.common.DiagnosticsWriter;
-import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.repository.RepositoryDiagnosticsHandler.DefaultTopologyDiagnostics;
 import com.vmturbo.repository.RepositoryDiagnosticsHandler.TopologyDiagnostics;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;
+import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
+import com.vmturbo.repository.listener.realtime.ProjectedRealtimeTopology;
+import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology;
 import com.vmturbo.repository.topology.GlobalSupplyChain;
 import com.vmturbo.repository.topology.GlobalSupplyChainManager;
 import com.vmturbo.repository.topology.TopologyDatabase;
@@ -66,6 +70,8 @@ public class RepositoryDiagnosticsHandlerTest {
 
     private TopologyDiagnostics topologyDiagnostics = mock(TopologyDiagnostics.class);
 
+    private LiveTopologyStore liveTopologyStore = mock(LiveTopologyStore.class);
+
     private ArangoDump arangoDump = mock(ArangoDump.class);
 
     private ArangoRestore arangoRestore = mock(ArangoRestore.class);
@@ -86,9 +92,11 @@ public class RepositoryDiagnosticsHandlerTest {
     public void testDumpNoRealtimeTopology() {
         when(lifecycleManager.getRealtimeTopologyId(any()))
                 .thenReturn(Optional.empty());
+        when(liveTopologyStore.getSourceTopology()).thenReturn(Optional.empty());
+        when(liveTopologyStore.getProjectedTopology()).thenReturn(Optional.empty());
 
         final RepositoryDiagnosticsHandler handler =
-                new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager,
+                new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager, liveTopologyStore,
                         zipReaderFactory, diagnosticsWriter,
                         graphDBExecutor, topologyDiagnostics);
         ZipOutputStream zos = mock(ZipOutputStream.class);
@@ -105,8 +113,8 @@ public class RepositoryDiagnosticsHandlerTest {
 
         final RepositoryDiagnosticsHandler handler =
                 new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager,
-                        zipReaderFactory, diagnosticsWriter,
-                        graphDBExecutor, topologyDiagnostics);
+                    liveTopologyStore, zipReaderFactory, diagnosticsWriter,
+                    graphDBExecutor, topologyDiagnostics);
         final ZipOutputStream zos = mock(ZipOutputStream.class);
 
         handler.dump(zos);
@@ -140,8 +148,8 @@ public class RepositoryDiagnosticsHandlerTest {
 
         final RepositoryDiagnosticsHandler handler =
                 new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager,
-                        zipReaderFactory, diagnosticsWriter,
-                        graphDBExecutor, topologyDiagnostics);
+                    liveTopologyStore, zipReaderFactory, diagnosticsWriter,
+                    graphDBExecutor, topologyDiagnostics);
         final ZipOutputStream zos = mock(ZipOutputStream.class);
 
         final List<String> errors = handler.dump(zos);
@@ -170,9 +178,9 @@ public class RepositoryDiagnosticsHandlerTest {
                 .thenThrow(new DiagnosticsException(Collections.singletonList("ERROR")));
 
         final RepositoryDiagnosticsHandler handler =
-                new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager,
-                        zipReaderFactory, diagnosticsWriter,
-                        graphDBExecutor, topologyDiagnostics);
+            new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager,
+                liveTopologyStore, zipReaderFactory, diagnosticsWriter,
+                graphDBExecutor, topologyDiagnostics);
         final ZipOutputStream zos = mock(ZipOutputStream.class);
 
         final List<String> errors = handler.dump(zos);
@@ -207,7 +215,7 @@ public class RepositoryDiagnosticsHandlerTest {
 
         final RepositoryDiagnosticsHandler handler =
                 new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager,
-                        zipReaderFactory, diagnosticsWriter,
+                        liveTopologyStore, zipReaderFactory, diagnosticsWriter,
                         graphDBExecutor, topologyDiagnostics);
         when(lifecycleManager.getRealtimeTopologyId()).thenReturn(Optional.empty());
         List<String> errors = handler.restore(mock(InputStream.class));
@@ -232,9 +240,9 @@ public class RepositoryDiagnosticsHandlerTest {
         setupRestore(rshpDiags, srcDumpDiags, projectedDumpDiags);
 
         final RepositoryDiagnosticsHandler handler =
-                new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager,
-                        zipReaderFactory, diagnosticsWriter,
-                        graphDBExecutor, topologyDiagnostics);
+            new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager, liveTopologyStore,
+                    zipReaderFactory, diagnosticsWriter,
+                    graphDBExecutor, topologyDiagnostics);
         List<String> errors = handler.restore(mock(InputStream.class));
         assertEquals(1, errors.size());
 
@@ -268,9 +276,9 @@ public class RepositoryDiagnosticsHandlerTest {
         setupRestore(idMgrDiags, rshpDiags, srcDumpDiags, projectedDumpDiags);
 
         final RepositoryDiagnosticsHandler handler =
-                new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager,
-                        zipReaderFactory, diagnosticsWriter,
-                        graphDBExecutor, topologyDiagnostics);
+            new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager,
+                liveTopologyStore, zipReaderFactory, diagnosticsWriter,
+                graphDBExecutor, topologyDiagnostics);
 
         List<String> errors = handler.restore(mock(InputStream.class));
         assertThat(errors, containsInAnyOrder("ERROR"));
@@ -304,7 +312,7 @@ public class RepositoryDiagnosticsHandlerTest {
 
         final RepositoryDiagnosticsHandler handler =
                 new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager,
-                        zipReaderFactory, diagnosticsWriter,
+                        liveTopologyStore, zipReaderFactory, diagnosticsWriter,
                         graphDBExecutor, topologyDiagnostics);
 
         List<String> errors = handler.restore(mock(InputStream.class));
@@ -405,9 +413,9 @@ public class RepositoryDiagnosticsHandlerTest {
         setupRestore(idMgrDiags, rshpDiags);
 
         final RepositoryDiagnosticsHandler handler =
-                new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager,
-                        zipReaderFactory, diagnosticsWriter,
-                        graphDBExecutor, topologyDiagnostics);
+            new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager,
+                liveTopologyStore, zipReaderFactory, diagnosticsWriter,
+                graphDBExecutor, topologyDiagnostics);
         List<String> errors = handler.restore(mock(InputStream.class));
         // 2 errors because of the nulls (the dump file doesn't get checked unless ID got restored),
         // and one error because the ID doesn't end up getting restored.
@@ -475,5 +483,12 @@ public class RepositoryDiagnosticsHandlerTest {
         when(topologyDiagnostics.dumpTopology(eq(projectedTopologyId))).thenReturn(projectedTopoDump);
 
         when(lifecycleManager.collectDiags()).thenReturn(idMgrDiagLines);
+
+        SourceRealtimeTopology sourceRealtimeTopology = mock(SourceRealtimeTopology.class);
+        ProjectedRealtimeTopology projectedRealtimeTopology = mock(ProjectedRealtimeTopology.class);
+        when(sourceRealtimeTopology.collectDiags()).thenReturn(Stream.of("Foo"));
+        when(projectedRealtimeTopology.collectDiags()).thenReturn(Stream.of("Boo"));
+        when(liveTopologyStore.getSourceTopology()).thenReturn(Optional.of(sourceRealtimeTopology));
+        when(liveTopologyStore.getProjectedTopology()).thenReturn(Optional.of(projectedRealtimeTopology));
     }
 }

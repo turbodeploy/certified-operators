@@ -22,13 +22,13 @@ import static com.vmturbo.history.db.jooq.JooqUtils.statsTableByTimeFrame;
 import static com.vmturbo.history.db.jooq.JooqUtils.str;
 import static com.vmturbo.history.db.jooq.JooqUtils.timestamp;
 import static com.vmturbo.history.schema.abstraction.Tables.AUDIT_LOG_RETENTION_POLICIES;
+import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.MKT_SNAPSHOTS;
 import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.RETENTION_POLICIES;
 import static com.vmturbo.history.schema.abstraction.Tables.SCENARIOS;
-import static com.vmturbo.history.schema.abstraction.Tables.VM_STATS_LATEST;
 import static org.jooq.impl.DSL.row;
 
 import java.sql.Connection;
@@ -37,7 +37,6 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -56,7 +55,7 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.InsertSetMoreStep;
-import org.jooq.InsertSetStep;
+import org.jooq.Query;
 import org.jooq.Record;
 import org.jooq.Record1;
 import org.jooq.Record2;
@@ -82,9 +81,11 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityMaxValue;
 import com.vmturbo.common.protobuf.stats.Stats.EntityCommoditiesMaxValues;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.components.common.ClassicEnumMapper;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
@@ -111,7 +112,7 @@ public class HistorydbIO extends BasedbIO {
 
     // length restriction on the  COMMODITY_KEY column; all stats tables have same column length
     private static final int COMMODITY_KEY_MAX_LENGTH = VmStatsLatest.VM_STATS_LATEST.COMMODITY_KEY
-            .getDataType().length();
+        .getDataType().length();
 
     // min and max for numerical values for the statstables; must fit in DECIMAL(15,3), 12 digits
     private static final double MAX_STATS_VALUE = 1e12D - 1;
@@ -147,15 +148,15 @@ public class HistorydbIO extends BasedbIO {
 
     // Mapping from the retention settings DB column name -> Setting name
     private final ImmutableBiMap<String, String> retentionDbColumnNameToSettingName =
-            ImmutableBiMap.of(
-                    //"retention_latest_hours", , # skipping as there is no equivalent in the UI
-                    "retention_hours", GlobalSettingSpecs.StatsRetentionHours.getSettingName(),
-                    "retention_days", GlobalSettingSpecs.StatsRetentionDays.getSettingName(),
-                    "retention_months", GlobalSettingSpecs.StatsRetentionMonths.getSettingName()
-            );
+        ImmutableBiMap.of(
+            //"retention_latest_hours", , # skipping as there is no equivalent in the UI
+            "retention_hours", GlobalSettingSpecs.StatsRetentionHours.getSettingName(),
+            "retention_days", GlobalSettingSpecs.StatsRetentionDays.getSettingName(),
+            "retention_months", GlobalSettingSpecs.StatsRetentionMonths.getSettingName()
+        );
 
     private ImmutableBiMap<String, String> retentionSettingNameToDbColumnName =
-            retentionDbColumnNameToSettingName.inverse();
+        retentionDbColumnNameToSettingName.inverse();
 
     private static final String AUDIT_LOG_RETENTION_POLICY_NAME = "retention_days";
 
@@ -165,6 +166,7 @@ public class HistorydbIO extends BasedbIO {
 
     /**
      * Maximum number of entities allowed in the getEntities method.
+     *
      * @see HistorydbIO#getEntities(List)
      */
     @Value("${getEntitiesChunkSize:4000}")
@@ -294,9 +296,9 @@ public class HistorydbIO extends BasedbIO {
 
     /**
      * Return the "_stats_latest" table for the given Entity Type based on the ID.
-     *
+     * <p>
      * The table prefix depends on the entity type.
-     *
+     * <p>
      * Returns null if the table prefix cannot be determined. This may represent an entity
      * that is not to be persisted, or an internal system configuration error.
      *
@@ -316,9 +318,9 @@ public class HistorydbIO extends BasedbIO {
 
     /**
      * Return the "_stats_by_day" table for the given Entity Type based on the ID.
-     *
+     * <p>
      * The table prefix depends on the entity type.
-     *
+     * <p>
      * Returns null if the table prefix cannot be determined. This may represent an entity
      * that is not to be persisted, or an internal system configuration error.
      *
@@ -340,12 +342,12 @@ public class HistorydbIO extends BasedbIO {
      * to an SDK EntityType to an {@link EntityType}.
      *
      * @param sdkEntityTypeId the CommonDTO.EntityDTO.EntityType id to convert to a
-     *                     database {@link EntityType}
+     *                        database {@link EntityType}
      * @return an {@link EntityType} {@link EntityType} for the corresponding SDK Entity Type ID
      */
     public Optional<EntityType> getEntityType(int sdkEntityTypeId) {
         CommonDTO.EntityDTO.EntityType sdkEntityType = CommonDTO.EntityDTO.EntityType
-                .forNumber(sdkEntityTypeId);
+            .forNumber(sdkEntityTypeId);
         if (sdkEntityType == null) {
             logger.debug("unknown entity type for entity type id {}", sdkEntityTypeId);
             return Optional.empty();
@@ -355,17 +357,16 @@ public class HistorydbIO extends BasedbIO {
 
     public Optional<String> getBaseEntityType(int sdkEntityTypeId) {
         CommonDTO.EntityDTO.EntityType sdkEntityType = CommonDTO.EntityDTO.EntityType
-                .forNumber(sdkEntityTypeId);
+            .forNumber(sdkEntityTypeId);
         if (sdkEntityType == null || HistoryStatsUtils.SDK_ENTITY_TYPE_TO_ENTITY_TYPE_NO_ALIAS
-                        .get(sdkEntityType) == null) {
+            .get(sdkEntityType) == null) {
             logger.debug("unknown entity type for entity type id {}", sdkEntityTypeId);
             return Optional.empty();
         }
         return Optional.ofNullable(HistoryStatsUtils.SDK_ENTITY_TYPE_TO_ENTITY_TYPE_NO_ALIAS
-                .get(sdkEntityType)
-                .getClsName());
+            .get(sdkEntityType)
+            .getClsName());
     }
-
 
 
     /**
@@ -375,9 +376,10 @@ public class HistorydbIO extends BasedbIO {
      * @param dbTable the xxx_stats_latest table into which the rows will be inserted
      * @return a jooq insert statement to which values may be added.
      */
-    public @Nonnull InsertSetMoreStep<?> getCommodityInsertStatement(@Nonnull Table<?> dbTable) {
-        return (InsertSetMoreStep<?>)getJooqBuilder()
-                .insertInto(dbTable);
+    public @Nonnull
+    InsertSetMoreStep<?> getCommodityInsertStatement(@Nonnull Table<?> dbTable) {
+        return (InsertSetMoreStep<?>) getJooqBuilder()
+            .insertInto(dbTable);
     }
 
 
@@ -386,54 +388,55 @@ public class HistorydbIO extends BasedbIO {
      * table.
      *
      * @param marketStatsData the data for one stats item; will be written to one row
-     * @param topologyInfo Information about the topology causing the market stats insert.
+     * @param topologyInfo    Information about the topology causing the market stats insert.
      * @return an SQL statement to insert one row in the stats table
      */
     public InsertSetMoreStep<?> getMarketStatsInsertStmt(
-                @Nonnull final MarketStatsAccumulator.MarketStatsData marketStatsData,
-                @Nonnull final TopologyInfo topologyInfo) {
+        @Nonnull final MarketStatsAccumulator.MarketStatsData marketStatsData,
+        @Nonnull final TopologyInfo topologyInfo) {
 
         return getCommodityInsertStatement(MarketStatsLatest.MARKET_STATS_LATEST)
-                .set(MarketStatsLatest.MARKET_STATS_LATEST.SNAPSHOT_TIME,
-                        new Timestamp(topologyInfo.getCreationTime()))
-                .set(MarketStatsLatest.MARKET_STATS_LATEST.TOPOLOGY_CONTEXT_ID,
-                        topologyInfo.getTopologyContextId())
-                .set(MarketStatsLatest.MARKET_STATS_LATEST.TOPOLOGY_ID,
-                        topologyInfo.getTopologyId())
-                .set(MarketStatsLatest.MARKET_STATS_LATEST.ENTITY_TYPE,
-                        marketStatsData.getEntityType())
-                .set(MarketStatsLatest.MARKET_STATS_LATEST.ENVIRONMENT_TYPE,
-                    marketStatsData.getEnvironmentType())
-                .set(MarketStatsLatest.MARKET_STATS_LATEST.PROPERTY_TYPE,
-                        marketStatsData.getPropertyType())
-                .set(MarketStatsLatest.MARKET_STATS_LATEST.PROPERTY_SUBTYPE,
-                        marketStatsData.getPropertySubtype())
-                .set(MarketStatsLatest.MARKET_STATS_LATEST.CAPACITY,
-                        clipValue(marketStatsData.getCapacity()))
-                .set(MarketStatsLatest.MARKET_STATS_LATEST.AVG_VALUE,
-                        clipValue(marketStatsData.getUsed()))
-                .set(MarketStatsLatest.MARKET_STATS_LATEST.MIN_VALUE,
-                        clipValue(marketStatsData.getMin()))
-                .set(MarketStatsLatest.MARKET_STATS_LATEST.MAX_VALUE,
-                        clipValue(marketStatsData.getMax()))
-                .set(MarketStatsLatest.MARKET_STATS_LATEST.EFFECTIVE_CAPACITY,
-                        clipValue(marketStatsData.getEffectiveCapacity()))
-                .set(MarketStatsLatest.MARKET_STATS_LATEST.RELATION,
-                        marketStatsData.getRelationType());
+            .set(MarketStatsLatest.MARKET_STATS_LATEST.SNAPSHOT_TIME,
+                new Timestamp(topologyInfo.getCreationTime()))
+            .set(MarketStatsLatest.MARKET_STATS_LATEST.TOPOLOGY_CONTEXT_ID,
+                topologyInfo.getTopologyContextId())
+            .set(MarketStatsLatest.MARKET_STATS_LATEST.TOPOLOGY_ID,
+                topologyInfo.getTopologyId())
+            .set(MarketStatsLatest.MARKET_STATS_LATEST.ENTITY_TYPE,
+                marketStatsData.getEntityType())
+            .set(MarketStatsLatest.MARKET_STATS_LATEST.ENVIRONMENT_TYPE,
+                marketStatsData.getEnvironmentType())
+            .set(MarketStatsLatest.MARKET_STATS_LATEST.PROPERTY_TYPE,
+                marketStatsData.getPropertyType())
+            .set(MarketStatsLatest.MARKET_STATS_LATEST.PROPERTY_SUBTYPE,
+                marketStatsData.getPropertySubtype())
+            .set(MarketStatsLatest.MARKET_STATS_LATEST.CAPACITY,
+                clipValue(marketStatsData.getCapacity()))
+            .set(MarketStatsLatest.MARKET_STATS_LATEST.AVG_VALUE,
+                clipValue(marketStatsData.getUsed()))
+            .set(MarketStatsLatest.MARKET_STATS_LATEST.MIN_VALUE,
+                clipValue(marketStatsData.getMin()))
+            .set(MarketStatsLatest.MARKET_STATS_LATEST.MAX_VALUE,
+                clipValue(marketStatsData.getMax()))
+            .set(MarketStatsLatest.MARKET_STATS_LATEST.EFFECTIVE_CAPACITY,
+                clipValue(marketStatsData.getEffectiveCapacity()))
+            .set(MarketStatsLatest.MARKET_STATS_LATEST.RELATION,
+                marketStatsData.getRelationType());
     }
 
     /**
      * Populate an "insert" SQL statement with the values for this commodity.
-     *  @param propertyType the string name of the property (mixed case)
-     * @param snapshotTime the time of the snapshot
-     * @param entityId the id of the entity being processed
-     * @param relationType BOUGHT or SOLD
-     * @param providerId OID of the provider, if BOUGHT
-     * @param capacity the capacity of the commodity
+     *
+     * @param propertyType      the string name of the property (mixed case)
+     * @param snapshotTime      the time of the snapshot
+     * @param entityId          the id of the entity being processed
+     * @param relationType      BOUGHT or SOLD
+     * @param providerId        OID of the provider, if BOUGHT
+     * @param capacity          the capacity of the commodity
      * @param effectiveCapacity the effective capacity of the commodity
-     * @param commodityKey the external association key for this commodity
-     * @param insertStmt the insert SQL statement to insert the commodity row
-     * @param table stats db table for this entity type
+     * @param commodityKey      the external association key for this commodity
+     * @param insertStmt        the insert SQL statement to insert the commodity row
+     * @param table             stats db table for this entity type
      */
     public void initializeCommodityInsert(@Nonnull String propertyType,
                                           long snapshotTime,
@@ -451,34 +454,33 @@ public class HistorydbIO extends BasedbIO {
         // commodity_key is limited in length
         if (commodityKey != null && commodityKey.length() > COMMODITY_KEY_MAX_LENGTH) {
             String longCommditiyKey = commodityKey;
-            commodityKey = commodityKey.substring(0, COMMODITY_KEY_MAX_LENGTH-1);
+            commodityKey = commodityKey.substring(0, COMMODITY_KEY_MAX_LENGTH - 1);
             logger.trace("shortening commodity key {} ({}) to {}", longCommditiyKey,
-                    longCommditiyKey.length(), commodityKey);
+                longCommditiyKey.length(), commodityKey);
         }
         // populate the other fields; all fields are nullable based on DB design; Is that best?
         insertStmt
-                .set(dateOrTimestamp(dField(table, SNAPSHOT_TIME)),
-                        new java.sql.Timestamp(snapshotTime))
-                .set(str(dField(table, UUID)), Long.toString(entityId))
-                .set(str(dField(table, PROPERTY_TYPE)), propertyType)
-                // 5 = propertySubtype - to be filled in later
-                .set(doubl(dField(table, CAPACITY)), clipValue(capacity))
-                .set(doubl(dField(table, EFFECTIVE_CAPACITY)), clipValue(effectiveCapacity))
-                // 7, 8, 9 = avg, min, max - to be filled in later
-                .set(relType(dField(table, RELATION)), relationType)
-                .set(str(dField(table, COMMODITY_KEY)), commodityKey);
+            .set(dateOrTimestamp(dField(table, SNAPSHOT_TIME)),
+                new java.sql.Timestamp(snapshotTime))
+            .set(str(dField(table, UUID)), Long.toString(entityId))
+            .set(str(dField(table, PROPERTY_TYPE)), propertyType)
+            // 5 = propertySubtype - to be filled in later
+            .set(doubl(dField(table, CAPACITY)), clipValue(capacity))
+            .set(doubl(dField(table, EFFECTIVE_CAPACITY)), clipValue(effectiveCapacity))
+            // 7, 8, 9 = avg, min, max - to be filled in later
+            .set(relType(dField(table, RELATION)), relationType)
+            .set(str(dField(table, COMMODITY_KEY)), commodityKey);
     }
 
     /**
      * Set the values for the subtype of this property.
-     *
+     * <p>
      * Since this is "latest", a single point in time, then all of avg, min, max are the same.
      *
      * @param propertySubtype the subtype of the property, e.g. "used" or "utilization"
-
-     * @param value the value of the commodity
-     * @param insertStmt the SQL statement to insert the commodity row
-     * @param table the xxx_stats_latest table where this data will be written
+     * @param value           the value of the commodity
+     * @param insertStmt      the SQL statement to insert the commodity row
+     * @param table           the xxx_stats_latest table where this data will be written
      */
     public void setCommodityValues(@Nonnull String propertySubtype, double value,
                                    @Nonnull InsertSetMoreStep insertStmt, @Nonnull Table<?> table) {
@@ -493,7 +495,7 @@ public class HistorydbIO extends BasedbIO {
     /**
      * Get the list of {@link Timestamp} objects describing the stat snapshot times in a
      * requested time range.
-     *
+     * <p>
      * Note: This currently assumes each topology has at least one virtual machine.
      * Todo: We assume at least one PM before, but for new cloud model there is no PM, if user only
      * adds cloud target, it will not be able to get correct timestamp. Thus we change it to VM.
@@ -501,60 +503,135 @@ public class HistorydbIO extends BasedbIO {
      * solution is keep a separate table which just has the updated timestamps. Opened OM-40052 for
      * future improvement.
      *
-     * @param timeFrame The {@link TimeFrame} to look in.
-     * @param startTime The start time, in epoch millis.
-     * @param endTime The end time, in epoch millis.
+     * @param timeFrame          The {@link TimeFrame} to look in.
+     * @param startTime          The start time, in epoch millis.
+     * @param endTime            The end time, in epoch millis.
+     * @param specificEntityType entity type related to the timestamp we want to look for.
+     * @param specificEntityOid  entity to use for the lookup in the table.
      * @return A list of {@link Timestamp} objects, in descending order. Each timestamp represents
-     *         the snapshot time for a set of records in the database - i.e. you can use any of
-     *         the snapshot times in a query, and it should return results (assuming other filters
-     *         are also satisfied).
+     * the snapshot time for a set of records in the database - i.e. you can use any of
+     * the snapshot times in a query, and it should return results (assuming other filters
+     * are also satisfied).
      * @throws VmtDbException If there is an exception running the query.
      */
     @Nonnull
     public List<Timestamp> getTimestampsInRange(@Nonnull final TimeFrame timeFrame,
                                                 final long startTime,
-                                                final long endTime) throws VmtDbException {
-        final Table<?> table = statsTableByTimeFrame(EntityType.VIRTUAL_MACHINE, timeFrame);
-        final Field<Timestamp> snapshotTimeField = (Field<Timestamp>)dField(table, SNAPSHOT_TIME);
-        final Condition condition =
-                HistoryStatsUtils.betweenStartEndTimestampCond(snapshotTimeField, timeFrame, startTime, endTime);
-        return execute(Style.FORCED, getJooqBuilder()
+                                                final long endTime,
+                                                @Nonnull final Optional<EntityType> specificEntityType,
+                                                @Nonnull final Optional<String> specificEntityOid) throws VmtDbException {
+
+        // we are using the vm table, in case it's not specified in the method
+        final EntityType entityType = specificEntityType.orElse(EntityType.VIRTUAL_MACHINE);
+
+        final Table<?> table = statsTableByTimeFrame(entityType, timeFrame);
+        final Field<Timestamp> snapshotTimeField = (Field<Timestamp>) dField(table, SNAPSHOT_TIME);
+
+        // where condition
+        List<Condition> whereConditions = new ArrayList<>(2);
+        final Condition betweenTimeCondition =
+            HistoryStatsUtils.betweenStartEndTimestampCond(snapshotTimeField, timeFrame, startTime, endTime);
+        whereConditions.add(betweenTimeCondition);
+
+        // add the specific entity in the where condition, if present
+        // we can add the specific entity only if also the type has been specified
+        if (specificEntityOid.isPresent() && specificEntityType.isPresent()) {
+            // select only the single entity
+            final Field<String> uuidField = (Field<String>) dField(table, UUID);
+            final Condition specificUuidCondition = str(uuidField).eq(specificEntityOid.get());
+            whereConditions.add(specificUuidCondition);
+        }
+
+        // create query
+        final Query query = getJooqBuilder()
             // The distinct is important! We will return lots of rows otherwise.
             .selectDistinct(timestamp(snapshotTimeField))
             .from(table)
-            .where(condition)
+            .where(whereConditions)
             // Descending order - most recent first.
-            .orderBy(snapshotTimeField.desc()))
-                .getValues(snapshotTimeField);
+            .orderBy(snapshotTimeField.desc());
+
+        return execute(Style.FORCED, query).getValues(snapshotTimeField);
+
     }
 
     /**
      * Return a long epoch date representing the most recent timestamp of snapshot data.
+     * The method can optionally take an entity type as a parameter, so that we will look for the most recent timestamp
+     * only in the specified entity type table. If a specific entity oid is also added, then we will look for that
+     * oid, inside the specified table (which will give us a more accurate results).
      *
-     * Currently only looks for the most recent item in the VM_STATS_LATEST table; assuming any
-     * topology will include a VM.
-     *
-     * Todo: We assume at least one PM before, but for new cloud model there is no PM, if user only
-     * adds cloud target, it will not be able to get correct timestamp. Thus we change it to VM.
-     * We should considering handling this better, when serverless is down the road. One possible
-     * solution is keep a separate table which just has the most recent timestamp. Opened OM-40052
-     * for future improvement.
-     *
-     * @return a {@link Timestamp} for the most recent snapshot recorded in the xxx_stats_latest
+     * @param statsFilter          stats filter used to check if priceIndex is a required property or not.
+     * @param entityTypeOpt        entity type to use for getting the most recent timestamp.
+     * @param specificEntityOidOpt entity to use for the lookup in the table.
+     * @return a {@link Timestamp} for the most recent snapshot recorded in the xxx_stats_latest.
      * tables.
      */
-    public Optional<Timestamp> getMostRecentTimestamp() {
-        VmStatsLatest statsLatestTable = VM_STATS_LATEST;
+    public Optional<Timestamp> getMostRecentTimestamp(@Nonnull final StatsFilter statsFilter,
+                                                      @Nonnull final Optional<EntityType> entityTypeOpt,
+                                                      @Nonnull final Optional<String> specificEntityOidOpt,
+                                                      @Nonnull final Optional<EntityStatsPaginationParams> paginationParams) {
+
         try (Connection conn = connection()) {
-            final Field<Timestamp> snapshotTimeField = (Field<Timestamp>)dField(statsLatestTable, SNAPSHOT_TIME);
-            final List<Timestamp> snapshotTimeRecords = execute(Style.FORCED, getJooqBuilder()
+
+            // we are using the vm table, in case it's not specified in the method
+            final Table<?> latestEntityTable;
+            if (entityTypeOpt.isPresent()) {
+                latestEntityTable = entityTypeOpt.get().getLatestTable();
+            } else {
+                latestEntityTable = MARKET_STATS_LATEST;
+            }
+
+            final Field<Timestamp> snapshotTimeField = (Field<Timestamp>) dField(latestEntityTable, SNAPSHOT_TIME);
+
+            // where condition
+            List<Condition> whereConditions = new ArrayList<>(3);
+            // always true condition, in case special cases are not specified
+            whereConditions.add(DSL.trueCondition());
+
+            // check if priceindex is NOT part of the stats requested
+            // if not, then we can filter it out from the query. This will give us more accurate results
+            // when the market is faster than the history component (because price index is generated
+            // by the market component, and can come to db at a different time than commodities).
+            // in this case we might have a record in the db with the priceindex, but not the real
+            // commodities yet (because history is still writing to db), and this means that the
+            // timestamp of the price index record is taken, which will in reality return no commodities
+            final boolean priceIndexNotRequiredInFilter = statsFilter.getCommodityRequestsList().stream()
+                .map(CommodityRequest::getCommodityName)
+                .noneMatch(PRICE_INDEX::equalsIgnoreCase);
+
+            // check if the pagination is requiring the price index to be present, because it's using
+            // it to sort entities. In this case we cannot exclude the price index from our query
+            final boolean priceIndexRequiredInPagination = paginationParams.map(EntityStatsPaginationParams::getSortCommodity)
+                .map(PRICE_INDEX::equalsIgnoreCase)
+                .orElse(false);
+
+            if (priceIndexNotRequiredInFilter && !priceIndexRequiredInPagination) {
+                // filter out the priceindex from the query, in order to get the timestamp of the
+                // most recent commodities
+                final Field<String> propertyTypeField = (Field<String>) dField(latestEntityTable, PROPERTY_TYPE);
+                whereConditions.add(str(propertyTypeField).ne(PRICE_INDEX));
+            }
+
+            // we can add the specific entity only if also the type has been specified
+            if (specificEntityOidOpt.isPresent() && entityTypeOpt.isPresent()) {
+                // select only the single entity
+                final Field<String> uuidField = (Field<String>) dField(latestEntityTable, UUID);
+                whereConditions.add(str(uuidField).eq(specificEntityOidOpt.get()));
+            }
+
+            // create select query
+            final Query query = getJooqBuilder()
                 .select(timestamp(snapshotTimeField))
-                .from(statsLatestTable)
+                .from(latestEntityTable)
+                //it's not a real where, unless we specified an entity
+                .where(whereConditions)
                 // Descending order (i.e. most recent first)
                 .orderBy(snapshotTimeField.desc())
                 // Take the first one - this will be the most recent.
-                .limit(1))
-                    .getValues(snapshotTimeField);
+                .limit(1);
+
+            final List<Timestamp> snapshotTimeRecords = execute(Style.FORCED, query).getValues(snapshotTimeField);
 
             if (!snapshotTimeRecords.isEmpty()) {
                 return Optional.of(snapshotTimeRecords.get(0));
@@ -571,13 +648,13 @@ public class HistorydbIO extends BasedbIO {
     /**
      * Get the next page of entity IDs given a time frame and pagination parameters.
      *
-     * @param entityScope The {@link EntityStatsScope} for the stats query.
-     * @param timestamp The timestamp to use to calculate the next page.
-     * @param tFrame The timeframe to use for the timestamp.
+     * @param entityScope      The {@link EntityStatsScope} for the stats query.
+     * @param timestamp        The timestamp to use to calculate the next page.
+     * @param tFrame           The timeframe to use for the timestamp.
      * @param paginationParams The pagination parameters. We sort the results by the average value
      *                         of the sort commodity, and then by the UUID of the entity.
      * @return A {@link NextPageInfo} object describing the entity IDs that should be in the next page.
-     * @throws VmtDbException If there is an error interacting with the database.
+     * @throws VmtDbException           If there is an error interacting with the database.
      * @throws IllegalArgumentException If the input is invalid.
      */
     @Nonnull
@@ -589,31 +666,31 @@ public class HistorydbIO extends BasedbIO {
         // This should NOT be an empty list if the entity list is set (we should filter out
         // those requests earlier on).
         Preconditions.checkArgument(entityScope.hasEntityType()
-                || (entityScope.hasEntityList() && entityScope.getEntityList().getEntitiesCount() > 0));
+            || (entityScope.hasEntityList() && entityScope.getEntityList().getEntitiesCount() > 0));
         final EntityType entityType;
         final Set<String> requestedIdSet;
         // Make sure the layers that call this method filtered out invalid arguments.
         if (entityScope.hasEntityList()) {
             requestedIdSet = Sets.newHashSet(Collections2.transform(
-                    entityScope.getEntityList().getEntitiesList(), id -> Long.toString(id)));
+                entityScope.getEntityList().getEntitiesList(), id -> Long.toString(id)));
             final List<String> entityTypes = getTypesForEntities(requestedIdSet).values().stream()
-                    .distinct()
-                    .collect(Collectors.toList());
+                .distinct()
+                .collect(Collectors.toList());
             if (entityTypes.isEmpty()) {
                 logger.error("No entity types resolved from provided list of {} entity IDs.", entityScope);
                 throw new IllegalArgumentException("Entity IDs do not resolve to entity type.");
             }
             if (entityTypes.size() > 1) {
                 logger.error("Attempting to paginate across multiple entity types: {}",
-                        entityTypes);
+                    entityTypes);
                 throw new IllegalArgumentException("Pagination across multiple entity types not supported.");
             }
             entityType = EntityType.getTypeForName(entityTypes.get(0))
-                    .orElseThrow(() -> new IllegalArgumentException("Entities resolve to invalid entity type: " + entityTypes.get(0)));
+                .orElseThrow(() -> new IllegalArgumentException("Entities resolve to invalid entity type: " + entityTypes.get(0)));
         } else {
             requestedIdSet = Collections.emptySet();
             entityType = getEntityType(entityScope.getEntityType())
-                    .orElseThrow(() -> new IllegalArgumentException("Invalid entity type: " + entityScope.getEntityType()));
+                .orElseThrow(() -> new IllegalArgumentException("Invalid entity type: " + entityScope.getEntityType()));
         }
 
         final SeekPaginationCursor seekPaginationCursor = SeekPaginationCursor.parseCursor(paginationParams.getNextCursor().orElse(""));
@@ -633,8 +710,8 @@ public class HistorydbIO extends BasedbIO {
         // This call adds the seek pagination parameters to the list of conditions.
         seekPaginationCursor.toCondition(table, paginationParams.isAscending()).ifPresent(conditions::add);
 
-        final Field<String> uuidField = (Field<String>)dField(table, UUID);
-        final Field<Double> valueField = (Field<Double>)dField(table, AVG_VALUE);
+        final Field<String> uuidField = (Field<String>) dField(table, UUID);
+        final Field<Double> valueField = (Field<Double>) dField(table, AVG_VALUE);
 
         if (!requestedIdSet.isEmpty()) {
             conditions.add(uuidField.in(requestedIdSet));
@@ -642,24 +719,24 @@ public class HistorydbIO extends BasedbIO {
 
         try (Connection conn = transConnection()) {
             final Result<Record2<String, Double>> results = using(conn)
-                    .select(uuidField, valueField)
-                    .from(table)
-                    // The pagination is enforced by the conditions (see above).
-                    .where(conditions)
-                    .orderBy(paginationParams.isAscending() ? valueField.asc().nullsLast() : valueField.desc().nullsLast(),
-                            paginationParams.isAscending() ? uuidField.asc() : uuidField.desc())
-                    // Add one to the limit so we can tests to see if there are more results.
-                    .limit(paginationParams.getLimit() + 1)
-                    .fetch();
+                .select(uuidField, valueField)
+                .from(table)
+                // The pagination is enforced by the conditions (see above).
+                .where(conditions)
+                .orderBy(paginationParams.isAscending() ? valueField.asc().nullsLast() : valueField.desc().nullsLast(),
+                    paginationParams.isAscending() ? uuidField.asc() : uuidField.desc())
+                // Add one to the limit so we can tests to see if there are more results.
+                .limit(paginationParams.getLimit() + 1)
+                .fetch();
             if (results.size() > paginationParams.getLimit()) {
                 // If there are more results, we trim the last result (since that goes beyond
                 // the page limit).
                 final List<String> nextPageIds =
-                        results.getValues(uuidField).subList(0, paginationParams.getLimit());
+                    results.getValues(uuidField).subList(0, paginationParams.getLimit());
                 final int lastIdx = nextPageIds.size() - 1;
-                return new NextPageInfo( nextPageIds, table,
+                return new NextPageInfo(nextPageIds, table,
                     SeekPaginationCursor.nextCursor(nextPageIds.get(lastIdx),
-                            results.getValue(lastIdx, valueField)));
+                        results.getValue(lastIdx, valueField)));
             } else {
                 return new NextPageInfo(results.getValues(uuidField), table, SeekPaginationCursor.empty());
             }
@@ -682,7 +759,7 @@ public class HistorydbIO extends BasedbIO {
         for (List<String> idsChunk : Lists.partition(entityIds, entitiesChunkSize)) {
             try (Connection conn = connection()) {
                 final List<EntitiesRecord> listRecords = using(conn)
-                        .fetch(Entities.ENTITIES, Entities.ENTITIES.UUID.in(idsChunk));
+                    .fetch(Entities.ENTITIES, Entities.ENTITIES.UUID.in(idsChunk));
                 for (EntitiesRecord record : listRecords) {
                     map.put(record.getId(), record);
                 }
@@ -694,9 +771,9 @@ public class HistorydbIO extends BasedbIO {
             logger.debug("getEntities returning {} entities", map::size);
             // calculate the keys in the query that are not part of the result map
             Set<Long> missingKeys = entityIds.stream()
-                    .map(Long::valueOf)
-                    .filter(oid -> !map.keySet().contains(oid))
-                    .collect(Collectors.toSet());
+                .map(Long::valueOf)
+                .filter(oid -> !map.keySet().contains(oid))
+                .collect(Collectors.toSet());
             logger.debug("didn't find: {}", missingKeys);
         }
         return map;
@@ -712,13 +789,13 @@ public class HistorydbIO extends BasedbIO {
     public Map<String, String> getTypesForEntities(Set<String> entityIds) throws VmtDbException {
 
         Result<? extends Record> result = execute(Style.FORCED, JooqBuilder()
-                .selectDistinct(Entities.ENTITIES.UUID, Entities.ENTITIES.CREATION_CLASS)
-                .from(Entities.ENTITIES)
-                .where(Entities.ENTITIES.UUID.in(entityIds)));
+            .selectDistinct(Entities.ENTITIES.UUID, Entities.ENTITIES.CREATION_CLASS)
+            .from(Entities.ENTITIES)
+            .where(Entities.ENTITIES.UUID.in(entityIds)));
 
         return result.stream().collect(
-                Collectors.toMap(x -> x.getValue(Entities.ENTITIES.UUID),
-                        x -> x.getValue(Entities.ENTITIES.CREATION_CLASS))
+            Collectors.toMap(x -> x.getValue(Entities.ENTITIES.UUID),
+                x -> x.getValue(Entities.ENTITIES.CREATION_CLASS))
         );
     }
 
@@ -726,10 +803,10 @@ public class HistorydbIO extends BasedbIO {
      * Return a select statement from the given table given selection fields, where conditions,
      * and an order-by clause.
      *
-     * @param table the table to query from
-     * @param selectFields the columns to return from the query
+     * @param table           the table to query from
+     * @param selectFields    the columns to return from the query
      * @param whereConditions the conditions to filter on
-     * @param orderFields the ordering for the results
+     * @param orderFields     the ordering for the results
      * @return a Select statement to perform the given query
      */
     public Select<?> getStatsSelect(Table<?> table,
@@ -737,19 +814,19 @@ public class HistorydbIO extends BasedbIO {
                                     List<Condition> whereConditions,
                                     Field<?>[] orderFields) {
         return JooqBuilder()
-                .select(selectFields)
-                .from(table)
-                .where(whereConditions)
-                .orderBy(orderFields);
+            .select(selectFields)
+            .from(table)
+            .where(whereConditions)
+            .orderBy(orderFields);
     }
 
     /**
      * Return a select statement from the given table given selection fields, where conditions,
      * and an order-by clause which is also used to group by.
      *
-     * @param table the table to query from
-     * @param selectFields the columns to return from the query
-     * @param whereConditions the conditions to filter on
+     * @param table            the table to query from
+     * @param selectFields     the columns to return from the query
+     * @param whereConditions  the conditions to filter on
      * @param orderGroupFields the list of fields to group by; also
      * @return a Select statement to perform the given query
      */
@@ -758,11 +835,11 @@ public class HistorydbIO extends BasedbIO {
                                                 List<Condition> whereConditions,
                                                 Field<?>[] orderGroupFields) {
         return JooqBuilder()
-                .select(selectFields)
-                .from(table)
-                .where(whereConditions)
-                .groupBy(orderGroupFields)
-                .orderBy(orderGroupFields);
+            .select(selectFields)
+            .from(table)
+            .where(whereConditions)
+            .groupBy(orderGroupFields)
+            .orderBy(orderGroupFields);
     }
 
     /**
@@ -780,10 +857,10 @@ public class HistorydbIO extends BasedbIO {
         try (Connection conn = connection()) {
 
             Record1<String> entityTypeRecord = using(conn)
-                    .select(Tables.ENTITIES.DISPLAY_NAME)
-                    .from(Tables.ENTITIES)
-                    .where(Tables.ENTITIES.UUID.eq(Long.toString(entityId)))
-                    .fetchOne();
+                .select(Tables.ENTITIES.DISPLAY_NAME)
+                .from(Tables.ENTITIES)
+                .where(Tables.ENTITIES.UUID.eq(Long.toString(entityId)))
+                .fetchOne();
             if (entityTypeRecord == null) {
                 logger.debug("Display name not found for: {}", entityId);
                 return null;
@@ -828,12 +905,12 @@ public class HistorydbIO extends BasedbIO {
     private Optional<ScenariosRecord> getScenariosRecord(long topologyContextId, Connection conn) {
         try {
             Result<? extends Record> answer = execute(JooqBuilder()
-                    .selectFrom(SCENARIOS)
-                    .where(SCENARIOS.ID.equal(topologyContextId)), conn);
+                .selectFrom(SCENARIOS)
+                .where(SCENARIOS.ID.equal(topologyContextId)), conn);
             if (answer == null) {
                 // we expect a Result; double-check
                 logger.warn("Select from SCENARIOS returned null unexpectedly in getSenariosRecord."
-                        + " topologyContextId " + topologyContextId + "...continuing");
+                    + " topologyContextId " + topologyContextId + "...continuing");
                 return Optional.empty();
             }
             if (answer.size() < 1) {
@@ -843,10 +920,10 @@ public class HistorydbIO extends BasedbIO {
             if (answer.size() > 1) {
                 // more than one row - not supposed to happen; return the first one, for now
                 logger.warn("Select ScenariosRecord from SCENARIOS returned more than one row " +
-                        "unexpectedly; topologyContextId " +
-                        topologyContextId + "...using first");
+                    "unexpectedly; topologyContextId " +
+                    topologyContextId + "...using first");
             }
-            return Optional.of((ScenariosRecord)answer.iterator().next());
+            return Optional.of((ScenariosRecord) answer.iterator().next());
         } catch (VmtDbException e) {
             return Optional.empty();
         }
@@ -857,12 +934,12 @@ public class HistorydbIO extends BasedbIO {
      * otherwise, add a new record.
      *
      * @param topologyInfo the information about this topology, including the
-     *                          context id and snapshot time.
+     *                     context id and snapshot time.
      * @return the SCENARIOS record for the given topologyContextId
      * @throws VmtDbException if there is a database error in the
      */
     public ScenariosRecord getOrAddScenariosRecord(@Nonnull final TopologyInfo topologyInfo)
-            throws VmtDbException {
+        throws VmtDbException {
         Optional<ScenariosRecord> scenarioInfo =
             getScenariosRecord(topologyInfo.getTopologyContextId());
         if (!scenarioInfo.isPresent()) {
@@ -873,8 +950,8 @@ public class HistorydbIO extends BasedbIO {
         }
 
         return scenarioInfo.orElseThrow(() -> new VmtDbException(VmtDbException.INSERT_ERR,
-                "Error writing scenarios record for plan priceIndexInfo for " +
-                    topologyInfo.getTopologyContextId()));
+            "Error writing scenarios record for plan priceIndexInfo for " +
+                topologyInfo.getTopologyContextId()));
     }
 
 
@@ -889,7 +966,7 @@ public class HistorydbIO extends BasedbIO {
      * Plan Orchestrator.
      *
      * @param topologyInfo the information about this topology, including the
-     *                          context id and snapshot time.
+     *                     context id and snapshot time.
      * @throws VmtDbException if there's an error writing to the RDB
      */
     public void addMktSnapshotRecord(TopologyInfo topologyInfo) throws VmtDbException {
@@ -898,28 +975,28 @@ public class HistorydbIO extends BasedbIO {
         // add this topology to the scenarios table
         final Timestamp snapshotTimestamp = new Timestamp(topologyInfo.getCreationTime());
         execute(Style.FORCED, getJooqBuilder()
-                .insertInto(SCENARIOS)
-                .set(SCENARIOS.ID, topologyContextId)
-                .set(SCENARIOS.DISPLAY_NAME, "scenario")
-                .set(SCENARIOS.CREATE_TIME, snapshotTimestamp)
-                .onDuplicateKeyIgnore());
+            .insertInto(SCENARIOS)
+            .set(SCENARIOS.ID, topologyContextId)
+            .set(SCENARIOS.DISPLAY_NAME, "scenario")
+            .set(SCENARIOS.CREATE_TIME, snapshotTimestamp)
+            .onDuplicateKeyIgnore());
 
         // add this topology to the mkt_snapshots table
         execute(Style.FORCED, getJooqBuilder()
-                .insertInto(MKT_SNAPSHOTS)
-                .set(MKT_SNAPSHOTS.ID, topologyContextId)
-                .set(MKT_SNAPSHOTS.SCENARIO_ID, topologyContextId)
-                .set(MKT_SNAPSHOTS.DISPLAY_NAME, "scenario: "
-                        + topologyInfo.getCreationTime())
-                .set(MKT_SNAPSHOTS.RUN_COMPLETE_TIME, snapshotTimestamp)
-                .onDuplicateKeyIgnore());
+            .insertInto(MKT_SNAPSHOTS)
+            .set(MKT_SNAPSHOTS.ID, topologyContextId)
+            .set(MKT_SNAPSHOTS.SCENARIO_ID, topologyContextId)
+            .set(MKT_SNAPSHOTS.DISPLAY_NAME, "scenario: "
+                + topologyInfo.getCreationTime())
+            .set(MKT_SNAPSHOTS.RUN_COMPLETE_TIME, snapshotTimestamp)
+            .onDuplicateKeyIgnore());
     }
 
     /**
      * Persist multiple entitites (insert or update, depending on the record source). If a record
      * has been initially returned from the DB, UPDATE will be executed. If a record is a newly
      * created INSERT will be executed.
-     *
+     * <p>
      * Queries are splitted into smaller batches of 4k (settable by {@link #entitiesChunkSize}
      * property.
      *
@@ -927,12 +1004,12 @@ public class HistorydbIO extends BasedbIO {
      * @throws VmtDbException if DB error occurred
      */
     public void persistEntities(@Nonnull List<EntitiesRecord> entitiesRecords)
-            throws VmtDbException {
+        throws VmtDbException {
         logger.debug("Persisting {} entities", entitiesRecords.size());
         final Connection connection = transConnection();
         try {
             for (Collection<EntitiesRecord> chunk : Lists.partition(entitiesRecords,
-                    entitiesChunkSize)) {
+                entitiesChunkSize)) {
                 logger.debug("Persisting next chunk of {} entities to the DB", chunk::size);
                 using(connection).batchStore(chunk).execute();
             }
@@ -940,7 +1017,7 @@ public class HistorydbIO extends BasedbIO {
         } catch (SQLException | DataAccessException e) {
             rollback(connection);
             throw new VmtDbException(VmtDbException.INSERT_ERR,
-                    "Failed to insert/update entities table records", e);
+                "Failed to insert/update entities table records", e);
         } finally {
             close(connection);
         }
@@ -954,21 +1031,21 @@ public class HistorydbIO extends BasedbIO {
      * @throws VmtDbException database errors
      */
     public void persistMarketSnapshotsStats(@Nonnull List<MktSnapshotsStatsRecord> snapshotStatRecords)
-            throws VmtDbException {
+        throws VmtDbException {
         logger.trace("Persisting {} MktSnapshotsStatsRecord", snapshotStatRecords.size());
         final Connection connection = transConnection();
         try {
             for (Collection<MktSnapshotsStatsRecord> chunk : Lists.partition(snapshotStatRecords,
-                    entitiesChunkSize)) {
+                entitiesChunkSize)) {
                 logger.trace("Persisting next chunk of {} MktSnapshotsStatsRecord to the DB",
-                        chunk::size);
+                    chunk::size);
                 using(connection).batchStore(chunk).execute();
             }
             connection.commit();
         } catch (SQLException | DataAccessException e) {
             rollback(connection);
             throw new VmtDbException(VmtDbException.INSERT_ERR,
-                    "Failed to insert mkt_snapshots_stats table records.", e);
+                "Failed to insert mkt_snapshots_stats table records.", e);
         } finally {
             close(connection);
         }
@@ -983,10 +1060,11 @@ public class HistorydbIO extends BasedbIO {
      * @param rawStatsValue a numeric stats value from either discovery or priceIndex
      * @return the value clipped between MIN_STATS_VALUE (large negative number) and MAX_STATS_VALUE
      */
-    public @Nullable Double clipValue(Double rawStatsValue) {
+    @Nullable
+    public Double clipValue(Double rawStatsValue) {
         return rawStatsValue == null
-                ? null
-                : Math.min(Math.max(rawStatsValue, MIN_STATS_VALUE), MAX_STATS_VALUE);
+            ? null
+            : Math.min(Math.max(rawStatsValue, MIN_STATS_VALUE), MAX_STATS_VALUE);
     }
 
     /**
@@ -994,14 +1072,14 @@ public class HistorydbIO extends BasedbIO {
      *
      * @param topologyContextId Plan ID
      * @throws VmtDbException if there is a database error
-    */
+     */
     public void deletePlanStats(long topologyContextId) throws VmtDbException {
         // delete from scenarios table. the Foregin Key constraint will take
         // care of removing the data in remaining tables
         // don't care if the entry exists or not as long as query succeeds
         execute(Style.FORCED, JooqBuilder()
-                .delete(Scenarios.SCENARIOS)
-                .where(Scenarios.SCENARIOS.ID.eq(topologyContextId)));
+            .delete(Scenarios.SCENARIOS)
+            .where(Scenarios.SCENARIOS.ID.eq(topologyContextId)));
 
     }
 
@@ -1009,16 +1087,15 @@ public class HistorydbIO extends BasedbIO {
      * Get all the stats data retention settings.
      *
      * @return List of all the data retention settings.
-     * @throws VmtDbException if there is a database error.
+     * @throws VmtDbException      if there is a database error.
      * @throws DataAccessException if there is a database error.
-     *
      */
     public List<Setting> getStatsRetentionSettings() throws VmtDbException {
 
         try (Connection conn = connection()) {
             Map<String, Integer> retentionSettingsMap =
                 using(conn).selectFrom(RETENTION_POLICIES)
-                .fetchMap(RETENTION_POLICIES.POLICY_NAME, RETENTION_POLICIES.RETENTION_PERIOD);
+                    .fetchMap(RETENTION_POLICIES.POLICY_NAME, RETENTION_POLICIES.RETENTION_PERIOD);
 
             List<Setting> settings = new ArrayList<>();
 
@@ -1030,27 +1107,25 @@ public class HistorydbIO extends BasedbIO {
                 }
             }
             return settings;
-        }
-        catch (SQLException e) {
+        } catch (SQLException e) {
             throw new VmtDbException(VmtDbException.SQL_EXEC_ERR, e);
         }
     }
 
     private Setting createSetting(String name, int value) {
         return Setting.newBuilder()
-                    .setSettingSpecName(name)
-                    .setNumericSettingValue(SettingDTOUtil.createNumericSettingValue(value))
-                    .build();
+            .setSettingSpecName(name)
+            .setNumericSettingValue(SettingDTOUtil.createNumericSettingValue(value))
+            .build();
     }
 
     /**
      * Update the value of stats data retention setting.
      *
-     * @param settingName The name of the setting to update.
+     * @param settingName     The name of the setting to update.
      * @param retentionPeriod The new retention period.
      * @return The updated Setting.
      * @throws VmtDbException if there is a database error.
-     *
      */
     public Optional<Setting> setStatsDataRetentionSetting(String settingName, int retentionPeriod)
         throws VmtDbException {
@@ -1060,10 +1135,10 @@ public class HistorydbIO extends BasedbIO {
         }
 
         execute(Style.PATIENT, getJooqBuilder()
-                .update(RETENTION_POLICIES)
-                .set(RETENTION_POLICIES.RETENTION_PERIOD, retentionPeriod)
-                .where(RETENTION_POLICIES.POLICY_NAME.eq(
-                    retentionSettingNameToDbColumnName.get(settingName))));
+            .update(RETENTION_POLICIES)
+            .set(RETENTION_POLICIES.RETENTION_PERIOD, retentionPeriod)
+            .where(RETENTION_POLICIES.POLICY_NAME.eq(
+                retentionSettingNameToDbColumnName.get(settingName))));
 
         return Optional.of(createSetting(settingName, retentionPeriod));
     }
@@ -1072,9 +1147,8 @@ public class HistorydbIO extends BasedbIO {
      * Get the audit log entries data retention settings.
      *
      * @return The data retention setting.
-     * @throws VmtDbException if there is a database error.
+     * @throws VmtDbException      if there is a database error.
      * @throws DataAccessException if there is a database error.
-     *
      */
     public Setting getAuditLogRetentionSetting() throws VmtDbException {
 
@@ -1083,13 +1157,12 @@ public class HistorydbIO extends BasedbIO {
                 using(conn)
                     .selectFrom(AUDIT_LOG_RETENTION_POLICIES)
                     .where(AUDIT_LOG_RETENTION_POLICIES.POLICY_NAME
-                            .eq(AUDIT_LOG_RETENTION_POLICY_NAME))
+                        .eq(AUDIT_LOG_RETENTION_POLICY_NAME))
                     .fetchOne(AUDIT_LOG_RETENTION_POLICIES.RETENTION_PERIOD);
 
             return createSetting(GlobalSettingSpecs.AuditLogRetentionDays.getSettingName(),
-                        retentionPeriodDays);
-        }
-        catch (SQLException e) {
+                retentionPeriodDays);
+        } catch (SQLException e) {
             throw new VmtDbException(VmtDbException.SQL_EXEC_ERR, e);
         }
     }
@@ -1100,18 +1173,17 @@ public class HistorydbIO extends BasedbIO {
      * @param retentionPeriod The new retention period.
      * @return The updated Setting.
      * @throws VmtDbException if there is a database error.
-     *
      */
     public Optional<Setting> setAuditLogRetentionSetting(int retentionPeriod)
         throws VmtDbException {
 
         execute(Style.PATIENT, getJooqBuilder()
-                .update(AUDIT_LOG_RETENTION_POLICIES)
-                .set(AUDIT_LOG_RETENTION_POLICIES.RETENTION_PERIOD, retentionPeriod)
-                .where(AUDIT_LOG_RETENTION_POLICIES.POLICY_NAME.eq(AUDIT_LOG_RETENTION_POLICY_NAME)));
+            .update(AUDIT_LOG_RETENTION_POLICIES)
+            .set(AUDIT_LOG_RETENTION_POLICIES.RETENTION_PERIOD, retentionPeriod)
+            .where(AUDIT_LOG_RETENTION_POLICIES.POLICY_NAME.eq(AUDIT_LOG_RETENTION_POLICY_NAME)));
 
         return Optional.of(createSetting(GlobalSettingSpecs.AuditLogRetentionDays.getSettingName(),
-                    retentionPeriod));
+            retentionPeriod));
     }
 
     /**
@@ -1138,7 +1210,7 @@ public class HistorydbIO extends BasedbIO {
             Result<? extends Record> statsRecords =
                 using(conn)
                     .select(dField(tbl, UUID), dField(tbl, PROPERTY_TYPE), dField(tbl, COMMODITY_KEY),
-                                DSL.max(dField(tbl, MAX_VALUE)))
+                        DSL.max(dField(tbl, MAX_VALUE)))
                     .from(tbl)
                     // only interested in used and sold commodities
                     .where(str(dField(tbl, PROPERTY_SUBTYPE)).eq(STATS_TABLE_PROPERTY_SUBTYPE_FILTER).and(
@@ -1153,20 +1225,20 @@ public class HistorydbIO extends BasedbIO {
     /**
      * Convert the max value db records into EntityCommoditiesMaxValues.
      *
-     * @param tbl DB table from which the records were fetched.
+     * @param tbl             DB table from which the records were fetched.
      * @param maxStatsRecords Jooq Result containing the lisf of max values DB records.
      * @return List of converted records.
      */
     private List<EntityCommoditiesMaxValues> convertToEntityCommoditiesMaxValues(
-                                                Table<?> tbl, Result<? extends Record> maxStatsRecords) {
+        Table<?> tbl, Result<? extends Record> maxStatsRecords) {
         List<EntityCommoditiesMaxValues> maxValues = new ArrayList<>();
         // Group the records by entityId
         // TODO: karthikt - check the memory profile for large number of entities
         Map<String, List<Record>> entityIdToRecordGrouping =
             maxStatsRecords
-            .stream()
-            .collect(Collectors.groupingBy(
-                rec -> rec.getValue(str(dField(tbl, UUID)))));
+                .stream()
+                .collect(Collectors.groupingBy(
+                    rec -> rec.getValue(str(dField(tbl, UUID)))));
         // Create the protobuf messages
         entityIdToRecordGrouping.forEach((key, records) -> {
             EntityCommoditiesMaxValues.Builder entityMaxValuesBuilder =
@@ -1179,8 +1251,8 @@ public class HistorydbIO extends BasedbIO {
                         .setMaxValue(record.getValue(DSL.field(MAX_COLUMN_NAME, Double.class)))
                         .setCommodityType(
                     CommodityType.newBuilder()
-                        .setType(ClassicEnumMapper.commodityType(
-                            record.getValue(str(dField(tbl, PROPERTY_TYPE)))).getNumber())
+                        .setType(UICommodityType.fromString(
+                            record.getValue(str(dField(tbl, PROPERTY_TYPE)))).typeNumber())
                         // WARN : CommodityKey gets truncated in length when
                         // being stored in the DB. It's a one-way function. This will lead to
                         // correctness problems if keys share common prefix and they get truncated
@@ -1188,6 +1260,7 @@ public class HistorydbIO extends BasedbIO {
                         .setKey(record.getValue(str(dField(tbl, COMMODITY_KEY))))
                         .build())
                     .build();
+
 
                 entityMaxValuesBuilder.addCommodityMaxValues(commodityMaxValue);
             });
@@ -1198,14 +1271,14 @@ public class HistorydbIO extends BasedbIO {
     }
 
     /**
-     *  Return the mapping from EntityIds -> EntityTypes stored in
-     *  the entities table.
+     * Return the mapping from EntityIds -> EntityTypes stored in
+     * the entities table.
      *
      * @return Map of EntityId -> {@link EntityDTO.EntityType}
      * @throws VmtDbException
      */
     public Map<Long, EntityDTO.EntityType> getEntityIdToEntityTypeMap()
-            throws VmtDbException {
+        throws VmtDbException {
 
         // DATACENTER(DC) and VIRTUAL_APPLICATION types are filtered out,
         // because they are mapped to PM and APPLICATION entities respectively
@@ -1213,13 +1286,13 @@ public class HistorydbIO extends BasedbIO {
         // APP stats tables store both APPLICATION and VIRTUAL_APPLICATION entities.
         // TODO: We should have a separate mapping for DATACENTER instead of mapping to PM.
         Map<EntityType, EntityDTO.EntityType> entityTypeToSdkEntityType =
-                HistoryStatsUtils.SDK_ENTITY_TYPE_TO_ENTITY_TYPE.entrySet()
-                    .stream()
-                    .filter(entry -> (entry.getKey() != EntityDTO.EntityType.DATACENTER
-                                && entry.getKey() != EntityDTO.EntityType.VIRTUAL_APPLICATION))
-                    .collect(Collectors.toMap(
-                            entry -> entry.getValue(),
-                            entry -> entry.getKey()));
+            HistoryStatsUtils.SDK_ENTITY_TYPE_TO_ENTITY_TYPE.entrySet()
+                .stream()
+                .filter(entry -> (entry.getKey() != EntityDTO.EntityType.DATACENTER
+                    && entry.getKey() != EntityDTO.EntityType.VIRTUAL_APPLICATION))
+                .collect(Collectors.toMap(
+                    entry -> entry.getValue(),
+                    entry -> entry.getKey()));
 
         // As PM and DC entities are stored in the same stats table, we have to
         // run additional query to distinguish between the PM and DC entities.
@@ -1230,28 +1303,28 @@ public class HistorydbIO extends BasedbIO {
 
         try (Connection conn = connection()) {
             final Map<Long, String> entityIdToCreationClass =
-                    using(conn)
-                        .selectFrom(Entities.ENTITIES)
-                        .fetch()
-                        .intoMap(Entities.ENTITIES.ID, Entities.ENTITIES.CREATION_CLASS);
+                using(conn)
+                    .selectFrom(Entities.ENTITIES)
+                    .fetch()
+                    .intoMap(Entities.ENTITIES.ID, Entities.ENTITIES.CREATION_CLASS);
 
             entityIdToCreationClass.entrySet()
                 .forEach(entry -> {
-                        EntityDTO.EntityType type;
-                            if (datacenterEntities.contains(entry.getKey())) {
-                                type = EntityDTO.EntityType.DATACENTER;
-                            } else {
-                                Optional<EntityType> entityType =
-                                        EntityType.getEntityTypeByClsName(entry.getValue());
-                                if (!entityType.isPresent()) {
-                                    throw new RuntimeException("Can't find entityType for creation class" +
-                                            entry.getValue());
-                                }
-                                type = entityTypeToSdkEntityType.get(entityType.get());
-                            }
+                    EntityDTO.EntityType type;
+                    if (datacenterEntities.contains(entry.getKey())) {
+                        type = EntityDTO.EntityType.DATACENTER;
+                    } else {
+                        Optional<EntityType> entityType =
+                            EntityType.getEntityTypeByClsName(entry.getValue());
+                        if (!entityType.isPresent()) {
+                            throw new RuntimeException("Can't find entityType for creation class" +
+                                entry.getValue());
+                        }
+                        type = entityTypeToSdkEntityType.get(entityType.get());
+                    }
 
-                            entityIdToEntityTypeMap.put(entry.getKey(), type);
-                        });
+                    entityIdToEntityTypeMap.put(entry.getKey(), type);
+                });
         } catch (SQLException e) {
             throw new VmtDbException(VmtDbException.READ_ERR, e);
         }
@@ -1273,36 +1346,36 @@ public class HistorydbIO extends BasedbIO {
         try (Connection conn = connection()) {
             // query from latest table.
             using(conn)
-                    .selectDistinct(PM_STATS_LATEST.UUID)
-                    .from(PM_STATS_LATEST)
-                    .where(PM_STATS_LATEST.PRODUCER_UUID.isNull()).and(
-                    PM_STATS_LATEST.PROPERTY_TYPE.eq("Space")).and(
-                    PM_STATS_LATEST.PROPERTY_SUBTYPE.eq("used"))
-                    .fetch()
-                    .listIterator()
-                    .forEachRemaining(record -> allDatacenterEntities.add(Long.valueOf(record.value1())));
+                .selectDistinct(PM_STATS_LATEST.UUID)
+                .from(PM_STATS_LATEST)
+                .where(PM_STATS_LATEST.PRODUCER_UUID.isNull()).and(
+                PM_STATS_LATEST.PROPERTY_TYPE.eq("Space")).and(
+                PM_STATS_LATEST.PROPERTY_SUBTYPE.eq("used"))
+                .fetch()
+                .listIterator()
+                .forEachRemaining(record -> allDatacenterEntities.add(Long.valueOf(record.value1())));
 
             // query from hourly table
             using(conn)
-                    .selectDistinct(PM_STATS_BY_HOUR.UUID)
-                    .from(PM_STATS_BY_HOUR)
-                    .where(PM_STATS_BY_HOUR.PRODUCER_UUID.isNull()).and(
-                    PM_STATS_BY_HOUR.PROPERTY_TYPE.eq("Space")).and(
-                    PM_STATS_BY_HOUR.PROPERTY_SUBTYPE.eq("used"))
-                    .fetch()
-                    .listIterator()
-                    .forEachRemaining(record -> allDatacenterEntities.add(Long.valueOf(record.value1())));
+                .selectDistinct(PM_STATS_BY_HOUR.UUID)
+                .from(PM_STATS_BY_HOUR)
+                .where(PM_STATS_BY_HOUR.PRODUCER_UUID.isNull()).and(
+                PM_STATS_BY_HOUR.PROPERTY_TYPE.eq("Space")).and(
+                PM_STATS_BY_HOUR.PROPERTY_SUBTYPE.eq("used"))
+                .fetch()
+                .listIterator()
+                .forEachRemaining(record -> allDatacenterEntities.add(Long.valueOf(record.value1())));
 
             // query from daily table
             using(conn)
-                    .selectDistinct(PM_STATS_BY_DAY.UUID)
-                    .from(PM_STATS_BY_DAY)
-                    .where(PM_STATS_BY_DAY.PRODUCER_UUID.isNull()).and(
-                            PM_STATS_BY_DAY.PROPERTY_TYPE.eq("Space")).and(
-                            PM_STATS_BY_DAY.PROPERTY_SUBTYPE.eq("used"))
-                    .fetch()
-                    .listIterator()
-                    .forEachRemaining(record -> allDatacenterEntities.add(Long.valueOf(record.value1())));
+                .selectDistinct(PM_STATS_BY_DAY.UUID)
+                .from(PM_STATS_BY_DAY)
+                .where(PM_STATS_BY_DAY.PRODUCER_UUID.isNull()).and(
+                PM_STATS_BY_DAY.PROPERTY_TYPE.eq("Space")).and(
+                PM_STATS_BY_DAY.PROPERTY_SUBTYPE.eq("used"))
+                .fetch()
+                .listIterator()
+                .forEachRemaining(record -> allDatacenterEntities.add(Long.valueOf(record.value1())));
 
         } catch (SQLException e) {
             throw new VmtDbException(VmtDbException.READ_ERR, e);
@@ -1344,7 +1417,7 @@ public class HistorydbIO extends BasedbIO {
          * Get the next (serialized) cursor, if any.
          *
          * @return An {@link Optional} containing the next cursor, or an empty optional if there are
-         *         no more results.
+         * no more results.
          */
         public Optional<String> getNextCursor() {
             return nextCursor;
@@ -1415,7 +1488,7 @@ public class HistorydbIO extends BasedbIO {
         /**
          * Create the cursor to access the next page of results.
          *
-         * @param lastId The last ID in the current page of results.
+         * @param lastId    The last ID in the current page of results.
          * @param lastValue The last value in the current page of results.
          * @return The {@link SeekPaginationCursor} object.
          */
@@ -1441,22 +1514,22 @@ public class HistorydbIO extends BasedbIO {
         /**
          * Create the condition that will apply this cursor to the results in the database.
          *
-         * @param table The table we're paginating through.
+         * @param table       The table we're paginating through.
          * @param isAscending Whether or not the sort order is ascending.
          *                    TODO (roman, June 28 2018): We should encode the sort order into the
-         *                       cursor, and return an error if the sort order changes between
-         *                       calls.
+         *                    cursor, and return an error if the sort order changes between
+         *                    calls.
          * @return An {@link Optional} containing the condition to insert into the query to get
-         *         the next page of results, or an empty optional if the cursor is empty (i.e.
-         *         we just want the first page of results).
+         * the next page of results, or an empty optional if the cursor is empty (i.e.
+         * we just want the first page of results).
          */
         public Optional<Condition> toCondition(final Table<?> table, final boolean isAscending) {
             if (lastId.isPresent() && lastValue.isPresent()) {
                 // See: https://blog.jooq.org/2013/10/26/faster-sql-paging-with-jooq-using-the-seek-method/
                 if (isAscending) {
-                    return Optional.of(row((Field<Double>)dField(table, AVG_VALUE), (Field<String>)dField(table, UUID)).gt(lastValue.get(), lastId.get()));
+                    return Optional.of(row((Field<Double>) dField(table, AVG_VALUE), (Field<String>) dField(table, UUID)).gt(lastValue.get(), lastId.get()));
                 } else {
-                    return Optional.of(row((Field<Double>)dField(table, AVG_VALUE), (Field<String>)dField(table, UUID)).lt(lastValue.get(), lastId.get()));
+                    return Optional.of(row((Field<Double>) dField(table, AVG_VALUE), (Field<String>) dField(table, UUID)).lt(lastValue.get(), lastId.get()));
                 }
             } else {
                 return Optional.empty();

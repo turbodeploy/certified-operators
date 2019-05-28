@@ -15,13 +15,12 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitPriceAdjustmentApiDTO;
@@ -50,6 +49,7 @@ import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.ServiceLevelDiscount.B
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.TierLevelDiscount;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -114,7 +114,7 @@ public class BusinessUnitMapper {
         final BusinessUnitApiDTO businessUnitApiDTO = new BusinessUnitApiDTO();
         businessUnitApiDTO.setUuid(String.valueOf(discount.getAssociatedAccountId()));
         businessUnitApiDTO.setDisplayName(discount.getDiscountInfo().getDisplayName());
-        businessUnitApiDTO.setClassName(UIEntityType.BUSINESS_ACCOUNT.getValue());
+        businessUnitApiDTO.setClassName(UIEntityType.BUSINESS_ACCOUNT.apiStr());
         businessUnitApiDTO.setEnvironmentType(EnvironmentType.CLOUD);
         businessUnitApiDTO.setDiscount((float) discount.getDiscountInfo()
                 .getAccountLevelDiscount()
@@ -306,7 +306,7 @@ public class BusinessUnitMapper {
             throws Exception {
         // TODO optimize following search, using search service to get all the Cloud services seems overkill
         final GroupApiDTO groupApiDTO = new GroupApiDTO();
-        groupApiDTO.setClassName(UIEntityType.CLOUD_SERVICE.getValue());
+        groupApiDTO.setClassName(UIEntityType.CLOUD_SERVICE.apiStr());
         final SearchPaginationRequest searchPaginationRequest =
                 new SearchPaginationRequest(null, null, false, null);
         final SearchPaginationResponse searchResponse =
@@ -435,7 +435,7 @@ public class BusinessUnitMapper {
             throws Exception {
         // TODO optimize following search, using search service to get all the discovered business accounts seems overkill
         final GroupApiDTO groupApiDTO = new GroupApiDTO();
-        groupApiDTO.setClassName(UIEntityType.BUSINESS_ACCOUNT.getValue());
+        groupApiDTO.setClassName(UIEntityType.BUSINESS_ACCOUNT.apiStr());
         final SearchPaginationRequest searchPaginationRequest = new SearchPaginationRequest(null, null, false, null);
         final List<BaseApiDTO> baseApiDTOS = searchService.getMembersBasedOnFilter("", groupApiDTO, searchPaginationRequest).getRawResults();
 
@@ -494,7 +494,7 @@ public class BusinessUnitMapper {
         businessUnitApiDTO.setBusinessUnitType(BusinessUnitType.DISCOVERED);
         businessUnitApiDTO.setUuid(baseApiDTO.getUuid());
         businessUnitApiDTO.setEnvironmentType(EnvironmentType.CLOUD);
-        businessUnitApiDTO.setClassName(UIEntityType.BUSINESS_ACCOUNT.getValue());
+        businessUnitApiDTO.setClassName(UIEntityType.BUSINESS_ACCOUNT.apiStr());
         businessUnitApiDTO.setBudget(new StatApiDTO());
 
         // TODO set cost

@@ -1,7 +1,7 @@
 package com.vmturbo.topology.processor.group.policy.application;
 
-import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntity;
 import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchParametersCollection;
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Matchers.eq;
@@ -26,12 +26,13 @@ import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper;
 import com.vmturbo.topology.processor.group.policy.PolicyMatcher;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 /**
  * The tests use the following topology:
@@ -77,7 +78,7 @@ public class MustRunTogetherPolicyTest {
                 .setMustRunTogether(mustRunTogetherOnStoragePolicy))
             .build();
 
-    private TopologyGraph topologyGraph;
+    private TopologyGraph<TopologyEntity> topologyGraph;
     private PolicyMatcher policyMatcher;
 
     private final GroupResolver groupResolver = mock(GroupResolver.class);
@@ -94,7 +95,7 @@ public class MustRunTogetherPolicyTest {
         topologyMap.put(7L, topologyEntity(7L, EntityType.VIRTUAL_MACHINE, 2, 3));
         topologyMap.put(8L, topologyEntity(8L, EntityType.VIRTUAL_MACHINE, 2));
 
-        topologyGraph = TopologyGraph.newGraph(topologyMap);
+        topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         policyMatcher = new PolicyMatcher(topologyGraph);
     }
 

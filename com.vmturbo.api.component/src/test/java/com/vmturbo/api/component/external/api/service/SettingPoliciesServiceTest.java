@@ -21,10 +21,10 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableList;
+
 import io.grpc.Status;
 
-import com.google.common.collect.ImmutableList;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
@@ -53,6 +53,7 @@ import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServic
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
@@ -178,8 +179,7 @@ public class SettingPoliciesServiceTest {
 
         List<SettingsPolicyApiDTO> ret =
                 settingsPoliciesService.getSettingsPolicies(false,
-                    Collections.singletonList(
-                        ServiceEntityMapper.toUIEntityType(EntityType.VIRTUAL_MACHINE.getNumber())));
+                    Collections.singletonList(UIEntityType.VIRTUAL_MACHINE.apiStr()));
         assertThat(ret, containsInAnyOrder(RET_SP_DTO));
     }
 

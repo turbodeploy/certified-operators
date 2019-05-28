@@ -17,9 +17,10 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
+import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicyApplication.PolicyApplicationResults;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
  * Responsible for applying a list of {@link PlacementPolicy}s using the right
@@ -56,13 +57,13 @@ public class PolicyApplicator {
      *
      * @param policies The policies to apply.
      * @param groupResolver The {@link GroupResolver} to use to resolve groups.
-     * @param topologyGraph The {@link TopologyGraph} for the currently constructed topology.
+     * @param topologyGraph The {@link TopologyGraph<TopologyEntity>} for the currently constructed topology.
      * @return A {@link Results} object containing the results of the bulk application.
      */
     @Nonnull
     public Results applyPolicies(@Nonnull final List<PlacementPolicy> policies,
                                  @Nonnull final GroupResolver groupResolver,
-                                 @Nonnull final TopologyGraph topologyGraph) {
+                                 @Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
         final Map<PolicyDetailCase, List<PlacementPolicy>> policiesByType =
             policies.stream()
                 .collect(Collectors.groupingBy(policy ->

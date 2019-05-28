@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.jooq.Condition;
+import org.jooq.impl.DSL;
 import org.junit.Test;
 
 import com.google.common.collect.Lists;
@@ -40,10 +41,12 @@ public class StatsQueryFactoryTest {
                         .setCommodityName("Y")
                         .build()
         );
-        final String X_TEST = PM_STATS_BY_MONTH.PROPERTY_TYPE.eq("X")
-            .and(PM_STATS_BY_MONTH.RELATION.eq(RelationType.COMMODITIESBOUGHT)).toString()
-            .replaceAll("\n", "")
-            .replaceAll(" ", "");
+        final String X_TEST =
+            DSL.trueCondition()
+                .and(PM_STATS_BY_MONTH.PROPERTY_TYPE.eq("X"))
+                .and(PM_STATS_BY_MONTH.RELATION.eq(RelationType.COMMODITIESBOUGHT)).toString()
+                .replaceAll("\n", "")
+                .replaceAll(" ", "");
         final String Y_TEST = PM_STATS_BY_MONTH.PROPERTY_TYPE.eq("Y").toString()
             .replaceAll("\n", "")
             .replaceAll(" ", "");

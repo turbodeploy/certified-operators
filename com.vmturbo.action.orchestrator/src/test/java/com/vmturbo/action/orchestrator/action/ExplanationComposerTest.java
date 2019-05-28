@@ -19,10 +19,12 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanatio
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -31,22 +33,14 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Tests for Action Explanation generation in the {@link ExplanationComposer} class.
  */
 public class ExplanationComposerTest {
-    private static final CommodityType MEM = CommodityType.newBuilder()
-        .setType(CommodityDTO.CommodityType.MEM_VALUE)
-        .build();
-
-    private static final CommodityType CPU = CommodityType.newBuilder()
-        .setType(CommodityDTO.CommodityType.CPU_VALUE)
-        .build();
-
-    private static final CommodityType SEGMENTATION = CommodityType.newBuilder()
-        .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
-        .build();
-
-    private static final CommodityType NETWORK = CommodityType.newBuilder()
-            .setType(CommodityDTO.CommodityType.NETWORK_VALUE)
-            .setKey("testNetwork1")
-            .build();
+    private static final ReasonCommodity MEM =
+                    createReasonCommodity(CommodityDTO.CommodityType.MEM_VALUE, null);
+    private static final ReasonCommodity CPU =
+                    createReasonCommodity(CommodityDTO.CommodityType.CPU_VALUE, null);
+    private static final ReasonCommodity SEGMENTATION =
+                    createReasonCommodity(CommodityDTO.CommodityType.SEGMENTATION_VALUE, null);
+    private static final ReasonCommodity NETWORK =
+                    createReasonCommodity(CommodityDTO.CommodityType.NETWORK_VALUE, "testNetwork1");
 
     // sometimes we are creating the key in a particular way: by having a prefix with the name of the
     // commodity type, a separation, and the name of the network itself
@@ -54,10 +48,9 @@ public class ExplanationComposerTest {
     private static final String NETWORK_KEY_PREFIX = CommodityDTO.CommodityType.NETWORK.name()
             + COMMODITY_KEY_SEPARATOR;
 
-    private static final CommodityType NETWORK_WITH_PREFIX_IN_KEY = CommodityType.newBuilder()
-            .setType(CommodityDTO.CommodityType.NETWORK_VALUE)
-            .setKey(NETWORK_KEY_PREFIX + "testNetwork2")
-            .build();
+    private static final ReasonCommodity NETWORK_WITH_PREFIX_IN_KEY =
+                    createReasonCommodity(CommodityDTO.CommodityType.NETWORK_VALUE,
+                                          NETWORK_KEY_PREFIX + "testNetwork2");
 
     @Test
     public void testMoveExplanation() {
@@ -185,7 +178,7 @@ public class ExplanationComposerTest {
                 .setId(0).setInfo(ActionInfo.getDefaultInstance()).setImportance(0)
                 .setExplanation(Explanation.newBuilder()
                 .setActivate(ActivateExplanation.newBuilder()
-                    .setMostExpensiveCommodity(CPU.getType())))
+                    .setMostExpensiveCommodity(CPU.getCommodityType().getType())))
                 .build();
 
         assertEquals("Address high utilization of CPU", ExplanationComposer.composeExplanation(activate));
@@ -212,5 +205,14 @@ public class ExplanationComposerTest {
 
         assertEquals("Idle or non-productive",
             ExplanationComposer.composeExplanation(delete));
+    }
+
+    private static ReasonCommodity createReasonCommodity(int baseType, String key) {
+        CommodityType.Builder ct = TopologyDTO.CommodityType.newBuilder()
+                        .setType(baseType);
+        if (key != null) {
+            ct.setKey(key);
+        }
+        return ReasonCommodity.newBuilder().setCommodityType(ct.build()).build();
     }
 }

@@ -17,8 +17,7 @@ java:
             -Djavax.xml.ws.spi.Provider=com.sun.xml.ws.spi.ProviderImpl
             -Djavax.xml.soap.SAAJMetaFactory=com.sun.xml.messaging.saaj.soap.SAAJMetaFactoryImpl
             -Djava.security.egd=file:/dev/./urandom -Djava.net.preferIPv4Stack=true -XX:-OmitStackTraceInFastThrow
-            -Dnetworkaddress.cache.ttl=0 -Dnetworkaddress.cache.negative.ttl=0
-            -DLog4jContextSelector=${LOG4J_CONTEXT_SELECTOR:-org.apache.logging.log4j.core.async.AsyncLoggerContextSelector}"
+            -Dnetworkaddress.cache.ttl=0 -Dnetworkaddress.cache.negative.ttl=0"
 
 env:
   - name: REPOSITORY_ARANGODB_HOST

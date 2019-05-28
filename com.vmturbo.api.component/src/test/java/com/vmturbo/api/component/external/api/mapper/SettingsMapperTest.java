@@ -2,7 +2,6 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -19,7 +18,6 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -97,6 +95,7 @@ import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServic
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -515,8 +514,7 @@ public class SettingsMapperTest {
 
         settingsPolicyApiDTO.setDisplayName("A Setting Policy is neither a Setting, not a Policy." +
                 " Like a pineapple.");
-        settingsPolicyApiDTO.setEntityType(ServiceEntityMapper.toUIEntityType(
-                EntityType.VIRTUAL_MACHINE.getNumber()));
+        settingsPolicyApiDTO.setEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
         settingsPolicyApiDTO.setDisabled(false);
 
         return settingsPolicyApiDTO;

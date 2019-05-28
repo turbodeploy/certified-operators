@@ -28,8 +28,11 @@ import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.stats.query.live.CombinedStatsBuckets.CombinedStatsBucketsFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
+import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
+import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter.ScopeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest.SingleQuery;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -154,15 +157,28 @@ public class CurrentActionStatReader {
                 QueryInfo::queryId,
                 statsBucketsFactory::bucketsForQuery));
 
-        // It's important to translate before counting, because we always translate before
-        // returning actions to the user, and the returned counts need to be the same.
-        final Stream<ActionView> translatedViews = actionTranslator.translate(
-            actionStore.getActionViews().values()
-                .stream()
-                // Only translate visible actions.
-                .filter(actionStore.getVisibilityPredicate()));
+        final QueryableActionViews actionViews = actionStore.getActionViews();
 
-        translatedViews
+        final Map<ScopeFilter.ScopeCase, List<QueryInfo>> queriesByScopeCase = queries.stream()
+            .collect(Collectors.groupingBy(query -> query.query().getScopeFilter().getScopeCase()));
+
+        final Stream<ActionView> candidateActionViews;
+        if (queriesByScopeCase.containsKey(ScopeCase.GLOBAL)) {
+            candidateActionViews = actionViews.getAll();
+        } else if (queriesByScopeCase.containsKey(ScopeCase.ENTITY_LIST)) {
+            // Actions are indexed by entity ID, so here we can run each query separately.
+            candidateActionViews = queriesByScopeCase.get(ScopeCase.ENTITY_LIST).stream()
+                .flatMap(queryInfo -> {
+                    final List<Long> desiredEntityIds =
+                        queryInfo.query().getScopeFilter().getEntityList().getOidsList();
+                    return actionViews.getByEntity(desiredEntityIds);
+                });
+        } else {
+            logger.warn("Queries for action store had neither global nor entity list scopes.");
+            candidateActionViews = Stream.empty();
+        }
+
+        candidateActionViews
             .map(actionView -> {
                 try {
                     // The main reason to construct this helper is to pre-calculate the involved

@@ -31,7 +31,6 @@ import io.grpc.Channel;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
@@ -39,10 +38,10 @@ import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
-import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.SeverityCountsResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
@@ -58,8 +57,9 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.M
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.components.common.mapping.UIEntityState;
-import com.vmturbo.components.common.mapping.UIEnvironmentType;
+import com.vmturbo.common.protobuf.topology.UIEntityState;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 
 /**
  * A factory class for various {@link SupplychainFetcher}s.
@@ -465,8 +465,8 @@ public class SupplyChainFetcherFactory {
                     final String desiredEntityType = entityTypes.iterator().next();
                     final Optional<Group> group = groupExpander.getGroup(groupUuid);
                     if (group.isPresent()) {
-                        final String groupType = ServiceEntityMapper.toUIEntityType(
-                                GroupProtoUtil.getEntityType(group.get()));
+                        final String groupType = UIEntityType.fromType(
+                                GroupProtoUtil.getEntityType(group.get())).apiStr();
 
                         if (groupType.equals(desiredEntityType)) {
                             return Collections.singletonList(SupplyChainNode.newBuilder()
@@ -760,7 +760,7 @@ public class SupplyChainFetcherFactory {
                     entitiesCount += entry.getValue().getMemberOidsCount();
                     final UIEntityState uiState =
                             UIEntityState.fromEntityState(EntityState.forNumber(entry.getKey()));
-                    stateSummary.compute(uiState.getValue(),
+                    stateSummary.compute(uiState.apiStr(),
                         (k, existingValue) -> {
                             if (existingValue != null) {
                                 logger.warn("Multiple states in supply chain node for entity type " +

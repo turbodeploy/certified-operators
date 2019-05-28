@@ -34,13 +34,13 @@ import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
-import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
@@ -162,7 +162,7 @@ public class TopologyRpcServiceTest {
      * A pipeline stage that ignores the entity store and outputs a graph whose contents
      * contain only the entity injected via the constructor.
      */
-    private static class MockGraphStage extends Stage<EntityStore, TopologyGraph> {
+    private static class MockGraphStage extends Stage<EntityStore, TopologyGraph<TopologyEntity>> {
 
         private final TopologyEntityDTO.Builder entityDTO;
 
@@ -172,9 +172,9 @@ public class TopologyRpcServiceTest {
 
         @Nonnull
         @Override
-        public StageResult<TopologyGraph> execute(@Nonnull EntityStore entityStore)
+        public StageResult<TopologyGraph<TopologyEntity>> execute(@Nonnull EntityStore entityStore)
             throws PipelineStageException, InterruptedException {
-            final TopologyGraph mockGraph = mock(TopologyGraph.class);
+            final TopologyGraph<TopologyEntity> mockGraph = mock(TopologyGraph.class);
             when(mockGraph.entities()).thenReturn(
                 Stream.of(TopologyEntity.newBuilder(entityDTO).build()));
 

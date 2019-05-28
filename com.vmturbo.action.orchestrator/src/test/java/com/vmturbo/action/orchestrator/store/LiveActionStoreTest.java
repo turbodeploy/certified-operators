@@ -2,7 +2,6 @@ package com.vmturbo.action.orchestrator.store;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isA;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
@@ -11,12 +10,12 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -51,7 +50,7 @@ import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
 import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
 import com.vmturbo.action.orchestrator.store.EntitiesCache.Snapshot;
-import com.vmturbo.action.orchestrator.store.LiveActionStore.RecommendationTracker;
+import com.vmturbo.action.orchestrator.store.LiveActions.RecommendationTracker;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -62,6 +61,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.api.test.MutableFixedClock;
 
 /**
  * Integration tests related to the LiveActionStore.
@@ -134,11 +134,14 @@ public class LiveActionStoreTest {
 
     private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
 
+    private Clock clock = new MutableFixedClock(1_000_000);
+
     @SuppressWarnings("unchecked")
     @Before
     public void setup() throws TargetResolutionException, UnsupportedActionException {
         actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID, targetSelector,
-            probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician, actionTranslator);
+            probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician,
+            actionTranslator, clock);
 
         when(targetSelector.getTargetsForActions(any())).thenAnswer(invocation -> {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
@@ -225,9 +228,10 @@ public class LiveActionStoreTest {
     public void testPopulateNotRecommendedAreClearedAndRemoved() throws Exception {
         // Can't use spies when checking for action state because action state machine will call
         // methods in the original action, not in the spy.
-        ActionStore actionStore =
-                new LiveActionStore(new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID, targetSelector,
-                    probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician, actionTranslator);
+        ActionStore actionStore = new LiveActionStore(
+                new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID,
+                targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
+                actionsStatistician, actionTranslator, clock);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 
@@ -457,7 +461,7 @@ public class LiveActionStoreTest {
             .build();
 
         actionStore.populateRecommendedActions(plan);
-        assertThat(actionStore.getActionViews().values().stream()
+        assertThat(actionStore.getActionViews().getAll()
                 .map(spec -> spec.getRecommendation().getId())
                 .collect(Collectors.toList()),
             containsInAnyOrder(firstMove.getId(), secondMove.getId()));
@@ -480,7 +484,7 @@ public class LiveActionStoreTest {
             .build();
 
         actionStore.populateRecommendedActions(plan);
-        assertThat(actionStore.getActionViews().values().stream()
+        assertThat(actionStore.getActionViews().getAll()
                         .map(spec -> spec.getRecommendation().getId())
                         .collect(Collectors.toList()),
                 containsInAnyOrder(firstMove.getId(), secondMove.getId()));

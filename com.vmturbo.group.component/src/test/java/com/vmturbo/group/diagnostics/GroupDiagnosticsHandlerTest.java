@@ -31,7 +31,7 @@ import org.mockito.runners.MockitoJUnitRunner;
 import io.prometheus.client.CollectorRegistry;
 
 import com.vmturbo.components.common.DiagnosticsWriter;
-import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;

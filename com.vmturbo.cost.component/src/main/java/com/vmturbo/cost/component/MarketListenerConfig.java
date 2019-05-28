@@ -3,11 +3,10 @@ package com.vmturbo.cost.component;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 
-import com.google.common.collect.Sets;
-
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
-import com.vmturbo.market.component.api.impl.MarketClientConfig.Subscription;
+import com.vmturbo.market.component.api.impl.MarketSubscription;
+import com.vmturbo.market.component.api.impl.MarketSubscription.Topic;
 
 public class MarketListenerConfig {
 
@@ -17,7 +16,7 @@ public class MarketListenerConfig {
     @Bean
     public MarketComponent marketComponent() {
         return marketClientConfig.marketComponent(
-                Sets.newHashSet(Subscription.ProjectedEntityCosts,
-                        Subscription.ProjectedEntityRiCoverage));
+            MarketSubscription.forTopic(Topic.ProjectedEntityCosts),
+            MarketSubscription.forTopic(Topic.ProjectedEntityRiCoverage));
     }
 }

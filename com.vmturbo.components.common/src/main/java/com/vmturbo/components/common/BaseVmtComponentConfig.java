@@ -2,6 +2,7 @@ package com.vmturbo.components.common;
 
 import java.util.Optional;
 
+import com.vmturbo.components.common.utils.EnvironmentUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,6 +29,8 @@ import com.vmturbo.kvstore.KeyValueStoreConfig;
 @Import({BaseVmtComponentConfig.DebugSwaggerConfig.class, KeyValueStoreConfig.class,
         ConsulDiscoveryManualConfig.class})
 public class BaseVmtComponentConfig {
+
+    private static Boolean enableConsulRegistration;
 
     @Value("${deadlockCheckIntervalSecs:900}")
     private int deadlockCheckIntervalSecs;
@@ -104,7 +107,13 @@ public class BaseVmtComponentConfig {
 
     @Bean
     public MigrationFramework migrationFramework() {
-        return new MigrationFramework(keyValueStore());
+        enableConsulRegistration = EnvironmentUtils.getOptionalEnvProperty(ConsulDiscoveryManualConfig.ENABLE_CONSUL_REGISTRATION)
+                .map(Boolean::parseBoolean)
+                .orElse(false);
+        if (enableConsulRegistration) {
+            return new MigrationFramework(keyValueStore());
+        }
+        return null;
     }
 
     @Bean

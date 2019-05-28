@@ -12,9 +12,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.FLOW;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.NET_THROUGHPUT;
@@ -285,7 +285,7 @@ public class FlowCommoditiesGenerator {
      *
      * @param graph The topology graph.
      */
-    public void setFlowCapacities(final @Nonnull TopologyGraph graph) {
+    public void setFlowCapacities(final @Nonnull TopologyGraph<TopologyEntity> graph) {
         graph.entities().filter(e -> e.getEntityType() == PHYSICAL_MACHINE.getNumber())
              .forEach(this::setPMFlowCapacities);
     }

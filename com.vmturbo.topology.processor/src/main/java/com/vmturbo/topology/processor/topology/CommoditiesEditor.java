@@ -43,6 +43,7 @@ import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
  * Editor to update values for commodities.
@@ -71,7 +72,7 @@ public class CommoditiesEditor {
      * @param topologyInfo to find VMs in current scope or to find plan type.
      * @param scope to get information about plan scope.
      */
-    public void applyCommodityEdits(@Nonnull final TopologyGraph graph,
+    public void applyCommodityEdits(@Nonnull final TopologyGraph<TopologyEntity> graph,
                     @Nonnull final List<ScenarioChange> changes,
                     TopologyDTO.TopologyInfo topologyInfo, @Nonnull final PlanScope scope) {
         editCommoditiesForBaselineChanges(graph, changes, topologyInfo);
@@ -85,7 +86,7 @@ public class CommoditiesEditor {
      * @param changes to iterate over and find relevant to baseline change.
      * @param topologyInfo to find VMs in current scope.
      */
-    private void editCommoditiesForBaselineChanges(@Nonnull final TopologyGraph graph,
+    private void editCommoditiesForBaselineChanges(@Nonnull final TopologyGraph<TopologyEntity> graph,
                     @Nonnull final List<ScenarioChange> changes,
                     TopologyDTO.TopologyInfo topologyInfo) {
         changes.stream()
@@ -110,7 +111,7 @@ public class CommoditiesEditor {
      * @param baselineDate for which data is fetched for.
      */
     private void fetchAndApplyHistoricalData(Set<TopologyEntity> vmSet,
-                    final TopologyGraph graph, long baselineDate) {
+                                             final TopologyGraph<TopologyEntity> graph, long baselineDate) {
         EntityStatsScope.Builder scope = EntityStatsScope.newBuilder();
 
         // Empty set implies global scope hence set scope to all VMs.
@@ -189,7 +190,7 @@ public class CommoditiesEditor {
      * @param addHistorical when true, add to history values as SystemLoad, otherwise replace real-time used/peak
      */
     private void updateCommodityValuesForVmAndProvider(TopologyEntity vm, CommodityType commType,
-                    final TopologyGraph graph,
+                    final TopologyGraph<TopologyEntity> graph,
                     final Map<Integer, Queue<Long>> providerIdsByCommodityType,
                     final double peak,
                     final double used,
@@ -293,7 +294,7 @@ public class CommoditiesEditor {
      * @param oid in current scope.
      * @return stream of VMs in scope found via supply chain traversal.
      */
-    private Stream<TopologyEntity> findVMsInScope(final TopologyGraph graph, long oid) {
+    private Stream<TopologyEntity> findVMsInScope(final TopologyGraph<TopologyEntity> graph, long oid) {
         Optional<TopologyEntity> optionalEntity = graph.getEntity(oid);
         if (!optionalEntity.isPresent()) {
             return Stream.empty();
@@ -343,7 +344,7 @@ public class CommoditiesEditor {
      * @param scope which contains cluster oid.
      * @param topologyInfo to identify if it is a Cluster headroom plan.
      */
-    private void editCommoditiesForClusterHeadroom(@Nonnull final TopologyGraph graph,
+    private void editCommoditiesForClusterHeadroom(@Nonnull final TopologyGraph<TopologyEntity> graph,
                     @Nonnull final PlanScope scope,
                     @Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
 

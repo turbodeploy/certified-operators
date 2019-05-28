@@ -57,7 +57,7 @@ import com.vmturbo.topology.processor.stitching.StitchingTestUtils;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory.ConfigurableStitchingJournalFactory;
 import com.vmturbo.topology.processor.targets.Target;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 /**
  * Attempt to simulate UCS stitching operation.
@@ -222,7 +222,7 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
 
         final IStitchingJournal<TopologyEntity> postStitchingJournal = journal.childJournal(
                 new TopologyEntitySemanticDiffer(journal.getJournalOptions().getVerbosity()));
-        stitchingManager.postStitch(new GraphWithSettings(TopologyGraph.newGraph(topology),
+        stitchingManager.postStitch(new GraphWithSettings(TopologyEntityTopologyGraphCreator.newGraph(topology),
                 Collections.emptyMap(), Collections.emptyMap()), postStitchingJournal);
     }
 

@@ -21,10 +21,10 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiInputDTO;
-import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpec;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpecField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpecResource;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 
 /**
  * A Mapper class for template, it provide two convert functions: mapToTemplateApiDTO and
@@ -123,7 +124,7 @@ public class TemplateMapper {
         dto.setModel(templateInfo.getModel());
         dto.setCpuModel(templateInfo.getCpuModel());
         dto.setVendor(templateInfo.getVendor());
-        dto.setClassName(ServiceEntityMapper.toUIEntityType(templateInfo.getEntityType()) +
+        dto.setClassName(UIEntityType.fromType(templateInfo.getEntityType()).apiStr() +
                 TemplatesUtils.PROFILE);
         dto.setDescription(templateInfo.getDescription());
         if (templateInfo.hasPrice()) {

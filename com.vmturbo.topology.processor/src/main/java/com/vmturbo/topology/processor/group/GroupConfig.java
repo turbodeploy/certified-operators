@@ -17,14 +17,16 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolic
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.search.SearchResolver;
+import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
-import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
-import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
-import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.policy.ReservationPolicyFactory;
+import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
+import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.plan.PlanConfig;
@@ -86,8 +88,13 @@ public class GroupConfig {
     }
 
     @Bean
-    public TopologyFilterFactory topologyFilterFactory() {
-        return new TopologyFilterFactory();
+    public TopologyFilterFactory<TopologyEntity> topologyFilterFactory() {
+        return new TopologyFilterFactory<>();
+    }
+
+    @Bean
+    public SearchResolver<TopologyEntity> searchResolver() {
+        return new SearchResolver<>(topologyFilterFactory());
     }
 
     @Bean

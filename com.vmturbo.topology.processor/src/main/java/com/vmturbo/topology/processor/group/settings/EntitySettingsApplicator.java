@@ -20,7 +20,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
@@ -31,16 +30,17 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builde
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProviderOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
 
 /**
  * The {@link EntitySettingsApplicator} is responsible for applying resolved settings
- * to a {@link TopologyGraph}.
+ * to a {@link TopologyGraph <TopologyEntity>}.
  *
  * It's separated from {@link EntitySettingsResolver} (which resolves settings) for clarity, and ease
  * of tracking, debugging, and measuring. It's separated from {@link GraphWithSettings} (even
@@ -58,7 +58,7 @@ public class EntitySettingsApplicator {
      * Applies the settings contained in a {@link GraphWithSettings} to the topology graph
      * contained in it.
      *
-     * @param graphWithSettings A {@link TopologyGraph} and the settings that apply to it.
+     * @param graphWithSettings A {@link TopologyGraph<TopologyEntity>} and the settings that apply to it.
      */
     public void applySettings(@Nonnull final TopologyInfo topologyInfo,
                               @Nonnull final GraphWithSettings graphWithSettings) {

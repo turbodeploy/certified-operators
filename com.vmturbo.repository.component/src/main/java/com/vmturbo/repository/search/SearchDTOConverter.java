@@ -16,8 +16,9 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.PropertyTypeCase;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
-import com.vmturbo.components.common.mapping.UIEntityState;
-import com.vmturbo.repository.constant.RepoObjectType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.UIEntityState;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 
 public class SearchDTOConverter {
@@ -149,8 +150,8 @@ public class SearchDTOConverter {
     public static Search.Entity toSearchEntity(final ServiceEntityRepoDTO serviceEntityRepoDTO) {
         Objects.requireNonNull(serviceEntityRepoDTO, "serviceEntityRepoDTO must not be null");
 
-        final int state = UIEntityState.fromString(serviceEntityRepoDTO.getState()).toEntityState().getNumber();
-        final int type = RepoObjectType.toTopologyEntityType(serviceEntityRepoDTO.getEntityType());
+        final EntityState state = UIEntityState.fromString(serviceEntityRepoDTO.getState()).toEntityState();
+        final int type = UIEntityType.fromString(serviceEntityRepoDTO.getEntityType()).typeNumber();
 
         Entity.Builder entityBuilder = Search.Entity.newBuilder()
             .setDisplayName(serviceEntityRepoDTO.getDisplayName())

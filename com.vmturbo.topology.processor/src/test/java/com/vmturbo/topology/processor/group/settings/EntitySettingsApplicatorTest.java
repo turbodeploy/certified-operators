@@ -3,7 +3,8 @@ package com.vmturbo.topology.processor.group.settings;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntityBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
 import java.util.List;
@@ -39,8 +40,9 @@ import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 /**
  * Unit test for {@link EntitySettingsApplicator}.
@@ -640,7 +642,7 @@ public class EntitySettingsApplicatorTest {
                                @Nonnull TopologyEntityDTO.Builder entity,
                                @Nonnull Setting... settings) {
         final long entityId = entity.getOid();
-        final TopologyGraph graph = TopologyGraph.newGraph(ImmutableMap.of(
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(
             entityId, topologyEntityBuilder(entity),
             PARENT_ID, topologyEntityBuilder(PARENT_OBJECT.toBuilder())));
         final EntitySettings.Builder settingsBuilder = EntitySettings.newBuilder()

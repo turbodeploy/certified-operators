@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 
+import com.google.common.collect.Collections2;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -183,6 +184,27 @@ public class KafkaMessageConsumer implements AutoCloseable {
         synchronized (consumerLock) {
             topicSettingsMap.put(topicSettings.topic, topicSettings);
             return messageReceiver(topicSettings.topic, deserializer);
+        }
+    }
+
+    /**
+     * Creates message receiver for the specific topic. Kafka consumer will not subscribe to any
+     * topics until this method is called. Different topics specified here could be reported
+     * in parallel, while all the messages within a topic are only delivered sequentially.
+     *
+     * @param topicSettings topic to subscribe to, with setting overrides.
+     * @param deserializer function to deserialize the message from bytes
+     * @param <T> type of messages to receive
+     * @return message receiver implementation
+     * @throws IllegalStateException if the topic has been already subscribed to
+     */
+    public <T> IMessageReceiver<T> messageReceiversWithSettings(
+            @Nonnull Collection<TopicSettings> topicSettings,
+            @Nonnull Deserializer<T> deserializer) {
+        synchronized (consumerLock) {
+            topicSettings.forEach(setting -> topicSettingsMap.put(setting.topic, setting));
+            return messageReceiver(Collections2.transform(topicSettings, setting -> setting.topic),
+                deserializer);
         }
     }
 

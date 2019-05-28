@@ -28,6 +28,11 @@ import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectM
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
+import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
+import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
+import com.vmturbo.cost.api.CostClientConfig;
 
 @Configuration
 @Import({CommunicationConfig.class, UserSessionConfig.class})
@@ -56,11 +61,20 @@ public class MapperConfig {
     @Autowired
     private UserSessionConfig userSessionConfig;
 
+    @Autowired
+    private CostClientConfig costClientConfig;
+
+    @Autowired
+    private MapperConfig mapperConfig;
+
     @Bean
     public ActionSpecMapper actionSpecMapper() {
         return new ActionSpecMapper(
             actionSpecMappingContextFactory(),
-            communicationConfig.getRealtimeTopologyContextId());
+            communicationConfig.getRealtimeTopologyContextId(),
+            costClientConfig,
+            communicationConfig,
+            mapperConfig);
     }
 
     @Bean
@@ -72,7 +86,10 @@ public class MapperConfig {
             cloudAspectMapper(),
             virtualMachineMapper(),
             virtualVolumeAspectMapper(),
-            communicationConfig.getRealtimeTopologyContextId());
+            communicationConfig.getRealtimeTopologyContextId(),
+            costClientConfig,
+            BuyReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
+            ReservedInstanceSpecServiceGrpc.newBlockingStub(costClientConfig.costChannel()));
     }
 
     @Bean

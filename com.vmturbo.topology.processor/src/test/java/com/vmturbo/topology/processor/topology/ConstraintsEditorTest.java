@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.topology;
 
+import static org.mockito.Mockito.mock;
+
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -15,6 +17,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
+
+import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -40,10 +44,9 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
-
-import io.grpc.stub.StreamObserver;
 
 /**
  * Tests disabling of constraints
@@ -147,7 +150,7 @@ public class ConstraintsEditorTest {
                                     .setGroupUuid(1l).build())
                                 .build()))
                 .build());
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
         Assert.assertEquals(3, getActiveCommodities(graph).count());
         constraintsEditor.editConstraints(graph, changes, false);
         Assert.assertEquals(1, getActiveCommodities(graph).count());
@@ -172,7 +175,7 @@ public class ConstraintsEditorTest {
         List<ScenarioChange> changes = ImmutableList.of(
                 buildScenarioChange("ClusterCommodity", 1l),
                 buildScenarioChange("NetworkCommodity", 2l));
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
         Assert.assertEquals(4, getActiveCommodities(graph).count());
         constraintsEditor.editConstraints(graph, changes, false);
         Assert.assertEquals(0, getActiveCommodities(graph).count());
@@ -199,7 +202,7 @@ public class ConstraintsEditorTest {
                                 .setIgnoreAllEntities(true)
                                 .build()))
                 .build());
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
         Assert.assertEquals(3, getActiveCommodities(graph).count());
         constraintsEditor.editConstraints(graph, changes, false);
         // As 2 out of the 3 commodities has a key, we should have only 2 commodities whose
@@ -233,7 +236,7 @@ public class ConstraintsEditorTest {
                                         .build())
                                 .build()))
                 .build());
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
         Assert.assertEquals(5, getActiveCommodities(graph).count());
         constraintsEditor.editConstraints(graph, changes, false);
         // As only 2 out of 3 VMs has a commodityKey, there should be only 2
@@ -277,7 +280,7 @@ public class ConstraintsEditorTest {
                                         .setGroupUuid(1l).build())
                                 .build()))
                 .build());
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
 
         // Pressure plan : disabled
         constraintsEditor.editConstraints(graph, changes, false);
@@ -308,7 +311,7 @@ public class ConstraintsEditorTest {
                 .build();
     }
 
-    private Stream<CommodityBoughtDTO> getActiveCommodities(TopologyGraph editedGraph) {
+    private Stream<CommodityBoughtDTO> getActiveCommodities(TopologyGraph<TopologyEntity> editedGraph) {
         return editedGraph.entities()
                     .map(TopologyEntity::getTopologyEntityDtoBuilder)
                     .map(Builder::getCommoditiesBoughtFromProvidersList)
@@ -318,7 +321,7 @@ public class ConstraintsEditorTest {
                     .filter(CommodityBoughtDTO::getActive);
     }
 
-    private Stream<CommoditySoldDTO> getActiveCommoditiesSold(TopologyGraph editedGraph) {
+    private Stream<CommoditySoldDTO> getActiveCommoditiesSold(TopologyGraph<TopologyEntity> editedGraph) {
         return editedGraph.entities()
                     .map(TopologyEntity::getTopologyEntityDtoBuilder)
                     .map(Builder::getCommoditySoldListList)
@@ -362,11 +365,11 @@ public class ConstraintsEditorTest {
     private static class TestGroupResolver extends GroupResolver {
 
         private TestGroupResolver() {
-            super(new TopologyFilterFactory());
+            super(mock(SearchResolver.class));
         }
 
         @Override
-        public Set<Long> resolve(Group group, TopologyGraph topologyGraph) {
+        public Set<Long> resolve(Group group, TopologyGraph<TopologyEntity> topologyGraph) {
             return new HashSet<>(group.getGroup().getStaticGroupMembers().getStaticMemberOidsList());
         }
     }

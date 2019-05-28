@@ -23,17 +23,13 @@ import java.util.stream.Stream;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
+
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScenario;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
@@ -41,6 +37,8 @@ import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
+import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.entity.EntitiesValidationException;
@@ -50,11 +48,6 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupMemberCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
-import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
-import com.vmturbo.topology.processor.topology.CloudTopologyScopeEditor;
-import com.vmturbo.topology.processor.topology.pipeline.Stages.ChangeAppCommodityKeyOnVMAndAppStage;
-import com.vmturbo.topology.processor.topology.pipeline.Stages.CloudPlanScopingStage;
-import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
@@ -62,16 +55,18 @@ import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNo
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
-import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.stitching.journal.EmptyStitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal.StitchingJournalContainer;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
+import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
+import com.vmturbo.topology.processor.topology.CloudTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.ChangeAppCommodityKeyOnVMAndAppStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.CloudPlanScopingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.EntityValidationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
@@ -86,7 +81,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadGroupsStage
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadTemplatesStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadWorkflowsStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.StageResult;
+import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 
 public class StagesTest {
 
@@ -254,10 +249,11 @@ public class StagesTest {
                 .setCreationTime(System.currentTimeMillis())
                 .setTopologyType(TopologyType.PLAN)
                 .build();
+        SearchResolver<TopologyEntity> searchResolver = mock(SearchResolver.class);
         final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         when(context.getTopologyInfo()).thenReturn(topologyInfo);
         final TopologyEditStage stage =
-                new TopologyEditStage(topologyEditor, changes);
+                new TopologyEditStage(topologyEditor, searchResolver, changes);
         stage.setContext(context);
         stage.execute(Collections.emptyMap());
         verify(topologyEditor).editTopology(eq(Collections.emptyMap()),
@@ -271,7 +267,7 @@ public class StagesTest {
         final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         final PostStitchingStage postStitchingStage = new PostStitchingStage(stitchingManager);
         final GraphWithSettings graphWithSettings = mock(GraphWithSettings.class);
-        final TopologyGraph graph = mock(TopologyGraph.class);
+        final TopologyGraph<TopologyEntity> graph = mock(TopologyGraph.class);
 
         final StitchingJournalContainer container = new StitchingJournalContainer();
 
@@ -297,7 +293,7 @@ public class StagesTest {
         final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(7L, topologyEntityBuilder(entity));
 
         final GraphCreationStage stage = new GraphCreationStage();
-        final TopologyGraph topologyGraph = stage.execute(topology).getResult();
+        final TopologyGraph<TopologyEntity> topologyGraph = stage.execute(topology).getResult();
         assertThat(topologyGraph.size(), is(1));
         assertThat(topologyGraph.getEntity(7L).get().getTopologyEntityDtoBuilder(),
                 is(entity));
@@ -313,7 +309,7 @@ public class StagesTest {
         final GroupResolver groupResolver = mock(GroupResolver.class);
         when(context.getGroupResolver()).thenReturn(groupResolver);
 
-        final TopologyGraph topologyGraph = mock(TopologyGraph.class);
+        final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
         policyStage.setContext(context);
 
         policyStage.execute(topologyGraph);
@@ -337,7 +333,7 @@ public class StagesTest {
         when(context.getGroupResolver()).thenReturn(groupResolver);
         when(context.getTopologyInfo()).thenReturn(topologyInfo);
 
-        final TopologyGraph topologyGraph = mock(TopologyGraph.class);
+        final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
         stage.setContext(context);
         stage.execute(topologyGraph);
 
@@ -425,7 +421,7 @@ public class StagesTest {
     public void testEntityValidationStage() throws Exception {
         final EntityValidator entityValidator = mock(EntityValidator.class);
         final GraphWithSettings graphWithSettings = mock(GraphWithSettings.class);
-        final TopologyGraph topologyGraph = mock(TopologyGraph.class);
+        final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
         when(graphWithSettings.getTopologyGraph()).thenReturn(topologyGraph);
         when(topologyGraph.entities()).thenReturn(Stream.empty());
 
@@ -438,7 +434,7 @@ public class StagesTest {
     public void testEntityValidationStageFailure() throws Exception {
         final EntityValidator entityValidator = mock(EntityValidator.class);
         final GraphWithSettings graphWithSettings = mock(GraphWithSettings.class);
-        final TopologyGraph topologyGraph = mock(TopologyGraph.class);
+        final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
         when(graphWithSettings.getTopologyGraph()).thenReturn(topologyGraph);
         when(topologyGraph.entities()).thenReturn(Stream.empty());
         doThrow(new EntitiesValidationException(Collections.emptyList()))
@@ -458,14 +454,14 @@ public class StagesTest {
     public void testChangeAppCommodityKeyOnVMAndAppStage() throws Exception {
         final ApplicationCommodityKeyChanger applicationCommodityKeyChanger = mock(ApplicationCommodityKeyChanger.class);
         final ChangeAppCommodityKeyOnVMAndAppStage changeAppCommodityKeyOnVMAndAppStage = new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger);
-        final TopologyGraph topologyGraph = mock(TopologyGraph.class);
+        final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
 
         changeAppCommodityKeyOnVMAndAppStage.passthrough(topologyGraph);
         verify(applicationCommodityKeyChanger).execute(any());
     }
 
-    private TopologyGraph createTopologyGraph() {
-        final TopologyGraph graph = mock(TopologyGraph.class);
+    private TopologyGraph<TopologyEntity> createTopologyGraph() {
+        final TopologyGraph<TopologyEntity> graph = mock(TopologyGraph.class);
         final TopologyEntity entity = mock(TopologyEntity.class);
         when(entity.getTopologyEntityDtoBuilder()).thenReturn(this.entity);
         when(graph.entities()).thenReturn(Stream.of(entity));

@@ -24,7 +24,7 @@ import reactor.core.publisher.Flux;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.components.common.mapping.UIEntityState;
+import com.vmturbo.common.protobuf.topology.UIEntityState;
 
 @RunWith(MockitoJUnitRunner.class)
 public class SupplyChainResultsEntityDtoConverterTest {

@@ -27,11 +27,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
-import com.vmturbo.components.common.mapping.UIEntityState;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.common.protobuf.topology.UIEntityState;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.CommodityDTO.CommodityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
-import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.CommodityBoughtRepoDTO;
 import com.vmturbo.repository.dto.CommoditySoldRepoDTO;
@@ -70,8 +71,8 @@ public class TopologyEntityDtoConverterTest {
         vmServiceEntity.setDisplayName("test-vm");
         vmServiceEntity.setOid("111");
         vmServiceEntity.setUuid("111");
-        vmServiceEntity.setEntityType(RepoObjectType.mapEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
-        vmServiceEntity.setState(UIEntityState.ACTIVE.getValue());
+        vmServiceEntity.setEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        vmServiceEntity.setState(UIEntityState.ACTIVE.apiStr());
         final Map<String, List<String>> tagsMap = new HashMap<>();
         tagsMap.put("key1", Arrays.asList("value1", "value2"));
         tagsMap.put("key2", Collections.singletonList("value1"));
@@ -93,21 +94,21 @@ public class TopologyEntityDtoConverterTest {
         final CommoditySoldRepoDTO commoditySoldRepoDTO = new CommoditySoldRepoDTO();
         commoditySoldRepoDTO.setCapacity(123);
         commoditySoldRepoDTO.setKey("test-sold-key");
-        commoditySoldRepoDTO.setType(RepoObjectType.mapCommodityType(CommodityType.VMEM.getValue()));
+        commoditySoldRepoDTO.setType(UICommodityType.VMEM.apiStr());
         commoditySoldRepoDTO.setUsed(100);
         commoditySoldRepoDTO.setProviderOid("111");
         commoditySoldRepoDTO.setOwnerOid("111");
         final CommoditySoldRepoDTO commoditySoldRepoDTOTwo = new CommoditySoldRepoDTO();
         commoditySoldRepoDTOTwo.setCapacity(345);
         commoditySoldRepoDTOTwo.setKey("test-sold-key-two");
-        commoditySoldRepoDTOTwo.setType(RepoObjectType.mapCommodityType(CommodityType.APPLICATION.getValue()));
+        commoditySoldRepoDTOTwo.setType(UICommodityType.APPLICATION.apiStr());
         commoditySoldRepoDTOTwo.setUsed(100);
         commoditySoldRepoDTOTwo.setProviderOid("111");
         commoditySoldRepoDTOTwo.setOwnerOid("111");
         final CommoditySoldRepoDTO commoditySoldRepoDTOThree = new CommoditySoldRepoDTO();
         commoditySoldRepoDTOThree.setCapacity(345);
         commoditySoldRepoDTOThree.setKey("test-sold-key-three");
-        commoditySoldRepoDTOThree.setType(RepoObjectType.mapCommodityType(CommodityType.VCPU.getValue()));
+        commoditySoldRepoDTOThree.setType(UICommodityType.VCPU.apiStr());
         commoditySoldRepoDTOThree.setUsed(100);
         commoditySoldRepoDTOThree.setProviderOid("111");
         commoditySoldRepoDTOThree.setOwnerOid("111");
@@ -117,13 +118,13 @@ public class TopologyEntityDtoConverterTest {
         vmServiceEntity.setCommoditySoldList(Lists.newArrayList(commoditySoldRepoDTO, commoditySoldRepoDTOTwo, commoditySoldRepoDTOThree));
         final CommodityBoughtRepoDTO commodityBoughtRepoDTO = new CommodityBoughtRepoDTO();
         commodityBoughtRepoDTO.setKey("test-key");
-        commodityBoughtRepoDTO.setType(RepoObjectType.mapCommodityType(CommodityType.MEM.getValue()));
+        commodityBoughtRepoDTO.setType(UICommodityType.MEM.apiStr());
         commodityBoughtRepoDTO.setUsed(123);
         commodityBoughtRepoDTO.setProviderOid("222");
         commodityBoughtRepoDTO.setOwnerOid("111");
         final CommodityBoughtRepoDTO commodityBoughtRepoDTOTwo = new CommodityBoughtRepoDTO();
         commodityBoughtRepoDTOTwo.setKey("test-key-two");
-        commodityBoughtRepoDTOTwo.setType(RepoObjectType.mapCommodityType(CommodityType.CLUSTER.getValue()));
+        commodityBoughtRepoDTOTwo.setType(UICommodityType.CLUSTER.apiStr());
         commodityBoughtRepoDTOTwo.setUsed(123);
         commodityBoughtRepoDTOTwo.setProviderOid("222");
         commodityBoughtRepoDTOTwo.setOwnerOid("111");
@@ -227,11 +228,11 @@ public class TopologyEntityDtoConverterTest {
         verifyCommoditySold(topologyEntityDTO, vmServiceEntity);
     }
 
-    private static void verifySE(
-            final TopologyEntityDTO seTopoDTO, final ServiceEntityRepoDTO seRepoDTO) {
+    private static void verifySE(@Nonnull final TopologyEntityDTO seTopoDTO,
+                                 @Nonnull final ServiceEntityRepoDTO seRepoDTO) {
         final String expectedState = UIEntityState.fromEntityState(seTopoDTO.getEntityState())
-                .getValue();
-        final String expectedType = RepoObjectType.mapEntityType(seTopoDTO.getEntityType());
+                .apiStr();
+        final String expectedType = UIEntityType.fromEntity(seTopoDTO).apiStr();
 
         assertEquals(Long.toString(seTopoDTO.getOid()), seRepoDTO.getOid());
         assertEquals(seTopoDTO.getDisplayName(), seRepoDTO.getDisplayName());
@@ -332,8 +333,7 @@ public class TopologyEntityDtoConverterTest {
                                               final String providerOid,
                                               final CommodityBoughtDTO commTopoDTO,
                                               final CommodityBoughtRepoDTO commRepoDTO) {
-        final String expectedType = RepoObjectType.mapCommodityType(
-                commTopoDTO.getCommodityType().getType());
+        final String expectedType = UICommodityType.fromType(commTopoDTO.getCommodityType().getType()).apiStr();
         assertEquals(commTopoDTO.getCommodityType().getKey(), commRepoDTO.getKey());
         assertEquals(commTopoDTO.getPeak(), commRepoDTO.getPeak(), epsilon);
         assertEquals(providerOid, commRepoDTO.getProviderOid());
@@ -361,8 +361,7 @@ public class TopologyEntityDtoConverterTest {
                                             final String providerOid,
                                             final CommoditySoldDTO commTopoDTO,
                                             final CommoditySoldRepoDTO commRepoDTO) {
-        final String expectedType = RepoObjectType.mapCommodityType(
-                commTopoDTO.getCommodityType().getType());
+        final String expectedType = UICommodityType.fromType(commTopoDTO.getCommodityType().getType()).apiStr();
         assertEquals(commTopoDTO.getCapacity(), commRepoDTO.getCapacity(), epsilon);
         assertEquals(commTopoDTO.getEffectiveCapacityPercentage(), commRepoDTO.getEffectiveCapacityPercentage(), epsilon);
         assertEquals(commTopoDTO.getCommodityType().getKey(), commRepoDTO.getKey());

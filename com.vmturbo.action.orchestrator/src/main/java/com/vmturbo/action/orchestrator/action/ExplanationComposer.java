@@ -26,10 +26,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderEx
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -175,13 +175,14 @@ public class ExplanationComposer {
      * @return explanation
      */
     public static String buildComplianceExplanation(Optional<ActionEntity> optionalSourceEntity,
-                                                    List<TopologyDTO.CommodityType> commodityTypes) {
+                                                    List<ReasonCommodity> reasons) {
         StringBuilder sb = new StringBuilder();
         sb.append(MessageFormat.format(MOVE_COMPLIANCE_EXPLANATION_FORMAT,
                 optionalSourceEntity.isPresent()
                         ? buildEntityNameOrType(optionalSourceEntity.get())
                         : "Current supplier"));
-        sb.append(commodityTypes.stream()
+        sb.append(reasons.stream()
+            .map(ReasonCommodity::getCommodityType)
             .map(ActionDTOUtil::getCommodityDisplayName)
             .collect(Collectors.joining(" ")));
 
@@ -201,8 +202,8 @@ public class ExplanationComposer {
      * @return explanation
      */
     public static String buildCongestionExplanation(Congestion congestion) {
-        List<TopologyDTO.CommodityType> congestedComms =  congestion.getCongestedCommoditiesList();
-        List<TopologyDTO.CommodityType> underUtilizedComms =  congestion.getUnderUtilizedCommoditiesList();
+        List<ReasonCommodity> congestedComms =  congestion.getCongestedCommoditiesList();
+        List<ReasonCommodity> underUtilizedComms =  congestion.getUnderUtilizedCommoditiesList();
         // For the cloud, we should have either congested commodities or increase RI utilization
         // A blank explanation should not occur.
         String congestionExplanation = "";
@@ -310,8 +311,8 @@ public class ExplanationComposer {
      * @return
      */
     public static String buildEfficiencyExplanation(Efficiency efficiency) {
-        List<TopologyDTO.CommodityType> overUtilizedComms =  efficiency.getCongestedCommoditiesList();
-        List<TopologyDTO.CommodityType> underUtilizedComms =  efficiency.getUnderUtilizedCommoditiesList();
+        List<ReasonCommodity> overUtilizedComms =  efficiency.getCongestedCommoditiesList();
+        List<ReasonCommodity> underUtilizedComms =  efficiency.getUnderUtilizedCommoditiesList();
         boolean isUtilizationDrivenAction = !overUtilizedComms.isEmpty() || !underUtilizedComms.isEmpty();
         String efficiencyExplanation = "";
         if (isUtilizationDrivenAction || efficiency.hasIsRiCoverageIncreased()) {
@@ -336,22 +337,25 @@ public class ExplanationComposer {
      * @return
      */
     public static String buildCommodityUtilizationExplanation(
-            @Nonnull List<TopologyDTO.CommodityType> congestedComms,
-            @Nonnull List<TopologyDTO.CommodityType> underUtilizedComms) {
+            @Nonnull List<ReasonCommodity> congestedComms,
+            @Nonnull List<ReasonCommodity> underUtilizedComms) {
         boolean areCongestedCommoditiesPresent = !congestedComms.isEmpty();
         boolean areUnderUtilizedCommoditiesPresent = !underUtilizedComms.isEmpty();
         String commUtilizationExplanation = "";
         if (areCongestedCommoditiesPresent) {
-            commUtilizationExplanation = congestedComms.stream().map(
-                    c -> ActionDTOUtil.getCommodityDisplayName(c))
-                    .collect(Collectors.joining(", ")) + " congestion";
+            commUtilizationExplanation = congestedComms.stream()
+                            .map(ReasonCommodity::getCommodityType)
+                            .map(c -> ActionDTOUtil.getCommodityDisplayName(c))
+                            .collect(Collectors.joining(", ")) + " congestion";
             if (areUnderUtilizedCommoditiesPresent) {
                 commUtilizationExplanation += ". ";
             }
         }
         if (areUnderUtilizedCommoditiesPresent) {
-            commUtilizationExplanation += "Underutilized " + underUtilizedComms.stream().map(
-                    c -> ActionDTOUtil.getCommodityDisplayName(c)).collect(Collectors.joining(", "));
+            commUtilizationExplanation += "Underutilized " + underUtilizedComms.stream()
+                            .map(ReasonCommodity::getCommodityType)
+                            .map(c -> ActionDTOUtil.getCommodityDisplayName(c))
+                            .collect(Collectors.joining(", "));
         }
         return commUtilizationExplanation;
     }
@@ -410,14 +414,14 @@ public class ExplanationComposer {
      *
      *     "Enable supplier to offer requested resource(s) {comma-delimited commodity names}"
      *
-     * @param commodityTypes a list of missing commodity types
+     * @param commodityTypes a list of missing reason commodities
      * @return explanation
      */
     public static String buildReconfigureExplanation(
-        @Nonnull final Collection<TopologyDTO.CommodityType> commodityTypes) {
+        @Nonnull final Collection<ReasonCommodity> commodityTypes) {
         StringBuilder sb = new StringBuilder().append(RECONFIGURE_EXPLANATION);
-        sb.append(commodityTypes.stream().map(commodityType ->
-                ActionDTOUtil.getCommodityDisplayName(commodityType))
+        sb.append(commodityTypes.stream().map(reason ->
+                ActionDTOUtil.getCommodityDisplayName(reason.getCommodityType()))
                 .collect(Collectors.joining(", ")));
         return sb.toString();
     }

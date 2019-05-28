@@ -8,6 +8,9 @@ import "search/Search.proto";
 import "setting/Setting.proto";
 import "tag/Tag.proto";
 
+// NB All messages in this set of declarations are serialized in rdbms.
+// They are not modifiable, only extendable.
+
 // A group is a set of entities that can be treated collectively for the
 // purpose of settings, policies, statistics, and other operations.
 message Group {

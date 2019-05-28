@@ -22,9 +22,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.repository.RepositoryNotificationSender;
+import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
-import com.vmturbo.repository.topology.TopologyLifecycleManager.SourceTopologyCreator;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
 import com.vmturbo.repository.util.RepositoryTestUtil;
 
 /**
@@ -40,7 +41,7 @@ public class TopologyEntitiesListenerTest {
     private TopologyLifecycleManager topologyManager;
 
     @Mock
-    private SourceTopologyCreator topologyCreator;
+    private TopologyCreator<TopologyEntityDTO> topologyCreator;
 
     private final long realtimeTopologyContextId = 77L;
 
@@ -49,6 +50,9 @@ public class TopologyEntitiesListenerTest {
 
     @Mock
     private RepositoryNotificationSender notificationSender;
+
+    @Mock
+    private LiveTopologyStore liveTopologyStore;
 
     private final TopologyEntityDTO vmDTO;
     private final TopologyEntityDTO pmDTO;
@@ -70,7 +74,7 @@ public class TopologyEntitiesListenerTest {
         when(entityIterator.nextChunk()).thenReturn(Sets.newHashSet(vmDTO, pmDTO))
                                         .thenReturn(Sets.newHashSet(dsDTO));
         when(entityIterator.hasNext()).thenReturn(true).thenReturn(true).thenReturn(false);
-        when(topologyManager.newSourceTopologyCreator(any())).thenReturn(topologyCreator);
+        when(topologyManager.newSourceTopologyCreator(any(), any())).thenReturn(topologyCreator);
     }
 
     @Test
@@ -80,16 +84,15 @@ public class TopologyEntitiesListenerTest {
         final long creationTime = 33333L;
         final TopologyID tid = new TopologyID(topologyContextId, topologyId,
                 TopologyID.TopologyType.SOURCE);
+        final TopologyInfo info = TopologyInfo.newBuilder()
+            .setTopologyContextId(topologyContextId)
+            .setTopologyId(topologyId)
+            .setCreationTime(creationTime)
+            .build();
 
-        topologyEntitiesListener.onTopologyNotification(
-                TopologyInfo.newBuilder()
-                        .setTopologyContextId(topologyContextId)
-                        .setTopologyId(topologyId)
-                        .setCreationTime(creationTime)
-                        .build(),
-                entityIterator);
+        topologyEntitiesListener.onTopologyNotification(info, entityIterator);
 
-        verify(topologyManager).newSourceTopologyCreator(tid);
+        verify(topologyManager).newSourceTopologyCreator(tid, info);
         verify(topologyCreator).complete();
         verify(topologyCreator, times(2)).addEntities(any());
         verify(notificationSender).onSourceTopologyAvailable(eq(topologyId), eq(topologyContextId));
@@ -110,15 +113,15 @@ public class TopologyEntitiesListenerTest {
         final TopologyID tid = new TopologyID(realtimeTopologyContextId, topologyId,
                 TopologyID.TopologyType.SOURCE);
 
-        topologyEntitiesListener.onTopologyNotification(
-                TopologyInfo.newBuilder()
-                        .setTopologyContextId(realtimeTopologyContextId)
-                        .setCreationTime(1)
-                        .setTopologyId(topologyId)
-                        .build(),
-                entityIterator);
+        final TopologyInfo info = TopologyInfo.newBuilder()
+            .setTopologyContextId(realtimeTopologyContextId)
+            .setCreationTime(1)
+            .setTopologyId(topologyId)
+            .build();
 
-        verify(topologyManager, never()).newSourceTopologyCreator(tid);
+        topologyEntitiesListener.onTopologyNotification(info, entityIterator);
+
+        verify(topologyManager, never()).newSourceTopologyCreator(tid, info);
         verify(topologyCreator, never()).complete();
     }
 }

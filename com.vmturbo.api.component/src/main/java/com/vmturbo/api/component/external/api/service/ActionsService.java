@@ -28,12 +28,11 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
-import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
@@ -60,6 +59,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 
 /**
@@ -225,8 +225,8 @@ public class ActionsService implements IActionsService {
                 .currentTimeStamp(currentTimeStamp)
                 .actionInput(actionScopesApiInputDTO.getActionInput());
             if (actionScopesApiInputDTO.getRelatedType() != null) {
-                queryBuilder.entityType(ServiceEntityMapper.fromUIEntityType(
-                    actionScopesApiInputDTO.getRelatedType()));
+                queryBuilder.entityType(UIEntityType.fromString(
+                    actionScopesApiInputDTO.getRelatedType()).typeNumber());
             }
             final Map<ApiId, List<StatSnapshotApiDTO>> actionStatsByScope =
                 actionStatsQueryExecutor.retrieveActionStats(queryBuilder.build());
@@ -374,12 +374,12 @@ public class ActionsService implements IActionsService {
 
     /**
      * Get historical context behind an action
-     * @param action uuid
+     * @param uuid uuid
      * @return Not Implemented
      * @throws Exception
      */
     @Override
-    public List<StatSnapshotApiDTO> getHistoricalContextByUuid(final String s) throws Exception {
+    public List<StatSnapshotApiDTO> getHistoricalContextByUuid(final String uuid) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
 

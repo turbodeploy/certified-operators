@@ -20,6 +20,7 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -49,13 +50,13 @@ public class EnvironmentTypeInjector {
     }
 
     /**
-     * Set the environment type of entities in a {@link TopologyGraph}.
+     * Set the environment type of entities in a {@link TopologyGraph<TopologyEntity>}.
      *
-     * @param topologyGraph The {@link TopologyGraph}, after all stitching.
+     * @param topologyGraph The {@link TopologyGraph<TopologyEntity>}, after all stitching.
      * @return An {@link InjectionSummary} describing the changes made.
      */
     @Nonnull
-    public InjectionSummary injectEnvironmentType(@Nonnull final TopologyGraph topologyGraph) {
+    public InjectionSummary injectEnvironmentType(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
         final Map<EnvironmentType, Integer> envTypeCounts = new EnumMap<>(EnvironmentType.class);
         final AtomicInteger conflictingTypeCount = new AtomicInteger(0);
 
@@ -159,7 +160,7 @@ public class EnvironmentTypeInjector {
 
     /**
      * A summary of what happened during the injection of environment types into a
-     * {@link TopologyGraph}.
+     * {@link TopologyGraph<TopologyEntity>}.
      */
     public static class InjectionSummary {
 

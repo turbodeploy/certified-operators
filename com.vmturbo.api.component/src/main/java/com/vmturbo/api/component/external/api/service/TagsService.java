@@ -25,8 +25,9 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsResponse;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.UIEntityState;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Tags service implementation.
@@ -78,7 +79,7 @@ public class TagsService implements ITagsService {
                     EnvironmentTypeEnum.EnvironmentType.valueOf(envType.toString()));
         }
         if (entityType != null) {
-            requestBuilder.setEntityType(ServiceEntityMapper.fromUIEntityType(entityType));
+            requestBuilder.setEntityType(UIEntityType.fromString(entityType).typeNumber());
         }
 
         // perform the search
@@ -102,7 +103,7 @@ public class TagsService implements ITagsService {
             if (entityType != null) {
                 msgBuilder
                         .append("Search was restricted to entity type: ")
-                        .append(ServiceEntityMapper.fromUIEntityType(entityType))
+                        .append(UIEntityType.fromString(entityType))
                         .append(". ");
             }
             throw new Exception(msgBuilder.toString(), e);
@@ -152,10 +153,10 @@ public class TagsService implements ITagsService {
                         result.setDisplayName(e.getDisplayName());
                     }
                     if (e.hasState()) {
-                        result.setState(EntityType.forNumber(e.getState()).toString());
+                        result.setState(UIEntityState.fromEntityState(e.getState()).apiStr());
                     }
                     result.setUuid(Long.toString(e.getOid()));
-                    result.setClassName(ServiceEntityMapper.toUIEntityType(e.getType()));
+                    result.setClassName(UIEntityType.fromType(e.getType()).apiStr());
                     return result;
                 }).collect(Collectors.toList());
     }

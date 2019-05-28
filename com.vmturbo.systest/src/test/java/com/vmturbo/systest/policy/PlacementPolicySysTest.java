@@ -279,7 +279,7 @@ public class PlacementPolicySysTest {
         actionsReceiver = kafkaMessageConsumer.messageReceiver(
                 MarketComponentNotificationReceiver.ACTION_PLANS_TOPIC, ActionPlan::parseFrom);
         analysisSummaryReceiver = kafkaMessageConsumer.messageReceiver(
-            MarketComponentNotificationReceiver.ANALYSIS_RESULTS,
+            MarketComponentNotificationReceiver.ANALYSIS_SUMMARY_TOPIC,
             TopologyDTO.AnalysisSummary::parseFrom);
         marketComponent = new MarketComponentNotificationReceiver(
                 projectedTopologyReceiver, projectedEntityCostReceiver, projectedEntityRiCoverageReceiver,

@@ -49,6 +49,7 @@ import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
@@ -126,8 +127,8 @@ public class TopologyEditor {
         final Multimap<Long, Long> templateToReplacedEntity =
             ArrayListMultimap.create();
         final Map<Long, Group> groupIdToGroupMap = getGroups(changes);
-        final TopologyGraph topologyGraph =
-            TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> topologyGraph =
+            TopologyEntityTopologyGraphCreator.newGraph(topology);
 
         changes.forEach(change -> {
             if (change.hasTopologyAddition()) {

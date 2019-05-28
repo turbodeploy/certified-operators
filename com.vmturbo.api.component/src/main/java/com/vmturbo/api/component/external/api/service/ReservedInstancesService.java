@@ -31,8 +31,6 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -79,6 +77,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -245,7 +244,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
             final Set<Long> scopeIds = optPlan.map(MarketMapper::getPlanScopeIds)
                 .orElse(Sets.newHashSet(Long.valueOf(scope)));
             final ServiceEntityApiDTO scopeEntity = repositoryApi.getServiceEntityForUuid(scopeIds.iterator().next());
-            final int scopeEntityType = ServiceEntityMapper.fromUIEntityType(scopeEntity.getClassName());
+            final int scopeEntityType = UIEntityType.fromString(scopeEntity.getClassName()).typeNumber();
             final GetReservedInstanceBoughtByFilterRequest request =
                     createGetReservedInstanceBoughtByFilterRequest(scopeIds, scopeEntityType);
             return reservedInstanceService.getReservedInstanceBoughtByFilter(request)
@@ -309,7 +308,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
             final Set<Long> scopeIds = optPlan.map(MarketMapper::getPlanScopeIds)
                 .orElse(Sets.newHashSet(Long.valueOf(scope)));
             final ServiceEntityApiDTO scopeEntity = repositoryApi.getServiceEntityForUuid(scopeIds.iterator().next());
-            final int scopeEntityType = ServiceEntityMapper.fromUIEntityType(scopeEntity.getClassName());
+            final int scopeEntityType = UIEntityType.fromString(scopeEntity.getClassName()).typeNumber();
             final GetReservedInstanceBoughtCountRequest request =
                     createGetReservedInstanceBoughtCountRequest(scopeIds, scopeEntityType);
             return reservedInstanceService.getReservedInstanceBoughtCount(request)
@@ -409,7 +408,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
             final Set<Long> scopeIds = optPlan.map(MarketMapper::getPlanScopeIds)
                 .orElse(Sets.newHashSet(Long.valueOf(scope)));
             final ServiceEntityApiDTO scopeEntity = repositoryApi.getServiceEntityForUuid(scopeIds.iterator().next());
-            final int scopeEntityType = ServiceEntityMapper.fromUIEntityType(scopeEntity.getClassName());
+            final int scopeEntityType = UIEntityType.fromString(scopeEntity.getClassName()).typeNumber();
             final GetReservedInstanceUtilizationStatsRequest request =
                     createGetReservedInstanceUtilizationStatsRequest(startDateMillis, endDateMillis,
                         scopeIds, scopeEntityType);
@@ -455,7 +454,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
             final Set<Long> scopeIds = optPlan.map(MarketMapper::getPlanScopeIds)
                 .orElse(Sets.newHashSet(Long.valueOf(scope)));
             final ServiceEntityApiDTO scopeEntity = repositoryApi.getServiceEntityForUuid(scopeIds.iterator().next());
-            final int scopeEntityType = ServiceEntityMapper.fromUIEntityType(scopeEntity.getClassName());
+            final int scopeEntityType = UIEntityType.fromString(scopeEntity.getClassName()).typeNumber();
             final GetReservedInstanceCoverageStatsRequest request =
                 createGetReservedInstanceCoverageStatsRequest(startDateMillis, endDateMillis,
                     scopeIds, scopeEntityType);
@@ -567,10 +566,10 @@ public class ReservedInstancesService implements IReservedInstancesService {
         SupplychainApiDTO supplychain = supplyChainFetcher.newApiDtoFetcher()
             .topologyContextId(realtimeTopologyContextId)
             .addSeedUuids(sourceScopeIds.stream().map(String::valueOf).collect(Collectors.toList()))
-            .entityTypes(Lists.newArrayList(UIEntityType.VIRTUAL_MACHINE.getValue()))
+            .entityTypes(Lists.newArrayList(UIEntityType.VIRTUAL_MACHINE.apiStr()))
             .entityDetailType(EntityDetailType.entity)
             .fetch();
-        return supplychain.getSeMap().get(UIEntityType.VIRTUAL_MACHINE.getValue())
+        return supplychain.getSeMap().get(UIEntityType.VIRTUAL_MACHINE.apiStr())
             .getInstances().keySet().stream()
             .map(Long::valueOf)
             .collect(Collectors.toSet());

@@ -1,8 +1,8 @@
 package com.vmturbo.topology.processor.group.policy.application;
 
-import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntity;
 import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchParametersCollection;
 import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.staticGroupMembers;
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -29,13 +29,14 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper;
 import com.vmturbo.topology.processor.group.policy.PolicyMatcher;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicyApplication.PolicyApplicationResults;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 public class AtMostNBoundPolicyTest {
 
@@ -72,7 +73,7 @@ public class AtMostNBoundPolicyTest {
             .setAtMostNbound(atMostNBound))
         .build();
 
-    TopologyGraph topologyGraph;
+    TopologyGraph<TopologyEntity> topologyGraph;
     PolicyMatcher policyMatcher;
 
     final GroupResolver groupResolver = mock(GroupResolver.class);
@@ -91,7 +92,7 @@ public class AtMostNBoundPolicyTest {
         topologyMap.put(7L, topologyEntity(7L, EntityType.VIRTUAL_MACHINE, 2, 3));
         topologyMap.put(8L, topologyEntity(8L, EntityType.VIRTUAL_MACHINE, 1));
 
-        topologyGraph = TopologyGraph.newGraph(topologyMap);
+        topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         policyMatcher = new PolicyMatcher(topologyGraph);
     }
 

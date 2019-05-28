@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplan
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
@@ -80,10 +81,15 @@ public class ActionCategoryExtractorTest {
     @Test
     public void testCongestionCategory() {
         Explanation congestion = Explanation.newBuilder().setMove(MoveExplanation.newBuilder()
-            .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
-            .setCongestion(Congestion.newBuilder()
-                .addCongestedCommodities(CPU).build())
-            .build()).build()).build();
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                        .setCongestion(Congestion.newBuilder()
+                                                        .addCongestedCommodities(ReasonCommodity
+                                                                        .newBuilder()
+                                                                        .setCommodityType(CPU)
+                                                                        .build())
+                                                        .build())
+                                        .build())
+                        .build()).build();
 
         assertThat(ActionCategoryExtractor.assignActionCategory(congestion), is(ActionCategory.PERFORMANCE_ASSURANCE));
     }

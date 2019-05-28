@@ -25,7 +25,10 @@ import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ActionPlanSummary;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 
 /**
  * Test for the {@link MarketActionListener}.
@@ -94,7 +97,7 @@ public class MarketActionListenerTest {
     }
 
     @Test
-    public void testDropActionPlan() throws Exception {
+    public void testDropExpiredActionPlan() throws Exception {
         ActionOrchestratorNotificationSender notificationSender =
             mock(ActionOrchestratorNotificationSender.class);
         ActionPlan actionPlan = ActionPlan.newBuilder()
@@ -114,4 +117,108 @@ public class MarketActionListenerTest {
         verify(actionStore, never()).populateRecommendedActions(any(ActionPlan.class));
         verify(severityCache, never()).refresh(any(ActionStore.class));
     }
+
+    @Test
+    public void testDropLiveMarketActionPlanIfMoreRecentAvailable() {
+        ActionOrchestratorNotificationSender notificationSender =
+            mock(ActionOrchestratorNotificationSender.class);
+        ActionPlan actionPlan = ActionPlan.newBuilder()
+            .setId(1)
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyId(123)
+                        .setTopologyContextId(realtimeTopologyContextId))))
+            .build();
+        // Not expired
+        when(actionPlanAssessor.isActionPlanExpired(eq(actionPlan))).thenReturn(false);
+
+        MarketActionListener actionsListener =
+            new MarketActionListener(notificationSender, actionStorehouse, actionPlanAssessor);
+
+        actionsListener.onAnalysisSummary(AnalysisSummary.newBuilder()
+            .setActionPlanSummary(ActionPlanSummary.newBuilder()
+                .setActionPlanId(actionPlan.getId() + 1))
+            .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                .setTopologyType(TopologyType.REALTIME))
+            .build());
+
+        actionsListener.onActionsReceived(actionPlan);
+
+        verify(actionStore, never()).populateRecommendedActions(any(ActionPlan.class));
+        verify(severityCache, never()).refresh(any(ActionStore.class));
+    }
+
+    @Test
+    public void testPlanAnalysisNotIgnored() {
+        ActionOrchestratorNotificationSender notificationSender =
+            mock(ActionOrchestratorNotificationSender.class);
+        // P plan.
+        ActionPlan actionPlan = ActionPlan.newBuilder()
+            .setId(1)
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyId(123)
+                        .setTopologyType(TopologyType.PLAN)
+                        .setTopologyContextId(1231231))))
+            .build();
+        // Not expired
+        when(actionPlanAssessor.isActionPlanExpired(eq(actionPlan))).thenReturn(false);
+
+        MarketActionListener actionsListener =
+            new MarketActionListener(notificationSender, actionStorehouse, actionPlanAssessor);
+
+        // Got a NEWER live action plan
+        actionsListener.onAnalysisSummary(AnalysisSummary.newBuilder()
+            .setActionPlanSummary(ActionPlanSummary.newBuilder()
+                .setActionPlanId(actionPlan.getId() + 1))
+            .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                .setTopologyType(TopologyType.REALTIME))
+            .build());
+
+        actionsListener.onActionsReceived(actionPlan);
+
+        // We should still have saved the plan action plan.
+        verify(actionStore).populateRecommendedActions(actionPlan);
+        verify(severityCache).refresh(any(ActionStore.class));
+    }
+
+    @Test
+    public void testPlanAnalysisSummaryNoAffectLiveActionPlan() {
+        ActionOrchestratorNotificationSender notificationSender =
+            mock(ActionOrchestratorNotificationSender.class);
+        // Realtime plan.
+        ActionPlan actionPlan = ActionPlan.newBuilder()
+            .setId(1)
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyId(123)
+                        .setTopologyType(TopologyType.REALTIME)
+                        .setTopologyContextId(realtimeTopologyContextId))))
+            .build();
+        // Not expired
+        when(actionPlanAssessor.isActionPlanExpired(eq(actionPlan))).thenReturn(false);
+
+        MarketActionListener actionsListener =
+            new MarketActionListener(notificationSender, actionStorehouse, actionPlanAssessor);
+
+        // Got a NEWER plan action plan
+        actionsListener.onAnalysisSummary(AnalysisSummary.newBuilder()
+            .setActionPlanSummary(ActionPlanSummary.newBuilder()
+                .setActionPlanId(actionPlan.getId() + 1))
+            .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                .setTopologyType(TopologyType.PLAN))
+            .build());
+
+        actionsListener.onActionsReceived(actionPlan);
+
+        // We should still have saved the realtime plan.
+        verify(actionStore).populateRecommendedActions(actionPlan);
+        verify(severityCache).refresh(any(ActionStore.class));
+    }
+
+//    @Test
+//    public void
 }

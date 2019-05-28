@@ -173,6 +173,30 @@ public class ActionModeCalculator {
     @Nonnull
     public ActionMode calculateActionMode(@Nonnull final ActionView action,
                 @Nullable final EntitiesCache entitiesCache) {
+        return calculateWorkflowActionMode(action, entitiesCache)
+            .orElseGet(() -> {
+                switch (action.getRecommendation().getSupportingLevel()) {
+                    case UNSUPPORTED:
+                    case UNKNOWN:
+                        return ActionMode.DISABLED;
+                    case SHOW_ONLY:
+                        final ActionMode mode = getNonWorkflowActionMode(
+                            action, entitiesCache);
+                        return (mode.getNumber() > ActionMode.RECOMMEND_VALUE)
+                            ? ActionMode.RECOMMEND
+                            : mode;
+                    case SUPPORTED:
+                        return getNonWorkflowActionMode(
+                            action, entitiesCache);
+                    default:
+                        throw new IllegalArgumentException("Action SupportLevel is of unrecognized type.");
+                }
+            });
+    }
+
+    @Nonnull
+    private ActionMode getNonWorkflowActionMode(@Nonnull final ActionView action,
+                @Nullable final EntitiesCache entitiesCache) {
         final boolean translationSuccess = actionTranslator.translate(action);
         if (!translationSuccess){
             return ActionMode.RECOMMEND;
@@ -282,7 +306,7 @@ public class ActionModeCalculator {
      * supported.
      */
     @Nonnull
-    public Optional<ActionMode> calculateWorkflowActionMode(
+    private Optional<ActionMode> calculateWorkflowActionMode(
             @Nonnull final ActionView action,
             @Nullable final EntitiesCache entitySettingsCache) {
         try {

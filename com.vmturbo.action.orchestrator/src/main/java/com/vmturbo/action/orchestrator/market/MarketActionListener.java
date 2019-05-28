@@ -14,13 +14,16 @@ import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.market.component.api.ActionsListener;
+import com.vmturbo.market.component.api.AnalysisSummaryListener;
 
 /**
  * Listens to action recommendations from the market.
  */
-public class MarketActionListener implements ActionsListener {
+public class MarketActionListener implements ActionsListener, AnalysisSummaryListener {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -29,6 +32,13 @@ public class MarketActionListener implements ActionsListener {
     private final ActionStorehouse actionStorehouse;
 
     private final ActionPlanAssessor actionPlanAssessor;
+
+    private final Object latestKnownActionPlanLock = new Object();
+
+    /**
+     * The ID of the latest known action plan (received on the analysis-summary topic).
+     */
+    private long latestMarketActionPlanId = -1;
 
     public MarketActionListener(@Nonnull final ActionOrchestratorNotificationSender notifiationSender,
                                 @Nonnull final ActionStorehouse actionStorehouse,
@@ -39,12 +49,49 @@ public class MarketActionListener implements ActionsListener {
     }
 
     @Override
+    public void onAnalysisSummary(@Nonnull final AnalysisSummary analysisSummary) {
+        if (analysisSummary.getSourceTopologyInfo().getTopologyType() == TopologyType.REALTIME) {
+            synchronized (latestKnownActionPlanLock) {
+                latestMarketActionPlanId = analysisSummary.getActionPlanSummary().getActionPlanId();
+            }
+        }
+    }
+
+    /**
+     * Return whether or not we should skip processing the action plan.
+     *
+     * @param actionPlan The action plan.
+     * @return True if we shouldn't use this action plan to populate actions.
+     */
+    private boolean shouldSkip(@Nonnull final ActionPlan actionPlan) {
+        // We never skip plan action plans.
+        if (!isLiveMktActionPlan(actionPlan)) {
+            return false;
+        }
+
+        // We skip expired live action plans no matter what.
+        //
+        // This means that when we first start up, if we get an old action plan before getting
+        // all the analysis summaries, we still skip it.
+        if (actionPlanAssessor.isActionPlanExpired(actionPlan)) {
+            return true;
+        }
+
+        synchronized (latestKnownActionPlanLock) {
+            // We rely on the fact that (right now) action plan ids are increasing.
+            // If we already got an analysis summary indicating there is a "newer" action plan
+            // available, we skip the current action plan.
+            return actionPlan.getId() < latestMarketActionPlanId;
+        }
+    }
+
+    @Override
     public void onActionsReceived(@Nonnull final ActionPlan orderedActions) {
         if (logger.isDebugEnabled()) {
             orderedActions.getActionList().forEach(action -> logger.debug("Received action: " + action));
         }
 
-        if (actionPlanAssessor.isActionPlanExpired(orderedActions)) {
+        if (shouldSkip(orderedActions)) {
             logger.warn("Dropping action plan {} (info: {}) " +
                     "with {} actions (analysis start [{}] completion [{}])",
                 orderedActions.getId(),
@@ -79,5 +126,16 @@ public class MarketActionListener implements ActionsListener {
 
     private LocalDateTime localDateTimeFromSystemTime(final long systemTimeMillis) {
         return LocalDateTime.ofInstant(Instant.ofEpochMilli(systemTimeMillis), ZoneOffset.UTC);
+    }
+
+    /**
+     * Decide if an action plan is a live action plan.
+     *
+     * @param orderedActions The action plan to assess.
+     * @return True if the action plan is due to a live analysis, false if it is not.
+     */
+    private boolean isLiveMktActionPlan(@Nonnull final ActionPlan orderedActions) {
+        return orderedActions.getInfo().hasMarket() &&
+            orderedActions.getInfo().getMarket().getSourceTopologyInfo().getTopologyType() == TopologyType.REALTIME;
     }
 }

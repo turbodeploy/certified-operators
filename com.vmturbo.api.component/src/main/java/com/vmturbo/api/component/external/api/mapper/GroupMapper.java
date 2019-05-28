@@ -70,7 +70,8 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditi
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition.VerticesCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditionOrBuilder;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
-import com.vmturbo.components.common.ClassicEnumMapper;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 
 /**
@@ -181,7 +182,7 @@ public class GroupMapper {
                         final PropertyFilter tagsFilter =
                                 SearchMapper.mapPropertyFilterForMultimapsRegex(
                                         StringConstants.TAGS_ATTR, key, value, positiveMatch);
-                        return Collections.singletonList(SearchMapper.searchFilterProperty(tagsFilter));
+                        return Collections.singletonList(SearchProtoUtil.searchFilterProperty(tagsFilter));
                     } else {
                         // exact match is required
                         final PropertyFilter tagsFilter =
@@ -189,19 +190,19 @@ public class GroupMapper {
                                         StringConstants.TAGS_ATTR,
                                         context.getFilter().getExpVal(),
                                         positiveMatch);
-                        return Collections.singletonList(SearchMapper.searchFilterProperty(tagsFilter));
+                        return Collections.singletonList(SearchProtoUtil.searchFilterProperty(tagsFilter));
                     }
                 });
         filterTypesToProcessors.put(
                 StringConstants.CLUSTER,
                 context -> {
                     ClusterMembershipFilter clusterFilter =
-                            SearchMapper.clusterFilter(
-                                SearchMapper.nameFilterRegex(
+                            SearchProtoUtil.clusterFilter(
+                                SearchProtoUtil.nameFilterRegex(
                                     context.getFilter().getExpVal(),
                                     context.getFilter().getExpType().equals(REGEX_MATCH),
                                     context.getFilter().getCaseSensitive()));
-                    return Collections.singletonList(SearchMapper.searchFilterCluster(clusterFilter));
+                    return Collections.singletonList(SearchProtoUtil.searchFilterCluster(clusterFilter));
                 });
         filterTypesToProcessors.put(CONSUMES, traversalFilterProcessor);
         filterTypesToProcessors.put(PRODUCES, traversalFilterProcessor);
@@ -212,7 +213,7 @@ public class GroupMapper {
 
     private static StoppingCondition.Builder buildStoppingCondition(String currentToken) {
         return StoppingCondition.newBuilder().setStoppingPropertyFilter(
-                        SearchMapper.entityTypeFilter(currentToken));
+                        SearchProtoUtil.entityTypeFilter(currentToken));
     }
 
     private final GroupUseCaseParser groupUseCaseParser;
@@ -301,7 +302,7 @@ public class GroupMapper {
         }
 
         final TempGroupInfo.Builder tempGroupBuilder = TempGroupInfo.newBuilder()
-                .setEntityType(ServiceEntityMapper.fromUIEntityType(apiDTO.getGroupType()))
+                .setEntityType(UIEntityType.fromString(apiDTO.getGroupType()).typeNumber())
                 .setMembers(StaticGroupMembers.newBuilder()
                         .addAllStaticMemberOids(groupMembers))
                 .setName(apiDTO.getDisplayName())
@@ -325,7 +326,7 @@ public class GroupMapper {
     public GroupInfo toGroupInfo(@Nonnull final GroupApiDTO groupDto) {
         final GroupInfo.Builder requestBuilder = GroupInfo.newBuilder()
                 .setName(groupDto.getDisplayName())
-                .setEntityType(ServiceEntityMapper.fromUIEntityType(groupDto.getGroupType()));
+                .setEntityType(UIEntityType.fromString(groupDto.getGroupType()).typeNumber());
 
         if (groupDto.getIsStatic()) {
             requestBuilder.setStaticGroupMembers(
@@ -369,7 +370,7 @@ public class GroupMapper {
         GroupInfo groupInfo = group.getGroup();
         final GroupApiDTO outputDTO = new GroupApiDTO();
         outputDTO.setClassName(StringConstants.GROUP);
-        outputDTO.setGroupType(ServiceEntityMapper.toUIEntityType(GroupProtoUtil.getEntityType(group)));
+        outputDTO.setGroupType(UIEntityType.fromType(GroupProtoUtil.getEntityType(group)).apiStr());
 
         switch (groupInfo.getSelectionCriteriaCase()) {
             case STATIC_GROUP_MEMBERS:
@@ -401,7 +402,7 @@ public class GroupMapper {
             outputDTO.setClassName(StringConstants.CLUSTER);
         }
         outputDTO.setIsStatic(true);
-        outputDTO.setGroupType(ServiceEntityMapper.toUIEntityType(GroupProtoUtil.getEntityType(cluster)));
+        outputDTO.setGroupType(UIEntityType.fromType(GroupProtoUtil.getEntityType(cluster)).apiStr());
         return outputDTO;
     }
 
@@ -443,7 +444,7 @@ public class GroupMapper {
         outputDTO.setClassName(StringConstants.GROUP);
         outputDTO.setIsStatic(true);
         outputDTO.setTemporary(true);
-        outputDTO.setGroupType(ServiceEntityMapper.toUIEntityType(GroupProtoUtil.getEntityType(tempGroup)));
+        outputDTO.setGroupType(UIEntityType.fromType(GroupProtoUtil.getEntityType(tempGroup)).apiStr());
         return outputDTO;
     }
 
@@ -532,7 +533,7 @@ public class GroupMapper {
         if (GROUP_NAME_FILTER_TYPES.contains(filter.getFilterType())) {
             return
                 Optional.of(
-                        SearchMapper.nameFilterRegex(
+                        SearchProtoUtil.nameFilterRegex(
                             filter.getExpVal(),
                             isPositiveMatchingOperator(filter.getExpType()),
                             filter.getCaseSensitive()));
@@ -722,11 +723,11 @@ public class GroupMapper {
      */
     private SearchParameters searchParametersForEmptyCriteria(@Nonnull final String entityType,
                                                               @Nullable final String nameQuery) {
-        PropertyFilter byType = SearchMapper.entityTypeFilter(entityType);
+        PropertyFilter byType = SearchProtoUtil.entityTypeFilter(entityType);
         final SearchParameters.Builder searchParameters = SearchParameters.newBuilder().setStartingFilter(byType);
         if (!StringUtils.isEmpty(nameQuery)) {
             // For the query string, we want to use a "contains"-type query.
-            searchParameters.addSearchFilter(SearchMapper.searchFilterProperty(SearchMapper.nameFilterRegex(".*" + nameQuery + ".*")));
+            searchParameters.addSearchFilter(SearchProtoUtil.searchFilterProperty(SearchProtoUtil.nameFilterRegex(".*" + nameQuery + ".*")));
         }
         return searchParameters.build();
     }
@@ -768,10 +769,10 @@ public class GroupMapper {
 
         Iterator<String> iterator = elements.iterator();
         final String firstToken = iterator.next();
-        if (ClassicEnumMapper.ENTITY_TYPE_MAPPINGS.keySet().contains(firstToken)) {
-            parametersBuilder.setStartingFilter(SearchMapper.entityTypeFilter(firstToken));
+        if (UIEntityType.fromString(firstToken) != UIEntityType.UNKNOWN) {
+            parametersBuilder.setStartingFilter(SearchProtoUtil.entityTypeFilter(firstToken));
         } else {
-            parametersBuilder.setStartingFilter(SearchMapper.entityTypeFilter(entityType));
+            parametersBuilder.setStartingFilter(SearchProtoUtil.entityTypeFilter(entityType));
             iterator = elements.iterator();
         }
 
@@ -780,7 +781,7 @@ public class GroupMapper {
             searchFilters.addAll(processToken(filter, entityType, iterator, useCase.getInputType(), firstToken));
         }
         if (!StringUtils.isEmpty(nameQuery)) {
-            searchFilters.add(SearchMapper.searchFilterProperty(SearchMapper.nameFilterExact(nameQuery)));
+            searchFilters.add(SearchProtoUtil.searchFilterProperty(SearchProtoUtil.nameFilterExact(nameQuery)));
         }
         parametersBuilder.addAllSearchFilter(searchFilters.build());
         parametersBuilder.setSourceFilterSpecs(toFilterSpecs(filter));
@@ -815,14 +816,14 @@ public class GroupMapper {
 
         if (filterApiDtoProcessor != null) {
             return filterApiDtoProcessor.apply(filterContext);
-        } else if (ClassicEnumMapper.ENTITY_TYPE_MAPPINGS.keySet().contains(currentToken)) {
-            return ImmutableList.of(SearchMapper.searchFilterProperty(
-                    SearchMapper.entityTypeFilter(currentToken)));
+        } else if (UIEntityType.fromString(currentToken) != UIEntityType.UNKNOWN) {
+            return ImmutableList.of(SearchProtoUtil.searchFilterProperty(
+                    SearchProtoUtil.entityTypeFilter(currentToken)));
         } else {
             final PropertyFilter propertyFilter = isListToken(currentToken) ?
                     createPropertyFilterForListToken(currentToken, inputType, filter) :
                     createPropertyFilterForNormalToken(currentToken, inputType, filter);
-            return ImmutableList.of(SearchMapper.searchFilterProperty(propertyFilter));
+            return ImmutableList.of(SearchProtoUtil.searchFilterProperty(propertyFilter));
         }
     }
 
@@ -868,13 +869,13 @@ public class GroupMapper {
                     final boolean positiveMatch = isPositiveMatchingOperator(filter.getExpType());
                     if (isRegexOperator(filter.getExpType())) {
                         listFilter.setStringFilter(
-                            SearchMapper.stringFilterRegex(
+                            SearchProtoUtil.stringFilterRegex(
                                 filter.getExpVal(),
                                 positiveMatch,
                                 false));
                     } else {
                         listFilter.setStringFilter(
-                            SearchMapper.stringFilterExact(
+                            SearchProtoUtil.stringFilterExact(
                                 Arrays.stream(filter.getExpVal().split("\\|"))
                                         .collect(Collectors.toList()),
                                 positiveMatch,
@@ -883,7 +884,7 @@ public class GroupMapper {
                     break;
                 case "#":
                     // numeric comparison
-                    listFilter.setNumericFilter(SearchMapper.numericFilter(
+                    listFilter.setNumericFilter(SearchProtoUtil.numericFilter(
                         Long.valueOf(filter.getExpVal()),
                             COMPARISON_STRING_TO_COMPARISON_OPERATOR.get(filter.getExpType())));
                     break;
@@ -934,7 +935,7 @@ public class GroupMapper {
                     // if no # provided, it means string by default, for example: "type=VMem"
                     String[] keyValue = criteria.split("=");
                     objectFilter.addFilters(
-                        SearchMapper.stringPropertyFilterExact(
+                        SearchProtoUtil.stringPropertyFilterExact(
                             keyValue[0], Collections.singletonList(keyValue[1]), true, false));
                 } else {
                     // if no "=", it means this is final field, whose comparison operator and value
@@ -981,14 +982,14 @@ public class GroupMapper {
                 final boolean positiveMatch = isPositiveMatchingOperator(filter.getExpType());
                 if (isRegexOperator(filter.getExpType())) {
                     currentFieldPropertyFilter =
-                        SearchMapper.stringPropertyFilterRegex(
+                        SearchProtoUtil.stringPropertyFilterRegex(
                             lastField,
                             filter.getExpVal(),
                             positiveMatch,
                             filter.getCaseSensitive());
                 } else {
                     currentFieldPropertyFilter =
-                        SearchMapper.stringPropertyFilterExact(
+                        SearchProtoUtil.stringPropertyFilterExact(
                             lastField,
                             Arrays.stream(filter.getExpVal().split("\\|"))
                                     .collect(Collectors.toList()),
@@ -998,7 +999,7 @@ public class GroupMapper {
                 break;
             case "#":
                 // numeric comparison
-                currentFieldPropertyFilter = SearchMapper.numericPropertyFilter(lastField,
+                currentFieldPropertyFilter = SearchProtoUtil.numericPropertyFilter(lastField,
                         Long.valueOf(filter.getExpVal()),
                         COMPARISON_STRING_TO_COMPARISON_OPERATOR.get(filter.getExpType()));
                 break;
@@ -1172,13 +1173,13 @@ public class GroupMapper {
                             .setStoppingCondition(stopperBuilder)
                             .build();
             final ImmutableList.Builder<SearchFilter> searchFilters = ImmutableList.builder();
-            searchFilters.add(SearchMapper.searchFilterTraversal(traversal));
+            searchFilters.add(SearchProtoUtil.searchFilterTraversal(traversal));
             // add a final entity type filter if the last filer is a hop-count based traverse
             // and it's not a filter based on number of connected vertices
             // for example: get all PMs which hosted more than 2 VMs, we've already get all PMs
             // if it's a filter by number of connected vertices, we don't need to filter on PM type again
             if (context.isHopCountBasedTraverse(stopperBuilder) && !context.shouldFilterByNumConnectedVertices()) {
-                searchFilters.add(SearchMapper.searchFilterProperty(SearchMapper
+                searchFilters.add(SearchProtoUtil.searchFilterProperty(SearchProtoUtil
                                 .entityTypeFilter(entityType)));
             }
             return searchFilters.build();
@@ -1197,7 +1198,7 @@ public class GroupMapper {
          */
         private void setVerticesCondition(@Nonnull StoppingCondition.Builder stopperBuilder,
                 @Nonnull String stoppingEntityType, @Nonnull SearchFilterContext context) {
-            int vertexEntityType = ServiceEntityMapper.fromUIEntityType(stoppingEntityType);
+            int vertexEntityType = UIEntityType.fromString(stoppingEntityType).typeNumber();
             stopperBuilder.setVerticesCondition(VerticesCondition.newBuilder()
                     .setNumConnectedVertices(NumericFilter.newBuilder()
                             .setValue(Long.valueOf(context.getFilter().getExpVal()))

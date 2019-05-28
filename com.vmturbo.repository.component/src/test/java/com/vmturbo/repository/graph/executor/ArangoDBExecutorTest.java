@@ -41,16 +41,16 @@ import com.arangodb.ArangoDBException;
 import com.arangodb.ArangoDatabase;
 import com.arangodb.entity.BaseDocument;
 import com.arangodb.model.AqlQueryOptions;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multimap;
 
 import javaslang.control.Try;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.components.common.mapping.UIEnvironmentType;
-import com.vmturbo.repository.constant.RepoObjectType.RepoEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
@@ -118,18 +118,18 @@ public class ArangoDBExecutorTest {
         givenSupplyChainSubgraphResults(vertices, vertices);
         whenExecuteSupplyChainCmd();
         final Map<String, SupplyChainNode> supplyChainNodes = nodeMapFor(supplyChainSubgraph.get());
-        assertEquals(1, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(RepoEntityType.PHYSICAL_MACHINE.getValue())));
-        assertEquals(4, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue())));
+        assertEquals(1, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(UIEntityType.PHYSICAL_MACHINE.apiStr())));
+        assertEquals(4, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(UIEntityType.VIRTUAL_MACHINE.apiStr())));
 
         org.hamcrest.MatcherAssert.assertThat(
-            supplyChainNodes.get(RepoEntityType.PHYSICAL_MACHINE.getValue()).getConnectedConsumerTypesList(),
-            contains(RepoEntityType.VIRTUAL_MACHINE.getValue()));
+            supplyChainNodes.get(UIEntityType.PHYSICAL_MACHINE.apiStr()).getConnectedConsumerTypesList(),
+            contains(UIEntityType.VIRTUAL_MACHINE.apiStr()));
         org.hamcrest.MatcherAssert.assertThat(
-            supplyChainNodes.get(RepoEntityType.PHYSICAL_MACHINE.getValue()).getConnectedProviderTypesList(),
+            supplyChainNodes.get(UIEntityType.PHYSICAL_MACHINE.apiStr()).getConnectedProviderTypesList(),
             is(empty()));
         org.hamcrest.MatcherAssert.assertThat(
-            supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue()).getConnectedProviderTypesList(),
-            contains(RepoEntityType.PHYSICAL_MACHINE.getValue()));
+            supplyChainNodes.get(UIEntityType.VIRTUAL_MACHINE.apiStr()).getConnectedProviderTypesList(),
+            contains(UIEntityType.PHYSICAL_MACHINE.apiStr()));
     }
 
     @Test
@@ -161,18 +161,18 @@ public class ArangoDBExecutorTest {
         givenSupplyChainSubgraphResults(vertices, vertices);
         whenExecuteSupplyChainCmd();
         final Map<String, SupplyChainNode> supplyChainNodes = nodeMapFor(supplyChainSubgraph.get());
-        final SupplyChainNode pmNode = supplyChainNodes.get(RepoEntityType.PHYSICAL_MACHINE.getValue());
+        final SupplyChainNode pmNode = supplyChainNodes.get(UIEntityType.PHYSICAL_MACHINE.apiStr());
         assertEquals(1, RepositoryDTOUtil.getMemberCount(pmNode));
-        assertEquals(4, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue())));
-        assertEquals(1, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(RepoEntityType.DATACENTER.getValue())));
+        assertEquals(4, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(UIEntityType.VIRTUAL_MACHINE.apiStr())));
+        assertEquals(1, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(UIEntityType.DATACENTER.apiStr())));
 
         org.hamcrest.MatcherAssert.assertThat(pmNode.getConnectedConsumerTypesList(),
-            contains(RepoEntityType.VIRTUAL_MACHINE.getValue()));
+            contains(UIEntityType.VIRTUAL_MACHINE.apiStr()));
         org.hamcrest.MatcherAssert.assertThat(pmNode.getConnectedProviderTypesList(),
-            contains(RepoEntityType.DATACENTER.getValue()));
+            contains(UIEntityType.DATACENTER.apiStr()));
         org.hamcrest.MatcherAssert.assertThat(
-            supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue()).getConnectedProviderTypesList(),
-            contains(RepoEntityType.PHYSICAL_MACHINE.getValue()));
+            supplyChainNodes.get(UIEntityType.VIRTUAL_MACHINE.apiStr()).getConnectedProviderTypesList(),
+            contains(UIEntityType.PHYSICAL_MACHINE.apiStr()));
     }
 
     @Test

@@ -27,6 +27,7 @@ import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.historical.Conversions;
 import com.vmturbo.topology.processor.historical.HistoricalCommodityInfo;
 import com.vmturbo.topology.processor.historical.HistoricalInfo;
@@ -127,7 +128,7 @@ public class HistoricalEditor {
      * the previous cycle.
      * @param graph The topology graph which contains all the SEs
      */
-    public void applyCommodityEdits(@Nonnull final TopologyGraph graph) {
+    public void applyCommodityEdits(@Nonnull final TopologyGraph<TopologyEntity> graph) {
 
         Stream<TopologyEntity> entities = graph.entities();
         Iterable<TopologyEntity> entitiesIterable = entities::iterator;

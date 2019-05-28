@@ -9,14 +9,17 @@ import com.vmturbo.group.group.GroupConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
-@Import({SQLDatabaseConfig.class})
+@Import({SQLDatabaseConfig.class, GroupConfig.class})
 public class MigrationConfig {
 
     @Autowired
     private SQLDatabaseConfig databaseConfig;
 
+    @Autowired
+    private GroupConfig groupConfig;
+
     @Bean
     public GroupMigrationsLibrary groupMigrationsLibrary() {
-        return new GroupMigrationsLibrary(databaseConfig.dsl());
+        return new GroupMigrationsLibrary(databaseConfig.dsl(), groupConfig.groupStore());
     }
 }

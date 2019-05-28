@@ -1,6 +1,8 @@
 package com.vmturbo.market.component.api.impl;
 
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -23,7 +25,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings;
+import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
 import com.vmturbo.market.component.api.MarketComponent;
+import com.vmturbo.market.component.api.impl.MarketSubscription.Topic;
 
 /**
  * Spring configuration to import to connecto to Market instance.
@@ -37,47 +42,70 @@ public class MarketClientConfig {
 
     @Autowired
     private BaseKafkaConsumerConfig baseKafkaConfig;
-
     @Bean
-    protected IMessageReceiver<ActionPlan> actionPlanReceiver() {
-        return baseKafkaConfig.kafkaConsumer().messageReceiver(
+    protected IMessageReceiver<ActionPlan> actionPlanReceiver(final Optional<StartFrom> startFromOverride) {
+        return startFromOverride
+            .map(startFrom -> baseKafkaConfig.kafkaConsumer().messageReceiverWithSettings(
+                new TopicSettings(MarketComponentNotificationReceiver.ACTION_PLANS_TOPIC, startFrom),
+                ActionPlan::parseFrom))
+            .orElseGet(() -> baseKafkaConfig.kafkaConsumer().messageReceiver(
                 MarketComponentNotificationReceiver.ACTION_PLANS_TOPIC,
-                ActionPlan::parseFrom);
+                ActionPlan::parseFrom));
     }
 
     @Bean
-    protected IMessageReceiver<AnalysisSummary> analysisSummaryReceiver() {
-        return baseKafkaConfig.kafkaConsumer().messageReceiver(
-            MarketComponentNotificationReceiver.ANALYSIS_RESULTS,
-            AnalysisSummary::parseFrom);
+    protected IMessageReceiver<AnalysisSummary> analysisSummaryReceiver(final Optional<StartFrom> startFromOverride) {
+        return startFromOverride
+            .map(startFrom -> baseKafkaConfig.kafkaConsumer().messageReceiverWithSettings(
+                new TopicSettings(MarketComponentNotificationReceiver.ANALYSIS_SUMMARY_TOPIC, startFrom),
+                AnalysisSummary::parseFrom))
+            .orElseGet(() -> baseKafkaConfig.kafkaConsumer().messageReceiver(
+                MarketComponentNotificationReceiver.ANALYSIS_SUMMARY_TOPIC,
+                AnalysisSummary::parseFrom));
     }
 
     @Bean
-    protected IMessageReceiver<ProjectedTopology> projectedTopologyReceiver() {
-        return baseKafkaConfig.kafkaConsumer().messageReceiver(
+    protected IMessageReceiver<ProjectedTopology> projectedTopologyReceiver(final Optional<StartFrom> startFromOverride) {
+        return startFromOverride
+            .map(startFrom -> baseKafkaConfig.kafkaConsumer().messageReceiverWithSettings(
+                new TopicSettings(MarketComponentNotificationReceiver.PROJECTED_TOPOLOGIES_TOPIC, startFrom),
+                ProjectedTopology::parseFrom))
+            .orElseGet(() -> baseKafkaConfig.kafkaConsumer().messageReceiver(
                 MarketComponentNotificationReceiver.PROJECTED_TOPOLOGIES_TOPIC,
-                ProjectedTopology::parseFrom);
+                ProjectedTopology::parseFrom));
     }
 
     @Bean
-    protected IMessageReceiver<ProjectedEntityCosts> projectedEntityCostsReceiver() {
-        return baseKafkaConfig.kafkaConsumer().messageReceiver(
+    protected IMessageReceiver<ProjectedEntityCosts> projectedEntityCostsReceiver(final Optional<StartFrom> startFromOverride) {
+        return startFromOverride
+            .map(startFrom -> baseKafkaConfig.kafkaConsumer().messageReceiverWithSettings(
+                new TopicSettings(MarketComponentNotificationReceiver.PROJECTED_ENTITY_COSTS_TOPIC, startFrom),
+                ProjectedEntityCosts::parseFrom))
+            .orElseGet(() -> baseKafkaConfig.kafkaConsumer().messageReceiver(
                 MarketComponentNotificationReceiver.PROJECTED_ENTITY_COSTS_TOPIC,
-                ProjectedEntityCosts::parseFrom);
+                ProjectedEntityCosts::parseFrom));
     }
 
     @Bean
-    protected IMessageReceiver<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageReceiver() {
-        return baseKafkaConfig.kafkaConsumer().messageReceiver(
+    protected IMessageReceiver<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageReceiver(final Optional<StartFrom> startFromOverride) {
+        return startFromOverride
+            .map(startFrom -> baseKafkaConfig.kafkaConsumer().messageReceiverWithSettings(
+                new TopicSettings(MarketComponentNotificationReceiver.PROJECTED_ENTITY_RI_COVERAGE_TOPIC, startFrom),
+                ProjectedEntityReservedInstanceCoverage::parseFrom))
+            .orElseGet(() -> baseKafkaConfig.kafkaConsumer().messageReceiver(
                 MarketComponentNotificationReceiver.PROJECTED_ENTITY_RI_COVERAGE_TOPIC,
-                ProjectedEntityReservedInstanceCoverage::parseFrom);
+                ProjectedEntityReservedInstanceCoverage::parseFrom));
     }
 
     @Bean
-    protected IMessageReceiver<Topology> planAnalysisTopologyReceiver() {
-        return baseKafkaConfig.kafkaConsumer().messageReceiver(
+    protected IMessageReceiver<Topology> planAnalysisTopologyReceiver(final Optional<StartFrom> startFromOverride) {
+        return startFromOverride
+            .map(startFrom -> baseKafkaConfig.kafkaConsumer().messageReceiverWithSettings(
+                new TopicSettings(MarketComponentNotificationReceiver.PLAN_ANALYSIS_TOPOLOGIES_TOPIC, startFrom),
+                Topology::parseFrom))
+            .orElseGet(() -> baseKafkaConfig.kafkaConsumer().messageReceiver(
                 MarketComponentNotificationReceiver.PLAN_ANALYSIS_TOPOLOGIES_TOPIC,
-                Topology::parseFrom);
+                Topology::parseFrom));
     }
 
     @Bean(destroyMethod = "shutdownNow")
@@ -87,31 +115,32 @@ public class MarketClientConfig {
         return Executors.newCachedThreadPool(threadFactory);
     }
 
-    public MarketComponent marketComponent(@Nonnull Set<Subscription> subscriptions) {
+    @Nonnull
+    public MarketComponent marketComponent(@Nonnull MarketSubscription... subscriptions) {
+        final Map<Topic, Optional<StartFrom>> topicsAndOverrides = new HashMap<>();
+        for (MarketSubscription sub : subscriptions) {
+            topicsAndOverrides.put(sub.getTopic(), sub.getStartFrom());
+        }
         final IMessageReceiver<ActionPlan> actionPlansReceiver =
-                subscriptions.contains(Subscription.ActionPlans) ? actionPlanReceiver() : null;
+            topicsAndOverrides.containsKey(Topic.ActionPlans) ?
+                actionPlanReceiver(topicsAndOverrides.get(Topic.ActionPlans)) : null;
         final IMessageReceiver<ProjectedTopology> projectedTopologyReceiver =
-                subscriptions.contains(Subscription.ProjectedTopologies) ?
-                        projectedTopologyReceiver() : null;
+            topicsAndOverrides.containsKey(Topic.ProjectedTopologies) ?
+                projectedTopologyReceiver(topicsAndOverrides.get(Topic.ProjectedTopologies)) : null;
         final IMessageReceiver<ProjectedEntityCosts> projectedEntityCostReceiver =
-                subscriptions.contains(Subscription.ProjectedEntityCosts) ?
-                        projectedEntityCostsReceiver() : null;
+            topicsAndOverrides.containsKey(Topic.ProjectedEntityCosts) ?
+                projectedEntityCostsReceiver(topicsAndOverrides.get(Topic.ProjectedEntityCosts)) : null;
         final IMessageReceiver<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageReceiver =
-                                subscriptions.contains(Subscription.ProjectedEntityRiCoverage) ?
-                                        projectedEntityRiCoverageReceiver() : null;
+            topicsAndOverrides.containsKey(Topic.ProjectedEntityRiCoverage) ?
+                projectedEntityRiCoverageReceiver(topicsAndOverrides.get(Topic.ProjectedEntityRiCoverage)) : null;
         final IMessageReceiver<Topology> planAnalysisTopologyReceiver =
-                subscriptions.contains(Subscription.PlanAnalysisTopologies) ?
-                        planAnalysisTopologyReceiver() : null;
+            topicsAndOverrides.containsKey(Topic.PlanAnalysisTopologies) ?
+                    planAnalysisTopologyReceiver(topicsAndOverrides.get(Topic.PlanAnalysisTopologies)) : null;
         final IMessageReceiver<AnalysisSummary> analysisSummaryReceiver =
-            subscriptions.contains(Subscription.AnalysisSummary) ?
-                analysisSummaryReceiver() : null;
+            topicsAndOverrides.containsKey(Topic.AnalysisSummary) ?
+                analysisSummaryReceiver(topicsAndOverrides.get(Topic.AnalysisSummary)) : null;
         return new MarketComponentNotificationReceiver(projectedTopologyReceiver,
                 projectedEntityCostReceiver, projectedEntityRiCoverageReceiver, actionPlansReceiver,
                 planAnalysisTopologyReceiver, analysisSummaryReceiver, marketClientThreadPool());
-    }
-
-    public enum Subscription {
-        AnalysisSummary, ActionPlans, ProjectedTopologies, ProjectedEntityCosts,
-        ProjectedEntityRiCoverage, PriceIndexes, PlanAnalysisTopologies;
     }
 }

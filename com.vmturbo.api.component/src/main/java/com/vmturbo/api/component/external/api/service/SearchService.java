@@ -45,8 +45,6 @@ import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
@@ -90,7 +88,9 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
@@ -100,8 +100,9 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.topology.UIEntityState;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.api.ProbeInfo;
@@ -253,7 +254,6 @@ public class SearchService implements ISearchService {
         // Determine which of many (many) types of searches is requested.
         // NB: this method is heavily overloaded.  The REST endpoint to be redefined
         if (types == null && scopes == null && state == null && groupType == null) {
-            // "search all" - gather answer from all possible sources in parallel
             return paginationRequest.allResultsResponse(searchAll());
         } else if (StringUtils.isNotEmpty(groupType)) {
             // if 'groupType' is specified, this MUST be a search over GROUPs
@@ -281,7 +281,7 @@ public class SearchService implements ISearchService {
             } else if (types.contains(TargetsService.TARGET)) {
                 final Collection<TargetApiDTO> targets = targetsService.getTargets(null);
                 result = Lists.newArrayList(targets);
-            } else if (types.contains(UIEntityType.BUSINESS_ACCOUNT.getValue())) {
+            } else if (types.contains(UIEntityType.BUSINESS_ACCOUNT.apiStr())) {
                 final Collection<BusinessUnitApiDTO> businessAccounts =
                         businessUnitMapper.getAndConvertDiscoveredBusinessUnits(this, targetsService, repositoryClient);
                 result = Lists.newArrayList(businessAccounts);
@@ -306,14 +306,12 @@ public class SearchService implements ISearchService {
         if (scopes == null || scopes.size() <= 0 ||
                 (scopes.get(0).equals(UuidMapper.UI_REAL_TIME_MARKET_STR))) {
             // Search with no scope requested; or a single scope == "Market"; then search in live Market
-            entitiesResult = repositoryApi.getSearchResults(query, types,
-                    UuidMapper.UI_REAL_TIME_MARKET_STR, state, groupType)
-                        .stream()
+            entitiesResult = repositoryApi.getSearchResults(query, types, state) .stream()
                         .filter(scopeFilter);
         } else {
             // Fetch service entities matching the given specs
             Collection<ServiceEntityApiDTO> serviceEntities = repositoryApi.getSearchResults(query,
-                    types, UuidMapper.UI_REAL_TIME_MARKET_STR, state, groupType);
+                    types, state);
             // prune according toe user scope
             serviceEntities.removeIf(scopeFilter.negate());
 
@@ -371,12 +369,12 @@ public class SearchService implements ISearchService {
         }
     }
 
+
     private static ExecutorService executor = Executors.newFixedThreadPool(3);
 
     private List<BaseApiDTO> searchAll() throws Exception {
         Future<Collection<ServiceEntityApiDTO>> entities = executor.submit(
-                () -> repositoryApi.getSearchResults(
-                        "", SearchMapper.SEARCH_ALL_TYPES, MarketMapper.MARKET, null, null));
+                () -> repositoryApi.getSearchResults("", SearchMapper.SEARCH_ALL_TYPES, null));
         Future<List<GroupApiDTO>> groups = executor.submit(groupsService::getGroups);
         Future<List<TargetApiDTO>> targets = executor.submit(() -> targetsService.getTargets(null));
         List<BaseApiDTO> result = Lists.newArrayList();
@@ -385,6 +383,7 @@ public class SearchService implements ISearchService {
         result.addAll(targets.get());
         return result;
     }
+
 
     /**
      * A general search given a filter - may be asked to search over ServiceEntities or Groups.
@@ -592,7 +591,7 @@ public class SearchService implements ISearchService {
             statsScope.setEntityList(EntityList.newBuilder()
                 .addAllEntities(getCandidateEntitiesForSearch(inputDTO, nameQuery, expandedIds, searchRequest)));
         } else {
-            statsScope.setEntityType(ServiceEntityMapper.fromUIEntityType(inputDTO.getClassName()));
+            statsScope.setEntityType(UIEntityType.fromString(inputDTO.getClassName()).typeNumber());
         }
         final GetEntityStatsResponse response = statsHistoryServiceRpc.getEntityStats(
             GetEntityStatsRequest.newBuilder()
@@ -734,7 +733,7 @@ public class SearchService implements ISearchService {
         return
             SearchFilter.newBuilder()
                 .setPropertyFilter(
-                    SearchMapper.stringPropertyFilterExact(StringConstants.OID, oids))
+                    SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.OID, oids))
                 .build();
     }
 
@@ -757,7 +756,7 @@ public class SearchService implements ISearchService {
                 Arrays.stream(UIEntityState.values())
                     .forEach(option -> {
                         final CriteriaOptionApiDTO optionApiDTO = new CriteriaOptionApiDTO();
-                        optionApiDTO.setValue(option.getValue());
+                        optionApiDTO.setValue(option.apiStr());
                         optionApiDTOs.add(optionApiDTO);
                     });
                 break;
@@ -803,10 +802,10 @@ public class SearchService implements ISearchService {
             case ACCOUNT_OID:
                 // get all business accounts
                 final SearchEntitiesRequest request = SearchEntitiesRequest.newBuilder()
-                        .addSearchParameters(SearchParameters.newBuilder().setStartingFilter(
-                                SearchMapper.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT.getValue())).build())
-                        .setPaginationParams(PaginationParameters.newBuilder().build())
-                        .build();
+                    .addSearchParameters(SearchParameters.newBuilder().setStartingFilter(
+                            SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT.apiStr())).build())
+                    .setPaginationParams(PaginationParameters.newBuilder().build())
+                    .build();
                 final List<Entity> businessAccounts;
                 try {
                     businessAccounts = searchServiceRpc.searchEntities(request).getEntitiesList();

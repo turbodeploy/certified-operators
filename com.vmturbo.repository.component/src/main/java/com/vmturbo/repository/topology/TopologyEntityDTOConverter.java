@@ -17,9 +17,9 @@ import com.google.common.collect.Lists;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.TypeCase;
-import com.vmturbo.components.common.mapping.UIEntityState;
-import com.vmturbo.components.common.mapping.UIEnvironmentType;
-import com.vmturbo.repository.constant.RepoObjectType;
+import com.vmturbo.common.protobuf.topology.UIEntityState;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.repository.dto.ApplicationInfoRepoDTO;
 import com.vmturbo.repository.dto.BusinessAccountInfoRepoDTO;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
@@ -71,10 +71,10 @@ class TopologyEntityDTOConverter {
         ServiceEntityRepoDTO se = new ServiceEntityRepoDTO();
         se.setOid(seOid);
         se.setDisplayName(t.getDisplayName());
-        se.setEntityType(RepoObjectType.mapEntityType(t.getEntityType()));
+        se.setEntityType(UIEntityType.fromEntity(t).apiStr());
         se.setEnvironmentType(UIEnvironmentType.fromEnvType(t.getEnvironmentType()).getApiEnumStringValue());
         se.setUuid(String.valueOf(t.getOid()));
-        se.setState(UIEntityState.fromEntityState(t.getEntityState()).getValue());
+        se.setState(UIEntityState.fromEntityState(t.getEntityState()).apiStr());
         se.setTags(new HashMap<>());
         t.getTags().getTagsMap().forEach((key, value) -> se.getTags().put(key, value.getValuesList()));
 

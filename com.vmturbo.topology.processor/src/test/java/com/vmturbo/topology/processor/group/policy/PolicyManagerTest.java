@@ -1,10 +1,7 @@
 package com.vmturbo.topology.processor.group.policy;
 
-import static com.vmturbo.topology.processor.group.filter.FilterUtils.neverDiscoveredTopologyEntity;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.hasItems;
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.neverDiscoveredTopologyEntity;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.never;
@@ -56,11 +53,12 @@ import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.policy.application.ImmutableResults;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
  * Unit tests for {@link PolicyManager}.
@@ -76,7 +74,7 @@ public class PolicyManagerTest {
 
     private final GroupResolver groupResolver = Mockito.mock(GroupResolver.class);
 
-    private final TopologyGraph topologyGraph = Mockito.mock(TopologyGraph.class);
+    private final TopologyGraph<TopologyEntity> topologyGraph = Mockito.mock(TopologyGraph.class);
 
     private final PolicyApplicator policyApplicator = Mockito.mock(PolicyApplicator.class);
 

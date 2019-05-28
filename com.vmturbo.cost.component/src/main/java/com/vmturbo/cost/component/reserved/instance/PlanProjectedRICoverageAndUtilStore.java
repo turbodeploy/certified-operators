@@ -62,11 +62,11 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
 
     private final Map<Long, Param> cachedRICoverage = new HashMap<Long, Param>();
 
-    private final Set<EntityType> entityTypeSet = ImmutableSet.of(EntityType.REGION,
-                                                                  EntityType.BUSINESS_ACCOUNT,
-                                                                  EntityType.VIRTUAL_MACHINE,
-                                                                  EntityType.AVAILABILITY_ZONE,
-                                                                  EntityType.COMPUTE_TIER);
+    private final Set<Integer> entityTypeSet = ImmutableSet.of(EntityType.REGION_VALUE,
+                                                                  EntityType.BUSINESS_ACCOUNT_VALUE,
+                                                                  EntityType.VIRTUAL_MACHINE_VALUE,
+                                                                  EntityType.AVAILABILITY_ZONE_VALUE,
+                                                                  EntityType.COMPUTE_TIER_VALUE);
     private class Param {
         private final TopologyInfo topoInfo;
         private final List<EntityReservedInstanceCoverage> coverage;

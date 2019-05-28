@@ -18,6 +18,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
+import com.vmturbo.topology.graph.TopologyGraph;
 
 public class ApplicationCommodityKeyChangerTest {
 
@@ -102,7 +103,7 @@ public class ApplicationCommodityKeyChangerTest {
         appReplica2.getOid(), appReplica2
     );
 
-    private final TopologyGraph topologyGraph = TopologyGraph.newGraph(topologyMap);
+    private final TopologyGraph<TopologyEntity> topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
 
 
     @Test

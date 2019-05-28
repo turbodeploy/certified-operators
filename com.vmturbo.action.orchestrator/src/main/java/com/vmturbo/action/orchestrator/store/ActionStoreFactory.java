@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.store;
 
+import java.time.Clock;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
@@ -42,6 +43,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
 
     private final ActionTranslator actionTranslator;
 
+    private final Clock clock;
+
     /**
      * Create a new ActionStoreFactory.
      */
@@ -53,7 +56,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
                               @Nonnull final ProbeCapabilityCache probeCapabilityCache,
                               @Nonnull final EntitiesCache entitySettingsCache,
                               @Nonnull final LiveActionsStatistician actionsStatistician,
-                              @Nonnull final ActionTranslator actionTranslator) {
+                              @Nonnull final ActionTranslator actionTranslator,
+                              @Nonnull final Clock clock) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.databaseDslContext = Objects.requireNonNull(databaseDslContext);
@@ -63,6 +67,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.actionsStatistician = Objects.requireNonNull(actionsStatistician);
         this.probeCapabilityCache = Objects.requireNonNull(probeCapabilityCache);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
+        this.clock = Objects.requireNonNull(clock);
     }
 
     /**
@@ -77,7 +82,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
             return new LiveActionStore(actionFactory, topologyContextId,
                 actionTargetSelector, probeCapabilityCache,
                 entitySettingsCache, actionHistoryDao,
-                actionsStatistician, actionTranslator);
+                actionsStatistician, actionTranslator, clock);
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId);
         }

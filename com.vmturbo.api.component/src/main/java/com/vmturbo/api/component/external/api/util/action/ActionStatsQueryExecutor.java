@@ -1,7 +1,6 @@
 package com.vmturbo.api.component.external.api.util.action;
 
 import java.time.Clock;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -23,11 +22,8 @@ import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
@@ -52,7 +48,8 @@ import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
-import com.vmturbo.components.common.mapping.UIEnvironmentType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.components.common.utils.StringConstants;
 
 /**
@@ -170,7 +167,8 @@ public class ActionStatsQueryExecutor {
         final Map<Long, Entity> entityLookup;
         // If the request was to group by templates, then we group by target id. For these
         // requests, we need to get the names of the target ids from the search service
-        if (query.actionInput().getGroupBy().contains(StringConstants.TEMPLATE)) {
+        if (query.actionInput().getGroupBy() != null &&
+                query.actionInput().getGroupBy().contains(StringConstants.TEMPLATE)) {
             Set<Long> templatesToLookup = curResponse.getResponsesList().stream()
                 .flatMap(singleResponse -> singleResponse.getActionStatsList().stream())
                 .filter(stat -> stat.getStatGroup().hasTargetEntityId())
@@ -241,7 +239,8 @@ public class ActionStatsQueryExecutor {
                     CompositeEntityTypesSpec.WORKLOAD_ENTITYTYPE.equals(relatedEntityType)
                         ? CompositeEntityTypesSpec.WORKLOAD_TYPE_PRIMITIVES.stream()
                         : Stream.of(relatedEntityType))
-                .map(ServiceEntityMapper::fromUIEntityType)
+                .map(UIEntityType::fromString)
+                .map(UIEntityType::typeNumber)
                 .forEach(types::add);
             entityType().ifPresent(types::add);
             return types;

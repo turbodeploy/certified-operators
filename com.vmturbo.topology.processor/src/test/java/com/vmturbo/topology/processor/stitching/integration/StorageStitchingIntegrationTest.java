@@ -53,6 +53,7 @@ import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.JournalRecorder.StringBuilderRecorder;
 import com.vmturbo.stitching.journal.TopologyEntitySemanticDiffer;
 import com.vmturbo.stitching.storage.StorageStitchingOperation;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingIntegrationTest;
@@ -62,7 +63,7 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory.ConfigurableStitchingJournalFactory;
 import com.vmturbo.topology.processor.targets.Target;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 /**
  * Attempt to simulate a basic storage stitching operation.
@@ -94,9 +95,9 @@ public class StorageStitchingIntegrationTest extends StitchingIntegrationTest {
 
         final StitchingContext stitchingContext = entityStore.constructStitchingContext();
         stitchingManager.stitch(stitchingContext, new StitchingJournal<>());
-        final TopologyGraph topoGraph = TopologyGraph.newGraph(stitchingContext.constructTopology());
+        final TopologyGraph<TopologyEntity> topoGraph = TopologyEntityTopologyGraphCreator.newGraph(stitchingContext.constructTopology());
 
-        final TopologyGraph otherGraph = TopologyGraph.newGraph(entityStore.constructTopology());
+        final TopologyGraph<TopologyEntity> otherGraph = TopologyEntityTopologyGraphCreator.newGraph(entityStore.constructTopology());
 
         final Map<Long, TopologyEntityDTO> stitchedEntities = topoGraph.entities()
                 .map(TopologyEntity::getTopologyEntityDtoBuilder)
@@ -263,7 +264,7 @@ public class StorageStitchingIntegrationTest extends StitchingIntegrationTest {
 
         final IStitchingJournal<TopologyEntity> postStitchingJournal = journal.childJournal(
                 new TopologyEntitySemanticDiffer(journal.getJournalOptions().getVerbosity()));
-        stitchingManager.postStitch(new GraphWithSettings(TopologyGraph.newGraph(topology),
+        stitchingManager.postStitch(new GraphWithSettings(TopologyEntityTopologyGraphCreator.newGraph(topology),
                 Collections.emptyMap(), Collections.emptyMap()), postStitchingJournal);
     }
  }

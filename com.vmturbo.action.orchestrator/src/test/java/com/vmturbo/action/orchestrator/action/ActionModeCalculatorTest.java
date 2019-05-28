@@ -18,6 +18,7 @@ import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.store.EntitiesCache;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -52,9 +53,10 @@ public class ActionModeCalculatorTest {
     private EntitiesCache entitiesCache = mock(EntitiesCache.class);
 
     private ActionDTO.Action.Builder actionBuilder = ActionDTO.Action.newBuilder()
-            .setId(10289)
-            .setExplanation(Explanation.getDefaultInstance())
-            .setImportance(0);
+        .setId(10289)
+        .setExplanation(Explanation.getDefaultInstance())
+        .setSupportingLevel(SupportLevel.SUPPORTED)
+        .setImportance(0);
 
     private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
 
@@ -675,46 +677,49 @@ public class ActionModeCalculatorTest {
 
     private Action getResizeDownAction(long vmId) {
         ActionDTO.Action.Builder actionBuilder = ActionDTO.Action.newBuilder()
-                        .setId(10289)
-                        .setExplanation(Explanation.newBuilder()
-                            .setResize(ResizeExplanation.newBuilder()
-                                .setStartUtilization(25)
-                                .setEndUtilization(50)
-                                .build()))
-                        .setImportance(0);
-                final ActionDTO.Action recommendation = actionBuilder.setInfo(ActionInfo.newBuilder()
-                        .setResize(Resize.newBuilder()
-                                .setTarget(ActionEntity.newBuilder()
-                                        .setId(vmId)
-                                        .setType(EntityType.VIRTUAL_MACHINE_VALUE))
-                                .setCommodityAttribute(CommodityAttribute.CAPACITY)
-                                .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
-                                .setOldCapacity(4)
-                                .setNewCapacity(2)))
-                        .build();
+            .setId(10289)
+            .setSupportingLevel(SupportLevel.SUPPORTED)
+            .setExplanation(Explanation.newBuilder()
+                .setResize(ResizeExplanation.newBuilder()
+                    .setStartUtilization(25)
+                    .setEndUtilization(50)
+                    .build()))
+            .setImportance(0);
+        final ActionDTO.Action recommendation = actionBuilder.setInfo(ActionInfo.newBuilder()
+            .setResize(Resize.newBuilder()
+                .setTarget(ActionEntity.newBuilder()
+                    .setId(vmId)
+                    .setType(EntityType.VIRTUAL_MACHINE_VALUE))
+                .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                .setOldCapacity(4)
+                .setNewCapacity(2)))
+            .build();
         Action action = new Action(recommendation, 1L, actionModeCalculator);
         return action;
     }
 
     private Action getResizeUpAction(long vmId) {
-        ActionDTO.Action.Builder actionBuilder = ActionDTO.Action.newBuilder()
-                        .setId(10289)
-                        .setExplanation(Explanation.newBuilder()
-                            .setResize(ResizeExplanation.newBuilder()
-                                .setStartUtilization(100)
-                                .setEndUtilization(50)
-                                .build()))
-                        .setImportance(0);
-                final ActionDTO.Action recommendation = actionBuilder.setInfo(ActionInfo.newBuilder()
-                        .setResize(Resize.newBuilder()
-                                .setTarget(ActionEntity.newBuilder()
-                                        .setId(vmId)
-                                        .setType(EntityType.VIRTUAL_MACHINE_VALUE))
-                                .setCommodityAttribute(CommodityAttribute.CAPACITY)
-                                .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
-                                .setOldCapacity(2)
-                                .setNewCapacity(4)))
-                        .build();
+        final ActionDTO.Action.Builder actionBuilder = ActionDTO.Action.newBuilder()
+            .setId(10289)
+            .setSupportingLevel(SupportLevel.SUPPORTED)
+            .setExplanation(Explanation.newBuilder()
+                .setResize(ResizeExplanation.newBuilder()
+                    .setStartUtilization(100)
+                    .setEndUtilization(50)
+                    .build()))
+            .setImportance(0);
+        final ActionDTO.Action recommendation = actionBuilder
+            .setInfo(ActionInfo.newBuilder()
+                .setResize(Resize.newBuilder()
+                    .setTarget(ActionEntity.newBuilder()
+                        .setId(vmId)
+                        .setType(EntityType.VIRTUAL_MACHINE_VALUE))
+                    .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                    .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                    .setOldCapacity(2)
+                    .setNewCapacity(4)))
+                .build();
         Action action = new Action(recommendation, 1L, actionModeCalculator);
         return action;
     }

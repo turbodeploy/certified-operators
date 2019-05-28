@@ -2,7 +2,6 @@ package com.vmturbo.market;
 
 import java.util.Collection;
 import java.util.Objects;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -11,7 +10,7 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.ActionPlanInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ActionPlanSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Data;
@@ -251,14 +250,14 @@ public class MarketNotificationSender extends
     }
 
     private void sendAnalysisSummary(@Nonnull final long projectdTopologyId,
-                                       @Nonnull final TopologyInfo sourceTopologyInfo,
+                                     @Nonnull final TopologyInfo sourceTopologyInfo,
                                      @Nonnull final long actionPlanId) {
         try {
             analysisSummarySender.sendMessage(
                 AnalysisSummary.newBuilder()
                     .setProjectedTopologyInfo(ProjectedTopologyInfo.newBuilder().setProjectedTopologyId(projectdTopologyId))
                     .setSourceTopologyInfo(sourceTopologyInfo)
-                    .setActionPlanInfo(ActionPlanInfo.newBuilder().setActionPlanId(actionPlanId).build())
+                    .setActionPlanSummary(ActionPlanSummary.newBuilder().setActionPlanId(actionPlanId))
                     .build());
             getLogger().debug("Sending analysys results for projected topology with id {}",
                 projectdTopologyId);

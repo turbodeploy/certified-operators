@@ -93,6 +93,12 @@ public class ReportingConfig {
     @Value("${scheduledReportsGenerationTime}")
     private int scheduledReportsGenerationTime;
 
+    @Value("${maxConnectRetryCount:60}")
+    private long maxConnectRetryCount;
+
+    @Value("${retryDelayInMilliSec:10000}")
+    private long retryDelayInMilliSec;
+
     @Nonnull
     public ReportingDbConfig dbConfig() {
         return dbConfig;
@@ -208,6 +214,6 @@ public class ReportingConfig {
     public ReportsDataGenerator reportsDataGenerator() {
         return new ReportsDataGenerator(new ReportsDataContext(groupRpcService(),
             reportDataWriter(), repositoryChannel(), actionsRpcService(), realtimeTopologyContextId)
-            , getReportMap());
+            , getReportMap(maxConnectRetryCount, retryDelayInMilliSec));
     }
 }

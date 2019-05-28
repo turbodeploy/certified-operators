@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.Reservation;
 import com.vmturbo.plan.orchestrator.db.tables.records.ReservationRecord;
 import com.vmturbo.plan.orchestrator.db.tables.records.ReservationToTemplateRecord;

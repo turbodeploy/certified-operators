@@ -1,8 +1,8 @@
 package com.vmturbo.topology.processor.group.policy.application;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.mockito.Matchers.any;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -19,26 +19,16 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator.Results;
-import com.vmturbo.topology.processor.group.policy.application.BindToGroupPolicy;
-import com.vmturbo.topology.processor.group.policy.application.BindToGroupPolicyApplication;
-import com.vmturbo.topology.processor.group.policy.application.ImmutablePolicyApplicationResults;
-import com.vmturbo.topology.processor.group.policy.application.MergePolicy;
-import com.vmturbo.topology.processor.group.policy.application.MergePolicyApplication;
-import com.vmturbo.topology.processor.group.policy.application.MustNotRunTogetherPolicy;
-import com.vmturbo.topology.processor.group.policy.application.MustNotRunTogetherPolicyApplication;
-import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
-import com.vmturbo.topology.processor.group.policy.application.PolicyApplicationException;
-import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 public class PolicyApplicatorTest {
 
     private GroupResolver groupResolver = mock(GroupResolver.class);
 
-    private TopologyGraph topologyGraph = mock(TopologyGraph.class);
+    private TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
 
     private PolicyFactory policyFactory = mock(PolicyFactory.class);
 

@@ -154,7 +154,8 @@ public class ActionExecutionRpcTest {
         actionStoreSpy =
             Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
                 actionTargetSelector, probeCapabilityCache,
-                entitySettingsCache, actionHistoryDao, statistician, actionTranslator));
+                entitySettingsCache, actionHistoryDao, statistician, actionTranslator,
+                clock));
 
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
@@ -382,7 +383,7 @@ public class ActionExecutionRpcTest {
         actionStoreSpy =
             Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
                 actionTargetSelector, probeCapabilityCache, entitySettingsCache,
-                actionHistoryDao, statistician, actionTranslator));
+                actionHistoryDao, statistician, actionTranslator, clock));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
 
         actionStorehouse.storeActions(plan);

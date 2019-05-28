@@ -11,6 +11,7 @@ import javax.xml.bind.annotation.XmlType;
 
 import org.apache.commons.lang.builder.ReflectionToStringBuilder;
 
+import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
@@ -211,7 +212,7 @@ public class CommodityElement implements IntoSdkProto<CommodityDTO> {
     public CommodityDTO toSdkProto() {
         final CommodityDTO.Builder builder = CommodityDTO.newBuilder()
             .setDisplayName(getName())
-            .setCommodityType(ClassicEnumMapper.commodityType(getCommodityType()));
+            .setCommodityType(UICommodityType.fromString(getCommodityType()).sdkType());
 
         conditionallySet(builder::setActive, getActive());
         setPositive(builder::setCapacity, getCapacity());

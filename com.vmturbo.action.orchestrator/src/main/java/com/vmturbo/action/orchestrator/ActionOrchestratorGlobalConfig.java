@@ -2,11 +2,6 @@ package com.vmturbo.action.orchestrator;
 
 import java.time.Clock;
 import java.util.EnumSet;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
-
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.grpc.Channel;
 
@@ -20,7 +15,8 @@ import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
-import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Subscription;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
 
 /**
  * Global beans for the component that don't belong in any
@@ -38,7 +34,7 @@ public class ActionOrchestratorGlobalConfig {
 
     @Bean
     public TopologyProcessor topologyProcessor() {
-        return tpClientConfig.topologyProcessor(EnumSet.of(Subscription.Notifications));
+        return tpClientConfig.topologyProcessor(TopologyProcessorSubscription.forTopic(Topic.Notifications));
     }
 
     @Bean
