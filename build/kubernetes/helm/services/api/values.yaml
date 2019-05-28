@@ -36,8 +36,6 @@ env:
     value: kafka:9092
   - name: realtimeTopologyContextId
     value: "777777"
-  - name: kafkaServers
-    value: kafka:9092
 
 resources:
    limits:
