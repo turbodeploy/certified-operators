@@ -1,6 +1,5 @@
 package com.vmturbo.components.common;
 
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 
 import javax.annotation.PostConstruct;
@@ -10,6 +9,7 @@ import com.ecwid.consul.v1.ConsulRawClient;
 import com.ecwid.consul.v1.agent.model.NewCheck;
 import com.ecwid.consul.v1.agent.model.NewService;
 
+import com.vmturbo.components.common.utils.EnvironmentUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
@@ -19,7 +19,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class ConsulDiscoveryManualConfig {
 
-    public static final String DISABLE_CONSUL_REGISTRATION = "disable.consul.registration";
+    public static final String ENABLE_CONSUL_REGISTRATION = "enableConsulRegistration";
 
     @Value("${consul_host}")
     private String consulHost;
@@ -28,21 +28,19 @@ public class ConsulDiscoveryManualConfig {
     @Value("${" + BaseVmtComponent.PROP_serverHttpPort + '}')
     private Integer serverPort;
 
-    @Value("${" + BaseVmtComponent.PROP_COMPNENT_TYPE + '}')
+    @Value("${" + BaseVmtComponent.PROP_COMPONENT_TYPE + '}')
     private String componentType;
     @Value("${" + BaseVmtComponent.PROP_INSTANCE_ID + '}')
     private String instanceId;
 
-    /**
-     * This property is used only for tests to disable consul registration. This property and
-     * mechanigs should be removed as soon as consul registration is moved to clustermanager.
-     */
-    @Value("${" + DISABLE_CONSUL_REGISTRATION + ":false}")
-    private Boolean disableConsulRegistration;
+    private Boolean enableConsulRegistration;
 
     @PostConstruct
     protected void registerConsul() throws UnknownHostException {
-        if (Boolean.TRUE.equals(disableConsulRegistration)) {
+        enableConsulRegistration = EnvironmentUtils.getOptionalEnvProperty(ENABLE_CONSUL_REGISTRATION)
+                .map(Boolean::parseBoolean)
+                .orElse(false);
+        if (!enableConsulRegistration) {
             return;
         }
         final ConsulRawClient rawClient = new ConsulRawClient(consulHost, consulPort);

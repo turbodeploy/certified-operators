@@ -82,9 +82,9 @@ public class ComponentHealthCheckTest {
         env.setProperty("clustermgr_retry_delay_sec", "10");
         env.setProperty("clusterMgrHost", "clustermgr");
         env.setProperty(BaseVmtComponent.PROP_INSTANCE_ID, "instance");
-        env.setProperty(BaseVmtComponent.PROP_COMPNENT_TYPE, "componentType");
+        env.setProperty(BaseVmtComponent.PROP_COMPONENT_TYPE, "componentType");
         env.setProperty(BaseVmtComponent.PROP_serverHttpPort, "8080");
-        env.setProperty(ConsulDiscoveryManualConfig.DISABLE_CONSUL_REGISTRATION, "true");
+        env.setProperty(ConsulDiscoveryManualConfig.ENABLE_CONSUL_REGISTRATION, "false");
         final IntegrationTestServer server =
                 new IntegrationTestServer(testName, ContextConfiguration.class, env);
 

@@ -51,8 +51,6 @@ import io.prometheus.client.hotspot.DefaultExports;
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
 import com.vmturbo.clustermgr.api.ClusterMgrClient;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
-import com.vmturbo.common.protobuf.logging.LogConfigurationServiceGrpc;
-import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
 import com.vmturbo.components.common.health.HealthStatus;
@@ -94,8 +92,9 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      */
     private static final int GRPC_MIN_KEEPALIVE_TIME_MIN = 1;
 
-    public static final String PROP_COMPNENT_TYPE = "component_type";
+    public static final String PROP_COMPONENT_TYPE = "component_type";
     public static final String PROP_INSTANCE_ID = "instance_id";
+    public static final String PROP_STANDALONE = "standalone";
     public static final String PROP_serverHttpPort = "serverHttpPort";
     public static final String PROP_SECURE_PORT = "secure_serverHttpPort";
     public static final String PROP_KEYSTORE_FILE = "keystore_file";
@@ -118,6 +117,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
     private static String componentType;
     private static String instanceId;
+    private static Boolean enableConsulRegistration;
+    private static Boolean standalone;
     private static long clusterMgrConnectionRetryDelayMs;
 
     private static final DataMetricGauge STARTUP_DURATION_METRIC = DataMetricGauge.builder()
@@ -286,8 +287,12 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         }
 
         setStatus(ExecutionStatus.MIGRATING);
-        baseVmtComponentConfig.migrationFramework().startMigrations(getMigrations(),
-            false/*don't forceStart failed ones*/);
+        enableConsulRegistration = EnvironmentUtils.getOptionalEnvProperty(ConsulDiscoveryManualConfig.ENABLE_CONSUL_REGISTRATION)
+                .map(Boolean::parseBoolean)
+                .orElse(false);
+        if (enableConsulRegistration) {
+            baseVmtComponentConfig.migrationFramework().startMigrations(getMigrations(), false);
+        }
         startGrpc();
         onStartComponent();
         setStatus(ExecutionStatus.RUNNING);
@@ -530,17 +535,27 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     protected static ConfigurableApplicationContext startContext(
             @Nonnull ContextConfigurer contextConfigurer) {
         // fetch the component information from the environment
-        componentType = EnvironmentUtils.requireEnvProperty(PROP_COMPNENT_TYPE);
+        componentType = EnvironmentUtils.requireEnvProperty(PROP_COMPONENT_TYPE);
         instanceId = EnvironmentUtils.requireEnvProperty(PROP_INSTANCE_ID);
+        standalone = EnvironmentUtils.getOptionalEnvProperty(PROP_STANDALONE)
+                .map(Boolean::parseBoolean)
+                .orElse(false);
+        // load the local configuration properties
+        Properties defaultProperties = loadConfigurationProperties();
+        if (standalone) {
+            // call ClusterMgr to fetch the configuration for this component type - blocking call
+            fetchLocalConfigurationProperties(defaultProperties);
+        } else {
+            // get a pointer to the ClusterMgr client api
+            ClusterMgrRestClient clusterMgrClient = getClusterMgrClient();
 
-        // get a pointer to the ClusterMgr client api
-        ClusterMgrRestClient clusterMgrClient = getClusterMgrClient();
+            // send the default config properties to clustermgr - blocking call
+            updateClusterConfigurationProperties(clusterMgrClient, defaultProperties);
 
-        // send the default config properties to clustermgr - blocking call
-        updateDefaultConfigurationProperties(clusterMgrClient);
+            // call ClusterMgr to fetch the configuration for this component type - blocking call
+            fetchClusterConfigurationProperties(clusterMgrClient);
+        }
 
-        // call ClusterMgr to fetch the configuration for this component type - blocking call
-        fetchConfigurationProperties(clusterMgrClient);
 
         logger.info("Starting web server with spring context");
         final String serverPort = EnvironmentUtils.requireEnvProperty(PROP_serverHttpPort);
@@ -584,13 +599,10 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     }
 
     /**
-     * Read the default configuration properties for this component from the resource file and
-     * publish those to the clustermgr configuration port.
+     * Read the default configuration properties for this component from the resource file.
      *
-     * @param clusterMgrClient the clustermgr api client handle
      */
-    private static void updateDefaultConfigurationProperties(
-            @Nonnull final ClusterMgrRestClient clusterMgrClient) {
+    private static Properties loadConfigurationProperties() {
         logger.info("Sending the default configuration for this component to ClusterMgr");
         // first read the default config from a resource
         final Properties defaultProperties = new Properties();
@@ -600,15 +612,27 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                 defaultProperties.load(configPropertiesStream);
             } else {
                 logger.warn("Cannot find component default properties file: {} for component: {}",
-                    COMPONENT_DEFAULT_PATH, componentType);
+                        COMPONENT_DEFAULT_PATH, componentType);
             }
         } catch (IOException e) {
             // if the component defaults cannot be found we still need to send an empty
             // default properties to ClusterMgr where the global defaults will be used.
             logger.warn("Cannot read default configuration properties file: {} for component: {};" +
-                    "- assuming empty configuration.", COMPONENT_DEFAULT_PATH,
+                            "- assuming empty configuration.", COMPONENT_DEFAULT_PATH,
                     componentType);
         }
+        return defaultProperties;
+    }
+
+    /**
+     * Read the default configuration properties for this component from the resource file and
+     * publish those to the clustermgr configuration port.
+     *
+     * @param clusterMgrClient the clustermgr api client handle
+     */
+    private static void updateClusterConfigurationProperties(
+            @Nonnull final ClusterMgrRestClient clusterMgrClient, Properties defaultProperties) {
+        logger.info("Sending the default configuration for this component to ClusterMgr");
         // now loop forever trying to call the clustermgr client to store those default properties
         final ComponentPropertiesDTO defaultComponentProperties = new ComponentPropertiesDTO();
         defaultProperties.forEach((defaultKey, defaultValue) ->
@@ -631,6 +655,30 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     }
 
     /**
+     * Fetch the local configuration for this component type and store them in
+     * the System properties. Retry until you succeed - this is a blocking call.
+     *
+     * This method is intended to be called by each component's main() method before
+     * beginning Spring instantiation.
+     *
+     */
+    private static void fetchLocalConfigurationProperties(Properties defaultProperties) {
+        do {
+            try {
+                defaultProperties.stringPropertyNames().forEach(configKey -> {
+                    logger.info("       {} = >{}<", configKey, defaultProperties.getProperty(configKey));
+                    System.setProperty(configKey, defaultProperties.getProperty(configKey));
+                });
+                break;
+            } catch(ResourceAccessException e) {
+                logger.error("Error fetching configuration from ClusterMgr: {}", e.getMessage());
+                sleepWaitingForClusterMgr();
+            }
+        } while (true);
+        logger.info("configuration initialized");
+    }
+
+    /**
      * Fetch the configuration for this component type from ClusterMgr and store them in
      * the System properties. Retry until you succeed - this is a blocking call.
      *
@@ -639,7 +687,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      *
      * @param clusterMgrClient the clustermgr api client handle
      */
-    private static void fetchConfigurationProperties(ClusterMgrRestClient clusterMgrClient) {
+    private static void fetchClusterConfigurationProperties(ClusterMgrRestClient clusterMgrClient) {
 
         logger.info("Fetching configuration from ClusterMgr for '{}' component of type '{}'",
                 instanceId, componentType);
@@ -678,11 +726,14 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * Publishes version information of this container into a centralized key-value store.
      */
     private void publishVersionInformation() {
+        enableConsulRegistration = EnvironmentUtils.getOptionalEnvProperty(ConsulDiscoveryManualConfig.ENABLE_CONSUL_REGISTRATION)
+                .map(Boolean::parseBoolean)
+                .orElse(false);
         final String specVersion = getClass().getPackage().getSpecificationVersion();
-        if (specVersion != null) {
+        if (enableConsulRegistration && specVersion != null) {
             logger.debug("Component version {} found", specVersion);
             baseVmtComponentConfig.keyValueStore().put(KEY_COMPONENT_VERSION, specVersion);
-        } else {
+        } else if (specVersion == null) {
             logger.error("Could not get Specification-Version for component class {}", getClass());
         }
     }

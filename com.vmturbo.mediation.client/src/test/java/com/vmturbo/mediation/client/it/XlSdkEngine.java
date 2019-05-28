@@ -109,7 +109,7 @@ public class XlSdkEngine implements ISdkEngine {
         environment.setProperty("server.grpcPort", "0");
         environment.setProperty("consul_port", "0");
         environment.setProperty("consul_host", "consul");
-        environment.setProperty(ConsulDiscoveryManualConfig.DISABLE_CONSUL_REGISTRATION, "true");
+        environment.setProperty(ConsulDiscoveryManualConfig.ENABLE_CONSUL_REGISTRATION, "false");
 
         applicationContext = new AnnotationConfigWebApplicationContext();
         applicationContext.setEnvironment(environment);
@@ -260,7 +260,7 @@ public class XlSdkEngine implements ISdkEngine {
             };
             environment.setProperty(TestMediationCommonConfig.FIELD_TEST_NAME,
                     testName.getMethodName());
-            environment.setProperty(ConsulDiscoveryManualConfig.DISABLE_CONSUL_REGISTRATION,
+            environment.setProperty(ConsulDiscoveryManualConfig.ENABLE_CONSUL_REGISTRATION,
                     "true");
             environment.setProperty("consul_host", "consul");
             environment.setProperty("consul_port", "0");

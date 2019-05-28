@@ -152,7 +152,7 @@ public abstract class AbstractIntegrationTest {
         environment.setProperty("serverGrpcPort", "0");
         environment.setProperty("consul_port", "0");
         environment.setProperty("consul_host", "consul");
-        environment.setProperty(ConsulDiscoveryManualConfig.DISABLE_CONSUL_REGISTRATION, "true");
+        environment.setProperty(ConsulDiscoveryManualConfig.ENABLE_CONSUL_REGISTRATION, "false");
 
         applicationContext = new AnnotationConfigWebApplicationContext();
         applicationContext.setEnvironment(environment);
@@ -316,7 +316,7 @@ public abstract class AbstractIntegrationTest {
             };
             environment.setProperty(TestMediationCommonConfig.FIELD_TEST_NAME,
                     testName.getMethodName());
-            environment.setProperty(ConsulDiscoveryManualConfig.DISABLE_CONSUL_REGISTRATION, "true");
+            environment.setProperty(ConsulDiscoveryManualConfig.ENABLE_CONSUL_REGISTRATION, "false");
             environment.setProperty("consul_host", "consul");
             environment.setProperty("consul_port", "0");
             environment.setProperty("spring.application.name", "the-component");
