@@ -72,6 +72,7 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -957,7 +958,7 @@ public class GroupRpcService extends GroupServiceImplBase {
     }
 
     private boolean matchFilter(@Nonnull PropertyFilter filter, @Nonnull Group group) {
-        if (filter.getPropertyName().equals(StringConstants.DISPLAY_NAME_ATTR) && filter.hasStringFilter()) {
+        if (filter.getPropertyName().equals(SearchableProperties.DISPLAY_NAME) && filter.hasStringFilter()) {
             // filter according to property name
             return GroupProtoUtil.nameFilterMatches(
                        GroupProtoUtil.getGroupDisplayName(group), filter.getStringFilter());

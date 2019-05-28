@@ -20,7 +20,7 @@ import javaslang.control.Either;
 import javaslang.control.Try;
 
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.repository.constant.RepoObjectType.RepoEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.GraphDefinition;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;
@@ -62,7 +62,7 @@ public class GraphDBServiceTest {
     public void testGetSupplyChain() throws Exception {
         final SupplyChainSubgraph subgraph = Mockito.mock(SupplyChainSubgraph.class);
         final SupplyChainNode node = SupplyChainNode.newBuilder()
-            .setEntityType(RepoEntityType.VIRTUAL_MACHINE.getValue())
+            .setEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr())
             .build();
         when(subgraph.toSupplyChainNodes()).thenReturn(
             Collections.singletonList(node));
@@ -74,7 +74,7 @@ public class GraphDBServiceTest {
                     Optional.empty(), Collections.emptySet(), Collections.emptySet()).get()
             .collect(Collectors.toMap(SupplyChainNode::getEntityType, Function.identity()));
 
-        assertEquals(node, nodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue()));
+        assertEquals(node, nodes.get(UIEntityType.VIRTUAL_MACHINE.apiStr()));
     }
 
     @Test

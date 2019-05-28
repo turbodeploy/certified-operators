@@ -21,16 +21,16 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
  * Applies a collection of {@link MergePolicy}s. No bulk optimizations.
  */
 public class MergePolicyApplication extends PlacementPolicyApplication {
-    protected MergePolicyApplication(final GroupResolver groupResolver, final TopologyGraph topologyGraph) {
+    protected MergePolicyApplication(final GroupResolver groupResolver, final TopologyGraph<TopologyEntity> topologyGraph) {
         super(groupResolver, topologyGraph);
     }
 
@@ -197,13 +197,13 @@ public class MergePolicyApplication extends PlacementPolicyApplication {
      *
      * @param groupResolver the group resolver to be used in resolving the groups
      *                      to which the policy applies.
-     * @param topologyGraph the {@link TopologyGraph} to which the policy should be applied.
+     * @param topologyGraph the {@link TopologyGraph<TopologyEntity>} to which the policy should be applied.
      * @param groups        the group referenced by Policy.
      * @return list of OIDs.
      * @throws GroupResolutionException if group resolution failed.
      */
     private List<Long> getListOfOids(@Nonnull final GroupResolver groupResolver,
-                                     @Nonnull final TopologyGraph topologyGraph,
+                                     @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
                                      @Nonnull final List<Group> groups) throws GroupResolutionException {
         // Not using lambda here, for loop is easier to throw GroupResolutionException to caller
         List<Set<Long>> listOfOids = Lists.newArrayList();
@@ -227,11 +227,11 @@ public class MergePolicyApplication extends PlacementPolicyApplication {
      * we need to convert them into all the physical machine OIDs which belong to the data centers.
      *
      * @param dataCenterOids The data center OIDs set.
-     * @param topologyGraph the {@link TopologyGraph} to which the policy should be applied.
+     * @param topologyGraph the {@link TopologyGraph<TopologyEntity>} to which the policy should be applied.
      * @return The physical machine OIDs that consume on the data centers.
      */
     private Set<Long> getConsumedPMOids(@Nonnull Set<Long> dataCenterOids,
-                                        @Nonnull final TopologyGraph topologyGraph) {
+                                        @Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
         return dataCenterOids.stream()
             .flatMap(topologyGraph::getConsumers)
             .filter(entity -> entity.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)

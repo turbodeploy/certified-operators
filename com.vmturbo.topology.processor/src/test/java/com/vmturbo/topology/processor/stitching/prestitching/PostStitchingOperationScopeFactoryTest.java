@@ -29,11 +29,11 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.stitching.PostStitchingOperationScopeFactory;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 public class PostStitchingOperationScopeFactoryTest {
 
@@ -58,7 +58,7 @@ public class PostStitchingOperationScopeFactoryTest {
     private final Target target3 = mock(Target.class);
     private final Target target4 = mock(Target.class);
 
-    private TopologyGraph topologyGraph = topologyGraphOf(vm1, vm2, vm3, vm4, pm);
+    private TopologyGraph<TopologyEntity> topologyGraph = topologyGraphOf(vm1, vm2, vm3, vm4, pm);
 
     @BeforeClass
     public static void initIdentityGenerator() {

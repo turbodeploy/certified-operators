@@ -193,7 +193,7 @@ public class JooqUtils {
     }
 
     /**
-     * Wrapper around getValue from Record.getValue, that defaults to 0 if the
+     * Wrapper around getValue from {@link Record#getValue(int)}, that defaults to 0 if the
      * returned value is null.
      */
     @SuppressWarnings("unchecked")

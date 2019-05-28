@@ -1,7 +1,5 @@
 package com.vmturbo.api.component.external.api.service;
 
-import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType.DATACENTER;
-import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType.PHYSICAL_MACHINE;
 import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.toServiceEntityApiDTO;
 
 import java.time.Clock;
@@ -22,7 +20,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -47,9 +44,7 @@ import io.grpc.StatusRuntimeException;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
-import com.vmturbo.api.component.external.api.mapper.SearchMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
@@ -114,6 +109,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.SearchPlanTopologyEntityDTOsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
@@ -130,6 +126,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -239,7 +236,7 @@ public class StatsService implements IStatsService {
      * in that DATACENTER.
      */
     private static final Map<String, String> ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
-            DATACENTER.getValue(), PHYSICAL_MACHINE.getValue()
+            UIEntityType.DATACENTER.apiStr(), UIEntityType.PHYSICAL_MACHINE.apiStr()
     );
 
     // set of stats passed from UI, which are for the number of entities grouped by tier
@@ -250,15 +247,15 @@ public class StatsService implements IStatsService {
 
     // list of entity types which are counted as workload for cloud
     public static final List<String> ENTITY_TYPES_COUNTED_AS_WORKLOAD = ImmutableList.of(
-        UIEntityType.VIRTUAL_MACHINE.getValue(),
-        UIEntityType.DATABASE.getValue(),
-        UIEntityType.DATABASE_SERVER.getValue()
+        UIEntityType.VIRTUAL_MACHINE.apiStr(),
+        UIEntityType.DATABASE.apiStr(),
+        UIEntityType.DATABASE_SERVER.apiStr()
     );
 
     private static final Map<String, List<String>> WORKLOAD_NAME_TO_ENTITY_TYPES = ImmutableMap.of(
-        StringConstants.NUM_VMS, Collections.singletonList(UIEntityType.VIRTUAL_MACHINE.getValue()),
-        StringConstants.NUM_DBS, Collections.singletonList(UIEntityType.DATABASE.getValue()),
-        StringConstants.NUM_DBSS, Collections.singletonList(UIEntityType.DATABASE_SERVER.getValue()),
+        StringConstants.NUM_VMS, Collections.singletonList(UIEntityType.VIRTUAL_MACHINE.apiStr()),
+        StringConstants.NUM_DBS, Collections.singletonList(UIEntityType.DATABASE.apiStr()),
+        StringConstants.NUM_DBSS, Collections.singletonList(UIEntityType.DATABASE_SERVER.apiStr()),
         StringConstants.NUM_WORKLOADS, ENTITY_TYPES_COUNTED_AS_WORKLOAD
     );
 
@@ -269,22 +266,22 @@ public class StatsService implements IStatsService {
     // the function of how to get the tier id from a given TopologyEntityDTO, this is used
     // for the stats of the number of entities by tier type
     private static final Map<String, Function<TopologyEntityDTO, Long>> ENTITY_TYPE_TO_GET_TIER_FUNCTION = ImmutableMap.of(
-        UIEntityType.VIRTUAL_MACHINE.getValue(), topologyEntityDTO ->
+        UIEntityType.VIRTUAL_MACHINE.apiStr(), topologyEntityDTO ->
             topologyEntityDTO.getCommoditiesBoughtFromProvidersList().stream()
                 .filter(commodityBought -> commodityBought.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE)
                 .map(CommoditiesBoughtFromProvider::getProviderId)
                 .findAny().get(),
-        UIEntityType.DATABASE.getValue(), topologyEntityDTO ->
+        UIEntityType.DATABASE.apiStr(), topologyEntityDTO ->
             topologyEntityDTO.getCommoditiesBoughtFromProvidersList().stream()
                 .filter(commodityBought -> commodityBought.getProviderEntityType() == EntityType.DATABASE_TIER_VALUE)
                 .map(CommoditiesBoughtFromProvider::getProviderId)
                 .findAny().get(),
-        UIEntityType.DATABASE_SERVER.getValue(), topologyEntityDTO ->
+        UIEntityType.DATABASE_SERVER.apiStr(), topologyEntityDTO ->
             topologyEntityDTO.getCommoditiesBoughtFromProvidersList().stream()
                 .filter(commodityBought -> commodityBought.getProviderEntityType() == EntityType.DATABASE_SERVER_TIER_VALUE)
                 .map(CommoditiesBoughtFromProvider::getProviderId)
                 .findAny().get(),
-        UIEntityType.VIRTUAL_VOLUME.getValue(), topologyEntityDTO ->
+        UIEntityType.VIRTUAL_VOLUME.apiStr(), topologyEntityDTO ->
             topologyEntityDTO.getConnectedEntityListList().stream()
                 .filter(connectedEntity -> connectedEntity.getConnectedEntityType() == EntityType.STORAGE_TIER_VALUE)
                 .map(ConnectedEntity::getConnectedEntityId)
@@ -775,8 +772,8 @@ public class StatsService implements IStatsService {
                     // two types of request for storage:
                     //   {"name":"costPrice","relatedEntityType":"Storage"}
                     //   {"filters":[{"type":"costComponent","value":"STORAGE"}]
-                    if ((relatedEntityType.equals(UIEntityType.VIRTUAL_MACHINE.getValue()) && filters.contains("STORAGE"))
-                            || relatedEntityType.equals(UIEntityType.STORAGE.getValue())) {
+                    if ((relatedEntityType.equals(UIEntityType.VIRTUAL_MACHINE.apiStr()) && filters.contains("STORAGE"))
+                            || relatedEntityType.equals(UIEntityType.STORAGE.apiStr())) {
                         // for the category storage, only get the record of entity type VM, since
                         // the cost of entity type volume is included in the vm record
                         final List<StatRecord> statRecordsList = statRecordsMap.getOrDefault(
@@ -805,7 +802,7 @@ public class StatsService implements IStatsService {
                             builder.addStatRecords(aggregate(statRecordsList, Optional.empty(), false));
                         }
                     } else {
-                        int entityType = ServiceEntityMapper.fromUIEntityType(relatedEntityType);
+                        int entityType = UIEntityType.fromString(relatedEntityType).typeNumber();
                         final List<StatRecord> statRecordsList;
                         if (filters.isEmpty()) {
                             // add all if no filters
@@ -942,7 +939,7 @@ public class StatsService implements IStatsService {
      */
     private List<StatApiDTO> getNumVirtualDisksStats(@Nonnull Set<Long> scopes,
                                                      @Nullable Long planTopologyContextId) throws Exception {
-        String volumeEntityType = UIEntityType.VIRTUAL_VOLUME.getValue();
+        String volumeEntityType = UIEntityType.VIRTUAL_VOLUME.apiStr();
         // get all volumes ids in the plan scope, using supply chain fetcher
         Set<Long> volumeIds = fetchRelatedEntitiesForScopes(scopes,
             Lists.newArrayList(volumeEntityType), null).get(volumeEntityType);
@@ -1183,11 +1180,12 @@ public class StatsService implements IStatsService {
                 String entityType = statApiInputDTO.getRelatedEntityType();
                 if (CompositeEntityTypesSpec.WORKLOAD_ENTITYTYPE.equals(entityType)) {
                     relatedEntityTypes.addAll(ENTITY_TYPES_COUNTED_AS_WORKLOAD.stream()
-                        .map(ServiceEntityMapper::fromUIEntityType)
+                        .map(UIEntityType::fromString)
+                        .map(UIEntityType::typeNumber)
                         .collect(Collectors.toSet())
                     );
                 } else {
-                    relatedEntityTypes.add(ServiceEntityMapper.fromUIEntityType(entityType));
+                    relatedEntityTypes.add(UIEntityType.fromString(entityType).typeNumber());
                 }
             });
         return relatedEntityTypes;
@@ -1209,8 +1207,8 @@ public class StatsService implements IStatsService {
             final SearchTopologyEntityDTOsResponse response =
                 searchServiceClient.searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
                     .addSearchParameters(SearchParameters.newBuilder()
-                        .setStartingFilter(SearchMapper.entityTypeFilter(
-                            UIEntityType.CLOUD_SERVICE.getValue())))
+                        .setStartingFilter(SearchProtoUtil.entityTypeFilter(
+                            UIEntityType.CLOUD_SERVICE.apiStr())))
                     .build());
             return response.getTopologyEntityDtosList().stream()
                 .map(topologyEntity -> ServiceEntityMapper.toServiceEntityApiDTO(topologyEntity, null))
@@ -1382,8 +1380,7 @@ public class StatsService implements IStatsService {
                 final ServiceEntityApiDTO serviceEntityApiDTO = toServiceEntityApiDTO(planEntity, null);
                 entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
                 entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
-                entityStatsApiDTO.setClassName(ServiceEntityMapper.toUIEntityType(
-                        planEntity.getEntityType()));
+                entityStatsApiDTO.setClassName(UIEntityType.fromType(planEntity.getEntityType()).apiStr());
                 entityStatsApiDTO.setRealtimeMarketReference(serviceEntityApiDTO);
                 final List<StatSnapshotApiDTO> statSnapshotsList = entityStats.getPlanEntityStats()
                         .getStatSnapshotsList()
@@ -1484,7 +1481,7 @@ public class StatsService implements IStatsService {
         final Set<Long> expandedUuids;
         final Optional<String> relatedType = Optional.ofNullable(inputDto.getRelatedType())
                 // Treat unknown type as non-existent.
-                .filter(type -> !type.equals(UIEntityType.UNKNOWN.getValue()))
+                .filter(type -> !type.equals(UIEntityType.UNKNOWN.apiStr()))
                 // This part is important, to expand types such as DATACENTER into the member
                 // types (i.e. hosts)
                 .map(statsMapper::normalizeRelatedType);
@@ -1557,7 +1554,7 @@ public class StatsService implements IStatsService {
         final EntityStatsScope.Builder entityStatsScope = EntityStatsScope.newBuilder();
         final Optional<String> relatedType = Optional.ofNullable(inputDto.getRelatedType())
                 // Treat unknown type as non-existent.
-                .filter(type -> !type.equals(UIEntityType.UNKNOWN.getValue()))
+                .filter(type -> !type.equals(UIEntityType.UNKNOWN.apiStr()))
                 // This part is important, to expand types such as DATACENTER into the member
                 // types (i.e. hosts)
                 .map(statsMapper::normalizeRelatedType);
@@ -1579,14 +1576,15 @@ public class StatsService implements IStatsService {
                         .build());
             } else {
                 // Otherwise, just set the entityType field on the stats scope.
-                entityStatsScope.setEntityType(ServiceEntityMapper.fromUIEntityType(relatedType.get()));
+                entityStatsScope.setEntityType(UIEntityType.fromString(relatedType.get()).typeNumber());
             }
         } else if (inputDto.getScopes().size() == 1) {
             // Check if we can do the global entity type optimization.
             final Optional<Integer> globalEntityType =
                     getGlobalTempGroupEntityType(groupExpander.getGroup(inputDto.getScopes().get(0)));
-            final Optional<Integer> relatedTypeInt =
-                    relatedType.map(ServiceEntityMapper::fromUIEntityType);
+            final Optional<Integer> relatedTypeInt = relatedType
+                .map(UIEntityType::fromString)
+                .map(UIEntityType::typeNumber);
             if (globalEntityType.isPresent()
                     // We can only do the global entity type optimization if the related type
                     // is unset, or is the same as the global entity type. Why? Because the
@@ -1601,10 +1599,10 @@ public class StatsService implements IStatsService {
                 // TODO: Perhaps we should do the same, but it feels like a bug.
                 if (userSessionContext.isUserScoped()) {
                     entityStatsScope.setEntityList(EntityList.newBuilder()
-                            .addAllEntities(userSessionContext.getUserAccessScope()
-                                    .getAccessibleOidsByEntityType(
-                                            ServiceEntityMapper.toUIEntityType(globalEntityType.get())))
-                            .build());
+                        .addAllEntities(userSessionContext.getUserAccessScope()
+                            .getAccessibleOidsByEntityType(
+                                UIEntityType.fromType(globalEntityType.get()).apiStr()))
+                        .build());
                 } else {
                     entityStatsScope.setEntityType(globalEntityType.get());
                 }
@@ -1852,9 +1850,8 @@ public class StatsService implements IStatsService {
         final Set<Long> expandedEntityOids = Sets.newHashSet();
         // get all service entities which need to expand.
         final Set<ServiceEntityApiDTO> expandServiceEntities = ENTITY_TYPES_TO_EXPAND.keySet().stream()
-                .flatMap(entityType ->
-                        repositoryApi.getSearchResults(null, Collections.singletonList(entityType),
-                                UuidMapper.UI_REAL_TIME_MARKET_STR, null, null).stream())
+                .flatMap(entityType -> repositoryApi.getSearchResults(
+                    null, Collections.singletonList(entityType), null).stream())
                 .collect(Collectors.toSet());
 
         final Map<Long, ServiceEntityApiDTO> expandServiceEntityMap = expandServiceEntities.stream()
@@ -1920,10 +1917,9 @@ public class StatsService implements IStatsService {
 
         // if it is global temp group and need to expand, should return target expand entity type.
         if (isGlobalTempGroup && ENTITY_TYPES_TO_EXPAND.containsKey(
-                ServiceEntityMapper.toUIEntityType(tempGroup.getEntityType()))) {
-            return Optional.of(ServiceEntityMapper.fromUIEntityType(
-                ENTITY_TYPES_TO_EXPAND.get(
-                    ServiceEntityMapper.toUIEntityType(tempGroup.getEntityType()))));
+                UIEntityType.fromType(tempGroup.getEntityType()).apiStr())) {
+            return Optional.of(UIEntityType.fromString(ENTITY_TYPES_TO_EXPAND.get(
+                UIEntityType.fromType(tempGroup.getEntityType()))).typeNumber());
         } else if (isGlobalTempGroup) {
             // if it is global temp group and not need to expand.
             return Optional.of(tempGroup.getEntityType());

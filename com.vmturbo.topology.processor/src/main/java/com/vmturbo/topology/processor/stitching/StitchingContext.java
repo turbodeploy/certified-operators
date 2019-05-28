@@ -33,7 +33,6 @@ import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
  * A context object that contains the data necessary to perform stitching.
@@ -331,8 +330,6 @@ public class StitchingContext {
     }
 
     /**
-     * Construct a {@link TopologyGraph} composed of the entities in the {@link StitchingContext}.
-     *
      * After stitching, this should return a valid, well-formed topology.
      *
      * @return The entities in the {@link StitchingContext}, arranged by ID.

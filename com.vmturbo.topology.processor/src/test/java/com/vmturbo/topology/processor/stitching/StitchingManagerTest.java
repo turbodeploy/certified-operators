@@ -54,6 +54,7 @@ import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
@@ -63,7 +64,7 @@ import com.vmturbo.topology.processor.stitching.StitchingOperationStore.ProbeSti
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 public class StitchingManagerTest {
 
@@ -207,7 +208,7 @@ public class StitchingManagerTest {
             3L, topologyEntityBuilder(3L, EntityType.STORAGE, Collections.emptyList()),
             4L, topologyEntityBuilder(4L, EntityType.VIRTUAL_MACHINE, Collections.emptyList())
         );
-        final TopologyGraph graph = TopologyGraph.newGraph(entities);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(entities);
         final StitchingJournal<TopologyEntity> stitchingJournal = new StitchingJournal<>();
         final GraphWithSettings graphWithSettings = new GraphWithSettings(graph, Collections.emptyMap(),
             Collections.emptyMap());

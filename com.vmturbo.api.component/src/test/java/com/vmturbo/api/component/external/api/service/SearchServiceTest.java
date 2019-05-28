@@ -276,8 +276,7 @@ public class SearchServiceTest {
             supplyChainTestUtils.createServiceEntityApiDTO(3L, targetId2)
         );
         List<String> types = Lists.newArrayList("Region");
-        when(repositoryApi.getSearchResults(null, types, UuidMapper.UI_REAL_TIME_MARKET_STR, null,
-            null)).thenReturn(regions);
+        when(repositoryApi.getSearchResults(null, types, null)).thenReturn(regions);
 
         // filter by AWS
         Collection<BaseApiDTO> regions_aws = getSearchResults(searchService, null,
@@ -345,8 +344,7 @@ public class SearchServiceTest {
         List<String> scopes = Lists.newArrayList(CLUSTER_OID);
         Set<String> scopesSet = Sets.newHashSet(scopes);
         List<String> types = Lists.newArrayList("PhysicalMachine");
-        when(repositoryApi.getSearchResults(null, types, UuidMapper.UI_REAL_TIME_MARKET_STR, null,
-                null))
+        when(repositoryApi.getSearchResults(null, types, null))
                 .thenReturn(searchResultDTOs);
 
         SupplychainEntryDTO pmSupplyChainEntryDTO = new SupplychainEntryDTO();

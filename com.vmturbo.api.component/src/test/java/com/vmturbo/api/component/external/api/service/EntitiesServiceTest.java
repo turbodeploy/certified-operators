@@ -27,9 +27,6 @@ import io.grpc.StatusRuntimeException;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
-import com.vmturbo.api.component.external.api.mapper.SearchMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -59,6 +56,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
@@ -76,10 +74,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.UIEntityState;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.api.AccountValue;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetInfo;
@@ -274,17 +272,17 @@ public class EntitiesServiceTest {
             .addEntityOid(PM_ID)
             .build());
         verify(searchService).searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
-            .addSearchParameters(SearchMapper.neighbors(PM_ID, TraversalDirection.CONSUMES))
+            .addSearchParameters(SearchProtoUtil.neighbors(PM_ID, TraversalDirection.CONSUMES))
             .build());
         verify(searchService).searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
-            .addSearchParameters(SearchMapper.neighbors(PM_ID, TraversalDirection.PRODUCES))
+            .addSearchParameters(SearchProtoUtil.neighbors(PM_ID, TraversalDirection.PRODUCES))
             .build());
 
         // check basic information
         Assert.assertEquals(Long.toString(PM_ID), result.getUuid());
         Assert.assertEquals(PM_DISPLAY_NAME, result.getDisplayName());
         Assert.assertEquals(
-            EntityType.PHYSICAL_MACHINE_VALUE, ServiceEntityMapper.fromUIEntityType(result.getClassName()));
+            EntityType.PHYSICAL_MACHINE_VALUE, UIEntityType.fromString(result.getClassName()).typeNumber());
         Assert.assertEquals(PM_STATE, UIEntityState.fromString(result.getState()).toEntityState());
 
         // check target information
@@ -298,12 +296,12 @@ public class EntitiesServiceTest {
         Assert.assertEquals(1, providers.size());
         Assert.assertEquals(ST_ID, (long)Long.valueOf(providers.get(0).getUuid()));
         Assert.assertEquals(ST_DISPLAY_NAME, providers.get(0).getDisplayName());
-        Assert.assertEquals(UIEntityType.STORAGE.getValue(), providers.get(0).getClassName());
+        Assert.assertEquals(UIEntityType.STORAGE.apiStr(), providers.get(0).getClassName());
         final List<BaseApiDTO> consumers = result.getConsumers();
         Assert.assertEquals(1, consumers.size());
         Assert.assertEquals(VM_ID, (long)Long.valueOf(consumers.get(0).getUuid()));
         Assert.assertEquals(VM_DISPLAY_NAME, consumers.get(0).getDisplayName());
-        Assert.assertEquals(UIEntityType.VIRTUAL_MACHINE.getValue(), consumers.get(0).getClassName());
+        Assert.assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), consumers.get(0).getClassName());
 
         // check tags
         Assert.assertEquals(0, result.getTags().size());
@@ -406,7 +404,7 @@ public class EntitiesServiceTest {
         Assert.assertEquals(Long.toString(VM_ID), result.getUuid());
         Assert.assertEquals(VM_DISPLAY_NAME, result.getDisplayName());
         Assert.assertEquals(
-                EntityType.VIRTUAL_MACHINE_VALUE, ServiceEntityMapper.fromUIEntityType(result.getClassName()));
+                EntityType.VIRTUAL_MACHINE_VALUE, UIEntityType.fromString(result.getClassName()).typeNumber());
         Assert.assertEquals(VM_STATE, UIEntityState.fromString(result.getState()).toEntityState());
 
         // check target information

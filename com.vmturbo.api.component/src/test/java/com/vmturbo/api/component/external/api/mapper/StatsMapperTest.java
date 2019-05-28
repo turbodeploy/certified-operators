@@ -31,7 +31,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.service.StatsService;
 import com.vmturbo.api.component.external.api.service.TargetsService;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -64,6 +63,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
 
@@ -451,7 +451,7 @@ public class StatsMapperTest {
         assertEquals(2, request.getEntitiesCount());
         assertThat(request.getFilter(), is(STATS_FILTER));
         assertEquals(
-            ServiceEntityMapper.toUIEntityType(tempGroupType.get()), request.getRelatedEntityType());
+            UIEntityType.fromType(tempGroupType.get()).apiStr(), request.getRelatedEntityType());
     }
 
     @Test
@@ -474,19 +474,19 @@ public class StatsMapperTest {
         final StatApiInputDTO apiInputDTO1 = new StatApiInputDTO();
         final StatApiInputDTO apiInputDTO2 = new StatApiInputDTO();
         periodApiInputDTO.setStatistics(ImmutableList.of(apiInputDTO1, apiInputDTO2));
-        apiInputDTO1.setRelatedEntityType(UIEntityType.APPLICATION.getValue());
+        apiInputDTO1.setRelatedEntityType(UIEntityType.APPLICATION.apiStr());
         apiInputDTO1.setName("name1");
-        apiInputDTO2.setRelatedEntityType(UIEntityType.VIRTUAL_MACHINE.getValue());
+        apiInputDTO2.setRelatedEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
         apiInputDTO2.setName("name2");
         final GetAveragedEntityStatsRequest request =
             statsMapper.toAveragedEntityStatsRequest(
                 Collections.emptySet(), periodApiInputDTO, Optional.empty());
         assertEquals(2, request.getFilter().getCommodityRequestsCount());
         assertEquals(
-            UIEntityType.APPLICATION.getValue(),
+            UIEntityType.APPLICATION.apiStr(),
             request.getFilter().getCommodityRequests(0).getRelatedEntityType());
         assertEquals(
-            UIEntityType.VIRTUAL_MACHINE.getValue(),
+            UIEntityType.VIRTUAL_MACHINE.apiStr(),
             request.getFilter().getCommodityRequests(1).getRelatedEntityType());
     }
 
@@ -501,7 +501,7 @@ public class StatsMapperTest {
                 Optional.empty());
         assertTrue(request.getEntitiesList().isEmpty());
         assertEquals(
-            UIEntityType.VIRTUAL_MACHINE.getValue(),
+            UIEntityType.VIRTUAL_MACHINE.apiStr(),
             request.getFilter().getCommodityRequests(0).getRelatedEntityType());
         assertFalse(request.hasRelatedEntityType());
     }

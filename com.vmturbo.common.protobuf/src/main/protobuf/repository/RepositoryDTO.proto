@@ -45,14 +45,18 @@ message RetrieveTopologyResponse {
 message RetrieveTopologyEntitiesRequest {
     // Id of topology.
     optional int64 topology_id = 1;
+
     // Context id of topology.
     optional int64 topology_context_id = 2;
+
     // List of id which need to retrieve.
     repeated int64 entity_oids = 3;
+
     // Type of topology means source topology or projected topology need to retrieve from.
     optional TopologyType topology_type = 4;
-	// The type of entity to fetch
-	repeated common_dto.EntityDTO.EntityType entity_type = 5;
+
+    // The type of entity to fetch
+    repeated int32 entity_type = 6;
 
     enum TopologyType {
         // Means source topology.

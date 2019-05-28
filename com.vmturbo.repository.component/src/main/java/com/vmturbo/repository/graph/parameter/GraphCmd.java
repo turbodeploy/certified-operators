@@ -10,7 +10,7 @@ import javax.annotation.Nonnull;
 import com.google.common.base.MoreObjects;
 
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
-import com.vmturbo.components.common.mapping.UIEnvironmentType;
+import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.graph.parameter.EdgeParameter.EdgeType;
 import com.vmturbo.repository.topology.TopologyDatabase;

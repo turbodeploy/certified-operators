@@ -1,8 +1,5 @@
 package com.vmturbo.api.component.external.api.service;
 
-import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType.PHYSICAL_MACHINE;
-import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType.VIRTUAL_DATACENTER;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -43,11 +40,8 @@ import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequ
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
-import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
@@ -130,7 +124,6 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.search.Search;
-import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
@@ -138,6 +131,7 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolic
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupResponse;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -152,8 +146,8 @@ public class GroupsService implements IGroupsService {
      * grouping entity in classic.
      */
     private static final Map<Integer, List<String>> GROUPING_ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
-        EntityType.DATACENTER_VALUE, ImmutableList.of(PHYSICAL_MACHINE.getValue()),
-        EntityType.VIRTUAL_DATACENTER_VALUE, ImmutableList.of(VIRTUAL_DATACENTER.getValue())
+        EntityType.DATACENTER_VALUE, ImmutableList.of(UIEntityType.PHYSICAL_MACHINE.apiStr()),
+        EntityType.VIRTUAL_DATACENTER_VALUE, ImmutableList.of(UIEntityType.VIRTUAL_DATACENTER.apiStr())
     );
 
     private static final Collection<String> GLOBAL_SCOPE_SUPPLY_CHAIN = ImmutableList.of(
@@ -291,7 +285,7 @@ public class GroupsService implements IGroupsService {
             final GroupApiDTO outputDTO = new GroupApiDTO();
             outputDTO.setClassName("Group");
             outputDTO.setDisplayName("Physical Machines by PM Cluster");
-            outputDTO.setGroupType(ServiceEntityMapper.toUIEntityType(Type.CLUSTER.getNumber()));
+            outputDTO.setGroupType(UIEntityType.PHYSICAL_MACHINE.apiStr());
             outputDTO.setUuid(CLUSTER_HEADROOM_GROUP_UUID);
             outputDTO.setEnvironmentType(EnvironmentType.ONPREM);
             return outputDTO;
@@ -311,8 +305,8 @@ public class GroupsService implements IGroupsService {
     public List<?> getEntitiesByGroupUuid(String uuid) throws Exception {
         // check if scope is real time market, return all entities in the market
         if (UuidMapper.UI_REAL_TIME_MARKET_STR.equals(uuid)) {
-            return Lists.newArrayList(repositoryApi.getSearchResults("",
-                SearchMapper.SEARCH_ALL_TYPES, MarketMapper.MARKET, null, null));
+            return Lists.newArrayList(repositoryApi.getSearchResults(null,
+                SearchMapper.SEARCH_ALL_TYPES, null));
         }
 
         final Set<Long> leafEntities;
@@ -505,7 +499,7 @@ public class GroupsService implements IGroupsService {
         setting.setValue(templateId);
         setting.setValueDisplayName(templateName);
         setting.setValueType(InputValueType.STRING);
-        setting.setEntityType(UIEntityType.PHYSICAL_MACHINE.getValue());
+        setting.setEntityType(UIEntityType.PHYSICAL_MACHINE.apiStr());
 
         return setting;
     }
@@ -1173,7 +1167,8 @@ public class GroupsService implements IGroupsService {
             final Set<Integer> relatedEntityTypesInt = relatedEntityTypes == null
                 ? Collections.emptySet()
                 : relatedEntityTypes.stream()
-                    .map(ServiceEntityMapper::fromUIEntityType)
+                    .map(UIEntityType::fromString)
+                    .map(UIEntityType::typeNumber)
                     .collect(Collectors.toSet());
             final Predicate<Search.Entity> filterByType = relatedEntityTypesInt.isEmpty()
                 ? entity -> true

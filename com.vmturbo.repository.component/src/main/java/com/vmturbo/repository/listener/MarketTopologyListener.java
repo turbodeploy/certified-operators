@@ -3,7 +3,6 @@ package com.vmturbo.repository.listener;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
@@ -30,7 +29,7 @@ import com.vmturbo.repository.SharedMetrics;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
-import com.vmturbo.repository.topology.TopologyLifecycleManager.ProjectedTopologyCreator;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyEntitiesException;
 
 /**
@@ -121,10 +120,11 @@ public class MarketTopologyListener implements ProjectedTopologyListener, Analys
                 .labels(SharedMetrics.PROJECTED_LABEL)
                 .startTimer();
 
-        ProjectedTopologyCreator topologyCreator = topologyManager.newProjectedTopologyCreator(tid);
+        final TopologyCreator<ProjectedTopologyEntity> topologyCreator =
+            topologyManager.newProjectedTopologyCreator(tid, originalTopologyInfo);
         try {
             topologyCreator.initialize();
-            logger.info("Start updating topology {}",  tid);
+            logger.info("Start updating topology {}", tid);
             int numberOfEntities = 0;
             int chunkNumber = 0;
             while (projectedTopo.hasNext()) {
@@ -135,7 +135,7 @@ public class MarketTopologyListener implements ProjectedTopologyListener, Analys
             }
             SharedMetrics.TOPOLOGY_ENTITY_COUNT_GAUGE
                 .labels(SharedMetrics.PROJECTED_LABEL)
-                .setData((double)numberOfEntities);
+                .setData((double) numberOfEntities);
             topologyCreator.complete();
             SharedMetrics.TOPOLOGY_COUNTER.labels(SharedMetrics.PROJECTED_LABEL, SharedMetrics.PROCESSED_LABEL).increment();
             logger.info("Finished updating topology {} with {} entities", tid, numberOfEntities);
@@ -145,7 +145,7 @@ public class MarketTopologyListener implements ProjectedTopologyListener, Analys
             topologyCreator.rollback();
             return;
         } catch (CommunicationException | TimeoutException | TopologyEntitiesException
-                        | GraphDatabaseException | ArangoDBException e) {
+            | GraphDatabaseException | ArangoDBException e) {
             logger.error(
                 "Error occurred during retrieving projected topology " + projectedTopologyId, e);
             SharedMetrics.TOPOLOGY_COUNTER.labels(SharedMetrics.PROJECTED_LABEL, SharedMetrics.FAILED_LABEL).increment();

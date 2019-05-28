@@ -24,9 +24,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
  * The {@link MustNotRunTogetherPolicy} specifies a consumer group and a provider type.
@@ -85,7 +85,7 @@ public class MustNotRunTogetherPolicyApplication extends PlacementPolicyApplicat
         SEGM_BOUGHT_USED_VALUE + SMALL_DELTA_VALUE;
 
     protected MustNotRunTogetherPolicyApplication(final GroupResolver groupResolver,
-                                                  final TopologyGraph topologyGraph) {
+                                                  final TopologyGraph<TopologyEntity> topologyGraph) {
         super(groupResolver, topologyGraph);
     }
 

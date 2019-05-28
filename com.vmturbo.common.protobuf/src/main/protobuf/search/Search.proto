@@ -132,17 +132,20 @@ message PropertyFilter {
     message StringFilter {
         // Regular expression to be matched used against the property'sGroupMapper value
         // (use (1) of the filter).
+        // If set, takes precedence over "options."
         optional string string_property_regex = 1;
+
+        // List of strings: the string-valued property must be contained here
+        // (use (2) of the filter)
+        // Ignored if string_property_regex is set.
+        // If empty, none match.
+        repeated string options = 4;
 
         // If false, then negate the result
         optional bool positive_match = 2 [default = true];
 
         // If true, the case of the letters should match
         optional bool case_sensitive = 3 [default = false];
-
-        // List of strings: the string-valued property must be contained here
-        // (use (2) of the filter)
-        repeated string options = 4;
     }
 
     message NumericFilter {
@@ -272,7 +275,7 @@ message Entity {
 
     optional string displayName = 3;
 
-    optional int32 state = 4;
+    optional .topology.EntityState state = 4;
 
     // ids of the targets from which this entity was discovered
     repeated int64 target_ids = 5;

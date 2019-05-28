@@ -14,16 +14,13 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.Errors;
 
-import io.grpc.Channel;
+import com.google.common.annotations.VisibleForTesting;
+
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
-import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -44,11 +41,10 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyResponse;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
-import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 
 /**
@@ -92,7 +88,8 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
         final Set<Integer> acceptableEntityTypes = entityTypes == null || entityTypes.isEmpty() ?
                 Collections.emptySet() :
                 entityTypes.stream()
-                    .map(ServiceEntityMapper::fromUIEntityType)
+                    .map(UIEntityType::fromString)
+                    .map(UIEntityType::typeNumber)
                     .collect(Collectors.toSet());
 
 

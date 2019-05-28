@@ -35,7 +35,6 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper.ScenarioChangeMappingContext;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDTOPossibilities;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
@@ -85,11 +84,10 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ReservedInstanceData;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
 
 public class ScenarioMapperTest {
     private static final String SCENARIO_NAME = "MyScenario";
@@ -602,7 +600,7 @@ public class ScenarioMapperTest {
         AddObjectApiDTO changeDto = dto.getTopologyChanges().getAddList().get(0);
         BaseApiDTO target = changeDto.getTarget();
         assertNull(target.getClassName());
-        assertEquals(UIEntityType.UNKNOWN.getValue(), target.getDisplayName());
+        assertEquals(UIEntityType.UNKNOWN.apiStr(), target.getDisplayName());
     }
 
     @Nonnull

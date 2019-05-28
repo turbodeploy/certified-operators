@@ -15,6 +15,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 
 
 /**
@@ -50,7 +52,7 @@ public class ApplicationCommodityKeyChanger {
      * @param topologyGraph graph of the current discovered topology.
      * @return Number of modified commodity keys.
      */
-    public int execute(@Nonnull final TopologyGraph topologyGraph) {
+    public int execute(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
 
         final AtomicInteger numChanged = new AtomicInteger(0);
         // iterate over all the VMs and check which ones needs to be changed

@@ -13,7 +13,6 @@ import org.mockito.Mockito;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
 import com.vmturbo.api.dto.entityaspect.VirtualDisksAspectApiDTO;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
@@ -30,6 +29,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -310,19 +310,19 @@ public class VirtualVolumeAspectMapperTest {
     @Test
     public void testMapStorageTiers() {
         when(volumeAspectMapper.traverseAndGetEntities(String.valueOf(storageTierId1),
-            TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME.getValue()))
+            TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME.apiStr()))
             .thenReturn(Lists.newArrayList(volume1, volume2));
 
         when(volumeAspectMapper.traverseAndGetEntities(String.valueOf(storageTierId2),
-            TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME.getValue()))
+            TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME.apiStr()))
             .thenReturn(Lists.newArrayList(volume3));
 
         when(volumeAspectMapper.traverseAndGetEntities(String.valueOf(storageTierId1),
-            TraversalDirection.PRODUCES, UIEntityType.VIRTUAL_MACHINE.getValue()))
+            TraversalDirection.PRODUCES, UIEntityType.VIRTUAL_MACHINE.apiStr()))
             .thenReturn(Lists.newArrayList(vm1));
 
         when(volumeAspectMapper.traverseAndGetEntities(String.valueOf(storageTierId2),
-            TraversalDirection.PRODUCES, UIEntityType.VIRTUAL_MACHINE.getValue()))
+            TraversalDirection.PRODUCES, UIEntityType.VIRTUAL_MACHINE.apiStr()))
             .thenReturn(Lists.newArrayList(vm2));
 
         when(volumeAspectMapper.searchTopologyEntityDTOs(Sets.newHashSet(regionId1, regionId2), null))
@@ -408,7 +408,7 @@ public class VirtualVolumeAspectMapperTest {
     @Test
     public void testMapStorage() {
         when(volumeAspectMapper.traverseAndGetEntities(String.valueOf(storageId),
-            TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME.getValue()))
+            TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME.apiStr()))
             .thenReturn(Lists.newArrayList(volume4, wastedFilesVolume));
 
         when(volumeAspectMapper.searchTopologyEntityDTOs(Sets.newHashSet(volumeId4, wastedVolumeId1), null))
@@ -416,11 +416,11 @@ public class VirtualVolumeAspectMapperTest {
 
         when(volumeAspectMapper.traverseAndGetEntityCount(volumeId4.toString(),
             TraversalDirection.CONNECTED_FROM,
-            UIEntityType.VIRTUAL_MACHINE.getValue())).thenReturn(1);
+            UIEntityType.VIRTUAL_MACHINE.apiStr())).thenReturn(1);
 
         when(volumeAspectMapper.traverseAndGetEntityCount(wastedVolumeId1.toString(),
             TraversalDirection.CONNECTED_FROM,
-            UIEntityType.VIRTUAL_MACHINE.getValue())).thenReturn(0);
+            UIEntityType.VIRTUAL_MACHINE.apiStr())).thenReturn(0);
 
         VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO) volumeAspectMapper.mapEntitiesToAspect(
             Lists.newArrayList(storage1));

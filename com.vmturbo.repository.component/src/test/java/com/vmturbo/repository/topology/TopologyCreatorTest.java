@@ -19,9 +19,9 @@ import com.vmturbo.repository.graph.driver.GraphDatabaseDriverBuilder;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.graph.operator.TopologyGraphCreator;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.ArangoProjectedTopologyCreator;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.ArangoSourceTopologyCreator;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.EntityConverter;
-import com.vmturbo.repository.topology.TopologyLifecycleManager.ProjectedTopologyCreator;
-import com.vmturbo.repository.topology.TopologyLifecycleManager.SourceTopologyCreator;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyGraphCreatorFactory;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufWriter;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
@@ -74,7 +74,7 @@ public class TopologyCreatorTest {
 
     @Test
     public void testTopologyCreatorRealtimeSourceTopology() {
-        new SourceTopologyCreator(realtimeSourceId,
+        new ArangoSourceTopologyCreator(realtimeSourceId,
                 graphDatabaseDriverBuilder,
                 onComplete,
                 graphCreatorFactory,
@@ -90,7 +90,7 @@ public class TopologyCreatorTest {
 
     @Test
     public void testTopologyCreatorRealtimeProjectedTopology() {
-        new ProjectedTopologyCreator(realtimeProjectedId,
+        new ArangoProjectedTopologyCreator(realtimeProjectedId,
                 graphDatabaseDriverBuilder,
                 topologyProtobufsManager,
                 onComplete,
@@ -107,7 +107,7 @@ public class TopologyCreatorTest {
 
     @Test
     public void testTopologyCreatorPlanSourceTopology() {
-        new SourceTopologyCreator(planSourceId,
+        new ArangoSourceTopologyCreator(planSourceId,
                 graphDatabaseDriverBuilder,
                 onComplete,
                 graphCreatorFactory,
@@ -123,7 +123,7 @@ public class TopologyCreatorTest {
 
     @Test
     public void testTopologyCreatorPlanProjectedTopology() {
-        new ProjectedTopologyCreator(planProjectedId,
+        new ArangoProjectedTopologyCreator(planProjectedId,
                 graphDatabaseDriverBuilder,
                 topologyProtobufsManager,
                 onComplete,
@@ -141,14 +141,14 @@ public class TopologyCreatorTest {
 
     @Test
     public void testTopologyCreatorInitialize() throws Exception {
-        SourceTopologyCreator creator = newTopologyCreator(planSourceId);
+        ArangoSourceTopologyCreator creator = newTopologyCreator(planSourceId);
         creator.initialize();
         verify(graphCreator).init();
     }
 
     @Test
     public void testTopologyCreatorAddEntities() throws Exception {
-        SourceTopologyCreator creator = newTopologyCreator(planSourceId);
+        ArangoSourceTopologyCreator creator = newTopologyCreator(planSourceId);
 
         when(entityConverter.convert(any())).thenReturn(Collections.emptySet());
         creator.addEntities(Collections.emptySet());
@@ -160,7 +160,7 @@ public class TopologyCreatorTest {
 
     @Test
     public void testTopologyCreatorProjectedAddEntities() throws Exception {
-        ProjectedTopologyCreator creator = newProjectedTopologyCreator(planProjectedId);
+        ArangoProjectedTopologyCreator creator = newProjectedTopologyCreator(planProjectedId);
 
         when(entityConverter.convert(any())).thenReturn(Collections.emptySet());
         creator.addEntities(Collections.emptySet());
@@ -172,28 +172,28 @@ public class TopologyCreatorTest {
 
     @Test
     public void testTopologyCreatorComplete() throws Exception {
-        SourceTopologyCreator creator = newTopologyCreator(planSourceId);
+        ArangoSourceTopologyCreator creator = newTopologyCreator(planSourceId);
         creator.complete();
         verify(onComplete).accept(eq(planSourceId));
     }
 
     @Test
     public void testTopologyCreatorRollback() throws Exception {
-        SourceTopologyCreator creator = newTopologyCreator(planSourceId);
+        ArangoSourceTopologyCreator creator = newTopologyCreator(planSourceId);
         creator.rollback();
         verify(mockDriver).dropDatabase();
     }
 
     @Test
     public void testProjectedTopologyCreatorRollback() throws Exception {
-        ProjectedTopologyCreator creator = newProjectedTopologyCreator(planProjectedId);
+        ArangoProjectedTopologyCreator creator = newProjectedTopologyCreator(planProjectedId);
         creator.rollback();
         verify(mockDriver).dropDatabase();
         verify(protobufWriter).delete();
     }
 
-    private SourceTopologyCreator newTopologyCreator(TopologyID tid) {
-        return new SourceTopologyCreator(tid,
+    private ArangoSourceTopologyCreator newTopologyCreator(TopologyID tid) {
+        return new ArangoSourceTopologyCreator(tid,
                 graphDatabaseDriverBuilder,
                 onComplete,
                 graphCreatorFactory,
@@ -203,8 +203,8 @@ public class TopologyCreatorTest {
                 realtimeTopologyContextId, 2, 2);
     }
 
-    private ProjectedTopologyCreator newProjectedTopologyCreator(TopologyID tid) {
-        return new ProjectedTopologyCreator(tid,
+    private ArangoProjectedTopologyCreator newProjectedTopologyCreator(TopologyID tid) {
+        return new ArangoProjectedTopologyCreator(tid,
                 graphDatabaseDriverBuilder,
                 topologyProtobufsManager,
                 onComplete,

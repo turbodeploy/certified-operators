@@ -10,7 +10,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.Set;
-import java.util.StringJoiner;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -21,7 +20,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.stringtemplate.v4.ST;
 
-import com.arangodb.ArangoCollection;
 import com.arangodb.ArangoCursor;
 import com.arangodb.ArangoDB;
 import com.arangodb.ArangoDBException;
@@ -31,7 +29,6 @@ import com.arangodb.model.DocumentCreateOptions;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Multimap;
 
 import javaslang.collection.Seq;
 import javaslang.control.Try;
@@ -39,9 +36,9 @@ import javaslang.control.Try;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
-import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.GlobalSupplyChainProviderRelsException;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
@@ -158,7 +155,7 @@ public class ArangoDBExecutor implements GraphDBExecutor {
      */
     private static String entityTypesListToAQL(@Nonnull Set<Integer> entityTypes) {
         return "[" + entityTypes.stream()
-            .map(RepoObjectType::mapEntityType)
+            .map(UIEntityType::fromType)
             .map(entityType -> "\"" + entityType + "\"")
             .collect(Collectors.joining(",")) + "]";
     }
@@ -367,7 +364,7 @@ public class ArangoDBExecutor implements GraphDBExecutor {
         if (request.hasEntityType()) {
             queryBuilder
                     .append("FILTER service_entity.entityType == \"")
-                    .append(RepoObjectType.mapEntityType(request.getEntityType()))
+                    .append(UIEntityType.fromType(request.getEntityType()))
                     .append("\"\n");
         }
         if (entityOids != null && !entityOids.isEmpty()) {

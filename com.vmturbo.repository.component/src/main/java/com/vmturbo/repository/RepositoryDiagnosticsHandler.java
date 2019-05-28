@@ -6,6 +6,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Stream;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
@@ -29,11 +30,12 @@ import com.vmturbo.arangodb.tool.ArangoDump;
 import com.vmturbo.arangodb.tool.ArangoRestore;
 import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
-import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;
+import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.topology.GlobalSupplyChain;
 import com.vmturbo.repository.topology.GlobalSupplyChainManager;
 import com.vmturbo.repository.topology.TopologyID;
@@ -89,11 +91,16 @@ public class RepositoryDiagnosticsHandler {
     @VisibleForTesting
     static final String ERRORS_FILE = "dump_errors";
 
+    static final String REALTIME_TOPOLOGY_STORE_DUMP_FILE = "live.topology.source.entities";
+    static final String REALTIME_PROJECTED_TOPOLOGY_STORE_DUMP_FILE = "projected.topology.source.entities";
+
     private final GlobalSupplyChainManager globalSupplyChainManager;
 
     private final TopologyLifecycleManager topologyLifecycleManager;
 
     private final TopologyDiagnostics topologyDiagnostics;
+
+    private final LiveTopologyStore liveTopologyStore;
 
     private final DiagsZipReaderFactory zipReaderFactory;
 
@@ -105,12 +112,14 @@ public class RepositoryDiagnosticsHandler {
                                         final ArangoRestore arangoRestore,
                                         final GlobalSupplyChainManager globalSupplyChainManager,
                                         final TopologyLifecycleManager topologyLifecycleManager,
+                                        final LiveTopologyStore liveTopologyStore,
                                         final GraphDBExecutor graphDBExecutor,
                                         final RestTemplate restTemplate,
                                         final DiagsZipReaderFactory zipReaderFactory,
                                         final DiagnosticsWriter diagnosticsWriter) {
         this.globalSupplyChainManager = Objects.requireNonNull(globalSupplyChainManager);
         this.topologyLifecycleManager = Objects.requireNonNull(topologyLifecycleManager);
+        this.liveTopologyStore = Objects.requireNonNull(liveTopologyStore);
         this.zipReaderFactory = Objects.requireNonNull(zipReaderFactory);
         this.diagnosticsWriter = Objects.requireNonNull(diagnosticsWriter);
         this.graphDBExecutor = Objects.requireNonNull(graphDBExecutor);
@@ -121,12 +130,14 @@ public class RepositoryDiagnosticsHandler {
     @VisibleForTesting
     RepositoryDiagnosticsHandler(final GlobalSupplyChainManager globalSupplyChainManager,
                                         final TopologyLifecycleManager topologyLifecycleManager,
+                                        final LiveTopologyStore liveTopologyStore,
                                         final DiagsZipReaderFactory zipReaderFactory,
                                         final DiagnosticsWriter diagnosticsWriter,
                                         final GraphDBExecutor graphDBExecutor,
                                         final TopologyDiagnostics topologyDiagnostics) {
         this.globalSupplyChainManager = Objects.requireNonNull(globalSupplyChainManager);
         this.topologyLifecycleManager = Objects.requireNonNull(topologyLifecycleManager);
+        this.liveTopologyStore = Objects.requireNonNull(liveTopologyStore);
         this.zipReaderFactory = Objects.requireNonNull(zipReaderFactory);
         this.diagnosticsWriter = Objects.requireNonNull(diagnosticsWriter);
         this.graphDBExecutor = Objects.requireNonNull(graphDBExecutor);
@@ -187,6 +198,34 @@ public class RepositoryDiagnosticsHandler {
                         globalSupplyChain.get().collectDiags(), diagnosticZip);
             }
         }
+
+        logger.info("Dumping live topology.");
+        final Stream<String> liveSourceTopology = liveTopologyStore.getSourceTopology()
+            .map(realtime -> {
+                try {
+                    return realtime.collectDiags();
+                } catch (DiagnosticsException e) {
+                    errors.addAll(e.getErrors());
+                    return Stream.<String>empty();
+                }
+            })
+            .orElse(Stream.empty());
+        diagnosticsWriter.writeZipEntry(REALTIME_TOPOLOGY_STORE_DUMP_FILE,
+            liveSourceTopology, diagnosticZip);
+
+        logger.info("Dumping live projected topology.");
+        final Stream<String> liveProjectedTopology = liveTopologyStore.getProjectedTopology()
+            .map(projected -> {
+                try {
+                    return projected.collectDiags();
+                } catch (DiagnosticsException e) {
+                    errors.addAll(e.getErrors());
+                    return Stream.<String>empty();
+                }
+            })
+            .orElse(Stream.empty());
+        diagnosticsWriter.writeZipEntry(REALTIME_PROJECTED_TOPOLOGY_STORE_DUMP_FILE,
+            liveProjectedTopology, diagnosticZip);
 
         diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry, diagnosticZip);
 

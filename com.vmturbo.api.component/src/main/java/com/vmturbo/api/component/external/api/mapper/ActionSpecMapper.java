@@ -43,7 +43,6 @@ import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFac
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundMatchOfferingClassException;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundMatchPaymentOptionException;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundMatchTenancyException;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -88,8 +87,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.commons.Units;
-import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -122,18 +122,18 @@ public class ActionSpecMapper {
     // END - Strings representing action categories in the API.
 
 
-    private static final String STORAGE_VALUE = UIEntityType.STORAGE.getValue();
-    private static final String STORAGE_TIER_VALUE = UIEntityType.STORAGE_TIER.getValue();
-    private static final String PHYSICAL_MACHINE_VALUE = UIEntityType.PHYSICAL_MACHINE.getValue();
-    private static final String DISK_ARRAY_VALUE = UIEntityType.DISKARRAY.getValue();
+    private static final String STORAGE_VALUE = UIEntityType.STORAGE.apiStr();
+    private static final String STORAGE_TIER_VALUE = UIEntityType.STORAGE_TIER.apiStr();
+    private static final String PHYSICAL_MACHINE_VALUE = UIEntityType.PHYSICAL_MACHINE.apiStr();
+    private static final String DISK_ARRAY_VALUE = UIEntityType.DISKARRAY.apiStr();
     private static final Set<String> PRIMARY_TIER_VALUES = ImmutableSet.of(
-            UIEntityType.COMPUTE_TIER.getValue(), UIEntityType.DATABASE_SERVER_TIER.getValue(),
-            UIEntityType.DATABASE_TIER.getValue());
+            UIEntityType.COMPUTE_TIER.apiStr(), UIEntityType.DATABASE_SERVER_TIER.apiStr(),
+            UIEntityType.DATABASE_TIER.apiStr());
     private static final Set<String> TIER_VALUES = ImmutableSet.of(
-            UIEntityType.COMPUTE_TIER.getValue(), UIEntityType.DATABASE_SERVER_TIER.getValue(),
-            UIEntityType.DATABASE_TIER.getValue(), UIEntityType.STORAGE_TIER.getValue());
+            UIEntityType.COMPUTE_TIER.apiStr(), UIEntityType.DATABASE_SERVER_TIER.apiStr(),
+            UIEntityType.DATABASE_TIER.apiStr(), UIEntityType.STORAGE_TIER.apiStr());
     private static final Set<String> STORAGE_VALUES = ImmutableSet.of(
-            UIEntityType.STORAGE_TIER.getValue(), UIEntityType.STORAGE.getValue());
+            UIEntityType.STORAGE_TIER.apiStr(), UIEntityType.STORAGE.apiStr());
 
     private static final String UP = "up";
     private static final String DOWN = "down";
@@ -199,6 +199,9 @@ public class ActionSpecMapper {
             @Nonnull final Collection<ActionSpec> actionSpecs,
             final long topologyContextId)
                     throws UnsupportedActionException, ExecutionException, InterruptedException {
+        if (actionSpecs.isEmpty()) {
+            return Collections.emptyList();
+        }
         final List<ActionDTO.Action> recommendations = actionSpecs.stream()
             .map(ActionSpec::getRecommendation)
             .collect(Collectors.toList());
@@ -1008,7 +1011,7 @@ public class ActionSpecMapper {
     private void addActivateInfo(@Nonnull final ActionApiDTO actionApiDTO,
                                  @Nonnull final Activate activate,
                                  @Nonnull final ActionSpecMappingContext context)
-                    throws UnknownObjectException, ExecutionException, InterruptedException {
+                    throws UnknownObjectException {
         actionApiDTO.setActionType(ActionType.START);
         final long targetEntityId = activate.getTarget().getId();
         actionApiDTO.setTarget(

@@ -20,9 +20,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.api.component.external.api.mapper.SearchMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.STEntityAspectApiDTO;
@@ -48,6 +45,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -55,6 +53,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.components.common.mapping.EnvironmentTypeMapper;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -134,7 +133,7 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
         // entities are a list of storage tiers, find all volumes connected to these storage tiers
         List<TopologyEntityDTO> volumes = storageTierIds.stream()
                 .flatMap(id -> traverseAndGetEntities(id, TraversalDirection.CONNECTED_FROM,
-                        UIEntityType.VIRTUAL_VOLUME.getValue()).stream())
+                        UIEntityType.VIRTUAL_VOLUME.apiStr()).stream())
                 .collect(Collectors.toList());
 
         // find all regions for the given storage tiers
@@ -176,7 +175,7 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
         // get all VMs consuming given storage tiers
         List<TopologyEntityDTO> vms = storageTierIds.stream()
                 .flatMap(id -> traverseAndGetEntities(id, TraversalDirection.PRODUCES,
-                        UIEntityType.VIRTUAL_MACHINE.getValue()).stream())
+                        UIEntityType.VIRTUAL_MACHINE.apiStr()).stream())
                 .collect(Collectors.toList());
 
         final Map<Long, TopologyEntityDTO> vmByVolumeId = Maps.newHashMap();
@@ -305,11 +304,11 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
             virtualDisks.addAll(
                 traverseAndGetEntities(String.valueOf(storage.getOid()),
                     TraversalDirection.CONNECTED_FROM,
-                    UIEntityType.VIRTUAL_VOLUME.getValue()).stream()
+                    UIEntityType.VIRTUAL_VOLUME.apiStr()).stream()
                     .filter(topoEntity ->
                         traverseAndGetEntityCount(String.valueOf(topoEntity.getOid()),
                             TraversalDirection.CONNECTED_FROM,
-                            UIEntityType.VIRTUAL_MACHINE.getValue()) == 0)
+                            UIEntityType.VIRTUAL_MACHINE.apiStr()) == 0)
                     .filter(TopologyEntityDTO::hasTypeSpecificInfo)
                     .map(TopologyEntityDTO::getTypeSpecificInfo)
                     .filter(TypeSpecificInfo::hasVirtualVolume)
@@ -395,7 +394,7 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
         return SearchParameters.newBuilder()
             // start from storage tier oid
             .setStartingFilter(
-                    SearchMapper.stringPropertyFilterExact(
+                    SearchProtoUtil.stringPropertyFilterExact(
                             StringConstants.OID, Collections.singletonList(startOid)))
             // traverse CONNECTED_FROM
             .addSearchFilter(SearchFilter.newBuilder()
@@ -405,8 +404,8 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
                         .setNumberHops(1).build()))
                 .build())
             // find all volumes
-            .addSearchFilter(SearchMapper.searchFilterProperty(
-                SearchMapper.entityTypeFilter(endEntityType)))
+            .addSearchFilter(SearchProtoUtil.searchFilterProperty(
+                SearchProtoUtil.entityTypeFilter(endEntityType)))
             .build();
     }
 
@@ -505,7 +504,7 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
     private Map<Long, TopologyEntityDTO> fetchRegions() {
         SearchTopologyEntityDTOsRequest request = SearchTopologyEntityDTOsRequest.newBuilder()
             .addSearchParameters(SearchParameters.newBuilder()
-                .setStartingFilter(SearchMapper.entityTypeFilter(UIEntityType.REGION.getValue())))
+                .setStartingFilter(SearchProtoUtil.entityTypeFilter(UIEntityType.REGION.apiStr())))
             .build();
         return searchTopologyEntityDTOs(request).stream()
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
@@ -518,7 +517,7 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
     private Map<Long, TopologyEntityDTO> fetchStorageTiers() {
         SearchTopologyEntityDTOsRequest request = SearchTopologyEntityDTOsRequest.newBuilder()
             .addSearchParameters(SearchParameters.newBuilder()
-                .setStartingFilter(SearchMapper.entityTypeFilter(UIEntityType.STORAGE_TIER.getValue())))
+                .setStartingFilter(SearchProtoUtil.entityTypeFilter(UIEntityType.STORAGE_TIER.apiStr())))
             .build();
         return searchTopologyEntityDTOs(request).stream()
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
@@ -698,8 +697,7 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
             BaseApiDTO relatedEntityApiDTO = new BaseApiDTO();
             relatedEntityApiDTO.setUuid(String.valueOf(relatedEntity.getOid()));
             relatedEntityApiDTO.setDisplayName(relatedEntity.getDisplayName());
-            relatedEntityApiDTO.setClassName(ServiceEntityMapper.toUIEntityType(
-                    relatedEntity.getEntityType()));
+            relatedEntityApiDTO.setClassName(UIEntityType.fromType(relatedEntity.getEntityType()).apiStr());
             statApiDTO.setRelatedEntity(relatedEntityApiDTO);
 
         }

@@ -5,7 +5,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
@@ -20,9 +19,7 @@ import org.immutables.value.Value;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
-import com.google.common.util.concurrent.Monitor;
 
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.service.GroupsService;
 import com.vmturbo.api.dto.group.GroupApiDTO;
@@ -30,6 +27,7 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.repository.api.RepositoryListener;
 
@@ -187,7 +185,7 @@ public class MagicScopeGateway implements RepositoryListener  {
             final GroupApiDTO allOnPremHostGroup = new GroupApiDTO();
             allOnPremHostGroup.setScope(Collections.singletonList(UuidMapper.UI_REAL_TIME_MARKET_STR));
             allOnPremHostGroup.setEnvironmentType(EnvironmentType.ONPREM);
-            allOnPremHostGroup.setGroupType(UIEntityType.PHYSICAL_MACHINE.getValue());
+            allOnPremHostGroup.setGroupType(UIEntityType.PHYSICAL_MACHINE.apiStr());
             allOnPremHostGroup.setTemporary(true);
             allOnPremHostGroup.setDisplayName("Magic Group: " + ALL_ON_PREM_HOSTS);
             try {

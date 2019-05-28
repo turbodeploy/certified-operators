@@ -18,6 +18,11 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
@@ -27,14 +32,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDTOPossibilities;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
@@ -90,6 +89,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
@@ -643,8 +643,7 @@ public class ScenarioMapper {
                 final SettingOverride.Builder settingOverride = SettingOverride.newBuilder()
                     .setSetting(protoSetting);
                 if (apiDto.getEntityType() != null) {
-                    settingOverride.setEntityType(
-                            ServiceEntityMapper.fromUIEntityType(apiDto.getEntityType()));
+                    settingOverride.setEntityType(UIEntityType.fromString(apiDto.getEntityType()).typeNumber());
                 }
                 retChanges.add(ScenarioChange.newBuilder()
                         .setSettingOverride(settingOverride)
@@ -1039,8 +1038,7 @@ public class ScenarioMapper {
                 settingsMapper.toSettingApiDto(settingOverride.getSetting());
 
         if (settingOverride.hasEntityType()) {
-            final String entityType = ServiceEntityMapper.toUIEntityType(
-                    settingOverride.getEntityType());
+            final String entityType = UIEntityType.fromType(settingOverride.getEntityType()).apiStr();
             return Collections.singletonList(possibilities.getSettingForEntityType(entityType)
                 .orElseThrow(() -> new IllegalStateException("Entity type " + entityType +
                         " not supported by the setting " +
@@ -1236,7 +1234,7 @@ public class ScenarioMapper {
                     id);
                 final BaseApiDTO entity = new BaseApiDTO();
                 entity.setUuid(Long.toString(id));
-                entity.setDisplayName(UIEntityType.UNKNOWN.getValue());
+                entity.setDisplayName(UIEntityType.UNKNOWN.apiStr());
                 return entity;
             }
         }

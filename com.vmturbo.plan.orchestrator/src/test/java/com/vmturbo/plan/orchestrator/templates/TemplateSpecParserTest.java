@@ -15,7 +15,7 @@ import org.junit.Test;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpec;
-import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 public class TemplateSpecParserTest {

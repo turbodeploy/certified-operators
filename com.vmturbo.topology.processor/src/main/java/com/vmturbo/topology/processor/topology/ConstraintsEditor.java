@@ -10,15 +10,15 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
-
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.enums.ConstraintType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 
@@ -72,7 +73,7 @@ public class ConstraintsEditor {
      * @param changes with ignore constraint settings
      * @param isPressurePlan is true if plan is of type alleviate pressure
      */
-    public void editConstraints(@Nonnull final TopologyGraph graph,
+    public void editConstraints(@Nonnull final TopologyGraph<TopologyEntity> graph,
             @Nonnull final List<ScenarioChange> changes, boolean isPressurePlan) {
         final Multimap<Long, String> entitiesToIgnoredCommodities = HashMultimap.create();
         changes.forEach(change -> {
@@ -96,8 +97,8 @@ public class ConstraintsEditor {
 
     @Nonnull
     private Multimap<Long, String> getEntitiesOidsForIgnoredCommodities(
-                    @Nonnull List<IgnoreConstraint> ignoredCommodities,
-                    @Nonnull TopologyGraph graph, boolean isPressurePlan) {
+        @Nonnull List<IgnoreConstraint> ignoredCommodities,
+        @Nonnull TopologyGraph<TopologyEntity> graph, boolean isPressurePlan) {
 
         final Multimap<Long, String> entitesToIgnoredCommodities = HashMultimap.create();
         boolean hasIgnoreAllEntities = ignoredCommodities.stream()
@@ -175,7 +176,7 @@ public class ConstraintsEditor {
      * @return set of original Oids with VM customers.
      */
     private Set<Long> updateCommoditiesSoldForHostAndGetVMCustomers(Set<Long> groupMembersOids,
-                    TopologyGraph graph) {
+                    TopologyGraph<TopologyEntity> graph) {
         return groupMembersOids.stream()
             .map(oid -> graph.getEntity(oid))
             .filter(Optional::isPresent)
@@ -201,7 +202,7 @@ public class ConstraintsEditor {
     }
 
     @Nonnull
-    private void deactivateCommodities(@Nonnull TopologyGraph graph,
+    private void deactivateCommodities(@Nonnull TopologyGraph<TopologyEntity> graph,
             @Nonnull Multimap<Long, String> entitiesToIgnoredCommodities) {
         for (Long entityId : entitiesToIgnoredCommodities.keySet()) {
             final Optional<TopologyEntity> entity = graph.getEntity(entityId);

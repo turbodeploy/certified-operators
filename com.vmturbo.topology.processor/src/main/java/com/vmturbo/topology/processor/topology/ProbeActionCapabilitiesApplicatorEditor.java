@@ -21,6 +21,7 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionCap
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionPolicyElement;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -73,7 +74,7 @@ public class ProbeActionCapabilitiesApplicatorEditor {
      *
      * @param graph The topology graph which contains all the SEs.
      */
-    public EditorSummary applyPropertiesEdits(@Nonnull final TopologyGraph graph) {
+    public EditorSummary applyPropertiesEdits(@Nonnull final TopologyGraph<TopologyEntity> graph) {
         final Multimap<Long, UnsupportedAction> targetToProbeCapabilities =
             targetIdToEntityTypeMap(targetStore, probeStore);
         final EditorSummary editorSummary = new EditorSummary();
@@ -129,7 +130,7 @@ public class ProbeActionCapabilitiesApplicatorEditor {
     }
 
     // edit movable
-    private void editMovable(@Nonnull final TopologyGraph graph,
+    private void editMovable(@Nonnull final TopologyGraph<TopologyEntity> graph,
                              @Nonnull final Multimap<Long, UnsupportedAction> targetToProbeCapabilities,
                              @Nonnull final EditorSummary editorSummary,
                              @Nonnull final TopologyEntity entity) {
@@ -179,7 +180,7 @@ public class ProbeActionCapabilitiesApplicatorEditor {
      */
     private void updateMovableBasedOnProbesCapabilities(@Nonnull final Builder builder,
                                                         @Nonnull final TopologyEntity entity,
-                                                        @Nonnull final TopologyGraph graph,
+                                                        @Nonnull final TopologyGraph<TopologyEntity> graph,
                                                         @Nonnull final Multimap<Long, UnsupportedAction> targetIdToEntityTypeMap,
                                                         @Nonnull final EditorSummary editorSummary) {
         // Special case for VM

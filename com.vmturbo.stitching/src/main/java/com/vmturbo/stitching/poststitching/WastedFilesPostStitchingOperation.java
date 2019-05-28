@@ -161,9 +161,8 @@ public class WastedFilesPostStitchingOperation implements PostStitchingOperation
      * VirtualVolume exists.
      */
     private Optional<TopologyEntity> getWastedFilesVirtualVolume(TopologyEntity storage) {
-        List<TopologyEntity> wastedFilesVolumes = storage.getConnectedFromEntities().stream()
-                .filter(topoEntity -> topoEntity.getEntityType() ==
-                        EntityType.VIRTUAL_VOLUME.getNumber())
+        List<TopologyEntity> wastedFilesVolumes =
+            storage.getConnectedFromEntities(EntityType.VIRTUAL_VOLUME_VALUE)
                 .filter(virtualVolume -> !virtualVolume.getConnectedFromEntities().stream()
                         .map(TopologyEntity::getEntityType)
                         .anyMatch(type -> type == EntityType.VIRTUAL_MACHINE_VALUE))
@@ -186,9 +185,7 @@ public class WastedFilesPostStitchingOperation implements PostStitchingOperation
      * @return Set of VirtualVolumes associated with that Storage as well as at least one VM
      */
     private Set<TopologyEntity> getAllVmVirtualVolumes(TopologyEntity storage) {
-        return storage.getConnectedFromEntities().stream()
-                .filter(topoEntity -> topoEntity.getEntityType() ==
-                        EntityType.VIRTUAL_VOLUME.getNumber())
+        return storage.getConnectedFromEntities(EntityType.VIRTUAL_VOLUME_VALUE)
                 .filter(virtualVolume -> virtualVolume.getConnectedFromEntities().stream()
                         .anyMatch(topoEntity -> topoEntity.getEntityType() ==
                                 EntityType.VIRTUAL_MACHINE.getNumber()))

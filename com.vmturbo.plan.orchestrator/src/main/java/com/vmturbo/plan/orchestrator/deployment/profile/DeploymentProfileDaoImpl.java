@@ -25,6 +25,7 @@ import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileIn
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.DeploymentProfile;
 import com.vmturbo.plan.orchestrator.plan.DiscoveredNotSupportedOperationException;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;

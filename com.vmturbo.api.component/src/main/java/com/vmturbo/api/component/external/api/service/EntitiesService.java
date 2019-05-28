@@ -35,9 +35,7 @@ import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.ConstraintsMapper;
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
-import com.vmturbo.api.component.external.api.mapper.SearchMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.TagsMapper;
@@ -83,6 +81,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
@@ -103,6 +102,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTOREST.GroupDTO.ConstraintType;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -160,11 +160,11 @@ public class EntitiesService implements IEntitiesService {
     // Entity types which are not part of Host or Storage Cluster.
     private static final ImmutableSet<String> NON_CLUSTER_ENTITY_TYPES =
             ImmutableSet.of(
-                    UIEntityType.CHASSIS.getValue(),
-                    UIEntityType.DATACENTER.getValue(),
-                    UIEntityType.DISKARRAY.getValue(),
-                    UIEntityType.LOGICALPOOL.getValue(),
-                    UIEntityType.STORAGECONTROLLER.getValue());
+                    UIEntityType.CHASSIS.apiStr(),
+                    UIEntityType.DATACENTER.apiStr(),
+                    UIEntityType.DISKARRAY.apiStr(),
+                    UIEntityType.LOGICALPOOL.apiStr(),
+                    UIEntityType.STORAGECONTROLLER.apiStr());
 
     /**
      * When traversing the entities in a supply chain in the UI, the breadcrumb is
@@ -179,19 +179,19 @@ public class EntitiesService implements IEntitiesService {
      */
     private static final Map<String, Integer> BREADCRUMB_ENTITY_PRECEDENCE_MAP =
             ImmutableMap.of(
-                    UIEntityType.REGION.getValue(), 1,
-                    UIEntityType.AVAILABILITY_ZONE.getValue(), 2,
-                    UIEntityType.DATACENTER.getValue(), 2,
-                    UIEntityType.CHASSIS.getValue(), 2,
+                    UIEntityType.REGION.apiStr(), 1,
+                    UIEntityType.AVAILABILITY_ZONE.apiStr(), 2,
+                    UIEntityType.DATACENTER.apiStr(), 2,
+                    UIEntityType.CHASSIS.apiStr(), 2,
                     ConstraintType.CLUSTER.toString(), 3);
 
     private static final Set<String> BREADCRUMB_ENTITIES_TO_FETCH =
             new HashSet<String>(Arrays.asList(
-                    UIEntityType.REGION.getValue(),
-                    UIEntityType.AVAILABILITY_ZONE.getValue(),
-                    UIEntityType.DATACENTER.getValue(),
-                    UIEntityType.CHASSIS.getValue(),
-                    UIEntityType.PHYSICAL_MACHINE.getValue()));
+                    UIEntityType.REGION.apiStr(),
+                    UIEntityType.AVAILABILITY_ZONE.apiStr(),
+                    UIEntityType.DATACENTER.apiStr(),
+                    UIEntityType.CHASSIS.apiStr(),
+                    UIEntityType.PHYSICAL_MACHINE.apiStr()));
 
     public EntitiesService(
             @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
@@ -501,7 +501,7 @@ public class EntitiesService implements IEntitiesService {
         result.add(entityApiDTO.get());
 
         // Skip supply-chain call for entities which are not consumers(direct/in-direct) of host(PM).
-        if (entityApiDTO.get().getClassName().equals(UIEntityType.STORAGE.getValue())) {
+        if (entityApiDTO.get().getClassName().equals(UIEntityType.STORAGE.apiStr())) {
             oidToQuery = entityOid;
         } else if (!NON_CLUSTER_ENTITY_TYPES.contains(entityApiDTO.get().getClassName())) {
 
@@ -528,14 +528,14 @@ public class EntitiesService implements IEntitiesService {
             result = serviceEntityMap.values()
                     .stream()
                     .filter(serviceEntityApiDTO ->
-                            !UIEntityType.PHYSICAL_MACHINE.getValue().equals(serviceEntityApiDTO.getClassName())
-                                    || entityApiDTO.get().getClassName().equals(UIEntityType.PHYSICAL_MACHINE.getValue()))
+                            !UIEntityType.PHYSICAL_MACHINE.apiStr().equals(serviceEntityApiDTO.getClassName())
+                                    || entityApiDTO.get().getClassName().equals(UIEntityType.PHYSICAL_MACHINE.apiStr()))
                     .collect(Collectors.toList());
 
             // Find the oid of the Host the entity is connected to.
             for (Entry<Long, ServiceEntityApiDTO> entry : serviceEntityMap.entrySet()) {
                 ServiceEntityApiDTO serviceEntityApiDTO = entry.getValue();
-                if (serviceEntityApiDTO.getClassName().equals(UIEntityType.PHYSICAL_MACHINE.getValue())) {
+                if (serviceEntityApiDTO.getClassName().equals(UIEntityType.PHYSICAL_MACHINE.apiStr())) {
                     oidToQuery = Long.valueOf(serviceEntityApiDTO.getUuid());
                 }
             }
@@ -797,7 +797,7 @@ public class EntitiesService implements IEntitiesService {
         final List<TopologyEntityDTO> neighbors =
             searchServiceRpc.searchTopologyEntityDTOs(
                     SearchTopologyEntityDTOsRequest.newBuilder()
-                        .addSearchParameters(SearchMapper.neighbors(oid, traversalDirection))
+                        .addSearchParameters(SearchProtoUtil.neighbors(oid, traversalDirection))
                         .build())
                 .getTopologyEntityDtosList();
         code.accept(

@@ -1,8 +1,8 @@
 package com.vmturbo.topology.processor.group;
 
-import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntity;
-import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntityWithName;
-import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntityWithTags;
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntityWithName;
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntityWithTags;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -42,19 +42,21 @@ import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
-import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.graph.search.SearchResolver;
+import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
+import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 public class GroupResolverTest {
 
-    private TopologyGraph topologyGraph;
+    private TopologyGraph<TopologyEntity> topologyGraph;
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -92,7 +94,7 @@ public class GroupResolverTest {
         topologyMap.put(11L, topologyEntityWithTags(11L, EntityType.STORAGE, tags11));
         topologyMap.put(12L, topologyEntityWithTags(12L, EntityType.STORAGE, tags12));
 
-        topologyGraph = TopologyGraph.newGraph(topologyMap);
+        topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
     }
 
     @Test
@@ -104,7 +106,7 @@ public class GroupResolverTest {
                     .addAllStaticMemberOids(Arrays.asList(1L, 2L))))
             .build();
 
-        final GroupResolver resolver = new GroupResolver(Mockito.mock(TopologyFilterFactory.class));
+        final GroupResolver resolver = new GroupResolver(Mockito.mock(SearchResolver.class));
         assertThat(resolver.resolve(staticGroup, topologyGraph), containsInAnyOrder(1L, 2L));
     }
 
@@ -117,7 +119,7 @@ public class GroupResolverTest {
                         .setMembers(StaticGroupMembers.newBuilder()
                                 .addAllStaticMemberOids(Arrays.asList(1L, 2L))))
                 .build();
-        final GroupResolver resolver = new GroupResolver(Mockito.mock(TopologyFilterFactory.class));
+        final GroupResolver resolver = new GroupResolver(Mockito.mock(SearchResolver.class));
         assertThat(resolver.resolve(cluster, topologyGraph), containsInAnyOrder(1L, 2L));
     }
 
@@ -136,7 +138,7 @@ public class GroupResolverTest {
                                 .setStartingFilter(Search.PropertyFilter.getDefaultInstance()))))
             .build();
 
-        final GroupResolver resolver = new GroupResolver(Mockito.mock(TopologyFilterFactory.class));
+        final GroupResolver resolver = new GroupResolver(Mockito.mock(SearchResolver.class));
         resolver.resolve(dynamicGroup, topologyGraph);
     }
 
@@ -155,7 +157,7 @@ public class GroupResolverTest {
                                     .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))))))
             .build();
 
-        final GroupResolver resolver = new GroupResolver(new TopologyFilterFactory());
+        final GroupResolver resolver = new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()));
         assertThat(resolver.resolve(dynamicGroup, topologyGraph), containsInAnyOrder(1L, 2L, 3L, 4L));
     }
 
@@ -174,7 +176,7 @@ public class GroupResolverTest {
                                 .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))))))
             .build();
 
-        final GroupResolver resolver = new GroupResolver(new TopologyFilterFactory());
+        final GroupResolver resolver = new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()));
         assertThat(
                 resolver.resolve(dynamicGroup, topologyGraph),
                 containsInAnyOrder(5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L));
@@ -214,8 +216,8 @@ public class GroupResolverTest {
                                 .setEntityType(EntityType.STORAGE.getNumber())
                                 .setSearchParametersCollection(searchParameters)
                 ).build();
-        final Set<Long> groupMembers =
-                new GroupResolver(new TopologyFilterFactory()).resolve(dynamicGroup, topologyGraph);
+        final Set<Long> groupMembers = new GroupResolver(new SearchResolver<TopologyEntity>(
+            new TopologyFilterFactory<>())).resolve(dynamicGroup, topologyGraph);
         assertEquals(entity11expected, groupMembers.contains(11L));
         assertEquals(entity12expected, groupMembers.contains(12L));
     }
@@ -247,7 +249,7 @@ public class GroupResolverTest {
                                     )))))
                 .build();
 
-        final GroupResolver resolver = new GroupResolver(new TopologyFilterFactory());
+        final GroupResolver resolver = new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()));
         assertThat(resolver.resolve(dynamicGroup, topologyGraph), containsInAnyOrder(8L, 10L));
     }
 
@@ -296,7 +298,7 @@ public class GroupResolverTest {
                         ))
                 .build();
 
-        final GroupResolver resolver = new GroupResolver(new TopologyFilterFactory());
+        final GroupResolver resolver = new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()));
         assertThat(resolver.resolve(dynamicGroup, topologyGraph), contains(10L));
     }
 
@@ -344,7 +346,7 @@ public class GroupResolverTest {
                     )
                 .build();
 
-        final GroupResolver resolver = spy(new GroupResolver(new TopologyFilterFactory()));
+        final GroupResolver resolver = spy(new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>())));
         resolver.resolve(dynamicGroup, topologyGraph);
         resolver.resolve(dynamicGroup, topologyGraph);
         resolver.resolve(dynamicGroup, topologyGraph);
@@ -375,7 +377,7 @@ public class GroupResolverTest {
                         .addAllStaticMemberOids(Arrays.asList(1L, 2L))))
                 .build();
 
-        final GroupResolver resolver = spy(new GroupResolver(new TopologyFilterFactory()));
+        final GroupResolver resolver = spy(new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>())));
         resolver.resolve(staticGroup, topologyGraph);
         resolver.resolve(staticGroup, topologyGraph);
         resolver.resolve(staticGroup, topologyGraph);
@@ -394,7 +396,7 @@ public class GroupResolverTest {
     public void testResolveWithMissingGroupId() throws GroupResolutionException {
 
         final Group group = Group.newBuilder().build();
-        final GroupResolver resolver = new GroupResolver(Mockito.mock(TopologyFilterFactory.class));
+        final GroupResolver resolver = new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()));
         resolver.resolve(group, topologyGraph);
     }
 

@@ -92,7 +92,8 @@ import com.vmturbo.reporting.api.ReportingNotificationReceiver;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
-import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Subscription;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
 
 /**
  * Configuration for the communication between the API component
@@ -202,9 +203,10 @@ public class CommunicationConfig {
 
     @Bean
     public RepositoryApi repositoryApi() {
-        return new RepositoryApi(repositoryClientConfig.getRepositoryHost(),
-                repositoryClientConfig.getRepositoryPort(), serviceRestTemplate(),
-                severityPopulator(), getRealtimeTopologyContextId());
+        return new RepositoryApi(severityPopulator(),
+            repositoryRpcService(),
+            searchServiceBlockingStub(),
+            realtimeTopologyContextId);
     }
 
     @Bean
@@ -425,7 +427,7 @@ public class CommunicationConfig {
                 new ApiComponentTargetListener(topologyService(), websocketConfig.websocketHandler());
         historyClientConfig.historyComponent().addStatsListener(apiComponentTargetListener);
         repositoryClientConfig.repository().addListener(apiComponentTargetListener);
-        tpClientConfig.topologyProcessor(EnumSet.of(Subscription.Notifications))
+        tpClientConfig.topologyProcessor(TopologyProcessorSubscription.forTopic(Topic.Notifications))
                 .addTargetListener(apiComponentTargetListener);
         return apiComponentTargetListener;
     }

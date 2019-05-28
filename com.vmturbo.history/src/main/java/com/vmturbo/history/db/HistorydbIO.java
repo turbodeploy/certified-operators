@@ -84,6 +84,7 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityCommoditiesMaxValues;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
@@ -1179,8 +1180,8 @@ public class HistorydbIO extends BasedbIO {
                         .setMaxValue(record.getValue(DSL.field(MAX_COLUMN_NAME, Double.class)))
                         .setCommodityType(
                     CommodityType.newBuilder()
-                        .setType(ClassicEnumMapper.commodityType(
-                            record.getValue(str(dField(tbl, PROPERTY_TYPE)))).getNumber())
+                        .setType(UICommodityType.fromString(
+                            record.getValue(str(dField(tbl, PROPERTY_TYPE)))).typeNumber())
                         // WARN : CommodityKey gets truncated in length when
                         // being stored in the DB. It's a one-way function. This will lead to
                         // correctness problems if keys share common prefix and they get truncated

@@ -14,14 +14,13 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
-import com.google.common.collect.ImmutableSet;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.ImmutableSet;
+
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
@@ -29,6 +28,7 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.userscope.UserScope.CurrentUserEntityAccessScopeRequest;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeContents;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeRequest;
@@ -38,8 +38,6 @@ import com.vmturbo.common.protobuf.userscope.UserScope.OidSetDTO.AllOids;
 import com.vmturbo.common.protobuf.userscope.UserScope.OidSetDTO.NoOids;
 import com.vmturbo.common.protobuf.userscope.UserScope.OidSetDTO.OidArray;
 import com.vmturbo.common.protobuf.userscope.UserScopeServiceGrpc.UserScopeServiceImplBase;
-import com.vmturbo.components.common.ClassicEnumMapper;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.repository.api.RepositoryListener;
 
@@ -113,8 +111,7 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
     // entity types available to "shared" roles. Modeled after SHARED_USER_ENTITIES_LIST in classic's
     // ScopedUserUtil.java.
     public static final Set<String> SHARED_USER_ENTITY_TYPES = ImmutableSet.of(
-            ClassicEnumMapper.ENTITY_TYPE_MAPPINGS.inverse().get(EntityType.APPLICATION),
-            ClassicEnumMapper.ENTITY_TYPE_MAPPINGS.inverse().get(EntityType.VIRTUAL_MACHINE));
+        UIEntityType.APPLICATION.apiStr(), UIEntityType.VIRTUAL_MACHINE.apiStr());
 
 
     private final GroupServiceBlockingStub groupServiceStub;

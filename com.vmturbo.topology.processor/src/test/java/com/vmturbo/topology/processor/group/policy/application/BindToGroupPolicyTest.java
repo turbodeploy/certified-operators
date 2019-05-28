@@ -1,10 +1,10 @@
 package com.vmturbo.topology.processor.group.policy.application;
 
-import static com.vmturbo.topology.processor.group.filter.FilterUtils.connectedTopologyEntity;
-import static org.hamcrest.Matchers.is;
-import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntity;
 import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchParametersCollection;
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.connectedTopologyEntity;
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.eq;
@@ -31,13 +31,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper;
 import com.vmturbo.topology.processor.group.policy.PolicyMatcher;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicyApplication.PolicyApplicationResults;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 /**
  * The tests use the following topology (no links are provided below 1,2 are hosts and 3,4 are VMs):
@@ -74,7 +75,7 @@ public class BindToGroupPolicyTest {
             .setBindToGroup(bindToGroup))
         .build();
 
-    private TopologyGraph topologyGraph;
+    private TopologyGraph<TopologyEntity> topologyGraph;
     private PolicyMatcher policyMatcher;
 
     private final GroupResolver groupResolver = mock(GroupResolver.class);
@@ -109,7 +110,7 @@ public class BindToGroupPolicyTest {
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(8L));
 
-        topologyGraph = TopologyGraph.newGraph(topologyMap);
+        topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         policyMatcher = new PolicyMatcher(topologyGraph);
     }
 

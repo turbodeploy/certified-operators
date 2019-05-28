@@ -48,6 +48,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -121,6 +122,13 @@ public class SdkToTopologyEntityConverter {
     }
 
     private static int type(CommonDTO.CommodityDTOOrBuilder dto) {
+        final UICommodityType uiCommType = UICommodityType.fromType(dto.getCommodityType().getNumber());
+        if (uiCommType.sdkType() == CommodityDTO.CommodityType.UNKNOWN && dto.getCommodityType() != CommodityDTO.CommodityType.UNKNOWN) {
+            // This is not a fatal error because we don't use UICommodityType everywhere
+            // (in particular, history is using a different way of formatting commodity names),
+            // but should be fixed ASAP.
+            logger.error("Commodity type {} not supported by UICommodityType.", dto.getCommodityType());
+        }
         return dto.getCommodityType().getNumber();
     }
 

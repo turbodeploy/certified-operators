@@ -24,9 +24,11 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.targets.TargetStore;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 public class StitchingContextTest {
     private final StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(8)
@@ -146,7 +148,7 @@ public class StitchingContextTest {
 
     @Test
     public void testConstructTopology() {
-        final TopologyGraph topology = TopologyGraph.newGraph(stitchingContext.constructTopology());
+        final TopologyGraph<TopologyEntity> topology = TopologyEntityTopologyGraphCreator.newGraph(stitchingContext.constructTopology());
         assertEquals(4, topology.size());
 
         assertEquals(e1_1.getOid(), topology.getEntity(e1_1.getOid()).get().getOid());

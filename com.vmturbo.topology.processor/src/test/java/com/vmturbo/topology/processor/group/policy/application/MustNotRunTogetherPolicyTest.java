@@ -1,6 +1,6 @@
 package com.vmturbo.topology.processor.group.policy.application;
 
-import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntity;
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
 import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchParametersCollection;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -31,12 +31,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper;
 import com.vmturbo.topology.processor.group.policy.PolicyMatcher;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 /**
  * The tests use the following topology:
@@ -96,7 +97,7 @@ public class MustNotRunTogetherPolicyTest {
         topologyMap.put(7L, topologyEntity(7L, EntityType.VIRTUAL_MACHINE, 2, 3));
         topologyMap.put(8L, topologyEntity(8L, EntityType.VIRTUAL_MACHINE, 2));
 
-        TopologyGraph topologyGraph = TopologyGraph.newGraph(topologyMap);
+        TopologyGraph<TopologyEntity> topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         PolicyMatcher policyMatcher = new PolicyMatcher(topologyGraph);
 
         when(groupResolver.resolve(eq(group), eq(topologyGraph)))
@@ -136,7 +137,7 @@ public class MustNotRunTogetherPolicyTest {
         topologyMap.put(7L, topologyEntity(7L, EntityType.VIRTUAL_MACHINE, 2, 3));
         topologyMap.put(8L, topologyEntity(8L, EntityType.VIRTUAL_MACHINE, 2));
 
-        TopologyGraph topologyGraph = TopologyGraph.newGraph(topologyMap);
+        TopologyGraph<TopologyEntity> topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         PolicyMatcher policyMatcher = new PolicyMatcher(topologyGraph);
 
         when(groupResolver.resolve(eq(group), eq(topologyGraph)))
@@ -180,7 +181,7 @@ public class MustNotRunTogetherPolicyTest {
         topologyMap.put(7L, topologyEntity(7L, EntityType.VIRTUAL_MACHINE, 2, 3));
         topologyMap.put(8L, topologyEntity(8L, EntityType.VIRTUAL_MACHINE, 2));
 
-        TopologyGraph topologyGraph = TopologyGraph.newGraph(topologyMap);
+        TopologyGraph<TopologyEntity> topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         PolicyMatcher policyMatcher = new PolicyMatcher(topologyGraph);
 
         when(groupResolver.resolve(eq(group), eq(topologyGraph)))
@@ -243,7 +244,7 @@ public class MustNotRunTogetherPolicyTest {
         topologyMap.put(host2.getOid(), host2);
         topologyMap.put(vm.getOid(), vm);
 
-        TopologyGraph topologyGraph = TopologyGraph.newGraph(topologyMap);
+        TopologyGraph<TopologyEntity> topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         PolicyMatcher policyMatcher = new PolicyMatcher(topologyGraph);
 
         when(groupResolver.resolve(eq(group), eq(topologyGraph)))
@@ -264,7 +265,7 @@ public class MustNotRunTogetherPolicyTest {
     }
 
     private void applyPolicy(@Nonnull final MustNotRunTogetherPolicy policy,
-                             @Nonnull final TopologyGraph topologyGraph) {
+                             @Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
         MustNotRunTogetherPolicyApplication application =
             new MustNotRunTogetherPolicyApplication(groupResolver, topologyGraph);
         application.apply(Collections.singletonList(policy));
@@ -304,7 +305,7 @@ public class MustNotRunTogetherPolicyTest {
         topologyMap.put(outofDCHost.getOid(), outofDCHost);
         topologyMap.put(vm.getOid(), vm);
 
-        TopologyGraph topologyGraph = TopologyGraph.newGraph(topologyMap);
+        TopologyGraph<TopologyEntity> topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         PolicyMatcher policyMatcher = new PolicyMatcher(topologyGraph);
 
         when(groupResolver.resolve(eq(group), eq(topologyGraph)))
@@ -369,7 +370,7 @@ public class MustNotRunTogetherPolicyTest {
         topologyMap.put(outOfClusterProvider.getOid(), outOfClusterProvider);
         topologyMap.put(vm.getOid(), vm);
 
-        TopologyGraph topologyGraph = TopologyGraph.newGraph(topologyMap);
+        TopologyGraph<TopologyEntity> topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         PolicyMatcher policyMatcher = new PolicyMatcher(topologyGraph);
 
         when(groupResolver.resolve(eq(group), eq(topologyGraph)))

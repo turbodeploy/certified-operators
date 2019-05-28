@@ -1,7 +1,5 @@
 package com.vmturbo.repository.topology;
 
-import static com.vmturbo.repository.graph.result.ResultsConverter.fillNodeRelationships;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -11,13 +9,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -31,29 +27,20 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
-import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.repository.constant.RepoObjectType;
-import com.vmturbo.repository.exception.GraphDatabaseExceptions.GlobalSupplyChainProviderRelsException;
-import com.vmturbo.repository.graph.GraphDefinition;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.repository.graph.executor.ArangoDBExecutor;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;
-import com.vmturbo.repository.graph.executor.ReactiveArangoDBExecutor;
-import com.vmturbo.repository.graph.executor.ReactiveGraphDBExecutor;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
-import com.vmturbo.repository.graph.result.GlobalSupplyChainFluxResult;
 import com.vmturbo.repository.graph.result.ResultsConverter;
-import com.vmturbo.repository.graph.result.SupplyChainResultsConverter;
-import com.vmturbo.repository.service.SupplyChainRpcService;
+import com.vmturbo.repository.service.ArangoSupplyChainRpcService;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyEntitiesException;
 
 
@@ -207,10 +194,10 @@ public class GlobalSupplyChain implements Diagnosable {
             // add connectedTo entity types to providers since we want to show a mix of consumes
             // and connected relationship in the global supply chain
             // Note: currently we don't want to show some cloud entity types, so we skip them
-            if (!SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN.contains(seType)) {
+            if (!ArangoSupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN.contains(seType)) {
                 dto.getConnectedEntityListList().forEach(connectedEntity -> {
                     Integer providerType = connectedEntity.getConnectedEntityType();
-                    if (!SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN.contains(providerType)) {
+                    if (!ArangoSupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN.contains(providerType)) {
                         providerRels.put(seType, providerType);
                     }
                 });
@@ -225,9 +212,10 @@ public class GlobalSupplyChain implements Diagnosable {
         logger.info("Sealing global supply chain for {}", topologyId);
         isSealed = true;
         providerRels.asMap().forEach((seType, provTypes) -> {
-            Set<String> repoProvTypes = provTypes.stream().map(RepoObjectType::mapEntityType)
-                    .collect(Collectors.toSet());
-            globalSupplyChainProviderRels.putAll(RepoObjectType.mapEntityType(seType),
+            Set<String> repoProvTypes = provTypes.stream().map(UIEntityType::fromType)
+                .map(UIEntityType::apiStr)
+                .collect(Collectors.toSet());
+            globalSupplyChainProviderRels.putAll(UIEntityType.fromType(seType).apiStr(),
                     repoProvTypes);
         });
 
@@ -355,30 +343,30 @@ public class GlobalSupplyChain implements Diagnosable {
 
         // Create supply chain nodes.
         Map<String, SupplyChainNode.Builder> entityTypeToSupplyChainNodesMap =
-                entityTypeToOidsMap.entrySet()
-                        .stream()
-                        .filter(entityType -> !filter.getIgnoredEntityTypes().contains(entityType))
-                        .collect(Collectors.toMap(
-                                entry -> RepoObjectType.mapEntityType(entry.getKey()),
-                                entry -> {
-                                    SupplyChainNode.Builder nodeBuilder = SupplyChainNode.newBuilder();
-                                    nodeBuilder.setEntityType(RepoObjectType.mapEntityType(entry.getKey()));
-                                    // create a mapping from EntityState to Oids
-                                    nodeBuilder.putAllMembersByState(
-                                            entityStateToOidsMap.entrySet().stream()
-                                                    .collect(Collectors.toMap(
-                                                            entityStateOidsEntry -> entityStateOidsEntry.getKey().getNumber(),
-                                                            entityStateOidsEntry -> {
-                                                                MemberList.Builder builder = MemberList.newBuilder();
-                                                                Set<Long> oidsToAdd =
-                                                                        new HashSet<>(entry.getValue());
-                                                                oidsToAdd.retainAll(allowedOids);
-                                                                oidsToAdd.retainAll(entityStateOidsEntry.getValue());
-                                                                builder.addAllMemberOids(oidsToAdd);
-                                                                return builder.build();
-                                                            })));
-                                    return nodeBuilder;
-                        }));
+            entityTypeToOidsMap.entrySet()
+                .stream()
+                .filter(entityType -> !filter.getIgnoredEntityTypes().contains(entityType))
+                .collect(Collectors.toMap(
+                    entry -> UIEntityType.fromType(entry.getKey()).apiStr(),
+                    entry -> {
+                        SupplyChainNode.Builder nodeBuilder = SupplyChainNode.newBuilder();
+                        nodeBuilder.setEntityType(UIEntityType.fromType(entry.getKey()).apiStr());
+                        // create a mapping from EntityState to Oids
+                        nodeBuilder.putAllMembersByState(
+                            entityStateToOidsMap.entrySet().stream()
+                                .collect(Collectors.toMap(
+                                    entityStateOidsEntry -> entityStateOidsEntry.getKey().getNumber(),
+                                    entityStateOidsEntry -> {
+                                        MemberList.Builder builder = MemberList.newBuilder();
+                                        Set<Long> oidsToAdd =
+                                                new HashSet<>(entry.getValue());
+                                        oidsToAdd.retainAll(allowedOids);
+                                        oidsToAdd.retainAll(entityStateOidsEntry.getValue());
+                                        builder.addAllMemberOids(oidsToAdd);
+                                        return builder.build();
+                                    })));
+                        return nodeBuilder;
+                }));
 
         final Multimap<String, String> consumerRels =
                 Multimaps.invertFrom(globalSupplyChainProviderRels, HashMultimap.create());

@@ -9,8 +9,9 @@ import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.mapping.EnvironmentTypeMapper;
-import com.vmturbo.components.common.mapping.UIEntityState;
+import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -52,7 +53,7 @@ public class ServiceEntityMapperTest {
         Assert.assertEquals(oid, (long)Long.valueOf(serviceEntityApiDTO.getUuid()));
         Assert.assertEquals(
             entityType.getNumber(),
-            ServiceEntityMapper.fromUIEntityType(serviceEntityApiDTO.getClassName()));
+            UIEntityType.fromString(serviceEntityApiDTO.getClassName()).typeNumber());
         Assert.assertEquals(
             entityState,
             UIEntityState.fromString(serviceEntityApiDTO.getState()).toEntityState());

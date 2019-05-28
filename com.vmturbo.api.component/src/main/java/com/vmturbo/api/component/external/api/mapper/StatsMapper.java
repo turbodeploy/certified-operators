@@ -23,7 +23,6 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.service.TargetsService;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -56,6 +55,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
 
@@ -394,7 +394,7 @@ public class StatsMapper {
             entityStatsRequest.addAllEntities(entityIds);
         }
         globalTempGroupEntityType.ifPresent(entityType ->
-            entityStatsRequest.setRelatedEntityType(ServiceEntityMapper.toUIEntityType(entityType)));
+            entityStatsRequest.setRelatedEntityType(UIEntityType.fromType(entityType).apiStr()));
         return entityStatsRequest.build();
     }
 
@@ -508,7 +508,7 @@ public class StatsMapper {
                     }
                     globalTempGroupEntityType.ifPresent(globalType ->
                         commodityRequestBuilder.setRelatedEntityType(
-                            ServiceEntityMapper.toUIEntityType(globalType)));
+                            UIEntityType.fromType(globalType).apiStr()));
                     if (stat.getRelatedEntityType() != null) {
                         if (commodityRequestBuilder.hasRelatedEntityType()
                                 && !commodityRequestBuilder.getRelatedEntityType()
@@ -517,7 +517,7 @@ public class StatsMapper {
                                 "Api input related entity type: {} is not consistent with "
                                         + "group entity type: {}",
                                     stat.getRelatedEntityType(),
-                                    ServiceEntityMapper.toUIEntityType(globalTempGroupEntityType.get()));
+                                    UIEntityType.fromType(globalTempGroupEntityType.get()).apiStr());
                             throw new IllegalArgumentException(
                                 "Related entity type is not same as group entity type");
                         }
@@ -666,9 +666,9 @@ public class StatsMapper {
     @Nonnull
     public String normalizeRelatedType(@Nonnull String relatedType) {
         return relatedType.equals(StringConstants.CLUSTER) ||
-                relatedType.equals(UIEntityType.DATACENTER.getValue()) ||
-                relatedType.equals(UIEntityType.PHYSICAL_MACHINE.getValue()) ?
-            UIEntityType.PHYSICAL_MACHINE.getValue() : relatedType;
+                relatedType.equals(UIEntityType.DATACENTER.apiStr()) ||
+                relatedType.equals(UIEntityType.PHYSICAL_MACHINE.apiStr()) ?
+            UIEntityType.PHYSICAL_MACHINE.apiStr() : relatedType;
     }
 
     /**
@@ -726,8 +726,8 @@ public class StatsMapper {
                     }
                     // set related entity type
                     if (statRecord.hasAssociatedEntityType()) {
-                        statApiDTO.setRelatedEntityType(ServiceEntityMapper.toUIEntityType(
-                            statRecord.getAssociatedEntityType()));
+                        statApiDTO.setRelatedEntityType(UIEntityType.fromType(
+                            statRecord.getAssociatedEntityType()).apiStr());
                     }
                     return statApiDTO;
                 })

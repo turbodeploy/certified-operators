@@ -9,28 +9,24 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.search.Search;
-import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
-import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.FilterTypeCase;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.graph.search.SearchResolver;
 
 /**
  *  Class to resolve members of groups by searching in the topologyGraph.
@@ -46,7 +42,7 @@ import com.vmturbo.topology.processor.topology.TopologyGraph;
 public class GroupResolver {
     private static final Logger logger = LogManager.getLogger();
 
-    private final TopologyFilterFactory filterFactory;
+    private final SearchResolver<TopologyEntity> searchResolver;
 
     /**
      * Cache for storing resolved groups.
@@ -56,11 +52,9 @@ public class GroupResolver {
 
     /**
      * Create a GroupResolver.
-     *
-     * @param filterFactory The topology filter factory to use when resolving dynamic groups.
      */
-    public GroupResolver(@Nonnull final TopologyFilterFactory filterFactory) {
-        this.filterFactory = Objects.requireNonNull(filterFactory);
+    public GroupResolver(@Nonnull final SearchResolver<TopologyEntity> searchResolver) {
+        this.searchResolver = Objects.requireNonNull(searchResolver);
         this.groupResolverCache = new HashMap<>();
     }
 
@@ -73,7 +67,7 @@ public class GroupResolver {
      * @throws GroupResolutionException when a dynamic group cannot be resolved.
      */
     public Set<Long> resolve(@Nonnull final Group group,
-                             @Nonnull final TopologyGraph graph)
+                             @Nonnull final TopologyGraph<TopologyEntity> graph)
             throws GroupResolutionException {
 
         Preconditions.checkArgument(group.hasId(), "Missing groupId");
@@ -96,7 +90,7 @@ public class GroupResolver {
      * @throws GroupResolutionException when a dynamic group cannot be resolved.
      */
     private Set<Long> resolveMembers(@Nonnull final Group group,
-                                     @Nonnull final TopologyGraph graph)
+                                     @Nonnull final TopologyGraph<TopologyEntity> graph)
             throws GroupResolutionException {
 
         Optional<Set<Long>> groupMembers = Optional.empty();
@@ -160,11 +154,13 @@ public class GroupResolver {
     Set<Long> resolveDynamicGroup(final long groupId,
                                   final int groupEntityType,
                                   @Nonnull final SearchParameters search,
-                                  @Nonnull final TopologyGraph graph) throws GroupResolutionException {
+                                  @Nonnull final TopologyGraph<TopologyEntity> graph) throws GroupResolutionException {
         try {
             long resolutionStartTime = System.currentTimeMillis();
 
-            final Set<Long> members = executeResolution(search, graph);
+            final Set<Long> members = searchResolver.search(search, graph)
+                .map(TopologyEntity::getOid)
+                .collect(Collectors.toSet());
 
             final long duration = System.currentTimeMillis() - resolutionStartTime;
             final long numTraversalFilters = search.getSearchFilterList().stream()
@@ -182,32 +178,5 @@ public class GroupResolver {
         } catch (RuntimeException e) {
             throw new GroupResolutionException(e);
         }
-    }
-
-    private Set<Long> executeResolution(@Nonnull final SearchParameters search, @Nonnull final TopologyGraph graph) {
-        Stream<TopologyEntity> matchingEntities = startingEntities(search.getStartingFilter(), graph);
-
-        for (SearchFilter filter : search.getSearchFilterList()) {
-            matchingEntities = filterFactory.filterFor(filter).apply(matchingEntities, graph);
-        }
-
-        return matchingEntities
-            .map(TopologyEntity::getOid)
-            .collect(Collectors.toSet());
-    }
-
-    private Stream<TopologyEntity> startingEntities(@Nonnull final Search.PropertyFilter startingFilter,
-                                                    @Nonnull final TopologyGraph graph) {
-        if (startingFilter.getPropertyName().equals(TopologyFilterFactory.ENTITY_TYPE_PROPERTY_NAME)) {
-            Preconditions.checkArgument(startingFilter.hasNumericFilter());
-            if (startingFilter.getNumericFilter().getComparisonOperator().equals(ComparisonOperator.EQ)) {
-                // In the case where the starting filter is an EQUALS comparison on entity type,
-                // we can accelerate the lookup using the graph.entitiesOfType method.
-                return graph.entitiesOfType((int) startingFilter.getNumericFilter().getValue());
-            }
-        }
-
-        return filterFactory.filterFor(startingFilter)
-                .apply(graph.entities(), graph);
     }
 }

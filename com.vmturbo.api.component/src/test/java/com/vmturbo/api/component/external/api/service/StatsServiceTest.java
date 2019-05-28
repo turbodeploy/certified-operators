@@ -1,7 +1,5 @@
 package com.vmturbo.api.component.external.api.service;
 
-import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType.DATACENTER;
-import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType.PHYSICAL_MACHINE;
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getStatsByUuidsQuery;
 import static java.lang.Boolean.TRUE;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -60,8 +58,6 @@ import com.google.common.collect.Sets;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
@@ -146,6 +142,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.components.common.identity.OidSet;
@@ -221,7 +218,7 @@ public class StatsServiceTest {
     static {
         ENTITY_DESCRIPTOR.setUuid("1");
         ENTITY_DESCRIPTOR.setDisplayName("hello japan");
-        ENTITY_DESCRIPTOR.setClassName(PHYSICAL_MACHINE_TYPE);
+        ENTITY_DESCRIPTOR.setClassName(UIEntityType.PHYSICAL_MACHINE.apiStr());
     }
 
     @Rule
@@ -458,7 +455,8 @@ public class StatsServiceTest {
         GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest.newBuilder()
                 .setEntityTypeFilter(EntityTypeFilter.newBuilder()
                     .addAllEntityTypeId(StatsService.ENTITY_TYPES_COUNTED_AS_WORKLOAD.stream()
-                        .map(ServiceEntityMapper::fromUIEntityType)
+                        .map(UIEntityType::fromString)
+                        .map(UIEntityType::typeNumber)
                         .collect(Collectors.toSet())))
                 .build();
         verify(costServiceSpy).getCloudCostStats(cloudCostStatsRequest);
@@ -476,7 +474,7 @@ public class StatsServiceTest {
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
         final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
         statApiInputDTO.setName(StringConstants.COST_PRICE);
-        statApiInputDTO.setRelatedEntityType(UIEntityType.VIRTUAL_MACHINE.getValue());
+        statApiInputDTO.setRelatedEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
         inputDto.setStatistics(Lists.newArrayList(statApiInputDTO));
         final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
                 .setFilter(StatsFilter.newBuilder().addCommodityRequests(CommodityRequest.newBuilder().build())
@@ -585,7 +583,7 @@ public class StatsServiceTest {
         apiDto.setStatistics(Collections.emptyList());
         when(statsMapper.toCloudStatSnapshotApiDTO(any())).thenReturn(apiDto);
         when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
-        doReturn(ImmutableMap.of(UIEntityType.VIRTUAL_MACHINE.getValue(), Sets.newHashSet(1L)))
+        doReturn(ImmutableMap.of(UIEntityType.VIRTUAL_MACHINE.apiStr(), Sets.newHashSet(1L)))
             .when(statsService).fetchRelatedEntitiesForScopes(any(), any(), any());
 
         final List<StatSnapshotApiDTO> resp = statsService
@@ -595,7 +593,8 @@ public class StatsServiceTest {
                 .setEntityFilter(EntityFilter.newBuilder().addEntityId(1l).build())
                 .setEntityTypeFilter(EntityTypeFilter.newBuilder()
                     .addAllEntityTypeId(StatsService.ENTITY_TYPES_COUNTED_AS_WORKLOAD.stream()
-                        .map(ServiceEntityMapper::fromUIEntityType)
+                        .map(UIEntityType::fromString)
+                        .map(UIEntityType::typeNumber)
                         .collect(Collectors.toSet())))
                 .build();
 
@@ -873,16 +872,15 @@ public class StatsServiceTest {
         when(groupExpander.expandUuid(anyObject())).thenReturn(Sets.newHashSet(7L));
         ServiceEntityApiDTO se7 = new ServiceEntityApiDTO();
         se7.setUuid("7");
-        se7.setClassName(DATACENTER.getValue());
-        when(repositoryApi.getSearchResults(any(), any(), eq(UuidMapper.UI_REAL_TIME_MARKET_STR),
-                any(), any()))
+        se7.setClassName(UIEntityType.DATACENTER.apiStr());
+        when(repositoryApi.getSearchResults(any(), any(), any()))
                 .thenReturn(Lists.newArrayList(se7));
 
         final Set<Long> oids = Sets.newHashSet(101L, 102L);
 
         // set up supply chain result for DC 7
         Map<String, SupplyChainProto.SupplyChainNode> supplyChainNodeMap1 = ImmutableMap.of(
-                PHYSICAL_MACHINE.getValue(), SupplyChainProto.SupplyChainNode.newBuilder()
+                UIEntityType.PHYSICAL_MACHINE.apiStr(), SupplyChainProto.SupplyChainNode.newBuilder()
                         .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                             .addAllMemberOids(oids)
                             .build())
@@ -927,17 +925,16 @@ public class StatsServiceTest {
         when(groupExpander.expandUuid(anyObject())).thenReturn(listOfOidsInGroup);
         ServiceEntityApiDTO se7 = new ServiceEntityApiDTO();
         se7.setUuid("7");
-        se7.setClassName(DATACENTER.getValue());
+        se7.setClassName(UIEntityType.DATACENTER.apiStr());
         ServiceEntityApiDTO se8 = new ServiceEntityApiDTO();
         se8.setUuid("8");
-        se8.setClassName(DATACENTER.getValue());
-        when(repositoryApi.getSearchResults(any(), any(),  eq(UuidMapper.UI_REAL_TIME_MARKET_STR),
-                any(), any()))
+        se8.setClassName(UIEntityType.DATACENTER.apiStr());
+        when(repositoryApi.getSearchResults(any(), any(), any()))
                 .thenReturn(Lists.newArrayList(se7, se8));
 
         // first req, for DC 7, return PMs 101 and 102 for supply chain
         Map<String, SupplyChainProto.SupplyChainNode> supplyChainNodeMap1 = ImmutableMap.of(
-                PHYSICAL_MACHINE.getValue(), SupplyChainProto.SupplyChainNode.newBuilder()
+                UIEntityType.PHYSICAL_MACHINE.apiStr(), SupplyChainProto.SupplyChainNode.newBuilder()
                         .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                                 .addMemberOids(101L)
                                 .addMemberOids(102L)
@@ -946,7 +943,7 @@ public class StatsServiceTest {
         );
         // second call, for DC8, return PMs 103 and 104.
         Map<String, SupplyChainProto.SupplyChainNode> supplyChainNodeMap2 = ImmutableMap.of(
-                PHYSICAL_MACHINE.getValue(), SupplyChainProto.SupplyChainNode.newBuilder()
+                UIEntityType.PHYSICAL_MACHINE.apiStr(), SupplyChainProto.SupplyChainNode.newBuilder()
                         .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                                 .addMemberOids(103L)
                                 .addMemberOids(104L)
@@ -1135,7 +1132,7 @@ public class StatsServiceTest {
         final Set<Long> expandedUids = Sets.newHashSet(1L);
         when(groupExpander.getGroup("1")).thenReturn(Optional.of(Group.newBuilder()
             .setTempGroup(TempGroupInfo.newBuilder()
-                    .setEntityType(ServiceEntityMapper.fromUIEntityType(PHYSICAL_MACHINE_TYPE))
+                    .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
                     .setIsGlobalScopeGroup(true))
             .build()));
 
@@ -1171,7 +1168,7 @@ public class StatsServiceTest {
         verify(groupExpander, never()).expandUuids(any());
         verify(repositoryApi).getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(expandedUids).build());
         verify(statsMapper).toEntityStatsRequest(EntityStatsScope.newBuilder()
-                .setEntityType(ServiceEntityMapper.fromUIEntityType(PHYSICAL_MACHINE_TYPE))
+                .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
                 .build(), period, paginationRequest);
         verify(statsHistoryServiceSpy).getEntityStats(request);
         verify(statsMapper).toStatsSnapshotApiDtoList(ENTITY_STATS);
@@ -1310,12 +1307,12 @@ public class StatsServiceTest {
         period.setStatistics(Collections.emptyList());
 
         final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
-        inputDto.setRelatedType(UIEntityType.PHYSICAL_MACHINE.getValue());
+        inputDto.setRelatedType(UIEntityType.PHYSICAL_MACHINE.apiStr());
         inputDto.setScopes(Collections.singletonList(Long.toString(vmId)));
         inputDto.setPeriod(period);
 
         final Map<String, SupplyChainNode> supplyChainQueryResult = ImmutableMap.of(
-                UIEntityType.PHYSICAL_MACHINE.getValue(),
+                UIEntityType.PHYSICAL_MACHINE.apiStr(),
                 SupplyChainNode.newBuilder()
                     .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                         .addMemberOids(pmId)
@@ -1360,7 +1357,7 @@ public class StatsServiceTest {
         // Shouldn't have called any RPCs, because there should be an early return
         // if there are no entities to look for (since group is empty)
         verify(supplyChainFetcherFactory, never()).newNodeFetcher();
-        verify(repositoryApi, never()).getSearchResults(any(), any(), any(), any(), any());
+        verify(repositoryApi, never()).getSearchResults(any(), any(), any());
         verify(statsHistoryServiceSpy, never()).getAveragedEntityStats(any());
     }
 
@@ -1368,17 +1365,15 @@ public class StatsServiceTest {
     public void testStatsByQueryEmptySupplyChainEarlyReturn() throws Exception {
         final String dcId = "1";
         final ServiceEntityApiDTO dcDto = new ServiceEntityApiDTO();
-        dcDto.setClassName(UIEntityType.DATACENTER.getValue());
+        dcDto.setClassName(UIEntityType.DATACENTER.apiStr());
         dcDto.setUuid(dcId);
         when(groupExpander.getGroup(eq(dcId))).thenReturn(Optional.empty());
         // Query for entities of type DC return the dcDto
-        when(repositoryApi.getSearchResults(null,
-                Collections.singletonList(UIEntityType.DATACENTER.getValue()),
-                UuidMapper.UI_REAL_TIME_MARKET_STR, null, null))
+        when(repositoryApi.getSearchResults(null, Collections.singletonList(UIEntityType.DATACENTER.apiStr()), null))
                 .thenReturn(Collections.singletonList(dcDto));
 
         final SupplyChainNodeFetcherBuilder fetcherBuilder = ApiTestUtils.mockNodeFetcherBuilder(
-            ImmutableMap.of(UIEntityType.PHYSICAL_MACHINE.getValue(),
+            ImmutableMap.of(UIEntityType.PHYSICAL_MACHINE.apiStr(),
                 // Empty node!
                 SupplyChainNode.getDefaultInstance()));
         when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(fetcherBuilder);
@@ -1387,7 +1382,7 @@ public class StatsServiceTest {
                 statsService.getStatsByEntityQuery("1", new StatPeriodApiInputDTO());
         assertTrue(dto.isEmpty());
         // Expect to have had a supply chain lookup for PMs related to the DC.
-        verify(fetcherBuilder).entityTypes(Collections.singletonList(UIEntityType.PHYSICAL_MACHINE.getValue()));
+        verify(fetcherBuilder).entityTypes(Collections.singletonList(UIEntityType.PHYSICAL_MACHINE.apiStr()));
         verify(fetcherBuilder).addSeedUuid(dcId);
 
         // Shouldn't have called history service, because there should be an early return
@@ -1501,7 +1496,7 @@ public class StatsServiceTest {
         // Assert
         verify(statsMapper).normalizeRelatedType(PHYSICAL_MACHINE_TYPE);
         verify(statsMapper).toEntityStatsRequest(EntityStatsScope.newBuilder()
-                .setEntityType(ServiceEntityMapper.fromUIEntityType(PHYSICAL_MACHINE_TYPE))
+                .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
                 .build(), period, paginationRequest);
         verify(statsHistoryServiceSpy).getEntityStats(request);
         verify(repositoryApi).getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(expandedIds).build());

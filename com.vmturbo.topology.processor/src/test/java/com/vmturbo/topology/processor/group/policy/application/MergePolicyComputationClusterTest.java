@@ -1,7 +1,7 @@
 package com.vmturbo.topology.processor.group.policy.application;
 
-import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntity;
 import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchParametersCollection;
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -16,7 +16,7 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper;
 import com.vmturbo.topology.processor.group.policy.PolicyMatcher;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 
 /**
@@ -51,7 +51,7 @@ public class MergePolicyComputationClusterTest extends MergePolicyTestBase {
         topologyMap.put(5L, topologyEntity(5L, EntityType.VIRTUAL_MACHINE, 2));
         topologyMap.put(6L, topologyEntity(6L, EntityType.VIRTUAL_MACHINE));
 
-        super.topologyGraph = TopologyGraph.newGraph(topologyMap);
+        super.topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         super.policyMatcher = new PolicyMatcher(topologyGraph);
     }
 }

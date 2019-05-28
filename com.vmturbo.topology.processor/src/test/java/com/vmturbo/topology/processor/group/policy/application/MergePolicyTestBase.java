@@ -29,11 +29,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.policy.PolicyMatcher;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 /**
  * Base test class for merge policy.
@@ -50,7 +52,7 @@ public class MergePolicyTestBase {
     protected Group group1;
     protected Group group2;
     protected List<PolicyEntities> mergePolicyEntities;
-    protected TopologyGraph topologyGraph;
+    protected TopologyGraph<TopologyEntity> topologyGraph;
     protected PolicyMatcher policyMatcher;
     protected PolicyDTO.PolicyInfo.MergePolicy mergePolicy;
 
@@ -372,7 +374,7 @@ public class MergePolicyTestBase {
     // ensure empty topology graph doesn't throw exception.
     @Test
     public void testEmptyTopologyGraph() throws GroupResolutionException, PolicyApplicationException {
-        topologyGraph = TopologyGraph.newGraph(new HashedMap<>());
+        topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(new HashedMap<>());
         try {
             // assign merge policy to Policy
             final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()

@@ -15,12 +15,13 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 public class PolicyTest {
     final GroupResolver groupResolver = mock(GroupResolver.class);
-    final TopologyGraph topologyGraph = mock(TopologyGraph.class);
+    final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
 
     @Test
     public void testAppliesEnabled() throws Exception {

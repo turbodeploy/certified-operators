@@ -28,6 +28,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Reserv
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector.InjectionSummary;
@@ -55,7 +56,7 @@ public class EnvironmentTypeInjectorTest {
 
     @Test
     public void testDiscoveredCloudEntity() {
-        final TopologyGraph graph = oneEntityGraph(builder -> builder.setOrigin(Origin.newBuilder()
+        final TopologyGraph<TopologyEntity> graph = oneEntityGraph(builder -> builder.setOrigin(Origin.newBuilder()
                 .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
                         .addDiscoveringTargetIds(AWS_TARGET_ID))));
 
@@ -71,7 +72,7 @@ public class EnvironmentTypeInjectorTest {
 
     @Test
     public void testDiscoveredOnPremEntity() {
-        final TopologyGraph graph = oneEntityGraph(builder -> builder.setOrigin(Origin.newBuilder()
+        final TopologyGraph<TopologyEntity> graph = oneEntityGraph(builder -> builder.setOrigin(Origin.newBuilder()
                 .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
                         .addDiscoveringTargetIds(VC_TARGET_ID))));
 
@@ -87,7 +88,7 @@ public class EnvironmentTypeInjectorTest {
 
     @Test
     public void testPlanEntity() {
-        final TopologyGraph graph = oneEntityGraph(builder -> builder.setOrigin(Origin.newBuilder()
+        final TopologyGraph<TopologyEntity> graph = oneEntityGraph(builder -> builder.setOrigin(Origin.newBuilder()
             .setPlanScenarioOrigin(PlanScenarioOrigin.newBuilder()
                 .setPlanId(1111))));
 
@@ -103,7 +104,7 @@ public class EnvironmentTypeInjectorTest {
 
     @Test
     public void testReservationEntity() {
-        final TopologyGraph graph = oneEntityGraph(builder -> builder.setOrigin(Origin.newBuilder()
+        final TopologyGraph<TopologyEntity> graph = oneEntityGraph(builder -> builder.setOrigin(Origin.newBuilder()
             .setReservationOrigin(ReservationOrigin.newBuilder()
                 .setReservationId(112))));
 
@@ -119,7 +120,7 @@ public class EnvironmentTypeInjectorTest {
 
     @Test
     public void testUnsetOriginEntity() {
-        final TopologyGraph graph = oneEntityGraph(builder -> {});
+        final TopologyGraph<TopologyEntity> graph = oneEntityGraph(builder -> {});
 
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
 
@@ -134,7 +135,7 @@ public class EnvironmentTypeInjectorTest {
 
     @Test
     public void testOverrideSetUnknownEnvType() {
-        final TopologyGraph graph = oneEntityGraph(builder -> {
+        final TopologyGraph<TopologyEntity> graph = oneEntityGraph(builder -> {
             builder.setEnvironmentType(EnvironmentType.UNKNOWN_ENV);
             builder.setOrigin(Origin.newBuilder()
                 .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
@@ -155,7 +156,7 @@ public class EnvironmentTypeInjectorTest {
     @Test
     public void testNoOverrideSetEnvType() {
         final long targetId = 1;
-        final TopologyGraph graph = oneEntityGraph(builder -> {
+        final TopologyGraph<TopologyEntity> graph = oneEntityGraph(builder -> {
             builder.setEnvironmentType(EnvironmentType.ON_PREM);
             builder.setOrigin(Origin.newBuilder()
                     .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
@@ -175,13 +176,13 @@ public class EnvironmentTypeInjectorTest {
     }
 
     @Nonnull
-    private TopologyGraph oneEntityGraph(final Consumer<TopologyEntityDTO.Builder> entityCustomizer) {
+    private TopologyGraph<TopologyEntity> oneEntityGraph(final Consumer<TopologyEntityDTO.Builder> entityCustomizer) {
         final TopologyEntityDTO.Builder entityBuilder = TopologyEntityDTO.newBuilder()
                 .setOid(ENTITY_OID)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
         entityCustomizer.accept(entityBuilder);
         final TopologyEntity.Builder entity = TopologyEntity.newBuilder(entityBuilder);
-        return TopologyGraph.newGraph(ImmutableMap.of(ENTITY_OID, entity));
+        return TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(ENTITY_OID, entity));
     }
 
     private void addFakeTarget(final long targetId, final SDKProbeType probeType) {

@@ -19,6 +19,7 @@ import com.vmturbo.api.enums.ActionCostType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -104,7 +105,7 @@ public class GroupByFilters {
 
     public void setTargetEntityType(final int entityType) {
         setValue(StringConstants.TARGET_TYPE,
-            ServiceEntityMapper.toUIEntityType(entityType));
+            UIEntityType.fromType(entityType).apiStr());
     }
 
     public void setTargetEntityId(final long entityId) {

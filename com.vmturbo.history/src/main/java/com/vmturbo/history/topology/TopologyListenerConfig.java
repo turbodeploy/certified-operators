@@ -1,21 +1,19 @@
 package com.vmturbo.history.topology;
 
-import java.util.EnumSet;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.stats.StatsConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
-import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Subscription;
-
-import com.vmturbo.group.api.GroupClientConfig;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
 
 /**
  * Set up a Listener for the Topology Processor feed.
@@ -48,7 +46,7 @@ public class TopologyListenerConfig {
     @Bean
     public TopologyProcessor topologyProcessor() {
         final TopologyProcessor topologyProcessor = topologyClientConfig.topologyProcessor(
-                EnumSet.of(Subscription.LiveTopologies));
+            TopologyProcessorSubscription.forTopic(Topic.LiveTopologies));
         topologyProcessor.addLiveTopologyListener(liveTopologyEntitiesListener());
         return topologyProcessor;
     }

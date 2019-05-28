@@ -18,14 +18,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.group.GroupResolutionException;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
  * Specifies how to apply a particular set {@link PlacementPolicy}.
@@ -60,7 +58,7 @@ public abstract class PlacementPolicyApplication {
     protected Logger logger = LogManager.getLogger(getClass());
 
     protected final GroupResolver groupResolver;
-    protected final TopologyGraph topologyGraph;
+    protected final TopologyGraph<TopologyEntity> topologyGraph;
 
     /**
      * Counters for commodities added during this poloicy application.
@@ -70,7 +68,7 @@ public abstract class PlacementPolicyApplication {
     private Map<CommodityDTO.CommodityType, MutableInt> addedCommodities = new HashMap<>();
 
     protected PlacementPolicyApplication(final GroupResolver groupResolver,
-                                         final TopologyGraph topologyGraph) {
+                                         final TopologyGraph<TopologyEntity> topologyGraph) {
         this.groupResolver = groupResolver;
         this.topologyGraph = topologyGraph;
     }
@@ -212,15 +210,15 @@ public abstract class PlacementPolicyApplication {
                                       @Nonnull final CommodityBoughtDTO segmentationCommodity)
         throws PolicyApplicationException {
         for (Long consumerId : consumers) {
-            final Optional<Builder> optionalConsumer = topologyGraph.getEntity(consumerId)
-                .map(TopologyEntity::getTopologyEntityDtoBuilder);
+            final Optional<TopologyEntity> optionalConsumer = topologyGraph.getEntity(consumerId);
             if (optionalConsumer.isPresent()) {
                 final TopologyEntityDTO.Builder consumer;
                 final Optional<Long> volumeId;
                 if (optionalConsumer.get().getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
                     // if it's volume, the real consumer should be the VM which uses this volume
-                    Optional<TopologyEntityDTO.Builder> optVM = topologyGraph.getConnectedFromEntitiesOfType(
-                        consumerId, EntityType.VIRTUAL_MACHINE_VALUE).findFirst();
+                    Optional<TopologyEntity> optVM =  optionalConsumer.get()
+                        .getConnectedFromEntities(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .findFirst();
                     if (!optVM.isPresent()) {
                         // the volume is not used by any VM, which means it is a wasted volume,
                         // so we can't add segmentation commodity to related VM
@@ -228,10 +226,10 @@ public abstract class PlacementPolicyApplication {
                         continue;
                     }
                     // consumer should be the VM which is connected to this volume
-                    consumer = optVM.get();
+                    consumer = optVM.get().getTopologyEntityDtoBuilder();
                     volumeId = Optional.of(consumerId);
                 } else {
-                    consumer = optionalConsumer.get();
+                    consumer = optionalConsumer.get().getTopologyEntityDtoBuilder();
                     volumeId = Optional.empty();
                 }
 
@@ -278,7 +276,7 @@ public abstract class PlacementPolicyApplication {
      * @return boolean type represents if provider entity type matches.
      */
     private boolean shouldAddSegmentToCommodityBought(@Nonnull CommoditiesBoughtFromProvider commodityBoughtGrouping,
-                                                      @Nonnull final TopologyGraph topologyGraph,
+                                                      @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
                                                       final int providerType,
                                                       @Nonnull Optional<Long> volumeId) {
         // TODO: After we guarantee that commodity type always have provider entity type, we will not
@@ -388,7 +386,7 @@ public abstract class PlacementPolicyApplication {
      * @return Whether the provider is of the {@code providerEntityType}.
      */
     protected boolean isProviderOfType(final long providerId,
-                                       @Nonnull final TopologyGraph topologyGraph,
+                                       @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
                                        final int providerEntityType) {
         return topologyGraph.getEntity(providerId)
             .map(vertex -> vertex.getEntityType() == providerEntityType)

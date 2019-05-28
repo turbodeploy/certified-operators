@@ -17,7 +17,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -32,12 +31,12 @@ import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingIndex;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
-import com.vmturbo.stitching.StitchingScope;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.IStitchingJournal.StitchingPhase;
-import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalTargetEntrySupplier;
@@ -87,7 +86,7 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * 3. PostStitching: This phase happens after the
  *    {@link com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline} phases listed above.
  *    Settings are available in this phase but the relationships in the
- *    {@link com.vmturbo.topology.processor.topology.TopologyGraph} being stitched cannot be mutated by this phase.
+ *    {@link TopologyGraph<TopologyEntity>} being stitched cannot be mutated by this phase.
  *    {@link PostStitchingOperation}s are run during this phase.
  */
 public class StitchingManager {
@@ -171,7 +170,7 @@ public class StitchingManager {
      * @param stitchingJournal The stitching journal used to track changes.
      * @return A {@link StitchingContext} that contains the results of applying the stitching
      *         operations to the entities in the {@link TargetStore}. This context can be used
-     *         to construct a {@link com.vmturbo.topology.processor.topology.TopologyGraph}.
+     *         to construct a {@link TopologyGraph <TopologyEntity>}.
      */
     @Nonnull
     public StitchingContext stitch(@Nonnull final StitchingContext stitchingContext,
@@ -194,7 +193,7 @@ public class StitchingManager {
      *
      * @param graphWithSettings An object containing both the topology graph and associated settings.
      * @param stitchingJournal The journal to use to trace changes made during stitching.
-     * {@link com.vmturbo.topology.processor.topology.TopologyGraph} and settings to be used during post-stitching.
+     * {@link TopologyGraph<TopologyEntity>} and settings to be used during post-stitching.
      */
     public void postStitch(@Nonnull final GraphWithSettings graphWithSettings,
                            @Nonnull final IStitchingJournal<TopologyEntity> stitchingJournal) {

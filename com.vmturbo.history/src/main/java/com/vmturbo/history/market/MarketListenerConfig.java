@@ -81,8 +81,8 @@ public class MarketListenerConfig {
     @Bean
     public MarketComponent marketComponent() {
         final MarketComponent market = marketClientConfig.marketComponent(
-                MarketSubscription.forTopic(Topic.ProjectedTopologies),
-                MarketSubscription.forTopic(Topic.PlanAnalysisTopologies));
+            MarketSubscription.forTopic(Topic.ProjectedTopologies),
+            MarketSubscription.forTopic(Topic.PlanAnalysisTopologies));
         market.addProjectedTopologyListener(marketListener());
         market.addPlanAnalysisTopologyListener(planAnalysisTopologyListener());
         return market;

@@ -11,9 +11,10 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
  * Applies a collection of {@link AtMostNPolicy}s. No bulk optimizations.
@@ -21,7 +22,7 @@ import com.vmturbo.topology.processor.topology.TopologyGraph;
 public class AtMostNPolicyApplication extends PlacementPolicyApplication {
 
     protected AtMostNPolicyApplication(final GroupResolver groupResolver,
-                                       final TopologyGraph topologyGraph) {
+                                       final TopologyGraph<TopologyEntity> topologyGraph) {
         super(groupResolver, topologyGraph);
     }
 

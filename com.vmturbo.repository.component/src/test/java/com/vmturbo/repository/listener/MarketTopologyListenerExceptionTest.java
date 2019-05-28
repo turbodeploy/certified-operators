@@ -7,7 +7,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Optional;
 
 import org.junit.Before;
@@ -24,9 +23,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.repository.RepositoryNotificationSender;
+import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
-import com.vmturbo.repository.topology.TopologyLifecycleManager.ProjectedTopologyCreator;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
 import com.vmturbo.repository.util.RepositoryTestUtil;
 
@@ -46,7 +45,12 @@ public class MarketTopologyListenerExceptionTest {
     private TopologyLifecycleManager topologyManager;
 
     @Mock
-    private ProjectedTopologyCreator topologyCreator;
+    private TopologyCreator<ProjectedTopologyEntity> topologyCreator;
+
+    @Mock
+    private LiveTopologyStore liveTopologyStore;
+
+    private final long realtimeContextId = 123101;
 
     @Mock
     private RemoteIterator<ProjectedTopologyEntity> entityIterator;
@@ -59,6 +63,11 @@ public class MarketTopologyListenerExceptionTest {
     private static final long projectedTopologyId = 33333L;
     private static final long creationTime = 44444L;
     private static final TopologyID tid = new TopologyID(topologyContextId, projectedTopologyId, TopologyID.TopologyType.PROJECTED);
+    private static final TopologyInfo originalInfo = TopologyInfo.newBuilder()
+        .setTopologyId(srcTopologyId)
+            .setTopologyContextId(topologyContextId)
+            .setCreationTime(creationTime)
+            .build();
 
     public MarketTopologyListenerExceptionTest() throws IOException {
         vmDTO = ProjectedTopologyEntity.newBuilder()
@@ -72,10 +81,10 @@ public class MarketTopologyListenerExceptionTest {
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-        marketTopologyListener = new MarketTopologyListener( apiBackend, topologyManager);
+        marketTopologyListener = new MarketTopologyListener(apiBackend, topologyManager);
 
         when(entityIterator.hasNext()).thenReturn(true).thenReturn(true).thenReturn(false);
-        when(topologyManager.newProjectedTopologyCreator(any())).thenReturn(topologyCreator);
+        when(topologyManager.newProjectedTopologyCreator(any(), any())).thenReturn(topologyCreator);
     }
 
     /**
@@ -88,13 +97,8 @@ public class MarketTopologyListenerExceptionTest {
         when(entityIterator.nextChunk()).thenReturn(Sets.newHashSet(vmDTO, pmDTO))
                                         .thenThrow(new InterruptedException("interrupted"));
         when(topologyManager.getRealtimeTopologyId()).thenReturn(Optional.empty());
-        marketTopologyListener.onProjectedTopologyReceived(
-                projectedTopologyId,
-                TopologyInfo.newBuilder()
-                        .setTopologyId(srcTopologyId)
-                        .setTopologyContextId(topologyContextId)
-                        .setCreationTime(creationTime)
-                        .build(),
+        marketTopologyListener.onProjectedTopologyReceived(projectedTopologyId,
+                 originalInfo,
                  entityIterator);
 
         verifyMocks();
@@ -154,7 +158,7 @@ public class MarketTopologyListenerExceptionTest {
     }
 
     private void verifyMocks() throws Exception {
-        verify(topologyManager).newProjectedTopologyCreator(tid);
+        verify(topologyManager).newProjectedTopologyCreator(tid, originalInfo);
         verify(topologyCreator, never()).complete();
         verify(topologyCreator).rollback();
         // 1 invocation before the exception is thrown

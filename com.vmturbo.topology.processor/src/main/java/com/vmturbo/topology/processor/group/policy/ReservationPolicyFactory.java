@@ -37,11 +37,11 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
 import com.vmturbo.topology.processor.group.policy.application.BindToGroupPolicy;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
 import com.vmturbo.topology.processor.topology.TopologyEditorException;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
  * Generate BindToGroup policy for initial placement and Reservation. For each
@@ -71,7 +71,7 @@ public class ReservationPolicyFactory {
      * @return {@link BindToGroupPolicy}.
      */
     public PlacementPolicy generatePolicyForInitialPlacement(
-            @Nonnull final TopologyGraph graph,
+            @Nonnull final TopologyGraph<TopologyEntity> graph,
             @Nonnull final List<ReservationConstraintInfo> constraints,
             @Nonnull final Set<Long> consumers) {
         final Group pmProviderGroup = generateProviderGroup(graph, constraints);
@@ -82,7 +82,7 @@ public class ReservationPolicyFactory {
     }
 
     public PlacementPolicy generatePolicyForReservation(
-            @Nonnull final TopologyGraph graph,
+            @Nonnull final TopologyGraph<TopologyEntity> graph,
             @Nonnull final List<ReservationConstraintInfo> constraints,
             @Nonnull final Reservation reservation) {
         // when we support different template types for reservation, we should generate generic provider group
@@ -107,7 +107,7 @@ public class ReservationPolicyFactory {
         return generateStaticGroup(consumers, EntityType.VIRTUAL_MACHINE_VALUE);
     }
 
-    private Group generateProviderGroup(@Nonnull final TopologyGraph graph,
+    private Group generateProviderGroup(@Nonnull final TopologyGraph<TopologyEntity> graph,
                                         @Nonnull final List<ReservationConstraintInfo> constraints) {
         final Map<Integer, Set<TopologyEntity>> providersMap =
                 performIntersectionWithConstraints(graph, constraints);
@@ -132,7 +132,7 @@ public class ReservationPolicyFactory {
      * @return a Map which key is entity type and value is a set of entity which match all constraints.
      */
     private Map<Integer, Set<TopologyEntity>> performIntersectionWithConstraints(
-            @Nonnull final TopologyGraph graph,
+            @Nonnull final TopologyGraph<TopologyEntity> graph,
             @Nonnull final List<ReservationConstraintInfo> constraints) {
         final Map<Integer, Set<TopologyEntity>> providersMap = new HashMap<>();
         for (ReservationConstraintInfo constraint : constraints) {
@@ -163,7 +163,7 @@ public class ReservationPolicyFactory {
      */
     @VisibleForTesting
     Map<Integer, Set<TopologyEntity>> getProviderMembersOfConstraint(
-            @Nonnull final TopologyGraph graph,
+            @Nonnull final TopologyGraph<TopologyEntity> graph,
             @Nonnull final ReservationConstraintInfo constraint) {
         switch (constraint.getType()) {
             case CLUSTER:

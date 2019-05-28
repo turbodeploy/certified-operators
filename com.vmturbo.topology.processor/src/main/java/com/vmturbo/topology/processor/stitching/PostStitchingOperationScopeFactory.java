@@ -22,28 +22,28 @@ import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
  * A Factory for constructing concrete {@link StitchingScope}s for use in
  * {@link PostStitchingOperation}s.
  *
- * These scopes determine which entities in the {@link com.vmturbo.topology.processor.topology.TopologyGraph}
+ * These scopes determine which entities in the {@link TopologyGraph<TopologyEntity>}
  * are fed to the {@link PostStitchingOperation#performOperation(Stream, EntitySettingsCollection, EntityChangesBuilder)}
  * method.
  */
 public class PostStitchingOperationScopeFactory implements StitchingScopeFactory<TopologyEntity> {
 
     private static final Logger logger = LogManager.getLogger();
-    private final TopologyGraph topologyGraph;
+    private final TopologyGraph<TopologyEntity> topologyGraph;
     private final ProbeStore probeStore;
     private final TargetStore targetStore;
     private final CpuCapacityStore cpuCapacitystore;
 
-    public PostStitchingOperationScopeFactory(@Nonnull final TopologyGraph topologyGraph,
+    public PostStitchingOperationScopeFactory(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
                                               @Nonnull final ProbeStore probeStore,
                                               @Nonnull final TargetStore targetStore,
                                               @Nonnull final CpuCapacityStore cpuCapacityStore) {
@@ -134,7 +134,7 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
                 entityType, probeStore, targetStore);
     }
 
-    public TopologyGraph getTopologyGraph() {
+    public TopologyGraph<TopologyEntity> getTopologyGraph() {
         return topologyGraph;
     }
 
@@ -142,13 +142,13 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
      * The base class for calculation scopes. Takes a {@link StitchingContext}.
      */
     private static abstract class BaseStitchingScope implements StitchingScope<TopologyEntity> {
-        private final TopologyGraph topologyGraph;
+        private final TopologyGraph<TopologyEntity> topologyGraph;
 
-        public BaseStitchingScope(@Nonnull final TopologyGraph topologyGraph) {
+        public BaseStitchingScope(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
             this.topologyGraph = Objects.requireNonNull(topologyGraph);
         }
 
-        public TopologyGraph getTopologyGraph() {
+        public TopologyGraph<TopologyEntity> getTopologyGraph() {
             return topologyGraph;
         }
     }
@@ -157,7 +157,7 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
      * A calculation scope for applying a calculation globally to all entities.
      */
     private static class GlobalStitchingScope extends BaseStitchingScope {
-        public GlobalStitchingScope(@Nonnull TopologyGraph topologyGraph) {
+        public GlobalStitchingScope(@Nonnull TopologyGraph<TopologyEntity> topologyGraph) {
             super(topologyGraph);
         }
 
@@ -177,7 +177,7 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
         private final ProbeStore probeStore;
         private final TargetStore targetStore;
 
-        public ProbeTypeStitchingScope(@Nonnull TopologyGraph topologyGraph,
+        public ProbeTypeStitchingScope(@Nonnull TopologyGraph<TopologyEntity> topologyGraph,
                                        @Nonnull final String probeTypeName,
                                        @Nonnull final ProbeStore probeStore,
                                        @Nonnull final TargetStore targetStore) {
@@ -216,7 +216,7 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
 
         private final EntityType entityType;
 
-        public EntityTypeStitchingScope(@Nonnull TopologyGraph topologyGraph,
+        public EntityTypeStitchingScope(@Nonnull TopologyGraph<TopologyEntity> topologyGraph,
                                         @Nonnull final EntityType entityType) {
             super(topologyGraph);
             this.entityType = Objects.requireNonNull(entityType);
@@ -236,7 +236,7 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
 
         private final List<EntityType> entityTypes;
 
-        public MultiEntityTypesStitchingScope(@Nonnull TopologyGraph topologyGraph,
+        public MultiEntityTypesStitchingScope(@Nonnull TopologyGraph<TopologyEntity> topologyGraph,
                                               @Nonnull final List<EntityType> entityTypes) {
             super(topologyGraph);
             this.entityTypes = Objects.requireNonNull(entityTypes);
@@ -258,7 +258,7 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
 
         private final List<EntityType> entityTypes;
 
-        public ContainsAllEntityTypesStitchingScope(@Nonnull TopologyGraph topologyGraph,
+        public ContainsAllEntityTypesStitchingScope(@Nonnull TopologyGraph<TopologyEntity> topologyGraph,
                 @Nonnull final List<EntityType> entityTypes) {
             super(topologyGraph);
             this.entityTypes = Objects.requireNonNull(entityTypes);
@@ -289,7 +289,7 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
         private final ProbeStore probeStore;
         private final TargetStore targetStore;
 
-        public ProbeEntityTypeStitchingScope(@Nonnull TopologyGraph topologyGraph,
+        public ProbeEntityTypeStitchingScope(@Nonnull TopologyGraph<TopologyEntity> topologyGraph,
                                              @Nonnull final String probeTypeName,
                                              @Nonnull final EntityType entityType,
                                              @Nonnull final ProbeStore probeStore,
@@ -333,7 +333,7 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
         private final ProbeStore probeStore;
         private final TargetStore targetStore;
 
-        public MultiProbeEntityTypeStitchingScope(@Nonnull TopologyGraph topologyGraph,
+        public MultiProbeEntityTypeStitchingScope(@Nonnull TopologyGraph<TopologyEntity> topologyGraph,
                                              @Nonnull final Set<String> probeTypeNames,
                                              @Nonnull final EntityType entityType,
                                              @Nonnull final ProbeStore probeStore,
@@ -398,7 +398,7 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
         private final ProbeStore probeStore;
         private final TargetStore targetStore;
 
-        public ProbeCategoryEntityTypeStitchingScope(@Nonnull TopologyGraph topologyGraph,
+        public ProbeCategoryEntityTypeStitchingScope(@Nonnull TopologyGraph<TopologyEntity> topologyGraph,
                                                      @Nonnull final ProbeCategory probeCategory,
                                                      @Nonnull final EntityType entityType,
                                                      @Nonnull final ProbeStore probeStore,
@@ -436,7 +436,7 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
         private final ProbeStore probeStore;
         private final TargetStore targetStore;
 
-        public MultiProbeCategoryEntityTypeStitchingScope(@Nonnull TopologyGraph topologyGraph,
+        public MultiProbeCategoryEntityTypeStitchingScope(@Nonnull TopologyGraph<TopologyEntity> topologyGraph,
                                                      @Nonnull final Set<ProbeCategory> probeCategories,
                                                      @Nonnull final EntityType entityType,
                                                      @Nonnull final ProbeStore probeStore,

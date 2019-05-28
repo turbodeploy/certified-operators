@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -20,6 +21,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -29,94 +31,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class SearchMapperTest {
 
-    static final String FOO = "foo";
-    static final String BAR = "bar";
-    static final String VM = "VirtualMachine";
-
-    @Test
-    public void testNameFilter() {
-        PropertyFilter fooSearch = SearchMapper.nameFilterRegex(FOO);
-        assertEquals("displayName", fooSearch.getPropertyName());
-        assertEquals("^" + FOO + "$", fooSearch.getStringFilter().getStringPropertyRegex());
-        assertEquals(0, fooSearch.getStringFilter().getOptionsCount());
-    }
-
-    @Test
-    public void testNameFilterWithMatch() {
-        PropertyFilter fooSearch = SearchMapper.nameFilterRegex(FOO, false, false);
-        assertEquals("displayName", fooSearch.getPropertyName());
-        assertEquals("^" + FOO + "$", fooSearch.getStringFilter().getStringPropertyRegex());
-        assertEquals(0, fooSearch.getStringFilter().getOptionsCount());
-    }
-
-    @Test
-    public void testEntityFilter() {
-        PropertyFilter vmSearch = SearchMapper.entityTypeFilter(VM);
-        assertEquals("entityType", vmSearch.getPropertyName());
-        assertEquals(ServiceEntityMapper.fromUIEntityType(VM),
-            vmSearch.getNumericFilter().getValue());
-    }
-
-    @Test
-    public void testRegexPropertyFilter() {
-        PropertyFilter fooBar = SearchMapper.stringPropertyFilterRegex(BAR, FOO);
-        assertEquals(BAR, fooBar.getPropertyName());
-        assertEquals("^" + FOO + "$", fooBar.getStringFilter().getStringPropertyRegex());
-    }
-
-    @Test
-    public void testPropertyFilter() {
-        PropertyFilter fooBar = SearchMapper.stringPropertyFilterExact(BAR, Collections.singletonList(FOO));
-        assertEquals(BAR, fooBar.getPropertyName());
-        assertEquals(1, fooBar.getStringFilter().getOptionsCount());
-        assertEquals(FOO, fooBar.getStringFilter().getOptions(0));
-        assertFalse(fooBar.getStringFilter().hasStringPropertyRegex());
-    }
-
-    @Test
-    public void testStringFilterNoDoublePrefix() {
-        assertThat(
-            SearchMapper.stringFilterRegex("^val", true, false).getStringPropertyRegex(),
-            // No extra "^" prefix.
-            is("^val$"));
-    }
-
-    @Test
-    public void testStringFilterNoDoubleSuffix() {
-        assertThat(
-            SearchMapper.stringFilterRegex("val$", true, false).getStringPropertyRegex(),
-            // No extra "$" suffix.
-            is("^val$"));
-    }
-
-    @Test
-    public void testTraverseToType() {
-        TraversalFilter traversalFilter =
-                        SearchMapper.traverseToType(TraversalDirection.CONSUMES, VM);
-        assertEquals(TraversalDirection.CONSUMES, traversalFilter.getTraversalDirection());
-        assertEquals(SearchMapper.numericPropertyFilter("entityType",
-            ServiceEntityMapper.fromUIEntityType(VM), ComparisonOperator.EQ),
-            traversalFilter.getStoppingCondition().getStoppingPropertyFilter());
-    }
-
-    @Test
-    public void testSearchProperty() {
-        PropertyFilter fooBar = SearchMapper.stringPropertyFilterRegex(BAR, FOO);
-        SearchFilter searchFilter = SearchMapper.searchFilterProperty(fooBar);
-        assertEquals(fooBar, searchFilter.getPropertyFilter());
-    }
-
-    @Test
-    public void testSearchTraversal() {
-        TraversalFilter traversalFilter =
-                        SearchMapper.traverseToType(TraversalDirection.CONSUMES, VM);
-        SearchFilter searchFilter = SearchMapper.searchFilterTraversal(traversalFilter);
-        assertEquals(traversalFilter, searchFilter.getTraversalFilter());
-
-    }
-
     private static long oid = 123456;
-    private static int state = EntityState.MAINTENANCE_VALUE; // MAINTENANCE
+    private static EntityState state = EntityState.MAINTENANCE; // MAINTENANCE
     private static String displayName = "foo";
     private static int vmType = EntityType.VIRTUAL_MACHINE_VALUE;
 
@@ -132,7 +48,7 @@ public class SearchMapperTest {
         assertEquals(displayName, seDTO.getDisplayName());
         assertEquals(String.valueOf(oid), seDTO.getUuid());
         assertEquals("MAINTENANCE", seDTO.getState());
-        assertEquals(ServiceEntityMapper.UIEntityType.VIRTUAL_MACHINE.getValue(), seDTO.getClassName());
+        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), seDTO.getClassName());
     }
 
     /**
@@ -145,11 +61,11 @@ public class SearchMapperTest {
         ImmutableList<String> EXPECTED_TYPES = ImmutableList.of(
             "VirtualMachine", "PhysicalMachine", "Storage", "DiskArray", "DataCenter", "VirtualDataCenter",
             "BusinessApplication", "ApplicationServer", "Application", "VirtualApplication",
-            "Container", "ContainerPod", "StorageController", "IOModule", "Switch", "Chassis",
+            "Container", "ContainerPod", "VPod", "DPod", "StorageController", "IOModule", "Switch", "Chassis",
             "Network", "LogicalPool", "Database", "DatabaseServer", "LoadBalancer",
             "BusinessAccount", "CloudService", "ComputeTier", "StorageTier", "DatabaseTier",
             "DatabaseServerTier", "AvailabilityZone", "Region", "VirtualVolume", "ProcessorPool");
-        assertEquals(EXPECTED_TYPES, SearchMapper.SEARCH_ALL_TYPES);
+        assertThat(SearchMapper.SEARCH_ALL_TYPES, containsInAnyOrder(EXPECTED_TYPES.toArray()));
     }
 
     /**
@@ -213,16 +129,5 @@ public class SearchMapperTest {
         assertEquals("Prop", filter.getPropertyName());
         assertEquals("", filter.getMapFilter().getKey());
         assertEquals(0, filter.getMapFilter().getValuesCount());
-    }
-
-    @Test
-    public void testStateFilter() {
-        final PropertyFilter propertyFilter = SearchMapper.stateFilter("a|b|c", true);
-        assertEquals(SearchMapper.STATE_PROPERTY, propertyFilter.getPropertyName());
-        assertFalse(propertyFilter.getStringFilter().hasStringPropertyRegex());
-        assertEquals(3, propertyFilter.getStringFilter().getOptionsCount());
-        assertEquals("a", propertyFilter.getStringFilter().getOptions(0));
-        assertEquals("b", propertyFilter.getStringFilter().getOptions(1));
-        assertEquals("c", propertyFilter.getStringFilter().getOptions(2));
     }
 }

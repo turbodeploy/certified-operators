@@ -39,7 +39,6 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFactory.ActionSpecMappingContext;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualMachineAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
@@ -96,6 +95,7 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -119,8 +119,6 @@ public class ActionSpecMapperTest {
     private VirtualMachineAspectMapper vmAspectMapper;
 
     private VirtualVolumeAspectMapper volumeAspectMapper;
-
-    private RepositoryApi repositoryApi;
 
     private PolicyDTOMoles.PolicyServiceMole policyMole;
 
@@ -162,7 +160,6 @@ public class ActionSpecMapperTest {
         grpcServer = GrpcTestServer.newServer(policyMole);
         grpcServer.start();
         policyService = PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        repositoryApi = Mockito.mock(RepositoryApi.class);
 
         searchMole = Mockito.spy(new SearchServiceMole());
         GrpcTestServer searchGrpcServer = GrpcTestServer.newServer(searchMole);
@@ -299,7 +296,7 @@ public class ActionSpecMapperTest {
      */
     @Test
     public void testMapStorageMoveWithoutSourceId() throws Exception {
-        ActionInfo moveInfo = getMoveActionInfo(UIEntityType.STORAGE.getValue(), false);
+        ActionInfo moveInfo = getMoveActionInfo(UIEntityType.STORAGE.apiStr(), false);
         Explanation compliance = Explanation.newBuilder()
                 .setMove(MoveExplanation.newBuilder()
                         .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
@@ -331,7 +328,7 @@ public class ActionSpecMapperTest {
      */
     @Test
     public void testMapDiskArrayMoveWithoutSourceId() throws Exception {
-        ActionInfo moveInfo = getMoveActionInfo(UIEntityType.DISKARRAY.getValue(), false);
+        ActionInfo moveInfo = getMoveActionInfo(UIEntityType.DISKARRAY.apiStr(), false);
         Explanation compliance = Explanation.newBuilder()
                 .setMove(MoveExplanation.newBuilder()
                         .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
@@ -1215,11 +1212,11 @@ public class ActionSpecMapperTest {
     }
 
     private ActionInfo getHostMoveActionInfo() {
-        return getMoveActionInfo(UIEntityType.PHYSICAL_MACHINE.getValue(), true);
+        return getMoveActionInfo(UIEntityType.PHYSICAL_MACHINE.apiStr(), true);
     }
 
     private ActionInfo getStorageMoveActionInfo() {
-        return getMoveActionInfo(UIEntityType.STORAGE.getValue(), true);
+        return getMoveActionInfo(UIEntityType.STORAGE.apiStr(), true);
     }
 
     private ActionInfo getMoveActionInfo(final String srcAndDestType, boolean hasSource) {
@@ -1242,16 +1239,16 @@ public class ActionSpecMapperTest {
             .thenReturn(SearchTopologyEntityDTOsResponse.newBuilder()
                 .addAllTopologyEntityDtos(Lists.newArrayList(
                     topologyEntityDTO(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
-                    topologyEntityDTO(SOURCE, 1L, ServiceEntityMapper.fromUIEntityType(srcAndDestType)),
-                    topologyEntityDTO(DESTINATION, 2L, ServiceEntityMapper.fromUIEntityType(srcAndDestType))
+                    topologyEntityDTO(SOURCE, 1L, UIEntityType.fromString(srcAndDestType).typeNumber()),
+                    topologyEntityDTO(DESTINATION, 2L, UIEntityType.fromString(srcAndDestType).typeNumber())
                 )).build());
 
         Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
             .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
                 .addAllTopologyEntityDtos(Lists.newArrayList(
                     topologyEntityDTO(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
-                    topologyEntityDTO(SOURCE, 1L, ServiceEntityMapper.fromUIEntityType(srcAndDestType)),
-                    topologyEntityDTO(DESTINATION, 2L, ServiceEntityMapper.fromUIEntityType(srcAndDestType))
+                    topologyEntityDTO(SOURCE, 1L, UIEntityType.fromString(srcAndDestType).typeNumber()),
+                    topologyEntityDTO(DESTINATION, 2L, UIEntityType.fromString(srcAndDestType).typeNumber())
                 )).build());
 
         return moveInfo;

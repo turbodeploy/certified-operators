@@ -15,7 +15,6 @@ import org.apache.commons.lang3.StringUtils;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
@@ -24,7 +23,6 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiInputDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
-import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ISettingsService;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
@@ -49,6 +47,7 @@ import com.vmturbo.common.protobuf.stats.Stats.SetAuditLogDataRetentionSettingRe
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 
 /**
@@ -300,7 +299,7 @@ public class SettingsService implements ISettingsService {
             return false;
         }
 
-        final int targetEntityType = ServiceEntityMapper.fromUIEntityType(entityType);
+        final int targetEntityType = UIEntityType.fromString(entityType).typeNumber();
         EntitySettingScope scope = settingSpec.getEntitySettingSpec().getEntitySettingScope();
 
         return scope.hasAllEntityType() ||

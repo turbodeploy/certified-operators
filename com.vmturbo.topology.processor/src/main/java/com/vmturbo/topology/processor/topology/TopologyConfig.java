@@ -181,7 +181,7 @@ public class TopologyConfig {
                 environmentTypeInjector(),
                 topologyEditor(),
                 repositoryConfig.repository(),
-                groupConfig.topologyFilterFactory(),
+                groupConfig.searchResolver(),
                 groupConfig.groupServiceBlockingStub(),
                 reservationConfig.reservationManager(),
                 discoveredSettingPolicyScanner(),

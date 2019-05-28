@@ -1,33 +1,42 @@
 package com.vmturbo.api.component.communication;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import io.grpc.StatusRuntimeException;
+
+import com.vmturbo.api.component.external.api.mapper.SearchMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
-import com.vmturbo.api.utils.ParamStrings;
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 
 
 /**
@@ -38,155 +47,73 @@ import com.vmturbo.api.utils.ParamStrings;
  */
 public class RepositoryApi {
 
-    /**
-     * The prefix to paths in the repository.
-     */
-    private static final String REPOSITORY_PATH_PREFIX = "/repository/";
-
-    /**
-     * The supply chain URI component.
-     */
-    private static final String SUPPLYCHAIN_URI_COMPONENT = "/supplychain/";
-
-    /**
-     * The search URI component.
-     */
-    private static final String SEARCH_URI_COMPONENT = "/search/";
-
-    /**
-     * The SE URI component.
-     */
-    private static final String SERVICE_ENTITY_URI_COMPONENT = "/serviceentity/";
-
-    /**
-     * The URI path to search for service entities by OID.
-     */
-    private static final String SERVICE_ENTITY_MULTIGET_URI = SERVICE_ENTITY_URI_COMPONENT + "query/id";
-
-    /**
-     * The URI path to search for service entities by display name.
-     */
-    private static final String SERVICE_ENTITY_DISPLAY_NAME_URI = SERVICE_ENTITY_URI_COMPONENT + "query/displayname";
-
-    /**
-     * The query parameter used to specify the desired display name.
-     */
-    private static final String DISPLAY_NAME_QUERY_PARAM = "q";
-
-    /**
-     * The query parameter to specify whether to search in the projected topology.
-     */
-    private static final String PROJECTED_TOPOLOGY_QUERY_PARAM = "projected";
-
-    /**
-     * The query parameter to specify the topology context to search in.
-     */
-    private static final String CONTEXT_ID_QUERY_PARAM = "contextId";
-
     private final Logger logger = LogManager.getLogger();
-
-    private final String repositoryHost;
-
-    private final int repositoryPort;
-
-    private final RestTemplate restTemplate;
 
     private final SeverityPopulator severityPopulator;
 
     private final long realtimeTopologyContextId;
 
-    public RepositoryApi(@Nonnull final String repositoryHost,
-                         final int repositoryPort,
-                         @Nonnull final RestTemplate restTemplate,
-                         @Nonnull final SeverityPopulator severityPopulator,
+    private final RepositoryServiceBlockingStub repositoryService;
+
+    private final SearchServiceBlockingStub searchServiceBlockingStub;
+
+    public RepositoryApi(@Nonnull final SeverityPopulator severityPopulator,
+                         @Nonnull final RepositoryServiceBlockingStub repositoryService,
+                         @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
                          final long realtimeTopologyContextId) {
-        this.restTemplate = Objects.requireNonNull(restTemplate);
-        this.repositoryHost = repositoryHost;
-        this.repositoryPort = repositoryPort;
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.searchServiceBlockingStub = searchServiceBlockingStub;
+        this.repositoryService = repositoryService;
     }
 
-    /**
-     * Request a collection of {@link ServiceEntityApiDTO}s from the repository, where each
-     * DTO's display name contains a word starting with the provided string.
-     *
-     * <p>Note: At the time of this writing (Sep 26, 2016), the details of legal query strings
-     * depend on ArangoDB's implementation. For example, ArangoDB doesn't handle things like
-     * ":" in the string. Also, it will return entities where the displayNamePrefix is the prefix
-     * of any word in the display name.
-     *
-     * @param displayNamePrefix The prefix of the display name to search for.
-     * @return The {@link ServiceEntityApiDTO}s matching the query.
-     *         The severity is not present for the entities.
-     */
     @Nonnull
-    public Collection<ServiceEntityApiDTO> getServiceEntityByDisplayName(
-            @Nonnull final String displayNamePrefix) {
-        final String getEntitiesRequest = newUriBuilder()
-            .path(SERVICE_ENTITY_DISPLAY_NAME_URI)
-            .queryParam(DISPLAY_NAME_QUERY_PARAM, displayNamePrefix)
-            .build()
-            .toUriString();
-
-        try {
-            final ResponseEntity<List<ServiceEntityApiDTO>> response =
-                    restTemplate.exchange(getEntitiesRequest, HttpMethod.GET, null,
-                        new ParameterizedTypeReference<List<ServiceEntityApiDTO>>() {});
-            return response.getBody();
-        } catch (RestClientException e) {
-            logger.error("Error retrieving data through REST call {}: {}", getEntitiesRequest, e);
-            throw new RuntimeException(
-                    "Error retrieving data through REST call " + getEntitiesRequest, e);
-        }
-    }
-
-    /**
-     * Request a collection of {@link ServiceEntityApiDTO}s from the repository. Currently, only
-     * support searching with entity types and scope.
-     *
-     * @param query Not yet used
-     * @param types The types of entities, e.g., VirtualMachine, PhysicalMachine, ...
-     * @param scope The scope used for searching, e.g., a single entity or the global environment
-     * @param state Not yet used
-     * @param groupType Not yet used
-     * @return collection of service entity DTOs that match the search
-     * @throws Exception if the search fails
-     */
-    @Nonnull
-    public Collection<ServiceEntityApiDTO> getSearchResults(String query,
+    public Collection<ServiceEntityApiDTO> getSearchResults(@Nullable String query,
                                                             @Nullable List<String> types,
-                                                            @Nonnull String scope,
-                                                            @Nullable String state,
-                                                            @Nullable String groupType) {
+                                                            @Nullable String state) {
         // TODO Now, we only support one type of entities in the search
         if (types == null || types.isEmpty()) {
-            IllegalArgumentException e = new IllegalArgumentException(
-                      "Invalid types argument for searching results of scope " + scope);
+            IllegalArgumentException e = new IllegalArgumentException("Type must be set for search result.");
             logger.error(e);
             throw e;
         }
-        final UriComponentsBuilder uriBuilder = newUriBuilder().path(SEARCH_URI_COMPONENT);
-        // Allow multi-type search, e.g.
-        // http://localhost:9000/repository/search/?types=Application&types=VirtualMachine&scope=Market
-        types.stream().forEach(type -> uriBuilder.queryParam(ParamStrings.TYPES, type));
-        final String getEntitiesRequest = uriBuilder
-            .queryParam(ParamStrings.SCOPE, scope)
-            .build()
-            .toUriString();
 
-        try {
-            final List<ServiceEntityApiDTO> entityDtos =
-                        restTemplate.exchange(getEntitiesRequest, HttpMethod.GET, null,
-                        new ParameterizedTypeReference<List<ServiceEntityApiDTO>>() {})
-                        .getBody();
-            // TODO: We should populate the type in the discoveredBy field before returning the entities
-            // To do this, we need to retrieve the probe type associated with that target
-            return severityPopulator.populate(realtimeTopologyContextId, entityDtos);
-        } catch (RestClientException e) {
-            logger.error("Error retrieving data through REST call {}: {}", getEntitiesRequest, e);
-            return Collections.emptyList();
+        final SearchParameters.Builder searchParamsBuilder =
+            SearchProtoUtil.makeSearchParameters(SearchProtoUtil.entityTypeFilter(types));
+
+        if (!StringUtils.isEmpty(query)) {
+            searchParamsBuilder.addSearchFilter(SearchProtoUtil.searchFilterProperty(
+                SearchProtoUtil.nameFilterRegex(query)));
         }
+
+        if (!StringUtils.isEmpty(state)) {
+            searchParamsBuilder.addSearchFilter(SearchProtoUtil.searchFilterProperty(
+                SearchProtoUtil.stateFilter(state)));
+        }
+
+        final List<ServiceEntityApiDTO> entities = new ArrayList<>();
+        String nextCursor = "";
+        do {
+            try {
+                final SearchEntitiesResponse response =
+                    searchServiceBlockingStub.searchEntities(SearchEntitiesRequest.newBuilder()
+                        .addSearchParameters(searchParamsBuilder)
+                        .setPaginationParams(PaginationParameters.getDefaultInstance())
+                        .build());
+                // TODO (roman, May 23 2019) OM-44276: We should get the probe type map and pass
+                // it to the mapper, in order to populate the type in the returned discoveredBy
+                // field.
+                response.getEntitiesList().stream()
+                    .map(entity -> SearchMapper.seDTO(entity, Collections.emptyMap()))
+                    .forEach(entities::add);
+                nextCursor = response.getPaginationResponse().getNextCursor();
+            } catch (StatusRuntimeException e) {
+                logger.error("Error retrieving data: {}", e);
+                break;
+            }
+        } while (!nextCursor.isEmpty());
+
+        return severityPopulator.populate(realtimeTopologyContextId, entities);
     }
 
     /**
@@ -200,39 +127,29 @@ public class RepositoryApi {
     public ServiceEntityApiDTO getServiceEntityForUuid(long serviceEntityId)
             throws UnknownObjectException {
 
-        final String getServiceEntityRequest = newUriBuilder()
-                .pathSegment(SERVICE_ENTITY_URI_COMPONENT, Long.toString(serviceEntityId))
-                .build()
-                .toUriString();
-
-        try {
-            // this call may return a list of matches. The size is expected to be 1, or 0 for not
-            // found. More than one is a serious error; The sort-of-baroque usage of
-            // restTemplate.exchange() is required to specify the return type from the REST request
-            // as a typed List.
-            ResponseEntity<List<ServiceEntityApiDTO>> response =
-                    restTemplate.exchange(getServiceEntityRequest, HttpMethod.GET, null,
-                                          new ParameterizedTypeReference<List<ServiceEntityApiDTO>>() {
-                                          });
-            List<ServiceEntityApiDTO> results = response.getBody();
-            if (results.size() == 0) {
-                logger.error("Service entity not found for id: {}", serviceEntityId);
-                throw new UnknownObjectException(
-                        "service entity not found for id: " + serviceEntityId);
+        final SearchParameters params =
+            SearchProtoUtil.makeSearchParameters(SearchProtoUtil.idFilter(serviceEntityId))
+                .build();
+        final SearchEntitiesResponse response =
+            searchServiceBlockingStub.searchEntities(SearchEntitiesRequest.newBuilder()
+                .addSearchParameters(params)
+                .setPaginationParams(PaginationParameters.getDefaultInstance())
+                .build());
+        if (response.getEntitiesList().isEmpty()) {
+            throw new UnknownObjectException(Long.toString(serviceEntityId));
+        } else {
+            // We should only get one entity for a particular ID. If we get more than one
+            // that means something's wrong in our system, but we'll try to keep
+            // going :)
+            if (response.getEntitiesCount() > 1) {
+                logger.error("Got multiple entities for ID {}! This shouldn't happen.", serviceEntityId);
             }
-            if (results.size() > 1) {
-                logger.error("More than one entity found for id: {}", serviceEntityId);
-                throw new RuntimeException("more than one entity found for id: " + serviceEntityId);
-            }
-            // TODO: We should populate the type in the discoveredBy field before returning the entity
-            // To do this, we need to retrieve the probe type associated with that target
-            return severityPopulator.populate(realtimeTopologyContextId, results)
-                .iterator()
-                .next();
-        } catch (RestClientException e) {
-            logger.error("Error retrieving data through REST call {}: {}", getServiceEntityRequest, e);
-            throw new RuntimeException(
-                    "Error retrieving data through REST call " + getServiceEntityRequest, e);
+            // TODO (roman, May 23 2019) OM-44276: We should get the probe type map and pass
+            // it to the mapper, in order to populate the type in the returned discoveredBy
+            // field.
+            final ServiceEntityApiDTO entity =
+                SearchMapper.seDTO(response.getEntities(0), Collections.emptyMap());
+            return severityPopulator.populate(realtimeTopologyContextId, entity);
         }
     }
 
@@ -246,34 +163,29 @@ public class RepositoryApi {
     @Nonnull
     public Map<Long, Optional<ServiceEntityApiDTO>> getServiceEntitiesById(@Nonnull final ServiceEntitiesRequest request) {
         final long contextId = request.getTopologyContextId().orElse(realtimeTopologyContextId);
-        final String getEntitiesByIdSetRequest = newUriBuilder()
-                .path(SERVICE_ENTITY_MULTIGET_URI)
-                .queryParam(PROJECTED_TOPOLOGY_QUERY_PARAM, request.searchProjectedTopology())
-                .queryParam(CONTEXT_ID_QUERY_PARAM, contextId)
-                .build()
-                .toUriString();
-        final Set<Long> requestedIds = request.getEntityIds();
-        final Map<Long, Optional<ServiceEntityApiDTO>> retMap =
-                new HashMap<>(requestedIds.size());
-        requestedIds.forEach(id -> retMap.put(id, Optional.empty()));
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Set> idList = new HttpEntity<>(requestedIds, headers);
-        try {
-            final ResponseEntity<List<ServiceEntityApiDTO>> response =
-                    restTemplate.exchange(getEntitiesByIdSetRequest, HttpMethod.POST, idList,
-                            new ParameterizedTypeReference<List<ServiceEntityApiDTO>>() {});
-            final List<ServiceEntityApiDTO> results = response.getBody();
-            // TODO: We should populate the type in the discoveredBy field before returning the entities
-            // To do this, we need to retrieve the probe type associated with that target
-            results.forEach(seDTO -> retMap.put(Long.parseLong(seDTO.getUuid()), Optional.of(seDTO)));
+        final RetrieveTopologyEntitiesRequest.Builder reqBuilder =
+            RetrieveTopologyEntitiesRequest.newBuilder();
+        request.getTopologyContextId().ifPresent(reqBuilder::setTopologyContextId);
+        reqBuilder.addAllEntityOids(request.getEntityIds());
+        if (request.searchProjectedTopology()) {
+            reqBuilder.setTopologyType(TopologyType.PROJECTED);
+        }
 
-            return retMap;
-        } catch (RestClientException e) {
-            logger.error("Error retrieving service entities by ID during {}: {}",
-                    getEntitiesByIdSetRequest, e);
-            throw new RuntimeException("Error retrieving service entities by ID during: " +
-                    getEntitiesByIdSetRequest, e);
+        final Map<Long, Optional<ServiceEntityApiDTO>> results = request.getEntityIds().stream()
+            .collect(Collectors.toMap(Function.identity(), id -> Optional.empty()));
+        try {
+            // TODO (roman, May 23 2019) OM-44276: We should get the probe type map and pass
+            // use it to populate the discoveredBy field in the returned entities.
+            RepositoryDTOUtil.topologyEntityStream(repositoryService.retrieveTopologyEntities(reqBuilder.build()))
+                .forEach(entity -> {
+                    results.put(entity.getOid(),
+                        Optional.of(ServiceEntityMapper.toServiceEntityApiDTO(entity, null)));
+                });
+            severityPopulator.populate(contextId, results);
+            return results;
+        } catch (StatusRuntimeException e) {
+            logger.error("Failed to retrieve entities due to error: {}", e.getMessage());
+            return Collections.emptyMap();
         }
     }
 
@@ -379,14 +291,5 @@ public class RepositoryApi {
                         searchProjectedTopology);
             }
         }
-    }
-
-    @Nonnull
-    private UriComponentsBuilder newUriBuilder() {
-        return UriComponentsBuilder.newInstance()
-                .scheme("http")
-                .host(repositoryHost)
-                .port(repositoryPort)
-                .path(REPOSITORY_PATH_PREFIX);
     }
 }

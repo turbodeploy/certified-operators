@@ -25,9 +25,10 @@ import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.repository.RepositoryNotificationSender;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
 import com.vmturbo.repository.graph.driver.GraphDatabaseDriver;
+import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
-import com.vmturbo.repository.topology.TopologyLifecycleManager.SourceTopologyCreator;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
 import com.vmturbo.repository.util.RepositoryTestUtil;
 
 /**
@@ -47,7 +48,7 @@ public class TopologyEntitiesListenerExceptionTest {
     private TopologyLifecycleManager topologyManager;
 
     @Mock
-    private SourceTopologyCreator topologyCreator;
+    private TopologyCreator<TopologyEntityDTO> topologyCreator;
 
     private final long realtimeTopologyContextId = 77L;
 
@@ -56,6 +57,9 @@ public class TopologyEntitiesListenerExceptionTest {
 
     @Mock
     private RepositoryNotificationSender notificationSender;
+
+    @Mock
+    private LiveTopologyStore liveTopologyStore;
 
     private final TopologyEntityDTO vmDTO;
     private final TopologyEntityDTO pmDTO;
@@ -84,16 +88,15 @@ public class TopologyEntitiesListenerExceptionTest {
         final long creationTime = 33333L;
         final TopologyID tid = new TopologyID(topologyContextId, topologyId,
                 TopologyID.TopologyType.SOURCE);
+        final TopologyInfo tInfo = TopologyInfo.newBuilder()
+            .setTopologyContextId(topologyContextId)
+            .setTopologyId(topologyId)
+            .setCreationTime(creationTime)
+            .build();
 
-        when(topologyManager.newSourceTopologyCreator(eq(tid))).thenReturn(topologyCreator);
+        when(topologyManager.newSourceTopologyCreator(eq(tid), eq(tInfo))).thenReturn(topologyCreator);
 
-        topologyEntitiesListener.onTopologyNotification(
-                TopologyInfo.newBuilder()
-                        .setTopologyContextId(topologyContextId)
-                        .setTopologyId(topologyId)
-                        .setCreationTime(creationTime)
-                        .build(),
-                entityIterator);
+        topologyEntitiesListener.onTopologyNotification(tInfo, entityIterator);
 
         verify(topologyCreator).initialize();
         verify(topologyCreator, never()).complete();
