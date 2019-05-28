@@ -73,6 +73,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanatio
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
@@ -92,6 +93,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRespons
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -110,6 +112,23 @@ public class ActionSpecMapperTest {
     public static final String POLICY_NAME = "policy";
     private static final String ENTITY_TO_RESIZE_NAME = "EntityToResize";
     private static final long REAL_TIME_TOPOLOGY_CONTEXT_ID = 777777L;
+    private static final long CONTEXT_ID = 777L;
+
+    private static final ReasonCommodity MEM =
+                    createReasonCommodity(CommodityDTO.CommodityType.MEM_VALUE, "grah");
+    private static final ReasonCommodity CPU =
+                    createReasonCommodity(CommodityDTO.CommodityType.CPU_VALUE, "blah");
+    private static final ReasonCommodity VMEM =
+                    createReasonCommodity(CommodityDTO.CommodityType.VMEM_VALUE, "foo");
+    private static final ReasonCommodity HEAP =
+                    createReasonCommodity(CommodityDTO.CommodityType.HEAP_VALUE, "foo");
+
+    private static final String START = "Start";
+    private static final String TARGET = "Target";
+    private static final String SOURCE = "Source";
+    private static final String DESTINATION = "Destination";
+    private static final String DEFAULT_EXPLANATION = "default explanation";
+
     private ActionSpecMapper mapper;
 
     private ActionSpecMappingContextFactory actionSpecMappingContextFactory;
@@ -133,19 +152,6 @@ public class ActionSpecMapperTest {
     private MapperConfig mapperConfig;
 
     private SearchServiceMole searchMole;
-
-    private final long contextId = 777L;
-
-    private CommodityType commodityCpu;
-    private CommodityType commodityMem;
-    private CommodityType commodityVMem;
-    private CommodityType commodityHeap;
-
-    private static final String START = "Start";
-    private static final String TARGET = "Target";
-    private static final String SOURCE = "Source";
-    private static final String DESTINATION = "Destination";
-    private static final String DEFAULT_EXPLANATION = "default explanation";
 
     @Before
     public void setup() throws IOException {
@@ -181,22 +187,6 @@ public class ActionSpecMapperTest {
             null);
         mapper = new ActionSpecMapper(actionSpecMappingContextFactory, REAL_TIME_TOPOLOGY_CONTEXT_ID,
                 costClientConfig, communicationConfig, mapperConfig);
-        commodityCpu = CommodityType.newBuilder()
-            .setType(CommodityDTO.CommodityType.CPU_VALUE)
-            .setKey("blah")
-            .build();
-        commodityMem = CommodityType.newBuilder()
-            .setType(CommodityDTO.CommodityType.MEM_VALUE)
-            .setKey("grah")
-            .build();
-        commodityVMem = CommodityType.newBuilder()
-            .setType(CommodityDTO.CommodityType.VMEM_VALUE)
-            .setKey("foo")
-            .build();
-        commodityHeap = CommodityType.newBuilder()
-            .setType(CommodityDTO.CommodityType.HEAP_VALUE)
-            .setKey("foo")
-            .build();
     }
 
     @Test
@@ -206,14 +196,14 @@ public class ActionSpecMapperTest {
             .setMove(MoveExplanation.newBuilder()
                 .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                     .setCompliance(Compliance.newBuilder()
-                        .addMissingCommodities(commodityMem)
-                        .addMissingCommodities(commodityCpu)
+                        .addMissingCommodities(MEM)
+                        .addMissingCommodities(CPU)
                         .build())
                     .build())
                 .build())
             .build();
         ActionApiDTO actionApiDTO =
-            mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), contextId);
+            mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), CONTEXT_ID);
         assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
         assertEquals("3", actionApiDTO.getTarget().getUuid());
 
@@ -241,7 +231,7 @@ public class ActionSpecMapperTest {
                             .build())
                         .build();
         ActionApiDTO actionApiDTO =
-            mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, placement), contextId);
+            mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, placement), CONTEXT_ID);
         assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
         assertEquals("3", actionApiDTO.getTarget().getUuid());
 
@@ -267,13 +257,13 @@ public class ActionSpecMapperTest {
                 .setMove(MoveExplanation.newBuilder()
                     .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                         .setCompliance(Compliance.newBuilder()
-                                .addMissingCommodities(commodityMem)
-                                .addMissingCommodities(commodityCpu).build())
+                                .addMissingCommodities(MEM)
+                                .addMissingCommodities(CPU).build())
                         .build())
                     .build())
                 .build();
         ActionApiDTO actionApiDTO =
-            mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), contextId);
+            mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), CONTEXT_ID);
         assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
         assertEquals("3", actionApiDTO.getTarget().getUuid());
 
@@ -301,13 +291,13 @@ public class ActionSpecMapperTest {
                 .setMove(MoveExplanation.newBuilder()
                         .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                                 .setCompliance(Compliance.newBuilder()
-                                        .addMissingCommodities(commodityMem)
-                                        .addMissingCommodities(commodityCpu).build())
+                                        .addMissingCommodities(MEM)
+                                        .addMissingCommodities(CPU).build())
                                 .build())
                         .build())
                 .build();
         ActionApiDTO actionApiDTO =
-                mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), contextId);
+                mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), CONTEXT_ID);
 
         assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
         assertEquals("3", actionApiDTO.getTarget().getUuid());
@@ -333,13 +323,13 @@ public class ActionSpecMapperTest {
                 .setMove(MoveExplanation.newBuilder()
                         .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                                 .setCompliance(Compliance.newBuilder()
-                                        .addMissingCommodities(commodityMem)
-                                        .addMissingCommodities(commodityCpu).build())
+                                        .addMissingCommodities(MEM)
+                                        .addMissingCommodities(CPU).build())
                                 .build())
                         .build())
                 .build();
         ActionApiDTO actionApiDTO =
-                mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), contextId);
+                mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), CONTEXT_ID);
 
         assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
         assertEquals("3", actionApiDTO.getTarget().getUuid());
@@ -355,13 +345,10 @@ public class ActionSpecMapperTest {
 
     @Test
     public void testMapReconfigure() throws Exception {
-        final CommodityType cpuAllocation = CommodityType.newBuilder()
-            .setType(CommodityDTO.CommodityType.CPU_ALLOCATION_VALUE)
-            .build();
-        final CommodityType network = CommodityType.newBuilder()
-                .setType(CommodityDTO.CommodityType.NETWORK_VALUE)
-                .setKey("TestNetworkName1")
-                .build();
+        final ReasonCommodity cpuAllocation =
+                        createReasonCommodity(CommodityDTO.CommodityType.CPU_ALLOCATION_VALUE, null);
+        final ReasonCommodity network =
+                        createReasonCommodity(CommodityDTO.CommodityType.NETWORK_VALUE, "TestNetworkName1");
 
         ActionInfo moveInfo =
                     ActionInfo.newBuilder().setReconfigure(
@@ -384,7 +371,7 @@ public class ActionSpecMapperTest {
                 )).build());
 
         final ActionApiDTO actionApiDTO =
-            mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, reconfigure), contextId);
+            mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, reconfigure), CONTEXT_ID);
         assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
         assertEquals("3", actionApiDTO.getTarget().getUuid());
         assertEquals("VirtualMachine", actionApiDTO.getTarget().getClassName());
@@ -393,7 +380,7 @@ public class ActionSpecMapperTest {
         assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
         assertEquals("1", actionApiDTO.getCurrentValue());
 
-        assertEquals( ActionType.RECONFIGURE, actionApiDTO.getActionType());
+        assertEquals(ActionType.RECONFIGURE, actionApiDTO.getActionType());
         assertEquals(
             "Reconfigure Virtual Machine Target which requires Cpu Allocation, Network TestNetworkName1 but " +
                     "is hosted by Physical Machine Source which does not provide Cpu Allocation, Network " +
@@ -403,9 +390,8 @@ public class ActionSpecMapperTest {
 
     @Test
     public void testMapSourcelessReconfigure() throws Exception {
-        final CommodityType cpuAllocation = CommodityType.newBuilder()
-            .setType(CommodityDTO.CommodityType.CPU_ALLOCATION_VALUE)
-            .build();
+        final ReasonCommodity cpuAllocation =
+                        createReasonCommodity(CommodityDTO.CommodityType.CPU_ALLOCATION_VALUE, null);
 
         ActionInfo moveInfo =
                     ActionInfo.newBuilder().setReconfigure(
@@ -424,7 +410,7 @@ public class ActionSpecMapperTest {
                     topologyEntityDTO(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE)
                 )).build());
         final ActionApiDTO actionApiDTO =
-            mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, reconfigure), contextId);
+            mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, reconfigure), CONTEXT_ID);
         assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
         assertEquals("3", actionApiDTO.getTarget().getUuid());
         assertEquals("VirtualMachine", actionApiDTO.getTarget().getClassName());
@@ -456,7 +442,7 @@ public class ActionSpecMapperTest {
                 )).build());
 
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
-                buildActionSpec(provisionInfo, provision), contextId);
+                buildActionSpec(provisionInfo, provision), CONTEXT_ID);
         assertEquals("EntityToClone", actionApiDTO.getCurrentEntity().getDisplayName());
         assertEquals("3", actionApiDTO.getCurrentValue());
 
@@ -480,7 +466,7 @@ public class ActionSpecMapperTest {
                     .setTarget(ApiUtilsTest.createActionEntity(targetId))
                     .setOldCapacity(9)
                     .setNewCapacity(10)
-                    .setCommodityType(commodityCpu))
+                    .setCommodityType(CPU.getCommodityType()))
             .build();
 
         Explanation resize = Explanation.newBuilder()
@@ -496,7 +482,7 @@ public class ActionSpecMapperTest {
                 )).build());
 
         final ActionApiDTO actionApiDTO =
-            mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize), contextId);
+            mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize), CONTEXT_ID);
         assertEquals(ENTITY_TO_RESIZE_NAME, actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
@@ -512,7 +498,7 @@ public class ActionSpecMapperTest {
                         .setTarget(ApiUtilsTest.createActionEntity(targetId))
                         .setOldCapacity(1024 * 1024 * 2)
                         .setNewCapacity(1024 * 1024 * 1)
-                        .setCommodityType(commodityVMem))
+                        .setCommodityType(VMEM.getCommodityType()))
                 .build();
         final String expectedDetailCapacityy = "from 2 GB to 1 GB";
         Explanation resize = Explanation.newBuilder()
@@ -526,7 +512,7 @@ public class ActionSpecMapperTest {
                     topologyEntityDTO(ENTITY_TO_RESIZE_NAME, targetId, EntityType.VIRTUAL_MACHINE_VALUE)
                 )).build());
         final ActionApiDTO actionApiDTO =
-                mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize), contextId);
+                mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize), CONTEXT_ID);
 
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
         assertTrue(actionApiDTO.getDetails().contains(expectedDetailCapacityy));
@@ -543,7 +529,7 @@ public class ActionSpecMapperTest {
                 .setTarget(ApiUtilsTest.createActionEntity(targetId))
                 .setOldCapacity(1024 * 1024 * 2)
                 .setNewCapacity(1024 * 1024 * 1)
-                .setCommodityType(commodityHeap))
+                .setCommodityType(HEAP.getCommodityType()))
             .build();
         final String expectedDetailCapacityy = "from 2 GB to 1 GB";
         Explanation resize = Explanation.newBuilder()
@@ -557,7 +543,7 @@ public class ActionSpecMapperTest {
                     topologyEntityDTO(ENTITY_TO_RESIZE_NAME, targetId, EntityType.VIRTUAL_MACHINE_VALUE)
                 )).build());
         final ActionApiDTO actionApiDTO =
-            mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize), contextId);
+            mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize), CONTEXT_ID);
 
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
         assertTrue(actionApiDTO.getDetails().contains(expectedDetailCapacityy));
@@ -581,7 +567,7 @@ public class ActionSpecMapperTest {
                         .setOldCapacity(10)
                         .setNewCapacity(0)
                         .setCommodityAttribute(CommodityAttribute.LIMIT)
-                        .setCommodityType(commodityMem))
+                        .setCommodityType(MEM.getCommodityType()))
                 .build();
 
         Explanation resize = Explanation.newBuilder()
@@ -597,7 +583,7 @@ public class ActionSpecMapperTest {
                 )).build());
 
         final ActionApiDTO actionApiDTO =
-                mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize), contextId);
+                mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize), CONTEXT_ID);
         assertEquals(ENTITY_TO_RESIZE_NAME, actionApiDTO.getTarget().getDisplayName());
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
         assertEquals(CommodityDTO.CommodityType.MEM.name(),
@@ -614,13 +600,14 @@ public class ActionSpecMapperTest {
         final long targetId = 1;
         final ActionInfo activateInfo = ActionInfo.newBuilder()
                         .setActivate(Activate.newBuilder().setTarget(ApiUtilsTest.createActionEntity(targetId))
-                                        .addTriggeringCommodities(commodityCpu)
-                                        .addTriggeringCommodities(commodityMem))
+                                        .addTriggeringCommodities(CPU.getCommodityType())
+                                        .addTriggeringCommodities(MEM.getCommodityType()))
                         .build();
         Explanation activate =
                         Explanation.newBuilder()
                                         .setActivate(ActivateExplanation.newBuilder()
-                                                        .setMostExpensiveCommodity(commodityCpu.getType()).build())
+                                                        .setMostExpensiveCommodity(CPU.getCommodityType()
+                                                                                   .getType()).build())
                                         .build();
         Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
             .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
@@ -629,7 +616,7 @@ public class ActionSpecMapperTest {
                 )).build());
 
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
-                buildActionSpec(activateInfo, activate), contextId);
+                buildActionSpec(activateInfo, activate), CONTEXT_ID);
         assertEquals("EntityToActivate", actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
         assertEquals(ActionType.START, actionApiDTO.getActionType());
@@ -650,13 +637,12 @@ public class ActionSpecMapperTest {
         final long targetId = 1;
         final ActionInfo deactivateInfo = ActionInfo.newBuilder()
                 .setActivate(Activate.newBuilder().setTarget(ApiUtilsTest.createActionEntity(targetId))
-                        .addTriggeringCommodities(commodityCpu)
-                        .addTriggeringCommodities(commodityMem))
+                        .addTriggeringCommodities(CPU.getCommodityType())
+                        .addTriggeringCommodities(MEM.getCommodityType()))
                 .build();
         Explanation activate = Explanation.newBuilder()
                 .setDeactivate(DeactivateExplanation.newBuilder().build()).build();
         final String entityToActivateName = "EntityToActivate";
-        final String className = "Storage";
         final String prettyClassName = "Storage";
         Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
             .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
@@ -665,7 +651,7 @@ public class ActionSpecMapperTest {
                 )).build());
 
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
-                buildActionSpec(deactivateInfo, activate), contextId);
+                buildActionSpec(deactivateInfo, activate), CONTEXT_ID);
         assertEquals(entityToActivateName, actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
         assertEquals(ActionType.START, actionApiDTO.getActionType());
@@ -680,8 +666,8 @@ public class ActionSpecMapperTest {
         final long targetId = 1;
         final ActionInfo deactivateInfo = ActionInfo.newBuilder()
             .setDeactivate(Deactivate.newBuilder().setTarget(ApiUtilsTest.createActionEntity(targetId))
-                .addTriggeringCommodities(commodityCpu)
-                .addTriggeringCommodities(commodityMem))
+                .addTriggeringCommodities(CPU.getCommodityType())
+                .addTriggeringCommodities(MEM.getCommodityType()))
             .build();
         Explanation deactivate = Explanation.newBuilder()
             .setDeactivate(DeactivateExplanation.newBuilder().build()).build();
@@ -694,7 +680,7 @@ public class ActionSpecMapperTest {
                 )).build());
 
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
-            buildActionSpec(deactivateInfo, deactivate), contextId);
+            buildActionSpec(deactivateInfo, deactivate), CONTEXT_ID);
         assertEquals(entityToDeactivateName, actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
         assertEquals(ActionType.SUSPEND, actionApiDTO.getActionType());
@@ -726,7 +712,7 @@ public class ActionSpecMapperTest {
                 )).build());
 
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
-            buildActionSpec(deleteInfo, delete), contextId);
+            buildActionSpec(deleteInfo, delete), CONTEXT_ID);
         assertEquals(entityToDelete, actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
         assertEquals(ActionType.DELETE, actionApiDTO.getActionType());
@@ -744,8 +730,8 @@ public class ActionSpecMapperTest {
         final long targetId = 1;
         final ActionInfo deactivateInfo = ActionInfo.newBuilder()
                 .setDeactivate(Deactivate.newBuilder().setTarget(ApiUtilsTest.createActionEntity(targetId))
-                        .addTriggeringCommodities(commodityCpu)
-                        .addTriggeringCommodities(commodityMem))
+                        .addTriggeringCommodities(CPU.getCommodityType())
+                        .addTriggeringCommodities(MEM.getCommodityType()))
                 .build();
         Explanation deactivate = Explanation.newBuilder()
                 .setDeactivate(DeactivateExplanation.newBuilder().build()).build();
@@ -757,7 +743,7 @@ public class ActionSpecMapperTest {
                     topologyEntityDTO(entityToDeactivateName, targetId, EntityType.DISK_ARRAY_VALUE)
                 )).build());
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
-                buildActionSpec(deactivateInfo, deactivate), contextId);
+                buildActionSpec(deactivateInfo, deactivate), CONTEXT_ID);
         assertEquals(entityToDeactivateName, actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
         assertEquals(ActionType.SUSPEND, actionApiDTO.getActionType());
@@ -780,7 +766,7 @@ public class ActionSpecMapperTest {
                         Optional.of(decision));
 
         // Act
-        ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(actionSpec, contextId);
+        ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(actionSpec, CONTEXT_ID);
 
         // Assert
         assertThat(actionApiDTO.getUpdateTime(), is(expectedUpdateTime));
@@ -807,7 +793,7 @@ public class ActionSpecMapperTest {
                 .setTarget(ApiUtilsTest.createActionEntity(goodTarget))
                 .setOldCapacity(11)
                 .setNewCapacity(12)
-                .setCommodityType(commodityCpu))
+                .setCommodityType(CPU.getCommodityType()))
             .build();
 
         Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
@@ -820,7 +806,7 @@ public class ActionSpecMapperTest {
         final ActionSpec resizeSpec = buildActionSpec(resizeInfo, Explanation.getDefaultInstance(), Optional.empty());
 
         final List<ActionApiDTO> dtos = mapper.mapActionSpecsToActionApiDTOs(
-                Arrays.asList(moveSpec, resizeSpec), contextId);
+                Arrays.asList(moveSpec, resizeSpec), CONTEXT_ID);
         assertEquals(1, dtos.size());
         assertEquals(ActionType.RESIZE, dtos.get(0).getActionType());
     }
@@ -844,11 +830,10 @@ public class ActionSpecMapperTest {
                     topologyEntityDTO("source", 2, EntityType.VIRTUAL_MACHINE_VALUE),
                     topologyEntityDTO("dest", 3, EntityType.VIRTUAL_MACHINE_VALUE)
                 )).build());
-        final Compliance compliance = Compliance.newBuilder().addMissingCommodities(
-                        CommodityType.newBuilder()
-                                        .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
-                                        .setKey(String.valueOf(POLICY_ID))
-                                        .build()).build();
+        final Compliance compliance = Compliance.newBuilder()
+                        .addMissingCommodities(createReasonCommodity(CommodityDTO.CommodityType.SEGMENTATION_VALUE,
+                                                                     String.valueOf(POLICY_ID)))
+                        .build();
         final MoveExplanation moveExplanation = MoveExplanation.newBuilder()
                         .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                                         .setCompliance(compliance).build())
@@ -856,7 +841,7 @@ public class ActionSpecMapperTest {
         final List<ActionApiDTO> dtos = mapper.mapActionSpecsToActionApiDTOs(
                         Arrays.asList(buildActionSpec(moveInfo, Explanation.newBuilder()
                                         .setMove(moveExplanation).build())),
-                        contextId);
+                        CONTEXT_ID);
         Assert.assertEquals("target doesn't comply to " + POLICY_NAME,
                         dtos.get(0).getRisk().getDescription());
     }
@@ -887,11 +872,10 @@ public class ActionSpecMapperTest {
                     topologyEntityDTO("stDest", 5, EntityType.STORAGE_VALUE)
                 )).build());
 
-        final Compliance compliance = Compliance.newBuilder().addMissingCommodities(
-            CommodityType.newBuilder()
-                .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
-                .setKey(String.valueOf(POLICY_ID))
-                .build()).build();
+        final Compliance compliance = Compliance.newBuilder()
+                        .addMissingCommodities(createReasonCommodity(CommodityDTO.CommodityType.SEGMENTATION_VALUE,
+                                                                     String.valueOf(POLICY_ID)))
+                        .build();
         // Test that we use the policy name in explanation if the primary explanation is compliance.
         // We always go with the primary explanation if available
         final MoveExplanation moveExplanation1 = MoveExplanation.newBuilder()
@@ -902,7 +886,7 @@ public class ActionSpecMapperTest {
             .build();
         final List<ActionApiDTO> dtos1 = mapper.mapActionSpecsToActionApiDTOs(
             Arrays.asList(buildActionSpec(compoundMoveInfo, Explanation.newBuilder()
-                .setMove(moveExplanation1).build())), contextId);
+                .setMove(moveExplanation1).build())), CONTEXT_ID);
         Assert.assertEquals("target doesn't comply to " + POLICY_NAME,
             dtos1.get(0).getRisk().getDescription());
 
@@ -917,7 +901,7 @@ public class ActionSpecMapperTest {
             .build();
         final List<ActionApiDTO> dtos2 = mapper.mapActionSpecsToActionApiDTOs(
             Arrays.asList(buildActionSpec(compoundMoveInfo, Explanation.newBuilder()
-                .setMove(moveExplanation2).build())), contextId);
+                .setMove(moveExplanation2).build())), CONTEXT_ID);
         Assert.assertEquals(DEFAULT_EXPLANATION, dtos2.get(0).getRisk().getDescription());
     }
 
@@ -931,8 +915,8 @@ public class ActionSpecMapperTest {
                 .setMove(MoveExplanation.newBuilder()
                         .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                                 .setCompliance(Compliance.newBuilder()
-                                        .addMissingCommodities(commodityMem)
-                                        .addMissingCommodities(commodityCpu)
+                                        .addMissingCommodities(MEM)
+                                        .addMissingCommodities(CPU)
                                         .build())
                                 .build())
                         .build())
@@ -945,7 +929,7 @@ public class ActionSpecMapperTest {
                     topologyEntityDTO("dest", 3, EntityType.VIRTUAL_MACHINE_VALUE)
                 )).build());
         final ActionApiDTO actionApiDTO =
-                mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), contextId);
+                mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), CONTEXT_ID);
         assertEquals(com.vmturbo.api.enums.ActionState.SUCCEEDED, actionApiDTO.getActionState());
 
         final ActionApiDTO realTimeActionApiDTO =
@@ -1326,5 +1310,14 @@ public class ActionSpecMapperTest {
             .setInfo(actionInfo)
             .setExplanation(explanation)
             .build();
+    }
+
+    private static ReasonCommodity createReasonCommodity(int baseType, String key) {
+        CommodityType.Builder ct = TopologyDTO.CommodityType.newBuilder()
+                        .setType(baseType);
+        if (key != null) {
+            ct.setKey(key);
+        }
+        return ReasonCommodity.newBuilder().setCommodityType(ct.build()).build();
     }
 }

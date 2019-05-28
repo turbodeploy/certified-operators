@@ -1,10 +1,12 @@
 package com.vmturbo.market.topology.conversions;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -16,7 +18,6 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.collect.Sets;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -31,6 +32,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
@@ -42,6 +44,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
@@ -705,6 +708,7 @@ public class ActionInterpreter {
         return ReconfigureExplanation.newBuilder()
                 .addAllReconfigureCommodity(reconfTO.getCommodityToReconfigureList().stream()
                         .map(commodityConverter::commodityIdToCommodityType)
+                        .map(commType2ReasonCommodity())
                         .collect(Collectors.toList()))
                 .build();
     }
@@ -791,6 +795,7 @@ public class ActionInterpreter {
                                         moveExplanation.getCompliance()
                                                 .getMissingCommoditiesList().stream()
                                                 .map(commodityConverter::commodityIdToCommodityType)
+                                                .map(commType2ReasonCommodity())
                                                 .collect(Collectors.toList())
                                 )
                                 .build());
@@ -803,6 +808,7 @@ public class ActionInterpreter {
                                 .addAllCongestedCommodities(
                                         moveExplanation.getCongestion().getCongestedCommoditiesList().stream()
                                                 .map(commodityConverter::commodityIdToCommodityType)
+                                                .map(commType2ReasonCommodity())
                                                 .collect(Collectors.toList()))
                                 .build()));
             case EVACUATION:
@@ -850,10 +856,12 @@ public class ActionInterpreter {
                     Efficiency.Builder efficiencyBuilder = ChangeProviderExplanation.Efficiency.newBuilder();
                     if (isPrimaryTierChange && cert.didCommoditiesOfEntityResize(slInfo.buyerId)) {
                         if (congestedComms != null && !congestedComms.isEmpty()) {
-                            efficiencyBuilder.addAllCongestedCommodities(congestedComms);
+                            efficiencyBuilder
+                                .addAllCongestedCommodities(commTypes2ReasonCommodities(congestedComms));
                         }
                         if (underUtilizedComms != null && !underUtilizedComms.isEmpty()) {
-                            efficiencyBuilder.addAllUnderUtilizedCommodities(underUtilizedComms);
+                            efficiencyBuilder
+                                .addAllUnderUtilizedCommodities(commTypes2ReasonCommodities(underUtilizedComms));
                         }
                     } else if (isPrimaryTierChange && projectedRiCoverage.get(slInfo.getBuyerId()) != null) {
                         efficiencyBuilder.setIsRiCoverageIncreased(true);
@@ -864,10 +872,12 @@ public class ActionInterpreter {
                     Congestion.Builder congestionBuilder = ChangeProviderExplanation.Congestion.newBuilder();
                     if (isPrimaryTierChange && cert.didCommoditiesOfEntityResize(slInfo.getBuyerId())) {
                         if (congestedComms != null && !congestedComms.isEmpty()) {
-                            congestionBuilder.addAllCongestedCommodities(congestedComms);
+                            congestionBuilder
+                                .addAllCongestedCommodities(commTypes2ReasonCommodities(congestedComms));
                         }
                         if (underUtilizedComms != null && !underUtilizedComms.isEmpty()) {
-                            congestionBuilder.addAllUnderUtilizedCommodities(underUtilizedComms);
+                            congestionBuilder
+                                .addAllUnderUtilizedCommodities(commTypes2ReasonCommodities(underUtilizedComms));
                         }
                     } else if (isPrimaryTierChange && projectedRiCoverage.get(slInfo.getBuyerId()) != null) {
                         congestionBuilder.setIsRiCoverageIncreased(true);
@@ -892,4 +902,14 @@ public class ActionInterpreter {
             .setEnvironmentType(projectedEntity.getEnvironmentType())
             .build();
     }
+
+    private static Function<CommodityType, ReasonCommodity> commType2ReasonCommodity() {
+        return ct -> ReasonCommodity.newBuilder().setCommodityType(ct).build();
+    }
+
+    private static Collection<ReasonCommodity>
+            commTypes2ReasonCommodities(Collection<CommodityType> types) {
+        return types.stream().map(commType2ReasonCommodity()).collect(Collectors.toList());
+    }
+
 }

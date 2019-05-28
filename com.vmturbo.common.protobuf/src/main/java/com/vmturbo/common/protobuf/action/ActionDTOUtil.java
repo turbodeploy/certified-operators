@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderEx
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -453,7 +454,7 @@ public class ActionDTOUtil {
      *         empty stream. May contain multiple commodities, depending on the action explanation.
      */
     @Nonnull
-    public static Stream<TopologyDTO.CommodityType> getReasonCommodities(@Nonnull final ActionDTO.Action action) {
+    public static Stream<ReasonCommodity> getReasonCommodities(@Nonnull final ActionDTO.Action action) {
         final ActionInfo actionInfo = action.getInfo();
         switch (action.getInfo().getActionTypeCase()) {
             case MOVE:
@@ -482,30 +483,39 @@ public class ActionDTOUtil {
                     return provisionExplanation.getProvisionByDemandExplanation()
                         .getCommodityMaxAmountAvailableList().stream()
                         .map(CommodityMaxAmountAvailableEntry::getCommodityBaseType)
-                        .map(baseType -> TopologyDTO.CommodityType.newBuilder()
-                            .setType(baseType)
-                            .build());
+                        .map(baseType -> createReasonCommodityFromBaseType(baseType));
                 } else if (provisionExplanation.hasProvisionBySupplyExplanation()) {
-                    return Stream.of(TopologyDTO.CommodityType.newBuilder()
-                        .setType(provisionExplanation.getProvisionBySupplyExplanation()
-                            .getMostExpensiveCommodity())
-                        .build());
+                    return Stream.of(provisionExplanation.getProvisionBySupplyExplanation()
+                                    .getMostExpensiveCommodity())
+                                    .map(baseType -> createReasonCommodityFromBaseType(baseType));
                 } else {
                     return Stream.empty();
                 }
             case RESIZE:
-                return Stream.of(actionInfo.getResize().getCommodityType());
+                return Stream.of(actionInfo.getResize().getCommodityType())
+                                .map(ct -> createReasonCommodityFromCommodityType(ct));
             case ACTIVATE:
                 return action.getInfo().getActivate().getTriggeringCommoditiesList()
-                    .stream();
+                    .stream().map(ct -> createReasonCommodityFromCommodityType(ct));
             case DEACTIVATE:
                 return action.getInfo().getDeactivate().getTriggeringCommoditiesList()
-                    .stream();
+                    .stream().map(ct -> createReasonCommodityFromCommodityType(ct));
             default:
                 return Stream.empty();
         }
     }
 
+    @Nonnull
+    private static ReasonCommodity createReasonCommodityFromBaseType(int baseType) {
+        return createReasonCommodityFromCommodityType(TopologyDTO.CommodityType.newBuilder()
+                        .setType(baseType).build());
+    }
+
+    @Nonnull
+    private static ReasonCommodity
+            createReasonCommodityFromCommodityType(@Nonnull TopologyDTO.CommodityType ct) {
+        return ReasonCommodity.newBuilder().setCommodityType(ct).build();
+    }
 
     /**
      * Gets the display name of the commodity from the {@link CommodityType}.

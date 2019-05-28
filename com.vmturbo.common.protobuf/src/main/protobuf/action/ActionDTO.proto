@@ -8,6 +8,10 @@ import "common/Pagination.proto";
 import "topology/TopologyDTO.proto";
 import "CloudCostDTO.proto";
 
+// NB All messages in this set of declarations are serialized in rdbms.
+// They are not modifiable, only extendable.
+
+// Action explanation.
 message Explanation {
     oneof action_explanation_type {
         MoveExplanation move = 1;
@@ -43,23 +47,32 @@ message Explanation {
 
         // A move explanation suggesting unavailability of commodities.
         message Compliance {
+            // Deprecated - use missing_commodities.
+            repeated topology.CommodityType __deprecated_missing_commodities = 1 [deprecated = true];
+
             // A list of commodities' base type which are missing in current supplier.
-            repeated topology.CommodityType missing_commodities = 1;
+            repeated ReasonCommodity missing_commodities = 2;
         }
 
         // A move explanation suggesting commodity congestion.
         message Congestion {
-            // A list of commodities' base type which are cheaper at the destination.
-            // For the cloud, these are the commodities sold by the target entity which are
-            // congested / over-utilized
-            repeated topology.CommodityType congested_commodities = 1;
+            // Deprecated - use congested_commodities.
+            repeated topology.CommodityType __deprecated_congested_commodities = 1 [deprecated = true];
 
-            // For the cloud, these are the commodities sold by the target entity which are
-            // under-utilized
-            repeated topology.CommodityType under_utilized_commodities = 2;
+            // Deprecated - use under_utilized_commodities.
+            repeated topology.CommodityType __deprecated_under_utilized_commodities = 2 [deprecated = true];
 
             // For the cloud, true if increasing RI coverage is the main reason for the move
             optional bool is_ri_coverage_increased = 3;
+
+            // A list of commodities' base type which are cheaper at the destination.
+            // For the cloud, these are the commodities sold by the target entity which are
+            // congested / over-utilized
+            repeated ReasonCommodity congested_commodities = 4;
+
+            // For the cloud, these are the commodities sold by the target entity which are
+            // under-utilized
+            repeated ReasonCommodity under_utilized_commodities = 5;
         }
 
         // A move explanation suggesting evacuation of buyers.
@@ -77,16 +90,23 @@ message Explanation {
         // Efficiency messages are currently generated for the cloud.
         // We generate an efficiency message when we move the on-demand cost is cheaper at destination.
         message Efficiency {
-            // These are the commodities sold by the target entity which are
-            // congested / over-utilized
-            repeated topology.CommodityType congested_commodities = 1;
+            // Deprecated - use congested_commodities.
+            repeated topology.CommodityType __deprecated_congested_commodities = 1 [deprecated = true];
 
-            // These are the commodities sold by the target entity which are
-            // under-utilized
-            repeated topology.CommodityType under_utilized_commodities = 2;
+            // Deprecated - use under_utilized_commodities.
+            repeated topology.CommodityType __deprecated_under_utilized_commodities = 2 [deprecated = true];
 
             // True if increasing RI coverage is the main reason for the move
             optional bool is_ri_coverage_increased = 3;
+
+            // These are the commodities sold by the target entity which are
+            // congested / over-utilized
+            repeated ReasonCommodity congested_commodities = 4;
+
+            // These are the commodities sold by the target entity which are
+            // under-utilized
+            repeated ReasonCommodity under_utilized_commodities = 5;
+
         }
     }
 
@@ -112,7 +132,10 @@ message Explanation {
 
     // Reconfigure explanation contains the base type of the reconfigure commodity.
     message ReconfigureExplanation {
-        repeated topology.CommodityType reconfigure_commodity = 1;
+        // Deprecated - use reconfigure_commodity.
+        repeated topology.CommodityType __deprecated_reconfigure_commodity = 1 [deprecated = true];
+
+        repeated ReasonCommodity reconfigure_commodity = 2;
     }
 
     message ProvisionExplanation {
@@ -162,6 +185,19 @@ message Explanation {
 
     message BuyRIExplanation {
     }
+
+    // Reference to a commodity causing the action, with extended per-commodity information.
+    message ReasonCommodity {
+        required topology.CommodityType commodity_type = 1;
+        oneof reason_information {
+            TimeSlotReasonInformation time_slot = 2;
+        }
+        // When action is caused by a time-slot analysis, the slot within a day.
+        message TimeSlotReasonInformation {
+            required int32 slot = 1;
+        }
+    }
+
 }
 
 // Change one or more providers of an entity.

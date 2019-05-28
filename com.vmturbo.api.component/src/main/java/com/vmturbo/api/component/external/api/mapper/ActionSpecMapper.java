@@ -73,6 +73,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
@@ -85,7 +86,6 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
@@ -666,11 +666,12 @@ public class ActionSpecMapper {
         if (explanation.getCompliance().getMissingCommoditiesCount() < 1) {
             return Optional.empty();
         }
-        if (explanation.getCompliance().getMissingCommodities(0)
+        if (explanation.getCompliance().getMissingCommodities(0).getCommodityType()
                         .getType() != CommodityDTO.CommodityType.SEGMENTATION_VALUE) {
             return Optional.empty();
         }
-        return Optional.of(explanation.getCompliance().getMissingCommodities(0).getKey());
+        return Optional.of(explanation.getCompliance().getMissingCommodities(0).getCommodityType()
+                        .getKey());
     }
 
     /**
@@ -743,7 +744,7 @@ public class ActionSpecMapper {
 
     private String getReasonCommodities(MoveExplanation moveExplanation) {
         // Using set to avoid duplicates
-        Set<CommodityType> reasonCommodities = new HashSet<>();
+        Set<ReasonCommodity> reasonCommodities = new HashSet<>();
         List<ChangeProviderExplanation> changeProviderExplanations = moveExplanation.getChangeProviderExplanationList();
         for (ChangeProviderExplanation changeProviderExplanation : changeProviderExplanations) {
             switch (changeProviderExplanation.getChangeProviderExplanationTypeCase()) {
@@ -757,6 +758,7 @@ public class ActionSpecMapper {
         }
 
         return reasonCommodities.stream()
+                .map(ReasonCommodity::getCommodityType)
                 .map(commodityType -> CommodityDTO.CommodityType.forNumber(commodityType.getType()).name())
                 .collect(Collectors.joining(", "));
     }
@@ -857,7 +859,9 @@ public class ActionSpecMapper {
             actionApiDTO.setDetails(MessageFormat.format(
                 "Reconfigure {0} which requires {1} but is hosted by {2} which does not provide {1}",
                 readableEntityTypeAndName(actionApiDTO.getTarget()),
-                readableCommodityTypes(explanation.getReconfigureCommodityList()),
+                readableCommodityTypes(explanation.getReconfigureCommodityList().stream()
+                                       .map(ReasonCommodity::getCommodityType)
+                                       .collect(Collectors.toList())),
                 readableEntityTypeAndName(actionApiDTO.getCurrentEntity())));
         } else {
             actionApiDTO.setDetails(MessageFormat.format(

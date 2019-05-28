@@ -8,6 +8,9 @@ import "group/PolicyDTO.proto";
 import "setting/Setting.proto";
 import "CloudCostDTO.proto";
 
+// NB Informational (most) messages in this set of declarations are serialized in rdbms.
+// They are not modifiable, only extendable.
+
 // A scenario specifies the changes to the topology, and changes to configuration
 // to be used when running a plan.
 message Scenario {
