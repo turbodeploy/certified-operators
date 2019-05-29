@@ -85,6 +85,7 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
             EntityType.DATABASE_SERVER_TIER_VALUE,
             EntityType.BUSINESS_ACCOUNT_VALUE,
             EntityType.CLOUD_SERVICE_VALUE,
+            EntityType.HYPERVISOR_SERVER_VALUE,
             EntityType.PROCESSOR_POOL_VALUE
     );
 
