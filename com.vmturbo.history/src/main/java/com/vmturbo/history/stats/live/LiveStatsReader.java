@@ -397,7 +397,7 @@ public class LiveStatsReader {
 
         // if no entity type provided, it will include all entity types.
         Optional<Condition> entityTypeCond =
-            entityType.map(type -> StatsQueryFactory.DefaultStatsQueryFactory.entityTypeCond(type, table));
+            entityType.flatMap(type -> StatsQueryFactory.DefaultStatsQueryFactory.entityTypeCond(type, table));
         entityTypeCond.ifPresent(whereConditions::add);
 
         // Format the query.

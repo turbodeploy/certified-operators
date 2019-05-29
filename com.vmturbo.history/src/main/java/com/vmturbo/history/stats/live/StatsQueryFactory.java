@@ -121,11 +121,19 @@ public interface StatsQueryFactory {
          *
          * @param entityType entity type need to filter on.
          * @param table the DB table from which these stats will be collected
-         * @return a Jooq condition to filter on entity type.
+         * @return an {@link Optional} containing the Jooq condition to filter on entity type.
+         *         an empty {@link Optional} if the table does not contain an entity type field.
          */
-        public static Condition entityTypeCond(
+        public static Optional<Condition> entityTypeCond(
                 @Nonnull final String entityType, @Nonnull final Table<?> table) {
-            return str(dField(table, ENTITY_TYPE)).eq(entityType);
+            // Only the market stats tables will have an entity type field,
+            // but the query factory is used with potentially any stats table.
+            // Therefore we need an explicit check for the presence of the field.
+            if (table.field(ENTITY_TYPE) != null) {
+                return Optional.of(str(dField(table, ENTITY_TYPE)).eq(entityType));
+            } else {
+                return Optional.empty();
+            }
         }
 
         @Override
@@ -239,8 +247,8 @@ public interface StatsQueryFactory {
                 }
                 if (commodityRequest.hasRelatedEntityType()
                         && commodityRequest.getRelatedEntityType() != null) {
-                    commodityTest =
-                        commodityTest.and(entityTypeCond(commodityRequest.getRelatedEntityType(), table));
+                    entityTypeCond(commodityRequest.getRelatedEntityType(), table)
+                        .ifPresent(commodityTest::and);
                 }
                 // add an 'and' for each property value filter specified
                 for (PropertyValueFilter propertyValueFilter : commodityRequest.getPropertyValueFilterList()) {
