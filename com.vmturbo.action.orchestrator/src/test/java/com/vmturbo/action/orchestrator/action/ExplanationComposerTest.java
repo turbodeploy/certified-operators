@@ -8,9 +8,12 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.Builder;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.BuyRIExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Performance;
@@ -105,6 +108,37 @@ public class ExplanationComposerTest {
 
         assertEquals("(^_^)~Current supplier can not satisfy the request for resource(s) Mem Cpu",
             ExplanationComposer.composeExplanation(action));
+    }
+
+    @Test
+    public void testBuyRIExplanation() {
+        final Builder validExplanation = Explanation.newBuilder()
+                .setBuyRI(BuyRIExplanation.newBuilder()
+                        .setCoveredAverageDemand(5f)
+                        .setTotalAverageDemand(10f)
+                        .build());
+
+        ActionDTO.Action action = ActionDTO.Action.newBuilder()
+                .setId(0).setInfo(ActionInfo.getDefaultInstance()).setImportance(0)
+                .setExplanation(validExplanation)
+                .build();
+
+        assertEquals("Increase RI Coverage by 50.0%.",
+                ExplanationComposer.composeExplanation(action));
+
+        final Builder invalidExplanation = Explanation.newBuilder()
+                .setBuyRI(BuyRIExplanation.newBuilder()
+                        .setCoveredAverageDemand(5f)
+                        .setTotalAverageDemand(0f)
+                        .build());
+
+        action = ActionDTO.Action.newBuilder()
+                .setId(0).setInfo(ActionInfo.getDefaultInstance()).setImportance(0)
+                .setExplanation(invalidExplanation)
+                .build();
+
+        assertEquals("Invalid total demand.",
+                ExplanationComposer.composeExplanation(action));
     }
 
     @Test

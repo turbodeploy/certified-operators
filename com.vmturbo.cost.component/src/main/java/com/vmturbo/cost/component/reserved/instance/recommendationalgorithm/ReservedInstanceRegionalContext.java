@@ -48,6 +48,11 @@ public class ReservedInstanceRegionalContext extends ReservedInstanceContext {
         return region;
     }
 
+    @Nonnull
+    public TopologyEntityDTO getComputeTier() {
+        return computeTier;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;

@@ -9,24 +9,20 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.BuyRIExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
-import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.components.common.setting.RISettingsEnum.PreferredOfferingClass;
-import com.vmturbo.components.common.setting.RISettingsEnum.PreferredPaymentOption;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -346,12 +342,6 @@ public class ReservedInstanceAnalysisRecommendation {
      * @return Action DTO
      */
     public ActionDTO.Action createAction() {
-
-        String explanationString = getAction().getLabel() + " " + getCount() + " '"
-                + getComputeTier().getDisplayName() + "' RIs for "
-                + getRegion();
-
-        logger.info(explanationString);
         BuyRI buyRI = BuyRI.newBuilder()
             .setBuyRiId(buyRiId)
             .setComputeTier(ActionEntity.newBuilder()
@@ -364,8 +354,15 @@ public class ReservedInstanceAnalysisRecommendation {
                     .setType(EntityType.BUSINESS_ACCOUNT_VALUE).build())
             .build();
 
+        final ComputeTierInfo computeTier = context.getComputeTier().getTypeSpecificInfo().getComputeTier();
+        int instanceTypeCoupons = computeTier.getNumCoupons();
+        final float totalAverageDemand = averageCouponDemand * instanceTypeCoupons;
+        float coveredAverageDemand = getRiUtilization() * count * instanceTypeCoupons;
         Explanation explanation = Explanation.newBuilder()
-                .setBuyRI(BuyRIExplanation.newBuilder().build())
+                .setBuyRI(BuyRIExplanation.newBuilder()
+                        .setCoveredAverageDemand(coveredAverageDemand)
+                        .setTotalAverageDemand(totalAverageDemand)
+                        .build())
                 .build();
 
         ActionDTO.Action action =

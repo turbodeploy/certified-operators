@@ -20,6 +20,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.BuyRIExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Congestion;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
@@ -141,9 +142,24 @@ public class ExplanationComposer {
                 }
             case DELETE:
                 return buildDeleteExplanation(action);
+            case BUYRI:
+                return buildBuyRIExplanation(action);
             default:
                 return ACTION_TYPE_ERROR;
         }
+    }
+
+    private static String buildBuyRIExplanation(ActionDTO.Action action) {
+        final BuyRIExplanation buyRI = action.getExplanation().getBuyRI();
+        if (buyRI.getTotalAverageDemand() <= 0) {
+            return "Invalid total demand.";
+        }
+        StringBuilder sb = new StringBuilder();
+        float coverageIncrease = (buyRI.getCoveredAverageDemand() / buyRI.getTotalAverageDemand())
+                * 100;
+        return sb.append("Increase RI Coverage by ")
+                .append(Float.toString(coverageIncrease))
+                .append("%.").toString();
     }
 
     private static String changeExplanationBuilder(Optional<ActionEntity> sourceEntity,

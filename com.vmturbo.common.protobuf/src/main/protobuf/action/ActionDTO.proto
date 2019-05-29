@@ -184,6 +184,11 @@ message Explanation {
     }
 
     message BuyRIExplanation {
+        // How much demand of a particular context we have in terms of coupons.
+        optional float totalAverageDemand = 1;
+
+        // How much demand out of totalAverageDemand is covered in terms of coupons.
+        optional float coveredAverageDemand = 2;
     }
 
     // Reference to a commodity causing the action, with extended per-commodity information.
