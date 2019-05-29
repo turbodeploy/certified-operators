@@ -961,6 +961,8 @@ public class ActionSpecMapper {
                     .mapToReservedInstanceApiDTO(ri, riSpec, context.getServiceEntityApiDTOs());
             actionApiDTO.setReservedInstance(riApiDTO);
             actionApiDTO.setDetails(getRIBuyActionDetails(buyRI, context.getServiceEntityApiDTOs()));
+            actionApiDTO.setTarget(
+                    ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(buyRI.getRegionId().getId())));
         } catch (NotFoundMatchPaymentOptionException e) {
             logger.error("Payment Option not found for RI : {}", buyRI.getBuyRiId(),  e);
         } catch (NotFoundMatchTenancyException e) {
