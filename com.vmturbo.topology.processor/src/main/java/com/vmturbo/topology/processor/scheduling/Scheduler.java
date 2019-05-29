@@ -62,7 +62,12 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Topolog
 @ThreadSafe
 public class Scheduler implements TargetStoreListener {
     private final Logger logger = LogManager.getLogger();
-    private final ScheduledExecutorService schedulerExecutor;
+    // thread pool for scheduling discoveries on.
+    private final ScheduledExecutorService discoveryScheduleExecutor;
+    // thread pool for scheduling the realtime broadcast.
+    private final ScheduledExecutorService broadcastExecutor;
+    // thread pool for expiring long-running operations with.
+    private final ScheduledExecutorService expiredOperationExecutor;
     private final Map<Long, TargetDiscoverySchedule> discoveryTasks;
     private final IOperationManager operationManager;
     private final TargetStore targetStore;
@@ -89,7 +94,9 @@ public class Scheduler implements TargetStoreListener {
      * @param scheduleStore The store used for saving and loading data data from/to persistent storage.
      * @param journalFactory The factory for constructing stitching journals to be used in tracing changes
      *                       made during topology broadcasts initiated by the scheduler.
-     * @param scheduleExecutor The executor to be used for scheduling tasks.
+     * @param discoveryExecutor The executor to be used for scheduling discoveries.
+     * @param broadcastExecutor The executor to be used for scheduling realtime broadcasts.
+     * @param expirationExecutor The executor to be used for scheduling pending operation expiration checks.
      * @param initialBroadcastIntervalMinutes The initial broadcast interval specified in minutes.
      */
     public Scheduler(@Nonnull final IOperationManager operationManager,
@@ -98,14 +105,18 @@ public class Scheduler implements TargetStoreListener {
                      @Nonnull final TopologyHandler topologyHandler,
                      @Nonnull final KeyValueStore scheduleStore,
                      @Nonnull final StitchingJournalFactory journalFactory,
-                     @Nonnull final ScheduledExecutorService scheduleExecutor,
+                     @Nonnull final ScheduledExecutorService discoveryExecutor,
+                     @Nonnull final ScheduledExecutorService broadcastExecutor,
+                     @Nonnull final ScheduledExecutorService expirationExecutor,
                      final long initialBroadcastIntervalMinutes) {
         this.operationManager = Objects.requireNonNull(operationManager);
         this.targetStore = Objects.requireNonNull(targetStore);
         this.probeStore = Objects.requireNonNull(probeStore);
         this.topologyHandler = Objects.requireNonNull(topologyHandler);
         this.journalFactory = Objects.requireNonNull(journalFactory);
-        this.schedulerExecutor = Objects.requireNonNull(scheduleExecutor);
+        this.discoveryScheduleExecutor = Objects.requireNonNull(discoveryExecutor);
+        this.broadcastExecutor = Objects.requireNonNull(broadcastExecutor);
+        this.expiredOperationExecutor = Objects.requireNonNull(expirationExecutor);
         this.scheduleStore = Objects.requireNonNull(scheduleStore);
 
         discoveryTasks = new HashMap<>();
@@ -455,7 +466,7 @@ public class Scheduler implements TargetStoreListener {
                                                       final long delayMillis,
                                                       final long discoveryIntervalMillis,
                                                       boolean synchedToBroadcastSchedule) {
-        final ScheduledFuture<?> scheduledTask = schedulerExecutor.scheduleAtFixedRate(
+        final ScheduledFuture<?> scheduledTask = discoveryScheduleExecutor.scheduleAtFixedRate(
             () -> executeScheduledDiscovery(targetId),
             delayMillis,
             discoveryIntervalMillis,
@@ -479,7 +490,7 @@ public class Scheduler implements TargetStoreListener {
      */
     private TopologyBroadcastSchedule scheduleBroadcast(final long delayMillis,
                                                         final long broadcastIntervalMillis) {
-        final ScheduledFuture<?> scheduledTask = schedulerExecutor.scheduleAtFixedRate(
+        final ScheduledFuture<?> scheduledTask = broadcastExecutor.scheduleAtFixedRate(
             this::executeTopologyBroadcast,
             delayMillis,
             broadcastIntervalMillis,
@@ -669,7 +680,7 @@ public class Scheduler implements TargetStoreListener {
         final long operationTimeoutMs = Math.min(operationManager.getDiscoveryTimeoutMs(),
             Math.min(operationManager.getValidationTimeoutMs(), operationManager.getActionTimeoutMs()));
 
-        final ScheduledFuture<?> scheduledTask = schedulerExecutor.scheduleAtFixedRate(
+        final ScheduledFuture<?> scheduledTask = expiredOperationExecutor.scheduleAtFixedRate(
             operationManager::checkForExpiredOperations,
             operationTimeoutMs,
             operationTimeoutMs,

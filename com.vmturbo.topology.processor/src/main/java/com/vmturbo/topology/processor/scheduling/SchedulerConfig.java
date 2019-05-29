@@ -59,7 +59,13 @@ public class SchedulerConfig {
             kvConfig.keyValueStore(),
             stitchingConfig.stitchingJournalFactory(),
             Executors.newSingleThreadScheduledExecutor(
-                    new ThreadFactoryBuilder().setNameFormat("target-operations-scheduler")
+                    new ThreadFactoryBuilder().setNameFormat("target-discovery-scheduler")
+                            .build()),
+            Executors.newSingleThreadScheduledExecutor(
+                    new ThreadFactoryBuilder().setNameFormat("realtime-broadcast-scheduler")
+                            .build()),
+            Executors.newSingleThreadScheduledExecutor(
+                    new ThreadFactoryBuilder().setNameFormat("target-operations-expiration-scheduler")
                             .build()),
             topologyBroadcastIntervalMinutes
         );
