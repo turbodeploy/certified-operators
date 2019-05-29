@@ -17,12 +17,15 @@ import static com.vmturbo.components.common.utils.StringConstants.VIRTUAL_MACHIN
 import static com.vmturbo.history.db.EntityType.APPLICATION;
 import static com.vmturbo.history.db.EntityType.APPLICATION_SERVER;
 import static com.vmturbo.history.db.EntityType.BUSINESS_APPLICATION;
+import static com.vmturbo.history.db.EntityType.BUSINESS_USER;
 import static com.vmturbo.history.db.EntityType.CHASSIS;
+import static com.vmturbo.history.db.EntityType.DESKTOP_POOL;
 import static com.vmturbo.history.db.EntityType.DISK_ARRAY;
 import static com.vmturbo.history.db.EntityType.IO_MODULE;
 import static com.vmturbo.history.db.EntityType.STORAGE_CONTROLLER;
 import static com.vmturbo.history.db.EntityType.SWITCH;
 import static com.vmturbo.history.db.EntityType.VDC;
+import static com.vmturbo.history.db.EntityType.VIEW_POD;
 
 import java.sql.Timestamp;
 import java.util.Calendar;
@@ -165,6 +168,9 @@ public class HistoryStatsUtils {
                     .put(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE, EntityType.VIRTUAL_MACHINE)
                     .put(CommonDTO.EntityDTO.EntityType.VPOD, EntityType.VPOD)
                     .put(CommonDTO.EntityDTO.EntityType.DATABASE_SERVER, EntityType.DATABASE_SERVER)
+                    .put(CommonDTO.EntityDTO.EntityType.DESKTOP_POOL, DESKTOP_POOL)
+                    .put(CommonDTO.EntityDTO.EntityType.BUSINESS_USER, BUSINESS_USER)
+                    .put(CommonDTO.EntityDTO.EntityType.VIEW_POD, VIEW_POD)
                     .build();
 
     /**
@@ -191,6 +197,9 @@ public class HistoryStatsUtils {
                     .put(CommonDTO.EntityDTO.EntityType.CONTAINER_POD, EntityType.CONTAINERPOD)
                     .put(CommonDTO.EntityDTO.EntityType.LOGICAL_POOL, EntityType.LOGICAL_POOL)
                     .put(CommonDTO.EntityDTO.EntityType.DATABASE_SERVER, EntityType.DATABASE_SERVER)
+                    .put(CommonDTO.EntityDTO.EntityType.DESKTOP_POOL, DESKTOP_POOL)
+                    .put(CommonDTO.EntityDTO.EntityType.BUSINESS_USER, BUSINESS_USER)
+                    .put(CommonDTO.EntityDTO.EntityType.VIEW_POD, VIEW_POD)
                     .build();
 
     public static final Set<Integer> SDK_ENTITY_TYPES_WITHOUT_SAVED_PRICES =

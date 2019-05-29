@@ -11,6 +11,10 @@ import static com.vmturbo.history.schema.abstraction.Tables.APP_SPEND_BY_MONTH;
 import static com.vmturbo.history.schema.abstraction.Tables.APP_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.Tables.APP_STATS_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.APP_STATS_BY_MONTH;
+import static com.vmturbo.history.schema.abstraction.Tables.BU_STATS_BY_DAY;
+import static com.vmturbo.history.schema.abstraction.Tables.BU_STATS_BY_HOUR;
+import static com.vmturbo.history.schema.abstraction.Tables.BU_STATS_BY_MONTH;
+import static com.vmturbo.history.schema.abstraction.Tables.BU_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.CH_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.Tables.CH_STATS_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.CH_STATS_BY_MONTH;
@@ -61,6 +65,10 @@ import static com.vmturbo.history.schema.abstraction.Tables.SYSTEM_LOAD;
 import static com.vmturbo.history.schema.abstraction.Tables.VDC_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.Tables.VDC_STATS_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.VDC_STATS_BY_MONTH;
+import static com.vmturbo.history.schema.abstraction.Tables.VIEW_POD_STATS_BY_DAY;
+import static com.vmturbo.history.schema.abstraction.Tables.VIEW_POD_STATS_BY_HOUR;
+import static com.vmturbo.history.schema.abstraction.Tables.VIEW_POD_STATS_BY_MONTH;
+import static com.vmturbo.history.schema.abstraction.Tables.VIEW_POD_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.VM_SPEND_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.Tables.VM_SPEND_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.VM_SPEND_BY_MONTH;
@@ -177,7 +185,10 @@ public enum EntityType {
             (24, "VirtualApplication",      "app",  APP_STATS_LATEST, APP_STATS_BY_HOUR, APP_STATS_BY_DAY, APP_STATS_BY_MONTH),
 
     APPLICATION_SERVER
-            (25, "ApplicationServer",      "app",  APP_STATS_LATEST, APP_STATS_BY_HOUR, APP_STATS_BY_DAY, APP_STATS_BY_MONTH)
+            (25, "ApplicationServer",      "app",  APP_STATS_LATEST, APP_STATS_BY_HOUR, APP_STATS_BY_DAY, APP_STATS_BY_MONTH),
+    DESKTOP_POOL(26, StringConstants.DESKTOP_POOL, "dp", VDC_STATS_LATEST, VDC_STATS_BY_HOUR, VDC_STATS_BY_DAY, VDC_STATS_BY_MONTH),
+    BUSINESS_USER(27, StringConstants.BUSINESS_USER, "bu", BU_STATS_LATEST, BU_STATS_BY_HOUR, BU_STATS_BY_DAY, BU_STATS_BY_MONTH),
+    VIEW_POD(28, StringConstants.VIEW_POD, "view_pod", VIEW_POD_STATS_LATEST, VIEW_POD_STATS_BY_HOUR, VIEW_POD_STATS_BY_DAY, VIEW_POD_STATS_BY_MONTH)
     ;
 
     private final int value;
@@ -260,7 +271,7 @@ public enum EntityType {
         return VALUE_TO_ENTITY_TYPE_MAP.get(value);
     }
 
-    private static Map<String, EntityType> NAME_TO_ENTITY_TYPE_MAP =
+    private static final Map<String, EntityType> NAME_TO_ENTITY_TYPE_MAP =
             new ImmutableMap.Builder<String, EntityType>()
             .put(StringConstants.CLUSTER, CLUSTER)
             .put(StringConstants.VIRTUAL_MACHINE, VIRTUAL_MACHINE)
@@ -285,6 +296,9 @@ public enum EntityType {
             .put(StringConstants.BUSINESS_APPLICATION, BUSINESS_APPLICATION)
             .put(StringConstants.RESERVED_INSTANCE, RESERVED_INSTANCE)
             .put(StringConstants.LOAD_BALANCER, LOAD_BALANCER)
+            .put(StringConstants.DESKTOP_POOL, DESKTOP_POOL)
+            .put(StringConstants.BUSINESS_USER, BUSINESS_USER)
+            .put(StringConstants.VIEW_POD, VIEW_POD)
             .build();
 
     // This method just get stats entity types, but for spend entity types call getSpendEntity
@@ -376,6 +390,8 @@ public enum EntityType {
             .add(CPOD_STATS_LATEST)
             .add(LP_STATS_LATEST)
             .add(RI_STATS_LATEST)
+            .add(BU_STATS_LATEST)
+            .add(VIEW_POD_STATS_LATEST)
             .build();
 
     public static boolean isMonthly(Table<?> tbl){
@@ -399,10 +415,12 @@ public enum EntityType {
             .add(CNT_STATS_BY_MONTH)
             .add(CPOD_STATS_BY_MONTH)
             .add(VM_SPEND_BY_MONTH)
-                                    .add(APP_SPEND_BY_MONTH)
+            .add(APP_SPEND_BY_MONTH)
             .add(SERVICE_SPEND_BY_MONTH)
             .add(LP_STATS_BY_MONTH)
             .add(RI_STATS_BY_MONTH)
+            .add(BU_STATS_BY_MONTH)
+            .add(VIEW_POD_STATS_BY_MONTH)
             .build();
 
     public static boolean isDaily(Table<?> tbl){
@@ -430,6 +448,8 @@ public enum EntityType {
             .add(SERVICE_SPEND_BY_DAY)
             .add(LP_STATS_BY_DAY)
             .add(RI_STATS_BY_DAY)
+            .add(BU_STATS_BY_DAY)
+            .add(VIEW_POD_STATS_BY_DAY)
             .build();
 
     // note:  CLUSTER_STATS_BY_HOUR intentionally ommited from HOURLY_TABLES
@@ -458,6 +478,8 @@ public enum EntityType {
             .add(SERVICE_SPEND_BY_HOUR)
             .add(LP_STATS_BY_HOUR)
             .add(RI_STATS_BY_HOUR)
+            .add(BU_STATS_BY_HOUR)
+            .add(VIEW_POD_STATS_BY_HOUR)
             .build();
 
 
@@ -537,6 +559,14 @@ public enum EntityType {
             .put(RI_STATS_BY_HOUR, RESERVED_INSTANCE)
             .put(RI_STATS_BY_DAY, RESERVED_INSTANCE)
             .put(RI_STATS_BY_MONTH, RESERVED_INSTANCE)
+            .put(BU_STATS_LATEST, BUSINESS_USER)
+            .put(BU_STATS_BY_HOUR, BUSINESS_USER)
+            .put(BU_STATS_BY_DAY, BUSINESS_USER)
+            .put(BU_STATS_BY_MONTH, BUSINESS_USER)
+            .put(VIEW_POD_STATS_LATEST, VIEW_POD)
+            .put(VIEW_POD_STATS_BY_HOUR, VIEW_POD)
+            .put(VIEW_POD_STATS_BY_DAY, VIEW_POD)
+            .put(VIEW_POD_STATS_BY_MONTH, VIEW_POD)
             .build();
 
     public static Map<Table<?>, EntityType> TABLE_TO_SPEND_ENTITY_MAP =
