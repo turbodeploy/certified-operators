@@ -33,6 +33,7 @@ public class SettingPolicyFilter {
     private final Set<String> desiredNames;
     private final Set<Long> desiredIds;
     private final Set<Long> desiredTargetIds;
+    private final Set<Integer> desiredEntityTypes;
 
     /**
      * The pre-computed jOOQ conditions representing the filter.
@@ -42,11 +43,13 @@ public class SettingPolicyFilter {
     private SettingPolicyFilter(@Nonnull final Set<Type> type,
                                 @Nonnull final Set<String> name,
                                 @Nonnull final Set<Long> ids,
-                                @Nonnull final Set<Long> targetIds) {
+                                @Nonnull final Set<Long> targetIds,
+                                @Nonnull final Set<Integer> entityTypes) {
         this.desiredTypes = Objects.requireNonNull(type);
         this.desiredNames = Objects.requireNonNull(name);
         this.desiredIds = Objects.requireNonNull(ids);
         this.desiredTargetIds = Objects.requireNonNull(targetIds);
+        this.desiredEntityTypes = Objects.requireNonNull(entityTypes);
 
         final ImmutableList.Builder<Condition> condBuilder = ImmutableList.builder();
         if (!type.isEmpty()) {
@@ -65,6 +68,10 @@ public class SettingPolicyFilter {
 
         if (!targetIds.isEmpty()) {
             condBuilder.add(SETTING_POLICY.TARGET_ID.in(targetIds));
+        }
+
+        if (!entityTypes.isEmpty()) {
+            condBuilder.add(SETTING_POLICY.ENTITY_TYPE.in(entityTypes));
         }
 
         conditions = condBuilder.build();
@@ -92,7 +99,7 @@ public class SettingPolicyFilter {
 
     @Override
     public int hashCode() {
-        return Objects.hash(desiredTypes, desiredNames, desiredIds, desiredTargetIds);
+        return Objects.hash(desiredTypes, desiredNames, desiredIds, desiredTargetIds, desiredEntityTypes);
     }
 
     @Override
@@ -102,7 +109,8 @@ public class SettingPolicyFilter {
             return otherFilter.desiredTypes.equals(desiredTypes)
                 && otherFilter.desiredNames.equals(desiredNames)
                 && otherFilter.desiredIds.equals(desiredIds)
-                && otherFilter.desiredTargetIds.equals(desiredTargetIds);
+                && otherFilter.desiredTargetIds.equals(desiredTargetIds)
+                && otherFilter.desiredEntityTypes.equals(desiredEntityTypes);
         } else {
             return false;
         }
@@ -131,6 +139,7 @@ public class SettingPolicyFilter {
         private Set<Long> ids = new HashSet<>();
         private Set<String> names = new HashSet<>();
         private Set<Long> targetIds = new HashSet<>();
+        private Set<Integer> entityTypes = new HashSet<>();
 
         /**
          * Add a type that the filter will match. This method can be called
@@ -180,8 +189,20 @@ public class SettingPolicyFilter {
             return this;
         }
 
+        /**
+         * Add a setting policy entity type that the filter will match. This method can be called
+         * multiple times with different entity types.
+         *
+         * @param entityType The entity type of the policy to match
+         * @return The builder, for chaining.
+         */
+        public Builder withEntityType(final int entityType) {
+            this.entityTypes.add(entityType);
+            return this;
+        }
+
         public SettingPolicyFilter build() {
-            return new SettingPolicyFilter(type, names, ids, targetIds);
+            return new SettingPolicyFilter(type, names, ids, targetIds, entityTypes);
         }
     }
 }
