@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -208,6 +209,11 @@ public class SearchUtil {
     public void populateActionApiDTOWithTargets(@Nonnull ActionApiDTO actionApiDTO) {
         Stream.of(actionApiDTO.getTarget(), actionApiDTO.getCurrentEntity(), actionApiDTO.getNewEntity())
                 .filter(Objects::nonNull)
+                // in some cases (e.g. START action), currentEntity may be a default
+                // ServiceEntityApiDTO, with all null fields since the UI reacts poorly to a null
+                // currentEntity.  We need to filter those out here since they don't represent
+                // actual service entities.
+                .filter(serviceEntityApiDTO -> StringUtils.isNotEmpty(serviceEntityApiDTO.getUuid()))
                 .forEach(serviceEntityApiDTO -> {
                     final String entityId = serviceEntityApiDTO.getUuid();
                     final long entityIdNumber = Long.valueOf(entityId);

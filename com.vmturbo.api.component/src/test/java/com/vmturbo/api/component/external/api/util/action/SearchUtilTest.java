@@ -87,6 +87,9 @@ public class SearchUtilTest {
         serviceEntityApiDTO.setUuid(Long.toString(entityId));
         final ActionApiDTO actionApiDTO = new ActionApiDTO();
         actionApiDTO.setNewEntity(serviceEntityApiDTO);
+        // this represents the case where we have a default service entity object as the current
+        // entity.  This can happen, for example, for a START action
+        actionApiDTO.setCurrentEntity(new ServiceEntityApiDTO());
         final long targetId = 2L;
         final long probeId = 3L;
         final String probeType = "probeType";
@@ -122,7 +125,7 @@ public class SearchUtilTest {
         Assert.assertEquals(
             targetId, (long)Long.valueOf(actionApiDTO.getNewEntity().getDiscoveredBy().getUuid()));
         Assert.assertNull(actionApiDTO.getTarget());
-        Assert.assertNull(actionApiDTO.getCurrentEntity());
+        Assert.assertNull(actionApiDTO.getCurrentEntity().getDiscoveredBy());
     }
 
     /**
