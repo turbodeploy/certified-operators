@@ -4,6 +4,7 @@ import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 
@@ -24,12 +25,22 @@ public class TopologyProcessorKafkaSender {
             @Nonnull final KafkaMessageProducer kafkaMessageProducer) {
         return new TopologyProcessorNotificationSender(threadPool,
                 kafkaMessageProducer.messageSender(
-                        TopologyProcessorClient.TOPOLOGY_LIVE),
+                        TopologyProcessorClient.TOPOLOGY_LIVE, TopologyProcessorKafkaSender::generateMessageKey),
                 kafkaMessageProducer.messageSender(
-                        TopologyProcessorClient.TOPOLOGY_USER_PLAN),
+                        TopologyProcessorClient.TOPOLOGY_USER_PLAN, TopologyProcessorKafkaSender::generateMessageKey),
                 kafkaMessageProducer.messageSender(
-                        TopologyProcessorClient.TOPOLOGY_SCHEDULED_PLAN),
+                        TopologyProcessorClient.TOPOLOGY_SCHEDULED_PLAN, TopologyProcessorKafkaSender::generateMessageKey),
                 kafkaMessageProducer.messageSender(TopologyProcessorClient.NOTIFICATIONS_TOPIC),
                 kafkaMessageProducer.messageSender(TopologyProcessorClient.TOPOLOGY_SUMMARIES));
+    }
+
+    /**
+     * Generate a message key that will be used for all messages that are part of the same sequence.
+     *
+     * @param message to generate a key for
+     * @return the string key to use for the kafka message
+     */
+    public static String generateMessageKey(Topology message) {
+        return Long.toString(message.getTopologyId());
     }
 }
