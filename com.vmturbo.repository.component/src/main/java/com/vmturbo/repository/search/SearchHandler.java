@@ -34,6 +34,7 @@ import javaslang.control.Try;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
@@ -85,8 +86,8 @@ public class SearchHandler {
         this.arangoDatabaseFactory = Objects.requireNonNull(arangoDatabaseFactory);
         this.executor = Objects.requireNonNull(graphDBExecutor);
 
-        executorService = Executors.newCachedThreadPool(
-                new ThreadFactoryBuilder().setNameFormat("search-handler-%d").build());
+        executorService = Tracing.traceAwareExecutor(Executors.newCachedThreadPool(
+                new ThreadFactoryBuilder().setNameFormat("search-handler-%d").build()));
     }
 
     /**

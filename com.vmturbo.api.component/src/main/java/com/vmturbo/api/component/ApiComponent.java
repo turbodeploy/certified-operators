@@ -18,6 +18,7 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
+import org.springframework.web.context.ConfigurableWebApplicationContext;
 import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.filter.DelegatingFilterProxy;
@@ -85,7 +86,7 @@ public class ApiComponent extends BaseVmtComponent {
      * @param contextServer Jetty context handler to register with
      * @return rest application context
      */
-    private static ConfigurableApplicationContext createContext(
+    private static ConfigurableWebApplicationContext createContext(
             @Nonnull ServletContextHandler contextServer) {
         final AnnotationConfigWebApplicationContext rootContext =
                 new AnnotationConfigWebApplicationContext();

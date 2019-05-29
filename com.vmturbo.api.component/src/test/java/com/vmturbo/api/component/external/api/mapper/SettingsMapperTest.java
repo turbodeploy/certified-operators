@@ -62,6 +62,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
@@ -167,7 +169,9 @@ public class SettingsMapperTest {
     @Test
     public void testLoadEndToEnd() throws IOException {
         SettingsMapper mapper = new SettingsMapper(
-                grpcServer.getChannel(),
+                SettingServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 (new SettingsManagerMappingLoader("settingManagersTest.json")).getMapping(),
                 (new SettingSpecStyleMappingLoader("settingSpecStyleTest.json")).getMapping());
 

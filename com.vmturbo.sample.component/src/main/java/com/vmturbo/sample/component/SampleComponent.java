@@ -1,11 +1,15 @@
 package com.vmturbo.sample.component;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import io.grpc.BindableService;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.ServerInterceptor;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -57,13 +61,10 @@ public class SampleComponent extends BaseVmtComponent {
         startContext(SampleComponent.class);
     }
 
-    /**
-     * This is the method used to actually hook in implementations of gRPC services
-     * into the gRPC server embedded into each component.
-     */
-    protected @Nonnull Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
-        builder.addService(echoRpcConfig.echoRpcService());
-        return Optional.of(builder.build());
+    @Nonnull
+    @Override
+    public List<BindableService> getGrpcServices() {
+        return Collections.singletonList(echoRpcConfig.echoRpcService());
     }
 
     /**

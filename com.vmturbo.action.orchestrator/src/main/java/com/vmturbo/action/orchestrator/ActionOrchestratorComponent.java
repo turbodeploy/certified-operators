@@ -1,16 +1,12 @@
 package com.vmturbo.action.orchestrator;
 
-import java.util.Optional;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
-
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
-import io.grpc.ServerInterceptors;
-
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,6 +14,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+
+import io.grpc.BindableService;
+import io.grpc.ServerInterceptor;
 
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
 import com.vmturbo.action.orchestrator.api.ApiSecurityConfig;
@@ -91,26 +90,22 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
         diagnosticsConfig.diagnostics().dump(diagnosticZip);
     }
 
-    @Override
     @Nonnull
-    protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
-        // Monitor for server metrics with prometheus.
-        final MonitoringServerInterceptor monitoringInterceptor =
-            MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
+    @Override
+    public List<BindableService> getGrpcServices() {
+        final List<BindableService> services = new ArrayList<>();
+        services.add(rpcConfig.actionRpcService());
+        services.add(rpcConfig.entitySeverityRpcService());
+        services.add(workflowConfig.discoveredWorkflowRpcService());
+        services.add(workflowConfig.fetchWorkflowRpcService());
+        rpcConfig.actionsDebugRpcService().ifPresent(services::add);
+        return services;
+    }
 
-        // gRPC JWT token interceptor
-        final JwtServerInterceptor jwtInterceptor = new JwtServerInterceptor(securityConfig.apiAuthKVStore());
-        builder
-            .addService(ServerInterceptors.intercept(rpcConfig.actionRpcService(),
-                jwtInterceptor,
-                monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(rpcConfig.entitySeverityRpcService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(workflowConfig.discoveredWorkflowRpcService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(workflowConfig.fetchWorkflowRpcService(), monitoringInterceptor));
-        rpcConfig.actionsDebugRpcService().ifPresent(actionsDebugRpcService ->
-            builder.addService(ServerInterceptors.intercept(actionsDebugRpcService, monitoringInterceptor)));
-
-        return Optional.of(builder.build());
+    @Nonnull
+    @Override
+    public List<ServerInterceptor> getServerInterceptors() {
+        return Collections.singletonList(new JwtServerInterceptor(securityConfig.apiAuthKVStore()));
     }
 
     public static void main(String[] args) {

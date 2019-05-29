@@ -1,7 +1,9 @@
 package com.vmturbo.repository;
 
 import java.net.URISyntaxException;
-import java.util.Optional;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.zip.ZipOutputStream;
 
@@ -29,12 +31,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.guava.GuavaModule;
 import com.google.protobuf.InvalidProtocolBufferException;
 
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
-import io.grpc.ServerInterceptors;
+import io.grpc.BindableService;
+import io.grpc.ServerInterceptor;
 import javaslang.circuitbreaker.CircuitBreakerConfig;
 import javaslang.circuitbreaker.CircuitBreakerRegistry;
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import com.vmturbo.arangodb.ArangoHealthMonitor;
 import com.vmturbo.arangodb.tool.ArangoDump;
@@ -80,8 +80,8 @@ import com.vmturbo.repository.graph.executor.ReactiveGraphDBExecutor;
 import com.vmturbo.repository.listener.MarketTopologyListener;
 import com.vmturbo.repository.listener.TopologyEntitiesListener;
 import com.vmturbo.repository.listener.realtime.GlobalSupplyChainCalculator;
-import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
+import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.search.SearchHandler;
 import com.vmturbo.repository.service.ArangoRepositoryRpcService;
 import com.vmturbo.repository.service.ArangoSearchRpcService;
@@ -367,7 +367,7 @@ public class RepositoryComponent extends BaseVmtComponent {
     }
 
     @Bean
-    public GraphDBService graphDBService() throws InterruptedException, URISyntaxException, CommunicationException {
+    public GraphDBService graphDBService() {
         return new GraphDBService(arangoDBExecutor(),
                                   graphDefinition(),
                                   topologyManager());
@@ -420,8 +420,7 @@ public class RepositoryComponent extends BaseVmtComponent {
 
 
     @Bean
-    public RepositoryServiceImplBase repositoryRpcService() throws
-            InterruptedException, URISyntaxException, CommunicationException {
+    public RepositoryServiceImplBase repositoryRpcService() {
         final ArangoRepositoryRpcService arangoRpcService = new ArangoRepositoryRpcService(topologyManager(),
             topologyProtobufsManager(),
             graphDBService(),
@@ -476,7 +475,8 @@ public class RepositoryComponent extends BaseVmtComponent {
     }
 
     @Bean
-    public SupplyChainServiceImplBase supplyChainRpcService() throws InterruptedException, CommunicationException, URISyntaxException {
+    public SupplyChainServiceImplBase supplyChainRpcService()
+            throws InterruptedException, CommunicationException, URISyntaxException {
         // We always create the arango one, because we always use it for plans.
         final ArangoSupplyChainRpcService arangoService = new ArangoSupplyChainRpcService(
             graphDBService(),
@@ -608,26 +608,24 @@ public class RepositoryComponent extends BaseVmtComponent {
         return CircuitBreakerRegistry.of(circuitBreakerConfig);
     }
 
-    @Override
     @Nonnull
-    protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
+    @Override
+    public List<BindableService> getGrpcServices() {
         try {
-            // Monitor for server metrics with prometheus.
-            final MonitoringServerInterceptor monitoringInterceptor =
-                MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
-
-            // gRPC JWT token interceptor
-            final JwtServerInterceptor jwtInterceptor = new JwtServerInterceptor(securityConfig.apiAuthKVStore());
-
-            return Optional.of(builder
-                .addService(ServerInterceptors.intercept(searchRpcService(), jwtInterceptor, monitoringInterceptor))
-                .addService(ServerInterceptors.intercept(repositoryRpcService(), monitoringInterceptor))
-                .addService(ServerInterceptors.intercept(supplyChainRpcService(), jwtInterceptor, monitoringInterceptor))
-                .build());
+            return Arrays.asList(repositoryRpcService(),
+                searchRpcService(),
+                supplyChainRpcService());
         } catch (InterruptedException | CommunicationException | URISyntaxException e) {
-            logger.error("Failed building grpc server", e);
-            return Optional.empty();
+            logger.error("Failed to start gRPC services due to exception.", e);
+            return Collections.emptyList();
         }
+    }
+
+    @Nonnull
+    @Override
+    public List<ServerInterceptor> getServerInterceptors() {
+        final JwtServerInterceptor jwtInterceptor = new JwtServerInterceptor(securityConfig.apiAuthKVStore());
+        return Collections.singletonList(jwtInterceptor);
     }
 
     public static boolean realtimeInMemory() {

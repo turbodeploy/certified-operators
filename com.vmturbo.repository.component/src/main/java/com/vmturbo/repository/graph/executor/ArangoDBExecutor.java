@@ -37,10 +37,11 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.OptScope;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
-import com.vmturbo.repository.exception.GraphDatabaseExceptions.GlobalSupplyChainProviderRelsException;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.parameter.GraphCmd.ServiceEntityMultiGet;
@@ -194,34 +195,36 @@ public class ArangoDBExecutor implements GraphDBExecutor {
 
     @Override
     public Try<SupplyChainSubgraph> executeSupplyChainCmd(final GraphCmd.GetSupplyChain supplyChainCmd) {
-        final ArangoDB driver = arangoDatabaseFactory.getArangoDriver();
-        final String providerQuery = getSupplyChainQuery(SupplyChainDirection.PROVIDER, supplyChainCmd);
-        final String consumerQuery = getSupplyChainQuery(SupplyChainDirection.CONSUMER, supplyChainCmd);
+        try (OptScope scope = Tracing.addOpToTrace("executeSupplyChainCmd")) {
+            final ArangoDB driver = arangoDatabaseFactory.getArangoDriver();
+            final String providerQuery = getSupplyChainQuery(SupplyChainDirection.PROVIDER, supplyChainCmd);
+            final String consumerQuery = getSupplyChainQuery(SupplyChainDirection.CONSUMER, supplyChainCmd);
 
-        final TopologyDatabase database = supplyChainCmd.getTopologyDatabase();
-        final DataMetricTimer timer = SINGLE_SOURCE_SUPPLY_CHAIN_QUERY_DURATION_SUMMARY.startTimer();
+            final TopologyDatabase database = supplyChainCmd.getTopologyDatabase();
+            final DataMetricTimer timer = SINGLE_SOURCE_SUPPLY_CHAIN_QUERY_DURATION_SUMMARY.startTimer();
 
-        logger.debug("Supply chain provider query {}", providerQuery);
-        logger.debug("Supply chain consumer query {}", consumerQuery);
+            logger.debug("Supply chain provider query {}", providerQuery);
+            logger.debug("Supply chain consumer query {}", consumerQuery);
 
-        final Try<Seq<ArangoCursor<ResultVertex>>> combinedResults = Try.sequence(ImmutableList.of(
+            final Try<Seq<ArangoCursor<ResultVertex>>> combinedResults = Try.sequence(ImmutableList.of(
                 Try.of(() -> driver.db(TopologyDatabases.getDbName(database)).query(providerQuery, null, null, ResultVertex.class))
                 , Try.of(() -> driver.db(TopologyDatabases.getDbName(database)).query(consumerQuery, null, null, ResultVertex.class))));
-        timer.observe();
+            timer.observe();
 
-        combinedResults.onFailure(logAQLException(Joiner.on("\n").join(providerQuery, consumerQuery)));
+            combinedResults.onFailure(logAQLException(Joiner.on("\n").join(providerQuery, consumerQuery)));
 
-        return combinedResults.flatMap(results -> {
+            return combinedResults.flatMap(results -> {
 
-            final List<ResultVertex> providerResults =
+                final List<ResultVertex> providerResults =
                     fetchAllResults(results.get(0));
-            final List<ResultVertex> consumerResults =
+                final List<ResultVertex> consumerResults =
                     fetchAllResults(results.get(1));
 
-            return (!providerResults.isEmpty() && !consumerResults.isEmpty())
+                return (!providerResults.isEmpty() && !consumerResults.isEmpty())
                     ? Try.success(new SupplyChainSubgraph(providerResults, consumerResults))
                     : Try.failure(new NoSuchElementException("Entity " + supplyChainCmd.getStartingVertex() + " not found."));
-        });
+            });
+        }
     }
 
     public  void insertNewDocument(final @Nonnull BaseDocument newDocument,
@@ -268,60 +271,63 @@ public class ArangoDBExecutor implements GraphDBExecutor {
 
     @Override
     public Try<Collection<ServiceEntityRepoDTO>> executeSearchServiceEntityCmd(final GraphCmd.SearchServiceEntity searchServiceEntity) {
-        final ArangoDB driver = arangoDatabaseFactory.getArangoDriver();
-        final String searchQuery = searchServiceEntitytQuery(searchServiceEntity);
-        final String databaseName = TopologyDatabases.getDbName(searchServiceEntity.getTopologyDatabase());
-        final DataMetricTimer timer = SEARCH_QUERY_DURATION_SUMMARY.startTimer();
+        try (OptScope scope = Tracing.addOpToTrace("executeSearchServiceEntityCmd")) {
+            final ArangoDB driver = arangoDatabaseFactory.getArangoDriver();
+            final String searchQuery = searchServiceEntitytQuery(searchServiceEntity);
+            final String databaseName = TopologyDatabases.getDbName(searchServiceEntity.getTopologyDatabase());
+            final DataMetricTimer timer = SEARCH_QUERY_DURATION_SUMMARY.startTimer();
 
-        logger.debug("Service entity search query {}", searchQuery);
+            logger.debug("Service entity search query {}", searchQuery);
 
-        final Try<ArangoCursor<ServiceEntityRepoDTO>> results =
-            Try.of(() -> driver.db(databaseName).query(searchQuery, null, null, ServiceEntityRepoDTO.class));
-        timer.observe();
+            final Try<ArangoCursor<ServiceEntityRepoDTO>> results =
+                Try.of(() -> driver.db(databaseName).query(searchQuery, null, null, ServiceEntityRepoDTO.class));
+            timer.observe();
 
-        results.onFailure(logAQLException(searchQuery));
+            results.onFailure(logAQLException(searchQuery));
 
-        return results.map(this::fetchAllResults);
+            return results.map(this::fetchAllResults);
+        }
     }
 
     @Override
     @Nonnull
     public Try<Collection<ServiceEntityRepoDTO>> executeServiceEntityMultiGetCmd(
             @Nonnull final ServiceEntityMultiGet serviceEntityMultiGet) {
+        try (final OptScope scope = Tracing.addOpToTrace("executeServiceEntityMultiGetCmd")) {
+            final ArangoDB driver = arangoDatabaseFactory.getArangoDriver();
+            final StrSubstitutor querySubstitutor;
+            final String searchQuery;
 
-        final ArangoDB driver = arangoDatabaseFactory.getArangoDriver();
-        final StrSubstitutor querySubstitutor;
-        final String searchQuery;
-
-        // if entityIDs is empty, return all entities.
-        if (serviceEntityMultiGet.getEntityIds().size()==0) {
-            querySubstitutor = new StrSubstitutor(ImmutableMap.of(
+            // if entityIDs is empty, return all entities.
+            if (serviceEntityMultiGet.getEntityIds().size() == 0) {
+                querySubstitutor = new StrSubstitutor(ImmutableMap.of(
                     "collection",
                     serviceEntityMultiGet.getCollection()));
-            searchQuery = querySubstitutor.replace(ArangoDBQueries.GET_ALL_ENTITIES);
-        } else {
-            // replace the "commaSepLongs" token with the list of entity ids, e.g. "1","2","3"
-            querySubstitutor = new StrSubstitutor(ImmutableMap.of(
+                searchQuery = querySubstitutor.replace(ArangoDBQueries.GET_ALL_ENTITIES);
+            } else {
+                // replace the "commaSepLongs" token with the list of entity ids, e.g. "1","2","3"
+                querySubstitutor = new StrSubstitutor(ImmutableMap.of(
                     "collection",
                     serviceEntityMultiGet.getCollection(),
                     "commaSepLongs",
                     serviceEntityMultiGet.getEntityIds().stream()
-                            .map(id -> "\""+ Long.toString(id) +"\"")
-                            .collect(Collectors.joining(","))));
-            searchQuery = querySubstitutor.replace(ArangoDBQueries.GET_ENTITIES_BY_OID);
+                                .map(id -> "\""+ Long.toString(id) +"\"")
+                                .collect(Collectors.joining(","))));
+                searchQuery = querySubstitutor.replace(ArangoDBQueries.GET_ENTITIES_BY_OID);
+            }
+            final String databaseName = TopologyDatabases.getDbName(serviceEntityMultiGet.getTopologyDatabase());
+            final DataMetricTimer timer = SEARCH_QUERY_DURATION_SUMMARY.startTimer();
+
+            logger.debug("Service entity multi-get query {} for database {}", searchQuery, databaseName);
+
+            final Try<ArangoCursor<ServiceEntityRepoDTO>> results =
+                Try.of(() -> driver.db(databaseName).query(searchQuery, null, null, ServiceEntityRepoDTO.class));
+            timer.observe();
+
+            results.onFailure(logAQLException(searchQuery));
+
+            return results.map(this::fetchAllResults);
         }
-        final String databaseName = TopologyDatabases.getDbName(serviceEntityMultiGet.getTopologyDatabase());
-        final DataMetricTimer timer = SEARCH_QUERY_DURATION_SUMMARY.startTimer();
-
-        logger.debug("Service entity multi-get query {} for database {}", searchQuery, databaseName);
-
-        final Try<ArangoCursor<ServiceEntityRepoDTO>> results =
-            Try.of(() -> driver.db(databaseName).query(searchQuery,null, null, ServiceEntityRepoDTO.class));
-        timer.observe();
-
-        results.onFailure(logAQLException(searchQuery));
-
-        return results.map(this::fetchAllResults);
     }
 
 
@@ -354,65 +360,67 @@ public class ArangoDBExecutor implements GraphDBExecutor {
             @Nonnull String databaseName,
             @Nonnull String vertexCollection,
             @Nonnull SearchTagsRequest request) throws ArangoDBException {
-        final Collection<Long> entityOids = request.getEntitiesList();
-        final EnvironmentTypeEnum.EnvironmentType environmentType =
+        try (OptScope scope = Tracing.addOpToTrace("executeTagCommand")) {
+            final Collection<Long> entityOids = request.getEntitiesList();
+            final EnvironmentTypeEnum.EnvironmentType environmentType =
                 request.hasEnvironmentType() ? request.getEnvironmentType() : null;
 
-        // construct AQL query
-        final StringBuilder queryBuilder =
-                new StringBuilder(String.format("FOR service_entity IN %s\n", vertexCollection));
-        if (request.hasEntityType()) {
-            queryBuilder
+            // construct AQL query
+            final StringBuilder queryBuilder =
+                    new StringBuilder(String.format("FOR service_entity IN %s\n", vertexCollection));
+            if (request.hasEntityType()) {
+                queryBuilder
                     .append("FILTER service_entity.entityType == \"")
                     .append(UIEntityType.fromType(request.getEntityType()))
                     .append("\"\n");
-        }
-        if (entityOids != null && !entityOids.isEmpty()) {
-            queryBuilder.append("FILTER service_entity.oid IN [");
-            queryBuilder.append(
+            }
+            if (entityOids != null && !entityOids.isEmpty()) {
+                queryBuilder.append("FILTER service_entity.oid IN [");
+                queryBuilder.append(
                     entityOids
-                            .stream()
-                            .map(x -> "\"" + x.toString() + "\"")
-                            .collect(Collectors.joining(", ")));
-            queryBuilder.append("]\n");
-        }
-        if (environmentType != null) {
-            // TODO: add filter for environment type (ONPREM, CLOUD, HYBRID) when it is implemented
-        }
-        queryBuilder.append("FILTER LENGTH(ATTRIBUTES(service_entity.tags)) > 0\n");
-        queryBuilder.append("RETURN service_entity.tags");
-        final String query = queryBuilder.toString();
-        logger.info("AQL query constructed:\n {}\n", query);
+                        .stream()
+                        .map(x -> "\"" + x.toString() + "\"")
+                        .collect(Collectors.joining(", ")));
+                queryBuilder.append("]\n");
+            }
+            if (environmentType != null) {
+                // TODO: add filter for environment type (ONPREM, CLOUD, HYBRID) when it is implemented
+            }
+            queryBuilder.append("FILTER LENGTH(ATTRIBUTES(service_entity.tags)) > 0\n");
+            queryBuilder.append("RETURN service_entity.tags");
+            final String query = queryBuilder.toString();
+            logger.info("AQL query constructed:\n {}\n", query);
 
-        // execute query
-        final ArangoCursor<BaseDocument> resultCursor =
+            // execute query
+            final ArangoCursor<BaseDocument> resultCursor =
                 arangoDatabaseFactory.getArangoDriver().db(databaseName).query(
                     query, null, new AqlQueryOptions(), BaseDocument.class);
 
-        // convert results to a map from strings (key) to sets of strings (values)
-        // using sets here prevents duplicate key/value pairs
-        final Map<String, Set<String>> resultWithSetsOfValues = new HashMap<>();
-        while (resultCursor.hasNext()) {
-            final BaseDocument tags = resultCursor.next();
-            for (Entry<String, Object> e : tags.getProperties().entrySet()) {
-                final String key = e.getKey();
-                final List<String> values = (List<String>)e.getValue();
-                resultWithSetsOfValues.merge(
+            // convert results to a map from strings (key) to sets of strings (values)
+            // using sets here prevents duplicate key/value pairs
+            final Map<String, Set<String>> resultWithSetsOfValues = new HashMap<>();
+            while (resultCursor.hasNext()) {
+                final BaseDocument tags = resultCursor.next();
+                for (Entry<String, Object> e : tags.getProperties().entrySet()) {
+                    final String key = e.getKey();
+                    final List<String> values = (List<String>) e.getValue();
+                    resultWithSetsOfValues.merge(
                         key,
                         new HashSet<>(values),
                         (vs1, vs2) -> {
                             vs1.addAll(vs2);
                             return vs1;
                         });
+                }
             }
-        }
 
-        // convert the result to a map from strings (key) to a TagValuesDTO object (values)
-        final Map<String, TagValuesDTO> result = new HashMap<>();
-        for (Entry<String, Set<String>> e : resultWithSetsOfValues.entrySet()) {
-            result.put(e.getKey(), TagValuesDTO.newBuilder().addAllValues(e.getValue()).build());
-        }
+            // convert the result to a map from strings (key) to a TagValuesDTO object (values)
+            final Map<String, TagValuesDTO> result = new HashMap<>();
+            for (Entry<String, Set<String>> e : resultWithSetsOfValues.entrySet()) {
+                result.put(e.getKey(), TagValuesDTO.newBuilder().addAllValues(e.getValue()).build());
+            }
 
-        return result;
+            return result;
+        }
     }
 }

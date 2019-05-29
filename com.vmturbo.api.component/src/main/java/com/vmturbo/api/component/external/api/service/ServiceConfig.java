@@ -34,17 +34,11 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.auth.api.widgets.AuthClientConfig;
-import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc;
-import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
-import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 import com.vmturbo.kvstore.PublicKeyStoreConfig;
 import com.vmturbo.kvstore.SAMLConfigurationStoreConfig;
 import com.vmturbo.notification.api.impl.NotificationClientConfig;
 import com.vmturbo.reporting.api.ReportingClientConfig;
-import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc;
-import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceBlockingStub;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
@@ -225,16 +219,11 @@ public class ServiceConfig {
                 actionStatsQueryExecutor(),
                 mapperConfig.uuidMapper(),
                 communicationConfig.historyRpcService(),
-                settingPolicyServiceBlockingStub(),
+                communicationConfig.settingPolicyRpcService(),
                 communicationConfig.settingRpcService(),
                 mapperConfig.settingsMapper(),
                 searchUtil(),
                 communicationConfig.repositoryApi());
-    }
-
-    @Bean
-    public RepositoryClient repositoryClient() {
-        return new RepositoryClient(communicationConfig.repositoryChannel());
     }
 
     @Bean
@@ -258,7 +247,7 @@ public class ServiceConfig {
                 communicationConfig.topologyProcessor(),
                 communicationConfig.supplyChainFetcher(),
                 searchUtil(),
-                settingPolicyServiceBlockingStub(),
+                communicationConfig.settingPolicyRpcService(),
                 mapperConfig.settingsMapper(),
                 targetService());
     }
@@ -285,7 +274,7 @@ public class ServiceConfig {
                 policiesService(),
                 communicationConfig.policyRpcService(),
                 communicationConfig.planRpcService(),
-                scenarioServiceClient(),
+                communicationConfig.scenarioRpcService(),
                 mapperConfig.policyMapper(),
                 mapperConfig.marketMapper(),
                 mapperConfig.statsMapper(),
@@ -336,17 +325,12 @@ public class ServiceConfig {
 
     @Bean
     public ReportsService reportsService() {
-        return new ReportsService(reportingRpcService(), groupsService());
-    }
-
-    @Bean
-    public ReportingServiceBlockingStub reportingRpcService() {
-        return ReportingServiceGrpc.newBlockingStub(reportingClientConfig.reportingChannel());
+        return new ReportsService(communicationConfig.reportingRpcService(), groupsService());
     }
 
     @Bean
     public Servlet reportServlet() {
-        final Servlet servlet = new ReportCgiServlet(reportingRpcService());
+        final Servlet servlet = new ReportCgiServlet(communicationConfig.reportingRpcService());
         final ServletRegistration.Dynamic registration =
                 servletContext.addServlet("reports-cgi-servlet", servlet);
         registration.setLoadOnStartup(1);
@@ -387,17 +371,9 @@ public class ServiceConfig {
     }
 
     @Bean
-    public ScenarioServiceBlockingStub scenarioServiceClient() {
-        return ScenarioServiceGrpc.newBlockingStub(
-                communicationConfig.planOrchestratorChannel())
-                .withInterceptors(communicationConfig.jwtClientInterceptor());
-    }
-
-    @Bean
     public ScenariosService scenariosService() {
-        return new ScenariosService(
-                scenarioServiceClient(),
-                mapperConfig.scenarioMapper());
+        return new ScenariosService(communicationConfig.scenarioRpcService(),
+            mapperConfig.scenarioMapper());
     }
 
     @Bean
@@ -437,14 +413,8 @@ public class ServiceConfig {
 
     @Bean
     public SettingsPoliciesService settingsPoliciesService() {
-        return new SettingsPoliciesService(communicationConfig.settingRpcService(), mapperConfig.settingsMapper(),
-                settingPolicyServiceBlockingStub());
-    }
-
-    @Bean
-    public SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub() {
-        return SettingPolicyServiceGrpc.newBlockingStub(communicationConfig.groupChannel())
-                .withInterceptors(communicationConfig.jwtClientInterceptor());
+        return new SettingsPoliciesService(communicationConfig.settingRpcService(),
+            mapperConfig.settingsMapper(), communicationConfig.settingPolicyRpcService());
     }
 
     @Bean

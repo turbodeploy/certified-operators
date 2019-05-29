@@ -22,6 +22,8 @@ import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.service.SettingsService;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -58,7 +60,10 @@ public class SettingsMapperIntegrationTest {
         final SettingSpecStyleMapping settingSpecStyleMapping =
                 new SettingSpecStyleMappingLoader("settingSpecStyleTest.json").getMapping();
         final SettingsMapper mapper =
-                new SettingsMapper(channel, settingsManagerMapping, settingSpecStyleMapping);
+                new SettingsMapper(SettingServiceGrpc.newBlockingStub(channel),
+                    GroupServiceGrpc.newBlockingStub(channel),
+                    SettingPolicyServiceGrpc.newBlockingStub(channel),
+                    settingsManagerMapping, settingSpecStyleMapping);
         final SettingsService settingService =
                 new SettingsService(SettingServiceGrpc.newBlockingStub(channel),
                         StatsHistoryServiceGrpc.newBlockingStub(channel),

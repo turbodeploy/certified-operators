@@ -4,6 +4,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
@@ -40,18 +41,12 @@ public class SetOnce<CONTENT> {
         }
     }
 
-    /**
-     * Try to set the value. If the value is already set, this has no effect.
-     *
-     * @param newValue The value to set.
-     * @return True if the value was set successfully. False otherwise. Note - if the existing value
-     *         is equal to the value to set to, this will still return false.
-     */
-    public boolean trySetValue(@Nonnull final CONTENT newValue) {
-        Objects.requireNonNull(newValue);
+    public boolean trySetValue(@Nonnull final Supplier<CONTENT> valueSupplier) {
         lock.writeLock().lock();
         try {
             if (value == null) {
+                final CONTENT newValue = valueSupplier.get();
+                Objects.requireNonNull(newValue);
                 value = newValue;
                 return true;
             } else {
@@ -60,5 +55,16 @@ public class SetOnce<CONTENT> {
         } finally {
             lock.writeLock().unlock();
         }
+    }
+
+    /**
+     * Try to set the value. If the value is already set, this has no effect.
+     *
+     * @param newValue The value to set.
+     * @return True if the value was set successfully. False otherwise. Note - if the existing value
+     *         is equal to the value to set to, this will still return false.
+     */
+    public boolean trySetValue(@Nonnull final CONTENT newValue) {
+        return trySetValue(() -> newValue);
     }
 }

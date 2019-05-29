@@ -170,15 +170,17 @@ public class SettingsMapper {
             .put(GlobalSettingSpecs.DisableAllActions.getSettingName(), SERVICE_ENTITY)
             .build();
 
-    public SettingsMapper(@Nonnull final Channel groupComponentChannel,
+    public SettingsMapper(@Nonnull final SettingServiceBlockingStub settingService,
+                          @Nonnull final GroupServiceBlockingStub groupService,
+                          @Nonnull final SettingPolicyServiceBlockingStub settingPolicyService,
                           @Nonnull final SettingsManagerMapping settingsManagerMapping,
                           @Nonnull final SettingSpecStyleMapping settingSpecStyleMapping) {
         this.managerMapping = settingsManagerMapping;
         this.settingSpecStyleMapping = settingSpecStyleMapping;
         this.settingSpecMapper = new DefaultSettingSpecMapper();
-        this.groupService = GroupServiceGrpc.newBlockingStub(groupComponentChannel);
-        this.settingService = SettingServiceGrpc.newBlockingStub(groupComponentChannel);
-        this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupComponentChannel);
+        this.groupService = groupService;
+        this.settingService = settingService;
+        this.settingPolicyService = settingPolicyService;
         this.settingPolicyMapper = new DefaultSettingPolicyMapper(this, settingService);
     }
 

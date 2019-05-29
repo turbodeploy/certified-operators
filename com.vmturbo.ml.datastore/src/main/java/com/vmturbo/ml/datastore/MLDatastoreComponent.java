@@ -1,11 +1,11 @@
 package com.vmturbo.ml.datastore;
 
-import java.util.Optional;
+import java.util.Collections;
+import java.util.List;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 
-import com.vmturbo.ml.datastore.topology.ActionsListenerConfig;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,15 +13,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
-import io.grpc.ServerInterceptors;
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
+import io.grpc.BindableService;
 
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.influxdb.InfluxHealthMonitor;
 import com.vmturbo.ml.datastore.influx.InfluxConfig;
 import com.vmturbo.ml.datastore.rpc.MLDatastoreRpcConfig;
+import com.vmturbo.ml.datastore.topology.ActionsListenerConfig;
 import com.vmturbo.ml.datastore.topology.TopologyListenerConfig;
 
 /**
@@ -75,15 +73,10 @@ public class MLDatastoreComponent extends BaseVmtComponent {
                     .orElse(null)));
     }
 
-    @Override
-    @Nonnull
-    protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
-        // Monitor for server metrics with prometheus.
-        final MonitoringServerInterceptor monitoringInterceptor =
-            MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
 
-        return Optional.of(builder
-            .addService(ServerInterceptors.intercept(rpcConfig.mlDatastoreRpcService(), monitoringInterceptor))
-            .build());
+    @Nonnull
+    @Override
+    public List<BindableService> getGrpcServices() {
+        return Collections.singletonList(rpcConfig.mlDatastoreRpcService());
     }
 }

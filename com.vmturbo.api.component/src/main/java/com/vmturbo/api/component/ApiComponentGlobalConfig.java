@@ -19,6 +19,7 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 import com.vmturbo.api.component.external.api.interceptor.LicenseInterceptor;
+import com.vmturbo.api.component.external.api.interceptor.TracingInterceptor;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.interceptors.TelemetryInterceptor;
 import com.vmturbo.api.serviceinterfaces.IAppVersionInfo;
@@ -95,6 +96,7 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
             // exclude "/" so that redirection from "/" to "/app/index.html" works
             // as defined in ExternalApiConfig
             .excludePathPatterns("/");
+        registry.addInterceptor(restTracingInterceptor());
     }
 
     @Bean
@@ -122,6 +124,11 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
     @Bean
     public TelemetryInterceptor telemetryInterceptor() {
         return new TelemetryInterceptor(versionInfo());
+    }
+
+    @Bean
+    public TracingInterceptor restTracingInterceptor() {
+        return new TracingInterceptor();
     }
 
     /**

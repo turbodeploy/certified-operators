@@ -1,16 +1,12 @@
 package com.vmturbo.plan.orchestrator;
 
-import java.util.Optional;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
-
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
-import io.grpc.ServerInterceptors;
-
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,6 +14,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+
+import io.grpc.BindableService;
+import io.grpc.ServerInterceptor;
 
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
@@ -125,26 +124,25 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
         planDeletionSchedulerConfig.planDeletionTask().start();
     }
 
-    @Override
-    @Nonnull
-    protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
-        // Monitor for server metrics with prometheus.
-        final MonitoringServerInterceptor monitoringInterceptor =
-            MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
-        // gRPC JWT token interceptor
-        final JwtServerInterceptor jwtInterceptor = new JwtServerInterceptor(securityConfig.apiAuthKVStore());
 
-        return Optional.of(builder
-            .addService(ServerInterceptors.intercept(scenarioConfig.scenarioService(), jwtInterceptor, monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(planConfig.planService(), jwtInterceptor, monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(templatesConfig.templatesService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(templatesConfig.templateSpecService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(templatesConfig.discoveredTemplateDeploymentProfileService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(deploymentProfileConfig.deploymentProfileRpcService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(planProjectConfig.planProjectService(), jwtInterceptor, monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(reservationConfig.reservationRpcService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(cpuCapacityConfig.cpuCapacityService(), monitoringInterceptor))
-            .build());
+    @Nonnull
+    @Override
+    public List<BindableService> getGrpcServices() {
+            return Arrays.asList(scenarioConfig.scenarioService(),
+            planConfig.planService(),
+            templatesConfig.templatesService(),
+            templatesConfig.templateSpecService(),
+            templatesConfig.discoveredTemplateDeploymentProfileService(),
+            deploymentProfileConfig.deploymentProfileRpcService(),
+            planProjectConfig.planProjectService(),
+            reservationConfig.reservationRpcService(),
+            cpuCapacityConfig.cpuCapacityService());
+    }
+
+    @Nonnull
+    @Override
+    public List<ServerInterceptor> getServerInterceptors() {
+        return Collections.singletonList(new JwtServerInterceptor(securityConfig.apiAuthKVStore()));
     }
 
     @Override

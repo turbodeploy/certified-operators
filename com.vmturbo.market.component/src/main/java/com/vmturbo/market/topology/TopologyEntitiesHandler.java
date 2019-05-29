@@ -8,12 +8,12 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
+import com.google.common.collect.ImmutableMap;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.AnalysisUtil;
@@ -207,6 +207,7 @@ public class TopologyEntitiesHandler {
                     action instanceof ProvisionBySupply ||
                     action instanceof Activate))
                 .collect(Collectors.toList()));
+
             for (Action action : secondRoundActions) {
                 final ActionTO actionTO = AnalysisToProtobuf.actionTO(
                     action, topology.getTraderOids(), topology.getShoppingListOids(), topology);

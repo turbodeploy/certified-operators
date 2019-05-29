@@ -1,18 +1,13 @@
 package com.vmturbo.auth.component;
 
+import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.Optional;
+import java.util.List;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 import javax.servlet.DispatcherType;
 import javax.servlet.Servlet;
-
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
-import io.grpc.ServerInterceptors;
-
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,15 +19,17 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.web.context.ConfigurableWebApplicationContext;
 import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.filter.DelegatingFilterProxy;
 import org.springframework.web.servlet.DispatcherServlet;
 
+import io.grpc.BindableService;
+
 import com.vmturbo.auth.api.SpringSecurityConfig;
-import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
-import com.vmturbo.auth.component.spring.SpringAuthFilter;
 import com.vmturbo.auth.component.licensing.LicensingConfig;
+import com.vmturbo.auth.component.spring.SpringAuthFilter;
 import com.vmturbo.auth.component.userscope.UserScopeServiceConfig;
 import com.vmturbo.auth.component.widgetset.WidgetsetConfig;
 import com.vmturbo.components.common.BaseVmtComponent;
@@ -99,26 +96,13 @@ public class AuthComponent extends BaseVmtComponent {
         startContext(AuthComponent::createContext);
     }
 
-    @Override
     @Nonnull
-    protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
-        // Monitor for server metrics with prometheus.
-        final MonitoringServerInterceptor monitoringInterceptor =
-            MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
-
-        // gRPC JWT token interceptor
-        final JwtServerInterceptor jwtInterceptor =
-                new JwtServerInterceptor(securityConfig.apiAuthKVStore());
-        return Optional.of(builder
-                .addService(ServerInterceptors.intercept(widgetsetConfig.widgetsetRpcService(
-                        authRESTSecurityConfig.targetStore()), jwtInterceptor, monitoringInterceptor))
-                .addService(ServerInterceptors.intercept(licensingConfig.licenseManager(),
-                        jwtInterceptor, monitoringInterceptor))
-                .addService(ServerInterceptors.intercept(licensingConfig.licenseCheckService(),
-                        jwtInterceptor, monitoringInterceptor))
-                .addService(ServerInterceptors.intercept(userScopeServiceConfig.userScopeService(),
-                        jwtInterceptor, monitoringInterceptor))
-                .build());
+    @Override
+    public List<BindableService> getGrpcServices() {
+        return Arrays.asList(widgetsetConfig.widgetsetRpcService(authRESTSecurityConfig.targetStore()),
+            licensingConfig.licenseManager(),
+            licensingConfig.licenseCheckService(),
+            userScopeServiceConfig.userScopeService());
     }
 
     /**
@@ -132,7 +116,7 @@ public class AuthComponent extends BaseVmtComponent {
      * @param contextServer Jetty context handler to register with
      * @return rest application context
      */
-    private static ConfigurableApplicationContext createContext(
+    private static ConfigurableWebApplicationContext createContext(
             @Nonnull ServletContextHandler contextServer) {
         final AnnotationConfigWebApplicationContext rootContext =
                 new AnnotationConfigWebApplicationContext();

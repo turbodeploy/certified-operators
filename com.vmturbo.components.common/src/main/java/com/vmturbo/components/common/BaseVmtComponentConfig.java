@@ -13,12 +13,15 @@ import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController;
+import com.vmturbo.common.protobuf.logging.LoggingREST.TracingConfigurationServiceController;
 import com.vmturbo.components.common.health.DeadlockHealthMonitor;
 import com.vmturbo.components.common.health.MemoryMonitor;
 import com.vmturbo.components.common.logging.LogConfigurationService;
+import com.vmturbo.components.common.logging.TracingConfigurationRpcService;
 import com.vmturbo.components.common.metrics.ComponentLifespanMetrics;
 import com.vmturbo.components.common.migration.MigrationFramework;
 import com.vmturbo.components.common.migration.MigrationController;
+import com.vmturbo.components.common.tracing.TracingManager;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 
@@ -122,8 +125,23 @@ public class BaseVmtComponentConfig {
     }
 
     @Bean
+    public TracingManager tracingManager() {
+        return new TracingManager();
+    }
+
+    @Bean
     public LogConfigurationService logConfigurationService() {
         return new LogConfigurationService();
+    }
+
+    @Bean
+    public TracingConfigurationRpcService tracingConfigurationRpcService() {
+        return new TracingConfigurationRpcService(tracingManager());
+    }
+
+    @Bean
+    public TracingConfigurationServiceController tracingConfigurationServiceController() {
+        return new TracingConfigurationServiceController(tracingConfigurationRpcService());
     }
 
     @Bean

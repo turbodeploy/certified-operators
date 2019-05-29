@@ -102,7 +102,7 @@ public class ActionPaginator {
                 skipCount = Long.parseLong(paginationParameters.getCursor());
             } catch (NumberFormatException e) {
                 throw new IllegalArgumentException("Cursor " + paginationParameters.getCursor() +
-                        " is invalid. Should be a number.");
+                    " is invalid. Should be a number.");
             }
         } else {
             skipCount = 0;
@@ -112,13 +112,13 @@ public class ActionPaginator {
         if (paginationParameters.hasLimit()) {
             if (paginationParameters.getLimit() > maxPaginationLimit) {
                 logger.warn("Client-requested limit {} exceeds maximum!" +
-                        " Lowering the limit to {}!", paginationParameters.getLimit(), maxPaginationLimit);
+                    " Lowering the limit to {}!", paginationParameters.getLimit(), maxPaginationLimit);
                 limit = maxPaginationLimit;
             } else if (paginationParameters.getLimit() > 0) {
                 limit = paginationParameters.getLimit();
             } else {
                 throw new IllegalArgumentException("Illegal pagination limit: " +
-                        paginationParameters.getLimit() + ". Must be be a positive integer");
+                    paginationParameters.getLimit() + ". Must be be a positive integer");
             }
         } else {
             limit = defaultPaginationLimit;
@@ -133,12 +133,12 @@ public class ActionPaginator {
         // It's better to do the sort + limit + offset calculation after filtering, so that we're
         // working with a (potentially) smaller data set.
         final List<ActionView> results = actionViews
-                // Sort according to sort parameter
-                .sorted(paginationParameters.getAscending() ? comparator : comparator.reversed())
-                .skip(skipCount)
-                // Add 1 so we know if there are more results or not.
-                .limit(limit + 1)
-                .collect(Collectors.toList());
+            // Sort according to sort parameter
+            .sorted(paginationParameters.getAscending() ? comparator : comparator.reversed())
+            .skip(skipCount)
+            // Add 1 so we know if there are more results or not.
+            .limit(limit + 1)
+            .collect(Collectors.toList());
         if (results.size() > limit) {
             final String nextCursor = Long.toString(skipCount + limit);
             // Remove the last element to conform to limit boundaries.

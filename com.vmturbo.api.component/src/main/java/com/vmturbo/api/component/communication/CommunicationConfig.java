@@ -13,12 +13,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.web.client.RestTemplate;
 
-import io.grpc.Channel;
-
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.api.ReportNotificationDTO.ReportNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification.ReportStatus;
+import com.vmturbo.api.component.ApiComponentGlobalConfig;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -54,6 +53,8 @@ import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceFutureStub;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc;
+import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.TemplateSpecServiceGrpc;
@@ -65,6 +66,8 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositorySe
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
@@ -89,6 +92,8 @@ import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 import com.vmturbo.reporting.api.ReportListener;
 import com.vmturbo.reporting.api.ReportingClientConfig;
 import com.vmturbo.reporting.api.ReportingNotificationReceiver;
+import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc;
+import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceBlockingStub;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
@@ -104,7 +109,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Top
         ActionOrchestratorClientConfig.class, PlanOrchestratorClientConfig.class,
         GroupClientConfig.class, HistoryClientConfig.class, NotificationClientConfig.class,
         RepositoryClientConfig.class, ReportingClientConfig.class, AuthClientConfig.class,
-        CostClientConfig.class})
+        CostClientConfig.class, ApiComponentGlobalConfig.class})
 public class CommunicationConfig {
 
     @Autowired
@@ -127,6 +132,9 @@ public class CommunicationConfig {
     private AuthClientConfig authClientConfig;
     @Autowired
     private CostClientConfig costClientConfig;
+    @Autowired
+    private ApiComponentGlobalConfig apiComponentGlobalConfig;
+
     @Value("${clustermgr_host}")
     private String clusterMgrHost;
     @Value("${clustermgr_port}")
@@ -164,8 +172,8 @@ public class CommunicationConfig {
     @Bean
     public ActionsServiceBlockingStub actionsRpcService() {
         return ActionsServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel())
-                // Intercept client call and add JWT token to the metadata
-                .withInterceptors(jwtClientInterceptor());
+            // Intercept client call and add JWT token to the metadata
+            .withInterceptors(jwtClientInterceptor());
     }
 
     @Bean
@@ -175,13 +183,8 @@ public class CommunicationConfig {
 
     @Bean
     public PolicyServiceBlockingStub policyRpcService() {
-        return PolicyServiceGrpc.newBlockingStub(groupChannel())
+        return PolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel())
                 .withInterceptors(jwtClientInterceptor());
-    }
-
-    @Bean
-    public Channel groupChannel() {
-        return groupClientConfig.groupChannel();
     }
 
     @Bean
@@ -197,8 +200,7 @@ public class CommunicationConfig {
 
     @Bean
     public EntitySeverityServiceBlockingStub entitySeverityService() {
-        return EntitySeverityServiceGrpc.newBlockingStub(
-                aoClientConfig.actionOrchestratorChannel());
+        return EntitySeverityServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel());
     }
 
     @Bean
@@ -211,12 +213,12 @@ public class CommunicationConfig {
 
     @Bean
     public RepositoryServiceBlockingStub repositoryRpcService() {
-        return RepositoryServiceGrpc.newBlockingStub(repositoryChannel());
+        return RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
     }
 
     @Bean
     public WorkflowServiceBlockingStub fetchWorkflowRpcService() {
-        return WorkflowServiceGrpc.newBlockingStub(actionOrchestratorChannel());
+        return WorkflowServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel());
     }
 
     @Bean
@@ -233,9 +235,7 @@ public class CommunicationConfig {
 
     @Bean
     public ProbeRpcServiceBlockingStub probeRpcService() {
-        return
-            ProbeRpcServiceGrpc.newBlockingStub(
-                tpClientConfig.topologyProcessorChannel());
+        return ProbeRpcServiceGrpc.newBlockingStub(tpClientConfig.topologyProcessorChannel());
     }
 
     @Bean
@@ -256,7 +256,7 @@ public class CommunicationConfig {
     @Bean
     public GroupServiceBlockingStub groupRpcService() {
         return GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel())
-                .withInterceptors(jwtClientInterceptor());
+            .withInterceptors(jwtClientInterceptor());
     }
 
     @Bean
@@ -265,13 +265,18 @@ public class CommunicationConfig {
     }
 
     @Bean
-    public Channel historyChannel() {
-        return historyClientConfig.historyChannel();
+    public SettingPolicyServiceBlockingStub settingPolicyRpcService() {
+        return SettingPolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
+    }
+
+    @Bean
+    public ReportingServiceBlockingStub reportingRpcService() {
+        return ReportingServiceGrpc.newBlockingStub(reportingClientConfig.reportingChannel());
     }
 
     @Bean
     public StatsHistoryServiceBlockingStub historyRpcService() {
-        return StatsHistoryServiceGrpc.newBlockingStub(historyChannel())
+        return StatsHistoryServiceGrpc.newBlockingStub(historyClientConfig.historyChannel())
                 .withInterceptors(jwtClientInterceptor());
     }
 
@@ -281,19 +286,20 @@ public class CommunicationConfig {
     }
 
     @Bean
-    public Channel repositoryChannel() {
-        return repositoryClientConfig.repositoryChannel();
-    }
-
-    @Bean
     public SearchServiceGrpc.SearchServiceBlockingStub searchServiceBlockingStub() {
-        return SearchServiceGrpc.newBlockingStub(repositoryChannel())
+        return SearchServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel())
                 .withInterceptors(jwtClientInterceptor());
     }
 
     @Bean
     public SupplyChainServiceBlockingStub supplyChainRpcService() {
-        return SupplyChainServiceGrpc.newBlockingStub(repositoryChannel());
+        return SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
+    }
+
+    @Bean
+    public ScenarioServiceBlockingStub scenarioRpcService() {
+        return ScenarioServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel())
+            .withInterceptors(jwtClientInterceptor());
     }
 
     @Bean
@@ -329,31 +335,22 @@ public class CommunicationConfig {
     @Bean
     public ReservedInstanceUtilizationCoverageServiceBlockingStub
             reservedInstanceUtilizationCoverageServiceBlockingStub() {
-        return ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(costClientConfig.costChannel());
-    }
-
-    @Bean
-    public Channel planOrchestratorChannel() {
-        return planClientConfig.planOrchestratorChannel();
-    }
-
-    @Bean
-    public Channel actionOrchestratorChannel() {
-        return aoClientConfig.actionOrchestratorChannel();
+        return ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(
+                costClientConfig.costChannel());
     }
 
     @Bean
     public WidgetsetsServiceBlockingStub widgetsetsServiceBlockingStub() {
         return WidgetsetsServiceGrpc.newBlockingStub(authClientConfig.authClientChannel())
-        // Intercept client call and add JWT token to the metadata
-                .withInterceptors(jwtClientInterceptor());
+            // Intercept client call and add JWT token to the metadata
+            .withInterceptors(jwtClientInterceptor());
 
     }
 
     @Bean
     public LicenseManagerServiceBlockingStub licenseManagerStub() {
         return LicenseManagerServiceGrpc.newBlockingStub(authClientConfig.authClientChannel())
-                .withInterceptors(jwtClientInterceptor());
+            .withInterceptors(jwtClientInterceptor());
     }
 
     @Bean
@@ -363,8 +360,8 @@ public class CommunicationConfig {
 
     @Bean
     public SupplyChainFetcherFactory supplyChainFetcher() {
-        return new SupplyChainFetcherFactory(repositoryChannel(),
-                actionOrchestratorChannel(),
+        return new SupplyChainFetcherFactory(supplyChainRpcService(),
+                entitySeverityService(),
                 repositoryApi(),
                 groupExpander(),
                 realtimeTopologyContextId);

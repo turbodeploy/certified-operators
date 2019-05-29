@@ -8,28 +8,21 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.contrib.java.lang.system.EnvironmentVariables;
 import org.junit.rules.TestName;
-import org.mockito.Mockito;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.mock.env.MockEnvironment;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.ConfigurableWebApplicationContext;
 import org.springframework.web.context.WebApplicationContext;
-import org.springframework.web.servlet.config.annotation.EnableWebMvc;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 import com.vmturbo.components.api.test.IntegrationTestServer;
 import com.vmturbo.components.common.BaseVmtComponent;
-import com.vmturbo.components.common.BaseVmtComponentConfig;
 import com.vmturbo.components.common.ComponentController;
 import com.vmturbo.components.common.ConsulDiscoveryManualConfig;
-import com.vmturbo.components.common.migration.MigrationFramework;
 
 public class ComponentHealthCheckTest {
 
@@ -39,10 +32,10 @@ public class ComponentHealthCheckTest {
 
     protected MockMvc mockMvc;
 
-    private ContextConfiguration testConfig;
-
     private static BaseVmtComponent testComponent;
     private static ComponentController testController;
+
+    ConfigurableWebApplicationContext context;
 
     @Rule
     public TestName testName = new TestName();
@@ -50,56 +43,34 @@ public class ComponentHealthCheckTest {
     private WebApplicationContext wac;
     private IntegrationTestServer server;
 
-    /**
-     * Nested configuration for Spring context.
-     */
-    @Configuration
-    @EnableWebMvc
-    @Import({BaseVmtComponentConfig.class})
-    static class ContextConfiguration extends WebMvcConfigurerAdapter {
-        @Primary
-        @Bean
-        public MigrationFramework migrationFramework() {
-            return Mockito.mock(MigrationFramework.class);
-        }
-
-        @Bean
-        public BaseVmtComponent theComponent() {
-            System.out.println("Creating the simple test component.");
-            return new SimpleTestComponent();
-        }
-
-    }
+    @Rule
+    public final EnvironmentVariables environmentVariables = new EnvironmentVariables();
 
     @Before
     public void setup() throws Exception {
-        final MockEnvironment env = new MockEnvironment();
-        env.setProperty("serverGrpcPort", "1");
-        env.setProperty("kvStoreRetryIntervalMillis", "4");
-        env.setProperty("consul_host", "consul");
-        env.setProperty("consul_port", "5");
-        env.setProperty("clustermgr_port", "8889");
-        env.setProperty("clustermgr_retry_delay_sec", "10");
-        env.setProperty("clusterMgrHost", "clustermgr");
-        env.setProperty(BaseVmtComponent.PROP_INSTANCE_ID, "instance");
-        env.setProperty(BaseVmtComponent.PROP_COMPONENT_TYPE, "componentType");
-        env.setProperty(BaseVmtComponent.PROP_serverHttpPort, "8080");
-        env.setProperty(ConsulDiscoveryManualConfig.ENABLE_CONSUL_REGISTRATION, "false");
-        final IntegrationTestServer server =
-                new IntegrationTestServer(testName, ContextConfiguration.class, env);
-
-        wac = server.getApplicationContext();
-        mockMvc = MockMvcBuilders.webAppContextSetup(wac).build();
-        testComponent = wac.getBean(SimpleTestComponent.class);
-        testController = wac.getBean(ComponentController.class);
-        testConfig = wac.getBean(ContextConfiguration.class);
+        System.setProperty(BaseVmtComponent.PROP_COMPONENT_TYPE, "SimpleTestComponent");
+        System.setProperty(BaseVmtComponent.PROP_STANDALONE, "true");
+        System.setProperty(BaseVmtComponent.PROP_serverHttpPort, "8080");
+        System.setProperty(BaseVmtComponent.PROP_INSTANCE_ID, "instance");
+        System.setProperty("serverGrpcPort", "9001");
+        System.setProperty("consul_host", "consul");
+        System.setProperty("consul_port", "5");
+        System.setProperty("kvStoreRetryIntervalMillis", "4");
+        environmentVariables.set(BaseVmtComponent.ENV_CLUSTERMGR_PORT, "8889");
+        environmentVariables.set(BaseVmtComponent.ENV_CLUSTERMGR_RETRY_S, "10");
+        environmentVariables.set(BaseVmtComponent.ENV_CLUSTERMGR_HOST, "clustermgr");
+        System.setProperty(ConsulDiscoveryManualConfig.ENABLE_CONSUL_REGISTRATION, "false");
+        context = SimpleTestComponent.start();
+        mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+        testComponent = context.getBean(SimpleTestComponent.class);
+        testController = context.getBean(ComponentController.class);
     }
 
     @After
     public void stop() throws Exception {
-        if (server != null) {
-            server.close();
-        }
+        testComponent.stopComponent();
+        context.close();
+        context.stop();
     }
 
     @Test
@@ -113,13 +84,6 @@ public class ComponentHealthCheckTest {
         Assert.assertTrue("/health endpoint should return 2xx.",
                 responseCode >= 200 && responseCode < 300);
         long startTime = System.nanoTime();
-        testComponent.stopComponent();
-        MvcResult result = mockMvc.perform(get(API_PREFIX + "/health")
-                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE,MediaType.ALL_VALUE))
-                .andExpect(status().is5xxServerError())
-                .andReturn();
-        responseCode = result.getResponse().getStatus();
-        Assert.assertTrue("/health endpoint should return 5xx after shutdown",responseCode >= 500);
     }
 
     @Test
@@ -138,6 +102,10 @@ public class ComponentHealthCheckTest {
         @Override
         public String getComponentName() {
             return "SimpleTestComponent";
+        }
+
+        public static ConfigurableWebApplicationContext start() {
+            return startContext(SimpleTestComponent.class);
         }
     }
 }

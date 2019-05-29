@@ -10,6 +10,9 @@ import com.google.common.base.Preconditions;
 
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.netty.NettyChannelBuilder;
+import io.opentracing.contrib.grpc.ClientTracingInterceptor;
+
+import com.vmturbo.components.api.tracing.Tracing;
 
 /**
  * A utility class to create pre-configured {@link ManagedChannelBuilder}s.
@@ -35,11 +38,14 @@ public class GrpcChannelFactory {
     @Nonnull
     public static ManagedChannelBuilder newChannelBuilder(@Nonnull final String host,
                                                           final int port) {
+        final ClientTracingInterceptor clientTracingInterceptor = new ClientTracingInterceptor(Tracing.tracer());
         Preconditions.checkArgument(!StringUtils.isEmpty(host), "Host must be provided.");
         Preconditions.checkArgument(port > 0, "Port must be a positive integer!");
         return NettyChannelBuilder.forAddress(host, port)
-                .keepAliveWithoutCalls(true)
-                .keepAliveTime(DEFAULT_KEEP_ALIVE_MIN, TimeUnit.MINUTES)
-                .usePlaintext();
+            .keepAliveWithoutCalls(true)
+            .keepAliveTime(DEFAULT_KEEP_ALIVE_MIN, TimeUnit.MINUTES)
+            // We add a client tracing interceptor to every channel.
+            .intercept(clientTracingInterceptor)
+            .usePlaintext();
     }
 }

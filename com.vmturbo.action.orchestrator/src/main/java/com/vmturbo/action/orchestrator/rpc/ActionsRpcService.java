@@ -23,6 +23,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
+import com.google.protobuf.util.JsonFormat;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -96,6 +97,7 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.components.api.TimeUtil;
+import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -256,9 +258,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             if (request.hasTopologyContextId()) {
                 final Optional<ActionStore> store = actionStorehouse.getStore(request.getTopologyContextId());
                 if (store.isPresent()) {
-                    Optional<ActionQueryFilter> filter = request.hasFilter() ?
-                            Optional.of(request.getFilter()) :
-                            Optional.empty();
+                    Tracing.log(() -> "Getting filtered actions. Request: " + JsonFormat.printer().print(request));
                     // We do translation after pagination because translation failures may
                     // succeed on retry. If we do translation before pagination, success after
                     // failure will mix up the pagination limit.
@@ -266,12 +266,16 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                         store.get().getActionViews().get(request.getFilter()) :
                         store.get().getActionViews().getAll();
 
+                    Tracing.log("Got result views.");
+
                     final FilteredActionResponse.Builder responseBuilder =
                             FilteredActionResponse.newBuilder()
                                     .setPaginationResponse(PaginationResponse.newBuilder());
 
                     final PaginatedActionViews paginatedViews = paginatorFactory.newPaginator()
                             .applyPagination(resultViews, request.getPaginationParams());
+
+                    Tracing.log("Finished pagination.");
 
                     paginatedViews.getNextCursor().ifPresent(nextCursor ->
                             responseBuilder.getPaginationResponseBuilder().setNextCursor(nextCursor));

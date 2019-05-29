@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.SortedMap;
 import java.util.zip.ZipOutputStream;
@@ -16,9 +18,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.web.context.ConfigurableWebApplicationContext;
 
+import io.grpc.BindableService;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.ServerInterceptor;
 import io.grpc.ServerInterceptors;
 import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
@@ -153,37 +158,25 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
             return migrationsConfig.migrationsList().getMigrationsList();
     }
 
-    @Override
     @Nonnull
-    protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
-        // Monitor for server metrics with prometheus.
-        final MonitoringServerInterceptor monitoringInterceptor =
-            MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
-
-        return Optional.of(builder
-            .addService(ServerInterceptors.intercept(analysisConfig.analysisService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(actionsConfig.actionExecutionService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(schedulerConfig.scheduleRpcService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(entityConfig.entityInfoRpcService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(topologyProcessorRpcConfig.topologyRpcService(),
-                monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(topologyProcessorRpcConfig.stitchingJournalRpcService(),
-                monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(identityProviderConfig.identityRpcService(),
-                monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(topologyProcessorRpcConfig.discoveredGroupRpcService(),
-                monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(probeConfig.probeActionPoliciesService(),
-                monitoringInterceptor))
-            .addService(
-                ServerInterceptors.intercept(topologyProcessorRpcConfig.probeService(), monitoringInterceptor))
-            .build());
+    @Override
+    public List<BindableService> getGrpcServices() {
+        return Arrays.asList(analysisConfig.analysisService(),
+            actionsConfig.actionExecutionService(),
+            schedulerConfig.scheduleRpcService(),
+            entityConfig.entityInfoRpcService(),
+            topologyProcessorRpcConfig.topologyRpcService(),
+            topologyProcessorRpcConfig.stitchingJournalRpcService(),
+            identityProviderConfig.identityRpcService(),
+            topologyProcessorRpcConfig.discoveredGroupRpcService(),
+            probeConfig.probeActionPoliciesService(),
+            topologyProcessorRpcConfig.probeService());
     }
 
     public static void main(String[] args) {
         startContext((contextServer) -> {
             try {
-                final ConfigurableApplicationContext context =
+                final ConfigurableWebApplicationContext context =
                         attachSpringContext(contextServer, TopologyProcessorComponent.class);
                 WebSocketServerContainerInitializer.configureContext(contextServer);
                 return context;

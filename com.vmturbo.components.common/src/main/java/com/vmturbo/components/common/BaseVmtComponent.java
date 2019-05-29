@@ -5,8 +5,8 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.SortedMap;
@@ -29,36 +29,43 @@ import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationListener;
-import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.core.env.Environment;
 import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.context.ConfigurableWebApplicationContext;
 import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
+import com.google.common.collect.Lists;
+
+import io.grpc.BindableService;
 import io.grpc.Server;
-import io.grpc.ServerBuilder;
+import io.grpc.ServerInterceptor;
+import io.grpc.ServerInterceptors;
 import io.grpc.netty.NettyServerBuilder;
+import io.opentracing.contrib.grpc.ServerTracingInterceptor;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.exporter.MetricsServlet;
 import io.prometheus.client.hotspot.DefaultExports;
+import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
 import com.vmturbo.clustermgr.api.ClusterMgrClient;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
+import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
 import com.vmturbo.components.common.health.HealthStatus;
 import com.vmturbo.components.common.health.HealthStatusProvider;
 import com.vmturbo.components.common.health.SimpleHealthStatus;
-import com.vmturbo.components.common.logging.LogConfigurationService;
 import com.vmturbo.components.common.metrics.ScheduledMetrics;
 import com.vmturbo.components.common.migration.Migration;
+import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.common.utils.EnvironmentUtils;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 
@@ -96,6 +103,11 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     public static final String PROP_INSTANCE_ID = "instance_id";
     public static final String PROP_STANDALONE = "standalone";
     public static final String PROP_serverHttpPort = "serverHttpPort";
+
+    public static final String ENV_CLUSTERMGR_HOST = "clustermgr_host";
+    public static final String ENV_CLUSTERMGR_PORT = "clustermgr_port";
+    public static final String ENV_CLUSTERMGR_RETRY_S = "clustermgr_retry_delay_sec";
+
     public static final String PROP_SECURE_PORT = "secure_serverHttpPort";
     public static final String PROP_KEYSTORE_FILE = "keystore_file";
     public static final String PROP_KEYSTORE_PASS = "keystore_pass";
@@ -148,6 +160,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
     @GuardedBy("grpcServerLock")
     private Server grpcServer;
+
+    private static SetOnce<org.eclipse.jetty.server.Server> JETTY_SERVER = new SetOnce<>();
 
     private final Object grpcServerLock = new Object();
 
@@ -306,6 +320,13 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         setStatus(ExecutionStatus.STOPPING);
         onStopComponent();
         stopGrpc();
+        JETTY_SERVER.getValue().ifPresent(server -> {
+            try {
+                server.stop();
+            } catch (Exception e) {
+                logger.error("Jetty server failed to stop cleanly.", e);
+            }
+        });
         setStatus(ExecutionStatus.TERMINATED);
     }
 
@@ -387,16 +408,35 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     }
 
     /**
-     * Components must override this method if they want to use gRPC, and use the
-     * provided builder to create a {@link Server}.
-     *
-     * @param builder An empty builder for the server.
-     * @return An optional containing the gRPC server to use, or an empty optional if
-     *         gRPC is not desired for this component.
+     * Component implementations should override this method and return the gRPC services
+     * they want to expose externally.
+     * <p>
+     * Note - we could do this automatically with Spring, but we choose to do it explicitly
+     * so it's easy to tell how services get into the gRPC server.
      */
     @Nonnull
-    protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
-        return Optional.empty();
+    protected List<BindableService> getGrpcServices() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Component implementations should override this method and return the gRPC interceptors
+     * they want to attach to the services.
+     * <p>
+     * Each of these interceptors will be attached to each of the services returned by
+     * {@link BaseVmtComponent#getGrpcServices()}. If the component author wants to attach an
+     * interceptor only to a specific service, do so in the {@link BaseVmtComponent#getGrpcServices()}
+     * implementation.
+     * <p>
+     * TODO (roman, Apr 24 2019): The main reason we have this right now is for the JWT interceptor.
+     * We can't import the spring security config directly in BaseVmtComponent because that would
+     * create a circular dependency between components.common and auth.api. In the future we should
+     * move the "common" security stuff to components.common, initialize the JWT interceptor in
+     * BaseVmtComponent, and remove this method.
+     */
+    @Nonnull
+    protected List<ServerInterceptor> getServerInterceptors() {
+        return Collections.emptyList();
     }
 
     /**
@@ -420,21 +460,38 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
     private void startGrpc() {
         synchronized (grpcServerLock) {
-            final NettyServerBuilder serverBuilder = NettyServerBuilder.forPort(grpcPort)
-                    // Allow keepalives even when there are no existing calls, because we want
-                    // to send intermittent keepalives to keep the http2 connections open.
-                    .permitKeepAliveWithoutCalls(true)
-                    .permitKeepAliveTime(GRPC_MIN_KEEPALIVE_TIME_MIN, TimeUnit.MINUTES)
-                    .maxMessageSize(grpcMaxMessageBytes);
-            // add a log level configuration service that will be available if the
-            // component decides to build a grpc server. (if not, the REST endpoint for it will
-            // still be available).
-            serverBuilder.addService(new LogConfigurationService());
+            final List<BindableService> services = getGrpcServices();
+            if (!services.isEmpty()) {
+                final NettyServerBuilder serverBuilder = NettyServerBuilder.forPort(grpcPort)
+                        // Allow keepalives even when there are no existing calls, because we want
+                        // to send intermittent keepalives to keep the http2 connections open.
+                        .permitKeepAliveWithoutCalls(true)
+                        .permitKeepAliveTime(GRPC_MIN_KEEPALIVE_TIME_MIN, TimeUnit.MINUTES)
+                        .maxMessageSize(grpcMaxMessageBytes);
+                final MonitoringServerInterceptor monitoringInterceptor =
+                    MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
+                final ServerTracingInterceptor tracingInterceptor =
+                    new ServerTracingInterceptor(Tracing.tracer());
 
-            final Optional<Server> builtServer = buildGrpcServer(serverBuilder);
-            if (builtServer.isPresent()) {
-                grpcServer = builtServer.get();
+                // add a log level configuration service that will be available if the
+                // component decides to build a grpc server. (if not, the REST endpoint for it will
+                // still be available).
+                final List<BindableService> allServices = Lists.newArrayList(services);
+                allServices.add(baseVmtComponentConfig.logConfigurationService());
+                allServices.add(baseVmtComponentConfig.tracingConfigurationRpcService());
+
+                final List<ServerInterceptor> serverInterceptors = Lists.newArrayList(getServerInterceptors());
+                serverInterceptors.add(monitoringInterceptor);
+                // Add the tracing interceptor last, so that it gets called first (Matthew 20:16 :P),
+                // and the other interceptors get traced too.
+                serverInterceptors.add(tracingInterceptor);
+
+                allServices.forEach(service -> {
+                    serverBuilder.addService(ServerInterceptors.intercept(service, serverInterceptors));
+                });
+
                 try {
+                    grpcServer = serverBuilder.build();
                     grpcServer.start();
                     logger.info("Initialized gRPC server on port {}.", grpcPort);
                 } catch (IOException e) {
@@ -496,7 +553,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     }
 
     @Nonnull
-    protected static ConfigurableApplicationContext attachSpringContext(
+    protected static ConfigurableWebApplicationContext attachSpringContext(
             @Nonnull ServletContextHandler contextServer, @Nonnull Class<?> configurationClass) {
         final AnnotationConfigWebApplicationContext applicationContext =
                 new AnnotationConfigWebApplicationContext();
@@ -518,7 +575,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * @return Spring context initialized
      */
     @Nonnull
-    protected static ConfigurableApplicationContext startContext(
+    protected static ConfigurableWebApplicationContext startContext(
             @Nonnull Class<?> configurationClass) {
         return startContext(servletContextHolder -> attachSpringContext(servletContextHolder,
                 configurationClass));
@@ -532,7 +589,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * @return Spring context, created as the result of webserver startup.
      */
     @Nonnull
-    protected static ConfigurableApplicationContext startContext(
+    protected static ConfigurableWebApplicationContext startContext(
             @Nonnull ContextConfigurer contextConfigurer) {
         // fetch the component information from the environment
         componentType = EnvironmentUtils.requireEnvProperty(PROP_COMPONENT_TYPE);
@@ -561,12 +618,13 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         final String serverPort = EnvironmentUtils.requireEnvProperty(PROP_serverHttpPort);
         System.setProperty("org.jooq.no-logo", "true");
 
-        final org.eclipse.jetty.server.Server server =
+        org.eclipse.jetty.server.Server server =
                 new org.eclipse.jetty.server.Server(Integer.valueOf(serverPort));
+        JETTY_SERVER.trySetValue(server);
 
         final ServletContextHandler contextServer =
                 new ServletContextHandler(ServletContextHandler.SESSIONS);
-        final ConfigurableApplicationContext context;
+        final ConfigurableWebApplicationContext context;
         try {
             server.setHandler(contextServer);
             context = contextConfigurer.configure(contextServer);
@@ -762,7 +820,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
          *         servlets
          *         and contexts
          */
-        ConfigurableApplicationContext configure(@Nonnull ServletContextHandler servletContext)
+        ConfigurableWebApplicationContext configure(@Nonnull ServletContextHandler servletContext)
                 throws ContextConfigurationException;
     }
 

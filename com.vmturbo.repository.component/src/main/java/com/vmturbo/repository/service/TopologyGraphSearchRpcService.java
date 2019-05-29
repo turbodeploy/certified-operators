@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -16,6 +17,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.Sets;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.util.JsonFormat;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -34,6 +37,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRespons
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceImplBase;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology;
@@ -64,6 +68,19 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
         this.liveTopologyPaginator = Objects.requireNonNull(liveTopologyPaginator);
     }
 
+    @Nonnull
+    private String logParams(@Nonnull final String prefix, List<SearchParameters> params) {
+        return prefix + params.stream()
+            .map(param -> {
+                try {
+                    return JsonFormat.printer().print(param);
+                } catch (InvalidProtocolBufferException e) {
+                    return e.getMessage();
+                }
+            })
+            .collect(Collectors.joining("\n"));
+    }
+
     @Override
     public void countEntities(final CountEntitiesRequest request, final StreamObserver<EntityCountResponse> responseObserver) {
         logger.trace("Counting entity OIDs with search request: {}", request);
@@ -79,8 +96,13 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
         final TopologyGraph<RepoGraphEntity> topologyGraph = topologyGraphOpt.get().entityGraph();
         List<SearchParameters> searchParametersList = request.getSearchParametersList();
         try {
+            Tracing.log(() -> logParams("Starting entity count with params - ", searchParametersList));
+
             final long entityCount =
                 searchResolver.search(searchParametersList, topologyGraph).count();
+
+            Tracing.log(() -> "Counted " + entityCount + " entities.");
+
             logger.trace("countEntities for request {} found {} entities.", request, entityCount);
             responseObserver.onNext(EntityCountResponse.newBuilder()
                 .setEntityCount((int)entityCount)
@@ -117,10 +139,14 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
         final List<SearchParameters> searchParameters = request.getSearchParametersList();
 
         try {
+            Tracing.log(() -> logParams("Starting entity oid search with params - ", searchParameters));
+
             final Stream<RepoGraphEntity> entities =
                 internalSearch(request.getEntityOidList(), searchParameters);
             final SearchEntityOidsResponse.Builder responseBuilder = SearchEntityOidsResponse.newBuilder();
             entities.map(RepoGraphEntity::getOid).forEach(responseBuilder::addEntities);
+
+            Tracing.log(() -> "Got " + responseBuilder.getEntitiesCount() + " results.");
 
             responseObserver.onNext(responseBuilder.build());
             responseObserver.onCompleted();
@@ -154,9 +180,14 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
 
         final List<SearchParameters> searchParameters = request.getSearchParametersList();
         try {
+            Tracing.log(() -> logParams("Starting entity search with params - ", searchParameters));
+
             final Stream<RepoGraphEntity> entities = internalSearch(request.getEntityOidList(), searchParameters);
             final PaginatedResults paginatedResults =
                 liveTopologyPaginator.paginate(entities, request.getPaginationParams());
+
+            Tracing.log(() -> "Completed search and pagination. Got page with " +
+                paginatedResults.nextPageEntities().size() + "entities.");
 
             final SearchEntitiesResponse.Builder respBuilder = SearchEntitiesResponse.newBuilder()
                 .setPaginationResponse(paginatedResults.paginationResponse());
@@ -189,8 +220,13 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
             final SearchTopologyEntityDTOsResponse.Builder responseBuilder =
                 SearchTopologyEntityDTOsResponse.newBuilder();
 
+            Tracing.log(() -> logParams("Starting topology entity DTO search with params - ",
+                searchParameters));
+
             internalSearch(request.getEntityOidList(), searchParameters)
                 .forEach(entity -> responseBuilder.addTopologyEntityDtos(entity.getTopologyEntity()));
+
+            Tracing.log(() -> "Finished search. Got " + responseBuilder.getTopologyEntityDtosCount() + " results.");
 
             responseObserver.onNext(responseBuilder.build());
             responseObserver.onCompleted();
@@ -222,10 +258,20 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
         final TopologyGraph<RepoGraphEntity> graph =
             liveTopologyStore.getSourceTopology().get().entityGraph();
         Stream<RepoGraphEntity> matchingEntities;
+
+        Tracing.log(() -> {
+            try {
+                return "Searching tags. Request: " + JsonFormat.printer().print(request);
+            } catch (InvalidProtocolBufferException e) {
+                // This shouldn't happen because gRPC shouldn't give us an invalid protobuf!
+                return "Searching tags. Error: " + e.getMessage();
+            }
+        });
+
         if (request.getEntitiesCount() > 0) {
             // Look for specific entities.
             matchingEntities = request.getEntitiesList().stream()
-                .map(oid -> graph.getEntity(oid))
+                .map(graph::getEntity)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .filter(entity -> {
@@ -250,11 +296,13 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
 
         final Map<String, Set<String>> resultWithSetsOfValues = new HashMap<>();
         matchingEntities
-            .map(entity -> entity.getTags())
+            .map(RepoGraphEntity::getTags)
             .forEach(tagsMap -> tagsMap.forEach((key, tagValues) -> {
                 final Set<String> vals = resultWithSetsOfValues.computeIfAbsent(key, k -> new HashSet<>());
                 vals.addAll(tagValues);
             }));
+
+        Tracing.log(() -> "Got " + resultWithSetsOfValues.size() + " tag results");
 
         final Tags.Builder tagsBuilder = Tags.newBuilder();
         resultWithSetsOfValues.forEach((key, values) -> {

@@ -1,16 +1,11 @@
 package com.vmturbo.history;
 
-import java.util.Optional;
+import java.util.Collections;
+import java.util.List;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
-
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
-import io.grpc.ServerInterceptors;
-
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,6 +13,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+
+import io.grpc.BindableService;
+import io.grpc.ServerInterceptor;
 
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
@@ -27,7 +25,6 @@ import com.vmturbo.history.api.ApiSecurityConfig;
 import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.db.HistoryDbConfig;
 import com.vmturbo.history.db.VmtDbException;
-import com.vmturbo.history.diagnostics.HistoryDiagnostics;
 import com.vmturbo.history.diagnostics.HistoryDiagnosticsConfig;
 import com.vmturbo.history.market.MarketListenerConfig;
 import com.vmturbo.history.stats.StatsConfig;
@@ -85,18 +82,16 @@ public class HistoryComponent extends BaseVmtComponent {
         startContext(HistoryComponent.class);
     }
 
-    @Override
     @Nonnull
-    protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
-        // Monitor for server metrics with prometheus.
-        final MonitoringServerInterceptor monitoringInterceptor =
-            MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
+    @Override
+    public List<BindableService> getGrpcServices() {
+        return Collections.singletonList(statsConfig.statsRpcService());
+    }
 
-        // gRPC JWT token interceptor
-        final JwtServerInterceptor jwtInterceptor = new JwtServerInterceptor(springSecurityConfig.apiAuthKVStore());
-
-        return Optional.of(builder
-            .addService(ServerInterceptors.intercept(statsConfig.statsRpcService(), jwtInterceptor, monitoringInterceptor))
-            .build());
+    @Nonnull
+    @Override
+    public List<ServerInterceptor> getServerInterceptors() {
+        return Collections.singletonList(
+            new JwtServerInterceptor(springSecurityConfig.apiAuthKVStore()));
     }
 }

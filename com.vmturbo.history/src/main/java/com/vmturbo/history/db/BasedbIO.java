@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
@@ -49,11 +48,10 @@ import com.vmturbo.api.enums.Period;
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.commons.Units;
-import com.vmturbo.history.db.DBConnectionPool;
-import com.vmturbo.history.db.SchemaUtil;
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.OptScope;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
-import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
@@ -1110,7 +1108,9 @@ public abstract class BasedbIO {
                                 ? "no time limit"
                                 : "time limit " + queryLimit_sec + " seconds", query);
                     }
-                    try (DataMetricTimer timer = Metrics.QUERY_EXECUTE_DURATION.startTimer()) {
+                    try (DataMetricTimer timer = Metrics.QUERY_EXECUTE_DURATION.startTimer();
+                         OptScope scope = Tracing.addOpToTrace("query")) {
+                        Tracing.log(query.getSQL());
                         if (query instanceof ResultQuery<?>) {
                             ResultQuery<? extends Record> resQuery = (ResultQuery<?>) query;
                             results.add(using(conn).fetch(resQuery));

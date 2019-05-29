@@ -41,6 +41,15 @@
 
         <prometheus.java.client.version>0.4.0</prometheus.java.client.version>
 
+        <!-- START Versions for the various opentracing libraries.
+             Do not change them independently without verifying that they are compatible with
+             each other! Check the projects' github repositories and nested dependencies. -->
+        <opentracing.version>0.32.0</opentracing.version>
+        <jaeger.version>0.35.0</jaeger.version>
+        <opentracing.concurrent.version>0.3.0</opentracing.concurrent.version>
+        <opentracing.grpc.version>0.1.0</opentracing.grpc.version>
+        <!-- END Versions for the various opentracing libraries -->
+
         <slf4j.version>1.7.25</slf4j.version>
         <log4j.version>1.2.17</log4j.version>
         <log4j2.Version>2.8.2</log4j2.Version>
@@ -2263,6 +2272,39 @@
                 </exclusions>
             </dependency>
             <!-- END Prometheus dependencies -->
+
+            <dependency>
+                <groupId>io.opentracing</groupId>
+                <artifactId>opentracing-api</artifactId>
+                <version>${opentracing.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.opentracing</groupId>
+                <artifactId>opentracing-noop</artifactId>
+                <version>${opentracing.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.opentracing</groupId>
+                <artifactId>opentracing-util</artifactId>
+                <version>${opentracing.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.opentracing.contrib</groupId>
+                <artifactId>opentracing-concurrent</artifactId>
+                <version>${opentracing.concurrent.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.opentracing.contrib</groupId>
+                <artifactId>opentracing-grpc</artifactId>
+                <version>${opentracing.grpc.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.jaegertracing</groupId>
+                <artifactId>jaeger-client</artifactId>
+                <version>${jaeger.version}</version>
+            </dependency>
 
             <dependency>
                 <groupId>org.apache.commons</groupId>

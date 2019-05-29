@@ -418,6 +418,15 @@
             <artifactId>com.turbonomic.cpucapacity</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>io.opentracing</groupId>
+            <artifactId>opentracing-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.jaegertracing</groupId>
+            <artifactId>jaeger-client</artifactId>
+        </dependency>
+
         <!-- return XML from REST endpoints if requested -->
         <dependency>
             <groupId>org.glassfish.jersey.media</groupId>

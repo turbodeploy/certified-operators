@@ -27,8 +27,6 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
-import io.grpc.Channel;
-
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -37,7 +35,6 @@ import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.exceptions.OperationFailedException;
-import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
@@ -54,7 +51,6 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRes
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
@@ -76,18 +72,13 @@ public class SupplyChainFetcherFactory {
 
     private final long realtimeTopologyContextId;
 
-    public SupplyChainFetcherFactory(@Nonnull final Channel supplyChainChannel,
-                                     @Nonnull final Channel entitySeverityChannel,
+    public SupplyChainFetcherFactory(@Nonnull final SupplyChainServiceBlockingStub supplyChainService,
+                                     @Nonnull final EntitySeverityServiceBlockingStub entitySeverityServiceBlockingStub,
                                      @Nonnull final RepositoryApi repositoryApi,
                                      @Nonnull final GroupExpander groupExpander,
                                      final long realtimeTopologyContextId) {
-        Objects.requireNonNull(supplyChainChannel);
-        Objects.requireNonNull(entitySeverityChannel);
-
-        this.supplyChainRpcService = SupplyChainServiceGrpc.newBlockingStub(supplyChainChannel)
-                .withInterceptors(new JwtClientInterceptor());
-
-        this.severityRpcService = EntitySeverityServiceGrpc.newBlockingStub(entitySeverityChannel);
+        this.supplyChainRpcService = supplyChainService;
+        this.severityRpcService = entitySeverityServiceBlockingStub;
         this.repositoryApi = repositoryApi;
         this.groupExpander = groupExpander;
         this.realtimeTopologyContextId = realtimeTopologyContextId;

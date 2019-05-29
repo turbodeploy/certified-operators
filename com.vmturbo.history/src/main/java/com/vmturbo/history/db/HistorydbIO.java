@@ -571,7 +571,6 @@ public class HistorydbIO extends BasedbIO {
                                                       @Nonnull final Optional<EntityType> entityTypeOpt,
                                                       @Nonnull final Optional<String> specificEntityOidOpt,
                                                       @Nonnull final Optional<EntityStatsPaginationParams> paginationParams) {
-
         try (Connection conn = connection()) {
 
             // we are using the vm table, in case it's not specified in the method

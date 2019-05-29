@@ -29,9 +29,8 @@ import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
-import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc;
-import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
+import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.cost.api.CostClientConfig;
 
 @Configuration
@@ -179,7 +178,9 @@ public class MapperConfig {
 
     @Bean
     public SettingsMapper settingsMapper() {
-        return new SettingsMapper(communicationConfig.groupChannel(),
+        return new SettingsMapper(communicationConfig.settingRpcService(),
+                communicationConfig.groupRpcService(),
+                communicationConfig.settingPolicyRpcService(),
                 settingManagerMappingLoader().getMapping(),
                 settingSpecStyleMappingLoader().getMapping());
     }
@@ -268,7 +269,8 @@ public class MapperConfig {
 
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService executorService() {
-        return Executors.newCachedThreadPool(new ThreadFactoryBuilder()
-                        .setNameFormat("MapperThread-%d").build());
+        return Tracing.traceAwareExecutor(Executors.newCachedThreadPool(new ThreadFactoryBuilder()
+            .setNameFormat("MapperThread-%d")
+            .build()));
     }
 }
