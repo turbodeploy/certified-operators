@@ -373,8 +373,6 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
             final SingleSourceSupplyChain singleSourceSupplyChain =
                 new SingleSourceSupplyChain(startingVertexOid);
 
-            logger.info("Getting live supply chain the fast way.");
-
             final Optional<EnvironmentType> targetEnvType = envType.flatMap(UIEnvironmentType::toEnvType);
             final Optional<EntityAccessScope> scope;
             if (enforceUserScope) {
