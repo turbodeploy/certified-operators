@@ -1,6 +1,7 @@
 FROM registry.access.redhat.com/rhel7
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
-RUN yum install -y rsyslog java-1.8.0-openjdk && \
+
+RUN yum install -y rsyslog java-11-openjdk-headless && \
     yum clean all && \
     rm -rf /var/cache/yum
 
