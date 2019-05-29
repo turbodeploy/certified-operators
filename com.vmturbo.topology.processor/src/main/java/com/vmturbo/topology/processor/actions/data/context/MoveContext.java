@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.actions.data.context;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -44,6 +45,13 @@ import com.vmturbo.topology.processor.targets.TargetStore;
 public class MoveContext extends AbstractActionExecutionContext {
 
     private static final Logger logger = LogManager.getLogger();
+
+    /**
+     * Comparator used to sort the changes list so host change comes first, and then others (storage move)
+     */
+    private static final Comparator<ChangeProvider> CHANGE_LIST_COMPARATOR =
+        Comparator.comparingInt(change -> change.getSource() != null &&
+            change.getSource().getType() == EntityType.PHYSICAL_MACHINE_VALUE ? 0 : 1);
 
     /**
      * Used for determining the target type of a given target
@@ -193,10 +201,13 @@ public class MoveContext extends AbstractActionExecutionContext {
         List<ActionItemDTO.Builder> builders = Lists.newArrayList();
         // TODO: Assess whether the performance benefits warrant aggregating all the entities
         // involved in the move and making a bulk call to lookup the TopologyEntityDTOs.
-        EntityDTO fullEntityDTO = getFullEntityDTO(getPrimaryEntityId());
-        for (ChangeProvider change : move.getChangesList()) {
-            builders.add(actionItemDtoBuilder(change, getActionId(), fullEntityDTO));
-        }
+        final EntityDTO fullEntityDTO = getFullEntityDTO(getPrimaryEntityId());
+        // sort the changes list so host change comes first, and then others (storage move), since
+        // the list coming from AO may be any order, but probe is assuming host move comes first
+        move.getChangesList()
+            .stream()
+            .sorted(CHANGE_LIST_COMPARATOR)
+            .forEach(change -> builders.add(actionItemDtoBuilder(change, getActionId(), fullEntityDTO)));
         // Cross-target moves require adding storage changes, even when storage is staying the same
         if (isCrossTargetMove()) {
             builders.addAll(getActionItemsForUnchangedStorageProviders(fullEntityDTO,

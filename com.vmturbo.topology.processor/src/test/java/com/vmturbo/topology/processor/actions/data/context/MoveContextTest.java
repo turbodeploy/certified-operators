@@ -339,20 +339,21 @@ public class MoveContextTest {
         final long destinationEntityId2 = 15;
 
         // Construct an move action request, where both host and storage are changed
+        // first item is storage move and second one is host move
         final ActionInfo move = ActionInfo.newBuilder()
             .setMove(ActionDTO.Move.newBuilder()
                 .setTarget(ActionExecutionTestUtils.createActionEntity(entityId))
                 .addChanges(ChangeProvider.newBuilder()
                     .setSource(ActionExecutionTestUtils
-                        .createActionEntity(sourceEntityId1, hostEntityType))
-                    .setDestination(ActionExecutionTestUtils
-                        .createActionEntity(destinationEntityId1, hostEntityType))
-                    .build())
-                .addChanges(ChangeProvider.newBuilder()
-                    .setSource(ActionExecutionTestUtils
                         .createActionEntity(sourceEntityId2, storageEntityType))
                     .setDestination(ActionExecutionTestUtils
                         .createActionEntity(destinationEntityId2, storageEntityType))
+                    .build())
+                .addChanges(ChangeProvider.newBuilder()
+                    .setSource(ActionExecutionTestUtils
+                        .createActionEntity(sourceEntityId1, hostEntityType))
+                    .setDestination(ActionExecutionTestUtils
+                        .createActionEntity(destinationEntityId1, hostEntityType))
                     .build()))
             .build();
 
@@ -422,16 +423,15 @@ public class MoveContextTest {
 
         // Move actions should have 2 actionItems
         Assert.assertEquals(2, actionExecutionContext.getActionItems().size());
-        Map<Long, ActionItemDTO> actionBySourceId = actionExecutionContext.getActionItems().stream()
-            .collect(Collectors.toMap(actionItem -> Long.valueOf(actionItem.getCurrentSE().getId()),
-                Function.identity()));
 
-        ActionItemDTO hostActionItem = actionBySourceId.get(sourceEntityId1);
+        // verify that first ActionItemDTO is host move
+        ActionItemDTO hostActionItem = actionExecutionContext.getActionItems().get(0);
         Assert.assertEquals(ActionType.MOVE, hostActionItem.getActionType());
         Assert.assertEquals(String.valueOf(sourceEntityId1), hostActionItem.getCurrentSE().getId());
         Assert.assertEquals(String.valueOf(destinationEntityId1), hostActionItem.getNewSE().getId());
 
-        ActionItemDTO storageActionItem = actionBySourceId.get(sourceEntityId2);
+        // verify that second ActionItemDTO is storage move
+        ActionItemDTO storageActionItem = actionExecutionContext.getActionItems().get(1);
         Assert.assertEquals(ActionType.CHANGE, storageActionItem.getActionType());
         Assert.assertEquals(String.valueOf(sourceEntityId2), storageActionItem.getCurrentSE().getId());
         Assert.assertEquals(String.valueOf(destinationEntityId2), storageActionItem.getNewSE().getId());
@@ -449,21 +449,22 @@ public class MoveContextTest {
         final long sourceEntityId3 = 16;
 
         // Construct an move action request, where the host and one storage are changed
+        // first item is storage move and second one is host move
         // Note: the VM consumes two storages which will be mocked later
         final ActionInfo move = ActionInfo.newBuilder()
             .setMove(ActionDTO.Move.newBuilder()
                 .setTarget(ActionExecutionTestUtils.createActionEntity(entityId))
                 .addChanges(ChangeProvider.newBuilder()
                     .setSource(ActionExecutionTestUtils
-                        .createActionEntity(sourceEntityId1, hostEntityType))
-                    .setDestination(ActionExecutionTestUtils
-                        .createActionEntity(destinationEntityId1, hostEntityType))
-                    .build())
-                .addChanges(ChangeProvider.newBuilder()
-                    .setSource(ActionExecutionTestUtils
                         .createActionEntity(sourceEntityId2, storageEntityType))
                     .setDestination(ActionExecutionTestUtils
                         .createActionEntity(destinationEntityId2, storageEntityType))
+                    .build())
+                .addChanges(ChangeProvider.newBuilder()
+                    .setSource(ActionExecutionTestUtils
+                        .createActionEntity(sourceEntityId1, hostEntityType))
+                    .setDestination(ActionExecutionTestUtils
+                        .createActionEntity(destinationEntityId1, hostEntityType))
                     .build()))
             .build();
 
@@ -538,22 +539,20 @@ public class MoveContextTest {
 
         // Move actions should have 3 actionItems: one for host, the other two for storages
         Assert.assertEquals(3, actionExecutionContext.getActionItems().size());
-        Map<Long, ActionItemDTO> actionBySourceId = actionExecutionContext.getActionItems().stream()
-            .collect(Collectors.toMap(actionItem -> Long.valueOf(actionItem.getCurrentSE().getId()),
-                Function.identity()));
 
-        ActionItemDTO hostActionItem = actionBySourceId.get(sourceEntityId1);
+        // verify that first ActionItemDTO is host move, the following are for storage move
+        ActionItemDTO hostActionItem = actionExecutionContext.getActionItems().get(0);
         Assert.assertEquals(ActionType.MOVE, hostActionItem.getActionType());
         Assert.assertEquals(String.valueOf(sourceEntityId1), hostActionItem.getCurrentSE().getId());
         Assert.assertEquals(String.valueOf(destinationEntityId1), hostActionItem.getNewSE().getId());
 
-        ActionItemDTO storageActionItem1 = actionBySourceId.get(sourceEntityId2);
+        ActionItemDTO storageActionItem1 = actionExecutionContext.getActionItems().get(1);
         Assert.assertEquals(ActionType.CHANGE, storageActionItem1.getActionType());
         Assert.assertEquals(String.valueOf(sourceEntityId2), storageActionItem1.getCurrentSE().getId());
         Assert.assertEquals(String.valueOf(destinationEntityId2), storageActionItem1.getNewSE().getId());
 
         // verify the source and destination are same for the storage which is not changed
-        ActionItemDTO storageActionItem2 = actionBySourceId.get(sourceEntityId3);
+        ActionItemDTO storageActionItem2 = actionExecutionContext.getActionItems().get(2);
         Assert.assertEquals(ActionType.CHANGE, storageActionItem2.getActionType());
         Assert.assertEquals(String.valueOf(sourceEntityId3), storageActionItem2.getCurrentSE().getId());
         Assert.assertEquals(String.valueOf(sourceEntityId3), storageActionItem2.getNewSE().getId());
