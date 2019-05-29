@@ -1,7 +1,11 @@
 package com.vmturbo.stitching.vdi;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -27,7 +31,7 @@ import com.vmturbo.stitching.StringToStringStitchingMatchingMetaDataImpl;
 public abstract class VDIStitchingOperation extends StringToStringDataDrivenStitchingOperation {
 
     public VDIStitchingOperation(EntityType entityType, Set<CommodityType> soldCommodityTypes,
-                                 CommodityBoughtMetadata boughtMetaData) {
+                                 List<CommodityBoughtMetadata> boughtMetaDataList) {
         super(new StringToStringStitchingMatchingMetaDataImpl(
                         entityType, MergedEntityMetadata.newBuilder()
                         .mergeMatchingMetadata(MatchingMetadata.newBuilder()
@@ -42,29 +46,13 @@ public abstract class VDIStitchingOperation extends StringToStringDataDrivenStit
                                                 .build()))
                                 .setExternalEntityReturnType(ReturnType.STRING).build())
                         .addAllCommoditiesSold(soldCommodityTypes)
-                        .addCommoditiesBought(boughtMetaData)
+                        .addAllCommoditiesBought(boughtMetaDataList)
                         .build()),
                 ImmutableSet.of(ProbeCategory.HYPERVISOR));
 
     }
 
     public VDIStitchingOperation(EntityType entityType, Set<CommodityType> soldCommodityTypes) {
-        super(new StringToStringStitchingMatchingMetaDataImpl(
-                        entityType, MergedEntityMetadata.newBuilder()
-                        .mergeMatchingMetadata(MatchingMetadata.newBuilder()
-                                .addMatchingData(MatchingData.newBuilder()
-                                        .setMatchingProperty(EntityPropertyName.newBuilder()
-                                                .setPropertyName(SupplyChainConstants.INTERNAL_NAME_TGT_ID)
-                                                .build()))
-                                .setReturnType(ReturnType.STRING)
-                                .addExternalEntityMatchingProperty(MatchingData.newBuilder()
-                                        .setMatchingProperty(EntityPropertyName.newBuilder()
-                                                .setPropertyName(SupplyChainConstants.INTERNAL_NAME_TGT_ID)
-                                                .build()))
-                                .setExternalEntityReturnType(ReturnType.STRING).build())
-                        .addAllCommoditiesSold(soldCommodityTypes)
-                        .build()),
-                ImmutableSet.of(ProbeCategory.HYPERVISOR));
-
+        this(entityType, soldCommodityTypes, Collections.emptyList());
     }
 }

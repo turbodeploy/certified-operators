@@ -22,10 +22,10 @@ import com.vmturbo.stitching.compute.IaasVMStitchingOperation;
 import com.vmturbo.stitching.vcd.ElasticVDCStitchingOperation;
 import com.vmturbo.stitching.vcd.VcdVMStitchingOperation;
 import com.vmturbo.stitching.vdi.DesktopPoolMasterImageStitchingOperation;
-import com.vmturbo.stitching.vdi.PMStitchingOperation;
-import com.vmturbo.stitching.vdi.StorageStitchingOperation;
-import com.vmturbo.stitching.vdi.VDCStitchingOperation;
-import com.vmturbo.stitching.vdi.VMStitchingOperation;
+import com.vmturbo.stitching.vdi.VDIPMStitchingOperation;
+import com.vmturbo.stitching.vdi.VDIStorageStitchingOperation;
+import com.vmturbo.stitching.vdi.VDIVDCStitchingOperation;
+import com.vmturbo.stitching.vdi.VDIVMStitchingOperation;
 
 /**
  * A library of stitching operations. Maps probe type and category to operations that to be used for
@@ -92,10 +92,10 @@ public class StitchingOperationLibrary {
                 return Collections.emptyList();
             case VIRTUAL_DESKTOP_INFRASTRUCTURE:
                 return ImmutableList.of(
-                        new StorageStitchingOperation(),
-                        new VDCStitchingOperation(),
-                        new PMStitchingOperation(),
-                        new VMStitchingOperation(),
+                        new VDIStorageStitchingOperation(),
+                        new VDIVDCStitchingOperation(),
+                        new VDIPMStitchingOperation(),
+                        new VDIVMStitchingOperation(),
                         new DesktopPoolMasterImageStitchingOperation());
             default:
                 logger.warn("Unknown probe type {} and category {}.", probeType, probeCategory);

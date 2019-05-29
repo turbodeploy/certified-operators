@@ -40,7 +40,7 @@ public class DesktopPoolMasterImageStitchingOperation implements StitchingOperat
     public Optional<StitchingScope<StitchingEntity>>
     getScope(@Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
         return Optional.of(
-                stitchingScopeFactory.probeEntityTypeScope(SDKProbeType.VCENTER.name(),
+                stitchingScopeFactory.probeEntityTypeScope(SDKProbeType.VCENTER.getProbeType(),
                         EntityType.VIRTUAL_MACHINE));
     }
 
@@ -79,8 +79,14 @@ public class DesktopPoolMasterImageStitchingOperation implements StitchingOperat
                                        @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
 
         for (StitchingPoint stitchingPoint : stitchingPoints) {
+            if (stitchingPoint.getExternalMatches().size() == 0) {
+                logger.error("No external matches found for internal entity {}",
+                        stitchingPoint.getInternalEntity().getEntityBuilder().toString());
+                continue;
+            }
             if (stitchingPoint.getExternalMatches().size() > 1) {
-                logger.warn("Encountered more than one VM with the same uuid for stitching point",
+                logger.warn("Encountered more than one VM with the same uuid for stitching point" +
+                        " and will continuing stitching with the first match. ",
                         stitchingPoint.getInternalEntity().getEntityBuilder().toString());
             }
             final Optional<? extends StitchingEntity> vmEntity = stitchingPoint.getExternalMatches()
@@ -100,7 +106,7 @@ public class DesktopPoolMasterImageStitchingOperation implements StitchingOperat
         final Builder dpBuilder = entityToUpdate.getEntityBuilder();
         VirtualDatacenterData.Builder vdcDataBuilder = dpBuilder.getVirtualDatacenterDataBuilder();
         DesktopPoolData.Builder dpPoolDataBuilder = vdcDataBuilder.getDesktopPoolDataBuilder();
-        dpPoolDataBuilder.setMasterImage(vmEntity.getOid() + "").build();
+        dpPoolDataBuilder.setMasterImage(String.valueOf(vmEntity.getOid())).build();
         vdcDataBuilder.setDesktopPoolData(dpPoolDataBuilder.build());
         dpBuilder.addEntityProperties(EntityProperty.newBuilder()
                 .setName(MASTER_IMAGE_SOURCE)

@@ -24,11 +24,11 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.JournalRecorder.StringBuilderRecorder;
 import com.vmturbo.stitching.vdi.DesktopPoolMasterImageStitchingOperation;
-import com.vmturbo.stitching.vdi.PMStitchingOperation;
+import com.vmturbo.stitching.vdi.VDIPMStitchingOperation;
 import com.vmturbo.stitching.vdi.VDIStitchingOperation;
-import com.vmturbo.stitching.vdi.StorageStitchingOperation;
-import com.vmturbo.stitching.vdi.VDCStitchingOperation;
-import com.vmturbo.stitching.vdi.VMStitchingOperation;
+import com.vmturbo.stitching.vdi.VDIStorageStitchingOperation;
+import com.vmturbo.stitching.vdi.VDIVDCStitchingOperation;
+import com.vmturbo.stitching.vdi.VDIVMStitchingOperation;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingIntegrationTest;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
@@ -83,8 +83,6 @@ public class VDIStitchingIntegrationTest extends StitchingIntegrationTest {
                 .thenReturn(Collections.singletonList(vcProbeId));
         when(probeStore.getProbeIdForType(SDKProbeType.VCENTER.getProbeType()))
                 .thenReturn(Optional.of(vcProbeId));
-        when(probeStore.getProbeIdForType(SDKProbeType.VCENTER.name()))
-                .thenReturn(Optional.of(vcProbeId));
 
         journalStringBuilder = new StringBuilder(2048);
 
@@ -106,7 +104,7 @@ public class VDIStitchingIntegrationTest extends StitchingIntegrationTest {
         journalStringBuilder.delete(0, journalStringBuilder.length() - 1);
     }
 
-    private String testVDIStitching(VDIStitchingOperation vdiStitching) throws Exception {
+    private String testVDIStitching(VDIStitchingOperation vdiStitching)  {
 
         setOperationsForProbe(vdiTargetId,
                 Collections.singletonList(vdiStitching));
@@ -123,9 +121,9 @@ public class VDIStitchingIntegrationTest extends StitchingIntegrationTest {
      * @throws Exception
      */
     @Test
-    public void testVDCStitching() throws Exception {
+    public void testVDCStitching() {
 
-        VDIStitchingOperation vdiVdcStitchingOperation = new VDCStitchingOperation();
+        VDIStitchingOperation vdiVdcStitchingOperation = new VDIVDCStitchingOperation();
 
         final String journalOutput = testVDIStitching(vdiVdcStitchingOperation);
 
@@ -143,9 +141,9 @@ public class VDIStitchingIntegrationTest extends StitchingIntegrationTest {
      * @throws Exception
      */
     @Test
-    public void testStorageStitching() throws Exception {
+    public void testStorageStitching()  {
 
-        VDIStitchingOperation vdiStorageStitchingOperation = new StorageStitchingOperation();
+        VDIStitchingOperation vdiStorageStitchingOperation = new VDIStorageStitchingOperation();
 
         final String journalOutput = testVDIStitching(vdiStorageStitchingOperation);
 
@@ -167,13 +165,11 @@ public class VDIStitchingIntegrationTest extends StitchingIntegrationTest {
      * @throws Exception
      */
     @Test
-    public void testPMStitching() throws Exception {
+    public void testPMStitching() {
 
-        VDIStitchingOperation vdiPMStitchingOperation = new PMStitchingOperation();
+        VDIStitchingOperation vdiPMStitchingOperation = new VDIPMStitchingOperation();
 
         final String journalOutput = testVDIStitching(vdiPMStitchingOperation);
-
-        System.out.println(journalOutput);
 
         assertThat(journalOutput, containsString(
                 "Merging from PHYSICAL_MACHINE-7-hp-esx113.eng.vmturbo.com onto"));
@@ -196,9 +192,9 @@ public class VDIStitchingIntegrationTest extends StitchingIntegrationTest {
      * @throws Exception
      */
     @Test
-    public void testVMStitching() throws Exception {
+    public void testVMStitching() {
 
-        VDIStitchingOperation vdiVdcStitchingOperation = new VMStitchingOperation();
+        VDIStitchingOperation vdiVdcStitchingOperation = new VDIVMStitchingOperation();
 
         final String journalOutput = testVDIStitching(vdiVdcStitchingOperation);
 
@@ -223,7 +219,7 @@ public class VDIStitchingIntegrationTest extends StitchingIntegrationTest {
      * @throws Exception
      */
     @Test
-    public void testMasterImageStitching() throws Exception {
+    public void testMasterImageStitching() {
         DesktopPoolMasterImageStitchingOperation vdiMasterImageStitchingOperation =
                 new DesktopPoolMasterImageStitchingOperation();
 
