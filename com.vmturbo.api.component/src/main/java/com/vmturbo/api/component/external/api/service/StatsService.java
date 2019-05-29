@@ -26,6 +26,7 @@ import javax.annotation.Nullable;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -680,11 +681,16 @@ public class StatsService implements IStatsService {
                     final Iterable<StatSnapshot> statsIterator = () -> statsServiceRpc.getAveragedEntityStats(request);
                     final List<StatSnapshot> statsList = new ArrayList<>();
                     statsIterator.forEach(s -> statsList.add(s));
-                    // Only do it in realtime: find the latest record in the past and clone it, use the new clone as the snapshot
-                    // for current. The reason to do it is that DB may not necessarily have records that
+                    // If the request is:
+                    //    1) In the realtime topology.
+                    //    2) Looking for historical points in a time range, and not a single snapshot.
+                    // Then copy the most recent snapshot and pretend it's also the "current" snapshot.
+                    // The reason to do it is that DB may not necessarily have records that
                     // matches with the time point when API queries stats data, therefore we decide to use the
                     // value from the latest record in history to represent it.
-                    if (!isPlanRequest) {
+                    if (!isPlanRequest &&
+                            !StringUtils.isEmpty(inputDto.getStartDate()) &&
+                            !StringUtils.equals(inputDto.getStartDate(), inputDto.getEndDate())) {
                         StatSnapshot latestSnapshot = getLatestSnapShotInPast(statsList, currentTimeStamp);
                         if (latestSnapshot != null &&  currentTimeStamp != DateTimeUtil.parseTime(latestSnapshot.getSnapshotDate())) {
                             statsList.add(latestSnapshot.toBuilder().clone()

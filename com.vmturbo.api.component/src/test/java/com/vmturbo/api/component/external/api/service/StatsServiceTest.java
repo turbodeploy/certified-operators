@@ -152,6 +152,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 @RunWith(MockitoJUnitRunner.class)
 public class StatsServiceTest {
 
+    private static final long LIVE_STATS_RETRIEVAL_WINDOW_MS = 60_000;
+
     private static final long REALTIME_CONTEXT_ID = 777777;
 
     public static final String PHYSICAL_MACHINE_TYPE = "PhysicalMachine";
@@ -252,7 +254,7 @@ public class StatsServiceTest {
 
         statsService = spy(new StatsService(statsServiceRpc, planRpcService, repositoryApi,
             repositoryRpcService, searchServiceClient, supplyChainFetcherFactory, statsMapper,
-            groupExpander, mockClock, targetsService, groupService, Duration.ofSeconds(60),
+            groupExpander, mockClock, targetsService, groupService, Duration.ofMillis(LIVE_STATS_RETRIEVAL_WINDOW_MS),
             costService, magicScopeGateway, userSessionContext, riService, REALTIME_CONTEXT_ID));
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
         when(uuidMapper.fromUuid(oid2)).thenReturn(apiId2);
@@ -289,8 +291,7 @@ public class StatsServiceTest {
 
         verify(statsMapper).toAveragedEntityStatsRequest(expandedOidList, inputDto, Optional.empty());
         verify(statsHistoryServiceSpy).getAveragedEntityStats(request);
-        // we will return an extra data point to represent current record which may not be in DB
-        verify(statsMapper, times(2)).toStatSnapshotApiDTO(any());
+        verify(statsMapper, times(1)).toStatSnapshotApiDTO(any());
         // Should have called targets service to get a list of targets.
         verify(targetsService).getTargets(null);
 
@@ -735,8 +736,7 @@ public class StatsServiceTest {
                 any(StatPeriodApiInputDTO.class),
                 eq(Optional.empty()));
         verify(statsHistoryServiceSpy).getAveragedEntityStats(request);
-        // we will return an extra data point to represent current record which may not be in DB
-        verify(statsMapper, times(2)).toStatSnapshotApiDTO(any());
+        verify(statsMapper, times(1)).toStatSnapshotApiDTO(any());
         // Should have called targets service to get a list of targets.
         verify(targetsService).getTargets(null);
 
@@ -770,10 +770,9 @@ public class StatsServiceTest {
         verify(groupExpander).getGroup(UuidMapper.UI_REAL_TIME_MARKET_STR);
         verify(statsMapper).toAveragedEntityStatsRequest(Collections.emptySet(), inputDto, Optional.empty());
         verify(statsHistoryServiceSpy).getAveragedEntityStats(request);
-        // we will return an extra data point to represent current record which may not be in DB
-        verify(statsMapper, times(2)).toStatSnapshotApiDTO(any());
+        verify(statsMapper, times(1)).toStatSnapshotApiDTO(any());
 
-        assertEquals(2, resp.size());
+        assertEquals(1, resp.size());
         assertTrue(resp.contains(dto));
     }
 
@@ -971,8 +970,9 @@ public class StatsServiceTest {
     @Test
     public void testGetHistoricalStatsByEntityQuery() throws Exception {
         // arrange
-        StatPeriodApiInputDTO inputDto = buildStatPeriodApiInputDTO(2000L, "1000",
-                "1500", "a");
+        StatPeriodApiInputDTO inputDto = buildStatPeriodApiInputDTO(LIVE_STATS_RETRIEVAL_WINDOW_MS + 2000L,
+            "1000",
+            Long.toString(LIVE_STATS_RETRIEVAL_WINDOW_MS + 1500), "a");
 
         when(groupExpander.getGroup(anyObject())).thenReturn(Optional.empty());
         // just a simple SE, not group or cluster; expanded list is just the input OID
