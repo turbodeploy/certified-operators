@@ -865,6 +865,10 @@
                                         <targetPath>/swagger</targetPath>
                                         <directory>${project.build.directory}/generated-docs/swagger</directory>
                                     </resource>
+                                    <resource>
+                                        <targetPath>/srv</targetPath>
+                                        <directory>${project.build.directory}/reports-resources/srv</directory>
+                                    </resource>
                                 </resources>
                             </configuration>
                             <executions>
