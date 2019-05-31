@@ -56,6 +56,12 @@ public class RepositoryClient {
      */
     public Stream<TopologyEntityDTO> retrieveTopologyEntities(@Nonnull final List<Long> oids,
                                                               final long realtimeContextId) {
+        // If we ever need to retrieve ALL topology entities, create a new call with no oids input.
+        // It's too error-prone to pass in an empty list to indicate "get all" - we end up
+        // getting the entire topology in places we don't need it.
+        if (oids.isEmpty()) {
+            return Stream.empty();
+        }
         RetrieveTopologyEntitiesRequest request = RetrieveTopologyEntitiesRequest.newBuilder()
                 .addAllEntityOids(oids)
                 .setTopologyContextId(realtimeContextId)
