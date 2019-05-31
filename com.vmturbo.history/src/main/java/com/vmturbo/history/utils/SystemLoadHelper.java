@@ -168,7 +168,7 @@ public class SystemLoadHelper {
                     }
                 }
                 catch (Exception e) {
-                    logger.error("Exception when updating system load:" + e);
+                    logger.error("Exception when updating system load", e);
                 }
             }
         }.start();
@@ -188,36 +188,44 @@ public class SystemLoadHelper {
     private void updateSystemLoad(String slice, Double[] sliceUsed, Double[] sliceCapacities,
                                   long snapshotTime, Collection<Pair<CommoditySoldDTO, TopologyEntityDTO>> soldCollection,
                                   Collection<Pair<CommodityBoughtDTO, TopologyEntityDTO>> boughtCollection) {
-        final Double currentLoad = calcSystemLoad(sliceUsed, sliceCapacities);
-
-        if (currentLoad == null) {
-            logger.warn("SYSLOAD- The calculated system load for " + slice
-                    + " is null since the providing sums are invalid.");
-            return;
-        }
-
-        logger.debug("SYSLOAD- Current system load for " + slice + ": " + currentLoad);
-
-        final Date currentDate = new Date(snapshotTime);
-
-        Double previousLoad = null;
-        Date previousDate = null;
-        if (previousSystemLoadInDB.containsKey(slice)) {
-            previousLoad = previousSystemLoadInDB.get(slice).first;
-            previousDate = previousSystemLoadInDB.get(slice).second;
-        }
-
         boolean shouldWriteToDb = true;
+        Double currentLoad = null;
+        Double previousLoad = null;
+        Date currentDate = null;
+        Date previousDate = null;
+        try {
+            currentLoad = calcSystemLoad(sliceUsed, sliceCapacities);
 
-        if (currentDate != null && previousDate != null && DateUtils.isSameDay(currentDate, previousDate)) {
-            if (previousLoad < currentLoad) {
-                previousSystemLoadInDB.put(slice, new Pair<>(currentLoad, currentDate));
-                deleteSystemLoadFromDb(slice, snapshotTime);
-            } else {
-                shouldWriteToDb = false;
+            if (currentLoad == null) {
+                logger.warn("SYSLOAD- The calculated system load for " + slice
+                        + " is null since the providing sums are invalid.");
+                return;
             }
-        } else {
-            previousSystemLoadInDB.put(slice, new Pair<>(currentLoad, currentDate));
+
+            currentDate = new Date(snapshotTime);
+
+            if (previousSystemLoadInDB.containsKey(slice)) {
+                previousLoad = previousSystemLoadInDB.get(slice).first;
+                previousDate = previousSystemLoadInDB.get(slice).second;
+            }
+
+            shouldWriteToDb = true;
+
+            if (currentDate != null && previousDate != null && DateUtils.isSameDay(currentDate, previousDate)) {
+                if (previousLoad < currentLoad) {
+                    previousSystemLoadInDB.put(slice, new Pair<>(currentLoad, currentDate));
+                    deleteSystemLoadFromDb(slice, snapshotTime);
+                } else {
+                    shouldWriteToDb = false;
+                }
+            } else {
+                previousSystemLoadInDB.put(slice, new Pair<>(currentLoad, currentDate));
+            }
+        }
+        catch (Exception e) {
+            logger.error(
+                    "SYSLOAD- Error in updateSystemLoad() for slice {}, currentLoad = {}, previousLoad = {}, currentDate = {}, previousDate = {}",
+                    slice, currentLoad, previousLoad, currentDate, previousDate, e);
         }
 
         // Writing the current system load to the DB
@@ -228,7 +236,7 @@ public class SystemLoadHelper {
                 writeSystemLoadToDb(slice, sliceUsed, sliceCapacities, snapshotTime, soldCollection, boughtCollection);
             }
             catch (VmtDbException e) {
-                logger.error("SYSLOAD- Error when writing to DB : " + e);
+                logger.error("SYSLOAD- Error when writing to DB", e);
             }
         }
 
@@ -247,8 +255,8 @@ public class SystemLoadHelper {
         checkArgument(capacitiesSums != null && capacitiesSums.length > 0,
                 "Invalid capacitites sum values when calculating system load");
 
-        logger.debug("SYSLOAD- Capacities are: " + Arrays.deepToString(capacitiesSums));
-        logger.debug("SYSLOAD- Used are: " + Arrays.deepToString(usedSums));
+        logger.debug("SYSLOAD- Capacities are: {}", Arrays.deepToString(capacitiesSums));
+        logger.debug("SYSLOAD- Used are: {}", Arrays.deepToString(usedSums));
 
         // If the input sums are invalid, set the value 0.0
         for (int i = 0; i < SystemLoadCommodities.SIZE; i++) {
