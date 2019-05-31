@@ -30,6 +30,8 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchPlanTopologyEntityDTOsRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchPlanTopologyEntityDTOsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
@@ -60,12 +62,16 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
 
     private final LiveTopologyPaginator liveTopologyPaginator;
 
+    private final ArangoSearchRpcService arangoSearchRpcService;
+
     public TopologyGraphSearchRpcService(@Nonnull final LiveTopologyStore liveTopologyStore,
                                          @Nonnull final SearchResolver<RepoGraphEntity> searchResolver,
-                                         @Nonnull final LiveTopologyPaginator liveTopologyPaginator) {
+                                         @Nonnull final LiveTopologyPaginator liveTopologyPaginator,
+                                         @Nonnull final ArangoSearchRpcService arangoSearchRpcService) {
         this.liveTopologyStore = Objects.requireNonNull(liveTopologyStore);
         this.searchResolver = Objects.requireNonNull(searchResolver);
         this.liveTopologyPaginator = Objects.requireNonNull(liveTopologyPaginator);
+        this.arangoSearchRpcService = Objects.requireNonNull(arangoSearchRpcService);
     }
 
     @Nonnull
@@ -321,6 +327,12 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
             responseObserver.onError(
                 Status.ABORTED.withCause(e).withDescription(e.getMessage()).asRuntimeException());
         }
+    }
+
+    @Override
+    public void searchPlanTopologyEntityDTOs(SearchPlanTopologyEntityDTOsRequest request,
+                                             StreamObserver<SearchPlanTopologyEntityDTOsResponse> responseObserver) {
+        arangoSearchRpcService.searchPlanTopologyEntityDTOs(request, responseObserver);
     }
 
     private Stream<RepoGraphEntity> internalSearch(@Nonnull final List<Long> entityOidList,

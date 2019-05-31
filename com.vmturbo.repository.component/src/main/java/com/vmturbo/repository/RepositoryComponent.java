@@ -456,17 +456,17 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Bean
     public SearchServiceImplBase searchRpcService() throws InterruptedException, CommunicationException,
             URISyntaxException {
+        final ArangoSearchRpcService arangoBackedService = new ArangoSearchRpcService(supplyChainService(),
+            topologyManager(),
+            searchHandler(),
+            repositorySearchPaginationDefaultLimit,
+            repositorySearchPaginationMaxLimit,
+            userSessionConfig.userSessionContext());
         // For the search service, we don't support searches on plans, so it's either-or:
         // either we use the one backed by the topology graph, or the one backed by arango.
         return realtimeInMemory() ?
             new TopologyGraphSearchRpcService(liveTopologyStore(),
-                searchResolver(), liveTopologyPaginator()) :
-            new ArangoSearchRpcService(supplyChainService(),
-                topologyManager(),
-                searchHandler(),
-                repositorySearchPaginationDefaultLimit,
-                repositorySearchPaginationMaxLimit,
-                userSessionConfig.userSessionContext());
+                searchResolver(), liveTopologyPaginator(), arangoBackedService) : arangoBackedService;
     }
 
     @Bean
