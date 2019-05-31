@@ -1,11 +1,13 @@
 package com.vmturbo.repository.service;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -16,6 +18,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
@@ -132,6 +135,7 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
             } else {
                 getGlobalSupplyChain(request.getEntityTypesToIncludeList(),
                     envType,
+                    request.getEnforceUserScope(),
                     liveTopologyStore.getSourceTopology(),
                     responseObserver);
             }
@@ -211,8 +215,23 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
      */
     private void getGlobalSupplyChain(@Nullable List<String> entityTypesToIncludeList,
                                       @Nonnull final Optional<UIEnvironmentType> environmentType,
+                                      final boolean enforceUserScope,
                                       @Nonnull final Optional<SourceRealtimeTopology> realtimeTopologyOpt,
                                       @Nonnull final StreamObserver<GetSupplyChainResponse> responseObserver) {
+
+        // If the user is scoped and we're enforcing scoping rules, then convert the
+        // request to a multi-source supply chain where the starting entities are the set of
+        // scope group entities.
+        if (enforceUserScope && userSessionContext.isUserScoped()) {
+            getMultiSourceSupplyChain(userSessionContext.getUserAccessScope().getScopeGroupMembers().toSet(),
+                    entityTypesToIncludeList,
+                    environmentType,
+                    enforceUserScope,
+                    liveTopologyStore.getSourceTopology(),
+                    responseObserver);
+            return;
+        }
+
         GLOBAL_SUPPLY_CHAIN_DURATION_SUMMARY.startTimer().time(() -> {
             final SupplyChain.Builder supplyChainBuilder = SupplyChain.newBuilder();
             realtimeTopologyOpt.ifPresent(realtimeTopology -> {
@@ -245,7 +264,7 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
      * @param enforceUserScope whether or not user scope rules should be enforced
      * @param responseObserver the gRPC response stream onto which each resulting SupplyChainNode is
      */
-    private void getMultiSourceSupplyChain(@Nonnull final List<Long> startingVertexOids,
+    private void getMultiSourceSupplyChain(@Nonnull final Collection<Long> startingVertexOids,
                                            @Nonnull final List<String> entityTypesToIncludeList,
                                            @Nonnull final Optional<UIEnvironmentType> envType,
                                            final boolean enforceUserScope,

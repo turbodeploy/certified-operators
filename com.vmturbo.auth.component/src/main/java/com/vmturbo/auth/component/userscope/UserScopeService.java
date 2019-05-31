@@ -3,6 +3,7 @@ package com.vmturbo.auth.component.userscope;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -14,13 +15,14 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.ImmutableSet;
-
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.auth.api.authorization.scoping.AccessScopeCacheKey;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
@@ -124,7 +126,7 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
 
     // cache of EntityAccessScopeContents objects. Synchronized map for now, but can be made
     // concurrent if performance is a problem.
-    private final Map<List<Long>, AccessScopeDataCacheEntry> accessScopeContentsForGroups
+    private final Map<AccessScopeCacheKey, AccessScopeDataCacheEntry> accessScopeContentsForGroups
             = Collections.synchronizedMap(new HashMap<>());
 
     public UserScopeService(GroupServiceBlockingStub groupServiceStub,
@@ -205,8 +207,9 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
         if (cacheEnabled) {
             // get the response from cache
             int prevSize = accessScopeContentsForGroups.size();
-            contents = accessScopeContentsForGroups.computeIfAbsent(scopeGroupOids,
-                    oids -> calculateScope(oids, excludeInfrastructureEntities)).contents;
+            contents = accessScopeContentsForGroups.computeIfAbsent(
+                    new AccessScopeCacheKey(scopeGroupOids, excludeInfrastructureEntities),
+                    key -> calculateScope(key.getScopeGroupOids(), excludeInfrastructureEntities)).contents;
             // if the cache size has changed, update the metrics
             if (accessScopeContentsForGroups.size() != prevSize) {
                 updateCacheMetrics();
@@ -241,11 +244,12 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
      * @param scopeGroupOids the groups to calculate the supply chain scope for.
      * @return a {@link AccessScopeDataCacheEntry} object containing the scope data.
      */
-    private synchronized AccessScopeDataCacheEntry calculateScope(List<Long> scopeGroupOids,
+    private synchronized AccessScopeDataCacheEntry calculateScope(Collection<Long> scopeGroupOids,
                                                                   boolean excludeInfrastructureEntities) {
         // double check if the cache entry exists in case the current thread was blocking on entry
         // into this function and the previous caller populated the cache in the meantime.
-        AccessScopeDataCacheEntry doubleCheckEntry = accessScopeContentsForGroups.get(scopeGroupOids);
+        AccessScopeDataCacheEntry doubleCheckEntry = accessScopeContentsForGroups.get(
+                new AccessScopeCacheKey(scopeGroupOids, excludeInfrastructureEntities));
         if (doubleCheckEntry != null) {
             logger.debug("UserScopeService found a cached access scope on the second try, using it.");
             return doubleCheckEntry;
@@ -348,8 +352,8 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
         int largestNumGroups = 0;
         int largestSetSize = 0;
         int largestEstimatedSetSize = 0;
-        for (Map.Entry<List<Long>, AccessScopeDataCacheEntry> entry : accessScopeContentsForGroups.entrySet()) {
-            int numGroups = entry.getKey().size();
+        for (Map.Entry<AccessScopeCacheKey, AccessScopeDataCacheEntry> entry : accessScopeContentsForGroups.entrySet()) {
+            int numGroups = entry.getKey().getScopeGroupOids().size();
             totalGroups += numGroups;
             if (numGroups > largestNumGroups) {
                 largestNumGroups = numGroups;

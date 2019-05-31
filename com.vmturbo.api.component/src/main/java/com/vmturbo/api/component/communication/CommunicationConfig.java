@@ -293,7 +293,8 @@ public class CommunicationConfig {
 
     @Bean
     public SupplyChainServiceBlockingStub supplyChainRpcService() {
-        return SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
+        return SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel())
+                .withInterceptors(jwtClientInterceptor());
     }
 
     @Bean

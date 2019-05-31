@@ -18,6 +18,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.auth.api.authorization.scoping.AccessScopeCacheKey;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.userscope.UserScope.CurrentUserEntityAccessScopeRequest;
@@ -86,7 +87,7 @@ public class UserSessionContext implements AutoCloseable {
 
     // cache of EntityAccessScope objects. Entries have a hash value and an expiration time that
     // will be checked on retrieval, and used to determine if the entry is stale or not.
-    private final Map<List<Long>, EntityAccessScopeCacheEntry> userAccessScopes
+    private final Map<AccessScopeCacheKey, EntityAccessScopeCacheEntry> userAccessScopes
             = Collections.synchronizedMap(new HashMap());
 
     // no-args constructor is for testing convenience, also doesn't create a cleanup thread.
@@ -140,7 +141,7 @@ public class UserSessionContext implements AutoCloseable {
         }
 
         // if a user has a scope, use the slower caching mechanism
-        return getCachedUserAccessScope(currentUserScopeGroups);
+        return getCachedUserAccessScope(new AccessScopeCacheKey(currentUserScopeGroups, UserScopeUtils.isUserShared()));
     }
 
     private void purgeExpiredScopes() {
@@ -169,12 +170,12 @@ public class UserSessionContext implements AutoCloseable {
      * This method is synchronized to avoid concurrent fetches of the same scope data. This can be
      * improved with more granular locking.
      *
-     * @param scopeGroups
+     * @param cacheKey the cache key to look up
      * @return the {@link EntityAccessScope} for the list of scope groups
      */
-    private synchronized EntityAccessScope getCachedUserAccessScope(List<Long> scopeGroups) {
+    private synchronized EntityAccessScope getCachedUserAccessScope(AccessScopeCacheKey cacheKey) {
         // the user is scoped and we need to work with our local cache.
-        EntityAccessScopeCacheEntry accessScopeEntry = userAccessScopes.get(scopeGroups);
+        EntityAccessScopeCacheEntry accessScopeEntry = userAccessScopes.get(cacheKey);
         CurrentUserEntityAccessScopeRequest.Builder requestBuilder = CurrentUserEntityAccessScopeRequest.newBuilder();
         if (accessScopeEntry != null) {
             // check if the cached data has expired
@@ -193,7 +194,7 @@ public class UserSessionContext implements AutoCloseable {
             requestBuilder.setCurrentScopeHash(accessScopeEntry.hash);
         }
 
-        logger.trace("Sending user access scope request for {} groups.", scopeGroups.size());
+        logger.trace("Sending user access scope request for {} groups.", cacheKey.getScopeGroupOids().size());
         EntityAccessScopeResponse response
                 = userScopeServiceClient.getCurrentUserEntityAccessScopeMembers(requestBuilder.build());
 
@@ -210,13 +211,13 @@ public class UserSessionContext implements AutoCloseable {
                         ? "All"
                         : response.getEntityAccessScopeContents().getAccessibleOids().getArray().getOidsCount());
         // data has changed or is new -- update the cache with it.
-        EntityAccessScope accessScope = toEntityAccessScope(scopeGroups,
+        EntityAccessScope accessScope = toEntityAccessScope(cacheKey,
                 response.getEntityAccessScopeContents());
         EntityAccessScopeCacheEntry newCacheEntry = new EntityAccessScopeCacheEntry(accessScope,
                 response.getEntityAccessScopeContents().getHash());
         // if caching is disabled -- don't store the value to the cache
         if (cacheEnabled) {
-            userAccessScopes.put(scopeGroups, newCacheEntry);
+            userAccessScopes.put(cacheKey, newCacheEntry);
         }
         USER_SESSION_CONTEXT_CACHE_FULL_FETCH_COUNT.increment();
         return newCacheEntry.entityAccessScope;
@@ -246,14 +247,14 @@ public class UserSessionContext implements AutoCloseable {
      * @return
      */
     @VisibleForTesting
-    protected EntityAccessScope toEntityAccessScope(List<Long> scopeGroupOids, EntityAccessScopeContents contents) {
+    protected EntityAccessScope toEntityAccessScope(AccessScopeCacheKey key, EntityAccessScopeContents contents) {
         // convert the seed oid list
         final OidSet seedOids = toOidSet(contents.getSeedOids());
         final OidSet accessibleOids = toOidSet(contents.getAccessibleOids());
         final Map<String, OidSet> oidsByEntityType = contents.getAccessibleOidsByEntityTypeMap().entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> toOidSet(entry.getValue())));
 
-        return new EntityAccessScope(scopeGroupOids, seedOids, accessibleOids, oidsByEntityType);
+        return new EntityAccessScope(key.getScopeGroupOids(), seedOids, accessibleOids, oidsByEntityType);
     }
 
     private class EntityAccessScopeCacheEntry {

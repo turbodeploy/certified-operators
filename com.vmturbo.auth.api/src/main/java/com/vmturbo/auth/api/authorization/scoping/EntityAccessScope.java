@@ -33,7 +33,7 @@ public class EntityAccessScope implements OidFilter {
 
     // the collection of groups to base the access scope on -- may, and usually will, be empty
     @Nonnull
-    private final List<Long> scopeGroupIds;
+    private final Collection<Long> scopeGroupIds;
 
     // the collection of scope group member oids. This is cached for convenience, and used by the
     // supply chain query.
@@ -55,7 +55,7 @@ public class EntityAccessScope implements OidFilter {
         this.accessibleOidsByEntityType = Collections.EMPTY_MAP;
     }
 
-    public EntityAccessScope(@Nullable List<Long> groupIds, @Nullable OidSet scopeGroupMemberOids,
+    public EntityAccessScope(@Nullable Collection<Long> groupIds, @Nullable OidSet scopeGroupMemberOids,
                              @Nullable OidFilter accessFilter, @Nullable Map<String, OidSet> oidsByEntityType) {
         this.scopeGroupIds = groupIds != null ? groupIds : Collections.EMPTY_LIST;
         this.scopeGroupMemberOids = scopeGroupMemberOids != null ? scopeGroupMemberOids : OidSet.EMPTY_OID_SET;
@@ -64,7 +64,7 @@ public class EntityAccessScope implements OidFilter {
     }
 
     @Nonnull
-    public List<Long> getScopeGroupIds() {
+    public Collection<Long> getScopeGroupIds() {
         return scopeGroupIds;
     }
 

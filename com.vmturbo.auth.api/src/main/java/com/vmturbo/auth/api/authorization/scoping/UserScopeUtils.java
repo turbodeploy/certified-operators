@@ -81,7 +81,6 @@ public class UserScopeUtils {
         return false;
     }
 
-
     private static Optional<AuthUserDTO> getAuthUser() {
         return SAMLUserUtils.getAuthUserDTO();
     }

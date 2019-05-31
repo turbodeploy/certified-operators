@@ -1,6 +1,7 @@
 package com.vmturbo.auth.component;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 
@@ -26,8 +27,10 @@ import org.springframework.web.filter.DelegatingFilterProxy;
 import org.springframework.web.servlet.DispatcherServlet;
 
 import io.grpc.BindableService;
+import io.grpc.ServerInterceptor;
 
 import com.vmturbo.auth.api.SpringSecurityConfig;
+import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.auth.component.licensing.LicensingConfig;
 import com.vmturbo.auth.component.spring.SpringAuthFilter;
 import com.vmturbo.auth.component.userscope.UserScopeServiceConfig;
@@ -94,6 +97,13 @@ public class AuthComponent extends BaseVmtComponent {
      */
     public static void main(String[] args) {
         startContext(AuthComponent::createContext);
+    }
+
+    @Nonnull
+    @Override
+    public List<ServerInterceptor> getServerInterceptors() {
+        final JwtServerInterceptor jwtInterceptor = new JwtServerInterceptor(securityConfig.apiAuthKVStore());
+        return Collections.singletonList(jwtInterceptor);
     }
 
     @Nonnull
