@@ -338,6 +338,27 @@ public class HistorydbIO extends BasedbIO {
     }
 
     /**
+     * Return the "_stats_by_month" table for the given Entity Type based on the ID.
+     * <p>
+     * The table prefix depends on the entity type.
+     * <p>
+     * Returns null if the table prefix cannot be determined. This may represent an entity
+     * that is not to be persisted, or an internal system configuration error.
+     *
+     * @param entityTypeId the type of the Service Entity for which stats are to be persisted
+     * @return a DB Table object for the _stats_by_month table for the entity type of this entity,
+     * or null if the entity table cannot be determined.
+     */
+    private Table<?> getMonthStatsDbTableForEntityType(int entityTypeId) {
+
+        Optional<EntityType> entityDBInfo = getEntityType(entityTypeId);
+        if (!entityDBInfo.isPresent()) {
+            return null;
+        }
+        return entityDBInfo.get().getMonthTable();
+    }
+
+    /**
      * Convert the {@link CommonDTO.EntityDTO.EntityType} numeric id
      * to an SDK EntityType to an {@link EntityType}.
      *
@@ -1186,9 +1207,10 @@ public class HistorydbIO extends BasedbIO {
     }
 
     /**
-     * The stats in the db get rolled-up every 10 minutes from latest->hourly, hourly->daily.
-     * So the daily table will have all the max values. Querying the daily table should suffice.
-     * As the daily table stores all historic stats(until the retention period), we may return
+     * The stats in the db get rolled-up every 10 minutes from latest->hourly, hourly->daily and
+     * daily -> monthly. So the monthly table will have all the max values. Querying the monthly
+     * table should suffice.
+     * As the stats table stores all historic stats(until the retention period), we may return
      * entries which may not be relevant to the current environment(because targets could be removed).
      * We leave the filtering of the entities to the clients.
      * The access commodities are already filtered as we store stats only for non-access commodities.
@@ -1198,7 +1220,7 @@ public class HistorydbIO extends BasedbIO {
         throws VmtDbException, SQLException {
 
         // Get the name of the table in the db associated with the entityType.
-        Table<?> tbl = getDayStatsDbTableForEntityType(entityType);
+        Table<?> tbl = getMonthStatsDbTableForEntityType(entityType);
         if (tbl == null) {
             logger.warn("No table for entityType: {}", entityType);
             return Collections.emptyList();

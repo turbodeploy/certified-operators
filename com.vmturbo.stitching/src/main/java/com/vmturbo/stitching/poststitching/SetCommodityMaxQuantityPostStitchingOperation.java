@@ -102,8 +102,8 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
      * max value for the setting.
      */
     private long statsDaysRetentionSettingInSeconds = Math.round(
-            GlobalSettingSpecs.StatsRetentionDays.createSettingSpec()
-                .getNumericSettingValueType().getMax()) * (24 * 60 * 60);
+            GlobalSettingSpecs.StatsRetentionMonths.createSettingSpec()
+                .getNumericSettingValueType().getMax()) * (31 * 24 * 60 * 60);
 
     /**
      * We exclude all the access commodities.
@@ -220,14 +220,14 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
                             });
                     });
             double loadTime = loadDurationTimer.observe();
-            logger.info("Stats retention  days: {}. Size of maxValues map after initial load {}. Load time {}",
+            logger.info("Stats retention period: {} secs. Size of maxValues map after initial load {}. Load time {} secs",
                 statsDaysRetentionSettingInSeconds,
                 entityCommodityToMaxQuantitiesMap.size(),
                 loadTime);
         } catch (StatusRuntimeException e) {
             if (e.getCause() != null &&
-                Status.fromThrowable(e.getCause()).getCode() == Status.Code.UNAVAILABLE) {
-                    logger.error("Failed initializing max value map as history component is unavailable");
+                    e.getStatus().getCode() == Status.Code.UNAVAILABLE) {
+                logger.error("Failed initializing max value map as history component is unavailable");
             }
             else {
                 logger.error("Failed initializing max value map", e);
