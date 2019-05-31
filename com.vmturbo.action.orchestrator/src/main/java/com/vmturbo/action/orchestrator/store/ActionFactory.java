@@ -34,17 +34,6 @@ public class ActionFactory implements IActionFactory {
     @Override
     @Nonnull
     public Action newAction(@Nonnull final ActionDTO.Action recommendation,
-                            final EntitiesCache entitySettingsCache,
-                            final long actionPlanId) {
-        return new Action(recommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @Nonnull
-    public Action newAction(@Nonnull final ActionDTO.Action recommendation,
                             @Nonnull final LocalDateTime recommendationTime,
                             final long actionPlanId) {
         return new Action(recommendation, recommendationTime, actionPlanId, actionModeCalculator);

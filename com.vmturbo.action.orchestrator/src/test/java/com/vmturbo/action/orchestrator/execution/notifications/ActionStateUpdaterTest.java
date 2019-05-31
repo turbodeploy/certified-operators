@@ -28,7 +28,7 @@ import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.FailedCloudVMGroupProcessor;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
-import com.vmturbo.action.orchestrator.store.EntitiesCache;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -69,18 +69,19 @@ public class ActionStateUpdaterTest {
         .setExplanation(Explanation.newBuilder().build())
         .build();
 
-    private final EntitiesCache entitySettingsCache = mock(EntitiesCache.class);
+    private final EntitiesAndSettingsSnapshot entitySettingsCache = mock(EntitiesAndSettingsSnapshot.class);
 
     private Action testAction;
 
     @Before
     public void setup() {
-        testAction = new Action(recommendation, entitySettingsCache, 4, actionModeCalculator);
+        when(entitySettingsCache.getSettingsForEntity(eq(3L)))
+            .thenReturn(makeActionModeSetting(ActionMode.MANUAL));
+        testAction = new Action(recommendation, 4, actionModeCalculator);
+        testAction.refreshActionMode(entitySettingsCache);
         when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(Optional.of(actionStore));
         when(actionStore.getAction(eq(actionId))).thenReturn(Optional.of(testAction));
         when(actionStore.getAction(eq(notFoundId))).thenReturn(Optional.empty());
-        when(entitySettingsCache.getSettingsForEntity(eq(3L)))
-            .thenReturn(makeActionModeSetting(ActionMode.MANUAL));
         testAction.receive(new ManualAcceptanceEvent("99", 102));
         testAction.receive(new PrepareExecutionEvent());
         testAction.receive(new BeginExecutionEvent());

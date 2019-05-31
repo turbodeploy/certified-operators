@@ -28,7 +28,7 @@ import org.springframework.web.client.RestTemplate;
 
 import io.grpc.Status;
 
-import com.vmturbo.action.orchestrator.store.EntitiesCache.Snapshot;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
@@ -44,9 +44,9 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
- * Unit tests for {@link EntitiesCache}.
+ * Unit tests for {@link EntitiesAndSettingsSnapshotFactory}.
  */
-public class EntitiesCacheTest {
+public class EntitiesAndSettingsSnapshotFactoryTest {
     private static final long TOPOLOGY_ID = 7L;
     private static final long TOPOLOGY_CONTEXT_ID = 77L;
     private static final long ENTITY_ID = 1L;
@@ -69,13 +69,13 @@ public class EntitiesCacheTest {
     @Rule
     public GrpcTestServer repoTestServer = GrpcTestServer.newServer(repoServiceSpy);
 
-    private EntitiesCache entitySettingsCache;
+    private EntitiesAndSettingsSnapshotFactory entitySettingsCache;
 
     private RestTemplate restTemplate = mock(RestTemplate.class);
 
     @Before
     public void setup() {
-        entitySettingsCache = new EntitiesCache(grpcTestServer.getChannel(), repoTestServer.getChannel());
+        entitySettingsCache = new EntitiesAndSettingsSnapshotFactory(grpcTestServer.getChannel(), repoTestServer.getChannel());
 
         when(restTemplate.exchange(anyString(), eq(HttpMethod.POST), eq(httpEntity), eq(type)))
                 .thenReturn(ResponseEntity.ok(Collections.emptyList()));
@@ -112,18 +112,12 @@ public class EntitiesCacheTest {
                 .thenReturn(ResponseEntity.ok(Collections.singletonList(entityDto)));
 
 
-        final Snapshot snapshot = entitySettingsCache.newSnapshot(
+        final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
             Collections.singleton(ENTITY_ID), TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
-        entitySettingsCache.update(snapshot);
 
-        final Map<String, Setting> newSettings = entitySettingsCache.getSettingsForEntity(ENTITY_ID);
+        final Map<String, Setting> newSettings = snapshot.getSettingsForEntity(ENTITY_ID);
         assertTrue(newSettings.containsKey(setting.getSettingSpecName()));
         assertThat(newSettings.get(setting.getSettingSpecName()), is(setting));
-    }
-
-    @Test
-    public void testGetEmpty() {
-        assertTrue(entitySettingsCache.getSettingsForEntity(ENTITY_ID).isEmpty());
     }
 
     @Test
@@ -134,9 +128,9 @@ public class EntitiesCacheTest {
         when(restTemplate.exchange(anyString(), eq(HttpMethod.POST), eq(httpEntity), eq(type)))
                 .thenThrow(new RestClientException("NO!"));
 
-        entitySettingsCache.newSnapshot(Collections.singleton(ENTITY_ID),
+        final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(Collections.singleton(ENTITY_ID),
             TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
 
-        assertTrue(entitySettingsCache.getSettingsForEntity(ENTITY_ID).isEmpty());
+        assertTrue(snapshot.getSettingsForEntity(ENTITY_ID).isEmpty());
     }
 }

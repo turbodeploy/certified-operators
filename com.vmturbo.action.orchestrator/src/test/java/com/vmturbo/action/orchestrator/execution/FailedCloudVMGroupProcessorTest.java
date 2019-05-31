@@ -35,7 +35,7 @@ import io.grpc.StatusRuntimeException;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionView;
-import com.vmturbo.action.orchestrator.store.EntitiesCache;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator.TranslationExecutor;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -60,7 +60,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class FailedCloudVMGroupProcessorTest {
     private final long actionId = 123456;
-    private final EntitiesCache entitySettingsCache = mock(EntitiesCache.class);
+    private final EntitiesAndSettingsSnapshotFactory entitySettingsCache = mock(EntitiesAndSettingsSnapshotFactory.class);
     private final ActionDTO.Action recommendationOnCloud = ActionDTO.Action.newBuilder()
             .setId(actionId)
             .setImportance(0)
@@ -341,6 +341,6 @@ public class FailedCloudVMGroupProcessorTest {
 
 
     private Action makeAction(ActionDTO.Action action) {
-        return new Action(action, entitySettingsCache, 4, actionModeCalculator);
+        return new Action(action, 4, actionModeCalculator);
     }
 }

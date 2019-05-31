@@ -47,7 +47,7 @@ import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.store.ActionFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
-import com.vmturbo.action.orchestrator.store.EntitiesCache;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
@@ -271,10 +271,11 @@ public class ActionOrchestratorDiagnosticsTest {
     private void testSingleAction(@Nullable final Consumer<Action> actionModifier)
             throws Exception {
         final ActionDTO.Action rec = ActionOrchestratorTestUtils.createMoveRecommendation(1);
-        final EntitiesCache settingsCache = mock(EntitiesCache.class);
-        when(settingsCache.getSettingsForEntity(eq(rec.getInfo().getMove().getTarget().getId())))
+        final Action action = actionFactory.newAction(rec, 0L);
+        final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
+        when(snapshot.getSettingsForEntity(eq(rec.getInfo().getMove().getTarget().getId())))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
-        final Action action = actionFactory.newAction(rec, settingsCache, 0L);
+        action.refreshActionMode(snapshot);
         if (actionModifier != null) {
             actionModifier.accept(action);
         }

@@ -739,12 +739,12 @@ public class ActionQueryRpcTest {
         assertThat(countsByDate.get(TimeUtil.localDateTimeToMilli(startOfDay, clock)), containsInAnyOrder(
             StateAndModeCount.newBuilder()
                 .setState(ActionState.QUEUED)
-                .setMode(ActionMode.MANUAL)
+                .setMode(ActionMode.RECOMMEND)
                 .setCount(1)
                 .build(),
             StateAndModeCount.newBuilder()
                 .setState(ActionState.READY)
-                .setMode(ActionMode.MANUAL)
+                .setMode(ActionMode.RECOMMEND)
                 .setCount(1)
                 .build()));
     }

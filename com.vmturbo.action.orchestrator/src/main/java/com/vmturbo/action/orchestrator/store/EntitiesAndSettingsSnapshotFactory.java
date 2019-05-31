@@ -4,13 +4,10 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.logging.log4j.LogManager;
@@ -36,27 +33,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 
 /**
- * The {@link EntitiesCache} stores the list of settings for each entity involved
- * in actions in the {@link LiveActionStore}. It also stores entity information for entities
- * involved in the action.
- * <p>
- * Every re-population of the store is responsible for updating the cache. This is done in two
- * steps:
- * 1) Create a new snapshot using {@link EntitiesCache#newSnapshot(Set, long, long)}.
- * 2) Set that snapshot to be the active snapshot using {@link EntitiesCache#update(Snapshot)}.
- * <p>
- * The reason we use two steps is to allow step 1 (which can take a while) to happen outside of
- * lock scope in the action store.
- *
- * <p>The reasons we cache the settings instead of getting them on demand are:
- *    1) We just need one call to the setting policy service.
- *    2) Settings are static within one realtime topology broadcast, so we don't need to worry
- *       about cache invalidation.
- *          Note - settings are static because we don't apply changes until the next broadcast
- *                 as an intentional design choice.
+ * The {@link EntitiesAndSettingsSnapshotFactory} is a way to create a
+ * {@link EntitiesAndSettingsSnapshot} that can be used to look up setting and entity-related
+ * information during {@link LiveActionStore} population.
  */
 @ThreadSafe
-public class EntitiesCache {
+public class EntitiesAndSettingsSnapshotFactory {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -64,24 +46,41 @@ public class EntitiesCache {
 
     private final RepositoryServiceBlockingStub repositoryService;
 
-    @GuardedBy("cacheLock")
-    private Snapshot snapshot = new Snapshot(Collections.emptyMap(), Collections.emptyMap());
-
-    private final ReadWriteLock cacheLock = new ReentrantReadWriteLock();
-
-    EntitiesCache(@Nonnull final Channel groupChannel, @Nonnull final Channel repoChannel) {
+    EntitiesAndSettingsSnapshotFactory(@Nonnull final Channel groupChannel, @Nonnull final Channel repoChannel) {
         this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupChannel);
         this.repositoryService = RepositoryServiceGrpc.newBlockingStub(repoChannel);
     }
 
-    public static class Snapshot {
+    /**
+     * The snapshot of entities and settings required to properly initialize the various
+     * fields of an action (most notably the action mode, which factors in settings, flags on
+     * an entity, and commodities).
+     */
+    public static class EntitiesAndSettingsSnapshot {
         private final Map<Long, Map<String, Setting>> settingsByEntityAndSpecName;
         private final Map<Long, TopologyEntityDTO> oidToEntityMap;
 
-        public Snapshot(@Nonnull final Map<Long, Map<String, Setting>> settings,
-                        @Nonnull final Map<Long, TopologyEntityDTO> entityMap) {
+        public EntitiesAndSettingsSnapshot(@Nonnull final Map<Long, Map<String, Setting>> settings,
+                                           @Nonnull final Map<Long, TopologyEntityDTO> entityMap) {
             this.settingsByEntityAndSpecName = settings;
             this.oidToEntityMap = entityMap;
+        }
+
+        /**
+         * Get the list of action-orchestrator related settings associated with an entity.
+         *
+         * @param entityId The ID of the entity.
+         * @return A map of (setting spec name, setting) for the settings associated with the entity.
+         *         This may be empty, but will not be null.
+         */
+        @Nonnull
+        public Map<String, Setting> getSettingsForEntity(final long entityId) {
+            return settingsByEntityAndSpecName.getOrDefault(entityId, Collections.emptyMap());
+        }
+
+        @Nonnull
+        public Optional<TopologyEntityDTO> getEntityFromOid(final long entityOid) {
+            return Optional.ofNullable(oidToEntityMap.get(entityOid));
         }
     }
 
@@ -95,41 +94,17 @@ public class EntitiesCache {
      *                          triggered the cache update.
      * @param topologyId The topology id of the topology, the broadcast of which triggered the
      *                   cache update.
-     * @return A {@link Snapshot} containing the new action-related settings an entities. The
-     *         caller is responsible for updating the cache with the snapshot using
-     *         {@link EntitiesCache#update(Snapshot)}.
+     * @return A {@link EntitiesAndSettingsSnapshot} containing the new action-related settings an entities.
      */
     @Nonnull
-    public Snapshot newSnapshot(@Nonnull final Set<Long> entities, final long topologyContextId, final long topologyId) {
+    public EntitiesAndSettingsSnapshot newSnapshot(@Nonnull final Set<Long> entities,
+                                                   final long topologyContextId,
+                                                   final long topologyId) {
         final Map<Long, Map<String, Setting>> newSettings = retrieveEntityToSettingListMap(entities,
             topologyContextId, topologyId);
         final Map<Long, TopologyEntityDTO> entityMap = retrieveOidToEntityMap(entities,
             topologyContextId, topologyId);
-        return new Snapshot(newSettings, entityMap);
-    }
-
-    /**
-     * Update the cache to obtain action-related settings for a new set of entities from the
-     * setting policy service. There should be exactly one cache update for every new realtime
-     * topology broadcast.
-     *
-     * <p>Once this method returns, all old information will no longer be in the cache.
-     *
-     * @param snapshot A {@link Snapshot} returned by {@link EntitiesCache#newSnapshot(Set, long, long)}.
-     *                 The creation and update of the snapshot are separated to allow the long-running
-     *                 operation (building the snapshot) to happen outside of lock scope during
-     *                 action store population.
-     */
-    public void update(@Nonnull final Snapshot snapshot) {
-        logger.info("Refreshing entity settings cache...");
-        cacheLock.writeLock().lock();
-        try {
-            this.snapshot = snapshot;
-        } finally {
-            cacheLock.writeLock().unlock();
-        }
-        logger.info("Refreshed entity settings cache. It now contains settings for {} entities.",
-                snapshot.settingsByEntityAndSpecName.size());
+        return new EntitiesAndSettingsSnapshot(newSettings, entityMap);
     }
 
     /**
@@ -153,33 +128,6 @@ public class EntitiesCache {
         } catch (StatusRuntimeException ex) {
             logger.error("Failed to fetch entities due to exception : " + ex);
             return Collections.emptyMap();
-        }
-    }
-
-    /**
-     * Get the list of action-orchestrator related settings associated with an entity.
-     *
-     * @param entityId The ID of the entity.
-     * @return A map of (setting spec name, setting) for the settings associated with the entity.
-     *         This may be empty, but will not be null.
-     */
-    @Nonnull
-    public Map<String, Setting> getSettingsForEntity(final long entityId) {
-        cacheLock.readLock().lock();
-        try {
-            return snapshot.settingsByEntityAndSpecName.getOrDefault(entityId, Collections.emptyMap());
-        } finally {
-            cacheLock.readLock().unlock();
-        }
-    }
-
-    @Nonnull
-    public Optional<TopologyEntityDTO> getEntityFromOid(final long entityOid) {
-        cacheLock.readLock().lock();
-        try {
-            return Optional.ofNullable(snapshot.oidToEntityMap.get(entityOid));
-        } finally {
-            cacheLock.readLock().unlock();
         }
     }
 

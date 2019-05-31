@@ -37,7 +37,7 @@ import com.google.common.collect.Sets;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionView;
-import com.vmturbo.action.orchestrator.store.EntitiesCache.Snapshot;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.query.QueryFilter;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -68,8 +68,6 @@ class LiveActions implements QueryableActionViews {
 
     private final ActionHistoryDao actionHistoryDao;
 
-    private final EntitiesCache entitiesCache;
-
     private final Clock clock;
 
     /**
@@ -96,21 +94,17 @@ class LiveActions implements QueryableActionViews {
     private final QueryFilterFactory queryFilterFactory;
 
     LiveActions(@Nonnull final ActionHistoryDao actionHistoryDao,
-                @Nonnull final EntitiesCache entitiesCache,
                 @Nonnull final Clock clock) {
         this(actionHistoryDao,
-            entitiesCache,
             clock,
             QueryFilter::new);
     }
 
     @VisibleForTesting
     LiveActions(@Nonnull final ActionHistoryDao actionHistoryDao,
-                @Nonnull final EntitiesCache entitiesCache,
                 @Nonnull final Clock clock,
                 QueryFilterFactory queryFilterFactory) {
         this.actionHistoryDao = Objects.requireNonNull(actionHistoryDao);
-        this.entitiesCache = Objects.requireNonNull(entitiesCache);
         this.clock = Objects.requireNonNull(clock);
         this.queryFilterFactory = Objects.requireNonNull(queryFilterFactory);
     }
@@ -172,7 +166,7 @@ class LiveActions implements QueryableActionViews {
 
     /**
      * Replace all market actions. THIS SHOULD ONLY BE CALLED WHEN RESTORING FROM DIAGS!
-     * For normal operation use {@link LiveActions#updateMarketActions(Collection, Collection, Snapshot)}.
+     * For normal operation use {@link LiveActions#updateMarketActions(Collection, Collection, EntitiesAndSettingsSnapshot)}.
      *
      * @param newActions The new market actions.
      */
@@ -208,27 +202,23 @@ class LiveActions implements QueryableActionViews {
      *
      * @param actionsToRemove The ids of actions to remove.
      * @param actionsToAdd The {@link Action}s to add.
-     * @param newEntitiesSnapshot The new {@link EntitiesCache.Snapshot} to put into the entities
+     * @param newEntitiesSnapshot The new {@link EntitiesAndSettingsSnapshot} to put into the entities
      *                            cache. This needs to be done atomically with the action addition,
      *                            because the mode calculation of those actions will depend on
-     *                            the snapshot in the {@link EntitiesCache}.
+     *                            the snapshot in the {@link EntitiesAndSettingsSnapshotFactory}.
      */
     void updateMarketActions(@Nonnull final Collection<Long> actionsToRemove,
                              @Nonnull final Collection<Action> actionsToAdd,
-                             @Nonnull final EntitiesCache.Snapshot newEntitiesSnapshot) {
+                             @Nonnull final EntitiesAndSettingsSnapshot newEntitiesSnapshot) {
         actionsLock.writeLock().lock();
         try {
             marketActions.keySet().removeAll(actionsToRemove);
             actionsToAdd.forEach(action -> marketActions.put(action.getId(), action));
             updateIndices();
 
-            // The snapshot needs to be updated at the same time as the actions, because
-            // the actions will (sometimes) query the entities cache to determine the mode.
-            entitiesCache.update(newEntitiesSnapshot);
-
             // Now that we updated the entities + settings cache, refresh the action modes
             // of all market actions.
-            marketActions.values().forEach(Action::refreshActionMode);
+            marketActions.values().forEach(action -> action.refreshActionMode(newEntitiesSnapshot));
 
             marketActions.values().stream()
                 .collect(Collectors.groupingBy(a ->

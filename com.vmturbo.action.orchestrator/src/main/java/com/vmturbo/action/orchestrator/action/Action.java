@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.action;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -29,7 +30,8 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.state.machine.StateMachine;
 import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult;
-import com.vmturbo.action.orchestrator.store.EntitiesCache;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
@@ -110,11 +112,26 @@ public class Action implements ActionView {
      * component according to the group and setting policies defined by the user. When the
      * Action Orchestrator processes an action plan it gets these per-entity settings, and
      * can then determine the new action mode. The processing code is responsible for calling
-     * {@link Action#refreshActionMode()} for all live actions when the per-entity settings
+     * {@link Action#refreshActionMode(EntitiesAndSettingsSnapshot)} for all live actions when the per-entity settings
      * are updated.
      * <p>
      */
-    private volatile ActionMode actionMode;
+    private volatile ActionMode actionMode = ActionMode.RECOMMEND;
+
+    /**
+     * The cached workflow settings for the actions, broken down by state.
+     * Each action state may have a different workflow setting.
+     * Not final, because the settings can change during the lifetime of the action.
+     * <p>
+     * Plans/BuyRI:
+     * In plans, and for Buy RI actions, this should always be empty because we don't allow
+     * action execution.
+     * <p>
+     * Live:
+     * Updated every broadcast via {@link Action#refreshActionMode(EntitiesAndSettingsSnapshot)} for all live actions.
+     */
+    private volatile Map<ActionState, SettingProto.Setting> workflowSettingsForState =
+        Collections.emptyMap();
 
     /**
      * The time at which this action was recommended.
@@ -150,11 +167,6 @@ public class Action implements ActionView {
      * Stores previous executable steps for this action that have already been completed.
      */
     private final Map<ActionState, ExecutableStep> executableSteps = Maps.newHashMap();
-
-    /**
-     * Cached settings for entities.
-     */
-    private final EntitiesCache entitiesCache;
 
     /**
      * The ID of the action plan to which this action's recommendation belongs.
@@ -204,7 +216,6 @@ public class Action implements ActionView {
         }
         this.stateMachine = ActionStateMachine.newInstance(this, savedState.currentState);
         this.actionTranslation = savedState.actionTranslation;
-        this.entitiesCache = null;
         this.actionCategory = savedState.actionCategory;
         this.actionModeCalculator = actionModeCalculator;
     }
@@ -219,24 +230,6 @@ public class Action implements ActionView {
         this.stateMachine = ActionStateMachine.newInstance(this);
         this.currentExecutableStep = Optional.empty();
         this.decision = new Decision();
-        this.entitiesCache = null;
-        this.actionCategory = ActionCategoryExtractor.assignActionCategory(
-                recommendation.getExplanation());
-        this.actionModeCalculator = actionModeCalculator;
-    }
-
-    public Action(@Nonnull final ActionDTO.Action recommendation,
-                  @Nonnull final LocalDateTime recommendationTime,
-                  @Nonnull final EntitiesCache entitySettings,
-                  final long actionPlanId, @Nonnull final ActionModeCalculator actionModeCalculator) {
-        this.recommendation = recommendation;
-        this.actionTranslation = new ActionTranslation(this.recommendation);
-        this.actionPlanId = actionPlanId;
-        this.recommendationTime = Objects.requireNonNull(recommendationTime);
-        this.stateMachine = ActionStateMachine.newInstance(this);
-        this.currentExecutableStep = Optional.empty();
-        this.decision = new Decision();
-        this.entitiesCache = Objects.requireNonNull(entitySettings);
         this.actionCategory = ActionCategoryExtractor.assignActionCategory(
                 recommendation.getExplanation());
         this.actionModeCalculator = actionModeCalculator;
@@ -245,12 +238,6 @@ public class Action implements ActionView {
     public Action(@Nonnull final ActionDTO.Action recommendation,
                   final long actionPlanId, @Nonnull final ActionModeCalculator actionModeCalculator) {
         this(recommendation, LocalDateTime.now(), actionPlanId, actionModeCalculator);
-    }
-
-    public Action(@Nonnull final ActionDTO.Action recommendation,
-                  @Nonnull final EntitiesCache entitySettings,
-                  final long actionPlanId, @Nonnull final ActionModeCalculator actionModeCalculator) {
-        this(recommendation, LocalDateTime.now(), entitySettings, actionPlanId, actionModeCalculator);
     }
 
     /**
@@ -358,12 +345,13 @@ public class Action implements ActionView {
     /**
      * Refresh the currently saved action mode.
      * <p>
-     * This should only be called during live action plan processing, after the {@link EntitiesCache}
+     * This should only be called during live action plan processing, after the {@link EntitiesAndSettingsSnapshotFactory}
      * is updated with the new snapshot of the settings and entities needed to resolve action modes.
      */
-    public void refreshActionMode() {
+    public void refreshActionMode(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot) {
         synchronized (recommendationLock) {
-            actionMode = actionModeCalculator.calculateActionMode(this, entitiesCache);
+            actionMode = actionModeCalculator.calculateActionMode(this, entitiesSnapshot);
+            workflowSettingsForState = actionModeCalculator.calculateWorkflowSettings(recommendation, entitiesSnapshot);
         }
     }
 
@@ -374,12 +362,6 @@ public class Action implements ActionView {
      */
     @Override
     public ActionMode getMode() {
-        if (actionMode == null) {
-            // If multiple threads hit this at the same time we may end up refreshing
-            // the action mode multiple times, but it's (relatively) quick and deterministic
-            // so it should be safe.
-            refreshActionMode();
-        }
         return actionMode;
     }
 
@@ -417,10 +399,6 @@ public class Action implements ActionView {
 
     private boolean hasWorkflowForCurrentState() {
         return hasNonEmptyStringSetting(getWorkflowSetting());
-    }
-
-    private boolean hasWorkflowForState(ActionState actionState) {
-        return hasNonEmptyStringSetting(getWorkflowSetting(actionState));
     }
 
     private boolean hasNonEmptyStringSetting(Optional<SettingProto.Setting> settingOpt) {
@@ -528,17 +506,7 @@ public class Action implements ActionView {
      */
     @Nonnull
     private Optional<SettingProto.Setting> getWorkflowSetting(ActionState actionState) {
-        // To avoid holding the lock for a long time, save the reference to the recommendation at
-        // the time the method is called. Note that the underlying protobuf is immutable.
-        final ActionDTO.Action curRecommendation;
-        synchronized (recommendationLock) {
-            curRecommendation = recommendation;
-        }
-        // Fetch the setting, if any, that defines whether a Workflow should be applied in the *next*
-        // step of this action's execution. This may be a PRE, REPLACE or POST workflow, depending
-        // on the policies defined and the current state of the action.
-        return ActionModeCalculator
-            .calculateWorkflowSetting(curRecommendation, entitiesCache, actionState);
+        return Optional.ofNullable(workflowSettingsForState.get(actionState));
     }
 
 

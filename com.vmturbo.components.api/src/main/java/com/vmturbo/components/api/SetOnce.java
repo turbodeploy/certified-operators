@@ -41,6 +41,31 @@ public class SetOnce<CONTENT> {
         }
     }
 
+    /**
+     * Ensure that the {@link SetOnce} is set to a value, using the provided supplier if necessary.
+     *
+     * @param valueSupplier Supplier for the value if it's not currently set.
+     * @return The value the {@link SetOnce} is set to.
+     */
+    @Nonnull
+    public CONTENT ensureSet(@Nonnull Supplier<CONTENT> valueSupplier) {
+        CONTENT val;
+        // The fast path, to avoid a write lock if the value is already set (which should be
+        // the case most of the time).
+        lock.readLock().lock();
+        try {
+            val = value;
+        } finally {
+            lock.readLock().unlock();
+        }
+
+        if (val == null) {
+            trySetValue(valueSupplier);
+        }
+        // This shouldn't be null, because trySetValue should have initialized the value.
+        return value;
+    }
+
     public boolean trySetValue(@Nonnull final Supplier<CONTENT> valueSupplier) {
         lock.writeLock().lock();
         try {

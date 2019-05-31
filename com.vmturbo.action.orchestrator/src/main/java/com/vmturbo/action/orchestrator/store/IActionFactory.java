@@ -26,19 +26,6 @@ public interface IActionFactory {
                      final long actionPlanId);
 
     /**
-     * Create a new Action instance. The created action will receive a recommendation time of
-     * the current time.
-     *
-     * @param recommendation The market recommendation for the action in the environment.
-     * @param entitySettingsCache Entities and associated settings
-     * @param actionPlanId The ID of the ActionPlan the recommendation was a part of.
-     * @return A new {@link Action} instance.
-     */
-    @Nonnull
-    Action newAction(@Nonnull final ActionDTO.Action recommendation,
-                     final EntitiesCache entitySettingsCache, final long actionPlanId);
-
-    /**
      * Create a new Action instance.
      *
      * @param recommendation The market recommendation for the action in the environment.

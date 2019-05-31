@@ -48,7 +48,7 @@ import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.store.ActionFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
-import com.vmturbo.action.orchestrator.store.EntitiesCache;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
@@ -122,7 +122,7 @@ public class ActionExecutionSecureRpcTest {
 
     private final LiveActionsStatistician actionsStatistician = mock(LiveActionsStatistician.class);
 
-    private final EntitiesCache entitySettingsCache = mock(EntitiesCache.class);
+    private final EntitiesAndSettingsSnapshotFactory entitySettingsCache = mock(EntitiesAndSettingsSnapshotFactory.class);
 
     private final Clock clock = new MutableFixedClock(1_000_000);
 

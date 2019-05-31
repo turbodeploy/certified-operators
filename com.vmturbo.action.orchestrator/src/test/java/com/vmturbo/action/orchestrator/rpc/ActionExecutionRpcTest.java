@@ -53,7 +53,7 @@ import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.store.ActionFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
-import com.vmturbo.action.orchestrator.store.EntitiesCache;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
@@ -111,7 +111,7 @@ public class ActionExecutionRpcTest {
 
     private final CurrentActionStatReader liveStatReader = mock(CurrentActionStatReader.class);
 
-    private final EntitiesCache entitySettingsCache = mock(EntitiesCache.class);
+    private final EntitiesAndSettingsSnapshotFactory entitySettingsCache = mock(EntitiesAndSettingsSnapshotFactory.class);
 
     private final LiveActionsStatistician statistician = mock(LiveActionsStatistician.class);
 

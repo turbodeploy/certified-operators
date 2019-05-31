@@ -32,7 +32,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
 
     private final ActionTargetSelector actionTargetSelector;
 
-    private final EntitiesCache entitySettingsCache;
+    private final EntitiesAndSettingsSnapshotFactory entitySettingsCache;
 
     private final ProbeCapabilityCache probeCapabilityCache;
 
@@ -54,7 +54,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
                               @Nonnull final ActionHistoryDao actionHistoryDao,
                               @Nonnull final ActionTargetSelector actionTargetSelector,
                               @Nonnull final ProbeCapabilityCache probeCapabilityCache,
-                              @Nonnull final EntitiesCache entitySettingsCache,
+                              @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
                               @Nonnull final LiveActionsStatistician actionsStatistician,
                               @Nonnull final ActionTranslator actionTranslator,
                               @Nonnull final Clock clock) {

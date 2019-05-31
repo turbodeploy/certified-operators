@@ -15,7 +15,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
-import com.vmturbo.action.orchestrator.store.EntitiesCache;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -50,7 +50,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class ActionModeCalculatorTest {
 
-    private EntitiesCache entitiesCache = mock(EntitiesCache.class);
+    private EntitiesAndSettingsSnapshot entitiesCache = mock(EntitiesAndSettingsSnapshot.class);
 
     private ActionDTO.Action.Builder actionBuilder = ActionDTO.Action.newBuilder()
         .setId(10289)
@@ -603,6 +603,7 @@ public class ActionModeCalculatorTest {
      * User Setting Mode: Manual.
      * Final Output mode: Manual.
      */
+    @Test
     public void testResizeUpWithHotAddNonDisruptiveDisabled() {
         long vmId = 122L;
         boolean hotAddSupported = true;
@@ -623,6 +624,7 @@ public class ActionModeCalculatorTest {
      * User Setting Mode: Manual.
      * Final Output mode: Manual.
      */
+    @Test
     public void testResizeUpWithoutHotAddNonDisruptiveDisabled() {
         long vmId = 122L;
         boolean hotAddSupported = false;
@@ -643,6 +645,7 @@ public class ActionModeCalculatorTest {
      * User Setting Mode: Manual.
      * Final Output mode: Disable.
      */
+    @Test
     public void testDisableResizeUpWithNonDisrputiveEnabled() {
         long vmId = 122L;
         boolean hotAddSupported = true;
@@ -663,6 +666,7 @@ public class ActionModeCalculatorTest {
      * User Setting Mode: Manual.
      * Final Output mode: Disable.
      */
+    @Test
     public void testDisableResizeUpWithNonDisrputiveDisabled() {
         long vmId = 122L;
         boolean hotAddSupported = true;

@@ -33,7 +33,7 @@ import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
-import com.vmturbo.action.orchestrator.store.EntitiesCache.Snapshot;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.LiveActions.RecommendationTracker;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
@@ -76,9 +76,7 @@ public class LiveActionStore implements ActionStore {
 
     private final EntitySeverityCache severityCache;
 
-    private final EntitiesCache entitySettingsCache;
-
-    private final ActionHistoryDao actionHistoryDao;
+    private final EntitiesAndSettingsSnapshotFactory entitySettingsCache;
 
     private static final String STORE_TYPE_NAME = "Live";
 
@@ -110,7 +108,7 @@ public class LiveActionStore implements ActionStore {
                            final long topologyContextId,
                            @Nonnull final ActionTargetSelector actionTargetSelector,
                            @Nonnull final ProbeCapabilityCache probeCapabilityCache,
-                           @Nonnull final EntitiesCache entitySettingsCache,
+                           @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
                            @Nonnull final ActionHistoryDao actionHistoryDao,
                            @Nonnull final LiveActionsStatistician liveActionsStatistician,
                            @Nonnull final ActionTranslator actionTranslator,
@@ -121,8 +119,7 @@ public class LiveActionStore implements ActionStore {
         this.actionTargetSelector = actionTargetSelector;
         this.probeCapabilityCache = probeCapabilityCache;
         this.entitySettingsCache = entitySettingsCache;
-        this.actions = new LiveActions(actionHistoryDao, entitySettingsCache, clock);
-        this.actionHistoryDao = Objects.requireNonNull(actionHistoryDao);
+        this.actions = new LiveActions(actionHistoryDao, clock);
         this.actionsStatistician = Objects.requireNonNull(liveActionsStatistician);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
     }
@@ -249,7 +246,7 @@ public class LiveActionStore implements ActionStore {
                         }
                     } else {
                         newActionCounts.getAndIncrement();
-                        action = actionFactory.newAction(recommendedAction, entitySettingsCache, planId);
+                        action = actionFactory.newAction(recommendedAction, planId);
                     }
 
                     if (action.getState() == ActionState.READY) {
@@ -298,7 +295,7 @@ public class LiveActionStore implements ActionStore {
 
             // Get a new snapshot for the entity settings cache. We do this outside of lock scope
             // so as to not block the readers on the RPC.
-            final Snapshot snapshot = entitySettingsCache.newSnapshot(entitiesToRetrieve,
+            final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(entitiesToRetrieve,
                 sourceTopologyInfo.getTopologyContextId(), sourceTopologyInfo.getTopologyId());
 
             // Some of these may be noops - if we're re-adding an action that was already in

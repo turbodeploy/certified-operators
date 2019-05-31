@@ -30,7 +30,7 @@ import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionView;
-import com.vmturbo.action.orchestrator.store.EntitiesCache.Snapshot;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.LiveActions.QueryFilterFactory;
 import com.vmturbo.action.orchestrator.store.query.QueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
@@ -46,14 +46,14 @@ public class LiveActionsTest {
 
     private ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
 
-    private EntitiesCache entitiesCache = mock(EntitiesCache.class);
+    private EntitiesAndSettingsSnapshot entitiesCache = mock(EntitiesAndSettingsSnapshot.class);
 
     private Clock clock = new MutableFixedClock(1_000_000);
 
     private final QueryFilterFactory queryFilterFactory = mock(QueryFilterFactory.class);
 
     private LiveActions liveActions =
-        new LiveActions(actionHistoryDao, entitiesCache, clock, queryFilterFactory);
+        new LiveActions(actionHistoryDao, clock, queryFilterFactory);
 
     @Test
     public void testReplaceMarketActions() {
@@ -95,7 +95,7 @@ public class LiveActionsTest {
         final Action action1 = ActionOrchestratorTestUtils.createMoveAction(1, 2);
         final Action action2 = ActionOrchestratorTestUtils.createMoveAction(2, 2);
         final Action action3 = ActionOrchestratorTestUtils.createMoveAction(3, 2);
-        final Snapshot entityCacheSnapshot = mock(Snapshot.class);
+        final EntitiesAndSettingsSnapshot entityCacheSnapshot = mock(EntitiesAndSettingsSnapshot.class);
 
         // Initialize to action1
         liveActions.replaceMarketActions(Stream.of(action1));
@@ -104,7 +104,6 @@ public class LiveActionsTest {
         liveActions.updateMarketActions(Collections.singleton(action1.getId()),
             Arrays.asList(action2, action3), entityCacheSnapshot);
 
-        verify(entitiesCache).update(entityCacheSnapshot);
         assertThat(liveActions.getAll().collect(Collectors.toList()),
             containsInAnyOrder(action2, action3));
     }

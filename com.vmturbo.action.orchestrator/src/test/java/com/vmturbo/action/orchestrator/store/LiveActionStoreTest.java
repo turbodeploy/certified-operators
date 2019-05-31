@@ -9,6 +9,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -40,7 +41,7 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
-import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
@@ -49,7 +50,7 @@ import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
 import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
 import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
-import com.vmturbo.action.orchestrator.store.EntitiesCache.Snapshot;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.LiveActions.RecommendationTracker;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -104,13 +105,6 @@ public class LiveActionStoreTest {
 
         @Nonnull
         @Override
-        public Action newAction(@Nonnull final ActionDTO.Action recommendation,
-                                @Nonnull final EntitiesCache entitySettingsMap, long actionPlanId) {
-            return spy(new Action(recommendation, entitySettingsMap, actionPlanId, actionModeCalculator));
-        }
-
-        @Nonnull
-        @Override
         public Action newAction(@Nonnull ActionDTO.Action recommendation, @Nonnull LocalDateTime recommendationTime,
                                 long actionPlanId) {
             return spy(new Action(recommendation, recommendationTime, actionPlanId, actionModeCalculator));
@@ -125,7 +119,7 @@ public class LiveActionStoreTest {
 
     private final ProbeCapabilityCache probeCapabilityCache = Mockito.mock(ProbeCapabilityCache.class);
 
-    private final EntitiesCache entitySettingsCache = mock(EntitiesCache.class);
+    private final EntitiesAndSettingsSnapshotFactory entitySettingsCache = mock(EntitiesAndSettingsSnapshotFactory.class);
 
     private SpyActionFactory spyActionFactory = spy(new SpyActionFactory());
     private ActionStore actionStore;
@@ -513,7 +507,7 @@ public class LiveActionStoreTest {
             .addAction(move(vm1, hostA, vmType, hostB, vmType))
             .build();
 
-        Snapshot snapshot = mock(Snapshot.class);
+        EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
 
         actionStore.populateRecommendedActions(plan);
@@ -521,9 +515,7 @@ public class LiveActionStoreTest {
         verify(entitySettingsCache).newSnapshot(eq(ImmutableSet.of(vm1, hostA, hostB)),
             eq(plan.getInfo().getMarket().getSourceTopologyInfo().getTopologyContextId()),
             eq(plan.getInfo().getMarket().getSourceTopologyInfo().getTopologyId()));
-        verify(entitySettingsCache).update(snapshot);
         verify(spyActionFactory).newAction(any(),
-            eq(entitySettingsCache),
             eq(firstPlanId));
         assertEquals(1, actionStore.size());
     }
@@ -545,7 +537,7 @@ public class LiveActionStoreTest {
 
         actionStore.populateRecommendedActions(firstPlan);
         Optional<Action> queuedAction = actionStore.getAction(queuedMove.getId());
-        queuedAction.get().receive(new AutomaticAcceptanceEvent("foo", 123L));
+        when(queuedAction.get().getState()).thenReturn(ActionState.QUEUED);
         assertThat(actionStore.getAction(queuedMove.getId()).get().getState(), is(ActionState.QUEUED));
 
         ActionDTO.Action.Builder queuedMoveSameSrc =
@@ -561,9 +553,10 @@ public class LiveActionStoreTest {
             .build();
         actionStore.populateRecommendedActions(secondPlan);
 
-        // The 1st action should be in CLEARED state and the 2nd one should be in READY state.
         assertThat (actionStore.size(), is(2));
-        assertThat(actionStore.getAction(queuedMove.getId()).get().getState(), is(ActionState.CLEARED));
+        // The 1st action should have received a NotRecommendedEvent.
+        verify(actionStore.getAction(queuedMove.getId()).get()).receive(isA(NotRecommendedEvent.class));
+        // 2nd one should be in READY state.
         assertThat(actionStore.getAction(queuedMoveSameSrc.getId()).get().getState(), is(ActionState.READY));
     }
 
@@ -633,9 +626,10 @@ public class LiveActionStoreTest {
 
         actionStore.populateRecommendedActions(firstPlan);
         Optional<Action> queuedAction = actionStore.getAction(queuedMove.getId());
-        queuedAction.get().receive(new AutomaticAcceptanceEvent("foo", 123L));
-        assertThat(actionStore.getAction(queuedMove.getId()).get().getState(),
-            is(ActionState.QUEUED));
+//        queuedAction.get().receive(new AutomaticAcceptanceEvent("foo", 123L));
+        when(queuedAction.get().getState()).thenReturn(ActionState.QUEUED);
+//        assertThat(actionStore.getAction(queuedMove.getId()).get().getState(),
+//            is(ActionState.QUEUED));
 
         ActionDTO.Action.Builder queuedMoveReRecommended =
             move(vm1, hostA, vmType, hostB, vmType);

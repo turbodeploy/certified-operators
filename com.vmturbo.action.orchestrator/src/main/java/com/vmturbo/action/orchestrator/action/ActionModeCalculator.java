@@ -20,6 +20,7 @@ import static com.vmturbo.components.common.setting.EntitySettingSpecs.ResizeAct
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.SuspendActionWorkflow;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -37,9 +38,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.action.orchestrator.store.EntitiesCache;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -54,7 +55,9 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.Units;
+import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -164,7 +167,7 @@ public class ActionModeCalculator {
      * the relevant automation settings.
      *
      * @param action The action to calculate action mode for.
-     * @param entitiesCache The {@link EntitiesCache} to retrieve settings for. May
+     * @param entitiesCache The {@link EntitiesAndSettingsSnapshotFactory} to retrieve settings for. May
      *                            be null.
      *                            TODO (roman, Aug 7 2018): Can we make this non-null? The cache
      *                            should exist as a spring object and be injected appropriately.
@@ -172,7 +175,7 @@ public class ActionModeCalculator {
      */
     @Nonnull
     public ActionMode calculateActionMode(@Nonnull final ActionView action,
-                @Nullable final EntitiesCache entitiesCache) {
+                @Nullable final EntitiesAndSettingsSnapshot entitiesCache) {
         return calculateWorkflowActionMode(action, entitiesCache)
             .orElseGet(() -> {
                 switch (action.getRecommendation().getSupportingLevel()) {
@@ -196,7 +199,7 @@ public class ActionModeCalculator {
 
     @Nonnull
     private ActionMode getNonWorkflowActionMode(@Nonnull final ActionView action,
-                @Nullable final EntitiesCache entitiesCache) {
+                @Nullable final EntitiesAndSettingsSnapshot entitiesCache) {
         final boolean translationSuccess = actionTranslator.translate(action);
         if (!translationSuccess){
             return ActionMode.RECOMMEND;
@@ -308,7 +311,7 @@ public class ActionModeCalculator {
     @Nonnull
     private Optional<ActionMode> calculateWorkflowActionMode(
             @Nonnull final ActionView action,
-            @Nullable final EntitiesCache entitySettingsCache) {
+            @Nullable final EntitiesAndSettingsSnapshot entitySettingsCache) {
         try {
             ActionDTO.Action actionDTO = action.getRecommendation();
             Objects.requireNonNull(actionDTO);
@@ -358,70 +361,70 @@ public class ActionModeCalculator {
      * For an action which corresponds to a Workflow Action, e.g. ProvisionActionWorkflow,
      * return the ActionMode of the policy for the related action, e.g. ProvisionAction.
      *
-     * If this is not a Workflow Action, then return Optional.empty()
+     * If this is not a Workflow Action, then return an empty map.
      *
-     * @param actionDTO The action to analyze to see if it is a Workflow Action
-     * @param entitySettingsCache the EntitySettings lookaside for the given action
-     * @param actionState the state (or phase) to check for a defined workflow
-     * @return an Optional containing the ActionMode if this is a Workflow Action, or
-     * Optional.empty() if this is not a Workflow Action or the type of the ActionDTO is not
-     * supported.
+     * @param recommendation The action to analyze to see if it is a Workflow Action
+     * @param snapshot the entity settings cache to look up the settings.
+     * @return A map containing the per-action-state workflow settings is this is a workflow action.
+     * Only states that have associated workflow settings will have entries in the map.
+     * An empty map otherwise.
      */
     @Nonnull
-    public static Optional<SettingProto.Setting> calculateWorkflowSetting(
-        @Nonnull final ActionDTO.Action actionDTO,
-        @Nullable final EntitiesCache entitySettingsCache,
-        @Nonnull final ActionState actionState) {
+    public Map<ActionState, SettingProto.Setting> calculateWorkflowSettings(
+            @Nonnull final ActionDTO.Action recommendation,
+            @Nullable final EntitiesAndSettingsSnapshot snapshot) {
         try {
-            Objects.requireNonNull(actionDTO);
-            Objects.requireNonNull(actionState);
-            if (Objects.isNull(entitySettingsCache)) {
-                return Optional.empty();
+            Objects.requireNonNull(recommendation);
+            if (Objects.isNull(snapshot)) {
+                return Collections.emptyMap();
             }
 
             // find the entity which is the target of this action
-            final long actionTargetEntityId = ActionDTOUtil.getPrimaryEntityId(actionDTO);
-
-            // Determine which action type map to use based on the current state of the action
-            final Map<ActionType, EntitySettingSpecs> workflowActionTypeMap;
-            switch (actionState) {
-                case PRE_IN_PROGRESS:
-                    workflowActionTypeMap = PREP_WORKFLOW_ACTION_TYPE_MAP;
-                    break;
-                case IN_PROGRESS:
-                    workflowActionTypeMap = WORKFLOW_ACTION_TYPE_MAP;
-                    break;
-                case POST_IN_PROGRESS:
-                    // POST runs after success or failure
-                    workflowActionTypeMap = POST_WORKFLOW_ACTION_TYPE_MAP;
-                    break;
-                default:
-                    logger.warn("Tried to retrieve workflow setting in an unexpected action "
-                        + "state {}", actionState);
-                    return Optional.empty();
-            }
-
-            // Are there any workflow override settings allowed for this action type?
-            final ActionType actionType = ActionDTOUtil.getActionInfoActionType(actionDTO);
-            final EntitySettingSpecs workflowOverride = workflowActionTypeMap.get(actionType);
-            if (workflowOverride == null) {
-                // workflow overrides are not allowed
-                return Optional.empty();
-            }
-
+            final long actionTargetEntityId = ActionDTOUtil.getPrimaryEntityId(recommendation);
+            final ActionType actionType = ActionDTOUtil.getActionInfoActionType(recommendation);
             // get a map of all the settings (settingName  -> setting) specific to this entity
             final Map<String, Setting> settingsForActionTarget =
-                entitySettingsCache.getSettingsForEntity(actionTargetEntityId);
+                snapshot.getSettingsForEntity(actionTargetEntityId);
 
-            // Is there a corresponding setting for this Workflow override for the current entity?
-            // Note: the value of the workflowSettingSpec is the OID of the workflow, only used during
-            // execution.
-            final Setting setting = settingsForActionTarget.get(
-                workflowOverride.getSettingName());
-            return Optional.ofNullable(setting);
+            // Use a "set-once" so that we can avoid the overhead of constructing a new HashMap
+            // if there are no workflow settings for the action.
+            final SetOnce<Map<ActionState, Setting>> retMap = new SetOnce<>();
+            Stream.of(ActionState.PRE_IN_PROGRESS, ActionState.IN_PROGRESS, ActionState.POST_IN_PROGRESS)
+                .forEach(state -> {
+                    // Determine which override use based on the state.
+                    final EntitySettingSpecs workflowOverride;
+                    switch (state) {
+                        case PRE_IN_PROGRESS:
+                            workflowOverride = PREP_WORKFLOW_ACTION_TYPE_MAP.get(actionType);
+                            break;
+                        case IN_PROGRESS:
+                            workflowOverride = WORKFLOW_ACTION_TYPE_MAP.get(actionType);
+                            break;
+                        case POST_IN_PROGRESS:
+                            // POST runs after success or failure
+                            workflowOverride = POST_WORKFLOW_ACTION_TYPE_MAP.get(actionType);
+                            break;
+                        default:
+                            logger.warn("Tried to retrieve workflow setting in an unexpected action "
+                                + "state {}", state);
+                            return;
+                    }
+
+                    // Is there a corresponding setting for this Workflow override for the current entity?
+                    // Note: the value of the workflowSettingSpec is the OID of the workflow, only used during
+                    // execution.
+                    Optional.ofNullable(workflowOverride)
+                        .map(EntitySettingSpecs::getSettingName)
+                        .map(settingsForActionTarget::get)
+                        .ifPresent(setting -> {
+                            // Initialize the return map if necessary.
+                            retMap.ensureSet(HashMap::new).put(state, setting);
+                        });
+                });
+            return retMap.getValue().orElse(Collections.emptyMap());
         } catch (UnsupportedActionException e) {
             logger.error("Unable to calculate complex action mode.", e);
-            return Optional.empty();
+            return Collections.emptyMap();
         }
     }
 
