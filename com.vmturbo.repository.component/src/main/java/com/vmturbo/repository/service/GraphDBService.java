@@ -230,18 +230,13 @@ public class GraphDBService {
      * only contains partial fields, because {@link ServiceEntityRepoDTO} only keep partial fields,
      * and TopologyEntityDTO are converted back from stored {@link ServiceEntityRepoDTO}.
      *
-     * @param contextId context id of topology.
-     * @param topologyId id of topology.
+     * @param topologyID id of topology.
      * @param entitiesToFind a set of entity ids.
-     * @param topologyType type of topology need to search.
      * @return Either of String or Collection of {@link TopologyEntityDTO}.
      */
     public Either<String, Collection<TopologyEntityDTO>> retrieveTopologyEntities(
-            final long contextId,
-            final long topologyId,
-            @Nonnull final Set<Long> entitiesToFind,
-            @Nonnull TopologyType topologyType) {
-        final TopologyID topologyID = new TopologyID(contextId, topologyId, topologyType);
+            @Nonnull final TopologyID topologyID,
+            @Nonnull final Set<Long> entitiesToFind) {
         final TopologyDatabase databaseToUse = topologyID.database();
 
         final GraphCmd.ServiceEntityMultiGet cmd = new GraphCmd.ServiceEntityMultiGet(

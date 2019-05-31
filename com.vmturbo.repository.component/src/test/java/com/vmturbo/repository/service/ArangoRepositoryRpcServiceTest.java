@@ -193,9 +193,12 @@ public class ArangoRepositoryRpcServiceTest {
 
     @Test
     public void testRetrieveTopologyEntities() {
-        when(graphDBService.retrieveTopologyEntities(Mockito.anyLong(), Mockito.anyLong(),
-                Mockito.anySet(), eq(TopologyType.PROJECTED)))
-                .thenReturn(Either.right(Collections.emptyList()));
+        final TopologyID topologyID = mock(TopologyID.class);
+        when(topologyLifecycleManager.getTopologyId(topologyContextId, TopologyType.PROJECTED))
+            .thenReturn(Optional.of(topologyID));
+        when(graphDBService.retrieveTopologyEntities(eq(topologyID),
+                Mockito.anySet()))
+            .thenReturn(Either.right(Collections.emptyList()));
         repositoryService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
                 .setTopologyContextId(topologyContextId)
                 .setTopologyId(topologyId)
@@ -206,9 +209,11 @@ public class ArangoRepositoryRpcServiceTest {
 
     @Test
     public void testRetrieveTopologyEntitiesByType() {
-        when(graphDBService.retrieveTopologyEntities(Mockito.anyLong(), Mockito.anyLong(),
-                                                     Mockito.anySet(), eq(TopologyType.PROJECTED)))
-        .thenReturn(Either.right(Collections.emptyList()));
+        final TopologyID topologyID = mock(TopologyID.class);
+        when(topologyLifecycleManager.getTopologyId(topologyContextId, TopologyType.PROJECTED))
+            .thenReturn(Optional.of(topologyID));
+        when(graphDBService.retrieveTopologyEntities(eq(topologyID),
+            Mockito.anySet())).thenReturn(Either.right(Collections.emptyList()));
         repositoryService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
                                                    .setTopologyContextId(topologyContextId)
                                                    .setTopologyId(topologyId)
@@ -242,8 +247,11 @@ public class ArangoRepositoryRpcServiceTest {
                     .build();
             manyEntities.add(newEntity);
         }
-        when(graphDBService.retrieveTopologyEntities(Mockito.anyLong(), Mockito.anyLong(),
-                Mockito.anySet(), eq(TopologyType.SOURCE)))
+        final TopologyID topologyID = mock(TopologyID.class);
+        when(topologyLifecycleManager.getTopologyId(topologyContextId, TopologyType.SOURCE))
+            .thenReturn(Optional.of(topologyID));
+        when(graphDBService.retrieveTopologyEntities(eq(topologyID),
+            Mockito.anySet()))
                 .thenReturn(Either.right(manyEntities));
         RetrieveTopologyEntitiesRequest request = RetrieveTopologyEntitiesRequest.newBuilder()
                 .setTopologyContextId(topologyContextId)

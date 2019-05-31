@@ -212,11 +212,21 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
         final TopologyType topologyType = (request.getTopologyType() ==
                 RetrieveTopologyEntitiesRequest.TopologyType.PROJECTED) ? TopologyType.PROJECTED :
                         TopologyType.SOURCE;
-        final Either<String, Collection<TopologyEntityDTO>> result = request.hasTopologyId() ?
-                graphDBService.retrieveTopologyEntities(request.getTopologyContextId(),
-                        request.getTopologyId(), ImmutableSet.copyOf(request.getEntityOidsList()),
-                        topologyType) :
-                graphDBService.retrieveRealTimeTopologyEntities(ImmutableSet.copyOf(request.getEntityOidsList()));
+
+        Optional<TopologyID> topologyIdOpt =
+            topologyLifecycleManager.getTopologyId(request.getTopologyContextId(), topologyType);
+
+        if (!topologyIdOpt.isPresent()) {
+            logger.warn("No topology exists with context {} and type {}. Returning empty results.",
+                request.getTopologyContextId(), topologyType);
+            responseObserver.onCompleted();
+            return;
+        }
+
+        final TopologyID topologyID = topologyIdOpt.get();
+        final Either<String, Collection<TopologyEntityDTO>> result =
+            graphDBService.retrieveTopologyEntities(topologyID,
+                ImmutableSet.copyOf(request.getEntityOidsList()));
 
         Collection<TopologyEntityDTO> filteredEntities = result.isRight()
                 ? filterEntityByType(request, result.get())

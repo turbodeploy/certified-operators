@@ -1108,7 +1108,12 @@ public class StatsService implements IStatsService {
             }
         }
 
-        return costServiceRpc.getCloudCostStats(builder.build()).getCloudStatRecordList();
+        try {
+            return costServiceRpc.getCloudCostStats(builder.build()).getCloudStatRecordList();
+        } catch (StatusRuntimeException e) {
+            logger.warn("Failed to retrieve cloud stat records: {}", e.getMessage());
+            return Collections.emptyList();
+        }
     }
 
     private boolean isGroupByComponentRequest(Set<String> requestGroupBySet) {
@@ -1167,8 +1172,13 @@ public class StatsService implements IStatsService {
             builder.setGroupBy(GroupByType.CLOUD_SERVICE);
         }
 
-        return costServiceRpc.getAccountExpenseStats(
+        try {
+            return costServiceRpc.getAccountExpenseStats(
                 builder.build()).getCloudStatRecordList();
+        } catch (StatusRuntimeException e) {
+            logger.warn("Failed to retrieve cloud expenses: {}", e.getMessage());
+            return Collections.emptyList();
+        }
     }
 
     private Set<Integer> getRelatedEntityTypes(@Nullable List<StatApiInputDTO> statApiInputDTOs) {

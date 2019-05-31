@@ -851,6 +851,11 @@ public class ActionSpecMapper {
             actionApiDTO.setCurrentEntity(
                 ServiceEntityMapper.copyServiceEntityAPIDTO(
                     context.getEntity(reconfigure.getSource().getId())));
+        } else {
+            // For less brittle UI integration, we set the current entity to an empty object.
+            // The UI sometimes checks the validity of the "currentEntity.uuid" field,
+            // which throws an error if current entity is unset.
+            actionApiDTO.setCurrentEntity(new ServiceEntityApiDTO());
         }
 
         actionApiDTO.setCurrentValue(Long.toString(reconfigure.getSource().getId()));
