@@ -98,7 +98,8 @@ public class RepositoryApi {
                 final SearchEntitiesResponse response =
                     searchServiceBlockingStub.searchEntities(SearchEntitiesRequest.newBuilder()
                         .addSearchParameters(searchParamsBuilder)
-                        .setPaginationParams(PaginationParameters.getDefaultInstance())
+                        .setPaginationParams(PaginationParameters.newBuilder()
+                            .setCursor(nextCursor))
                         .build());
                 // TODO (roman, May 23 2019) OM-44276: We should get the probe type map and pass
                 // it to the mapper, in order to populate the type in the returned discoveredBy
@@ -162,6 +163,9 @@ public class RepositoryApi {
      */
     @Nonnull
     public Map<Long, Optional<ServiceEntityApiDTO>> getServiceEntitiesById(@Nonnull final ServiceEntitiesRequest request) {
+        if (request.getEntityIds().isEmpty()) {
+            return Collections.emptyMap();
+        }
         final long contextId = request.getTopologyContextId().orElse(realtimeTopologyContextId);
         final RetrieveTopologyEntitiesRequest.Builder reqBuilder =
             RetrieveTopologyEntitiesRequest.newBuilder();

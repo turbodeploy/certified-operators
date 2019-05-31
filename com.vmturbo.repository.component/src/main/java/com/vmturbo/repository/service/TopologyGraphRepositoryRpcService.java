@@ -28,6 +28,8 @@ import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.listener.realtime.ProjectedRealtimeTopology;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
+import com.google.protobuf.util.JsonFormat;
+import com.vmturbo.components.api.tracing.Tracing;
 
 /**
  * An implementation of {@link RepositoryServiceImplBase} (see RepositoryDTO.proto) that uses
@@ -77,6 +79,7 @@ public class TopologyGraphRepositoryRpcService extends RepositoryServiceImplBase
             TopologyType.SOURCE;
         final boolean realtime = !request.hasTopologyContextId()  ||
             request.getTopologyContextId() == realtimeTopologyContextId;
+	Tracing.log(() -> "Getting topology entities. Request: " + JsonFormat.printer().print(request));
         if (realtime) {
             final Stream<TopologyEntityDTO> filteredEntities;
             if (topologyType == TopologyType.SOURCE) {
@@ -101,6 +104,7 @@ public class TopologyGraphRepositoryRpcService extends RepositoryServiceImplBase
                 EntityBatch batch = EntityBatch.newBuilder()
                     .addAllEntities(chunk)
                     .build();
+                Tracing.log(() -> "Sending chunk of " + batch.getEntitiesCount() + " entities.");
                 logger.debug("Sending entity batch of {} items ({} bytes)", batch.getEntitiesCount(), batch.getSerializedSize());
                 responseObserver.onNext(batch);
             });
