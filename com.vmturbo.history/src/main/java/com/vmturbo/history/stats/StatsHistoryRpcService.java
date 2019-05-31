@@ -128,7 +128,10 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                             StringConstants.MEM_EXHAUSTION,
                             StringConstants.STORAGE_EXHAUSTION,
                             StringConstants.VM_GROWTH,
-                            StringConstants.HEADROOM_VMS);
+                            StringConstants.HEADROOM_VMS,
+                            StringConstants.NUM_VMS,
+                            StringConstants.NUM_HOSTS,
+                            StringConstants.NUM_STORAGES);
 
     private static final String PROPERTY_TYPE_PREFIX_CURRENT = "current";
 
@@ -568,6 +571,10 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                             BigDecimal.valueOf(request.getHeadroom()));
             headroomData.put(StringConstants.NUM_VMS, StringConstants.NUM_VMS,
                             BigDecimal.valueOf(request.getNumVMs()));
+            headroomData.put(StringConstants.NUM_HOSTS, StringConstants.NUM_HOSTS,
+                            BigDecimal.valueOf(request.getNumHosts()));
+            headroomData.put(StringConstants.NUM_STORAGES, StringConstants.NUM_STORAGES,
+                            BigDecimal.valueOf(request.getNumStorages()));
 
             // CPU related headroom stats.
             headroomData.put(StringConstants.CPU_HEADROOM, StringConstants.USED,

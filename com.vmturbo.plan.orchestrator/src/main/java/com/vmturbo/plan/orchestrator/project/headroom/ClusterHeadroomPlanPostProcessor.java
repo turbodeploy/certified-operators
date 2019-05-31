@@ -15,8 +15,11 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.commons.collections.MapUtils;
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.immutables.value.Value;
 import org.springframework.util.CollectionUtils;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -27,6 +30,7 @@ import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -42,6 +46,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityHeadroom;
@@ -129,6 +134,12 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                     ImmutableSet.of(CommodityType.STORAGE_VALUE, CommodityType.STORAGE_PROVISIONED_VALUE);
 
     /**
+     * String representation of headroom entities.
+     */
+    private static Set<String> HEADROOM_ENTITY_TYPES = ImmutableSet.of(StringConstants.VIRTUAL_MACHINE,
+                    StringConstants.PHYSICAL_MACHINE, StringConstants.STORAGE);
+
+    /**
      * Whether the actual calculation of headroom (kicked off by the projected topology being
      * available) has started.
      */
@@ -190,12 +201,13 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                                 .filter(vm -> !TopologyDTOUtil.isPlaced(vm))
                                 .count();
                 final long headroom = addedClones - unplacedClones;
-                final long numVMs = getNumberOfVMs();
+                final ImmutableEntityCountData entityCounts = getHeadroomEntitesCount();
+
                 Optional<Template> template = templatesDao
                                 .getTemplate(cluster.getCluster().getClusterHeadroomTemplateId());
 
                 if (!template.isPresent()) {
-                    logger.error("Template not found for : " + cluster.getCluster().getName() +
+                    logger.error("Template not found for : " + cluster.getCluster().getDisplayName() +
                                     " with template id : " + cluster.getCluster().getClusterHeadroomTemplateId());
                     return;
                 }
@@ -218,7 +230,10 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 CommodityHeadroom storageHeadroom = calculateHeadroom(
                                 headroomEntities.get(EntityType.STORAGE_VALUE),
                                 commoditiesBoughtByTemplate.get(STORAGE_HEADROOM_COMMODITIES), vmGrowth);
-                createStatsRecords(headroom, numVMs, cpuHeadroom, memHeadroom, storageHeadroom);
+                createStatsRecords(headroom, entityCounts.getNumberOfVMs(),
+                                entityCounts.getNumberOfHosts(),
+                                entityCounts.getNumberOfStorages(),
+                                cpuHeadroom, memHeadroom, storageHeadroom);
             }
         }
 
@@ -230,13 +245,13 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 || plan.getStatus() == PlanStatus.STOPPED) {
             if (plan.getStatus() == PlanStatus.FAILED) {
                 logger.error("Cluster headroom plan for cluster ID {} failed! Error: {}",
-                        cluster.getCluster().getName(), plan.getStatusMessage());
+                        cluster.getCluster().getDisplayName(), plan.getStatusMessage());
             } else if (plan.getStatus() == PlanStatus.STOPPED) {
                 logger.info("Cluster headroom plan for cluster ID {} was stopped!",
-                        cluster.getCluster().getName());
+                        cluster.getCluster().getDisplayName());
             } else {
                 logger.info("Cluster headroom plan for cluster ID {} completed!",
-                        cluster.getCluster().getName());
+                        cluster.getCluster().getDisplayName());
             }
 
             try {
@@ -251,8 +266,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
             }
         } else {
             // Do nothing.
-            logger.info("Cluster headroom plan for cluster ID {} has new status: {}",
-                    cluster.getCluster().getName(), plan.getStatus());
+            logger.info("Cluster headroom plan for cluster {} has new status: {}",
+                    cluster.getCluster().getDisplayName(), plan.getStatus());
         }
     }
 
@@ -351,15 +366,16 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      */
     @VisibleForTesting
     void createStatsRecords(final long headroom, final long numVms,
+                    final long numHosts, final long numStorages,
                     CommodityHeadroom cpuHeadroomInfo,
                     CommodityHeadroom memHeadroomInfo,
                     CommodityHeadroom storageHeadroomInfo) {
         if (headroom == addedClones) {
             logger.info("Cluster headroom for cluster {} is over {}",
-                    cluster.getCluster().getName(), headroom);
+                    cluster.getCluster().getDisplayName(), headroom);
         } else {
             logger.info("Cluster headroom for cluster {} is {}",
-                    cluster.getCluster().getName(), headroom);
+                    cluster.getCluster().getDisplayName(), headroom);
         }
 
         // Save the headroom in the history component.
@@ -367,6 +383,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
             statsHistoryService.saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
                     .setClusterId(cluster.getId())
                     .setNumVMs(numVms)
+                    .setNumHosts(numHosts)
+                    .setNumStorages(numStorages)
                     .setHeadroom(headroom)
                     .setCpuHeadroomInfo(cpuHeadroomInfo)
                     .setMemHeadroomInfo(memHeadroomInfo)
@@ -387,7 +405,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      *
      * @return number of VMs
      */
-    private long getNumberOfVMs() {
+    private ImmutableEntityCountData getHeadroomEntitesCount() {
         // Use the group service to get a list of IDs of all members (physical machines)
         GetMembersResponse response = groupRpcService.getMembers(GetMembersRequest.newBuilder()
                 .setId(cluster.getId())
@@ -397,9 +415,10 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         // Use the supply chain service to get all VM nodes that belong to the physical machines
         final SupplyChain clusterSupplyChain = supplyChainRpcService.getSupplyChain(
                 GetSupplyChainRequest.newBuilder()
-                        .addAllStartingEntityOid(memberIds)
-                        .addEntityTypesToInclude("VirtualMachine")
-                        .build()).getSupplyChain();
+                    .addAllStartingEntityOid(memberIds)
+                    .addAllEntityTypesToInclude(HEADROOM_ENTITY_TYPES)
+                    .build())
+                .getSupplyChain();
 
         final int missingEntitiesCnt = clusterSupplyChain.getMissingStartingEntitiesCount();
         if (missingEntitiesCnt > 0) {
@@ -408,9 +427,21 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 clusterSupplyChain.getMissingStartingEntitiesList());
         }
 
-        return clusterSupplyChain.getSupplyChainNodesList().stream()
-            .map(RepositoryDTOUtil::getMemberCount)
-            .reduce(0, Integer::sum);
+        Map<String, Long> entitiesByType = new HashMap<>();
+
+        for (SupplyChainNode node : clusterSupplyChain.getSupplyChainNodesList()) {
+            String entityType = node.getEntityType();
+            if (HEADROOM_ENTITY_TYPES.contains(entityType)) {
+                entitiesByType.put(entityType, entitiesByType.getOrDefault(entityType, 0L)
+                    + RepositoryDTOUtil.getMemberCount(node));
+            }
+        }
+
+        return ImmutableEntityCountData.builder()
+            .numberOfVMs(entitiesByType.getOrDefault(StringConstants.VIRTUAL_MACHINE, 0L))
+            .numberOfHosts(entitiesByType.getOrDefault(StringConstants.PHYSICAL_MACHINE, 0L))
+            .numberOfStorages(entitiesByType.getOrDefault(StringConstants.STORAGE, 0L))
+            .build();
     }
 
     /**
@@ -432,7 +463,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
 
         Map<Integer, Double> commHeadroomAvailable = new HashMap<Integer, Double>();
         Map<Integer, Double> commHeadroomCapacity = new HashMap<Integer, Double>();
-        //Number of VMs that can be accommodated in cluster considering its current utilization.
+        // Number of VMs that can be accommodated in cluster considering its curr ent utilization.
         long totalHeadroomAvailable = 0;
         // Number of VMs that can be accommodated in cluster when cluster is empty.
         long totalHeadroomCapacity = 0;
@@ -507,5 +538,12 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         return template.getTemplateInfo().getResourcesList().stream()
             .flatMap(resources -> resources.getFieldsList().stream())
             .collect(Collectors.toMap(TemplateField::getName, TemplateField::getValue));
+    }
+
+    @Value.Immutable
+    interface EntityCountData {
+        long getNumberOfVMs();
+        long getNumberOfHosts();
+        long getNumberOfStorages();
     }
 }

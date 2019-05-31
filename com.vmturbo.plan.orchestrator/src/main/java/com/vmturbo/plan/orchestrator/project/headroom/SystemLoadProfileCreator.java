@@ -28,8 +28,8 @@ public class SystemLoadProfileCreator {
     public SystemLoadProfileCreator(Group cluster, SystemLoadInfoResponse records, int loopbackDays) {
         this.cluster = cluster;
         this.records = records;
-        profileNamePostfix = String.format("%s_HEADROOM", cluster.getCluster().getName());
-        this.profileDisplayNamePostfix = String.format("%s for last %s days", cluster.getCluster().getName(), loopbackDays);
+        profileNamePostfix = String.format("%s_HEADROOM", cluster.getCluster().getDisplayName());
+        this.profileDisplayNamePostfix = String.format("%s for last %s days", cluster.getCluster().getDisplayName(), loopbackDays);
     }
 
     /**

@@ -180,6 +180,9 @@ public class ClusterHeadroomPostProcessorTest {
                     .setCapacity(3)
                     .setHeadroom(2)
                     .setDaysToExhaustion(7))
+                .setNumHosts(0)
+                .setNumVMs(0)
+                .setNumStorages(0)
                 .build());
     }
 

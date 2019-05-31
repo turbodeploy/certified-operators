@@ -274,6 +274,12 @@ message SaveClusterHeadroomRequest {
 
     // Headroom information for Storage.
     optional CommodityHeadroom storage_headroom_info = 6;
+
+    // The number of Hosts in the cluster at the time of this request.
+    optional int64 numHosts = 7;
+
+    // The number of Storages in the cluster at the time of this request.
+    optional int64 numStorages = 8;
 }
 
 message SaveClusterHeadroomResponse {

@@ -212,12 +212,6 @@ public class StatsService implements IStatsService {
     private final long realtimeTopologyContextId;
 
     // CLUSTER_STATS is a collection of the cluster-headroom stats calculated from nightly plans.
-    // this set is mostly copied from com.vmturbo.platform.gateway.util.StatsUtils.headRoomMetrics,
-    // with an extra entry for headroom vm's, which is also a cluster-level stat calculated in the
-    // nightly plans.
-    //
-    // Although the UI requests them, the stats other than 'headroom vms' are not getting tracked
-    // yet in XL. Support for these would be added in OM-33084
     // TODO: we should share the enum instead of keeping a separate copy.
     public static final Set<String> CLUSTER_STATS =
             ImmutableSet.of(StringConstants.CPU_HEADROOM,
@@ -227,7 +221,10 @@ public class StatsService implements IStatsService {
                     StringConstants.MEM_EXHAUSTION,
                     StringConstants.STORAGE_EXHAUSTION,
                     StringConstants.VM_GROWTH,
-                    StringConstants.HEADROOM_VMS);
+                    StringConstants.HEADROOM_VMS,
+                    StringConstants.NUM_VMS,
+                    StringConstants.NUM_HOSTS,
+                    StringConstants.NUM_STORAGES);
 
     private static final String STAT_FILTER_PREFIX = "current";
 

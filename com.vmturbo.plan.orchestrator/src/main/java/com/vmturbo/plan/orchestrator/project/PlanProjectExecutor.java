@@ -209,8 +209,8 @@ public class PlanProjectExecutor {
                 }
 
                 // Run plan instance
-                logger.info("Starting plan for cluster {} and plan project {}",
-                        cluster.getCluster().getName(),
+                logger.info("Starting plan for cluster name {}, id {} and plan project {}",
+                        cluster.getCluster().getDisplayName(), cluster.getId(),
                         planProject.getPlanProjectInfo().getName());
 
                 // This will make a synchronous call to the Topology Processor's RPC service,
@@ -298,7 +298,7 @@ public class PlanProjectExecutor {
 
             if (response == null || response.getRecordCount() == 0) {
                 throw new NoSuchObjectException("No system load records found for cluster : "
-                                + cluster.getCluster().getName());
+                                + cluster.getCluster().getDisplayName());
             }
 
             SystemLoadProfileCreator profiles = new SystemLoadProfileCreator(cluster, response, LOOPBACK_DAYS);
@@ -312,7 +312,7 @@ public class PlanProjectExecutor {
             Template avgHeadroomTemplate = null;
             if (headroomTemplateInfo.isPresent()) {
                 if (cluster.hasCluster() && cluster.getCluster().hasClusterHeadroomTemplateId()) {
-                    logger.debug("Updating template for : " + cluster.getCluster().getName() +
+                    logger.debug("Updating template for : " + cluster.getCluster().getDisplayName() +
                                     " with template id : " + cluster.getCluster().getClusterHeadroomTemplateId());
                     // if template Id already exists, update template with new values
                     templatesDao.editTemplate(cluster.getCluster().getClusterHeadroomTemplateId(), headroomTemplateInfo.get());
@@ -329,7 +329,7 @@ public class PlanProjectExecutor {
             }
 
             if (avgHeadroomTemplate != null) {
-                logger.info("Setting template for : " + cluster.getCluster().getName() +
+                logger.info("Setting template for : " + cluster.getCluster().getDisplayName() +
                                 " with template id : " + avgHeadroomTemplate.getId());
                 // Update template with current headroomTemplate
                 groupRpcService.updateClusterHeadroomTemplate(
