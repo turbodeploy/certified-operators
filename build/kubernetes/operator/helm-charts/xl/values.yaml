@@ -45,6 +45,8 @@ awsbilling:
   enabled: false
 awscost:
   enabled: false
+datadog:
+  enabled: false
 awslambda:
   enabled: false
 azure:

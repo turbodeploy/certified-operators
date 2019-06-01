@@ -534,6 +534,22 @@ services:
       - mediation-awscost:/home/turbonomic/data
     restart: always
 
+  mediation-datadog-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.datadog.component
+    environment:
+      consul_host: consul
+      component_type: mediation-datadog
+      instance_id: mediation-datadog-1
+      # overriding the tmpdir location because the cloud probes download large files to temp, and we
+      # don't want these to go to a memory-backed volume like /tmp
+      MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
+    volumes:
+      - mediation-datadog:/home/turbonomic/data
+    restart: always
+
   mediation-azure-prod:
     extends:
       file: common-services.yml
