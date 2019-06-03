@@ -41,19 +41,11 @@ appdynamics:
   enabled: false
 aws:
   enabled: false
-awsbilling:
-  enabled: false
-awscost:
-  enabled: false
 datadog:
   enabled: false
 awslambda:
   enabled: false
 azure:
-  enabled: false
-azurecost:
-  enabled: false
-azurevolumes:
   enabled: false
 cloudfoundry:
   enabled: false
@@ -102,8 +94,6 @@ ucsdirector:
 vcd:
   enabled: false
 vcenter:
-  enabled: false
-vcenterbrowsing:
   enabled: false
 vmax:
   enabled: false

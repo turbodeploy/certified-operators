@@ -134,11 +134,11 @@ dependencies:
   - name: mediation-awsbilling
     repository: file://../probes/mediation-awsbilling
     version: 0.1.0
-    condition: awsbilling.enabled
+    condition: aws.enabled
   - name: mediation-awscost
     repository: file://../probes/mediation-awscost
     version: 0.1.0
-    condition: awscost.enabled
+    condition: aws.enabled
   - name: mediation-datadog
     repository: file://../probes/mediation-datadog
     version: 0.1.0
@@ -154,11 +154,11 @@ dependencies:
   - name: mediation-azurecost
     repository: file://../probes/mediation-azurecost
     version: 0.1.0
-    condition: azurecost.enabled
+    condition: azure.enabled
   - name: mediation-azurevolumes
     repository: file://../probes/mediation-azurevolumes
     version: 0.1.0
-    condition: azurevolumes.enabled
+    condition: azure.enabled
   - name: mediation-cloudfoundry
     repository: file://../probes/mediation-cloudfoundry
     version: 0.1.0
@@ -254,7 +254,7 @@ dependencies:
   - name: mediation-vcenterbrowsing
     repository: file://../probes/mediation-vcenterbrowsing
     version: 0.1.0
-    condition: vcenterbrowsing.enabled
+    condition: vcenter.enabled
   - name: mediation-vcd
     repository: file://../probes/mediation-vcd
     version: 0.1.0
