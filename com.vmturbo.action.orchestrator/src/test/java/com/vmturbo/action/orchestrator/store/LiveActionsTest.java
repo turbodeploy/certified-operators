@@ -5,6 +5,8 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -18,12 +20,18 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Random;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.junit.Test;
 
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
@@ -167,6 +175,29 @@ public class LiveActionsTest {
     }
 
     @Test
+    public void testGetByFilterRemoveInvolvedEntities() throws UnsupportedActionException {
+        final Action action1 = ActionOrchestratorTestUtils.createMoveAction(100, 2);
+        liveActions.replaceMarketActions(Stream.of(action1));
+
+        final ActionQueryFilter actionQueryFilter = ActionQueryFilter.newBuilder()
+            .setInvolvedEntities(InvolvedEntities.newBuilder()
+                .addOids(ActionDTOUtil.getPrimaryEntity(action1.getRecommendation()).getId()))
+            .build();
+        final QueryFilter queryFilter = mock(QueryFilter.class);
+        when(queryFilter.test(action1)).thenReturn(true);
+        when(queryFilterFactory.newQueryFilter(any(), any())).thenReturn(queryFilter);
+
+        // Collect the actions to drain the stream.
+        liveActions.get(actionQueryFilter).collect(Collectors.toList());
+
+        // We shouldn't pass the involved entities to the query filter factory, because
+        // we use the entity index to enforce that part of the filter.
+        verify(queryFilterFactory).newQueryFilter(eq(actionQueryFilter.toBuilder()
+            .clearInvolvedEntities()
+            .build()), eq(LiveActionStore.VISIBILITY_PREDICATE));
+    }
+
+    @Test
     public void testGetByFilterNoStartEndDateLimitInvolvedEntities() throws UnsupportedActionException {
         final Action action1 = ActionOrchestratorTestUtils.createMoveAction(100, 2);
         final Action action2 = ActionOrchestratorTestUtils.createMoveAction(200, 2);
@@ -183,7 +214,7 @@ public class LiveActionsTest {
                 .addOids(ActionDTOUtil.getPrimaryEntity(action1.getRecommendation()).getId()))
             .build();
 
-        when(queryFilterFactory.newQueryFilter(actionQueryFilter, LiveActionStore.VISIBILITY_PREDICATE)).thenReturn(queryFilter);
+        when(queryFilterFactory.newQueryFilter(any(), any())).thenReturn(queryFilter);
 
         // We should only get action1 - action 2 shouldn't even be considered by the query filter.
         assertThat(liveActions.get(actionQueryFilter).collect(Collectors.toList()), containsInAnyOrder(action1));
@@ -295,7 +326,7 @@ public class LiveActionsTest {
         when(queryFilter.test(badHistoricalAction)).thenReturn(false);
         // The entity with no desired involved entities shouldn't be considered by the filter.
 
-        when(queryFilterFactory.newQueryFilter(actionQueryFilter, LiveActionStore.VISIBILITY_PREDICATE)).thenReturn(queryFilter);
+        when(queryFilterFactory.newQueryFilter(any(), any())).thenReturn(queryFilter);
 
         List<ActionView> results = liveActions.get(actionQueryFilter).collect(Collectors.toList());
 

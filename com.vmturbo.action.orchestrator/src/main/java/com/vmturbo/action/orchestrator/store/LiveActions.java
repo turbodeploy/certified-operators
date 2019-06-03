@@ -328,8 +328,15 @@ class LiveActions implements QueryableActionViews {
             candidateActionViews = currentActions;
         }
 
+        // Since we already filtered out the actions that don't involve entities, we don't need
+        // to pass the involved entities into the query filter.
+        // This provides a serious speed boost when the number of involved entities and/or returned
+        // actions is large.
+        final ActionQueryFilter queryFilterNoInvolvedEntities = actionQueryFilter.toBuilder()
+            .clearInvolvedEntities()
+            .build();
         final QueryFilter queryFilter =
-            queryFilterFactory.newQueryFilter(actionQueryFilter, LiveActionStore.VISIBILITY_PREDICATE);
+            queryFilterFactory.newQueryFilter(queryFilterNoInvolvedEntities, LiveActionStore.VISIBILITY_PREDICATE);
         return candidateActionViews.filter(queryFilter::test);
     }
 

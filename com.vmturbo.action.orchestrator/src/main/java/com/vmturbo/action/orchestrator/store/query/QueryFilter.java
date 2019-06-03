@@ -95,15 +95,14 @@ public class QueryFilter {
 
         // Return false if the action is not related to the specified entities.
         if (filter.hasInvolvedEntities()) {
-            Set<Long> involvedEntities;
             try {
-                involvedEntities = ActionDTOUtil.getInvolvedEntityIds(
-                    actionView.getRecommendation());
+                final boolean containsInvolved = ActionDTOUtil.getInvolvedEntityIds(
+                    actionView.getRecommendation()).stream()
+                        .anyMatch(this.involvedEntities::contains);
+                if (!containsInvolved) {
+                    return false;
+                }
             } catch (UnsupportedActionException e) {
-                return false;
-            }
-
-            if (Sets.intersection(involvedEntities, this.involvedEntities).isEmpty()) {
                 return false;
             }
         }
