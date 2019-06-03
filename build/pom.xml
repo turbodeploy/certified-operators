@@ -6,7 +6,7 @@
 
     <groupId>com.vmturbo</groupId>
     <artifactId>Turbonomic-XL</artifactId>
-    <version>7.19.0-SNAPSHOT</version>
+    <version>7.18.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <properties>
@@ -19,7 +19,7 @@
         <vmturbo.mt.branch.version>6.4.0-SNAPSHOT</vmturbo.mt.branch.version>
 
         <!-- MT Version com.vmturbo.ux -->
-        <ux.mt.branch.version>7.19.0-SNAPSHOT</ux.mt.branch.version>
+        <ux.mt.branch.version>7.18.0-SNAPSHOT</ux.mt.branch.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.2.0-SNAPSHOT</cpu.capacity.version>
@@ -302,7 +302,6 @@
                 <module>../com.vmturbo.mediation.apm.wmi.component</module>
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
                 <module>../com.vmturbo.mediation.aws.billing.component</module>
-                <module>../com.vmturbo.mediation.aws.billing.conversion</module>
                 <module>../com.vmturbo.mediation.aws.component</module>
                 <module>../com.vmturbo.mediation.aws.conversion</module>
                 <module>../com.vmturbo.mediation.aws.cost.component</module>
@@ -399,7 +398,6 @@
             <id>mediation-aws-billing</id>
             <modules>
                 <module>../com.vmturbo.mediation.aws.billing.component</module>
-                <module>../com.vmturbo.mediation.aws.billing.conversion</module>
             </modules>
         </profile>
 
@@ -823,7 +821,6 @@
                 <module>../protoc-grpc-moles</module>
 
                 <!-- The meat of the XL code, and the platform components. -->
-                <module>../com.vmturbo.influxdb</module>
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.auth.component</module>
                 <module>../com.vmturbo.auth.test</module>
@@ -893,7 +890,6 @@
                 <module>../com.vmturbo.mediation.apm.wmi.component</module>
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
                 <module>../com.vmturbo.mediation.aws.billing.component</module>
-                <module>../com.vmturbo.mediation.aws.billing.conversion</module>
                 <module>../com.vmturbo.mediation.aws.component</module>
                 <module>../com.vmturbo.mediation.aws.cost.component</module>
                 <module>../com.vmturbo.mediation.aws.lambda.component</module>
