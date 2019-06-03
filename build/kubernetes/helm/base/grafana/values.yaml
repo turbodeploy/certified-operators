@@ -266,8 +266,6 @@ dashboards:
   default:
     Action-Orchestrator-Dashboard:
       file: dashboards/Action Orchestrator Dashboard.json
-    Component-Memory-Dashboard:
-      file: dashboards/Component Memory.json
     History-Dashboard:
       file: dashboards/History Dashboard.json
     Kubernetes-Dashboard:
