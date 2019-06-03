@@ -821,6 +821,7 @@
                 <module>../protoc-grpc-moles</module>
 
                 <!-- The meat of the XL code, and the platform components. -->
+                <module>../com.vmturbo.influxdb</module>
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.auth.component</module>
                 <module>../com.vmturbo.auth.test</module>
