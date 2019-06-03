@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.stitching.billing.AwsBillingStitchingOperation;
 import com.vmturbo.stitching.cloudfoundry.CloudFoundryVMStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricChassisStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricPMStitchingOperation;
@@ -82,6 +83,11 @@ public class StitchingOperationLibrary {
             case GUEST_OS_PROCESSES:
                 return Collections.emptyList();
             case CUSTOM:
+                return Collections.emptyList();
+            case BILLING:
+                if (probeType.equals(AWS_BILLING.getProbeType())) {
+                    return Collections.singletonList(new AwsBillingStitchingOperation());
+                }
                 return Collections.emptyList();
             default:
                 logger.warn("Unknown probe type {} and category {}.", probeType, probeCategory);
