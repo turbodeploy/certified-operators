@@ -96,15 +96,20 @@ public class ActionExecutionContextFactory {
         ActionInfo actionInfo = request.getActionInfo();
         switch (actionInfo.getActionTypeCase()) {
             case MOVE:
-                return new MoveContext(request, dataManager, entityStore, entityRetriever, targetStore);
+                return new MoveContext(request, dataManager, entityStore, entityRetriever,
+                    targetStore, request.getActionType());
             case RESIZE:
-                return new ResizeContext(request, dataManager, entityStore, entityRetriever);
+                return new ResizeContext(request, dataManager, entityStore, entityRetriever,
+                    request.getActionType());
             case ACTIVATE:
-                return new ActivateContext(request, dataManager, entityStore, entityRetriever);
+                return new ActivateContext(request, dataManager, entityStore, entityRetriever,
+                    request.getActionType());
             case DEACTIVATE:
-                return  new DeactivateContext(request, dataManager, entityStore, entityRetriever);
+                return  new DeactivateContext(request, dataManager, entityStore, entityRetriever,
+                    request.getActionType());
             case PROVISION:
-                return new ProvisionContext(request, dataManager, entityStore, entityRetriever);
+                return new ProvisionContext(request, dataManager, entityStore, entityRetriever,
+                    request.getActionType());
             default:
                 throw new IllegalArgumentException("Unsupported action type: " +
                         actionInfo.getActionTypeCase());

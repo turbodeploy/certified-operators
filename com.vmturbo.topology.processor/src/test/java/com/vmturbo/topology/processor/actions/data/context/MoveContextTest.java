@@ -76,6 +76,7 @@ public class MoveContextTest {
                 .setActionId(actionId)
                 .setTargetId(targetId)
                 .setActionInfo(move)
+                .setActionType(ActionDTO.ActionType.MOVE)
                 .build();
 
         // Set up the mocks
@@ -103,7 +104,6 @@ public class MoveContextTest {
         // The primary entity being acted upon should be among those listed as affected entities
         Assert.assertTrue(actionExecutionContext.getAffectedEntities().contains(entityId));
 
-        Assert.assertEquals(ActionDTO.ActionType.MOVE, actionExecutionContext.getActionType());
         Assert.assertEquals(ActionType.MOVE, actionExecutionContext.getSDKActionType());
 
         Assert.assertEquals(actionId, actionExecutionContext.getActionId());
@@ -152,6 +152,7 @@ public class MoveContextTest {
                 .setActionId(actionId)
                 .setTargetId(targetId)
                 .setActionInfo(move)
+                .setActionType(ActionDTO.ActionType.MOVE)
                 .build();
 
         // Set up the mocks
@@ -178,8 +179,6 @@ public class MoveContextTest {
 
         // The primary entity being acted upon should be among those listed as affected entities
         Assert.assertTrue(actionExecutionContext.getAffectedEntities().contains(entityId));
-
-        Assert.assertEquals(ActionDTO.ActionType.MOVE, actionExecutionContext.getActionType());
 
         // Probes expect a storage move action to be reported as a CHANGE.
         // This is the key difference between this test and the normal move context test above
@@ -235,6 +234,7 @@ public class MoveContextTest {
                 .setActionId(actionId)
                 .setTargetId(primaryTargetId)
                 .setActionInfo(move)
+                .setActionType(ActionDTO.ActionType.MOVE)
                 .build();
 
         // Set up the mocks
@@ -298,7 +298,6 @@ public class MoveContextTest {
         Assert.assertTrue(actionExecutionContext.getAffectedEntities().contains(entityId));
 
         // The XL ActionType does not have a separate entry for CROSS_TARGET_MOVE like the SDK one does
-        Assert.assertEquals(ActionDTO.ActionType.MOVE, actionExecutionContext.getActionType());
         Assert.assertEquals(ActionType.CROSS_TARGET_MOVE, actionExecutionContext.getSDKActionType());
 
         Assert.assertEquals(actionId, actionExecutionContext.getActionId());
@@ -365,6 +364,7 @@ public class MoveContextTest {
             .setActionId(actionId)
             .setTargetId(primaryTargetId)
             .setActionInfo(move)
+            .setActionType(ActionDTO.ActionType.MOVE)
             .build();
 
         // Set up the mocks
@@ -414,7 +414,6 @@ public class MoveContextTest {
         Assert.assertTrue(actionExecutionContext.getAffectedEntities().contains(entityId));
 
         // The XL ActionType does not have a separate entry for CROSS_TARGET_MOVE like the SDK one does
-        Assert.assertEquals(ActionDTO.ActionType.MOVE, actionExecutionContext.getActionType());
         Assert.assertEquals(ActionType.CROSS_TARGET_MOVE, actionExecutionContext.getSDKActionType());
 
         Assert.assertEquals(actionId, actionExecutionContext.getActionId());
@@ -476,6 +475,7 @@ public class MoveContextTest {
             .setActionId(actionId)
             .setTargetId(primaryTargetId)
             .setActionInfo(move)
+            .setActionType(ActionDTO.ActionType.MOVE)
             .build();
 
         // Set up the mocks
@@ -530,7 +530,6 @@ public class MoveContextTest {
         Assert.assertTrue(actionExecutionContext.getAffectedEntities().contains(entityId));
 
         // The XL ActionType does not have a separate entry for CROSS_TARGET_MOVE like the SDK one does
-        Assert.assertEquals(ActionDTO.ActionType.MOVE, actionExecutionContext.getActionType());
         Assert.assertEquals(ActionType.CROSS_TARGET_MOVE, actionExecutionContext.getSDKActionType());
 
         Assert.assertEquals(actionId, actionExecutionContext.getActionId());

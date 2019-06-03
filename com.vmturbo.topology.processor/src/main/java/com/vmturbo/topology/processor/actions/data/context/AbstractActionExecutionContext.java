@@ -11,6 +11,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -26,6 +28,7 @@ import com.vmturbo.topology.processor.actions.data.EntityRetrievalException;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.operation.ActionConversions;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 
 /**
@@ -86,10 +89,16 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      */
     protected List<ActionItemDTO> actionItems;
 
+    /**
+     * The SDK (probe-facing) type that will be sent to the probes.
+     */
+    protected final ActionItemDTO.ActionType SDKActionType;
+
     protected AbstractActionExecutionContext(@Nonnull final ExecuteActionRequest request,
                                              @Nonnull final ActionDataManager dataManager,
                                              @Nonnull final EntityStore entityStore,
-                                             @Nonnull final EntityRetriever entityRetriever) {
+                                             @Nonnull final EntityRetriever entityRetriever,
+                                             @Nonnull final ActionDTO.ActionType actionType) {
         Objects.requireNonNull(request);
         this.actionId = request.getActionId();
         this.targetId = request.getTargetId();
@@ -98,6 +107,24 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         this.dataManager = Objects.requireNonNull(dataManager);
         this.entityStore = Objects.requireNonNull(entityStore);
         this.entityRetriever = Objects.requireNonNull(entityRetriever);
+        SDKActionType = calculateSDKActionType(actionType);
+    }
+
+    @Nonnull
+    @Override
+    public ActionItemDTO.ActionType getSDKActionType() {
+        return this.SDKActionType;
+    }
+
+    /**
+     * Calculates the {@link ActionItemDTO.ActionType} that will be sent to probes from the one
+     * received from Action Orchestrator {@link ActionDTO.ActionType}
+     *
+     * @param actionType The {@link ActionDTO.ActionType} received from AO
+     * @return The {@link ActionItemDTO.ActionType} that will be sent to the probes
+     */
+    protected ActionItemDTO.ActionType calculateSDKActionType(@Nonnull final ActionDTO.ActionType actionType) {
+        return ActionConversions.convertActionType(actionType);
     }
 
     protected void buildActionItems() throws ContextCreationException {

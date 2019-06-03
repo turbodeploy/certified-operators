@@ -52,18 +52,7 @@ public interface ActionExecutionContext {
      * @return the SDK (probe-facing) type of the over-arching action being executed
      */
     @Nonnull
-    default ActionItemDTO.ActionType getSDKActionType() {
-        return ActionConversions.convertActionType(getActionType());
-    }
-
-    /**
-     * Get the type of the over-arching action being executed
-     * {@link ActionDTO.ActionType} is what is used throughout XL to identify the type of an action.
-     *
-     * @return the type of the over-arching action being executed
-     */
-    @Nonnull
-    ActionDTO.ActionType getActionType();
+    ActionItemDTO.ActionType getSDKActionType();
 
     /**
      * The id of the overarching action. This is the ID that gets assigned by the Action Orchestrator.

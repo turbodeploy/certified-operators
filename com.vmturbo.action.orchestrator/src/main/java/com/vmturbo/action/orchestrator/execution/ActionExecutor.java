@@ -17,6 +17,8 @@ import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
@@ -101,9 +103,13 @@ public class ActionExecutor implements ActionExecutionListener {
             throws ExecutionStartException {
         Objects.requireNonNull(action);
         Objects.requireNonNull(workflowOpt);
+
+        final ActionType actionType =  ActionDTOUtil.getActionInfoActionType(action);
+
         final ExecuteActionRequest.Builder executionRequestBuilder = ExecuteActionRequest.newBuilder()
                 .setActionId(action.getId())
-                .setActionInfo(action.getInfo());
+                .setActionInfo(action.getInfo())
+                .setActionType(actionType);
         if (workflowOpt.isPresent()) {
             // if there is a Workflow for this action, then the target to execute the action
             // will be the one from which the Workflow was discovered instead of the target

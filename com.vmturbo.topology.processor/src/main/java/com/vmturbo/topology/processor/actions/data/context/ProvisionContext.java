@@ -30,19 +30,9 @@ public class ProvisionContext extends AbstractActionExecutionContext {
     public ProvisionContext(@Nonnull final ExecuteActionRequest request,
                             @Nonnull final ActionDataManager dataManager,
                             @Nonnull final EntityStore entityStore,
-                            @Nonnull final EntityRetriever entityRetriever) {
-        super(request, dataManager, entityStore, entityRetriever);
-    }
-
-    /**
-     * Get the type of the over-arching action being executed
-     *
-     * @return the type of the over-arching action being executed
-     */
-    @Nonnull
-    @Override
-    public ActionDTO.ActionType getActionType() {
-        return ActionDTO.ActionType.PROVISION;
+                            @Nonnull final EntityRetriever entityRetriever,
+                            @Nonnull final ActionDTO.ActionType actionType) {
+        super(request, dataManager, entityStore, entityRetriever, actionType);
     }
 
     /**

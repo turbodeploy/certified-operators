@@ -63,6 +63,7 @@ public class ActionExecutionContextTest {
                 .setActionId(actionId)
                 .setTargetId(targetId)
                 .setActionInfo(activate)
+                .setActionType(ActionDTO.ActionType.ACTIVATE)
                 .build();
 
         // Set up the mocks
@@ -104,7 +105,6 @@ public class ActionExecutionContextTest {
         // The primary entity being acted upon should be among those listed as affected entities
         Assert.assertTrue(actionExecutionContext.getAffectedEntities().contains(entityId));
 
-        Assert.assertEquals(ActionDTO.ActionType.ACTIVATE, actionExecutionContext.getActionType());
         Assert.assertEquals(ActionType.START, actionExecutionContext.getSDKActionType());
 
         Assert.assertEquals(actionId, actionExecutionContext.getActionId());
@@ -138,6 +138,7 @@ public class ActionExecutionContextTest {
                 .setActionId(actionId)
                 .setTargetId(targetId)
                 .setActionInfo(deactivate)
+                .setActionType(ActionDTO.ActionType.DEACTIVATE)
                 .build();
 
         // Set up the mocks
@@ -167,7 +168,6 @@ public class ActionExecutionContextTest {
         // The primary entity being acted upon should be among those listed as affected entities
         Assert.assertTrue(actionExecutionContext.getAffectedEntities().contains(entityId));
 
-        Assert.assertEquals(ActionDTO.ActionType.DEACTIVATE, actionExecutionContext.getActionType());
         Assert.assertEquals(ActionType.SUSPEND, actionExecutionContext.getSDKActionType());
 
         Assert.assertEquals(actionId, actionExecutionContext.getActionId());
@@ -209,6 +209,7 @@ public class ActionExecutionContextTest {
                 .setActionId(actionId)
                 .setTargetId(targetId)
                 .setActionInfo(resize)
+                .setActionType(ActionDTO.ActionType.RESIZE)
                 .build();
 
         // Set up the mocks
@@ -252,7 +253,6 @@ public class ActionExecutionContextTest {
         // The primary entity being acted upon should be among those listed as affected entities
         Assert.assertTrue(actionExecutionContext.getAffectedEntities().contains(entityId));
 
-        Assert.assertEquals(ActionDTO.ActionType.RESIZE, actionExecutionContext.getActionType());
         // TODO Update this after addressing the TODO in ResizeContext relating to the discrepancy
         //      between RESIZE vs RIGHT_SIZE. Some probes expect one, while others expect the other.
         Assert.assertEquals(ActionType.RIGHT_SIZE, actionExecutionContext.getSDKActionType());
@@ -297,6 +297,7 @@ public class ActionExecutionContextTest {
                 .setActionId(actionId)
                 .setTargetId(targetId)
                 .setActionInfo(provision)
+                .setActionType(ActionDTO.ActionType.PROVISION)
                 .build();
 
         // Set up the mocks
@@ -337,7 +338,6 @@ public class ActionExecutionContextTest {
         // The primary entity being acted upon should be among those listed as affected entities
         Assert.assertTrue(actionExecutionContext.getAffectedEntities().contains(entityId));
 
-        Assert.assertEquals(ActionDTO.ActionType.PROVISION, actionExecutionContext.getActionType());
         Assert.assertEquals(ActionType.PROVISION, actionExecutionContext.getSDKActionType());
 
         Assert.assertEquals(actionId, actionExecutionContext.getActionId());

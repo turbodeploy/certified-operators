@@ -71,24 +71,28 @@ public class MoveContext extends AbstractActionExecutionContext {
                        @Nonnull final ActionDataManager dataManager,
                        @Nonnull final EntityStore entityStore,
                        @Nonnull final EntityRetriever entityRetriever,
-                       @Nonnull final TargetStore targetStore) {
-        super(request, dataManager, entityStore, entityRetriever);
+                       @Nonnull final TargetStore targetStore,
+                       @Nonnull final ActionDTO.ActionType actionType) {
+        super(request, dataManager, entityStore, entityRetriever,actionType);
         this.targetStore = Objects.requireNonNull(targetStore);
     }
 
-    /**
-     * Get the SDK (probe-facing) type of the over-arching action being executed
-     *
-     * @return the SDK (probe-facing) type of the over-arching action being executed
-     */
     @Override
-    public ActionType getSDKActionType() {
-        // Check for workflows first, because that would eliminate the possibility of any other
-        // special cases applying.
-        if (hasWorkflow()) {
-            // Workflow moves are treated as regular moves that have an associated workflow
-            return ActionType.MOVE;
+    protected ActionItemDTO.ActionType calculateSDKActionType(@Nonnull final ActionDTO.ActionType actionType) {
+        // This switch takes care of the moves that were converted to other types. The conversion
+        // could have happened in ActionExecutor.execute().
+        switch (actionType) {
+            case RESIZE:
+                return ActionType.RIGHT_SIZE;
+            case ACTIVATE:
+                return ActionType.START;
         }
+
+        // The probes expect CHANGE when the action is moving a VM across Storage.
+        if (isMoveVmToStorage()) {
+            return ActionType.CHANGE;
+        }
+
         // If it's not a workflow, but the target is changing, then it is a cross target move.
         if (isCrossTargetMove()) {
             return ActionType.CROSS_TARGET_MOVE;
@@ -98,24 +102,8 @@ public class MoveContext extends AbstractActionExecutionContext {
         if (isMoveTogether()) {
             return ActionType.MOVE_TOGETHER;
         }
-        // This is not a move together, so only a single provider is being placed
-        // This could be either a MOVE or a CHANGE depending on whether the provider is storage
-        // The appropriate type will have already been set in the ActionItemDTO when it was created
-        // Lookup the actual type from the (only) ActionItemDTO
-        return getActionItems().stream()
-                .map(ActionItemDTO::getActionType)
-                .findFirst()
-                .orElse(ActionType.MOVE);
-    }
 
-    /**
-     * Get the type of the over-arching action being executed
-     *
-     * @return the type of the over-arching action being executed
-     */
-    @Override
-    public ActionDTO.ActionType getActionType() {
-        return ActionDTO.ActionType.MOVE;
+        return ActionType.MOVE;
     }
 
     /**
@@ -373,6 +361,23 @@ public class MoveContext extends AbstractActionExecutionContext {
             }
         }
         return  crossTargetMove;
+    }
+
+    /**
+     * Checks if the action is MOVE a VM across Storage.
+     *
+     * @return true if the action is MOVE VM across Storage, false otherwise.
+     */
+    private boolean isMoveVmToStorage() {
+        if (getMoveInfo().hasTarget() &&
+            getMoveInfo().getTarget().hasType() &&
+            getMoveInfo().getTarget().getType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+            return getMoveInfo().getChangesList().stream()
+                .map(ChangeProvider::getDestination)
+                .map(ActionEntity::getType)
+                .allMatch(type -> type == EntityType.STORAGE_VALUE);
+        }
+        return false;
     }
 
     private SDKProbeType getTargetType(long targetId) throws TargetNotFoundException {

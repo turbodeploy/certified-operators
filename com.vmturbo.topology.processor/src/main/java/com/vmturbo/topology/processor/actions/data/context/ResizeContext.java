@@ -28,19 +28,9 @@ public class ResizeContext extends AbstractActionExecutionContext {
     public ResizeContext(@Nonnull final ExecuteActionRequest request,
                          @Nonnull final ActionDataManager dataManager,
                          @Nonnull final EntityStore entityStore,
-                         @Nonnull final EntityRetriever entityRetriever) {
-        super(request, dataManager, entityStore, entityRetriever);
-    }
-
-    /**
-     * Get the type of the over-arching action being executed
-     *
-     * @return the type of the over-arching action being executed
-     */
-    @Nonnull
-    @Override
-    public ActionDTO.ActionType getActionType() {
-        return ActionDTO.ActionType.RESIZE;
+                         @Nonnull final EntityRetriever entityRetriever,
+                         @Nonnull final ActionDTO.ActionType actionType) {
+        super(request, dataManager, entityStore, entityRetriever, actionType);
     }
 
     /**
