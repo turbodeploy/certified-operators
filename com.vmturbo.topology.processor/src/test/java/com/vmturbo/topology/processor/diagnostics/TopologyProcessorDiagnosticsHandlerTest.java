@@ -135,6 +135,7 @@ import com.vmturbo.topology.processor.targets.InvalidTargetException;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetDeserializationException;
+import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.util.Probes;
@@ -318,7 +319,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
     @Test
     public void testRestoreTargetsInvalidJson()
-            throws IOException, TargetDeserializationException, InvalidTargetException, IdentityStoreException {
+        throws IOException, TargetDeserializationException, InvalidTargetException, IdentityStoreException, TargetNotFoundException {
         final long targetId = 1;
         final TargetInfo validTarget = TargetInfo.newBuilder()
                 .setId(targetId)
@@ -333,6 +334,11 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         // Invalid json
         final String invalidJson = "{osaeintr";
         final String validJsonTarget = GSON.toJson(validTarget);
+
+        final Target target = mock(Target.class);
+        when(target.getId()).thenReturn(targetId);
+        when(targetStore.restoreTarget(validTarget.getId(), validTarget.getSpec()))
+            .thenReturn(target);
         // Put the valid JSON target at the end of the target list, to assure
         // that preceding invalid targets don't halt processing.
         handler.restoreTargets(ImmutableList.of(invalidJsonTarget, invalidJson, validJsonTarget));
@@ -345,6 +351,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         verify(targetStore).restoreTarget(
                 eq(targetId),
                 eq(validTarget.getSpec()));
+        // Verify that we set the broadcast interval.
+        verify(scheduler).setDiscoverySchedule(targetId, 365, TimeUnit.DAYS);
     }
 
     /**

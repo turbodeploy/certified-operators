@@ -446,12 +446,19 @@ public class TopologyProcessorDiagnosticsHandler {
             .filter(Objects::nonNull)
             .map(targetInfo -> {
                 try {
-                    return targetStore.restoreTarget(targetInfo.getId(), targetInfo.getSpec());
+                    final Target target = targetStore.restoreTarget(targetInfo.getId(), targetInfo.getSpec());
+                    scheduler.setDiscoverySchedule(target.getId(), 365, TimeUnit.DAYS);
+                    return target;
                 } catch (InvalidTargetException e) {
                     // This shouldn't happen, because the createTarget method we use
                     // here shouldn't do validation.
                     logger.error("Unexpected invalid target exception {} for spec: {}",
                             e.getMessage(), targetInfo.getSpec());
+                    return null;
+                } catch (TargetNotFoundException e) {
+                    // This shouldn't happen, because we restore the target right before setting
+                    // the schedule.
+                    logger.error("Target not found when attempting to set discovery schedule.", e);
                     return null;
                 }
             })
