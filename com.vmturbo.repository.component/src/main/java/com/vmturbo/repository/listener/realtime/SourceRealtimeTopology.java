@@ -101,7 +101,7 @@ public class SourceRealtimeTopology implements StreamingDiagnosable {
     public Stream<String> collectDiags() throws DiagnosticsException {
         final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
         return entityGraph.entities()
-            .map(RepoGraphEntity::getFullTopologyEntity)
+            .map(RepoGraphEntity::getTopologyEntity)
             .map(gson::toJson);
     }
 

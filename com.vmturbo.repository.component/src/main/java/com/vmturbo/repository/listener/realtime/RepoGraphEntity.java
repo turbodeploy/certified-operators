@@ -223,26 +223,27 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
      * that was received from the Topology Processor.
      */
     @Nonnull
-    public TopologyEntityDTO getFullTopologyEntity() {
+    public TopologyEntityDTO getTopologyEntity() {
         try (final ByteArrayInputStream bis = new ByteArrayInputStream(compressedEntityBytes)) {
             GZIPInputStream zis = new GZIPInputStream(bis);
             return TopologyEntityDTO.parseFrom(zis);
         } catch (IOException e) {
-            return getTopologyEntity();
+            return getPartialTopologyEntity();
         }
     }
 
     /**
      * Get a topology entity containing the important (i.e. searchable) fields. This is smaller
-     * than the entity returned by {@link RepoGraphEntity#getFullTopologyEntity()}.
+     * than the entity returned by {@link RepoGraphEntity#getTopologyEntity()}.
      */
     @Nonnull
-    public TopologyEntityDTO getTopologyEntity() {
+    public TopologyEntityDTO getPartialTopologyEntity() {
         final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
             .setOid(oid)
             .setDisplayName(displayName)
             .setEntityState(state)
             .setTypeSpecificInfo(typeSpecificInfo)
+            .setEnvironmentType(EnvironmentType.ON_PREM)
             .setEntityType(type);
         Tags.Builder tagsBuilder = Tags.newBuilder();
         tags.forEach((key, vals) -> {
