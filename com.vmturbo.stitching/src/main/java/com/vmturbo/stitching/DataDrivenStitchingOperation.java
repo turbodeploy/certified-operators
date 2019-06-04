@@ -14,13 +14,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommoditySoldMetadata;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
@@ -320,22 +320,24 @@ public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGN
      * we need to include certain commodities so that we can create an entity in the case that no
      * match is found for the proxy entity.
      */
-    private static class MetaDataAwareMergeCommoditySoldStrategy implements MergeCommoditySoldStrategy {
-        private final Set<CommodityType> soldCommodityTypesToPush;
+    public static class MetaDataAwareMergeCommoditySoldStrategy implements MergeCommoditySoldStrategy {
 
-        MetaDataAwareMergeCommoditySoldStrategy(@Nonnull final Collection<CommodityType> soldMetaData)
-        {
-            soldCommodityTypesToPush = Sets.newHashSet(soldMetaData);
+        private final Map<CommodityType, CommoditySoldMergeSpec> commoditySoldMergeSpecByType;
+
+        public MetaDataAwareMergeCommoditySoldStrategy(@Nonnull final Collection<CommoditySoldMetadata> soldMetaData) {
+            commoditySoldMergeSpecByType = soldMetaData.stream()
+                .collect(Collectors.toMap(CommoditySoldMetadata::getCommodityType,
+                    CommoditySoldMergeSpec::new));
         }
 
         @Nonnull
         @Override
         public Optional<Builder> onDistinctCommodity(@Nonnull final Builder commodity,
-                                                     final Origin origin) {
+                                                     @Nonnull final Origin origin) {
             // don't keep the from commodity if it is not in the list of sold commodities we are
             // configured to keep
             if (origin == Origin.FROM_ENTITY &&
-                    !soldCommodityTypesToPush.contains(commodity.getCommodityType())) {
+                    !commoditySoldMergeSpecByType.containsKey(commodity.getCommodityType())) {
                 return Optional.empty();
             }
             return Optional.of(commodity);
@@ -347,14 +349,56 @@ public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGN
                                                         @Nonnull final Builder ontoCommodity) {
             // if the soldMetaData says to preserve this commodity type merge the fromCommodity
             // with the ontoCommodity
-            if (soldCommodityTypesToPush.contains(fromCommodity.getCommodityType())) {
+            final CommoditySoldMergeSpec commoditySoldMergeSpec =
+                this.commoditySoldMergeSpecByType.get(fromCommodity.getCommodityType());
+            if (commoditySoldMergeSpec != null) {
                 return Optional.of(DTOFieldAndPropertyHandler.mergeBuilders(fromCommodity,
-                        ontoCommodity));
+                        ontoCommodity, commoditySoldMergeSpec.getPatchedFields()));
             }
             return Optional.of(ontoCommodity);
         }
+
+        @Override
+        public boolean ignoreIfPresent(@Nonnull final CommodityType fromCommodityType) {
+            return Optional.ofNullable(commoditySoldMergeSpecByType.get(fromCommodityType))
+                .map(CommoditySoldMergeSpec::isIgnoreIfPresent).orElse(false);
+        }
     }
 
+    /**
+     * A wrapper class around {@link CommoditySoldMetadata} which contains information about how to
+     * merge the sold commodity during stitching.
+     */
+    private static class CommoditySoldMergeSpec {
+
+        private boolean ignoreIfPresent;
+
+        private List<DTOFieldSpec> patchedFields;
+
+        CommoditySoldMergeSpec(@Nonnull CommoditySoldMetadata commoditySoldMetadata) {
+            this.ignoreIfPresent = commoditySoldMetadata.getIgnoreIfPresent();
+            this.patchedFields = commoditySoldMetadata.getPatchedFieldsList().stream()
+                .map(entityField -> new DTOFieldSpec() {
+                    @Override
+                    public String getFieldName() {
+                        return entityField.getFieldName();
+                    }
+
+                    @Override
+                    public List<String> getMessagePath() {
+                        return entityField.getMessagePathList();
+                    }
+                }).collect(Collectors.toList());
+        }
+
+        boolean isIgnoreIfPresent() {
+            return ignoreIfPresent;
+        }
+
+        List<DTOFieldSpec> getPatchedFields() {
+            return patchedFields;
+        }
+    }
 }
 
 

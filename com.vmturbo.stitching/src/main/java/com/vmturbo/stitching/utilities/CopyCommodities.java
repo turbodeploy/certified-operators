@@ -1,6 +1,7 @@
 package com.vmturbo.stitching.utilities;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -180,8 +181,7 @@ public class CopyCommodities {
     private static List<CommodityDTO.Builder> mergeCommoditiesBought(
             @Nonnull final List<CommodityDTO.Builder> fromCommodities,
             @Nullable final List<CommodityDTO.Builder> ontoCommodities,
-            @Nullable final Optional<Collection<CommodityType>>
-                    commodityMetaData,
+            @Nullable final Optional<Collection<CommodityType>> commodityMetaData,
             boolean filterFromCommodities) {
         List<CommodityDTO.Builder> retVal = Lists.newArrayList();
         // Collect the mergeFromCommodities into a map where they can be looked up by
@@ -221,7 +221,10 @@ public class CopyCommodities {
             if (mergeMetaDataSet.contains(entry.getKey().type)) {
                 Builder ontoBuilder = mergeOntoCommoditiesMap.remove(entry.getKey());
                 retVal.add(ontoBuilder == null ? entry.getValue()
-                        : DTOFieldAndPropertyHandler.mergeBuilders(entry.getValue(), ontoBuilder));
+                    : DTOFieldAndPropertyHandler.mergeBuilders(entry.getValue(), ontoBuilder,
+                    // use empty list since we currently merge all fields for bought commodity
+                    // we can specify fields to merge once there is a valid use case
+                    Collections.emptyList()));
             }
         }
         // add any onto builders that didn't have matching from side commodities to the return value

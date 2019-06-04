@@ -88,7 +88,6 @@ public class ApplicationCommodityKeyChanger {
                                 consumer.getEntityType() == EntityType.APPLICATION_SERVER_VALUE ||
                                 consumer.getEntityType() == EntityType.DATABASE_SERVER_VALUE)
                         .forEach(app -> {
-
                             // find the commodity set that is buying from that same vm
                             CommoditiesBoughtFromProvider.Builder commBoughtFromProv = app.getTopologyEntityDtoBuilder()
                                 .getCommoditiesBoughtFromProvidersBuilderList()
@@ -96,14 +95,11 @@ public class ApplicationCommodityKeyChanger {
                                 .filter(commFromProvider -> commFromProvider.getProviderId() == vm.getOid())
                                 .findFirst().get();
 
-                            // find the commodity with the corresponding old key
-                            commBoughtFromProv.getCommodityBoughtBuilderList().forEach(comm -> {
-                                TopologyDTO.CommodityType.Builder commType = comm.getCommodityTypeBuilder();
-                                if (oldAppCommKey.equals(commType.getKey())) {
-                                    // change the key to the new one, on the app side
-                                    commType.setKey(newCommKey);
-                                }
-                            });
+                            // find Application commodity from this set and change key to new one
+                            commBoughtFromProv.getCommodityBoughtBuilderList().stream()
+                                .filter(commodity -> commodity.getCommodityType().getType() ==
+                                    CommodityType.APPLICATION_VALUE)
+                                .forEach(comm -> comm.getCommodityTypeBuilder().setKey(newCommKey));
                         });
                 }
 

@@ -3,9 +3,9 @@ package com.vmturbo.stitching;
 import java.util.Collection;
 import java.util.List;
 
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommoditySoldMetadata;
 
 /**
  * A class that encapsulates the meta data that is needed to stitch a particular entity type for
@@ -32,7 +32,7 @@ public interface StitchingMatchingMetaData<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIG
     // a list of fields of the entity to patch
     Collection<DTOFieldSpec> getAttributesToPatch();
     // a list of commodities sold to patch
-    Collection<CommodityType> getCommoditiesSoldToPatch();
+    Collection<CommoditySoldMetadata> getCommoditiesSoldToPatch();
     // a list of commodities bought to patch along with their providers
     Collection<CommodityBoughtMetadata> getCommoditiesBoughtToPatch();
     // whether or not to keep probe side entities that do not match

@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.utilities.EntityFieldMergers.EntityFieldMerger;
@@ -205,6 +206,19 @@ public class MergeEntities {
         @Nonnull
         Optional<CommodityDTO.Builder> onOverlappingCommodity(@Nonnull final CommodityDTO.Builder fromCommodity,
                                                               @Nonnull final CommodityDTO.Builder ontoCommodity);
+
+        /**
+         * Check if the commodity of type fromCommodityType (from the fromEntity) should be ignored
+         * if there is already an existing commodity of same type on the ontoEntity. It's false by
+         * default, which means all commodities defined in stitching metadata will be merged, and
+         * there may be multiple commodities of same type but different keys.
+         *
+         * @param fromCommodityType the commodity from the fromEntity which should be checked
+         * @return true if the commodity should be ignored, otherwise false.
+         */
+        default boolean ignoreIfPresent(@Nonnull final CommodityType fromCommodityType) {
+            return false;
+        }
     }
 
     /**

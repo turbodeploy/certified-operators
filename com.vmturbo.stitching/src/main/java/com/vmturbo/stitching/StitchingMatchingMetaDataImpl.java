@@ -1,7 +1,6 @@
 package com.vmturbo.stitching;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -16,6 +15,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommoditySoldMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityPropertyName;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingData;
 
@@ -55,8 +55,7 @@ public abstract class StitchingMatchingMetaDataImpl<INTERNAL_SIGNATURE_TYPE, EXT
                     @Override
                     public List<String> getMessagePath() {
                         // path may be empty since the field may be in EntityDTO directly, no nested layers
-                        return entityField.getMessagePathList().isEmpty() ? Collections.emptyList()
-                                : entityField.getMessagePathList().subList(0, entityField.getMessagePathCount());
+                        return entityField.getMessagePathList();
                     }
                 })
                 .collect(Collectors.toList());
@@ -83,8 +82,19 @@ public abstract class StitchingMatchingMetaDataImpl<INTERNAL_SIGNATURE_TYPE, EXT
     }
 
     @Override
-    public Collection<CommodityType> getCommoditiesSoldToPatch() {
-        return mergedEntityMetadata.getCommoditiesSoldList();
+    public Collection<CommoditySoldMetadata> getCommoditiesSoldToPatch() {
+        final List<CommodityType> soldList = mergedEntityMetadata.getCommoditiesSoldList();
+        if (!soldList.isEmpty()) {
+            // if probe is still using the deprecated field, we should convert it to new field
+            // note: this is currently only used for loading old diags, it's not needed for
+            // PT or customer, since new probes will register new ProbeInfo with new metadata
+            return soldList.stream()
+                .map(commodityType -> CommoditySoldMetadata.newBuilder()
+                    .setCommodityType(commodityType)
+                    .build())
+                .collect(Collectors.toList());
+        }
+        return mergedEntityMetadata.getCommoditiesSoldMetadataList();
     }
 
     @Override

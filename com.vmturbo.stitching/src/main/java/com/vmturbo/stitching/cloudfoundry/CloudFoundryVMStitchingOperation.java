@@ -6,15 +6,16 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommoditySoldMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityField;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingData;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingMetadata;
@@ -77,12 +78,13 @@ public class CloudFoundryVMStitchingOperation extends
                         .build())
                     .setExternalEntityReturnType(ReturnType.LIST_STRING)
                 .build())
-                .addAllCommoditiesSold(ImmutableList.of(
-                    CommodityType.MEM_ALLOCATION, CommodityType.CLUSTER))
+                .addCommoditiesSoldMetadata(CommoditySoldMetadata.newBuilder()
+                    .setCommodityType(CommodityType.MEM_ALLOCATION))
+                .addCommoditiesSoldMetadata(CommoditySoldMetadata.newBuilder()
+                    .setCommodityType(CommodityType.CLUSTER))
             .build()),
             ImmutableSet.of(ProbeCategory.HYPERVISOR, ProbeCategory.CLOUD_MANAGEMENT));
     }
-
 
     @Nonnull
     @Override

@@ -28,6 +28,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommoditySoldMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityField;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityOid;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingData;
@@ -78,11 +79,11 @@ public class GuestLoadStitchingIntegrationTest extends StitchingIntegrationTest 
 
         final MergedEntityMetadata guestLoadVMMergeEntityMetadata =
                 MergedEntityMetadata.newBuilder().mergeMatchingMetadata(guestLoadMatchingMetadata)
-                        .addAllCommoditiesSold(soldCommoditiesFromVMToApp)
+                        .addAllCommoditiesSoldMetadata(soldCommoditiesFromVMToApp)
                         .build();
         final MergedEntityMetadata guestLoadAppMergeEntityMetadata =
                 MergedEntityMetadata.newBuilder().mergeMatchingMetadata(guestLoadMatchingMetadata)
-                        .addAllCommoditiesSold(soldCommoditiesFromApp)
+                        .addAllCommoditiesSoldMetadata(soldCommoditiesFromApp)
                         .addAllCommoditiesBought(boughtCommoditiesFromAppToVM)
                         .build();
 
@@ -236,11 +237,13 @@ public class GuestLoadStitchingIntegrationTest extends StitchingIntegrationTest 
         );
     }
 
-    private static Collection<CommodityType> soldCommoditiesFromApp =
-            ImmutableList.of(CommodityType.TRANSACTION, CommodityType.SLA_COMMODITY);
+    private static Collection<CommoditySoldMetadata> soldCommoditiesFromApp = ImmutableList.of(
+        CommoditySoldMetadata.newBuilder().setCommodityType(CommodityType.TRANSACTION).build(),
+        CommoditySoldMetadata.newBuilder().setCommodityType(CommodityType.SLA_COMMODITY).build());
 
-    private static Collection<CommodityType> soldCommoditiesFromVMToApp =
-            ImmutableList.of(CommodityType.VMEM, CommodityType.VCPU);
+    private static Collection<CommoditySoldMetadata> soldCommoditiesFromVMToApp = ImmutableList.of(
+        CommoditySoldMetadata.newBuilder().setCommodityType(CommodityType.VMEM).build(),
+        CommoditySoldMetadata.newBuilder().setCommodityType(CommodityType.VCPU).build());
 
     private static Collection<CommodityBoughtMetadata> boughtCommoditiesFromAppToVM =
             ImmutableList.of(CommodityBoughtMetadata.newBuilder()
