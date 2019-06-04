@@ -156,14 +156,15 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
         logger.debug("Searching for entity OIDs with request: {}", request);
 
         // Return empty result if current topology doesn't exist.
-        Optional<TopologyDatabase> realtimeDb = lifecycleManager.getRealtimeDatabase();
-        if (!realtimeDb.isPresent()) {
+        final Optional<TopologyID> realtimeTopologyIdOpt = lifecycleManager.getRealtimeTopologyId();
+        if (!realtimeTopologyIdOpt.isPresent()) {
             logger.warn("No real-time topology exists for searching request");
             responseObserver.onNext(
                     SearchEntityOidsResponse.newBuilder().addAllEntities(Collections.emptyList()).build());
             responseObserver.onCompleted();
             return;
         }
+        final TopologyID realtimeTopologyId = realtimeTopologyIdOpt.get();
         final Function<String, Long> convertToLong = Long::parseLong;
         final SearchEntityPagination<String> searchFunction = searchHandler::searchEntityOids;
         final List<SearchParameters> searchParameters = request.getSearchParametersList();
@@ -171,9 +172,9 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
             // if there is only one search parameter, it can apply pagination directly.
             final List<Long> entities = searchParameters.size() == 1
                     ? searchWithOnlyOneParameter(request.getEntityOidList(), searchParameters.get(0),
-                    Optional.empty(), searchFunction, convertToLong, lifecycleManager.getRealtimeTopologyId())
-                    : searchEntityOidMultiParametersWithoutPagination(request.getEntityOidList(),
-                    searchParameters, Optional.empty());
+                    Optional.empty(), searchFunction, convertToLong, realtimeTopologyId)
+                    : searchEntityOidMultiParametersWithoutPagination(realtimeTopologyId,
+                        request.getEntityOidList(), searchParameters, Optional.empty());
             // filter the results by user scope
             final List<Long> filteredEntities = userSessionContext.isUserScoped()
                     ? userSessionContext.getUserAccessScope().filter(entities)
@@ -196,11 +197,13 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
         logger.debug("Searching for entities with request: {}", request);
 
         // Return empty result if current topology doesn't exist.
-        if (!lifecycleManager.getRealtimeDatabase().isPresent()) {
+        final Optional<TopologyID> realtimeTopologyIdOpt = lifecycleManager.getRealtimeTopologyId();
+        if (!realtimeTopologyIdOpt.isPresent()) {
             logger.warn("No real-time topology exists for searching request");
             responseObserver.onCompleted();
             return;
         }
+        final TopologyID realtimeTopologyId = realtimeTopologyIdOpt.get();
         final Optional<StatusException> statusExceptionOptional =
                 isValidPaginationParameter(request);
         if (statusExceptionOptional.isPresent()) {
@@ -224,10 +227,10 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
             final List<Entity> entities = (searchParameters.size() == 1)
                     ? searchWithOnlyOneParameter(entityOidList, searchParameters.get(0),
                     Optional.of(paginationParamsWithLimitPlusOne), searchFunction, convertToEntity,
-                    lifecycleManager.getRealtimeTopologyId())
+                    realtimeTopologyId)
                     : searchEntitiesMultiParameters(entityOidList, searchParameters,
                     Optional.of(paginationParamsWithLimitPlusOne), convertToEntity,
-                    lifecycleManager.getRealtimeTopologyId());
+                    realtimeTopologyId);
             // filter the results by user scope
             final List<Entity> filteredEntities = userSessionContext.isUserScoped()
                     ? entities.stream()
@@ -263,11 +266,13 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
         logger.debug("Searching for TopologyEntityDTOs with request: {}", request);
 
         // Return empty result if current topology doesn't exist.
-        if (!lifecycleManager.getRealtimeDatabase().isPresent()) {
+        Optional<TopologyID> realtimeTopologyIdOpt = lifecycleManager.getRealtimeTopologyId();
+        if (!realtimeTopologyIdOpt.isPresent()) {
             logger.warn("No real-time topology exists for searching request");
             responseObserver.onCompleted();
             return;
         }
+        final TopologyID realtimeTopologyId = realtimeTopologyIdOpt.get();
 
         final List<SearchParameters> searchParameters = request.getSearchParametersList();
         try {
@@ -280,10 +285,10 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
             final List<TopologyEntityDTO> entities = (searchParameters.size() == 1) ?
                     searchWithOnlyOneParameter(request.getEntityOidList(), searchParameters.get(0),
                         Optional.empty(), searchFunction, convertToTopologyEntityDTO,
-                        lifecycleManager.getRealtimeTopologyId()) :
+                        realtimeTopologyId) :
                     searchEntitiesMultiParameters(request.getEntityOidList(), searchParameters,
                         Optional.empty(), convertToTopologyEntityDTO,
-                        lifecycleManager.getRealtimeTopologyId());
+                        realtimeTopologyId);
             // filter the results by user scope
             final List<TopologyEntityDTO> filteredEntities = userSessionContext.isUserScoped()
                     ? entities.stream()
@@ -327,7 +332,7 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
                 ServiceEntityRepoDTOConverter::convertToTopologyEntityDTO;
             final List<TopologyEntityDTO> entities = searchEntitiesMultiParameters(
                 request.getEntityOidList(), Collections.emptyList(),
-                    Optional.empty(), convertToTopologyEntityDTO, topologyID);
+                    Optional.empty(), convertToTopologyEntityDTO, topologyID.get());
 
             // filter the results by user scope
             final List<TopologyEntityDTO> filteredEntities = userSessionContext.isUserScoped()
@@ -490,12 +495,12 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
             @Nonnull final Optional<PaginationParameters> paginationParams,
             @Nonnull final SearchEntityPagination searchEntityPagination,
             @Nonnull final Function<TYPE, RET> convert,
-            @Nonnull final Optional<TopologyID> topologyID) throws Throwable {
+            @Nonnull final TopologyID topologyID) throws Throwable {
         // if search query only has one search parameter, then it can apply pagination directly.
         final List<String> candidateEntityOids = entityOidList.stream()
                 .map(String::valueOf)
                 .collect(Collectors.toList());
-        final String db = TopologyDatabases.getDbName(topologyID.get().database());
+        final String db = TopologyDatabases.getDbName(topologyID.database());
         final List<AQLRepr> aqlReprs = SearchDTOConverter.toAqlRepr(searchParameter);
         final Either<Throwable, Collection<TYPE>> result =
                 searchEntityPagination.apply(aqlReprs, db, paginationParams, candidateEntityOids);
@@ -527,9 +532,9 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
             @Nonnull final List<SearchParameters> searchParametersList,
             @Nonnull final Optional<PaginationParameters> optionalPaginationParams,
             @Nonnull final Function<ServiceEntityRepoDTO, RET> convert,
-            @Nonnull final Optional<TopologyID> topologyID) throws Throwable {
+            @Nonnull final TopologyID topologyID) throws Throwable {
         final List<Long> sortedCandidateOids =
-                searchEntityOidMultiParametersWithoutPagination(entityOidList, searchParametersList,
+                searchEntityOidMultiParametersWithoutPagination(topologyID, entityOidList, searchParametersList,
                         optionalPaginationParams);
 
         // pagination params may or may not be provided
@@ -578,14 +583,14 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
      */
     @Nonnull
     private List<Long> searchEntityOidMultiParametersWithoutPagination(
+            @Nonnull final TopologyID topologyID,
             @Nonnull final List<Long> entityOidList,
             @Nonnull final List<SearchParameters> searchParametersList,
             @Nonnull final Optional<PaginationParameters> paginationParameters) throws Throwable {
         final List<String> candidateEntityOids = entityOidList.stream()
                 .map(String::valueOf)
                 .collect(Collectors.toList());
-        final String db = TopologyDatabases.getDbName(
-                lifecycleManager.getRealtimeDatabase().get());
+        final String db = topologyID.toDatabaseName();
         Optional<List<Long>> entitiesList = Optional.empty();
         // only remove limit from pagination parameter in order to get all matched entity oids.
         Optional<PaginationParameters> paginationParamOnlySort = paginationParameters.isPresent()

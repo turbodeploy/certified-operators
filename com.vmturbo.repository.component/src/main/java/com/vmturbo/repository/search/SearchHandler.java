@@ -184,13 +184,8 @@ public class SearchHandler {
      */
     public Either<Throwable, Collection<ServiceEntityRepoDTO>> getEntitiesByOids(
             @Nonnull final Set<Long> entityOids,
-            @Nonnull final Optional<TopologyID> topologyID) {
-        final Optional<TopologyDatabase> databaseToUse = topologyID.map(TopologyID::database);
-        if (!databaseToUse.isPresent()) {
-            logger.warn("No topology database is available now");
-            return Either.right(Collections.emptyList());
-        }
-        final TopologyDatabase database = databaseToUse.get();
+            @Nonnull final TopologyID topologyID) {
+        final TopologyDatabase database = topologyID.database();
         final GraphCmd.ServiceEntityMultiGet cmd = new GraphCmd.ServiceEntityMultiGet(
                 graphDefinition.getServiceEntityVertex(),
                 entityOids,
