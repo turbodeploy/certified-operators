@@ -163,6 +163,19 @@ public class SearchProtoUtil {
     }
 
     /**
+     * Strip the start and end character of regular expression
+     * @param regex expression to be stripped
+     * @return the stripped string
+     */
+    public static String stripFullRegex(String regex) {
+        //check that we are stripping a leading ^ and a trailing $
+        if (regex.charAt(0) == '^' && regex.charAt(regex.length() - 1) == '$') {
+            return regex.substring(1, regex.length() - 1);
+        }
+        return regex;
+    }
+
+    /**
      * Create a property filter for the specified property name and specified search value.
      * @param propName property name to use for the search
      * @param value the value to search for

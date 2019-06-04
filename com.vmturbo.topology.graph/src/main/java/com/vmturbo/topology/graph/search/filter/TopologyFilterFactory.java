@@ -26,6 +26,7 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.PropertyTypeCase
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
@@ -194,7 +195,8 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                 if (regex || stringCriteria.getOptionsCount() == 1) {
                     // Note - we are ignoring the case-sensitivity parameter. Since the state is an
                     // enum it doesn't really make sense to be case-sensitive.
-                    final String targetStateStr = regex ? stringCriteria.getStringPropertyRegex() :
+                    final String targetStateStr = regex ?
+                        SearchProtoUtil.stripFullRegex(stringCriteria.getStringPropertyRegex()) :
                         stringCriteria.getOptions(0);
                     final UIEntityState targetState = UIEntityState.fromString(targetStateStr);
 
@@ -202,7 +204,8 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                     // explicitly wanted, we throw an exception to avoid weird behaviour.
                     if (targetState == UIEntityState.UNKNOWN &&
                         !StringUtils.equalsIgnoreCase(UIEntityState.UNKNOWN.apiStr(),
-                            stringCriteria.getStringPropertyRegex())) {
+                            SearchProtoUtil.stripFullRegex(stringCriteria.getStringPropertyRegex())))
+                    {
                         throw new IllegalArgumentException("Desired state: " +
                             stringCriteria.getStringPropertyRegex() +
                             " doesn't match a known/valid entity state.");
@@ -224,7 +227,8 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
             case SearchableProperties.ENVIRONMENT_TYPE: {
                 final boolean regex = !StringUtils.isEmpty(stringCriteria.getStringPropertyRegex());
                 if (regex || stringCriteria.getOptionsCount() == 1) {
-                    final String targetTypeStr = regex ? stringCriteria.getStringPropertyRegex() :
+                    final String targetTypeStr = regex ? SearchProtoUtil
+                        .stripFullRegex(stringCriteria.getStringPropertyRegex()) :
                         stringCriteria.getOptions(0);
                     final UIEnvironmentType targetType = UIEnvironmentType.fromString(targetTypeStr);
 
@@ -232,7 +236,7 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                     // explicitly wanted, throw an exception to get an early-exit.
                     if (targetType == UIEnvironmentType.UNKNOWN &&
                         !StringUtils.equalsIgnoreCase(UIEnvironmentType.UNKNOWN.getApiEnumStringValue(),
-                            stringCriteria.getStringPropertyRegex())) {
+                            SearchProtoUtil.stripFullRegex(stringCriteria.getStringPropertyRegex()))) {
                         throw new IllegalArgumentException("Desired env type: " +
                             stringCriteria.getStringPropertyRegex() +
                             " doesn't match a known/valid env type.");
@@ -257,7 +261,8 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
             case SearchableProperties.ENTITY_TYPE: {
                 final boolean regex = !StringUtils.isEmpty(stringCriteria.getStringPropertyRegex());
                 if (regex || stringCriteria.getOptionsCount() == 1) {
-                    final String targetTypeStr = regex ? stringCriteria.getStringPropertyRegex() :
+                    final String targetTypeStr = regex ?
+                        SearchProtoUtil.stripFullRegex(stringCriteria.getStringPropertyRegex()) :
                         stringCriteria.getOptions(0);
                     final UIEntityType entityType = UIEntityType.fromString(targetTypeStr);
 
@@ -265,7 +270,7 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                     // user explicitly wanted, throw an exception to get an early exit.
                     if (entityType == UIEntityType.UNKNOWN &&
                         !StringUtils.equalsIgnoreCase(UIEntityType.UNKNOWN.apiStr(),
-                            stringCriteria.getStringPropertyRegex())) {
+                            SearchProtoUtil.stripFullRegex(stringCriteria.getStringPropertyRegex()))) {
                         throw new IllegalArgumentException("Desired entity type type: " +
                             stringCriteria.getStringPropertyRegex() +
                             " doesn't match a known/valid entity type.");

@@ -115,4 +115,11 @@ public class SearchProtoUtilTest {
         assertEquals("b", propertyFilter.getStringFilter().getOptions(1));
         assertEquals("c", propertyFilter.getStringFilter().getOptions(2));
     }
+
+
+    @Test
+    public void testStripFullRegex() {
+        assertEquals("ACTIVE", SearchProtoUtil.stripFullRegex("^ACTIVE$"));
+        assertEquals("ACTIVE", SearchProtoUtil.stripFullRegex("ACTIVE"));
+    }
 }
