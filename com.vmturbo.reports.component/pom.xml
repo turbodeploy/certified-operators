@@ -846,7 +846,7 @@
                                 <labels>
                                     <label>com.vmturbo.version=${project.version}</label>
                                 </labels>
-                                <baseImage>${docker.image.prefix}/vmt-component-base:${project.version}</baseImage>
+                                <baseImage>${docker.image.prefix}/vmt-component-base-fulljava:${project.version}</baseImage>
                                 <entryPoint>["/entrypoint.sh", "${project.build.finalName}.jar"]</entryPoint>
                                 <volumes>
                                     <volume>/home/turbonomic/data</volume>
