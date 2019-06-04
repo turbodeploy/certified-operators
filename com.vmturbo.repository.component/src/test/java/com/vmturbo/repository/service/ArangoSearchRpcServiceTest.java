@@ -190,7 +190,7 @@ public class ArangoSearchRpcServiceTest {
     public void testSearchEntityOidsNoTopology() {
         final StreamObserver<SearchEntityOidsResponse> mockObserver = Mockito.mock(StreamObserver.class);
 
-        given(topologyManager.getRealtimeDatabase()).willReturn(Optional.empty());
+        given(topologyManager.getRealtimeTopologyId()).willReturn(Optional.empty());
 
         arangoSearchRpcService.searchEntityOids(searchEntityOidsRequest, mockObserver);
 
@@ -318,7 +318,7 @@ public class ArangoSearchRpcServiceTest {
     public void testSearchEntitiesNoTopology() {
         final StreamObserver<SearchEntitiesResponse> mockObserver = Mockito.mock(StreamObserver.class);
 
-        given(topologyManager.getRealtimeDatabase()).willReturn(Optional.empty());
+        given(topologyManager.getRealtimeTopologyId()).willReturn(Optional.empty());
 
         arangoSearchRpcService.searchEntities(simpleRequestWithPagination, mockObserver);
 
@@ -378,8 +378,8 @@ public class ArangoSearchRpcServiceTest {
     @Test
     public void testSearchEntitiesWithMultiParameters() {
         final StreamObserver<SearchEntitiesResponse> mockObserver = Mockito.mock(StreamObserver.class);
-        final Optional<TopologyID> topologyID =
-                Optional.of(new TopologyID(1L,2L, TopologyType.SOURCE));
+        final TopologyID topologyID =
+                new TopologyID(1L,2L, TopologyType.SOURCE);
         given(searchHandler.searchEntityOids(multiReprs.get(0), db, Optional.of(paginationParametersOnlySort),
                 Collections.emptyList())).willReturn(Either.right(Arrays.asList("123", "124")));
         given(searchHandler.searchEntityOids(multiReprs.get(1), db, Optional.of(paginationParametersOnlySort),
@@ -388,7 +388,7 @@ public class ArangoSearchRpcServiceTest {
         final List<ServiceEntityRepoDTO> serviceEntityRepoDTOs =
                 com.google.common.collect.Lists.newArrayList(vmRepoDto);
         final Entity vmEntity = SearchDTOConverter.toSearchEntity(vmRepoDto);
-        given(topologyManager.getRealtimeTopologyId()).willReturn(topologyID);
+        given(topologyManager.getRealtimeTopologyId()).willReturn(Optional.of(topologyID));
         given(searchHandler.getEntitiesByOids(Sets.newHashSet(123L), topologyID))
                 .willReturn(Either.right(serviceEntityRepoDTOs));
         arangoSearchRpcService.searchEntities(searchEntitiesWithMultiParameters, mockObserver);
