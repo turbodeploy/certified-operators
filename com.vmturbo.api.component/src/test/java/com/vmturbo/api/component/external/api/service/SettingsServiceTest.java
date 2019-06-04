@@ -31,7 +31,6 @@ import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoade
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDTOPossibilities;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
-import com.vmturbo.api.dto.setting.SettingApiInputDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
@@ -218,7 +217,7 @@ public class SettingsServiceTest {
                 .setStringSettingValue(StringSettingValue.newBuilder()
                         .setValue("no one cares"))
                 .build();
-        final SettingApiDTO mappedDto = new SettingApiDTO();
+        final SettingApiDTO<String> mappedDto = new SettingApiDTO<>();
         final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
         when(possibilities.getGlobalSetting()).thenReturn(Optional.of(mappedDto));
         when(settingsMapper.toSettingApiDto(globalSetting)).thenReturn(possibilities);
@@ -230,7 +229,7 @@ public class SettingsServiceTest {
         when(settingRpcServiceSpy.getMultipleGlobalSettings(GetMultipleGlobalSettingsRequest.getDefaultInstance()))
                 .thenReturn(Collections.singletonList(globalSetting));
 
-        List<SettingApiDTO> settingApiDTOList = settingsService.getSettingsByUuid(managerName);
+        List<? extends SettingApiDTO<?>> settingApiDTOList = settingsService.getSettingsByUuid(managerName);
         assertThat(settingApiDTOList, containsInAnyOrder(mappedDto));
         verify(settingRpcServiceSpy).getMultipleGlobalSettings(any(GetMultipleGlobalSettingsRequest.class));
     }
@@ -246,7 +245,7 @@ public class SettingsServiceTest {
         final String settingSpecName = "smtpPort";
         final String settingValue = "25";
 
-        final SettingApiInputDTO settingInput = new SettingApiInputDTO();
+        final SettingApiDTO<String> settingInput = new SettingApiDTO<>();
         settingInput.setValue(settingValue);
 
         final Setting setting = Setting.newBuilder()
@@ -254,7 +253,7 @@ public class SettingsServiceTest {
             .setStringSettingValue(StringSettingValue.newBuilder()
                     .setValue(settingValue))
             .build();
-        final SettingApiDTO mappedDto = new SettingApiDTO();
+        final SettingApiDTO<String> mappedDto = new SettingApiDTO<>();
         final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
         when(possibilities.getGlobalSetting()).thenReturn(Optional.of(mappedDto));
         when(settingsMapper.toSettingApiDto(setting)).thenReturn(possibilities);
@@ -293,7 +292,7 @@ public class SettingsServiceTest {
         String settingValue = "abc";
         boolean exceptionThrown = false;
 
-        SettingApiInputDTO settingInput = new SettingApiInputDTO();
+        SettingApiDTO<String> settingInput = new SettingApiDTO<>();
         settingInput.setValue(settingValue);
 
         when(settingRpcServiceSpy.getGlobalSetting(any())).thenReturn(
@@ -328,7 +327,7 @@ public class SettingsServiceTest {
         String settingValue = "abc";
         boolean exceptionThrown = false;
 
-        SettingApiInputDTO settingInput = new SettingApiInputDTO();
+        SettingApiDTO<String> settingInput = new SettingApiDTO<>();
         settingInput.setValue(settingValue);
 
         when(settingRpcServiceSpy.getGlobalSetting(any())).thenReturn(
@@ -368,7 +367,7 @@ public class SettingsServiceTest {
                     .setValue(10)
                     .build())
                 .build();
-        final SettingApiDTO mappedStatSetting = mock(SettingApiDTO.class);
+        final SettingApiDTO<String> mappedStatSetting = mock(SettingApiDTO.class);
         final SettingApiDTOPossibilities statPossibilities = mock(SettingApiDTOPossibilities.class);
         when(statPossibilities.getGlobalSetting()).thenReturn(Optional.ofNullable(mappedStatSetting));
 
@@ -379,7 +378,7 @@ public class SettingsServiceTest {
                     .setValue(10)
                     .build())
                 .build();
-        final SettingApiDTO mappedAuditSetting = mock(SettingApiDTO.class);
+        final SettingApiDTO<String> mappedAuditSetting = mock(SettingApiDTO.class);
         final SettingApiDTOPossibilities auditPossibilities = mock(SettingApiDTOPossibilities.class);
         when(auditPossibilities.getGlobalSetting()).thenReturn(Optional.ofNullable(mappedAuditSetting));
 
@@ -398,7 +397,7 @@ public class SettingsServiceTest {
         SettingsManagerInfo managerInfo = mock(SettingsManagerInfo.class);
         when(settingsManagerMapping.getManagerInfo(eq(managerName))).thenReturn(Optional.of(managerInfo));
 
-        List<SettingApiDTO> settingApiDTOList = settingsService.getSettingsByUuid(managerName);
+        List<? extends SettingApiDTO<?>> settingApiDTOList = settingsService.getSettingsByUuid(managerName);
         assertThat(settingApiDTOList, containsInAnyOrder(mappedStatSetting, mappedAuditSetting));
     }
 }

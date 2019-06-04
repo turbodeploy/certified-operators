@@ -128,7 +128,7 @@ public class ScenarioMapper {
     /**
      * Hardcoded group display name for current utilization changes.
      */
-    static final String VIRTUAL_MACHINES_DISPLAY_NAME = "Virtual Machines";
+    private static final String VIRTUAL_MACHINES_DISPLAY_NAME = "Virtual Machines";
 
     static {
         MARKET_PLAN_SCOPE = new BaseApiDTO();
@@ -230,10 +230,10 @@ public class ScenarioMapper {
      * Provides changes relevant for given plan type.
      */
     private Iterable<ScenarioChange> addChangesRelevantToPlanType(ScenarioApiDTO dto) throws InvalidOperationException {
-        List<ScenarioChange> changes = new ArrayList<ScenarioChange>();
+        final List<ScenarioChange> changes = new ArrayList<>();
         switch (dto.getType()) {
             case ALLEVIATE_PRESSURE_PLAN_TYPE:
-                List<RelievePressureObjectApiDTO> relievePressureList =
+                final List<RelievePressureObjectApiDTO> relievePressureList =
                                 dto.getTopologyChanges().getRelievePressureList();
                 if (CollectionUtils.isEmpty(relievePressureList)) {
                     throw new InvalidOperationException(
@@ -617,13 +617,13 @@ public class ScenarioMapper {
     }
 
     @Nonnull
-    private List<ScenarioChange> buildSettingChanges(@Nullable final List<SettingApiDTO> settingsList) {
+    private List<ScenarioChange> buildSettingChanges(@Nullable final List<SettingApiDTO<String>> settingsList) {
         if (CollectionUtils.isEmpty(settingsList)) {
             return Collections.emptyList();
         }
 
         // First we convert them back to "real" settings.
-        final List<SettingApiDTO> convertedSettingOverrides =
+        final List<SettingApiDTO<String>> convertedSettingOverrides =
                 settingsManagerMapping.convertFromPlanSetting(settingsList);
         final Map<String, Setting> settingProtoOverrides =
                 settingsMapper.toProtoSettings(convertedSettingOverrides);
@@ -682,22 +682,33 @@ public class ScenarioMapper {
      * @return a ScenarioChange
      */
     private @Nullable ScenarioChange buildRISettingChanges(List<SettingApiDTO> riSettingList) {
-        if (riSettingList.stream().anyMatch(r -> r.getUuid().equals(StringConstants.RI_PURCHASE)
-                && !Boolean.getBoolean(r.getValue()))) {
+        if (riSettingList.stream()
+                .filter(r -> r.getUuid().equals(StringConstants.RI_PURCHASE))
+                .map(SettingsMapper::inputValueToString)
+                .filter(Optional::isPresent).map(Optional::get)
+                .anyMatch(v -> !Boolean.getBoolean(v))) {
             // only run optimize workload, no need to run buy RI
             return null;
         }
         ScenarioChange.RISetting.Builder riSetting = RISetting.newBuilder();
         riSettingList.forEach(r -> {
-            if (r.getUuid().equals(StringConstants.PREFERRED_OFFERING_CLASS)) {
-                riSetting.setPreferredOfferingClass(riOfferingClassMapper.get(r.getValue()));
-            } else if (r.getUuid().equals(StringConstants.PREFERRED_PAYMENT_OPTION)) {
-                riSetting.setPreferredPaymentOption(riPaymentOptionMapper.get(r.getValue()));
-            } else if (r.getUuid().equals(StringConstants.PREFERRED_TERM)) {
-                riSetting.setPreferredTerm(riTermMapper.get(r.getValue()));
-            } else if (r.getUuid().equals(StringConstants.PURCHASE_DATE)) {
-                riSetting.setPurchaseDate(Long.valueOf(r.getValue()));
-            }
+            final Optional<String> optionalValue = SettingsMapper.inputValueToString(r);
+            optionalValue.ifPresent(settingValue -> {
+                switch (r.getUuid()) {
+                    case StringConstants.PREFERRED_OFFERING_CLASS:
+                        riSetting.setPreferredOfferingClass(riOfferingClassMapper.get(settingValue));
+                        break;
+                    case StringConstants.PREFERRED_PAYMENT_OPTION:
+                        riSetting.setPreferredPaymentOption(riPaymentOptionMapper.get(settingValue));
+                        break;
+                    case StringConstants.PREFERRED_TERM:
+                        riSetting.setPreferredTerm(riTermMapper.get(settingValue));
+                        break;
+                    case StringConstants.PURCHASE_DATE:
+                        riSetting.setPurchaseDate(Long.valueOf(settingValue));
+                        break;
+                }
+            });
         });
         return ScenarioChange.newBuilder().setRiSetting(riSetting).build();
     }
@@ -801,7 +812,7 @@ public class ScenarioMapper {
         // Default count to 1
         int count = change.getCount() != null ? change.getCount() : 1;
 
-        final Long uuid = Long.parseLong(change.getTarget().getUuid());
+        final long uuid = Long.parseLong(change.getTarget().getUuid());
         final List<ScenarioChange> changes = new ArrayList<>();
 
         final TopologyAddition.Builder additionBuilder = TopologyAddition.newBuilder()
@@ -943,23 +954,23 @@ public class ScenarioMapper {
      * @param ri the RISetting
      * @return a list of SettingApiDTO
      */
-    private List<SettingApiDTO> creatRiSettingApiDTO(RISetting ri) {
-        List<SettingApiDTO> riSettings = new ArrayList();
-        SettingApiDTO coverageDto = new SettingApiDTO();
+    private List<SettingApiDTO> createRiSettingApiDTO(RISetting ri) {
+        List<SettingApiDTO> riSettings = new ArrayList<>();
+        SettingApiDTO coverageDto = new SettingApiDTO<>();
         riSettings.add(coverageDto);
-        SettingApiDTO offeringClassDto = new SettingApiDTO();
+        SettingApiDTO<String> offeringClassDto = new SettingApiDTO<>();
         offeringClassDto.setUuid(StringConstants.PREFERRED_OFFERING_CLASS);
         offeringClassDto.setValue(ri.getPreferredOfferingClass().name());
         riSettings.add(offeringClassDto);
-        SettingApiDTO paymentDto = new SettingApiDTO();
+        SettingApiDTO<String> paymentDto = new SettingApiDTO<>();
         paymentDto.setUuid(StringConstants.PREFERRED_PAYMENT_OPTION);
         paymentDto.setValue(ri.getPreferredPaymentOption().name());
         riSettings.add(paymentDto);
-        SettingApiDTO termDto = new SettingApiDTO();
+        SettingApiDTO<String> termDto = new SettingApiDTO<>();
         termDto.setUuid(StringConstants.PREFERRED_TERM);
         termDto.setValue(String.valueOf(ri.getPreferredTerm()));
         riSettings.add(termDto);
-        SettingApiDTO purchaseDateDto = new SettingApiDTO();
+        SettingApiDTO<String> purchaseDateDto = new SettingApiDTO<>();
         purchaseDateDto.setUuid(StringConstants.PURCHASE_DATE);
         purchaseDateDto.setValue(String.valueOf(ri.getPurchaseDate()));
         riSettings.add(purchaseDateDto);
@@ -968,7 +979,7 @@ public class ScenarioMapper {
 
     @Nonnull
     private ConfigChangesApiDTO buildApiConfigChanges(@Nonnull final List<ScenarioChange> changes) {
-        final List<SettingApiDTO> settingChanges = changes.stream()
+        final List<SettingApiDTO<String>> settingChanges = changes.stream()
                 .filter(ScenarioChange::hasSettingOverride)
                 .map(ScenarioChange::getSettingOverride)
                 .flatMap(override -> createApiSettingFromOverride(override).stream())
@@ -981,7 +992,7 @@ public class ScenarioMapper {
         final List<SettingApiDTO> riSetting = changes.stream()
                         .filter(ScenarioChange::hasRiSetting)
                         .map(ScenarioChange::getRiSetting)
-                        .flatMap(ri -> creatRiSettingApiDTO(ri).stream())
+                        .flatMap(ri -> createRiSettingApiDTO(ri).stream())
                         .collect(Collectors.toList());
 
         final List<RemoveConstraintApiDTO> removeConstraintApiDTOS = getRemoveConstraintsDtos(allPlanChanges);
@@ -1033,7 +1044,7 @@ public class ScenarioMapper {
     }
 
     @Nonnull
-    private Collection<SettingApiDTO> createApiSettingFromOverride(@Nonnull final SettingOverride settingOverride) {
+    private Collection<SettingApiDTO<String>> createApiSettingFromOverride(@Nonnull final SettingOverride settingOverride) {
         final SettingApiDTOPossibilities possibilities =
                 settingsMapper.toSettingApiDto(settingOverride.getSetting());
 

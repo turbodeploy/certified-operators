@@ -128,7 +128,7 @@ public class SettingPoliciesServiceTest {
                 SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer.getChannel()));
 
         final SettingsManagerApiDTO mgr = new SettingsManagerApiDTO();
-        final SettingApiDTO setting = new SettingApiDTO();
+        final SettingApiDTO<?> setting = new SettingApiDTO<>();
         setting.setUuid(SETTING_NAME);
         mgr.setSettings(Collections.singletonList(setting));
         inputPolicy.setSettingsManagers(Collections.singletonList(mgr));

@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.io.Serializable;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -21,7 +22,6 @@ import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDTOPossibilities;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
-import com.vmturbo.api.dto.setting.SettingApiInputDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ISettingsService;
@@ -91,7 +91,7 @@ public class SettingsService implements ISettingsService {
      * @throws Exception
      */
     @Override
-    public List<SettingApiDTO> getSettingsByUuid(String uuid) throws Exception {
+    public List<? extends SettingApiDTO<?>> getSettingsByUuid(String uuid) throws Exception {
         if (uuid.equals(PERSISTENCE_MANAGER)) {
             // These data retention settings don't go through the usual settings
             // service(group) framework as we rely on the sql db scheduled events to
@@ -99,7 +99,7 @@ public class SettingsService implements ISettingsService {
             // vmtdb whose data ownership is handled by history/stats component.
             // In this case we are deviating from design "purity" for
             // efficiency purposes.
-            List<SettingApiDTO> settingApiDtos = new LinkedList<>();
+            List<SettingApiDTO<?>> settingApiDtos = new LinkedList<>();
             statsServiceClient.getStatsDataRetentionSettings(
                 GetStatsDataRetentionSettingsRequest.newBuilder().build())
                     .forEachRemaining(setting -> settingsMapper.toSettingApiDto(setting)
@@ -111,7 +111,8 @@ public class SettingsService implements ISettingsService {
                 settingsMapper.toSettingApiDto(response.getAuditLogRetentionSetting())
                         .getGlobalSetting().ifPresent(settingApiDtos::add);
             }
-            return settingApiDtos;
+            //noinspection unchecked
+            return (List<SettingApiDTO<?>>)(List<?>) settingApiDtos;
         } else {
             SettingsManagerInfo managerInfo = settingsManagerMapping.getManagerInfo(uuid)
                     .orElseThrow(() -> new UnknownObjectException("Setting with Manager Uuid: "
@@ -120,16 +121,18 @@ public class SettingsService implements ISettingsService {
                     GetMultipleGlobalSettingsRequest.newBuilder()
                             .addAllSettingSpecName(managerInfo.getSettings())
                             .build());
-            return StreamSupport.stream(settingIt.spliterator(), false)
+            List<SettingApiDTO<String>> settingApiDTOS = StreamSupport.stream(settingIt.spliterator(), false)
                     .map(settingsMapper::toSettingApiDto)
                     .map(SettingApiDTOPossibilities::getGlobalSetting)
                     .filter(Optional::isPresent).map(Optional::get)
                     .collect(Collectors.toList());
+            //noinspection unchecked
+            return (List<SettingApiDTO<?>>)(List<?>) settingApiDTOS;
         }
     }
 
     @Override
-    public SettingApiDTO getSettingByUuidAndName(String uuid, String name) throws Exception {
+    public <T extends Serializable> SettingApiDTO<T> getSettingByUuidAndName(String uuid, String name) throws Exception {
         if (uuid.equals(RESERVED_INSTANCE_MANAGER)) {
             final GetGlobalSettingResponse response =
                     settingServiceBlockingStub.getGlobalSetting(
@@ -137,8 +140,10 @@ public class SettingsService implements ISettingsService {
                                     .setSettingSpecName(name)
                                     .build());
 
-            return settingsMapper.toSettingApiDto(response.getSetting()).getGlobalSetting()
-                    .orElse(new SettingApiDTO());
+            SettingApiDTO<String> settingApiDTO = settingsMapper.toSettingApiDto(response.getSetting()).getGlobalSetting()
+                    .orElse(new SettingApiDTO<>());
+            //noinspection unchecked
+            return (SettingApiDTO<T>) settingApiDTO;
         } else {
             // TODO: implement other uuid type setting query.
             throw ApiUtils.notImplementedInXL();
@@ -155,17 +160,20 @@ public class SettingsService implements ISettingsService {
      * @throws Exception
      */
     @Override
-    public SettingApiDTO putSettingByUuidAndName(String uuid, String name, SettingApiInputDTO setting) throws Exception {
+    public <T extends Serializable> SettingApiDTO<T> putSettingByUuidAndName(String uuid, String name, SettingApiDTO<T> setting) throws Exception {
+
+        String settingValue = StringUtils.trimToEmpty(SettingsMapper.inputValueToString(setting).orElse(""));
 
         if (uuid.equals(PERSISTENCE_MANAGER)) {
-            Optional<SettingApiDTO> newSetting;
+            Optional<SettingApiDTO<String>> newSetting;
             if (name.equals(GlobalSettingSpecs.AuditLogRetentionDays.getSettingName())) {
-                newSetting = setAuditLogSettting(setting);
+                newSetting = setAuditLogSettting(settingValue);
             } else {
-                newSetting = setStatsRetentionSetting(name, setting);
+                newSetting = setStatsRetentionSetting(name, settingValue);
             }
 
-            return newSetting.orElseThrow(() -> new Exception("Failed to set the new setting value for " + name));
+            //noinspection unchecked
+            return (SettingApiDTO<T>) newSetting.orElseThrow(() -> new Exception("Failed to set the new setting value for " + name));
 
         } else {
             Objects.requireNonNull(name);
@@ -178,39 +186,40 @@ public class SettingsService implements ISettingsService {
             if (spec != null) {
                 UpdateGlobalSettingRequest.Builder updateRequestBuilder = UpdateGlobalSettingRequest.newBuilder()
                         .setSettingSpecName(name);
+
                 switch (spec.getSettingValueTypeCase()) {
                     case BOOLEAN_SETTING_VALUE_TYPE:
-                        if (!setting.getValue().equalsIgnoreCase(Boolean.TRUE.toString()) &&
-                                !setting.getValue().equalsIgnoreCase(Boolean.FALSE.toString())) {
+                        if (!StringUtils.equalsIgnoreCase(settingValue, Boolean.TRUE.toString()) &&
+                                !StringUtils.equalsIgnoreCase(settingValue, Boolean.FALSE.toString())) {
                             // Throw an exception with a more meaningful message if the boolean value is
                             // neither "true" nor "false" (case insensitive).
                             throw new IllegalArgumentException(
                                     String.format("Setting %s must have a boolean value. The value '%s' is invalid.",
-                                            name, setting.getValue()));
+                                            name, settingValue));
                         }
                         updateRequestBuilder.setBooleanSettingValue(BooleanSettingValue.newBuilder()
-                                .setValue(Boolean.valueOf(setting.getValue())));
+                                .setValue(Boolean.valueOf(settingValue)));
                         break;
                     case NUMERIC_SETTING_VALUE_TYPE:
                         try {
                             updateRequestBuilder.setNumericSettingValue(NumericSettingValue.newBuilder()
-                                    .setValue(Float.parseFloat(setting.getValue())));
+                                    .setValue(Float.parseFloat(settingValue)));
                         } catch (NumberFormatException e) {
                             // Throw an exception with a more meaninful message if value is not a number.
                             throw new IllegalArgumentException(
                                     String.format("Setting %s must have a numeric value. The value '%s' is invalid. ",
-                                            name, setting.getValue()));
+                                            name, settingValue));
                         }
                         break;
                     case ENUM_SETTING_VALUE_TYPE:
                         updateRequestBuilder.setEnumSettingValue(EnumSettingValue.newBuilder()
-                                .setValue(setting.getValue()));
+                                .setValue(settingValue));
                         break;
                     case STRING_SETTING_VALUE_TYPE:
                         // fall through to next case
                     case SETTINGVALUETYPE_NOT_SET:
                         updateRequestBuilder.setStringSettingValue(StringSettingValue.newBuilder()
-                                .setValue(setting.getValue()));
+                                .setValue(settingValue));
                         break;
                 }
 
@@ -224,23 +233,25 @@ public class SettingsService implements ISettingsService {
                             .setSettingSpecName(name)
                             .build());
             if (response.hasSetting()) {
-                return settingsMapper.toSettingApiDto(response.getSetting()).getGlobalSetting()
-                    .orElseThrow(() -> new IllegalStateException("No global setting parsed from " +
-                        "global setting response"));
+                SettingApiDTO<String> stringSettingApiDTO = settingsMapper.toSettingApiDto(response.getSetting()).getGlobalSetting()
+                        .orElseThrow(() -> new IllegalStateException("No global setting parsed from " +
+                                "global setting response"));
+                //noinspection unchecked
+                return (SettingApiDTO<T>) stringSettingApiDTO;
             } else {
                 throw new UnknownObjectException("Unknown setting: " + name);
             }
         }
     }
 
-    private Optional<SettingApiDTO> setStatsRetentionSetting(String name, SettingApiInputDTO setting) {
+    private Optional<SettingApiDTO<String>> setStatsRetentionSetting(String name, final String settingValue) {
         final SetStatsDataRetentionSettingResponse response =
             statsServiceClient.setStatsDataRetentionSetting(
                 SetStatsDataRetentionSettingRequest.newBuilder()
                     .setRetentionSettingName(name)
                     // The SettingSpec uses "float" for the setting numeric value
                     // type(NumericSettingDataType). So we are rounding to get an int
-                    .setRetentionSettingValue(Math.round(Float.parseFloat(setting.getValue())))
+                    .setRetentionSettingValue(Math.round(Float.parseFloat(settingValue)))
                     .build());
 
         return response.hasNewSetting() ?
@@ -248,11 +259,11 @@ public class SettingsService implements ISettingsService {
                 Optional.empty();
     }
 
-    private Optional<SettingApiDTO> setAuditLogSettting(SettingApiInputDTO setting) {
+    private Optional<SettingApiDTO<String>> setAuditLogSettting(final String settingValue) {
         final SetAuditLogDataRetentionSettingResponse response =
             statsServiceClient.setAuditLogDataRetentionSetting(
                 SetAuditLogDataRetentionSettingRequest.newBuilder()
-                    .setRetentionSettingValue(Math.round(Float.parseFloat(setting.getValue())))
+                    .setRetentionSettingValue(Math.round(Float.parseFloat(settingValue)))
                     .build());
         return response.hasNewSetting() ?
                 settingsMapper.toSettingApiDto(response.getNewSetting()).getGlobalSetting() :
@@ -316,7 +327,7 @@ public class SettingsService implements ISettingsService {
      * @return SettingApiDTO
      * @throws Exception
      */
-    public SettingApiDTO getSettingByGroupOrEntity(String uuid, String manUuid,
+    public <T extends Serializable> SettingApiDTO<T> getSettingByGroupOrEntity(String uuid, String manUuid,
                                             String settUuid) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
@@ -330,7 +341,7 @@ public class SettingsService implements ISettingsService {
      * @return list of SettingApiDTO
      * @throws Exception
      */
-    public List<SettingApiDTO> getSettingsManagerByGroupOrEntity(String uuid, String manUuid
+    public List<? extends SettingApiDTO<?>> getSettingsManagerByGroupOrEntity(String uuid, String manUuid
     ) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }

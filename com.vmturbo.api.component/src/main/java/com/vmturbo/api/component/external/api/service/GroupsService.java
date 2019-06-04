@@ -69,7 +69,6 @@ import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.notification.NotificationSettingsApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
-import com.vmturbo.api.dto.setting.SettingApiInputDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
@@ -449,13 +448,13 @@ public class GroupsService implements IGroupsService {
     @Nonnull
     private List<SettingsManagerApiDTO> getHeadroomSettingsMangerApiDTO(
             @Nonnull SettingsManagerInfo managerInfo,
-            @Nonnull SettingApiDTO templateSetting) {
+            @Nonnull SettingApiDTO<String> templateSetting) {
         final SettingsManagerApiDTO settingsManager = new SettingsManagerApiDTO();
         settingsManager.setUuid(CLUSTER_HEADROOM_SETTINGS_MANAGER);
         settingsManager.setDisplayName(managerInfo.getDisplayName());
         settingsManager.setCategory(managerInfo.getDefaultCategory());
-        settingsManager.setSettings(Arrays.asList(templateSetting));
-        return Arrays.asList(settingsManager);
+        settingsManager.setSettings(Collections.singletonList(templateSetting));
+        return Collections.singletonList(settingsManager);
     }
 
     /**
@@ -467,7 +466,7 @@ public class GroupsService implements IGroupsService {
      * @throws UnknownObjectException No headroom template found for this group.
      */
     @Nonnull
-    private SettingApiDTO getTemplateSetting(@Nonnull Group group) throws UnknownObjectException {
+    private SettingApiDTO<String> getTemplateSetting(@Nonnull Group group) throws UnknownObjectException {
         Template headroomTemplate = null;
 
         // Get the headroom template with the ID in ClusterInfo if available.
@@ -494,7 +493,7 @@ public class GroupsService implements IGroupsService {
         String templateName = headroomTemplate.getTemplateInfo().getName();
         String templateId = Long.toString(headroomTemplate.getId());
 
-        SettingApiDTO setting = new SettingApiDTO();
+        SettingApiDTO<String> setting = new SettingApiDTO<>();
         setting.setUuid(CLUSTER_HEADROOM_TEMPLATE_SETTING_UUID);
         setting.setValue(templateId);
         setting.setValueDisplayName(templateName);
@@ -526,10 +525,10 @@ public class GroupsService implements IGroupsService {
     }
 
     @Override
-    public SettingApiDTO putSettingByUuidAndName(String groupUuid,
+    public SettingApiDTO<String> putSettingByUuidAndName(String groupUuid,
                                                  String managerName,
                                                  String settingUuid,
-                                                 SettingApiInputDTO setting)
+                                                 SettingApiDTO<String> setting)
             throws Exception {
         // Update the cluster headroom template ID
         if (settingUuid.equals(CLUSTER_HEADROOM_TEMPLATE_SETTING_UUID) &&

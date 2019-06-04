@@ -256,7 +256,7 @@ public class ScenarioMapperTest {
 
     @Test
     public void testSettingOverride() {
-        final SettingApiDTO setting = new SettingApiDTO();
+        final SettingApiDTO<String> setting = new SettingApiDTO<>();
         setting.setUuid("foo");
         setting.setValue("value");
 
@@ -283,11 +283,11 @@ public class ScenarioMapperTest {
 
     @Test
     public void testSettingOverridePlanSettingMapping() {
-        final SettingApiDTO setting = new SettingApiDTO();
+        final SettingApiDTO<String> setting = new SettingApiDTO<>();
         setting.setUuid("foo");
         setting.setValue("value");
 
-        final SettingApiDTO convertedSetting = new SettingApiDTO();
+        final SettingApiDTO<String> convertedSetting = new SettingApiDTO<>();
         convertedSetting.setUuid("foo");
         convertedSetting.setValue("1.2f");
 
@@ -314,7 +314,7 @@ public class ScenarioMapperTest {
 
     @Test
     public void testSettingOverrideUnknownSetting() {
-        final SettingApiDTO setting = new SettingApiDTO();
+        final SettingApiDTO<String> setting = new SettingApiDTO<>();
         setting.setUuid("unknown");
         setting.setValue("value");
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.singletonList(setting), null);
@@ -328,7 +328,7 @@ public class ScenarioMapperTest {
     public void testSettingOverrideToApiDto() {
         final Scenario scenario = buildScenario(buildNumericSettingOverride("foo", 1.2f));
 
-        final SettingApiDTO apiDto = new SettingApiDTO();
+        final SettingApiDTO<String> apiDto = new SettingApiDTO<>();
         final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
         when(possibilities.getAll()).thenReturn(Collections.singletonList(apiDto));
         when(settingsMapper.toSettingApiDto(any())).thenReturn(possibilities);
@@ -337,7 +337,7 @@ public class ScenarioMapperTest {
             .thenAnswer(invocation -> invocation.getArguments()[0]);
 
         final ScenarioApiDTO scenarioApiDTO = scenarioMapper.toScenarioApiDTO(scenario);
-        final SettingApiDTO apiFoo = scenarioApiDTO.getConfigChanges().getAutomationSettingList().get(0);
+        final SettingApiDTO<String> apiFoo = scenarioApiDTO.getConfigChanges().getAutomationSettingList().get(0);
         assertEquals(apiFoo, apiDto);
 
         verify(settingsManagerMapping).convertToPlanSetting(any());
@@ -347,10 +347,10 @@ public class ScenarioMapperTest {
     public void testSettingOverrideToApiDtoWithPlanSetting() {
         final Scenario scenario = buildScenario(buildNumericSettingOverride("foo",1.2f));
 
-        final SettingApiDTO convertedSetting = new SettingApiDTO();
+        final SettingApiDTO<String> convertedSetting = new SettingApiDTO<>();
 
         final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
-        when(possibilities.getAll()).thenReturn(Collections.singletonList(new SettingApiDTO()));
+        when(possibilities.getAll()).thenReturn(Collections.singletonList(new SettingApiDTO<>()));
         when(settingsMapper.toSettingApiDto(any())).thenReturn(possibilities);
 
         // Plan settings conversion substitutes the setting.
@@ -358,13 +358,13 @@ public class ScenarioMapperTest {
                 .thenAnswer(invocation -> Collections.singletonList(convertedSetting));
 
         final ScenarioApiDTO scenarioApiDTO = scenarioMapper.toScenarioApiDTO(scenario);
-        final SettingApiDTO apiFoo = scenarioApiDTO.getConfigChanges().getAutomationSettingList().get(0);
+        final SettingApiDTO<String> apiFoo = scenarioApiDTO.getConfigChanges().getAutomationSettingList().get(0);
         assertThat(apiFoo, is(convertedSetting));
 
         verify(settingsManagerMapping).convertToPlanSetting(any());
     }
 
-    private void assertSettingApiDTOHasSetting(@Nonnull SettingApiDTO setting,
+    private void assertSettingApiDTOHasSetting(@Nonnull SettingApiDTO<String> setting,
                                                @Nonnull String value, @Nonnull String settingName) {
         Assert.assertEquals(value, setting.getValue());
         Assert.assertEquals(settingName, setting.getUuid());
@@ -386,7 +386,7 @@ public class ScenarioMapperTest {
      */
     @Test
     public void testToScenarioInfoWithEmptyConfigChanges() {
-        final ScenarioInfo scenarioInfo = getScenarioInfo((List<SettingApiDTO>)null, null);
+        final ScenarioInfo scenarioInfo = getScenarioInfo((List<SettingApiDTO<String>>)null, null);
         Assert.assertTrue(scenarioInfo.getChangesList().stream().noneMatch(ScenarioChange::hasSettingOverride));
     }
 
@@ -411,8 +411,8 @@ public class ScenarioMapperTest {
 
     @Test
     public void testToScenarioInfoWithRISettingChanges() {
-        List<SettingApiDTO> riSettingList = new ArrayList<SettingApiDTO>();
-        SettingApiDTO riSetting = new SettingApiDTO();
+        List<SettingApiDTO> riSettingList = new ArrayList<>();
+        SettingApiDTO<String> riSetting = new SettingApiDTO<>();
         riSetting.setUuid("preferredOfferingClass");
         riSetting.setValue("Standard");
         riSettingList.add(riSetting);
@@ -450,7 +450,7 @@ public class ScenarioMapperTest {
         return utilizationDto;
     }
 
-    private ScenarioInfo getScenarioInfo(@Nonnull List<SettingApiDTO> automationSettings,
+    private ScenarioInfo getScenarioInfo(@Nonnull List<SettingApiDTO<String>> automationSettings,
             @Nonnull LoadChangesApiDTO loadChangesApiDTO) {
         final ScenarioApiDTO dto = new ScenarioApiDTO();
         final ConfigChangesApiDTO configChanges = new ConfigChangesApiDTO();

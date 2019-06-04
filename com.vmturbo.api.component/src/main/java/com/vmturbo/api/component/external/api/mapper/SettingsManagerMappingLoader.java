@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.Serializable;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -192,16 +193,17 @@ public class SettingsManagerMappingLoader {
             settingMgrs.forEach(settingMgr ->
                 getManagerInfo(settingMgr.getUuid()).ifPresent(mgrInfo -> {
                     final SettingsManagerApiDTO newMgr = mgrInfo.newApiDTO(settingMgr.getUuid());
-                    newMgr.setSettings(mgrInfo.getPlanSettingInfo()
-                        .map(planSettingInfo -> settingMgr.getSettings().stream()
-                            // When converting setting specs, we only want to display
-                            // settings that have plan-specific conversions.
-                            .map(planSettingInfo::toPlanSetting)
-                            .filter(Optional::isPresent).map(Optional::get)
-                            .collect(Collectors.toList()))
-                        .orElse(Collections.emptyList()));
-                    retBuilder.add(newMgr);
-            }));
+                    mgrInfo.getPlanSettingInfo().ifPresent(planSettingInfo -> {
+                        newMgr.setSettings(settingMgr.getSettings().stream()
+                                // When converting setting specs, we only want to display
+                                // settings that have plan-specific conversions.
+                                .map(planSettingInfo::toPlanSetting)
+                                .filter(Optional::isPresent).map(Optional::get)
+                                .collect(Collectors.toList()));
+                        retBuilder.add(newMgr);
+                    });
+                })
+            );
             return retBuilder.build();
         }
 
@@ -214,9 +216,9 @@ public class SettingsManagerMappingLoader {
          *         with the plan-specific values.
          */
         @Nonnull
-        public List<SettingApiDTO> convertToPlanSetting(
-                @Nonnull final List<SettingApiDTO> realtimeSettings) {
-            final ImmutableList.Builder<SettingApiDTO> retBuilder = ImmutableList.builder();
+        public List<SettingApiDTO<String>> convertToPlanSetting(
+                @Nonnull final List<SettingApiDTO<String>> realtimeSettings) {
+            final ImmutableList.Builder<SettingApiDTO<String>> retBuilder = ImmutableList.builder();
             realtimeSettings.forEach(realtimeSetting ->
                 getManagerForSetting(realtimeSetting.getUuid()).ifPresent(mgrInfo ->
                     retBuilder.add(mgrInfo.getPlanSettingInfo()
@@ -236,9 +238,9 @@ public class SettingsManagerMappingLoader {
          * @return The settings from planSettings that can be used in the rest of the system.
          */
         @Nonnull
-        public List<SettingApiDTO> convertFromPlanSetting(
-                @Nonnull final List<SettingApiDTO> planSettings) {
-            final ImmutableList.Builder<SettingApiDTO> retBuilder = ImmutableList.builder();
+        public List<SettingApiDTO<String>> convertFromPlanSetting(
+                @Nonnull final List<SettingApiDTO<String>> planSettings) {
+            final ImmutableList.Builder<SettingApiDTO<String>> retBuilder = ImmutableList.builder();
             planSettings.forEach(planSetting ->
                 getManagerForSetting(planSetting.getUuid()).ifPresent(mgrInfo ->
                     retBuilder.add(mgrInfo.getPlanSettingInfo()
@@ -289,14 +291,14 @@ public class SettingsManagerMappingLoader {
          *         setting has no mapping.
          */
         @Nonnull
-        public Optional<SettingApiDTO> toPlanSetting(@Nonnull final SettingApiDTO realSetting) {
+        public <T extends Serializable> Optional<SettingApiDTO<String>> toPlanSetting(@Nonnull final SettingApiDTO<T> realSetting) {
             final String defaultValue = supportedSettingDefaults.get(realSetting.getEntityType(),
                     realSetting.getUuid());
             if (defaultValue == null) {
                 return Optional.empty();
             }
 
-            final SettingApiDTO newDto = copySettingInfo(realSetting);
+            final SettingApiDTO<String> newDto = copySettingInfo(realSetting);
             newDto.setDefaultValue(defaultValue);
 
             // Fill in the value if it's present.
@@ -307,7 +309,7 @@ public class SettingsManagerMappingLoader {
                 // uiToXlValueConversion is still using "AUTOMATIC", so we need to do a reverse
                 // conversion "mixedSpacesToUpperUnderScore" here to get correct value
                 final String convertedValue = uiToXlValueConversion.inverse().get(
-                    ActionDTOUtil.mixedSpacesToUpperUnderScore(realSetting.getValue()));
+                    ActionDTOUtil.mixedSpacesToUpperUnderScore(SettingsMapper.inputValueToString(realSetting).orElse("")));
                 if (convertedValue == null) {
                     throw new IllegalArgumentException("Illegal value " + realSetting.getValue() +
                             " for setting " + realSetting.getUuid() + "meant to be converted to a" +
@@ -334,7 +336,7 @@ public class SettingsManagerMappingLoader {
          *         if has a value that's not convertible.
          */
         @Nonnull
-        public Optional<SettingApiDTO> fromPlanSetting(@Nonnull final SettingApiDTO planSetting)
+        public Optional<SettingApiDTO<String>> fromPlanSetting(@Nonnull final SettingApiDTO<String> planSetting)
                 throws IllegalArgumentException {
             if (!supportedSettingDefaults.contains(planSetting.getEntityType(),
                     planSetting.getUuid())) {
@@ -348,7 +350,7 @@ public class SettingsManagerMappingLoader {
                         StringUtils.join(uiToXlValueConversion.keySet(), ","));
             }
 
-            final SettingApiDTO newDto = copySettingInfo(planSetting);
+            final SettingApiDTO<String> newDto = copySettingInfo(planSetting);
             newDto.setValue(convertedValue);
             return Optional.of(newDto);
         }
@@ -361,8 +363,8 @@ public class SettingsManagerMappingLoader {
          * @return A new {@link SettingApiDTO}.
          */
         @Nonnull
-        private SettingApiDTO copySettingInfo(@Nonnull final SettingApiDTO input) {
-            final SettingApiDTO newDto = new SettingApiDTO();
+        private SettingApiDTO<String> copySettingInfo(@Nonnull final SettingApiDTO input) {
+            final SettingApiDTO<String> newDto = new SettingApiDTO<>();
             newDto.setUuid(input.getUuid());
             newDto.setEntityType(input.getEntityType());
             newDto.setDisplayName(input.getDisplayName());

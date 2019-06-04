@@ -60,8 +60,8 @@ public class SettingsManagerMappingLoaderTest {
         final SettingsManagerApiDTO planMgr = new SettingsManagerApiDTO();
         planMgr.setUuid("mgr");
 
-        final SettingApiDTO convertableSetting = new SettingApiDTO();
-        final SettingApiDTO nonConvertableSetting = new SettingApiDTO();
+        final SettingApiDTO<String> convertableSetting = new SettingApiDTO<>();
+        final SettingApiDTO<String> nonConvertableSetting = new SettingApiDTO<>();
 
         final PlanSettingInfo planSettingInfo = mock(PlanSettingInfo.class);
         // Suppose the convertable setting just converts to itself
@@ -95,14 +95,14 @@ public class SettingsManagerMappingLoaderTest {
 
     @Test
     public void testConvertToPlanSetting() {
-        final SettingApiDTO convertibleSetting = new SettingApiDTO();
+        final SettingApiDTO<String> convertibleSetting = new SettingApiDTO<>();
         convertibleSetting.setUuid("convertibleSetting");
 
         // The setting that convertibleSetting will be converted to for plan
-        final SettingApiDTO convertedSetting = new SettingApiDTO();
+        final SettingApiDTO<String> convertedSetting = new SettingApiDTO<>();
 
         // This setting has no conversion - it should just pass through.
-        final SettingApiDTO passthroughSetting = new SettingApiDTO();
+        final SettingApiDTO<String> passthroughSetting = new SettingApiDTO<>();
         passthroughSetting.setUuid("passthroughSetting");
 
         final PlanSettingInfo planSettingInfo = mock(PlanSettingInfo.class);
@@ -119,7 +119,7 @@ public class SettingsManagerMappingLoaderTest {
                 ImmutableMap.of("convertibleSetting", "mgr",
                         "passthroughSetting", "mgr"));
 
-        final List<SettingApiDTO> convertedSettings =
+        final List<SettingApiDTO<String>> convertedSettings =
             managerMapping.convertToPlanSetting(Arrays.asList(convertibleSetting, passthroughSetting));
         assertThat(convertedSettings, containsInAnyOrder(convertedSetting, passthroughSetting));
     }
@@ -128,14 +128,14 @@ public class SettingsManagerMappingLoaderTest {
     public void testConvertFromPlanSetting() {
         // This test is similar to convertToPlanSetting - just a different method
         // called on planSettings
-        final SettingApiDTO convertibleSetting = new SettingApiDTO();
+        final SettingApiDTO<String> convertibleSetting = new SettingApiDTO<>();
         convertibleSetting.setUuid("convertibleSetting");
 
         // The setting that convertibleSetting will be converted to for plan
-        final SettingApiDTO convertedSetting = new SettingApiDTO();
+        final SettingApiDTO<String> convertedSetting = new SettingApiDTO<>();
 
         // This setting has no conversion - it should just pass through.
-        final SettingApiDTO passthroughSetting = new SettingApiDTO();
+        final SettingApiDTO<String> passthroughSetting = new SettingApiDTO<>();
         passthroughSetting.setUuid("passthroughSetting");
 
         final PlanSettingInfo planSettingInfo = mock(PlanSettingInfo.class);
@@ -152,7 +152,7 @@ public class SettingsManagerMappingLoaderTest {
                 ImmutableMap.of("convertibleSetting", "mgr",
                         "passthroughSetting", "mgr"));
 
-        final List<SettingApiDTO> convertedSettings =
+        final List<SettingApiDTO<String>> convertedSettings =
                 managerMapping.convertFromPlanSetting(Arrays.asList(convertibleSetting, passthroughSetting));
         assertThat(convertedSettings, containsInAnyOrder(convertedSetting, passthroughSetting));
     }
@@ -162,13 +162,13 @@ public class SettingsManagerMappingLoaderTest {
         final String json = "{ \"uiToXlValueConversion\" : { \"true\" : \"FOO\", \"false\" : \"BAR\" }," +
                 " \"supportedSettingDefaults\" : { \"VirtualMachine\" : { \"setting\" : \"true\" } } }";
         final PlanSettingInfo planSettingInfo = GSON.fromJson(json, PlanSettingInfo.class);
-        final SettingApiDTO realSetting = new SettingApiDTO();
+        final SettingApiDTO<String> realSetting = new SettingApiDTO<>();
         realSetting.setUuid("setting");
         realSetting.setEntityType("VirtualMachine");
         realSetting.setDisplayName("Blah");
         realSetting.setValue("bar");
 
-        final SettingApiDTO planSetting = planSettingInfo.toPlanSetting(realSetting).get();
+        final SettingApiDTO<String> planSetting = planSettingInfo.toPlanSetting(realSetting).get();
         assertThat(planSetting.getUuid(), is(realSetting.getUuid()));
         assertThat(planSetting.getEntityType(), is(realSetting.getEntityType()));
         assertThat(planSetting.getDisplayName(), is(realSetting.getDisplayName()));
@@ -182,13 +182,13 @@ public class SettingsManagerMappingLoaderTest {
                 " \"supportedSettingDefaults\" : { \"VirtualMachine\" : { \"setting\" : \"true\" } } }";
         final PlanSettingInfo planSettingInfo = GSON.fromJson(json, PlanSettingInfo.class);
 
-        final SettingApiDTO planSetting = new SettingApiDTO();
+        final SettingApiDTO<String> planSetting = new SettingApiDTO<>();
         planSetting.setUuid("setting");
         planSetting.setEntityType("VirtualMachine");
         planSetting.setDisplayName("Blah");
         planSetting.setValue("false");
 
-        final SettingApiDTO realSetting = planSettingInfo.fromPlanSetting(planSetting).get();
+        final SettingApiDTO<String> realSetting = planSettingInfo.fromPlanSetting(planSetting).get();
         assertThat(realSetting.getUuid(), is(realSetting.getUuid()));
         assertThat(realSetting.getEntityType(), is(realSetting.getEntityType()));
         assertThat(realSetting.getDisplayName(), is(realSetting.getDisplayName()));

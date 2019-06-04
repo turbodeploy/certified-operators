@@ -429,7 +429,7 @@ public class SettingsMapper {
                         .setSettingSpecName(rateOfResizeSettingName)
                         .setNumericSettingValue(
                             SettingDTOUtil.createNumericSettingValue(
-                                Float.valueOf(settingApiDto.getValue())))
+                                Float.valueOf(SettingsMapper.inputValueToString(settingApiDto).orElse("0"))))
                         .build());
             }
 
@@ -688,7 +688,7 @@ public class SettingsMapper {
         // spec type.
         Set<String> haveSeenSpec = new HashSet<>();
         // configure UI presentation information
-        List<SettingApiDTO> apiDtos = new ArrayList<>();
+        final List<SettingApiDTO<?>> apiDtos = new ArrayList<>();
         for (SettingApiDTO apiDto : mgrApiDto.getSettings()) {
             String specName = apiDto.getUuid();
             if (haveSeenSpec.contains(specName)) {
@@ -991,12 +991,12 @@ public class SettingsMapper {
      * @return The {@link Setting}.
      */
     @Nonnull
-    private static Setting toProtoSetting(@Nonnull final SettingApiDTO apiDto,
+    private static Setting toProtoSetting(@Nonnull final SettingApiDTO<?> apiDto,
                                           @Nonnull final SettingSpec settingSpec) {
         final Setting.Builder settingBuilder = Setting.newBuilder()
                 .setSettingSpecName(apiDto.getUuid());
         PROTO_SETTING_VALUE_INJECTORS.get(settingSpec.getSettingValueTypeCase())
-                .setBuilderValue(apiDto.getValue(), settingBuilder);
+                .setBuilderValue(StringUtils.trimToEmpty(SettingsMapper.inputValueToString(apiDto).orElse("")), settingBuilder);
         return settingBuilder.build();
     }
 
@@ -1009,7 +1009,7 @@ public class SettingsMapper {
      *         settings that could not be mapped will not be present.
      */
     @Nonnull
-    public Map<String, Setting> toProtoSettings(@Nonnull final List<SettingApiDTO> apiDtos) {
+    public Map<String, Setting> toProtoSettings(@Nonnull final List<SettingApiDTO<String>> apiDtos) {
         final Map<String, SettingApiDTO> settingOverrides = apiDtos.stream()
                 .collect(Collectors.toMap(SettingApiDTO::getUuid, Function.identity()));
 
@@ -1092,6 +1092,20 @@ public class SettingsMapper {
         }
     }
 
+    public static Optional<String> inputValueToString(@Nullable SettingApiDTO dto) {
+        if (dto == null) {
+            return Optional.empty();
+        }
+        Object value = dto.getValue();
+        if (value == null) {
+            return Optional.empty();
+        }
+        if (value instanceof String) {
+            return Optional.of((String)value);
+        }
+        return Optional.of(value.toString());
+    }
+
     private static boolean isVmDefaultPolicy(@Nonnull SettingPolicy policy) {
 
         return (policy.getSettingPolicyType().equals(Type.DEFAULT) &&
@@ -1142,14 +1156,14 @@ public class SettingsMapper {
          * {@link SettingSpec} was a global setting.
          */
         @Nullable
-        private final Map<String, SettingApiDTO> settingsByEntityType;
+        private final Map<String, SettingApiDTO<String>> settingsByEntityType;
 
         /**
          * The {@link SettingApiDTO} associated with the global {@link SettingSpec}. This should
          * be null if the provided {@link SettingSpec} was an entity setting.
          */
         @Nullable
-        private final SettingApiDTO globalSetting;
+        private final SettingApiDTO<String> globalSetting;
 
         private SettingApiDTOPossibilities(@Nonnull final Optional<SettingSpec> settingSpec,
                                    @Nonnull final Optional<Setting> settingValue) {
@@ -1169,7 +1183,7 @@ public class SettingsMapper {
          * @return A collection of {@link SettingApiDTO}s. May be empty.
          */
         @Nonnull
-        public Collection<SettingApiDTO> getAll() {
+        public Collection<SettingApiDTO<String>> getAll() {
             if (globalSetting != null) {
                 return Collections.singletonList(globalSetting);
             } else if (settingsByEntityType != null) {
@@ -1187,7 +1201,7 @@ public class SettingsMapper {
          *         the input {@link SettingSpec} did not represent a global setting.
          */
         @Nonnull
-        public Optional<SettingApiDTO> getGlobalSetting() {
+        public Optional<SettingApiDTO<String>> getGlobalSetting() {
             return Optional.ofNullable(globalSetting);
         }
 
@@ -1201,7 +1215,7 @@ public class SettingsMapper {
          *         input {@link SettingSpec} does not apply to the specified entity type.
          */
         @Nonnull
-        public Optional<SettingApiDTO> getSettingForEntityType(@Nonnull final String entityType) {
+        public Optional<SettingApiDTO<String>> getSettingForEntityType(@Nonnull final String entityType) {
             if (settingsByEntityType != null) {
                 return Optional.ofNullable(settingsByEntityType.get(entityType));
             } else if (globalSetting != null) {
@@ -1213,14 +1227,14 @@ public class SettingsMapper {
         }
 
         @Nullable
-        private static SettingApiDTO makeGlobalSetting(
+        private static SettingApiDTO<String> makeGlobalSetting(
                 @Nonnull final SettingSpec settingSpec,
                 @Nonnull final Optional<Setting> settingValue) {
             if (!settingSpec.hasGlobalSettingSpec()) {
                 return null;
             }
 
-            final SettingApiDTO apiDto = new SettingApiDTO();
+            final SettingApiDTO<String> apiDto = new SettingApiDTO<>();
             apiDto.setScope(SettingScope.GLOBAL);
             apiDto.setEntityType(GLOBAL_SETTING_ENTITY_TYPES.get(settingSpec.getName()));
             fillSkeleton(settingSpec, settingValue, apiDto);
@@ -1228,7 +1242,7 @@ public class SettingsMapper {
         }
 
         @Nullable
-        private static Map<String, SettingApiDTO> makeEntitySettings(
+        private static Map<String, SettingApiDTO<String>> makeEntitySettings(
                 @Nonnull final SettingSpec settingSpec,
                 @Nonnull final Optional<Setting> settingValue) {
             if (!settingSpec.hasEntitySettingSpec()) {
@@ -1256,7 +1270,7 @@ public class SettingsMapper {
 
             return applicableTypes.stream()
                     .map(entityType -> {
-                        final SettingApiDTO apiDto = new SettingApiDTO();
+                        final SettingApiDTO<String> apiDto = new SettingApiDTO<>();
                         if (settingSpec.getEntitySettingSpec().getAllowGlobalDefault()) {
                             // We explicitly want the scope unset, because for API purposes LOCAL scope
                             // settings are those that are ONLY applicable to groups. However, entity
@@ -1367,17 +1381,18 @@ public class SettingsMapper {
         if (setDefault) {
             valueToSet = disableAllActionsSetting.getBooleanSettingValueType().getDefault();
         } else {
-            Optional<SettingApiDTO> disableAllActionsApiDTO =  settingPolicy.getSettingsManagers().stream()
-                .flatMap(manager -> manager.getSettings().stream())
-                .filter(setting -> setting.getUuid().equals(disableAllActionsSetting.getName()))
-                .findFirst();
-            if (disableAllActionsApiDTO.isPresent()) {
-                valueToSet = Boolean.valueOf(disableAllActionsApiDTO.get().getValue());
-            } else {
-                String errorMsg = disableAllActionsSetting.getName() +
-                    " : not found in Global Settings.";
-                throw new OperationFailedException(errorMsg);
-             }
+            valueToSet = settingPolicy.getSettingsManagers().stream()
+                    .flatMap(manager -> manager.getSettings().stream())
+                    .filter(setting -> setting.getUuid().equals(disableAllActionsSetting.getName()))
+                    .map(SettingsMapper::inputValueToString)
+                    .filter(Optional::isPresent).map(Optional::get)
+                    .map(Boolean::valueOf)
+                    .findFirst()
+                    .orElseThrow(() -> {
+                        String errorMsg = disableAllActionsSetting.getName() +
+                                " : not found in Global Settings.";
+                        return new OperationFailedException(errorMsg);
+                    });
         }
 
         settingService.updateGlobalSetting(

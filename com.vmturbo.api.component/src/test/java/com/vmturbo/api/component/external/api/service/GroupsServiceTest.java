@@ -56,7 +56,7 @@ import com.vmturbo.api.component.external.api.util.action.SearchUtil;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
-import com.vmturbo.api.dto.setting.SettingApiInputDTO;
+import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -391,7 +391,7 @@ public class GroupsServiceTest {
         String groupUuid = "1234";
         String templateId = "3333";
 
-        SettingApiInputDTO setting = new SettingApiInputDTO();
+        SettingApiDTO<String> setting = new SettingApiDTO<>();
         setting.setValue(templateId);
 
         Template template = Template.newBuilder()

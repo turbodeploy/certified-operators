@@ -185,7 +185,7 @@ public class SettingsMapperTest {
         assertEquals("Automation", mgr.getCategory());
         assertEquals(1, mgr.getSettings().size());
 
-        final SettingApiDTO settingApiDTO = mgr.getSettings().get(0);
+        final SettingApiDTO<?> settingApiDTO = mgr.getSettings().get(0);
         assertEquals("move", settingApiDTO.getUuid());
         assertEquals("Move", settingApiDTO.getDisplayName());
         assertEquals("Manual", settingApiDTO.getDefaultValue());
@@ -216,7 +216,7 @@ public class SettingsMapperTest {
                     Collections.singleton(settingSpec1.getName()), mock(PlanSettingInfo.class))));
         when(mapping.getManagerUuid(settingSpec1.getName())).thenReturn(Optional.of(mgrId1));
 
-        final SettingApiDTO settingApiDTO = new SettingApiDTO();
+        final SettingApiDTO<String> settingApiDTO = new SettingApiDTO<>();
         settingApiDTO.setDisplayName("mockSetting");
         final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
         when(possibilities.getAll()).thenReturn(Collections.singletonList(settingApiDTO));
@@ -279,12 +279,12 @@ public class SettingsMapperTest {
         final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
         final SettingPolicyMapper policyMapper = mock(SettingPolicyMapper.class);
 
-        final SettingApiDTO settingApiDTO1 = new SettingApiDTO();
+        final SettingApiDTO<String> settingApiDTO1 = new SettingApiDTO<>();
         settingApiDTO1.setDisplayName("mockSetting1");
         final SettingApiDTOPossibilities possibilities1 = mock(SettingApiDTOPossibilities.class);
         when(possibilities1.getAll()).thenReturn(Collections.singletonList(settingApiDTO1));
 
-        final SettingApiDTO settingApiDTO2 = new SettingApiDTO();
+        final SettingApiDTO<String> settingApiDTO2 = new SettingApiDTO<>();
         settingApiDTO2.setDisplayName("mockSetting2");
         final SettingApiDTOPossibilities possibilities2 = mock(SettingApiDTOPossibilities.class);
         when(possibilities2.getAll()).thenReturn(Collections.singletonList(settingApiDTO2));
@@ -474,16 +474,16 @@ public class SettingsMapperTest {
     }
 
     private SettingApiDTO makeSetting(String uuid, String value) {
-        final SettingApiDTO setting = new SettingApiDTO();
+        final SettingApiDTO<String> setting = new SettingApiDTO<>();
         setting.setUuid(uuid);
         setting.setValue(value);
         return setting;
     }
 
-    private SettingsPolicyApiDTO makeSettingsPolicyApiDto(SettingApiDTO boolSetting,
-                                                          SettingApiDTO numSetting,
-                                                          SettingApiDTO stringSetting,
-                                                          SettingApiDTO enumSetting) {
+    private SettingsPolicyApiDTO makeSettingsPolicyApiDto(SettingApiDTO<?> boolSetting,
+                                                          SettingApiDTO<?> numSetting,
+                                                          SettingApiDTO<?> stringSetting,
+                                                          SettingApiDTO<?> enumSetting) {
         final SettingsPolicyApiDTO settingsPolicyApiDTO = new SettingsPolicyApiDTO();
 
         when(settingBackend.searchSettingSpecs(any())).thenReturn(ImmutableList.of(
@@ -814,7 +814,7 @@ public class SettingsMapperTest {
 
         final SettingsPolicyApiDTO inputDto = new SettingsPolicyApiDTO();
         final SettingsManagerApiDTO mgrDto = new SettingsManagerApiDTO();
-        final SettingApiDTO setting = new SettingApiDTO();
+        final SettingApiDTO<?> setting = new SettingApiDTO<>();
         setting.setUuid("testSetting");
         mgrDto.setSettings(Collections.singletonList(setting));
         inputDto.setSettingsManagers(Collections.singletonList(mgrDto));
@@ -862,7 +862,7 @@ public class SettingsMapperTest {
                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                         .setValue("AUTOMATIC"))
                 .build();
-        final SettingApiDTO mappedDto = new SettingApiDTO();
+        final SettingApiDTO<String> mappedDto = new SettingApiDTO<>();
         final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
         when(possibilities.getSettingForEntityType("VirtualMachine")).thenReturn(Optional.of(mappedDto));
         when(mapper.toSettingApiDto(setting)).thenReturn(possibilities);
@@ -1131,7 +1131,7 @@ public class SettingsMapperTest {
                         .setBooleanSettingValue(BooleanSettingValue.newBuilder()
                                 .setValue(true))
                         .build();
-        final SettingApiDTO mappedDto = new SettingApiDTO();
+        final SettingApiDTO<String> mappedDto = new SettingApiDTO<>();
         final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
         when(possibilities.getSettingForEntityType(entityType)).thenReturn(Optional.of(mappedDto));
         when(mapper.toSettingApiDto(setting)).thenReturn(possibilities);
@@ -1339,11 +1339,11 @@ public class SettingsMapperTest {
     }
 
     @Test
-    public void testCreateToProtoSettings() throws Exception {
+    public void testCreateToProtoSettings() {
         final SettingsMapper mapper =
                 new SettingsMapper(settingMgrMapping, settingStyleMapping, settingSpecMapper,
                     policyMapper, grpcServer.getChannel());
-        final SettingApiDTO setting = new SettingApiDTO();
+        final SettingApiDTO<String> setting = new SettingApiDTO<>();
         setting.setUuid("foo");
         setting.setValue("value");
 
