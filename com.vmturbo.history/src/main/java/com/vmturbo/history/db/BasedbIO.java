@@ -345,6 +345,50 @@ public abstract class BasedbIO {
         return sharedInstance;
     }
 
+    /**
+     * All dbIO instances share an underlying static singleton connection pool to the database.
+     *
+     * Set the internal connection pool timeout to the given value.
+     *
+     * @param timeoutSeconds The timeout to set on the internal connection pool in seconds.
+     *
+     * @throws IllegalStateException if called when the connection pool is not initialized
+     */
+    protected synchronized static void setInternalConnectionPoolTimeoutSeconds(final int timeoutSeconds) {
+        if (DBConnectionPool.instance == null) {
+            throw new IllegalStateException("DBConnectionPool not initialized");
+        }
+
+        DBConnectionPool.instance.getInternalPool().setRemoveAbandonedTimeout(timeoutSeconds);
+    }
+
+
+    /**
+     * All dbIO instances share an underlying static singleton connection pool to the database.
+     *
+     * Set the internal connection pool timeout to the given value.
+     *
+     * @return The query timeout for the internal connection pool. See
+     *         https://tomcat.apache.org/tomcat-7.0-doc/api/org/apache/tomcat/jdbc/pool/PoolConfiguration.html#getRemoveAbandonedTimeout()
+     *         for more details.
+     * @throws IllegalStateException if called when the connection pool is not initialized
+     */
+    static int getInternalConnectionPoolTimeoutSeconds() throws IllegalStateException {
+        if (DBConnectionPool.instance == null) {
+            throw new IllegalStateException("DBConnectionPool not initialized");
+        }
+
+        return DBConnectionPool.instance.getInternalPool().getRemoveAbandonedTimeout();
+    }
+
+    /**
+     * Check whether the internal connection pool has been initialized.
+     *
+     * @return whether the internal connection pool has been initialized.
+     */
+    static boolean isInternalConnectionPoolInitialized() {
+        return DBConnectionPool.instance != null;
+    }
 
     /** Cached JOOQ query builder instance. */
     private DSLContext builder = null;
@@ -1490,7 +1534,6 @@ public abstract class BasedbIO {
         if (DBConnectionPool.instance != null)
             DBConnectionPool.instance.shutdown();
     }
-
 
     // Accessors for connection parameters
     public abstract String getUserName();

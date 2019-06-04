@@ -249,10 +249,23 @@ public class HistorydbIO extends BasedbIO {
 
     @Override
     public int getQueryTimeoutSeconds() {
-        return queryTimeout_sec;
+        // Get the query timeout from the internal connection pool if it has been initialized.
+        // If not, return the value used to initialize the internal connection pool.
+        if (isInternalConnectionPoolInitialized()) {
+            return getInternalConnectionPoolTimeoutSeconds();
+        } else {
+            return queryTimeout_sec;
+        }
     }
 
     public void setQueryTimeoutSeconds(int newTimeoutSec) {
+        // The query timeout must be set on the internal connection pool to have any effect.
+        // If it has been created, set it there, otherwise set it on the internal state used
+        // to initialize the internal connection pool query timeout.
+        if (isInternalConnectionPoolInitialized()) {
+            setInternalConnectionPoolTimeoutSeconds(newTimeoutSec);
+        }
+
         queryTimeout_sec = newTimeoutSec;
     }
 

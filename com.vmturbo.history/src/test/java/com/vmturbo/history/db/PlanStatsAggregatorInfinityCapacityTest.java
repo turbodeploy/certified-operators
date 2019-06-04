@@ -3,6 +3,8 @@ package com.vmturbo.history.db;
 import java.util.Collection;
 import java.util.Collections;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -30,6 +32,8 @@ import com.vmturbo.history.stats.PlanStatsAggregator;
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 public class PlanStatsAggregatorInfinityCapacityTest {
 
+    private static final Logger logger = LogManager.getLogger();
+
     private static final long SNAPSHOT_TIME = 12345L;
     private static final long TOPOLOGY_CONTEXT_ID = 111;
     private static final long TOPOLOGY_ID = 222;
@@ -50,7 +54,7 @@ public class PlanStatsAggregatorInfinityCapacityTest {
         testDbName = dbTestConfig.testDbName();
         historydbIO = dbTestConfig.historydbIO();
         HistorydbIO.mappedSchemaForTests = testDbName;
-        System.out.println("Initializing DB - " + testDbName);
+        logger.info("Initializing DB - {}", testDbName);
         HistorydbIO.setSharedInstance(historydbIO);
         historydbIO.init(true, null, testDbName);
 
@@ -63,9 +67,9 @@ public class PlanStatsAggregatorInfinityCapacityTest {
         DBConnectionPool.instance.getInternalPool().close();
         try {
             SchemaUtil.dropDb(testDbName);
-            System.out.println("Dropped DB - " + testDbName);
+            logger.info("Dropped DB - {}", testDbName);
         } catch (VmtDbException e) {
-            System.out.println("Problem dropping db: " + testDbName);
+            logger.error("Problem dropping db: " + testDbName, e);
         }
     }
 
