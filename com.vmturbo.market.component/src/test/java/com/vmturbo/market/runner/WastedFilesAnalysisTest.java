@@ -156,6 +156,7 @@ public class WastedFilesAnalysisTest {
         analysis.getActions().forEach(action -> {
             ActionEntity target = action.getInfo().getDelete().getTarget();
             assertEquals(EntityType.STORAGE_VALUE, target.getType());
+            assertEquals(EnvironmentType.ON_PREM, target.getEnvironmentType());
             assertEquals(2l, target.getId());
         });
     }

@@ -169,22 +169,25 @@ public class WastedFilesAnalysis {
      * @param storageOid the id of the Storage or StorageTier hosting the file
      * @param entityType {@link EntityType} - either Storage (on prem) or StorageTier (cloud)
      * @param filePath The file path (on prem) or volume to be deleted
+     * @param environmentType {@link EnvironmentType} of target
      * @return {@link Action.Builder} with the common fields for the delete action populated
      */
     private Action.Builder newActionFromVolume(final long storageOid,
                                                final EntityType entityType,
-                                               final String filePath) {
+                                               final String filePath,
+                                               final EnvironmentType environmentType) {
         final Action.Builder action = Action.newBuilder()
-            // Assign a unique ID to each generated action.
-            .setId(IdentityGenerator.next())
-            .setImportance(0.0D)
-            .setExecutable(false)
-            .setInfo(ActionInfo.newBuilder().setDelete(Delete.newBuilder()
-                .setTarget(ActionEntity.newBuilder()
-                    .setId(storageOid)
-                    .setType(entityType.getNumber()))
-                .setFilePath(filePath)
-            ));
+                // Assign a unique ID to each generated action.
+                .setId(IdentityGenerator.next())
+                .setImportance(0.0D)
+                .setExecutable(false)
+                .setInfo(ActionInfo.newBuilder().setDelete(Delete.newBuilder()
+                        .setTarget(ActionEntity.newBuilder()
+                                .setId(storageOid)
+                                .setType(entityType.getNumber())
+                                .setEnvironmentType(environmentType))
+                        .setFilePath(filePath)
+                ));
         Metrics.WASTED_FILES_ACTION_COUNTER.increment();
         return action;
     }
@@ -194,14 +197,16 @@ public class WastedFilesAnalysis {
      *
      * @param storageOid the ID of the Storage hosting the file
      * @param fileDescr {@link VirtualVolumeFileDescriptor} representing the file
+     * @param environmentType {@link EnvironmentType} of Target
      * @return {@link Action.Builder} representing a delete action for the file
      */
     private Action.Builder newActionFromFile(final long storageOid,
-                                             final VirtualVolumeFileDescriptor fileDescr) {
+                                             final VirtualVolumeFileDescriptor fileDescr,
+                                             final EnvironmentType environmentType) {
         Action.Builder action = newActionFromVolume(storageOid, EntityType.STORAGE,
-            fileDescr.getPath());
+                fileDescr.getPath(), environmentType);
         action.setExplanation(Explanation.newBuilder()
-            .setDelete(getOnPremWastedFilesDeleteExplanation(fileDescr.getSizeKb())));
+                .setDelete(getOnPremWastedFilesDeleteExplanation(fileDescr.getSizeKb())));
         return action;
     }
 
@@ -218,32 +223,33 @@ public class WastedFilesAnalysis {
         if (volume.getEnvironmentType() != EnvironmentType.ON_PREM) {
             // handle cloud case
             storageOid = TopologyDTOUtil.getOidsOfConnectedEntityOfType(volume,
-                EntityType.STORAGE_TIER.getNumber()).findFirst();
+                    EntityType.STORAGE_TIER.getNumber()).findFirst();
             if (!storageOid.isPresent()) {
                 return Collections.emptyList();
             }
             // TODO need to calculate savings for cloud volumes
             double costSavings = 0.0d;
             return Collections.singletonList(newActionFromVolume(storageOid.get(),
-                EntityType.STORAGE_TIER, volume.getDisplayName())
-                .setExplanation(Explanation.newBuilder().setDelete(
-                    DeleteExplanation.newBuilder().build()))
-                .setSavingsPerHour(CurrencyAmount.newBuilder()
-                    .setAmount(costSavings)
-                    .build())
-                .build());
+                    EntityType.STORAGE_TIER, volume.getDisplayName(), volume.getEnvironmentType())
+                    .setExplanation(Explanation.newBuilder().setDelete(
+                            DeleteExplanation.newBuilder().build()))
+                    .setSavingsPerHour(CurrencyAmount.newBuilder()
+                            .setAmount(costSavings)
+                            .build())
+                    .build());
         } else {
             // handle ON_PREM
             storageOid = TopologyDTOUtil.getOidsOfConnectedEntityOfType(volume,
-                EntityType.STORAGE.getNumber()).findFirst();
+                    EntityType.STORAGE.getNumber()).findFirst();
             if (!storageOid.isPresent()) {
                 return Collections.EMPTY_LIST;
             }
             // TODO add a setting to control the minimum file size.  For now, use 1MB
             return volume.getTypeSpecificInfo().getVirtualVolume().getFilesList().stream()
-                .filter(vvfd -> vvfd.getSizeKb() > Units.KBYTE)
-                .map(vvfd -> newActionFromFile(storageOid.get(), vvfd).build())
-                .collect(Collectors.toList());
+                    .filter(vvfd -> vvfd.getSizeKb() > Units.KBYTE)
+                    .map(vvfd -> newActionFromFile(storageOid.get(), vvfd,
+                            volume.getEnvironmentType()).build())
+                    .collect(Collectors.toList());
         }
     }
 
