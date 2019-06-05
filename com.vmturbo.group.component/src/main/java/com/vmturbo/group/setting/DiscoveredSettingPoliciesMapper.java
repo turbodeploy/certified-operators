@@ -56,8 +56,10 @@ public class DiscoveredSettingPoliciesMapper {
             final Long oid = groupNamesToOids.get(GroupProtoUtil.createGroupCompoundKey(groupName,
                     EntityType.forNumber(info.getEntityType()), targetId));
             if (oid == null) {
-                logger.warn("Invalid setting policy {}. Invalid groupName {}. Valid group names are: {}",
-                        info, groupName, groupNamesToOids.keySet());
+                logger.warn("Invalid setting policy {}. Invalid groupName {}.", info, groupName);
+                // Valid group names could be large, they are 300+ in BoA environment. Stop printing them
+                // out by default
+                logger.debug("Valid group names are: {}", groupNamesToOids.keySet());
                 return Optional.empty();
             }
             groupOids.add(oid);

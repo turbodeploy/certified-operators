@@ -4,13 +4,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
@@ -32,8 +32,6 @@ import com.google.common.collect.Sets;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingToPolicyName;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest.SettingPolicyIdentifierCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
@@ -358,6 +356,10 @@ public class EntitySettingStore {
         private static final Logger LOGGER = LogManager.getLogger();
 
         private final Map<Long, EntitySettings> settingsByEntity;
+        // Flyweight map to avoid creating new default setting to PolicyId every time.
+        // the map is: Default setting policy id -> (Default setting policy setting -> Default setting to PolicyId)
+        private static final Map<Long, Map<Setting, SettingToPolicyId>> defaultSettingPolicyIdCacheMap
+            = new ConcurrentHashMap<>();
 
         private final Map<Long, SettingPolicy> defaultPolicies;
 
@@ -426,23 +428,39 @@ public class EntitySettingStore {
             // Fill in default settings, if any.
             if (userSettings.hasDefaultSettingPolicyId()) {
                 final SettingPolicy defaultSettingPolicy =
-                        defaultPolicies.get(userSettings.getDefaultSettingPolicyId());
+                    defaultPolicies.get(userSettings.getDefaultSettingPolicyId());
                 if (defaultSettingPolicy != null) {
                     defaultSettingPolicy.getInfo().getSettingsList().stream()
                         .filter(setting -> !specsPresent.contains(setting.getSettingSpecName()))
-                        .forEach(setting -> settings.add(SettingToPolicyId.newBuilder()
-                                .setSetting(setting)
-                                .setSettingPolicyId(defaultSettingPolicy.getId())
-                                .build()));
+                        .forEach(setting -> settings.add(acquireSettingToPolicyId(defaultSettingPolicy, setting)));
                 } else {
                     // This shouldn't happen, because we checked that the default setting policy
                     // exists when constructing the snapshot.
                     LOGGER.error("Default setting policy {} somehow missing from snapshot.",
-                            userSettings.getDefaultSettingPolicyId());
+                        userSettings.getDefaultSettingPolicyId());
                 }
             }
 
             return settings;
+        }
+
+        // Build flyweight map to avoid creating new default setting to PolicyId every time.
+        // The map is: Default setting policy id -> (Default setting policy setting -> Default setting to PolicyId)
+        private SettingToPolicyId acquireSettingToPolicyId(@Nonnull final SettingPolicy defaultSettingPolicy,
+                                                           @Nonnull final Setting setting) {
+            return defaultSettingPolicyIdCacheMap.computeIfAbsent(defaultSettingPolicy.getId(), newSettingToPolicyId -> {
+                final Map<Setting, SettingToPolicyId> settingToPolicyIdConcurrentHashMap = new ConcurrentHashMap<>();
+                settingToPolicyIdConcurrentHashMap.put(setting, buildSettingToPolicyId(defaultSettingPolicy, setting));
+                return settingToPolicyIdConcurrentHashMap;
+            }).computeIfAbsent(setting, newSetting -> buildSettingToPolicyId(defaultSettingPolicy, setting));
+        }
+
+        private SettingToPolicyId buildSettingToPolicyId(@Nonnull final SettingPolicy defaultSettingPolicy,
+                                                         @Nonnull final Setting setting) {
+            return SettingToPolicyId.newBuilder()
+                .setSetting(setting)
+                .setSettingPolicyId(defaultSettingPolicy.getId())
+                .build();
         }
 
         /**
