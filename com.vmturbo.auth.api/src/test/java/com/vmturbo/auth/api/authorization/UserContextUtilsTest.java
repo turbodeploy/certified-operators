@@ -39,10 +39,11 @@ public class UserContextUtilsTest {
         // clear the security context
         SecurityContextHolder.getContext().setAuthentication(null);
         // set a test grpc context
-        Context testContext = Context.current().withValue(SecurityConstant.USER_ID_CTX_KEY, "1")
+        Context testContext = Context.current().withValue(SecurityConstant.USER_ID_CTX_KEY, "USER")
+                    .withValue(SecurityConstant.USER_UUID_KEY, "1")
                     .withValue(SecurityConstant.USER_ROLES_KEY, ImmutableList.of("ADMIN", "TEST"));
         Context previous = testContext.attach();
-        // verify the user id matched
+        // verify the user id and user name matched
         Optional<String> userId = UserContextUtils.getCurrentUserId();
         Assert.assertTrue(userId.isPresent());
         Assert.assertEquals("1", userId.get());

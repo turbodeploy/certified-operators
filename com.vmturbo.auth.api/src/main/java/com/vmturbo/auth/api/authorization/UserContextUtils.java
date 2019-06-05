@@ -24,8 +24,7 @@ public class UserContextUtils {
             return Optional.of(optionalSecurityContextUser.get().getUuid());
         }
         // otherwise, check the grpc call context.
-        String grpcUserId = SecurityConstant.USER_ID_CTX_KEY.get();
-        return grpcUserId == null ? Optional.empty() : Optional.of(grpcUserId);
+        return Optional.ofNullable(SecurityConstant.USER_UUID_KEY.get());
     }
 
     /**
