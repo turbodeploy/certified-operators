@@ -40,12 +40,12 @@ public class TestUtils {
             return DiscoveryResponse.parseFrom(fis);
         } catch (InvalidProtocolBufferException e) {
             // failed to parse as binary; fall through to text parsing
-        	logger.warn("InvalidProtocolBufferException parse as binary: msg=" +e.getMessage(),  e);
-      	} catch (IOException p) {
-        	logger.warn("IOException parse as binary: msg=" +p.getMessage(),  p);
+            logger.warn("InvalidProtocolBufferException parse as binary: msg=" + e.getMessage(), e);
+        } catch (IOException p) {
+            logger.warn("IOException parse as binary: msg=" + p.getMessage(), p);
             return DiscoveryResponse.newBuilder().build();
         } catch (Exception e) {
-        	logger.warn("Exception parse as binary: msg=" +e.getMessage(),  e);
+            logger.warn("Exception parse as binary: msg=" + e.getMessage(), e);
         }
 
         // try to parse as text
@@ -55,7 +55,7 @@ public class TestUtils {
             TextFormat.getParser().merge(drText, builder);
             return builder.build();
         } catch (IOException p) {
-        	logger.warn("IOException parse as text: msg=" +p.getMessage(),  p);
+            logger.warn("IOException parse as text: msg=" + p.getMessage(), p);
             return DiscoveryResponse.newBuilder().build();
         }
     }
