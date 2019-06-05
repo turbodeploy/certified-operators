@@ -19,16 +19,14 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.TextFormat;
-
 import com.vmturbo.mediation.cloud.CloudDiscoveryConverter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 
 public class TestUtils {
-	
-    private static final Logger logger = LogManager.getLogger();
 
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * Parses a file and constructs a discovery response object.
@@ -38,7 +36,6 @@ public class TestUtils {
      */
     public static DiscoveryResponse readResponseFromFile(@Nonnull String filePath) {
         // try to parse as binary
-    	int i;
         try (final InputStream fis = getInputStream(filePath)) {
             return DiscoveryResponse.parseFrom(fis);
         } catch (InvalidProtocolBufferException e) {

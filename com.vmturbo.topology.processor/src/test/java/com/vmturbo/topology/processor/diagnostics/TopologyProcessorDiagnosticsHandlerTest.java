@@ -1,9 +1,6 @@
 package com.vmturbo.topology.processor.diagnostics;
 
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
@@ -38,6 +35,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -49,7 +48,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
-
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
@@ -484,57 +482,49 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
     @Test
     public void testRestore() throws Exception {
-    	TargetStore simpleTargetStore =
-    			new KVBackedTargetStore(
-    					new MapKeyValueStore(),
-    					probeStore,
-    					new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore)));
-    	TopologyProcessorDiagnosticsHandler handler =
-    			new TopologyProcessorDiagnosticsHandler(simpleTargetStore, targetPersistentIdentityStore, scheduler,
-    					entityStore, probeStore, groupUploader, templateDeploymentProfileUploader,
-    					identityProvider, new DiagnosticsWriter());
-    	when(probeStore.getProbe(71664194068896L)).thenReturn(Optional.of(Probes.defaultProbe));
-    	when(probeStore.getProbe(71564745273056L)).thenReturn(Optional.of(Probes.defaultProbe));
-    	handler.restore(new FileInputStream(new File(fullPath("diags/compressed/diags0.zip"))));
-    	List<Target> targets = simpleTargetStore.getAll();
-    	assertTrue(!targets.isEmpty());
-    	for (Target target : simpleTargetStore.getAll()) {
-    		verify(scheduler, times(1))
-    		.setDiscoverySchedule(target.getId(), 600000, TimeUnit.MILLISECONDS);
-    		verify(entityStore).entitiesRestored(
-    				eq(target.getId()), anyLong(), anyMapOf(Long.class, EntityDTO.class));
+        TargetStore simpleTargetStore = new KVBackedTargetStore(new MapKeyValueStore(), probeStore,
+                new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore)));
+        TopologyProcessorDiagnosticsHandler handler = new TopologyProcessorDiagnosticsHandler(simpleTargetStore,
+                targetPersistentIdentityStore, scheduler, entityStore, probeStore, groupUploader,
+                templateDeploymentProfileUploader, identityProvider, new DiagnosticsWriter());
+        when(probeStore.getProbe(71664194068896L)).thenReturn(Optional.of(Probes.defaultProbe));
+        when(probeStore.getProbe(71564745273056L)).thenReturn(Optional.of(Probes.defaultProbe));
+        handler.restore(new FileInputStream(new File(fullPath("diags/compressed/diags0.zip"))));
+        List<Target> targets = simpleTargetStore.getAll();
+        assertTrue(!targets.isEmpty());
+        for (Target target : simpleTargetStore.getAll()) {
+            verify(scheduler, times(1)).setDiscoverySchedule(target.getId(), 600000, TimeUnit.MILLISECONDS);
+            verify(entityStore).entitiesRestored(eq(target.getId()), anyLong(), anyMapOf(Long.class, EntityDTO.class));
 
-    		ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
+            ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
 
-    		verify(groupUploader).setTargetDiscoveredGroups(eq(target.getId()), captor.capture());
-    		List<GroupDTO> groupResult = captor.<List<GroupDTO>>getValue();
-    		assertEquals(3, groupResult.size());
-    		assertTrue(groupResult.stream().allMatch(GroupDTO::hasMemberList));
+            verify(groupUploader).setTargetDiscoveredGroups(eq(target.getId()), captor.capture());
+            List<GroupDTO> groupResult = captor.<List<GroupDTO>>getValue();
+            assertEquals(3, groupResult.size());
+            assertTrue(groupResult.stream().allMatch(GroupDTO::hasMemberList));
 
-    		verify(groupUploader)
-    		.setTargetDiscoveredSettingPolicies(eq(target.getId()), captor.capture());
-    		List<DiscoveredSettingPolicyInfo> settingResult =
-    				captor.<List<DiscoveredSettingPolicyInfo>>getValue();
-    		assertEquals(2, settingResult.size());
-    		assertTrue(settingResult.stream().allMatch(setting -> setting.getEntityType() == 14));
+            verify(groupUploader).setTargetDiscoveredSettingPolicies(eq(target.getId()), captor.capture());
+            List<DiscoveredSettingPolicyInfo> settingResult = captor.<List<DiscoveredSettingPolicyInfo>>getValue();
+            assertEquals(2, settingResult.size());
+            assertTrue(settingResult.stream().allMatch(setting -> setting.getEntityType() == 14));
 
-    		ArgumentCaptor<Map> mapCaptor = ArgumentCaptor.forClass(Map.class);
-    		verify(templateDeploymentProfileUploader)
-    		.setTargetsTemplateDeploymentProfileInfos(eq(target.getId()), mapCaptor.capture());
-    		Map<DeploymentProfileInfo, Set<EntityProfileDTO>> profileResult =
-    				mapCaptor.<Map<DeploymentProfileInfo, Set<EntityProfileDTO>>>getValue();
-    		assertEquals(2, profileResult.size());
-    		assertTrue(profileResult.values().stream().allMatch(set -> set.size() == 1));
+            ArgumentCaptor<Map> mapCaptor = ArgumentCaptor.forClass(Map.class);
+            verify(templateDeploymentProfileUploader).setTargetsTemplateDeploymentProfileInfos(eq(target.getId()),
+                    mapCaptor.capture());
+            Map<DeploymentProfileInfo, Set<EntityProfileDTO>> profileResult = mapCaptor
+                    .<Map<DeploymentProfileInfo, Set<EntityProfileDTO>>>getValue();
+            assertEquals(2, profileResult.size());
+            assertTrue(profileResult.values().stream().allMatch(set -> set.size() == 1));
 
-    	}
-    	verify(identityProvider).restoreDiags(any());
+        }
+        verify(identityProvider).restoreDiags(any());
 
-    	ArgumentCaptor<Map> mapCaptor = ArgumentCaptor.forClass(Map.class);
-    	verify(probeStore).overwriteProbeInfo(mapCaptor.capture());
-    	Map<Long, ProbeInfo> probeResult = mapCaptor.<Map<Long, ProbeInfo>>getValue();
-    	assertEquals(2, probeResult.size());
-    	assertTrue(probeResult.values().stream().allMatch(probeInfo ->
-    	probeInfo.getSupplyChainDefinitionSet(0).getTemplateClass() == EntityType.APPLICATION));
+        ArgumentCaptor<Map> mapCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(probeStore).overwriteProbeInfo(mapCaptor.capture());
+        Map<Long, ProbeInfo> probeResult = mapCaptor.<Map<Long, ProbeInfo>>getValue();
+        assertEquals(2, probeResult.size());
+        assertTrue(probeResult.values().stream().allMatch(
+                probeInfo -> probeInfo.getSupplyChainDefinitionSet(0).getTemplateClass() == EntityType.APPLICATION));
     }
 
     /**
