@@ -14,6 +14,8 @@ import java.util.zip.ZipInputStream;
 import javax.annotation.Nonnull;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.TextFormat;
@@ -24,6 +26,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 
 public class TestUtils {
+	
+    private static final Logger logger = LogManager.getLogger();
+
 
     /**
      * Parses a file and constructs a discovery response object.
@@ -33,12 +38,17 @@ public class TestUtils {
      */
     public static DiscoveryResponse readResponseFromFile(@Nonnull String filePath) {
         // try to parse as binary
+    	int i;
         try (final InputStream fis = getInputStream(filePath)) {
             return DiscoveryResponse.parseFrom(fis);
         } catch (InvalidProtocolBufferException e) {
             // failed to parse as binary; fall through to text parsing
-        } catch (IOException p) {
+        	logger.warn("InvalidProtocolBufferException parse as binary: msg=" +e.getMessage(),  e);
+      	} catch (IOException p) {
+        	logger.warn("IOException parse as binary: msg=" +p.getMessage(),  p);
             return DiscoveryResponse.newBuilder().build();
+        } catch (Exception e) {
+        	logger.warn("Exception parse as binary: msg=" +e.getMessage(),  e);
         }
 
         // try to parse as text
@@ -48,6 +58,7 @@ public class TestUtils {
             TextFormat.getParser().merge(drText, builder);
             return builder.build();
         } catch (IOException p) {
+        	logger.warn("IOException parse as text: msg=" +p.getMessage(),  p);
             return DiscoveryResponse.newBuilder().build();
         }
     }
