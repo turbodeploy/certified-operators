@@ -34,7 +34,10 @@ public enum CloudService {
     AZURE_DATA_SERVICES("azure::CS::DataServices", "Azure DataServices", SDKProbeType.AZURE),
     AZURE_NETWORKING("azure::CS::Networking", "Azure Networking", SDKProbeType.AZURE),
     AZURE_DATA_MANAGEMENT("azure::CS::DataManagement", "Azure DataManagement", SDKProbeType.AZURE),
-    AZURE_IDENTITY("azure::CS::Identity", "Azure Identity", SDKProbeType.AZURE);
+    AZURE_IDENTITY("azure::CS::Identity", "Azure Identity", SDKProbeType.AZURE),
+
+    GCP_STORAGE("gcp::CS::Storage", "Storage", SDKProbeType.GCP),
+    GCP_VIRTUAL_MACHINES("gcp::CS::VirtualMachines", "GCP VirtualMachines", SDKProbeType.GCP);
 
     private final String id;
     private final String displayName;
