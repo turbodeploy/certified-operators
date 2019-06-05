@@ -21,9 +21,7 @@ import com.vmturbo.components.test.utilities.component.ComponentUtils;
  * framework. After all tests have run, brings the server down.
  **/
 @RunWith(Suite.class)
-@Suite.SuiteClasses({
-        PlanOverPlanSysTest.class
-})
+@Suite.SuiteClasses({ })
 
 
 public class SystemTestSuite {
