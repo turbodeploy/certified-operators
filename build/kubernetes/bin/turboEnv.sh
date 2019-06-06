@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 
 # turboEnv.sh
 # Set up the kubernetes namespace, network policies and registry to use.

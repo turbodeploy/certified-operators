@@ -11,6 +11,15 @@ singleNodeIp=$(ip address show eth0 | egrep inet | egrep -v inet6 | awk '{print 
 sed -i "s/10.0.2.15/${singleNodeIp}/g" /opt/local/etc/turbo.conf
 sed -i "s/10.0.2.15/${singleNodeIp}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
 
+if [[ ! -f /etc/resolv.conf || ! -s /etc/resolv.conf ]]
+then
+  echo ""
+  echo "exiting......"
+  echo "Please check there are valid nameservers in the /etc/resolv.conf"
+  echo ""
+  exit 0
+fi
+
 # Get the parameters used for kubernetes, gluster, turbo setup
 source /opt/local/etc/turbo.conf
 
