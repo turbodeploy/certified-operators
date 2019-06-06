@@ -162,34 +162,28 @@ public class LiveStatsReader {
                                      @Nonnull final StatsFilter statsFilter,
                                      @Nonnull final EntityStatsPaginationParams paginationParams) throws VmtDbException {
 
-        final Optional<TimeRange> timeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter,
-            Optional.empty(), Optional.empty(), Optional.of(paginationParams));
-        if (!timeRangeOpt.isPresent()) {
+        // resolve the time range for pagination param
+        final Optional<TimeRange> paginationTimeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter,
+                Optional.empty(), Optional.empty(), Optional.of(paginationParams));
+        if (!paginationTimeRangeOpt.isPresent()) {
             // no data persisted yet; just return an empty answer
-            logger.warn("Stats filter with start {} and end {} does not resolve to any timestamps." +
-                    " There may not be any data.", statsFilter.getStartDate(), statsFilter.getEndDate());
+            logger.warn("Stats filter with start {} and end {} does not resolve to any timestamps for pagination param {}."
+                    + " There may not be any data.", statsFilter.getStartDate(), statsFilter.getEndDate(),
+                    paginationParams.getSortCommodity());
             return StatRecordPage.empty();
         }
-        final TimeRange timeRange = timeRangeOpt.get();
+        final TimeRange paginationTimeRange = paginationTimeRangeOpt.get();
 
         // We first get the IDs of the entities in the next page using the most recent snapshot
-        // in the time range.
+        // in the pagination time range.
         final NextPageInfo nextPageInfo = historydbIO.getNextPage(entityStatsScope,
-                timeRange.getMostRecentSnapshotTime(),
-                timeRange.getTimeFrame(),
+                paginationTimeRange.getMostRecentSnapshotTime(),
+                paginationTimeRange.getTimeFrame(),
                 paginationParams);
 
         //  Only add records when next page is NOT empty, otherwise do an early return.
         if (nextPageInfo.getEntityOids().isEmpty()) {
             logger.warn("Empty next page for scope {} and pagination params {}", entityStatsScope, paginationParams);
-            return StatRecordPage.empty();
-        }
-        // Now we build up a query to get ALL relevant stats for the entities in the page.
-        // This may include stats for other snapshots, if the time range in the stats filter
-        // matches multiple snapshots.
-        final Optional<Select<?>> query = statsQueryFactory.createStatsQuery(nextPageInfo.getEntityOids(),
-                nextPageInfo.getTable(), statsFilter.getCommodityRequestsList(), timeRange, AGGREGATE.NO_AGG);
-        if (!query.isPresent()) {
             return StatRecordPage.empty();
         }
 
@@ -200,6 +194,40 @@ public class LiveStatsReader {
         nextPageInfo.getEntityOids().forEach(entityId ->
                 recordsByEntityId.put(Long.parseLong(entityId), new ArrayList<>()));
 
+        // get the time range for commodities in the statsFilter request list. If the request
+        // contains only price index and the pagination parameter is price index, commRequestTimeRange
+        // will be the same as paginationTimeRange. If the request contains other commodities or
+        // the pagination param is not price index, we need to resolve the time range for commodity
+        // in request.
+        final Optional<TimeRange> commRequestTimeRange;
+        boolean isCommRequestOnlyPI = historydbIO.isCommRequestsOnlyPI(statsFilter.getCommodityRequestsList());
+        boolean isPaginationParamPI = StringConstants.PRICE_INDEX.equals(paginationParams.getSortCommodity())
+                        || StringConstants.CURRENT_PRICE_INDEX.equals(paginationParams.getSortCommodity());
+        // when 1) the request contains only price index or current price index and pagination param is
+        // price index or 2) the request is empty or contains regular commodities and pagination param
+        // is not price index(means it is regular commodities), reuse the pagination time range for comm
+        // request time range
+        if (isCommRequestOnlyPI == isPaginationParamPI) {
+            commRequestTimeRange = paginationTimeRangeOpt;
+        } else {
+            commRequestTimeRange = timeRangeFactory.resolveTimeRange(statsFilter,
+                    Optional.empty(), Optional.empty(), Optional.empty());
+        }
+        if (!commRequestTimeRange.isPresent()) {
+            // no data persisted yet; just return an empty answer
+            logger.warn("Stats filter with start {} and end {} does not resolve to any timestamps for commodities {}."
+                    + " There may not be any data.", statsFilter.getStartDate(), statsFilter.getEndDate(),
+                    statsFilter.getCommodityRequestsList());
+            return StatRecordPage.empty();
+        }
+        // we need to specifically query for PI stats record if the commodity request list only
+        // contains price index, otherwise, just fetch the regular commodity stats
+        Optional<Select<?>> query = statsQueryFactory.createStatsQuery(nextPageInfo.getEntityOids(),
+                nextPageInfo.getTable(), statsFilter.getCommodityRequestsList(),
+                commRequestTimeRange.get(), AGGREGATE.NO_AGG);
+        if (!query.isPresent()) {
+            return StatRecordPage.empty();
+        }
         // Run the query to get all relevant stat records.
         // TODO (roman, Jun 29 2018): Ideally we should get the IDs of entities in the page and
         // run the query to get the stats in the same transaction.
@@ -215,6 +243,7 @@ public class LiveStatsReader {
                 recordListForEntity.add(record);
             }
         });
+
 
         return new StatRecordPage(recordsByEntityId, nextPageInfo.getNextCursor());
     }
@@ -274,7 +303,7 @@ public class LiveStatsReader {
             // create a timerange, given the start/end range in the filter
             // use also the entities in order to be more exact on the timerange calculation
             timeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter, Optional.of(entityIdsForType),
-                Optional.of(entityType), Optional.empty());
+                    Optional.of(entityType), Optional.empty());
             if (!timeRangeOpt.isPresent()) {
                 // no data persisted yet; just return an empty answer
                 logger.warn("Stats filter with start {} and end {} does not resolve to any timestamps." +
@@ -358,7 +387,6 @@ public class LiveStatsReader {
     public @Nonnull List<Record> getFullMarketStatsRecords(@Nonnull final StatsFilter statsFilter,
                                                  @Nonnull Optional<String> entityType)
             throws VmtDbException {
-
         final Optional<TimeRange> timeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter,
             Optional.empty(), Optional.empty(), Optional.empty());
         if (!timeRangeOpt.isPresent()) {

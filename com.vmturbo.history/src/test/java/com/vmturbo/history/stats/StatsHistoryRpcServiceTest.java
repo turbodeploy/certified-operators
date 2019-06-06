@@ -12,6 +12,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -362,7 +363,7 @@ public class StatsHistoryRpcServiceTest {
         when(historyDbio.entityIdIsPlan(ENTITY_UUID)).thenReturn(false);
         ScenariosRecord scenariosRecord = new ScenariosRecord();
         when(historyDbio.getScenariosRecord(PLAN_OID)).thenReturn(Optional.of(scenariosRecord));
-        when(historyDbio.getMostRecentTimestamp(any(), any(), any(), any()))
+        when(historyDbio.getClosestTimestampBefore(any(StatsFilter.class), any(), any(), any(), any()))
             .thenReturn(Optional.of(new Timestamp(123L)));
 
         long startDate = System.currentTimeMillis();
