@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.junit.Test;
@@ -35,6 +36,7 @@ import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -42,6 +44,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ProviderPolicy;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualDatacenterData;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
+import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
@@ -55,6 +58,7 @@ public class SdkToTopologyEntityConverterTest {
     private static final long PM_FAILOVER_OID = 104L;
     private static final long VM_OID = 100L;
     private static final long DS_OID = 205L;
+    private static final double DELTA = 1e-8;
 
     @Test
     public void testConverter() throws IOException {
@@ -87,7 +91,7 @@ public class SdkToTopologyEntityConverterTest {
                 .findFirst();
         assertTrue(P2VCPUCommoditySold.isPresent());
         // vcpu p2 effective capacity % should be 50%
-        assertEquals(50.0, P2VCPUCommoditySold.get().getEffectiveCapacityPercentage(), 0.0);
+        assertEquals(50.0, P2VCPUCommoditySold.get().getEffectiveCapacityPercentage(), DELTA);
 
         // check tags of the VM
         final Map<String, TagValuesDTO> vmTags = vmTopologyDTO.getTags().getTagsMap();
@@ -144,9 +148,9 @@ public class SdkToTopologyEntityConverterTest {
         TopologyEntityDTO stTopologyDTO = findEntity(topologyDTOs, DS_OID);
         stTopologyDTO.getCommoditySoldListList().forEach(c -> {
             if (c.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE) {
-                assertEquals(10000, c.getMaxAmountForConsumer(), 0.0);
-                assertEquals(100, c.getMinAmountForConsumer(), 0.0);
-                assertEquals(3, c.getRatioDependency().getRatio(), 0.0);
+                assertEquals(10000, c.getMaxAmountForConsumer(), DELTA);
+                assertEquals(100, c.getMinAmountForConsumer(), DELTA);
+                assertEquals(3, c.getRatioDependency().getRatio(), DELTA);
             }
         });
     }
@@ -365,6 +369,110 @@ public class SdkToTopologyEntityConverterTest {
         assertFalse(SdkToTopologyEntityConverter.isControllable(true, false));
         assertFalse(SdkToTopologyEntityConverter.isControllable(false, true));
         assertFalse(SdkToTopologyEntityConverter.isControllable(false, false));
+    }
+
+    @Test
+    public void testCommodityUsedPercentage() {
+        final long appOid = 1L;
+        final long vmOid = 2L;
+        final double appVcpuUsed = 10;
+        final double appVmemUsed = 1024;
+        final double vmVcpuUsed = 30;
+        final double vmVmemUsed = 1500;
+        final double vmVcpuCapacity = 2000;
+        final double vmVmemCapacity = 2048;
+
+        EntityDTO.Builder appBuilder = EntityDTO.newBuilder()
+            .setEntityType(EntityType.APPLICATION)
+            .setId("app1")
+            .addCommoditiesBought(CommodityBought.newBuilder()
+                .setProviderId("vm1")
+                .addBought(CommodityDTO.newBuilder()
+                    .setCommodityType(CommodityType.VCPU)
+                    .setUsed(appVcpuUsed)
+                    .setIsUsedPct(true))
+                .addBought(CommodityDTO.newBuilder()
+                    .setCommodityType(CommodityType.VMEM)
+                    .setUsed(appVmemUsed)));
+
+        EntityDTO.Builder vmBuilder = EntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .setId("vm1")
+            .addCommoditiesSold(CommodityDTO.newBuilder()
+                .setCommodityType(CommodityType.VCPU)
+                .setUsed(vmVcpuUsed)
+                .setCapacity(vmVcpuCapacity)
+                .setIsUsedPct(true))
+            .addCommoditiesSold(CommodityDTO.newBuilder()
+                .setCommodityType(CommodityType.VMEM)
+                .setUsed(vmVmemUsed)
+                .setCapacity(vmVmemCapacity));
+
+        TopologyStitchingEntity appStitchingEntity = new TopologyStitchingEntity(
+            StitchingEntityData.newBuilder(appBuilder).oid(appOid).build());
+        TopologyStitchingEntity vmStitchingEntity = new TopologyStitchingEntity(
+            StitchingEntityData.newBuilder(vmBuilder).oid(vmOid).build());
+
+        appStitchingEntity.addProviderCommodityBought(vmStitchingEntity, new CommoditiesBought(
+            appBuilder.getCommoditiesBoughtBuilder(0).getBoughtBuilderList()));
+
+        vmStitchingEntity.addCommoditySold(vmBuilder.getCommoditiesSoldBuilder(0),
+            Optional.empty());
+        vmStitchingEntity.addCommoditySold(vmBuilder.getCommoditiesSoldBuilder(1),
+            Optional.empty());
+
+        final TopologyEntityDTO.Builder appTopologyDTO =
+            SdkToTopologyEntityConverter.newTopologyEntityDTO(appStitchingEntity);
+
+        Map<Integer, CommodityBoughtDTO> commodityBoughtMap =
+            appTopologyDTO.getCommoditiesBoughtFromProvidersList().stream()
+                .filter(commoditiesBoughtFromProvider ->
+                    commoditiesBoughtFromProvider.getProviderId() == vmOid)
+                .flatMap(commoditiesBoughtFromProvider ->
+                    commoditiesBoughtFromProvider.getCommodityBoughtList().stream())
+                .collect(Collectors.toMap(comm -> comm.getCommodityType().getType(),
+                    Function.identity()));
+
+        CommodityBoughtDTO appVMEM = commodityBoughtMap.get(CommodityType.VMEM_VALUE);
+        CommodityBoughtDTO appVCPU = commodityBoughtMap.get(CommodityType.VCPU_VALUE);
+
+        // check app bought commodity used
+        assertEquals(appVmemUsed, appVMEM.getUsed(), DELTA);
+        assertEquals(appVcpuUsed * vmVcpuCapacity / 100, appVCPU.getUsed(), DELTA);
+
+        final TopologyEntityDTO.Builder vmTopologyDTO =
+            SdkToTopologyEntityConverter.newTopologyEntityDTO(vmStitchingEntity);
+        Map<Integer, CommoditySoldDTO> commoditySoldMap =
+            vmTopologyDTO.getCommoditySoldListList().stream()
+                .collect(Collectors.toMap(comm -> comm.getCommodityType().getType(),
+                    Function.identity()));
+
+        CommoditySoldDTO vmVMEM = commoditySoldMap.get(CommodityType.VMEM_VALUE);
+        CommoditySoldDTO vmVCPU = commoditySoldMap.get(CommodityType.VCPU_VALUE);
+
+        // check vm sold commodity used
+        assertEquals(vmVmemUsed, vmVMEM.getUsed(), DELTA);
+        assertEquals(vmVcpuUsed * vmVcpuCapacity / 100, vmVCPU.getUsed(), DELTA);
+
+        // create a vm provider which doesn't sell vcpu commodity
+        vmStitchingEntity.getTopologyCommoditiesSold().clear();
+        vmStitchingEntity.addCommoditySold(vmBuilder.getCommoditiesSoldBuilder(1),
+            Optional.empty());
+
+        final TopologyEntityDTO.Builder appTopologyDTO1 =
+            SdkToTopologyEntityConverter.newTopologyEntityDTO(appStitchingEntity);
+        CommodityBoughtDTO appVCPU1 = appTopologyDTO1.getCommoditiesBoughtFromProvidersList()
+            .stream()
+            .filter(commoditiesBoughtFromProvider ->
+                commoditiesBoughtFromProvider.getProviderId() == vmOid)
+            .flatMap(commoditiesBoughtFromProvider ->
+                commoditiesBoughtFromProvider.getCommodityBoughtList().stream())
+            .filter(commodityBoughtDTO ->
+                commodityBoughtDTO.getCommodityType().getType() == CommodityType.VCPU_VALUE)
+            .findFirst()
+            .get();
+        // check that original percentage used is used if no matching commodity on provider side
+        assertEquals(appVcpuUsed, appVCPU1.getUsed(), DELTA);
     }
 
     private static boolean isAccessCommodity(CommoditySoldDTO comm) {

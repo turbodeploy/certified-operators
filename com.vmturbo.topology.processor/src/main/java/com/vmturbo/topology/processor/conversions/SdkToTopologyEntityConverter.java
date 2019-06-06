@@ -20,9 +20,11 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -157,7 +159,7 @@ public class SdkToTopologyEntityConverter {
      * @return topology entity DTOs.
      */
     public static TopologyDTO.TopologyEntityDTO.Builder newTopologyEntityDTO(
-        @Nonnull final TopologyStitchingEntity entity) {
+            @Nonnull final TopologyStitchingEntity entity) {
         final CommonDTO.EntityDTOOrBuilder dto = entity.getEntityBuilder();
 
         final int entityType = type(dto);
@@ -172,7 +174,8 @@ public class SdkToTopologyEntityConverter {
 
         List<TopologyDTO.CommoditySoldDTO> soldList = entity.getTopologyCommoditiesSold().stream()
             .map(commoditySold -> {
-                TopologyDTO.CommoditySoldDTO.Builder builder = newCommoditySoldDTOBuilder(commoditySold.sold);
+                TopologyDTO.CommoditySoldDTO.Builder builder =
+                    newCommoditySoldDTOBuilder(commoditySold.sold);
                 if (commoditySold.accesses != null) {
                     builder.setAccesses(commoditySold.accesses.getOid());
                 }
@@ -189,7 +192,8 @@ public class SdkToTopologyEntityConverter {
                             CommoditiesBoughtFromProvider.newBuilder()
                                 .setProviderId(entry.getKey().getOid())
                                 .addAllCommodityBought(commodityBought.getBoughtList().stream()
-                                    .map(SdkToTopologyEntityConverter::newCommodityBoughtDTO)
+                                    .map(commDTO -> newCommodityBoughtDTO(commDTO,
+                                        entry.getKey().getCommoditiesSold()))
                                     .collect(Collectors.toList()))
                                 .setProviderEntityType(entry.getKey().getEntityType().getNumber());
                         Long volumeId = commodityBought.getVolumeId();
@@ -361,7 +365,8 @@ public class SdkToTopologyEntityConverter {
             CommoditiesBoughtFromProvider.Builder cbBuilder = CommoditiesBoughtFromProvider.newBuilder()
                     .setProviderId(providerOid)
                     .addAllCommodityBought(commodityBought.getBoughtList().stream()
-                            .map(SdkToTopologyEntityConverter::newCommodityBoughtDTO)
+                            // pass empty stream as this method is only used for unit test
+                            .map(commDTO -> newCommodityBoughtDTO(commDTO, Stream.empty()))
                             .collect(Collectors.toList()));
 
             // TODO: Right now, we not guarantee that commodity bought will always have provider entity
@@ -523,11 +528,13 @@ public class SdkToTopologyEntityConverter {
         return entityState;
     }
 
-    private static TopologyDTO.CommodityBoughtDTO newCommodityBoughtDTO(CommonDTO.CommodityDTOOrBuilder commDTO) {
+    private static TopologyDTO.CommodityBoughtDTO newCommodityBoughtDTO(
+            @Nonnull CommonDTO.CommodityDTOOrBuilder commDTO,
+            @Nonnull Stream<CommodityDTO.Builder> providerSoldCommodities) {
         final TopologyDTO.CommodityBoughtDTO.Builder retCommBoughtBuilder =
             TopologyDTO.CommodityBoughtDTO.newBuilder()
                 .setCommodityType(commodityType(commDTO))
-                .setUsed(commDTO.getUsed())
+                .setUsed(getUsedForBoughtCommodity(commDTO, providerSoldCommodities))
                 .setPeak(commDTO.getPeak())
                 .setActive(commDTO.getActive())
                 .setDisplayName(commDTO.getDisplayName())
@@ -542,13 +549,14 @@ public class SdkToTopologyEntityConverter {
         @Nonnull final CommonDTO.CommodityDTOOrBuilder commDTO) {
 
         if (commDTO.getPeak() < 0) {
-            logger.error("Peak quantity = {} for commodity type {}", commDTO.getPeak(), commDTO.getCommodityType());
+            logger.error("Peak quantity = {} for commodity type {}", commDTO.getPeak(),
+                commDTO.getCommodityType());
         }
 
         final TopologyDTO.CommoditySoldDTO.Builder retCommSoldBuilder =
             TopologyDTO.CommoditySoldDTO.newBuilder()
                 .setCommodityType(commodityType(commDTO))
-                .setUsed(commDTO.getUsed())
+                .setUsed(getUsedForSoldCommodity(commDTO))
                 .setPeak(commDTO.getPeak())
                 .setCapacity(commDTO.getCapacity())
                 .setReservedCapacity(commDTO.getReservation())
@@ -638,6 +646,50 @@ public class SdkToTopologyEntityConverter {
         });
 
         return builder.build();
+    }
+
+    /**
+     * Get the used value for the given sold commodity. The commodity may be percentage based, in
+     * which case we should calculate the real value based on capacity.
+     *
+     * @param commDTO the sold commodity to get used value for.
+     * @return the used value for given sold commodity
+     */
+    private static double getUsedForSoldCommodity(
+            @Nonnull final CommonDTO.CommodityDTOOrBuilder commDTO) {
+        return commDTO.getIsUsedPct() ? commDTO.getUsed() * commDTO.getCapacity() / 100
+            : commDTO.getUsed();
+    }
+
+    /**
+     * Get the used value for the bought commodity. The commodity may be percentage based, in which
+     * case we should calculate the real value based on capacity. The capacity should be found from
+     * provider.
+     *
+     * @param commDTO the commodity to get used value for.
+     * @param providerSoldCommodities stream of sold commodities on provider side
+     * @return the used value for given commodity
+     */
+    private static double getUsedForBoughtCommodity(
+            @Nonnull final CommonDTO.CommodityDTOOrBuilder commDTO,
+            @Nonnull Stream<CommodityDTO.Builder> providerSoldCommodities) {
+        // if used is not percentage based, return the value immediately
+        if (!commDTO.getIsUsedPct()) {
+            return commDTO.getUsed();
+        }
+
+        return providerSoldCommodities
+            .filter(soldComm -> soldComm.getCommodityType() == commDTO.getCommodityType() &&
+                StringUtils.equals(soldComm.getKey(), commDTO.getKey()))
+            .findAny()
+            .map(soldComm -> commDTO.getUsed() * soldComm.getCapacity() / 100)
+            .orElseGet(() -> {
+                // if no matching sold commodity on provider side, use the percentage used
+                logger.error("No matching sold commodity of type {} and key {} on provider, " +
+                    "using percentage used {}", commDTO.getCommodityType(), commDTO.getKey(),
+                    commDTO.getUsed());
+                return commDTO.getUsed();
+            });
     }
 
     private static CommodityType commodityType(CommonDTO.CommodityDTOOrBuilder commDTO) {
