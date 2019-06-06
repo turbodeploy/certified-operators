@@ -11,6 +11,7 @@ singleNodeIp=$(ip address show eth0 | egrep inet | egrep -v inet6 | awk '{print 
 sed -i "s/10.0.2.15/${singleNodeIp}/g" /opt/local/etc/turbo.conf
 sed -i "s/10.0.2.15/${singleNodeIp}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
 
+# Check /etc/resolv.conf
 if [[ ! -f /etc/resolv.conf || ! -s /etc/resolv.conf ]]
 then
   echo ""
