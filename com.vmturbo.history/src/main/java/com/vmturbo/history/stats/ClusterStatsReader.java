@@ -63,10 +63,20 @@ public class ClusterStatsReader {
                 .where(whereInCommodityNames)
                 .and(CLUSTER_STATS_BY_DAY.INTERNAL_NAME.eq(Long.toString(clusterUuid)));
 
-        final Condition dateCondition = date(CLUSTER_STATS_BY_DAY.RECORDED_ON)
+        final Condition dateCondition;
+        if (startDate.equals(endDate)) {
+            // Fetch the most recent records for this cluster
+            dateCondition = CLUSTER_STATS_BY_DAY.RECORDED_ON.eq(
+                historydbIO.JooqBuilder()
+                   .select(CLUSTER_STATS_BY_DAY.RECORDED_ON.max())
+                   .from(CLUSTER_STATS_BY_DAY)
+                   .where(CLUSTER_STATS_BY_DAY.INTERNAL_NAME.eq(Long.toString(clusterUuid)))
+                   .and(CLUSTER_STATS_BY_DAY.RECORDED_ON.lessOrEqual(new java.sql.Date(startDate))));
+        } else {
+            dateCondition = date(CLUSTER_STATS_BY_DAY.RECORDED_ON)
                 .between(new java.sql.Date(startDate), new java.sql.Date(endDate));
+        }
         queryBuilder.and(dateCondition);
-
         return historydbIO.execute(Style.FORCED,
                 queryBuilder.getQuery()).into(ClusterStatsByDayRecord.class);
     }

@@ -79,7 +79,7 @@ public class ClusterStatsReaderTest {
      * @throws VmtDbException
      */
     private void populateTestData() throws VmtDbException {
-        String[] datesByDay = {"2017-12-15", "2017-12-14", "2017-12-13"};
+        String[] datesByDay = {"2017-12-15", "2017-12-14", "2017-12-12"};
         String[] commodityNames = {"headroomVMs", "numVMs"};
 
         for (int i = 0; i < datesByDay.length; i++) {
@@ -163,6 +163,7 @@ public class ClusterStatsReaderTest {
                         commodityNames);
         assertEquals(6, result.size());
     }
+
     @Test
     public void testGetStatsRecordsByMonth() throws VmtDbException {
         Set<String> commodityNames = Sets.newHashSet("headroomVMs", "numVMs");
@@ -172,5 +173,45 @@ public class ClusterStatsReaderTest {
                         Date.valueOf("2017-12-15").getTime(),
                         commodityNames);
         assertEquals(6, result.size());
+    }
+
+    @Test
+    public void testGetStatsRecordsByDayWithSameDate() throws VmtDbException {
+        Set<String> commodityNames = Sets.newHashSet("headroomVMs", "numVMs");
+
+        // Scenario :
+        // a) This date does not currently exist in db.
+        // b) We pass same start and end date to mimic what UI does for "top N" widget.
+        // c) Db contains data for {"2017-12-15", "2017-12-14", "2017-12-12"}.
+        long t1 = Date.valueOf("2017-12-16").getTime();
+        List<ClusterStatsByDayRecord> result =
+                clusterStatsReader.getStatsRecordsByDay(Long.parseLong(clusterId1),
+                        t1,
+                        t1,
+                        commodityNames);
+
+        // Db should return data from most recent date available i.e 2017-12-15.
+        assertEquals(2, result.size());
+        result.stream()
+            .map(record -> record.getRecordedOn())
+            .allMatch(date -> date.equals(Date.valueOf("2017-12-15")));
+
+        t1 = Date.valueOf("2017-12-13").getTime();
+        result = clusterStatsReader.getStatsRecordsByDay(Long.parseLong(clusterId1),
+                        t1, t1, commodityNames);
+        // Db should return data from 2017-12-12 as that is most recent data on or before 2017-12-13.
+        assertEquals(2, result.size());
+        result.stream()
+            .map(record -> record.getRecordedOn())
+            .allMatch(date -> date.equals(Date.valueOf("2017-12-12")));
+
+        t1 = Date.valueOf("2017-12-12").getTime();
+        result = clusterStatsReader.getStatsRecordsByDay(Long.parseLong(clusterId1),
+                        t1, t1, commodityNames);
+        // Db should return data from 2017-12-12 as thats the most recent one w.r.t given date.
+        assertEquals(2, result.size());
+        result.stream()
+            .map(record -> record.getRecordedOn())
+            .allMatch(date -> date.equals(Date.valueOf("2017-12-12")));
     }
 }
