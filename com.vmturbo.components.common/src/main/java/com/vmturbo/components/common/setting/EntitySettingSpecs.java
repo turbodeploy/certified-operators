@@ -277,8 +277,7 @@ public enum EntitySettingSpecs {
     ResizeTargetUtilizationVcpu("resizeTargetUtilizationVcpu", "Scaling Target VCPU Utilization",
             //path is needed for the UI to display this setting in a separate category
             Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER,
-                    EntityType.APPLICATION, EntityType.APPLICATION_SERVER, EntityType.CONTAINER),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
             numeric(0.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
 
     /**
@@ -287,8 +286,7 @@ public enum EntitySettingSpecs {
     ResizeTargetUtilizationVmem("resizeTargetUtilizationVmem", "Scaling Target VMEM Utilization",
             //path is needed for the UI to display this setting in a separate category
             Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER,
-                    EntityType.APPLICATION, EntityType.APPLICATION_SERVER, EntityType.CONTAINER),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
             numeric(0.0f/*min*/, 100.0f/*max*/, 90.0f/*default*/), true),
 
     /**
@@ -593,7 +591,7 @@ public enum EntitySettingSpecs {
      */
     HeapUtilization("heapUtilization", "Heap Utilization",
             Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.APPLICATION),
+            EnumSet.of(EntityType.APPLICATION, EntityType.APPLICATION_SERVER),
             numeric(20f, 100f, 80f), true),
 
     /**
@@ -601,7 +599,7 @@ public enum EntitySettingSpecs {
      */
     CollectionTimeUtilization("collectionTimeUtilization", "Collection Time Utilization",
             Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.APPLICATION),
+            EnumSet.of(EntityType.APPLICATION, EntityType.APPLICATION_SERVER),
             numeric(10f, 100f, 10f), true),
 
     IgnoreDirectories("ignoreDirectories", "Directories to ignore",
