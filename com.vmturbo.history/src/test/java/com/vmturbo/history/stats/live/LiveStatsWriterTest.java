@@ -10,9 +10,17 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 
 import org.jooq.DSLContext;
 import org.jooq.InsertSetMoreStep;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -21,20 +29,14 @@ import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
-import com.vmturbo.history.topology.TopologyListenerConfig;
-import com.vmturbo.history.utils.SystemLoadHelper;
+import com.vmturbo.history.stats.IStatsWriter;
+import com.vmturbo.history.stats.writers.LiveStatsWriter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 /**
@@ -57,16 +59,15 @@ public class LiveStatsWriterTest {
     private static final EntityType dbEntityType = EntityType.VIRTUAL_MACHINE;
     private static final EntityType otherDbEntityType = EntityType.PHYSICAL_MACHINE;
     private static final String displayName = "displayName";
-    private static final ImmutableList<String> commodityExcludeList = ImmutableList.of(
+    private static final Set<String> commodityExcludeList = ImmutableSet.of(
             "ApplicationCommodity", "CLUSTERCommodity", "DATACENTERCommodity", "DATASTORECommodity",
             "DSPMAccessCommodity", "NETWORKCommodity");
 
     private EntitiesRecord mockEntitiesRecord;
     private HistorydbIO mockHistorydbIO;
-    private GroupServiceBlockingStub groupServiceClient;
-    private SystemLoadHelper systemLoadHelper;
     private DSLContext mockDSLContext;
     private Collection<TopologyEntityDTO> allEntities;
+    private ExecutorService statsWritersPool;
     @Captor
     private ArgumentCaptor<List<EntitiesRecord>> persistedEntitiesCaptor;
 
@@ -81,8 +82,7 @@ public class LiveStatsWriterTest {
         allEntities = Lists.newArrayList(
                 buildEntityDTO(sdkEntityType, TEST_OID, displayName));
 
-        groupServiceClient = Mockito.mock(TopologyListenerConfig.class).groupServiceClient();
-        systemLoadHelper = Mockito.mock(SystemLoadHelper.class);
+        statsWritersPool = Executors.newCachedThreadPool();
 
         // mock bind values for counting inserted rows
         InsertSetMoreStep mockInsertStep = Mockito.mock(InsertSetMoreStep.class);
@@ -100,15 +100,16 @@ public class LiveStatsWriterTest {
 
     }
 
+    @After
+    public void after() {
+        statsWritersPool.shutdownNow();
+    }
+
     private void consumeDTOs() throws Exception {
-        LiveStatsWriter testStatsWriter = new LiveStatsWriter(mockHistorydbIO,
-            writeTopologyChunkSize, commodityExcludeList);
-        RemoteIterator<TopologyEntityDTO> allDTOs = Mockito.mock(RemoteIterator.class);
-        when(allDTOs.hasNext()).thenReturn(true).thenReturn(false);
-        when(allDTOs.nextChunk()).thenReturn(allEntities);
-
-
-        testStatsWriter.processChunks(TOPOLOGY_INFO, allDTOs, groupServiceClient, systemLoadHelper);
+        final IStatsWriter testStatsWriter =
+                        new LiveStatsWriter(mockHistorydbIO, writeTopologyChunkSize,
+                                        commodityExcludeList);
+        testStatsWriter.processObjects(TOPOLOGY_INFO, allEntities);
     }
 
     /**

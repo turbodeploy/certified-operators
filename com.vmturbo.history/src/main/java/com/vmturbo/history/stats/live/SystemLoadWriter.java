@@ -1,40 +1,29 @@
-package com.vmturbo.history.stats.live;
+package com.vmturbo.history.stats.writers;
 
 import java.sql.Timestamp;
-import java.text.SimpleDateFormat;
 import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.Query;
 import org.jooq.DeleteConditionStep;
+import org.jooq.Query;
 
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.tables.SystemLoad;
 import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
-import com.vmturbo.history.schema.RelationType;
-import com.vmturbo.history.utils.SystemLoadHelper;
 
 /**
  * The class SystemLoadWriter stores the system load information to the DB.
  */
 public class SystemLoadWriter {
 
-    private static final Logger logger = LogManager.getLogger();
-
     private final HistorydbIO historydbIO;
-
-    private SystemLoadHelper systemLoadHelper = null;
 
     public SystemLoadWriter(HistorydbIO historydbIO) {
         this.historydbIO = historydbIO;
-    }
-
-    public void setSystemLoadUtils(SystemLoadHelper systemLoadHelper) {
-        this.systemLoadHelper = systemLoadHelper;
     }
 
 

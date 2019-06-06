@@ -1,4 +1,4 @@
-package com.vmturbo.history.stats.live;
+package com.vmturbo.history.stats.readers;
 
 import static com.vmturbo.components.common.utils.StringConstants.SNAPSHOT_TIME;
 import static com.vmturbo.components.common.utils.StringConstants.UUID;
@@ -26,6 +26,11 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
@@ -35,11 +40,6 @@ import org.jooq.Record;
 import org.jooq.Result;
 import org.jooq.Select;
 import org.jooq.Table;
-
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.ImmutableBiMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Multimap;
 
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
@@ -55,8 +55,13 @@ import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
+import com.vmturbo.history.stats.INonPaginatingStatsReader;
+import com.vmturbo.history.stats.live.FullMarketRatioProcessor;
 import com.vmturbo.history.stats.live.FullMarketRatioProcessor.FullMarketRatioProcessorFactory;
+import com.vmturbo.history.stats.live.RatioRecordFactory;
+import com.vmturbo.history.stats.live.StatsQueryFactory;
 import com.vmturbo.history.stats.live.StatsQueryFactory.AGGREGATE;
+import com.vmturbo.history.stats.live.TimeRange;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -64,7 +69,7 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
 /**
  * Read from the stats database tables for the "live", i.e. real, discovered topology.
  **/
-public class LiveStatsReader {
+public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -234,7 +239,7 @@ public class LiveStatsReader {
      * @return a list of Jooq records, one for each stats information row retrieved
      */
     @Nonnull
-    public List<Record> getStatsRecords(@Nonnull final Set<String> entityIds,
+    public List<Record> getRecords(@Nonnull final Set<String> entityIds,
                                         @Nonnull final StatsFilter statsFilter)
             throws VmtDbException {
 

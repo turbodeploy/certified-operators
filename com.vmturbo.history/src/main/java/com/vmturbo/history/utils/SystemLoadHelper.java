@@ -1,37 +1,37 @@
 package com.vmturbo.history.utils;
 
-import static com.google.common.base.Preconditions.checkArgument;
-
 import java.sql.Timestamp;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Map;
+import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
-import java.util.Date;
+
+import com.google.common.collect.Multimap;
 
 import org.apache.commons.lang.time.DateUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import com.google.common.collect.Multimap;
 
+import com.vmturbo.auth.api.Pair;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.stats.live.SystemLoadReader;
-import com.vmturbo.history.stats.live.SystemLoadWriter;
+import com.vmturbo.history.stats.writers.SystemLoadWriter;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.auth.api.Pair;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * The class SystemLoadHelper implements some data structures and methods to keep information
@@ -46,11 +46,10 @@ public class SystemLoadHelper {
 
     private final Object curSystemLoadLock = new Object();
 
-    public Map<String, Pair<Double, Date>> previousSystemLoadInDB = null;
+    private Map<String, Pair<Double, Date>> previousSystemLoadInDB = null;
 
     public SystemLoadHelper(SystemLoadReader systemLoadReader, SystemLoadWriter systemLoadWriter) {
         systemLoadReader.setSystemLoadUtils(this);
-        systemLoadWriter.setSystemLoadUtils(this);
         setSystemLoadReader(systemLoadReader);
         setSystemLoadWriter(systemLoadWriter);
         previousSystemLoadInDB = systemLoadReader.initSystemLoad();
