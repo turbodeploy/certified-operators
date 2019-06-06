@@ -22,12 +22,12 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+
 import org.jooq.Record;
 import org.junit.Assert;
 import org.junit.Test;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
@@ -38,7 +38,7 @@ import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.stats.StatRecordBuilder.DefaultStatRecordBuilder;
 import com.vmturbo.history.stats.StatSnapshotCreator.DefaultStatSnapshotCreator;
-import com.vmturbo.history.stats.live.LiveStatsReader;
+import com.vmturbo.history.stats.readers.LiveStatsReader;
 
 public class StatSnapshotCreatorTest {
 

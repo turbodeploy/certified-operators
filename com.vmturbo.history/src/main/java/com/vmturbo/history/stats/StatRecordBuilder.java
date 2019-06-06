@@ -9,7 +9,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.history.stats.live.LiveStatsReader;
+import com.vmturbo.history.stats.readers.LiveStatsReader;
 
 /**
  * A helper class to create {@link StatRecord} objects out of nullable fields.

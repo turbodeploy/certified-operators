@@ -91,10 +91,10 @@ import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRe
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.stats.StatRecordBuilder.DefaultStatRecordBuilder;
 import com.vmturbo.history.stats.StatSnapshotCreator.DefaultStatSnapshotCreator;
-import com.vmturbo.history.stats.live.LiveStatsReader;
-import com.vmturbo.history.stats.live.LiveStatsReader.StatRecordPage;
+import com.vmturbo.history.stats.readers.LiveStatsReader;
+import com.vmturbo.history.stats.readers.LiveStatsReader.StatRecordPage;
 import com.vmturbo.history.stats.live.SystemLoadReader;
-import com.vmturbo.history.stats.live.SystemLoadWriter;
+import com.vmturbo.history.stats.writers.SystemLoadWriter;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 
 /**
@@ -177,7 +177,7 @@ public class StatsHistoryRpcServiceTest {
             // This one (utilization) should be dropped while processing the stats.
             newStatRecord(SNAPSHOT_TIME, 0.95, propType2, UTILIZATION));
 
-        when(mockLivestatsreader.getStatsRecords(anyObject(), anyObject()))
+        when(mockLivestatsreader.getRecords(anyObject(), anyObject()))
                 .thenReturn(statsRecordsList);
         Stats.GetAveragedEntityStatsRequest.Builder testStatsRequest =
                 Stats.GetAveragedEntityStatsRequest.newBuilder();
@@ -334,7 +334,7 @@ public class StatsHistoryRpcServiceTest {
             newStatRecord(SNAPSHOT_TIME, 1, "c1", "c1-subtype"),
             newStatRecord(SNAPSHOT_TIME, 2, "c2", "c2-subtype"),
             newStatRecord(SNAPSHOT_TIME, 3, "c3", "c3-subtype"));
-        when(mockLivestatsreader.getStatsRecords(eq(entityUuidsStr), eq(reqStatsBuilder.build())))
+        when(mockLivestatsreader.getRecords(eq(entityUuidsStr), eq(reqStatsBuilder.build())))
             .thenReturn(statsRecordsList);
 
         Stats.GetAveragedEntityStatsRequest testStatsRequest = Stats.GetAveragedEntityStatsRequest.newBuilder()
@@ -347,7 +347,7 @@ public class StatsHistoryRpcServiceTest {
 
         // assert
         assertThat(snapshots.size(), is(1));
-        verify(mockLivestatsreader).getStatsRecords(eq(entityUuidsStr), eq(reqStatsBuilder.build()));
+        verify(mockLivestatsreader).getRecords(eq(entityUuidsStr), eq(reqStatsBuilder.build()));
         verifyNoMoreInteractions(mockPlanStatsReader);
     }
 
@@ -389,7 +389,7 @@ public class StatsHistoryRpcServiceTest {
             newStatRecord(SNAPSHOT_TIME, 2d, "c1", "c1-subtype"),
             newStatRecord(SNAPSHOT_TIME, 3d, "c1", "c1-subtype"));
 
-        when(mockLivestatsreader.getStatsRecords(eq(queryEntityUuidsStr), eq(reqStatsBuilder.build())))
+        when(mockLivestatsreader.getRecords(eq(queryEntityUuidsStr), eq(reqStatsBuilder.build())))
                 .thenReturn(statsRecordsList);
 
         // act

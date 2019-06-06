@@ -33,7 +33,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
 import org.jooq.exception.DataAccessException;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.util.CollectionUtils;
 
 import io.grpc.Status;
@@ -42,7 +41,6 @@ import io.prometheus.client.Summary;
 import io.prometheus.client.Summary.Timer;
 
 import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
@@ -87,10 +85,10 @@ import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByMonth
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
-import com.vmturbo.history.stats.live.LiveStatsReader;
-import com.vmturbo.history.stats.live.LiveStatsReader.StatRecordPage;
+import com.vmturbo.history.stats.readers.LiveStatsReader;
+import com.vmturbo.history.stats.readers.LiveStatsReader.StatRecordPage;
 import com.vmturbo.history.stats.live.SystemLoadReader;
-import com.vmturbo.history.stats.live.SystemLoadWriter;
+import com.vmturbo.history.stats.writers.SystemLoadWriter;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 
 /**
@@ -725,7 +723,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                 logger.warn("'relatedEntityType' ({}) is ignored when specific entities listed",
                         relatedEntityType);
             }
-            statDBRecords = liveStatsReader.getStatsRecords(
+            statDBRecords = liveStatsReader.getRecords(
                     entities.stream()
                             .map(id -> Long.toString(id))
                             .collect(Collectors.toSet()), statsFilter);

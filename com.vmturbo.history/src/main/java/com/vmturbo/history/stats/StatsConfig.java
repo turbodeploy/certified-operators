@@ -1,9 +1,15 @@
 package com.vmturbo.history.stats;
 
 import java.time.Clock;
+import java.util.Collection;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,7 +17,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.auth.api.authorization.UserSessionConfig;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsREST.StatsHistoryServiceController;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
@@ -23,16 +30,19 @@ import com.vmturbo.history.stats.StatRecordBuilder.DefaultStatRecordBuilder;
 import com.vmturbo.history.stats.StatSnapshotCreator.DefaultStatSnapshotCreator;
 import com.vmturbo.history.stats.live.FullMarketRatioProcessor.FullMarketRatioProcessorFactory;
 import com.vmturbo.history.stats.live.HistoryTimeFrameCalculator;
-import com.vmturbo.history.stats.live.LiveStatsReader;
-import com.vmturbo.history.stats.live.LiveStatsWriter;
+import com.vmturbo.history.stats.readers.LiveStatsReader;
+import com.vmturbo.history.stats.writers.LiveStatsWriter;
 import com.vmturbo.history.stats.live.RatioRecordFactory;
 import com.vmturbo.history.stats.live.StatsQueryFactory;
 import com.vmturbo.history.stats.live.StatsQueryFactory.DefaultStatsQueryFactory;
 import com.vmturbo.history.stats.live.SystemLoadReader;
-import com.vmturbo.history.stats.live.SystemLoadWriter;
+import com.vmturbo.history.stats.writers.SystemLoadSnapshot;
+import com.vmturbo.history.stats.writers.SystemLoadWriter;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.DefaultTimeRangeFactory;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
+import com.vmturbo.history.stats.writers.HistUtilizationWriter;
+import com.vmturbo.history.stats.writers.PercentileWriter;
 import com.vmturbo.history.utils.SystemLoadHelper;
 
 /**
@@ -74,6 +84,8 @@ public class StatsConfig {
 
     @Value("${historyPaginationDefaultSortCommodity}")
     private String historyPaginationDefaultSortCommodity;
+    @Value("${statsWritersMaxPoolSize}")
+    private int statsWritersMaxPoolSize;
 
     @Bean
     public StatsHistoryRpcService statsRpcService() {
@@ -130,10 +142,93 @@ public class StatsConfig {
         return new ProjectedStatsStore();
     }
 
+    /**
+     * Persist information in a Live Topology to the History DB. This includes persisting the
+     * entities, and for each entity write the stats, including commodities and entity attributes.
+     *
+     * @return instance of {@link StatsWriteCoordinator}.
+     */
     @Bean
-    public LiveStatsWriter liveStatsWriter() {
-        return new LiveStatsWriter(historyDbConfig.historyDbIO(),
-                writeTopologyChunkSize, excludedCommoditiesList());
+    public StatsWriteCoordinator statsWriteCoordinator() {
+        final Collection<IStatsWriter> statsWriters = statsWriters();
+        final Collection<IStatsWriter> chunkedTopologyStatsWriters = statsWriters.stream()
+                        .filter(w -> !ICompleteTopologyStatsWriter.class.isInstance(w))
+                        .collect(Collectors.toSet());
+        final Collection<ICompleteTopologyStatsWriter> completeTopologyStatsWriters =
+                        statsWriters.stream().filter(ICompleteTopologyStatsWriter.class::isInstance)
+                                        .map(ICompleteTopologyStatsWriter.class::cast)
+                                        .collect(Collectors.toSet());
+        return new StatsWriteCoordinator(statsWritersPool(), chunkedTopologyStatsWriters,
+                        completeTopologyStatsWriters, writeTopologyChunkSize);
+    }
+
+    @Bean
+    public Collection<IStatsWriter> statsWriters() {
+        return ImmutableSet.of(systemLoadSnapshot(), histUtilizationWriter(), percentileWriter(),
+                        liveStatsWriter());
+    }
+
+    /**
+     * {@link IStatsWriter} implementation which is writing live statistics into the database.
+     *
+     * @return instance of {@link LiveStatsWriter}.
+     */
+    @Bean
+    public IStatsWriter liveStatsWriter() {
+        return new LiveStatsWriter(historyDbConfig.historyDbIO(), writeTopologyChunkSize,
+                        excludedCommoditiesList());
+    }
+
+    /**
+     * Thread pool to schedule stats writers tasks.
+     *
+     * @return thread pool.
+     */
+    @Bean(destroyMethod = "shutdownNow")
+    public ExecutorService statsWritersPool() {
+        final int numberOfThreads = Math.min(statsWritersMaxPoolSize, statsWriters().size());
+        return new ThreadPoolExecutor(numberOfThreads, numberOfThreads, 0L, TimeUnit.MILLISECONDS,
+                        new ReversedBlockingQueue<>(),
+                        new ThreadFactoryBuilder().setNameFormat("Chunked Topology Stats Writer#%d")
+                                        .build());
+    }
+
+    /**
+     * {@link IStatsWriter} implementation saves information about the current shapshot of the
+     * system, using the commodities participating in the calculation of system load.
+     *
+     * @return instance of {@link SystemLoadSnapshot}.
+     */
+    @Bean
+    public IStatsWriter systemLoadSnapshot() {
+        return new SystemLoadSnapshot(groupServiceClient(), systemLoadHelper());
+    }
+
+    /**
+     * {@link IStatsWriter} implementation which is going to save percentile information for
+     * commodities which have this information.
+     *
+     * @return instance of {@link PercentileWriter}.
+     */
+    @Bean
+    public IStatsWriter percentileWriter() {
+        return new PercentileWriter();
+    }
+
+    /**
+     * {@link IStatsWriter} implementation which is going to save historical utilization information
+     * into database.
+     *
+     * @return instance of {@link HistUtilizationWriter}.
+     */
+    @Bean
+    public IStatsWriter histUtilizationWriter() {
+        return new HistUtilizationWriter();
+    }
+
+    @Bean
+    public GroupServiceBlockingStub groupServiceClient() {
+        return GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 
     @Bean
@@ -155,9 +250,8 @@ public class StatsConfig {
     }
 
     @Bean
-    ImmutableList<String> excludedCommoditiesList() {
-        return ImmutableList.copyOf(excludedCommodities.toLowerCase()
-                .split(" "));
+    Set<String> excludedCommoditiesList() {
+        return ImmutableSet.copyOf(excludedCommodities.toLowerCase().split(" "));
     }
 
     @Bean

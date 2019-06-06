@@ -1,19 +1,21 @@
-package com.vmturbo.history.stats.live;
+package com.vmturbo.history.stats.writers;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.util.CollectionUtils;
+import javax.annotation.Nonnull;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.auth.api.Pair;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
@@ -26,6 +28,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.history.stats.ICompleteTopologyStatsWriter;
 import com.vmturbo.history.utils.HostsSumCapacities;
 import com.vmturbo.history.utils.StoragesSumCapacities;
 import com.vmturbo.history.utils.SystemLoadCommodities;
@@ -45,9 +49,13 @@ import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
  *          their cluster id, VM id, producer (storage) id and used values.
  *      -For all these 11 commodities it saves the sum of used values and capacities per slice.
  */
-public class SystemLoadSnapshot {
+public class SystemLoadSnapshot extends AbstractStatsWriter implements ICompleteTopologyStatsWriter {
 
     private final Logger logger = LogManager.getLogger();
+
+    private final GroupServiceBlockingStub groupServiceClient;
+    private final SystemLoadHelper systemLoadHelper;
+
 
     // Tables to keep statistics for system load
     private Map<String, Double[]> slice2sumUsed = null;
@@ -55,7 +63,18 @@ public class SystemLoadSnapshot {
     private Multimap<String, Pair<CommoditySoldDTO, TopologyEntityDTO>> updatedSoldCommodities = null;
     private Multimap<String, Pair<CommodityBoughtDTO, TopologyEntityDTO>> updatedBoughtCommodities = null;
 
-    public SystemLoadSnapshot() {}
+    /**
+     * Creates {@link SystemLoadSnapshot} instance.
+     *
+     * @param groupServiceClient A client to request groups info from group
+     *                 component.
+     * @param systemLoadHelper helps to update and save system load data.
+     */
+    public SystemLoadSnapshot(@Nonnull GroupServiceBlockingStub groupServiceClient,
+                    @Nonnull SystemLoadHelper systemLoadHelper) {
+        this.groupServiceClient = groupServiceClient;
+        this.systemLoadHelper = systemLoadHelper;
+    }
 
     /**
      * The method saves information about the current system load commodities of
@@ -63,13 +82,12 @@ public class SystemLoadSnapshot {
      * capacities per system load commodity per slice.
      *
      * @param allTopologyDTOs All the topology entities of the current snapshot.
-     * @param groupServiceClient A client to request groups info from group component.
      */
-    public void saveSnapshot(@Nonnull Collection<TopologyEntityDTO> allTopologyDTOs,
-                             @Nonnull GroupServiceBlockingStub groupServiceClient,
-                             @Nonnull SystemLoadHelper systemLoadHelper) {
+    @Override
+    protected int process(@Nonnull TopologyInfo topologyInfo,
+                    @Nonnull Collection<TopologyEntityDTO> allTopologyDTOs) {
 
-        Map<String, Group> slice2groups = null;
+        final Map<String, Group> slice2groups = new HashMap<>();
         boolean savedData = false;
 
         // Initialize the tables to keep statistics for system load
@@ -77,7 +95,6 @@ public class SystemLoadSnapshot {
         slice2sumCapacities = Maps.newHashMap();
         updatedSoldCommodities = HashMultimap.create();
         updatedBoughtCommodities = HashMultimap.create();
-        slice2groups = Maps.newHashMap();
 
         // Getting information for the groups of the system
         GetGroupsRequest groupsRequest = GetGroupsRequest.newBuilder()
@@ -269,6 +286,7 @@ public class SystemLoadSnapshot {
                     ArrayListMultimap.create(updatedSoldCommodities),
                     ArrayListMultimap.create(updatedBoughtCommodities));
         }
+        return allTopologyDTOs.size();
     }
 
     /**

@@ -7,12 +7,14 @@ import static com.vmturbo.components.common.utils.StringConstants.NUM_STORAGES;
 import static com.vmturbo.components.common.utils.StringConstants.NUM_VMS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -26,19 +28,14 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.google.common.collect.ImmutableList;
-
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.DBConnectionPool;
@@ -61,9 +58,9 @@ import com.vmturbo.history.schema.abstraction.tables.VmStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.VpodStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
 import com.vmturbo.history.stats.DbTestConfig;
+import com.vmturbo.history.stats.IStatsWriter;
 import com.vmturbo.history.stats.StatsTestUtils;
-import com.vmturbo.history.topology.TopologyListenerConfig;
-import com.vmturbo.history.utils.SystemLoadHelper;
+import com.vmturbo.history.stats.writers.LiveStatsWriter;
 
 /**
  * Write live stats to real DB table.
@@ -87,6 +84,7 @@ public class LiveStatsDBTest {
     // With V1.9__insert_missing_reportdata.sql two new entries were added to entities table.
     // The two new entries were "MarketSettingsManager" and "PresentationManager".
     private static final int NUMBER_OF_ENTITIES = 93 + 2;
+
 
     @Autowired
     private DbTestConfig dbTestConfig;
@@ -133,16 +131,16 @@ public class LiveStatsDBTest {
                 CommodityTypeUnits.DATASTORE,
                 CommodityTypeUnits.DSPM_ACCESS,
                 CommodityTypeUnits.NETWORK);
-        ImmutableList<String> commoditiesToExclude = ImmutableList.copyOf(
+        final Set<String> commoditiesToExclude = ImmutableSet.copyOf(
                 excludedCommodities.stream()
                         .map(CommodityTypeUnits::getMixedCase)
                         .collect(Collectors.toList()));
-        LiveStatsWriter writerUnderTest = new LiveStatsWriter(
-                historydbIO, writeTopologyChunkSize, commoditiesToExclude);
+        final IStatsWriter writerUnderTest =
+                        new LiveStatsWriter(historydbIO, writeTopologyChunkSize,
+                                        commoditiesToExclude);
 
         List<TopologyEntityDTO> allEntityDTOs
                 = new ArrayList<>(StatsTestUtils.generateEntityDTOs(TEST_TOPOLOGY_PATH, TEST_TOPOLOGY_FILE_NAME));
-        int listSize = allEntityDTOs.size();
 
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
             .setTopologyContextId(REALTIME_TOPOLOGY_CONTEXT_ID)
@@ -150,17 +148,8 @@ public class LiveStatsDBTest {
             .setCreationTime(1000)
             .build();
 
-        GroupServiceBlockingStub groupServiceClient = Mockito.mock(TopologyListenerConfig.class).groupServiceClient();
-        SystemLoadHelper systemLoadHelper = Mockito.mock(SystemLoadHelper.class);
-
-        RemoteIterator<TopologyEntityDTO> allDTOs = Mockito.mock(RemoteIterator.class);
-        when(allDTOs.hasNext()).thenReturn(true).thenReturn(true).thenReturn(false);
-        when(allDTOs.nextChunk())
-            .thenReturn(allEntityDTOs.subList(0, listSize * 2 / 3))
-            .thenReturn(allEntityDTOs.subList(listSize * 2 / 3, listSize));
-
         // Act
-        writerUnderTest.processChunks(topologyInfo, allDTOs, groupServiceClient, systemLoadHelper);
+        writerUnderTest.processObjects(topologyInfo, allEntityDTOs);
 
         // Assert
         // expected row counts from the sample topology
@@ -231,4 +220,5 @@ public class LiveStatsDBTest {
         Integer count = (Integer)countResult.getValue(0, 0, 0L);
         assertThat(count, is(numberOfEntities));
     }
+
 }
