@@ -1,29 +1,17 @@
 package com.vmturbo.auth.api.auditing;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Optional;
-import java.util.Random;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.cloudbees.syslog.Facility;
-import com.cloudbees.syslog.MessageFormat;
-import com.cloudbees.syslog.Severity;
-import com.cloudbees.syslog.sender.TcpSyslogMessageSender;
-import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 
@@ -35,32 +23,16 @@ import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 public final class AuditLogUtils {
 
     private static final String LOOPBACK = "127.0.0.1"; // assume it's IPv4 for now
-    private static final String SYSTEM = "SYSTEM";
+    public static final String SYSTEM = "SYSTEM";
     private static final String RESULT_FAILURE = "result=Failure";
     private static final String RESULT_SUCCESS = "result=Success";
     private static final DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-    private static final String LEFT_BRACKET = "(";
-    private static final String RIGHT_BRACKET = ")";
-    private static final long maxConnectRetryCount = 10;
-    private static final int low = 1;
-    private static final int high = 1000;
-    private static final Random random = new Random();
-    private static TcpSyslogMessageSender messageSender = new TcpSyslogMessageSender();
+    public static final String LEFT_BRACKET = "(";
+    public static final String RIGHT_BRACKET = ")";
 
-    // thread pool for scheduled license check updates
-    private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
-    static {
-        messageSender.setDefaultAppName("");
-        messageSender.setDefaultFacility(Facility.AUTHPRIV);
-        messageSender.setDefaultSeverity(Severity.INFORMATIONAL);
-        // TODO OM-47212 Externalize remote audit rsyslog server hostname
-        messageSender.setSyslogServerHostname("rsyslog");
-        messageSender.setSyslogServerPort(2514);
-        messageSender.setMessageFormat(MessageFormat.RFC_5424);
-        messageSender.setSsl(false);
-    }
-
-    private static final Logger logger = LogManager.getLogger();
+    private static final org.apache.log4j.Logger logger = org.apache.log4j.Logger
+            .getLogger(AuditLogUtils.class);
+    private static final Logger auditLogger = LogManager.getLogger("com.vmturbo.platform.audit");
 
     private AuditLogUtils() {
     }
@@ -95,51 +67,22 @@ public final class AuditLogUtils {
     private static void writeAuditToFile(String action, String actionInitiator, String targetName,
                                          String message, String remoteClientIP, boolean isSuccessful) {
         final Date date = new Date();
-        final String result = isSuccessful ? RESULT_SUCCESS : RESULT_FAILURE;
-        final String initiator = (actionInitiator != null) ? actionInitiator : getLoggedInUserName().orElse(SYSTEM);
 
-        final String remoteIP = (remoteClientIP != null) ? remoteClientIP : (getRemoteIpAddress() != null) ?
-            getRemoteIpAddress() : (actionInitiator != null && actionInitiator.equalsIgnoreCase(SYSTEM)) ?
-            getLocalIpAddress() : "";
-
-        scheduler.schedule(() -> {
-            // local IP address, action initiator, DateAndTime, remote IP, action, target object,
-            // result, detail message
-            sendToRsyslog(String.format("[%s] [%s] TURBONOMICAUDIT: \"%s\", \"%s\", \"%s\", \"%s\"," +
-                    " \"%s\", \"%s\"", getLocalIpAddress(), initiator, dateFormat.format(date),
-                remoteIP, action, targetName, result, message), messageSender, maxConnectRetryCount);
-        }, 0, TimeUnit.MILLISECONDS);
-    }
-
-    @VisibleForTesting
-    static void sendToRsyslog(@Nonnull final String auditMessage,
-                              @Nonnull final TcpSyslogMessageSender messageSender,
-                              final long maxRetryCount) {
-        int count = 0;
-        while (true) {
-            try {
-                messageSender.sendMessage(auditMessage);
-                return;
-            } catch (IOException | RuntimeException e) {
-                if (count++ >= maxRetryCount) {
-                    logger.error("Cannot send audit message with " + maxRetryCount + " retries");
-                    // Since already log the error and audit message, there is not much we can do.
-                    return;
-                }
-
-                logger.error("Failed to send out audit message:{}", e.getMessage());
-                logger.info("Waiting for rsyslog to response. Retry #" + count);
-                try {
-                    // Randomized exponential backoff, maximun wait time is
-                    // 2^maxConnectRetryCount(10) = 1024 seconds
-                    Thread.sleep(((int) Math.round(Math.pow(2, count)) * 1000)
-                        + (random.nextInt(high - low) + low));
-                } catch (InterruptedException e1) {
-                    throw new RuntimeException(
-                        "Exception while retrying connection to repository", e1);
-                }
+        String result = isSuccessful ? RESULT_SUCCESS : RESULT_FAILURE;
+        if (actionInitiator == null) {
+            actionInitiator = getLoggedInUserName().orElse(SYSTEM);
+        }
+        if (remoteClientIP == null) {
+            remoteClientIP = getRemoteIpAddress();
+            if (remoteClientIP == null && actionInitiator.equalsIgnoreCase(SYSTEM)) {
+                remoteClientIP = getLocalIpAddress();
             }
         }
+        // local IP address, action initiator, DateAndTime, remote IP, action, target object,
+        // result, detail message
+        auditLogger.info("[{}] [{}] TURBONOMICAUDIT: \"{}\", \"{}\", \"{}\", \"{}\"," +
+                        " \"{}\", \"{}\"", getLocalIpAddress(), actionInitiator, dateFormat.format(date),
+                remoteClientIP, action, targetName, result, message);
     }
 
     /**

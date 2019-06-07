@@ -11,11 +11,6 @@
         <relativePath>../com.vmturbo.components.api.root/pom.xml</relativePath>
     </parent>
 
-    <properties>
-        <!-- syslog client -->
-        <syslog-client.version>1.1.7</syslog-client.version>
-    </properties>
-
     <artifactId>auth-api</artifactId>
 
     <dependencies>
@@ -43,11 +38,6 @@
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.cloudbees</groupId>
-            <artifactId>syslog-java-client</artifactId>
-            <version>${syslog-client.version}</version>
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>

@@ -109,7 +109,8 @@ public class SQLDatabaseConfig {
 
         jooqConfiguration.set(connectionProvider());
         jooqConfiguration.set(new Settings().withRenderNameStyle(RenderNameStyle.LOWER));
-        jooqConfiguration.set(new DefaultExecuteListenerProvider(exceptionTranslator()));
+        jooqConfiguration.set(new DefaultExecuteListenerProvider(exceptionTranslator()),
+            new DefaultExecuteListenerProvider(new JooqTracingInterceptor(jooqConfiguration)));
 
         SQLDialect dialect = SQLDialect.valueOf(sqlDialectName);
         jooqConfiguration.set(dialect);

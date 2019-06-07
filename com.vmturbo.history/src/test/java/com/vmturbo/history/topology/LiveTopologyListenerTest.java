@@ -16,12 +16,14 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.history.api.StatsAvailabilityTracker;
 import com.vmturbo.history.api.StatsAvailabilityTracker.TopologyContextType;
-import com.vmturbo.history.stats.StatsWriteCoordinator;
+import com.vmturbo.history.stats.live.LiveStatsWriter;
+import com.vmturbo.history.utils.SystemLoadHelper;
 
 /**
  * Test the Live Topology processing classes
@@ -29,13 +31,16 @@ import com.vmturbo.history.stats.StatsWriteCoordinator;
 public class LiveTopologyListenerTest {
     private static final long REALTIME_TOPOLOGY_ID = 7777777;
 
-    private StatsWriteCoordinator statsWriteCoordinator;
+    private LiveStatsWriter liveStatsWriter;
     private StatsAvailabilityTracker availabilityTracker;
+    private GroupServiceBlockingStub groupServiceClient = null;
+    private SystemLoadHelper systemLoadHelper;
 
     @Before
     public void setup() {
-        statsWriteCoordinator = Mockito.mock(StatsWriteCoordinator.class);
+        liveStatsWriter = Mockito.mock(LiveStatsWriter.class);
         availabilityTracker = Mockito.mock(StatsAvailabilityTracker.class);
+        systemLoadHelper = mock(SystemLoadHelper.class);
     }
 
     /**
@@ -43,8 +48,11 @@ public class LiveTopologyListenerTest {
      */
     @Test
     public void testInterleavedTopologySkipping() throws Exception {
-        LiveTopologyEntitiesListener serviceUndertest =
-                        new LiveTopologyEntitiesListener(statsWriteCoordinator, availabilityTracker);
+        LiveTopologyEntitiesListener serviceUndertest = new LiveTopologyEntitiesListener(
+                liveStatsWriter,
+                availabilityTracker,
+                groupServiceClient,
+                systemLoadHelper);
 
         RemoteIterator<TopologyEntityDTO> iterator = Mockito.mock(RemoteIterator.class);
 
@@ -54,7 +62,7 @@ public class LiveTopologyListenerTest {
         doAnswer(invocationOnMock -> {
                 latch.await();
                 return null;
-            }).when(statsWriteCoordinator).processChunks(any(), any());
+            }).when(liveStatsWriter).processChunks(any(), any(), any(), any());
 
         TopologyInfo topology1 = TopologyInfo.newBuilder()
                 .setTopologyContextId(REALTIME_TOPOLOGY_ID)
@@ -76,7 +84,7 @@ public class LiveTopologyListenerTest {
 
         // Wait for the processing to start.
         // It doesn't finish, because the processing is blocked until latch counts down.
-        verify(statsWriteCoordinator, timeout(1000)).processChunks(any(), any());
+        verify(liveStatsWriter, timeout(1000)).processChunks(any(), any(), any(), any());
 
         // New notification comes in while processing is still in progress.
         serviceUndertest.onTopologyNotification(topology2, iterator);

@@ -45,12 +45,4 @@ public class SharedMetrics {
         .withLabelNames("context_type")
         .build()
         .register();
-
-    public static final String ALL_AGGREGATORS_LABEL = "all_aggregators";
-    public static final DataMetricSummary STATISTICS_AGGREGATION_SUMMARY = DataMetricSummary.builder()
-                    .withName("statistics_aggregation_duration_seconds")
-                    .withHelp("Duration in seconds it takes the history component to aggregate and write statistics for a topology snapshot.")
-                    .withLabelNames(ALL_AGGREGATORS_LABEL)
-                    .build()
-                    .register();
 }

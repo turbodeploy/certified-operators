@@ -5,6 +5,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.stats.StatsConfig;
@@ -35,8 +37,10 @@ public class TopologyListenerConfig {
     @Bean
     public LiveTopologyEntitiesListener liveTopologyEntitiesListener() {
         return new LiveTopologyEntitiesListener(
-                statsConfig.statsWriteCoordinator(),
-                historyApiConfig.statsAvailabilityTracker());
+                statsConfig.liveStatsWriter(),
+                historyApiConfig.statsAvailabilityTracker(),
+                groupServiceClient(),
+                statsConfig.systemLoadHelper());
     }
 
     @Bean
@@ -47,5 +51,9 @@ public class TopologyListenerConfig {
         return topologyProcessor;
     }
 
+    @Bean
+    public GroupServiceBlockingStub groupServiceClient() {
+        return GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
+    }
 
 }
