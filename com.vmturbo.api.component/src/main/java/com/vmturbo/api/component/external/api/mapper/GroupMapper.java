@@ -72,7 +72,11 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditi
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.topology.processor.api.TargetInfo;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
  * Maps groups between their API DTO representation and their protobuf representation.
@@ -211,6 +215,14 @@ public class GroupMapper {
         FILTER_TYPES_TO_PROCESSORS = filterTypesToProcessors.build();
     }
 
+    /**
+     * The set of probe types whose environment type should be treated as CLOUD. This is different
+     * from the target category "CLOUD MANAGEMENT". This is also defined in classic in
+     * DiscoveryConfigService#cloudTargetTypes.
+     */
+    private static final Set<String> CLOUD_ENVIRONMENT_PROBE_TYPES = ImmutableSet.of(
+        SDKProbeType.AWS.getProbeType(), SDKProbeType.AZURE.getProbeType());
+
     private static StoppingCondition.Builder buildStoppingCondition(String currentToken) {
         return StoppingCondition.newBuilder().setStoppingPropertyFilter(
                         SearchProtoUtil.entityTypeFilter(currentToken));
@@ -222,12 +234,16 @@ public class GroupMapper {
 
     private final GroupExpander groupExpander;
 
+    private final TopologyProcessor topologyProcessor;
+
     public GroupMapper(@Nonnull final GroupUseCaseParser groupUseCaseParser,
                        @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
-                       @Nonnull final GroupExpander groupExpander) {
+                       @Nonnull final GroupExpander groupExpander,
+                       @Nonnull final TopologyProcessor topologyProcessor) {
         this.groupUseCaseParser = Objects.requireNonNull(groupUseCaseParser);
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
         this.groupExpander = Objects.requireNonNull(groupExpander);
+        this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
     }
 
     /**
@@ -500,13 +516,38 @@ public class GroupMapper {
         // TODO (roman, Jul 9 2018) OM-36862: Support getting the active entities count for
         // a group because the UI needs that information in some screens.
         outputDTO.setActiveEntitiesCount(groupAndMembers.entities().size());
-
-        // XL RESTRICTION: Only ONPREM entities for now. see com.vmturbo.platform.VMTRoot.
-        //     OperationalEntities.PresentationLayer.Services.impl.ServiceEntityUtilsImpl
-        //     #getEntityInformation() to determine environmentType
-        outputDTO.setEnvironmentType(environmentType);
+        outputDTO.setEnvironmentType(getEnvironmentTypeForTempGroup(environmentType));
 
         return outputDTO;
+    }
+
+    /**
+     * Get the environment type for temporary group. If it's not created from HYBRID view in UI,
+     * return the environment type passed from UI. If it's created from HYBRID view, we should also
+     * check added targets, if no cloud targets, set it to ONPREM.
+     * Note: We don't want to fetch all entities in this group and go through all of them to decide
+     * the environment type like that in classic, since it's expensive for large groups. A better
+     * solution will be done on develop.
+     *
+     * @param environmentTypeFromUI the EnvironmentType passed from UI
+     * @return the {@link EnvironmentType} for the temporary group
+     */
+    private EnvironmentType getEnvironmentTypeForTempGroup(@Nonnull final EnvironmentType environmentTypeFromUI) {
+        if (environmentTypeFromUI != EnvironmentType.HYBRID) {
+            return environmentTypeFromUI;
+        }
+        try {
+            final Set<Long> addedProbeIds = topologyProcessor.getAllTargets().stream()
+                .map(TargetInfo::getProbeId)
+                .collect(Collectors.toSet());
+            final boolean hasCloudEnvironmentTarget = topologyProcessor.getAllProbes().stream()
+                .filter(probeInfo -> addedProbeIds.contains(probeInfo.getId()))
+                .anyMatch(probeInfo -> CLOUD_ENVIRONMENT_PROBE_TYPES.contains(probeInfo.getType()));
+            return hasCloudEnvironmentTarget ? EnvironmentType.HYBRID : EnvironmentType.ONPREM;
+        } catch (CommunicationException e) {
+            logger.error("Error fetching targets and probes from topology processor", e);
+            return EnvironmentType.HYBRID;
+        }
     }
 
    /**

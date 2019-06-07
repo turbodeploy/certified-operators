@@ -71,6 +71,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.topology.processor.api.ProbeInfo;
+import com.vmturbo.topology.processor.api.TargetInfo;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 public class GroupMapperTest {
 
@@ -91,8 +95,10 @@ public class GroupMapperTest {
 
     private GroupExpander groupExpander = mock(GroupExpander.class);
 
-    private GroupMapper groupMapper =
-        new GroupMapper(groupUseCaseParser, supplyChainFetcherFactory, groupExpander);
+    private TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
+
+    private GroupMapper groupMapper = new GroupMapper(groupUseCaseParser, supplyChainFetcherFactory,
+        groupExpander, topologyProcessor);
 
     private static String AND = "AND";
     private static String FOO = "foo";
@@ -1040,6 +1046,45 @@ public class GroupMapperTest {
         assertThat(mappedDto.getGroupType(), is(VM_TYPE));
         assertThat(mappedDto.getEnvironmentType(), is(EnvironmentType.ONPREM));
         assertThat(mappedDto.getClassName(), is("Group"));
+    }
+
+    @Test
+    public void testMapTempGroupHybridWithAndWithoutCloudTargets() throws Exception {
+        final Group group = Group.newBuilder()
+            .setType(Group.Type.TEMP_GROUP)
+            .setId(8L)
+            .setOrigin(Origin.USER)
+            .setTempGroup(TempGroupInfo.newBuilder()
+                .setName("foo")
+                .setEntityType(10)
+                .setMembers(StaticGroupMembers.newBuilder()
+                    .addStaticMemberOids(1L)))
+            .build();
+
+        when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
+            .group(group)
+            .entities(GroupProtoUtil.getStaticMembers(group).get())
+            .members(GroupProtoUtil.getStaticMembers(group).get())
+            .build());
+
+        // mock only one vcenter target
+        final long probeId = 111L;
+        final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
+        when(targetInfo.getProbeId()).thenReturn(probeId);
+        when(topologyProcessor.getAllTargets()).thenReturn(ImmutableSet.of(targetInfo));
+        final ProbeInfo probeInfo = Mockito.mock(ProbeInfo.class);
+        when(probeInfo.getId()).thenReturn(probeId);
+        when(probeInfo.getType()).thenReturn(SDKProbeType.VCENTER.getProbeType());
+        when(topologyProcessor.getAllProbes()).thenReturn(ImmutableSet.of(probeInfo));
+
+        // if no cloud targets, it should be ONPREM
+        GroupApiDTO mappedDto = groupMapper.toGroupApiDto(group, EnvironmentType.HYBRID);
+        assertThat(mappedDto.getEnvironmentType(), is(EnvironmentType.ONPREM));
+
+        // mock one cloud target and expect the environment type to be HYBRID
+        when(probeInfo.getType()).thenReturn(SDKProbeType.AWS.getProbeType());
+        mappedDto = groupMapper.toGroupApiDto(group, EnvironmentType.HYBRID);
+        assertThat(mappedDto.getEnvironmentType(), is(EnvironmentType.HYBRID));
     }
 
     @Test
