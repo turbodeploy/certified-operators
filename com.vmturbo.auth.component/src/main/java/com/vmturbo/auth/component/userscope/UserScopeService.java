@@ -271,6 +271,8 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
         for (Long groupOid : scopeGroupOids) {
             GetMembersRequest getGroupMembersReq = GetMembersRequest.newBuilder()
                     .setId(groupOid)
+                    .setEnforceUserScope(false) // disable this for the purposes of calculating scope
+                    .setExpandNestedGroups(true)
                     .setExpectPresent(false)
                     .build();
             GetMembersResponse groupMembersResponse = groupServiceStub.getMembers(getGroupMembersReq);

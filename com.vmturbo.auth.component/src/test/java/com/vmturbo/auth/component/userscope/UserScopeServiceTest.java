@@ -114,6 +114,8 @@ public class UserScopeServiceTest {
                 .when(groupService).getMembers(GetMembersRequest.newBuilder()
                     .setId(GROUP_ID)
                     .setExpectPresent(false)
+                    .setEnforceUserScope(false)
+                    .setExpandNestedGroups(true)
                     .build());
 
         doReturn(GetSupplyChainResponse.newBuilder()

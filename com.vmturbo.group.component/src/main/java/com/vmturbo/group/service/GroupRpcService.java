@@ -334,7 +334,7 @@ public class GroupRpcService extends GroupServiceImplBase {
                     tempGroupCache.getAll().stream() : Stream.empty();
             // Return non-temp groups, unless the user ONLY requested temp groups.
             // TODO: if specific group ids were requested, consider getting a stream of only those
-            // groups from the group store rather than all, if the number of groups gets very large.
+            // groups from the group dstore rather than all, if the number of groups gets very large.
             final Stream<Group> otherGroupStream =
                 requestTempGroups && request.getTypeFilterCount() == 1 ?
                     Stream.empty() : groupStore.getAll().stream();
@@ -572,7 +572,7 @@ public class GroupRpcService extends GroupServiceImplBase {
         if (optGroupInfo.isPresent()) {
             final Group group = optGroupInfo.get();
             final GetMembersResponse resp;
-            List<Long> members = getNormalGroupMembers(group, false);
+            List<Long> members = getNormalGroupMembers(group, request.getExpandNestedGroups());
             // verify the user has access to all of the group members before returning any of them.
             if (request.getEnforceUserScope() && userSessionContext.isUserScoped()) {
                 if (group.getType() == Type.NESTED_GROUP) {

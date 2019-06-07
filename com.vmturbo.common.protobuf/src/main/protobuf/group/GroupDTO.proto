@@ -368,6 +368,10 @@ message GetMembersRequest {
     // way because some of the plan requests don't have enough information in them to selectively
     // set this flag. This should be addressed as part of OM-44360.
     optional bool enforce_user_scope = 3 [default = false];
+
+    // if true, then any groups contained within the requested group will be also expanded, and it's
+    // members returned as part of the response.
+    optional bool expand_nested_groups = 4 [default = false];
 }
 
 message GetMembersResponse {
