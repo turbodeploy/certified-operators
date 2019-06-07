@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration name="ComponentConfig" status="error">
+    <Appenders>
+        <Console name="stdout">
+            <PatternLayout>
+                <Pattern>ttt %d %5p [%t] [%c]\t: %m%n%throwable</Pattern>
+            </PatternLayout>
+        </Console>
+    </Appenders>
+
+    <Loggers>
+        <Logger name="com.vmturbo" level="info" />
+        <logger name="org.springframework.web" level ="INFO" />
+        <Logger name="com.vmturbo.platform.audit" level="INFO" additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
+        <Root level="info">
+            <AppenderRef ref="stdout"/>
+        </Root>
+    </Loggers>
+</Configuration>
