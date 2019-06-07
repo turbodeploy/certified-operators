@@ -40,7 +40,7 @@ public class JooqTracingInterceptor extends DefaultExecuteListener {
         if (scope != null) {
             // This shouldn't happen, because the various callbacks in the listener should
             // be called serially for each query execution.
-            logger.error("Unexpected - scope is not null when execution is started.");
+            logger.warn("Unexpected - scope is not null when execution is started.");
         } else {
             scope = Tracing.addOpToTrace("jooq_query");
             if (ctx.query() != null) {
