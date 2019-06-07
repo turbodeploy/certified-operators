@@ -1,23 +1,11 @@
 package com.vmturbo.auth.component.store;
 
+import static org.mockito.Mockito.spy;
+
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
-
-import org.assertj.core.util.Lists;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
-import org.junit.rules.TemporaryFolder;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableTable;
@@ -26,14 +14,39 @@ import com.google.common.collect.Table;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import org.assertj.core.util.Lists;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExpectedException;
+import org.junit.rules.TemporaryFolder;
+import org.mockito.Mockito;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+
 import com.vmturbo.auth.api.authentication.AuthenticationException;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 /**
  * The KVBackedILocalAuthStoreTest tests the KV-backed Auth store.
@@ -83,10 +96,21 @@ public class KVBackedILocalAuthStoreTest {
 
     @Rule public TemporaryFolder tempFolder = new TemporaryFolder();
 
+
+    private GroupServiceMole groupService = spy(new GroupServiceMole());
+
+    @Rule
+    public GrpcTestServer mockServer = GrpcTestServer.newServer(groupService);
+
+    private GroupServiceBlockingStub groupServiceClient;
+
+
+
     @Before
     public void init() throws Exception {
         System.setProperty("com.vmturbo.keydir", tempFolder.newFolder().getAbsolutePath());
         System.setProperty("com.vmturbo.kvdir", tempFolder.newFolder().getAbsolutePath());
+        groupServiceClient = GroupServiceGrpc.newBlockingStub(mockServer.getChannel());
     }
 
     @Test
@@ -115,11 +139,10 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testAdd() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore);
+        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient);
 
         boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                                    ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
-        Assert.assertTrue(result);
         Assert.assertTrue(result);
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + AuthUserDTO.PROVIDER.LOCAL.name()
@@ -136,6 +159,62 @@ public class KVBackedILocalAuthStoreTest {
         Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
         Assert.assertEquals(ImmutableList.of(1L), info.scopeGroups);
     }
+
+    @Test
+    public void testAddSharedUserValidGroups() throws Exception {
+        KeyValueStore keyValueStore = new MapKeyValueStore();
+        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient);
+
+        // group 1 will be valid, but group 2 will not
+        Mockito.doReturn(Arrays.asList(Group.newBuilder()
+                .setType(Type.GROUP)
+                .setGroup(GroupInfo.newBuilder()
+                        .setEntityType(EntityType.VIRTUAL_MACHINE.getValue()))
+                .build()))
+                .when(groupService).getGroups(GetGroupsRequest.newBuilder().addId(1L).build());
+
+        Mockito.doReturn(Arrays.asList(Group.newBuilder()
+                .setType(Type.GROUP)
+                .setGroup(GroupInfo.newBuilder()
+                        .setEntityType(EntityType.PHYSICAL_MACHINE.getValue()))
+                .build()))
+                .when(groupService).getGroups(GetGroupsRequest.newBuilder().addId(2L).build());
+
+        // shared advisor should be allowed w/group 1
+        boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
+                ImmutableList.of("SHARED_ADVISOR"), ImmutableList.of(1L));
+        Assert.assertTrue(result);
+
+        Mockito.doReturn(Arrays.asList(Group.newBuilder()
+                .setType(Type.GROUP)
+                .setGroup(GroupInfo.newBuilder()
+                        .setEntityType(EntityType.PHYSICAL_MACHINE.getValue()))
+                .build()))
+                .when(groupService).getGroups(GetGroupsRequest.newBuilder().addId(2L).build());
+
+        // regular advisor should be allowed w/group 2
+        Assert.assertTrue(store.add(AuthUserDTO.PROVIDER.LOCAL, "user1", "password0",
+                ImmutableList.of("ADVISOR"), ImmutableList.of(2L)));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testAddSharedUserInvalidGroups() throws Exception {
+        KeyValueStore keyValueStore = new MapKeyValueStore();
+        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient);
+
+        // group of PM's should not be allowed for shared user scope
+        Mockito.doReturn(Arrays.asList(Group.newBuilder()
+                .setType(Type.GROUP)
+                .setGroup(GroupInfo.newBuilder()
+                        .setEntityType(EntityType.PHYSICAL_MACHINE.getValue()))
+                .build()))
+                .when(groupService).getGroups(GetGroupsRequest.newBuilder().addId(2L).build());
+
+        // shared advisor should be rejected.
+        store.add(AuthUserDTO.PROVIDER.LOCAL, "user2", "password0",
+                ImmutableList.of("SHARED_ADVISOR"), ImmutableList.of(2L));
+    }
+
 
     @Test
     public void testAuthenticate() throws Exception {
@@ -294,7 +373,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testModifyRoles() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore);
+        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient);
 
         boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                                    ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
@@ -314,6 +393,35 @@ public class KVBackedILocalAuthStoreTest {
         Assert.assertTrue(CryptoFacility.checkSecureHash(info.passwordHash, "password0"));
         Assert.assertEquals(ImmutableList.of("ADMIN2", "USER2"), info.roles);
         Assert.assertEquals(ImmutableList.of(2L), info.scopeGroups);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testModifyRolesInvalidScopeGroup() throws Exception {
+        KeyValueStore keyValueStore = new MapKeyValueStore();
+        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient);
+
+        // group 1 will be valid, but group 2 will not
+        Mockito.doReturn(Arrays.asList(Group.newBuilder()
+                .setType(Type.GROUP)
+                .setGroup(GroupInfo.newBuilder()
+                        .setEntityType(EntityType.VIRTUAL_MACHINE.getValue()))
+                .build()))
+                .when(groupService).getGroups(GetGroupsRequest.newBuilder().addId(1L).build());
+
+        Mockito.doReturn(Arrays.asList(Group.newBuilder()
+                .setType(Type.GROUP)
+                .setGroup(GroupInfo.newBuilder()
+                        .setEntityType(EntityType.PHYSICAL_MACHINE.getValue()))
+                .build()))
+                .when(groupService).getGroups(GetGroupsRequest.newBuilder().addId(2L).build());
+
+        boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
+                ImmutableList.of("SHARED_ADVISOR", "USER"), ImmutableList.of(1L));
+        Assert.assertTrue(result);
+
+        // change to invalid group should be rejected.
+        ResponseEntity<String> result2 = store.setRoles(AuthUserDTO.PROVIDER.LOCAL, "user0",
+                ImmutableList.of("SHARED_ADVISOR", "USER2"), ImmutableList.of(2L));
     }
 
     @Test

@@ -25,6 +25,7 @@ import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
+import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
@@ -129,7 +130,7 @@ public class UserScopeServiceTest {
             .setSupplyChain(TEST_NON_INFRASTRUCTURE_SUPPLY_CHAIN)
             .build()).when(supplyChainService).getSupplyChain(GetSupplyChainRequest.newBuilder()
                 .addStartingEntityOid(memberId)
-                .addAllEntityTypesToInclude(UserScopeService.SHARED_USER_ENTITY_TYPES)
+                .addAllEntityTypesToInclude(UserScopeUtils.SHARED_USER_ENTITY_TYPES)
                 .build());
 
         groupServiceClient = GroupServiceGrpc.newBlockingStub(mockServer.getChannel());

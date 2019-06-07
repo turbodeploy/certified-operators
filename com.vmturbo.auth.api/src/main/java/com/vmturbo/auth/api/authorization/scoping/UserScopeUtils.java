@@ -20,6 +20,7 @@ import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScope
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.components.common.identity.OidSet.AllOidsSet;
 import com.vmturbo.components.common.identity.RoaringBitmapOidSet;
@@ -30,7 +31,12 @@ import com.vmturbo.components.common.identity.RoaringBitmapOidSet;
 public class UserScopeUtils {
     private static Logger logger = LogManager.getLogger();
 
-    private static Set<String> SHARED_ROLES = ImmutableSet.of("SHARED_OBSERVER", "SHARED_ADVISOR");
+    public static final Set<String> SHARED_ROLES = ImmutableSet.of("SHARED_OBSERVER", "SHARED_ADVISOR");
+
+    // entity types available to "shared" roles. Modeled after SHARED_USER_ENTITIES_LIST in classic's
+    // ScopedUserUtil.java.
+    public static final Set<String> SHARED_USER_ENTITY_TYPES = ImmutableSet.of(
+            UIEntityType.APPLICATION.apiStr(), UIEntityType.VIRTUAL_MACHINE.apiStr());
 
     public static boolean isUserScoped() {
         // first check if there is a security context user
@@ -41,6 +47,34 @@ public class UserScopeUtils {
         // if no user, check if there is something in the grpc context.
         List<Long> grpcContextScopeGroups = SecurityConstant.USER_SCOPE_GROUPS_KEY.get();
         return (CollectionUtils.isNotEmpty(grpcContextScopeGroups));
+    }
+
+    /**
+     * Does the list of roles contain any "shared" roles? These get special treatment... for the
+     * time being. (we'll expect to replace this method when we add support for "custom user roles",
+     * and the "shared roles" will stop being a special hard-coded case)
+     *
+     * @param roles the list of roles to check.
+     * @return true, if any of the roles are considered "shared". false, otherwise.
+     */
+    public static boolean containsSharedRole(List<String> roles) {
+
+        if (CollectionUtils.isEmpty(roles)) {
+            // no roles found -- assuming not shared.
+            // TODO: Once we have a reliable "system user" as part of OM-44445, we should consider
+            // treating this as a security errors, since at that point all users should have some
+            // kind of role.
+            logger.debug("No roles found in calling context -- assuming user is not shared");
+            return false;
+        }
+        logger.debug("Found roles {} in calling context", roles);
+        for (String role : roles) {
+            if (SHARED_ROLES.contains(role)) {
+                logger.debug("User is 'shared' because it has role {}", role);
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -60,25 +94,7 @@ public class UserScopeUtils {
             roles = SecurityConstant.USER_ROLES_KEY.get();
         }
 
-        if (CollectionUtils.isEmpty(roles)) {
-            // no roles found -- assuming not shared.
-            // TODO: Once we have a reliable "system useras part of OM-44445.
-            logger.debug("No roles found in calling context -- assuming user is not shared");
-            return false;
-        }
-        logger.debug("Found roles {} in calling context", roles);
-        // multiple user roles are not expected until we address the "Custom User Roles" epic.
-        // for now, if we see multiple roles being passed-in, throw a security exception.
-        if (roles.size() > 1) {
-            throw new SecurityException("Invalid user session information.");
-        }
-        for (String role : roles) {
-            if (SHARED_ROLES.contains(role)) {
-                logger.debug("User is 'shared' because it has role {}", role);
-                return true;
-            }
-        }
-        return false;
+        return containsSharedRole(roles);
     }
 
     private static Optional<AuthUserDTO> getAuthUser() {

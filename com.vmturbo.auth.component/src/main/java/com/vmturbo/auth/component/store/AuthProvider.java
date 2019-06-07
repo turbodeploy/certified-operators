@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -55,11 +56,18 @@ import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.IAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
 import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
+import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 import com.vmturbo.auth.component.store.sso.SsoUtil;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
@@ -172,14 +180,31 @@ public class AuthProvider {
     private long identityGeneratorPrefix_;
 
     /**
+     * We may sometimes call the group service to verify scope groups.
+     */
+    private final Optional<GroupServiceBlockingStub> groupServiceClient;
+
+    /**
+     * Constructs the KV store -- without support for validating shared groups.
+     *
+     * @param keyValueStore The underlying store backend.
+     */
+    @VisibleForTesting
+    public AuthProvider(@Nonnull final KeyValueStore keyValueStore) {
+        this(keyValueStore, null);
+    }
+
+    /**
      * Constructs the KV store.
      *
      * @param keyValueStore The underlying store backend.
      */
-    public AuthProvider(@Nonnull final KeyValueStore keyValueStore) {
+    public AuthProvider(@Nonnull final KeyValueStore keyValueStore,
+                        @Nonnull final GroupServiceBlockingStub groupServiceClient) {
         keyValueStore_ = Objects.requireNonNull(keyValueStore);
         ssoUtil = new SsoUtil();
         IdentityGenerator.initPrefix(identityGeneratorPrefix_);
+        this.groupServiceClient = Optional.ofNullable(groupServiceClient);
     }
 
     /**
@@ -692,6 +717,35 @@ public class AuthProvider {
     }
 
     /**
+     * Validate that all of the groups are acceptable, if the user is a "shared" user.
+     *
+     * @param roles the list of roles the user has
+     * @param scopeGroups the list of scope group ids to validate
+     * @throws SecurityException
+     */
+    protected void validateScopeGroups(final @Nonnull List<String> roles, final @Nullable List<Long> scopeGroups)
+        throws SecurityException {
+        // validate the scope groups, if the user is in a "shared" role.
+        if (CollectionUtils.isNotEmpty(scopeGroups) && UserScopeUtils.containsSharedRole(roles)) {
+            if (! groupServiceClient.isPresent()) {
+                logger_.warn("Cannot validate Shared user group -- validation is disabled.");
+                throw new SecurityException("Cannot validate Shared user group -- validation is disabled.");
+            }
+            GroupServiceBlockingStub groupClient = groupServiceClient.get();
+            Iterator<Group> groups = groupClient.getGroups(GetGroupsRequest.newBuilder()
+                    .addAllId(scopeGroups)
+                    .build());
+            while (groups.hasNext()) {
+                int entityType = GroupProtoUtil.getEntityType(groups.next());
+                if (! UserScopeUtils.SHARED_USER_ENTITY_TYPES.contains(UIEntityType.fromType(entityType).apiStr())) {
+                    // invalid group assignment
+                    throw new IllegalArgumentException("Shared users can only be scoped to groups of VM's or Applications!");
+                }
+            }
+        }
+    }
+
+    /**
      * Adds the user.
      * Used by the {@link #initAdmin(String, String)} and
      * {@link #add(AuthUserDTO.PROVIDER, String, String, List, List)}.
@@ -715,6 +769,8 @@ public class AuthProvider {
             logger_.error("AUDIT::FAILURE:EXISTING: Error adding existing user: " + userName);
             return false;
         }
+
+        validateScopeGroups(roleNames, scopeGroups);
 
         try {
             UserInfo info = new UserInfo();
@@ -881,6 +937,8 @@ public class AuthProvider {
             return new ResponseEntity<>("Not allowed to modify role for last local administrator user: "
                 + userName, HttpStatus.FORBIDDEN);
         }
+
+        validateScopeGroups(roleNames, scopeGroups);
 
         try {
             info.roles = roleNames;

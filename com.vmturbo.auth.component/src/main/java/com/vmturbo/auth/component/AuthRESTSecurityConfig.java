@@ -1,9 +1,13 @@
 package com.vmturbo.auth.component;
 
+import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.component.services.AuthUsersController;
 import com.vmturbo.auth.component.spring.SpringAuthFilter;
 import com.vmturbo.auth.component.store.AuthProvider;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.group.api.GroupClientConfig;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -23,7 +27,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  */
 @Configuration
 @EnableWebSecurity
-@Import({SpringSecurityConfig.class, AuthKVConfig.class})
+@Import({SpringSecurityConfig.class, AuthKVConfig.class, GroupClientConfig.class})
 public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
 
     /**
@@ -34,6 +38,9 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Autowired
     private AuthKVConfig authKVConfig;
+
+    @Autowired
+    private GroupClientConfig groupClientConfig;
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
@@ -111,8 +118,13 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
     }
 
     @Bean
+    public GroupServiceBlockingStub groupRpcService() {
+        return GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
+    }
+
+    @Bean
     public AuthProvider targetStore() {
-        return new AuthProvider(authKVConfig.authKeyValueStore());
+        return new AuthProvider(authKVConfig.authKeyValueStore(), groupRpcService());
     }
 
     @Bean

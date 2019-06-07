@@ -72,4 +72,13 @@ public class UserScopeUtilsTest {
         UserScopeUtils.filterEntityRequest(scope, Arrays.asList(1L,2L));
     }
 
+    @Test
+    public void testContainsSharedRole() {
+        Assert.assertFalse(UserScopeUtils.containsSharedRole(null));
+        Assert.assertFalse(UserScopeUtils.containsSharedRole(Collections.emptyList()));
+        Assert.assertFalse(UserScopeUtils.containsSharedRole(Arrays.asList("SHARED_J/K")));
+        Assert.assertTrue(UserScopeUtils.containsSharedRole(Arrays.asList("SHARED_OBSERVER")));
+        Assert.assertFalse(UserScopeUtils.containsSharedRole(Arrays.asList("ADMIN", "SCHMADMIN")));
+        Assert.assertTrue(UserScopeUtils.containsSharedRole(Arrays.asList("ADMIN", "SHARED_ADVISOR")));
+    }
 }

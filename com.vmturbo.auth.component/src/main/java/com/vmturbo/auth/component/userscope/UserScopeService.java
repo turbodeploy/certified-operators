@@ -110,12 +110,6 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
             .build()
             .register();
 
-    // entity types available to "shared" roles. Modeled after SHARED_USER_ENTITIES_LIST in classic's
-    // ScopedUserUtil.java.
-    public static final Set<String> SHARED_USER_ENTITY_TYPES = ImmutableSet.of(
-        UIEntityType.APPLICATION.apiStr(), UIEntityType.VIRTUAL_MACHINE.apiStr());
-
-
     private final GroupServiceBlockingStub groupServiceStub;
 
     private final SupplyChainServiceBlockingStub supplyChainServiceStub;
@@ -290,8 +284,8 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
 
         // for "shared" users, we should only include specific entity types.
         if (excludeInfrastructureEntities) {
-            logger.debug("Adding filter for shared entity types: {}", SHARED_USER_ENTITY_TYPES);
-            supplyChainRequestBuilder.addAllEntityTypesToInclude(SHARED_USER_ENTITY_TYPES);
+            logger.debug("Adding filter for shared entity types: {}", UserScopeUtils.SHARED_USER_ENTITY_TYPES);
+            supplyChainRequestBuilder.addAllEntityTypesToInclude(UserScopeUtils.SHARED_USER_ENTITY_TYPES);
         }
         final GetSupplyChainRequest supplyChainRequest = supplyChainRequestBuilder.build();
 
