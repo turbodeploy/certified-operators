@@ -12,9 +12,7 @@ import javax.annotation.Nonnull;
 import com.google.common.base.Preconditions;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
-import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.TimeFrame;
@@ -103,17 +101,14 @@ public class TimeRange {
     public interface TimeRangeFactory {
 
         /**
-         * Resolve the time range that a {@link StatsFilter} specifies for the commodity in
-         * {@link EntityStatsPaginationParams} if it exists, or for the commodities in
-         * {@link StatsFilter} commodity request list. In order to have more accurate results,
-         * the method can also use the list of entities that we need the timeframe for,
-         * and the type of those entities. Note that all the entities should be of the same type.
+         * Resolve the time range that a {@link StatsFilter} specifies. In order to have more accurate
+         * results, the method can also use the list of entities that we need the timeframe for, and
+         * the type of those entities. Note that all the entities should be of the same type.
          *
          * @param statsFilter The {@link StatsFilter}.
          * @param entityOIDsOpt  List of entities that we want to get the timeframe for
          * @param entityTypeOpt  Type of those entities
-         * @param paginationParams The option to use for getting the time based on pagination
-         *                         sort commodity.
+         * @param paginationParams
          * @return An {@link Optional} containing the time range, or an empty optional if
          * there is no data in the time range specified by the filter.
          * @throws VmtDbException           If there is an error connecting to the database.
@@ -180,9 +175,8 @@ public class TimeRange {
                     // in db is taking a long time, different entities/entities types might have
                     // different "most recent "timestamps and we might not get data for some of them
 
-                    final Optional<Timestamp> mostRecentDbTimestamp = historydbIO
-                            .getClosestTimestampBefore(statsFilter, entityTypeOpt, entityOidForQuery,
-                                    Optional.empty(), paginationParams);
+                    final Optional<Timestamp> mostRecentDbTimestamp = historydbIO.getMostRecentTimestamp(
+                        statsFilter, entityTypeOpt, entityOidForQuery, paginationParams);
 
                     if (!mostRecentDbTimestamp.isPresent()) {
                         // no data persisted yet; just return an empty answer
@@ -202,24 +196,14 @@ public class TimeRange {
 
                     if (statsFilter.getStartDate() == statsFilter.getEndDate() &&
                         timeFrame.equals(TimeFrame.LATEST)) {
-                        // resolve the most recent time stamp with regard to the start date
-                        Optional<Timestamp> closestTimestamp = historydbIO
-                                .getClosestTimestampBefore(statsFilter, entityTypeOpt, entityOidForQuery,
-                                        Optional.of(statsFilter.getStartDate()), paginationParams);
-                        if (!closestTimestamp.isPresent()) {
-                            // no data persisted yet; just return an empty answer
-                            return Optional.empty();
-                        } else {
-                            resolvedEndTime = statsFilter.getStartDate();
-                            resolvedStartTime = closestTimestamp.get().getTime();
-                            timestampsInRange = Collections.singletonList(closestTimestamp.get());
-                        }
+                        resolvedStartTime = statsFilter.getStartDate() - latestTableTimeWindowMS;
                     } else {
                         resolvedStartTime = statsFilter.getStartDate();
-                        resolvedEndTime = statsFilter.getEndDate();
-                        timestampsInRange = historydbIO.getTimestampsInRange(timeFrame, resolvedStartTime,
-                            resolvedEndTime, entityTypeOpt, entityOidForQuery);
                     }
+                    resolvedEndTime = statsFilter.getEndDate();
+
+                    timestampsInRange = historydbIO.getTimestampsInRange(timeFrame, resolvedStartTime,
+                        resolvedEndTime, entityTypeOpt, entityOidForQuery);
                 }
 
                 if (timestampsInRange.isEmpty()) {
@@ -231,6 +215,7 @@ public class TimeRange {
                 }
 
             }
+
         }
     }
 
