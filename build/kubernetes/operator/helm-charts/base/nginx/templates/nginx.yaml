@@ -12,7 +12,7 @@ spec:
     requests:
       storage: 1Gi
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
@@ -79,6 +79,9 @@ spec:
         emptyDir: {}
       - name: nginx-tmpfs0
         emptyDir: {}
+  selector:
+    matchLabels:
+      io.kompose.service: nginx
 ---
 apiVersion: v1
 kind: Service
@@ -90,10 +93,10 @@ metadata:
 spec:
   type: LoadBalancer
   ports:
-  - name: nginx-https
+  - name: https-nginx
     port: 443
     targetPort: 8443
-  - name: nginx-http
+  - name: http-nginx
     port: 80
     targetPort: 8000
   selector:

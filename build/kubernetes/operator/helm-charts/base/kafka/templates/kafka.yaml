@@ -12,7 +12,7 @@ spec:
     requests:
       storage: 50Gi
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
@@ -46,7 +46,7 @@ spec:
             drop:
             - ALL
         volumeMounts:
-        - mountPath: /home/kafka/data
+        - mountPath: /home/kafka
           name: kafka-log
           subPath: data
         - mountPath: /tmp
@@ -66,6 +66,9 @@ spec:
           claimName: kafka-log
       - name: kafka-tmpfs0
         emptyDir: {}
+  selector:
+    matchLabels:
+      io.kompose.service: kafka
 ---
 apiVersion: v1
 kind: Service
@@ -76,7 +79,7 @@ metadata:
   name: {{ .Chart.Name }}
 spec:
   ports:
-  - name: "kafka"
+  - name: tcp-kafka
     port: 9092
   selector:
     io.kompose.service: kafka

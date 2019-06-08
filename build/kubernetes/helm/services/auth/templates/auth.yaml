@@ -12,7 +12,7 @@ spec:
     requests:
       storage: 1Gi
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
@@ -76,6 +76,9 @@ spec:
           claimName: auth
       - name: auth-tmpfs0
         emptyDir: {}
+  selector:
+    matchLabels:
+      io.kompose.service: auth
 ---
 apiVersion: v1
 kind: Service
@@ -86,15 +89,15 @@ metadata:
   name: {{ .Chart.Name }}
 spec:
   ports:
-  - name: auth
+  - name: http-auth
     port: 8080
 {{- if .Values.global }}
   {{- if .Values.global.debug }}
-  - name: auth-debug
+  - name: tcp-auth-debug
     port: 8000
   {{- end -}}
 {{- end }}
-  - name: "9001"
+  - name: grpc-auth
     port: 9001
   selector:
     io.kompose.service: auth

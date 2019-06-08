@@ -12,7 +12,7 @@ spec:
     requests:
       storage: 3Gi
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
@@ -76,6 +76,9 @@ spec:
           claimName: topology-processor
       - name: topology-processor-tmpfs0
         emptyDir: {}
+  selector:
+    matchLabels:
+      io.kompose.service: topology-processor
 ---
 apiVersion: v1
 kind: Service
@@ -86,15 +89,15 @@ metadata:
   name: {{ .Chart.Name }}
 spec:
   ports:
-  - name: topology-processor
+  - name: http-topology-processor
     port: 8080
 {{- if .Values.global }}
   {{- if .Values.global.debug }}
-  - name: topology-processor-debug
+  - name: tcp-topology-processor-debug
     port: 8000
   {{- end -}}
 {{- end }}
-  - name: "9001"
+  - name: grpc-topology-processor
     port: 9001
   selector:
     io.kompose.service: topology-processor

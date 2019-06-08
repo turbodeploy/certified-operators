@@ -1,4 +1,4 @@
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
@@ -55,6 +55,9 @@ spec:
       volumes:
       - name: mediation-azure-tmpfs0
         emptyDir: {}
+  selector:
+    matchLabels:
+      io.kompose.service: mediation-azure
 ---
 apiVersion: v1
 kind: Service
@@ -65,11 +68,11 @@ metadata:
   name: mediation-azure
 spec:
   ports:
-  - name: mediation-azure
+  - name: http-mediation-azure
     port: 8080
 {{- if .Values.global }}
   {{- if .Values.global.debug }}
-  - name: mediation-azure-debug
+  - name: tcp-mediation-azure-debug
     port: 8000
   {{- end -}}
 {{- end }}

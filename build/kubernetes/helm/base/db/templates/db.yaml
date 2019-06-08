@@ -14,7 +14,7 @@ spec:
     requests:
       storage: 500Gi
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
@@ -77,6 +77,9 @@ spec:
         emptyDir: {}
       - name: db-tmpfs0
         emptyDir: {}
+  selector:
+    matchLabels:
+      io.kompose.service: db
   {{ end }}
 {{ end }}
 ---
@@ -95,7 +98,7 @@ spec:
   {{- end -}}
 {{- end }}
   ports:
-  - name: db
+  - name: mysql-db
     port: 3306
   selector:
     io.kompose.service: db

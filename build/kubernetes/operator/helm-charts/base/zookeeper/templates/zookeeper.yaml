@@ -12,7 +12,7 @@ spec:
     requests:
       storage: 3Gi
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
@@ -68,6 +68,9 @@ spec:
           claimName: zookeeper-data
       - name: zookeeper-tmpfs0
         emptyDir: {}
+  selector:
+    matchLabels:
+      io.kompose.service: zookeeper
 ---
 apiVersion: v1
 kind: Service
@@ -78,7 +81,7 @@ metadata:
   name: {{ .Chart.Name }}
 spec:
   ports:
-  - name: zookeeper
+  - name: tcp-zookeeper
     port: 2181
   selector:
     io.kompose.service: zookeeper

@@ -26,7 +26,7 @@ spec:
     requests:
       storage: 1Gi
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
@@ -95,6 +95,9 @@ spec:
           claimName: api-certs
       - name: api-tmpfs0
         emptyDir: {}
+  selector:
+    matchLabels:
+      io.kompose.service: api
 ---
 apiVersion: v1
 kind: Service
@@ -105,18 +108,17 @@ metadata:
   name: {{ .Chart.Name }}
 spec:
   ports:
-  - name: api-http
+  - name: http-api
     port: 8080
-  - name: api-https
+  - name: https-api
     port: 9443
 {{- if .Values.global }}
   {{- if .Values.global.debug }}
-  - name: api-debug
+  - name: tcp-api-debug
     port: 8000
   {{- end -}}
 {{- end }}
-  - name: "9001"
+  - name: grpc-api
     port: 9001
-    targetPort: 9001
   selector:
     io.kompose.service: api

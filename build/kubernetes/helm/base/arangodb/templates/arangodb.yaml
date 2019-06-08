@@ -40,7 +40,7 @@ spec:
     requests:
       storage: 2Gi
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
@@ -105,6 +105,9 @@ spec:
           claimName: arangodb-dump
       - name: arangodb-tmpfs0
         emptyDir: {}
+  selector:
+    matchLabels:
+      io.kompose.service: arangodb
 ---
 apiVersion: v1
 kind: Service
@@ -115,11 +118,9 @@ metadata:
   name: {{ .Chart.Name }}
 spec:
   ports:
-  - name: arangodb
+  - name: http-arangodb
     port: 8529
-  - name: arangodb-dump
+  - name: http-arangodb-dump
     port: 8599
-  - name: "9001"
-    port: 9001
   selector:
     io.kompose.service: arangodb

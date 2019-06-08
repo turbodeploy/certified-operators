@@ -1,4 +1,4 @@
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
@@ -55,6 +55,9 @@ spec:
       volumes:
       - name: mediation-vcd-tmpfs0
         emptyDir: {}
+  selector:
+    matchLabels:
+      io.kompose.service: mediation-vcd
 ---
 apiVersion: v1
 kind: Service
@@ -65,11 +68,11 @@ metadata:
   name: mediation-vcd
 spec:
   ports:
-  - name: mediation-vcd
+  - name: http-mediation-vcd
     port: 8080
 {{- if .Values.global }}
   {{- if .Values.global.debug }}
-  - name: "mediation-vcd-debug
+  - name: tcp-mediation-vcd-debug
     port: 8000
   {{- end -}}
 {{- end }}
