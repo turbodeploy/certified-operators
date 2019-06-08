@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    zone: secure
+    io.kompose.service: mediation-gcp
+  name: mediation-gcp
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        zone: secure
+        io.kompose.service: mediation-gcp
+    spec:
+      containers:
+      - name: {{ .Chart.Name }}
+        image: {{ template "gcp_image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        - name: JAVA_OPTS
+{{- if .Values.global }}
+  {{- if .Values.global.debug }}
+          value: {{ .Values.global.dev_options }} {{ .Values.java.options }}
+  {{- else }}
+          value: {{ .Values.java.options }}
+  {{- end }}
+{{- else }}
+          value: {{ .Values.java.options }}
+{{- end }}
+{{ toYaml .Values.env | indent 8 -}}
+        readinessProbe:
+          httpGet:
+            port: 8080
+            path: /health
+        resources:
+{{ toYaml .Values.resources | indent 12 }}
+        securityContext:
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - mountPath: /tmp
+          name: mediation-gcp-tmpfs0
+      restartPolicy: Always
+{{- if .Values.global }}
+  {{- if and .Values.global.registry .Values.global.imageUsername .Values.global.imagePassword }}
+      imagePullSecrets:
+      - name: turbocred
+  {{- end -}}
+{{- end }}
+      volumes:
+      - name: mediation-gcp-tmpfs0
+        emptyDir: {}
+  selector:
+    matchLabels:
+      io.kompose.service: mediation-gcp
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    zone: secure
+    io.kompose.service: mediation-gcp
+  name: mediation-gcp
+spec:
+  ports:
+  - name: http-mediation-gcp
+    port: 8080
+{{- if .Values.global }}
+  {{- if .Values.global.debug }}
+  - name: tcp-mediation-gcp-debug
+    port: 8000
+  {{- end -}}
+{{- end }}
+  selector:
+    io.kompose.service: mediation-gcp

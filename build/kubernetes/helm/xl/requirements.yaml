@@ -171,6 +171,14 @@ dependencies:
     repository: file://../probes/mediation-dynatrace
     version: 0.1.0
     condition: dynatrace.enabled
+  - name: mediation-gcp
+    repository: file://../probes/mediation-gcp
+    version: 0.1.0
+    condition: gcp.enabled
+  - name: mediation-gcpcost
+    repository: file://../probes/mediation-gcpcost
+    version: 0.1.0
+    condition: gcp.enabled
   - name: mediation-hds
     repository: file://../probes/mediation-hds
     version: 0.1.0
