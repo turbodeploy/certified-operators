@@ -96,6 +96,7 @@ public class TestUtils {
     public static final CommoditySpecification TRANSACTION = createNewCommSpec();
     public static final CommoditySpecification SEGMENTATION_COMMODITY = createNewCommSpec();
     public static final CommoditySpecification RESPONSE_TIME = createNewCommSpec();
+    public static final CommoditySpecification STORAGE = createNewCommSpec();
 
     public static final CommoditySpecificationTO iopsTO =
                     CommoditySpecificationTO.newBuilder().setBaseType(TestUtils.IOPS.getBaseType())
