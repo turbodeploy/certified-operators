@@ -19,14 +19,15 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 
-import com.google.gson.Gson;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.StreamingDiagnosable;
 
@@ -86,7 +87,6 @@ public class ProjectedRealtimeTopology implements StreamingDiagnosable {
     @Override
     public Stream<String> collectDiags() throws DiagnosticsException {
         JsonFormat.Printer printer = JsonFormat.printer().omittingInsignificantWhitespace();
-        final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
         return projectedEntities.values().stream()
             .map(ProjectedEntity::getEntity)
             .map(entity -> {
@@ -147,6 +147,7 @@ public class ProjectedRealtimeTopology implements StreamingDiagnosable {
     }
 
     private static class ProjectedEntity {
+        private static final Logger logger = LogManager.getLogger();
 
         private final double originalPriceIdx;
         private final double projectedPriceIdx;
@@ -156,14 +157,15 @@ public class ProjectedRealtimeTopology implements StreamingDiagnosable {
             this.originalPriceIdx = projectedTopologyEntity.getOriginalPriceIndex();
             this.projectedPriceIdx = projectedTopologyEntity.getOriginalPriceIndex();
             byte[] bytes = null;
-            try {
-                ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                GZIPOutputStream gos = new GZIPOutputStream(bos);
+            try (final ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                 final GZIPOutputStream gos = new GZIPOutputStream(bos)) {
                 gos.write(projectedTopologyEntity.getEntity().toByteArray());
-                gos.close();
+                gos.finish();
                 bytes = bos.toByteArray();
             } catch (IOException e) {
-                // boo
+                logger.error("Failed to decompress projected entity {}. Error: {}",
+                    projectedTopologyEntity.getEntity().getOid(),
+                    e.getMessage());
             }
             this.compressedDto = bytes;
         }
@@ -178,11 +180,11 @@ public class ProjectedRealtimeTopology implements StreamingDiagnosable {
 
         @Nullable
         TopologyEntityDTO getEntity() {
-            try {
-                ByteArrayInputStream bis = new ByteArrayInputStream(compressedDto);
-                GZIPInputStream zis = new GZIPInputStream(bis);
+            try (final ByteArrayInputStream bis = new ByteArrayInputStream(compressedDto);
+                 final GZIPInputStream zis = new GZIPInputStream(bis)) {
                 return TopologyEntityDTO.parseFrom(zis);
             } catch (IOException e) {
+                logger.error("Failed to decompress projected entity. Error: {}", e.getMessage());
                 return null;
             }
         }

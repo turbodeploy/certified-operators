@@ -16,6 +16,9 @@ import java.util.zip.GZIPOutputStream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
@@ -35,6 +38,7 @@ import com.vmturbo.topology.graph.TopologyGraphEntity;
  * as possible while supporting all the searches and {@link com.vmturbo.common.protobuf.search.SearchableProperties}.
  */
 public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
+    private static final Logger logger = LogManager.getLogger();
 
     private final long oid;
 
@@ -106,7 +110,7 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
             gos.finish();
             bytes = bos.toByteArray();
         } catch (IOException e) {
-            // boo
+            logger.error("Failed to compress entity {}. Error: {}", this.oid, e.getMessage());
         }
         this.compressedEntityBytes = bytes;
     }
@@ -224,10 +228,11 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
      */
     @Nonnull
     public TopologyEntityDTO getTopologyEntity() {
-        try (final ByteArrayInputStream bis = new ByteArrayInputStream(compressedEntityBytes)) {
-            GZIPInputStream zis = new GZIPInputStream(bis);
+        try (final ByteArrayInputStream bis = new ByteArrayInputStream(compressedEntityBytes);
+             final GZIPInputStream zis = new GZIPInputStream(bis)) {
             return TopologyEntityDTO.parseFrom(zis);
         } catch (IOException e) {
+            logger.error("Failed to decompress entity {}. Error: {}", this.oid, e.getMessage());
             return getPartialTopologyEntity();
         }
     }
@@ -382,5 +387,4 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
             return this;
         }
     }
-
 }
