@@ -1,8 +1,10 @@
 package com.vmturbo.history.stats.live;
 
+import static com.vmturbo.components.common.utils.StringConstants.UUID;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.*;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isA;
@@ -14,14 +16,19 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.Field;
 import org.jooq.Query;
 import org.jooq.Record;
 import org.jooq.Result;
@@ -89,12 +96,16 @@ public class LiveStatsReaderTest {
                 .setStartDate(123L)
                 .build();
         final EntityStatsPaginationParams paginationParams = mock(EntityStatsPaginationParams.class);
+        when(paginationParams.getSortCommodity()).thenReturn(StringConstants.PRICE_INDEX);
         final Optional<String> nextCursor = Optional.of("ROSIETNROSIENTR");
 
         final TimeRange timeRange = mock(TimeRange.class);
         when(timeRange.getMostRecentSnapshotTime()).thenReturn(TIMESTAMP);
         when(timeRange.getTimeFrame()).thenReturn(TIME_FRAME);
-        when(timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(), Optional.empty(), Optional.of(paginationParams))).thenReturn(Optional.of(timeRange));
+        when(timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(), Optional.empty(), Optional.empty()))
+                .thenReturn(Optional.of(timeRange));
+        when(timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(), Optional.empty(),
+                Optional.of(paginationParams))).thenReturn(Optional.of(timeRange));
 
         final NextPageInfo nextPageInfo = mock(NextPageInfo.class);
         when(nextPageInfo.getEntityOids()).thenReturn(Lists.newArrayList(entityIds));
@@ -119,6 +130,7 @@ public class LiveStatsReaderTest {
         final StatRecordPage result =
                 liveStatsReader.getPaginatedStatsRecords(scope, statsFilter, paginationParams);
 
+        verify(timeRangeFactory).resolveTimeRange(statsFilter, Optional.empty(), Optional.empty(), Optional.empty());
         verify(timeRangeFactory).resolveTimeRange(statsFilter, Optional.empty(), Optional.empty(), Optional.of(paginationParams));
         verify(mockHistorydbIO).getNextPage(scope, TIMESTAMP, TIME_FRAME, paginationParams);
         verify(statsQueryFactory).createStatsQuery(nextPageInfo.getEntityOids(), TABLE, statsFilter.getCommodityRequestsList(), timeRange, AGGREGATE.NO_AGG);
@@ -142,7 +154,8 @@ public class LiveStatsReaderTest {
         final TimeRange timeRange = mock(TimeRange.class);
         when(timeRange.getMostRecentSnapshotTime()).thenReturn(TIMESTAMP);
         when(timeRange.getTimeFrame()).thenReturn(TIME_FRAME);
-        when(timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(), Optional.empty(), Optional.of(paginationParams))).thenReturn(Optional.of(timeRange));
+        when(timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(), Optional.empty(),
+                 Optional.of(paginationParams))).thenReturn(Optional.of(timeRange));
 
         final NextPageInfo nextPageInfo = mock(NextPageInfo.class);
         // entity OIDs are empty
@@ -165,6 +178,82 @@ public class LiveStatsReaderTest {
     }
 
     @Test
+    public void testGetStatPageWithPaginationParamPI() throws VmtDbException {
+        final EntityStatsScope scope = EntityStatsScope.newBuilder()
+                .setEntityList(EntityList.newBuilder()
+                        .addEntities(1))
+                .build();
+        final long startAndEndDate = 123L;
+        final CommodityRequest cpu = CommodityRequest.newBuilder()
+                .setCommodityName(StringConstants.CPU).build();
+        final CommodityRequest pi = CommodityRequest.newBuilder()
+                .setCommodityName(StringConstants.PRICE_INDEX).build();
+        final StatsFilter statsFilter = StatsFilter.newBuilder()
+                .setStartDate(startAndEndDate)
+                .setEndDate(startAndEndDate)
+                .addCommodityRequests(cpu)
+                .addCommodityRequests(pi)
+                .build();
+        final EntityStatsPaginationParams paginationParams = mock(EntityStatsPaginationParams.class);
+        when(paginationParams.getSortCommodity()).thenReturn(StringConstants.PRICE_INDEX);
+
+        final Optional<String> nextCursor = Optional.of("ROSIETNROSIENTR");
+
+        final TimeRange piTimeRange = mock(TimeRange.class);
+        Timestamp piTimestamp = TIMESTAMP;
+        when(piTimeRange.getMostRecentSnapshotTime()).thenReturn(piTimestamp);
+        when(piTimeRange.getTimeFrame()).thenReturn(TIME_FRAME);
+        when(timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(),
+                Optional.empty(), Optional.of(paginationParams))).thenReturn(Optional.of(piTimeRange));
+        final TimeRange cpuTimeRange = mock(TimeRange.class);
+        Timestamp cpuTimestamp = new Timestamp(1);
+        when(cpuTimeRange.getMostRecentSnapshotTime()).thenReturn(cpuTimestamp);
+        when(cpuTimeRange.getTimeFrame()).thenReturn(TIME_FRAME);
+        when(timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(),
+                 Optional.empty(), Optional.empty())).thenReturn(Optional.of(cpuTimeRange));
+
+        final NextPageInfo nextPageInfo = mock(NextPageInfo.class);
+        long oid = 111l;
+        Map<Long, List<Record>> recordsByEntityId = new HashMap<>();
+        recordsByEntityId.put(oid, new ArrayList<>());
+        List<String> entityOid = Arrays.asList(String.valueOf(oid));
+        when(nextPageInfo.getEntityOids()).thenReturn(entityOid);
+        when(nextPageInfo.getTable()).thenReturn(TABLE);
+        when(nextPageInfo.getNextCursor()).thenReturn(nextCursor);
+        when(mockHistorydbIO.getNextPage(scope, piTimestamp, TIME_FRAME, paginationParams))
+                .thenReturn(nextPageInfo);
+
+        Select<?> query = mock(Select.class);
+        when(statsQueryFactory.createStatsQuery(entityOid, TABLE,
+                statsFilter.getCommodityRequestsList(), cpuTimeRange, AGGREGATE.NO_AGG))
+                .thenReturn(Optional.of(query));
+        final PmStatsLatestRecord pmRecord = new PmStatsLatestRecord();
+        pmRecord.setUuid(String.valueOf(oid));
+        final Result records = mock(Result.class);
+        doAnswer((Answer<Void>) invocation -> {
+            invocation.getArgumentAt(0, Consumer.class).accept(pmRecord);
+            return null;
+        }).when(records).forEach(any());
+        when(mockHistorydbIO.execute(Style.FORCED, query)).thenReturn(records);
+
+        final StatRecordPage result =
+                liveStatsReader.getPaginatedStatsRecords(scope, statsFilter, paginationParams);
+
+        verify(timeRangeFactory).resolveTimeRange(statsFilter, Optional.empty(),
+                Optional.empty(), Optional.of(paginationParams));
+        verify(timeRangeFactory).resolveTimeRange(statsFilter, Optional.empty(),
+                Optional.empty(), Optional.empty());
+        verify(mockHistorydbIO).getNextPage(scope, piTimestamp, TIME_FRAME, paginationParams);
+        // verify early return
+        verify(statsQueryFactory).createStatsQuery(nextPageInfo.getEntityOids(),
+                TABLE, statsFilter.getCommodityRequestsList(), cpuTimeRange, AGGREGATE.NO_AGG);
+        assertThat(result.getNextCursor(), is(nextCursor));
+        assertTrue(result.getNextPageRecords().get(oid).size() == 1);
+        assertTrue(result.getNextPageRecords().get(oid).get(0).equals(pmRecord));
+
+    }
+
+    @Test
     public void testGetFullMarketStats() throws VmtDbException {
         // ARRANGE
         final StatsFilter statsFilter = StatsFilter.newBuilder()
@@ -174,7 +263,8 @@ public class LiveStatsReaderTest {
         final TimeRange timeRange = mock(TimeRange.class);
         when(timeRange.getMostRecentSnapshotTime()).thenReturn(TIMESTAMP);
         when(timeRange.getTimeFrame()).thenReturn(TIME_FRAME);
-        when(timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(), Optional.empty(), Optional.empty())).thenReturn(Optional.of(timeRange));
+        when(timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(), Optional.empty(), Optional.empty()))
+                .thenReturn(Optional.of(timeRange));
 
         final FullMarketRatioProcessor ratioProcessor = mock(FullMarketRatioProcessor.class);
         final StatsFilter statsFilterWithCounts = StatsFilter.newBuilder()
@@ -208,7 +298,8 @@ public class LiveStatsReaderTest {
         // ASSERT
         // Verify the individual steps - this should help track down what failed if the final
         // assertion does not pass.
-        verify(timeRangeFactory).resolveTimeRange(statsFilter, Optional.empty(), Optional.empty(), Optional.empty());
+        verify(timeRangeFactory).resolveTimeRange(statsFilter, Optional.empty(), Optional.empty(),
+                Optional.empty());
         verify(fullMarketRatioProcessor).newProcessor(statsFilter);
         verify(ratioProcessor).getFilterWithCounts();
         verify(statsQueryFactory)

@@ -78,6 +78,7 @@ public class StringConstants {
     public static final String PREF_USER = "user_";
 
     public static final String PRICE_INDEX = "priceIndex";
+    public static final String CURRENT_PRICE_INDEX = "currentPriceIndex";
     public static final String PRODUCES = "Produces";
     public static final String ROI = "rOI";
     public static final String NEXT_STEP_ROI = "nextStepRoi";

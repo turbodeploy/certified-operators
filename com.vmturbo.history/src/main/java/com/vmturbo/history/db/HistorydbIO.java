@@ -7,6 +7,7 @@ import static com.vmturbo.components.common.utils.StringConstants.EFFECTIVE_CAPA
 import static com.vmturbo.components.common.utils.StringConstants.MAX_VALUE;
 import static com.vmturbo.components.common.utils.StringConstants.MIN_VALUE;
 import static com.vmturbo.components.common.utils.StringConstants.PRICE_INDEX;
+import static com.vmturbo.components.common.utils.StringConstants.CURRENT_PRICE_INDEX;
 import static com.vmturbo.components.common.utils.StringConstants.PRODUCER_UUID;
 import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_SUBTYPE;
 import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_SUBTYPE_USED;
@@ -50,6 +51,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
@@ -590,21 +592,31 @@ public class HistorydbIO extends BasedbIO {
     }
 
     /**
-     * Return a long epoch date representing the most recent timestamp of snapshot data.
-     * The method can optionally take an entity type as a parameter, so that we will look for the most recent timestamp
-     * only in the specified entity type table. If a specific entity oid is also added, then we will look for that
-     * oid, inside the specified table (which will give us a more accurate results).
+     * Return a long epoch date representing the closest time stamp equals or before a given time point.
+     * The method can optionally take an entity type as a parameter, so that we will look for
+     * the time stamp only in the specified entity type table. If a specific entity oid is also
+     * added, the oid will be used to look for time stamp inside the specified table. User can specify
+     * pagination param which will be used in the condition to query data. If it does not exist, commodity
+     * in {@link StatsFilter} will be considered as the condition to query data.
      *
-     * @param statsFilter          stats filter used to check if priceIndex is a required property or not.
-     * @param entityTypeOpt        entity type to use for getting the most recent timestamp.
+     * @param statsFilter          stats filter which contains commodity requests. If requests
+     *                             contains both regular commodities and PI, fetch time stamp
+     *                             for regular commodities unless {@link isTimestampForPIOrNot}
+     *                             is true.
+     * @param entityTypeOpt        entity type to use for getting the time stamp.
      * @param specificEntityOidOpt entity to use for the lookup in the table.
-     * @return a {@link Timestamp} for the most recent snapshot recorded in the xxx_stats_latest.
-     * tables.
+     * @param timepPointOpt        time point to specify end time. If not present, the result is
+     *                             the most recent time stamp.
+     * @param paginationParams     the option to query data based on pagination parameter.
+     * @return a {@link Timestamp} for the snapshot recorded in the xxx_stats_latest table having
+     *                             closest time to a given time point.
      */
-    public Optional<Timestamp> getMostRecentTimestamp(@Nonnull final StatsFilter statsFilter,
-                                                      @Nonnull final Optional<EntityType> entityTypeOpt,
-                                                      @Nonnull final Optional<String> specificEntityOidOpt,
-                                                      @Nonnull final Optional<EntityStatsPaginationParams> paginationParams) {
+    public Optional<Timestamp> getClosestTimestampBefore(@Nonnull final StatsFilter statsFilter,
+                                                         @Nonnull final Optional<EntityType> entityTypeOpt,
+                                                         @Nonnull final Optional<String> specificEntityOidOpt,
+                                                         @Nonnull final Optional<Long> timepPointOpt,
+                                                         @Nonnull final Optional<EntityStatsPaginationParams> paginationParams)
+                                                         throws IllegalArgumentException {
         try (Connection conn = connection()) {
 
             // we are using the vm table, in case it's not specified in the method
@@ -615,35 +627,40 @@ public class HistorydbIO extends BasedbIO {
                 latestEntityTable = MARKET_STATS_LATEST;
             }
 
-            final Field<Timestamp> snapshotTimeField = (Field<Timestamp>) dField(latestEntityTable, SNAPSHOT_TIME);
-
             // where condition
             List<Condition> whereConditions = new ArrayList<>(3);
             // always true condition, in case special cases are not specified
             whereConditions.add(DSL.trueCondition());
 
-            // check if priceindex is NOT part of the stats requested
-            // if not, then we can filter it out from the query. This will give us more accurate results
-            // when the market is faster than the history component (because price index is generated
-            // by the market component, and can come to db at a different time than commodities).
-            // in this case we might have a record in the db with the priceindex, but not the real
-            // commodities yet (because history is still writing to db), and this means that the
-            // timestamp of the price index record is taken, which will in reality return no commodities
-            final boolean priceIndexNotRequiredInFilter = statsFilter.getCommodityRequestsList().stream()
-                .map(CommodityRequest::getCommodityName)
-                .noneMatch(PRICE_INDEX::equalsIgnoreCase);
+            final Field<Timestamp> snapshotTimeField = (Field<Timestamp>) dField(latestEntityTable, SNAPSHOT_TIME);
+            if (timepPointOpt.isPresent()) {
+                whereConditions.add(timestamp(snapshotTimeField).lessOrEqual(new java.sql.Timestamp(timepPointOpt.get())));
+            }
 
-            // check if the pagination is requiring the price index to be present, because it's using
-            // it to sort entities. In this case we cannot exclude the price index from our query
-            final boolean priceIndexRequiredInPagination = paginationParams.map(EntityStatsPaginationParams::getSortCommodity)
-                .map(PRICE_INDEX::equalsIgnoreCase)
-                .orElse(false);
-
-            if (priceIndexNotRequiredInFilter && !priceIndexRequiredInPagination) {
-                // filter out the priceindex from the query, in order to get the timestamp of the
-                // most recent commodities
-                final Field<String> propertyTypeField = (Field<String>) dField(latestEntityTable, PROPERTY_TYPE);
-                whereConditions.add(str(propertyTypeField).ne(PRICE_INDEX));
+            final Field<String> propertyTypeField = (Field<String>) dField(latestEntityTable, PROPERTY_TYPE);
+            if (paginationParams.isPresent()) {
+                if (StringUtils.isEmpty(paginationParams.get().getSortCommodity())) {
+                    throw new IllegalArgumentException("Sort commodity in pagination parameter does not exist.");
+                } else {
+                    whereConditions.add(str(propertyTypeField).eq(paginationParams.get().getSortCommodity()));
+                }
+            } else {
+                // check the commodity request list, if it only contains PI, fetch data for PI,
+                // otherwise, filter out PI in the query. The reason is that PI and other regular
+                // commodities may have different timestamps, since PI is generated from market
+                // analysis. In most cases where request list contains both PI and regular commodities,
+                // we want only regular commodity timestamp, so we need to exclude PI in the query.
+                // Note: in cases where the request contains currentPI, since it should have the same
+                // timestamp as PI in DB, we can still use PI in the where condition
+                final boolean isCommRequestOnlyPI = isCommRequestsOnlyPI(statsFilter.getCommodityRequestsList());
+                if (isCommRequestOnlyPI) {
+                    whereConditions.add(str(propertyTypeField).eq(PRICE_INDEX));
+                } else {
+                    // if the commodity request list is empty in statsFilter, typically we want to
+                    // get all regular commodities such as CPU, Mem, etc. Therefore we also exclude
+                    // price index.
+                    whereConditions.add(str(propertyTypeField).ne(PRICE_INDEX));
+                }
             }
 
             // we can add the specific entity only if also the type has been specified
@@ -676,6 +693,27 @@ public class HistorydbIO extends BasedbIO {
             logger.error("Failed to get database connection.", e);
         }
         return Optional.empty();
+    }
+
+    /**
+     * Whether a given list contains only price index or current price index request.
+     *
+     * Note: If the request is empty, returns false.
+     *
+     * @param commRequestsList a given commodity request list
+     * @return true if the commRequestsList contains price index or current price index
+     *         request, false if the list is empty or it has at least one commodity
+     *         request that is not price index and not current price index.
+     */
+    public boolean isCommRequestsOnlyPI(List<CommodityRequest> commRequestsList) {
+        // If the commodity request contains priceIndex or currentPriceIndex,
+        // return true.
+        // NOTE: Though XL tables do not have the current price index commodity,
+        // UX is shared between classic and XL which asks for both price index
+        // and current price index commodity when populating the risk widget.
+        return !commRequestsList.isEmpty() && commRequestsList.stream()
+                .allMatch(c -> c.getCommodityName().equals(PRICE_INDEX)
+                        || c.getCommodityName().equals(CURRENT_PRICE_INDEX));
     }
 
     /**
