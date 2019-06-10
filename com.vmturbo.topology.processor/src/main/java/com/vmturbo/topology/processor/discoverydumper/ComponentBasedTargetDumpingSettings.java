@@ -34,15 +34,15 @@ public class ComponentBasedTargetDumpingSettings implements TargetDumpingSetting
     // properties are considered stale if this much time has elapsed since last fetch
     private static final long PROPERTIES_REFRESH_INTERVAL = TimeUnit.MINUTES.toMillis(5L);
     private final String componentType;
-    private final String componentInstanceNumber;
+    private final String componentId;
     // time (milliseconds since epoch) of last fetch
     private long lastFetchTime = 0L;
     // property values from most recent fetch
     private ComponentPropertiesDTO componentProperties;
 
-    public ComponentBasedTargetDumpingSettings(String componentType, String componentInstanceNumber) {
+    public ComponentBasedTargetDumpingSettings(String componentType, String componentId) {
         this.componentType = componentType;
-        this.componentInstanceNumber = componentInstanceNumber;
+        this.componentId = componentId;
     }
 
     @Override
@@ -71,7 +71,7 @@ public class ComponentBasedTargetDumpingSettings implements TargetDumpingSetting
      */
     @Override
     public void refreshSettings() {
-        this.componentProperties = BaseVmtComponent.getClusterMgrClient().getComponentInstanceProperties(componentType, componentInstanceNumber);
+        this.componentProperties = BaseVmtComponent.getClusterMgrClient().getComponentInstanceProperties(componentType, componentId);
         this.lastFetchTime = System.currentTimeMillis();
     }
 

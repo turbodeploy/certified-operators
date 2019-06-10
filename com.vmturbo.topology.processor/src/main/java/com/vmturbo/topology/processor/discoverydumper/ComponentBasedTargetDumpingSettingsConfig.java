@@ -18,10 +18,6 @@ public class ComponentBasedTargetDumpingSettingsConfig {
 
     @Bean
     public ComponentBasedTargetDumpingSettings componentBasedTargetDumpingSettings() {
-        return new ComponentBasedTargetDumpingSettings(componentType, getComponentInstanceNumber());
-    }
-
-    private String getComponentInstanceNumber() {
-        return componentInstanceId.substring(componentType.length()+1);
+        return new ComponentBasedTargetDumpingSettings(componentType, componentInstanceId);
     }
 }
