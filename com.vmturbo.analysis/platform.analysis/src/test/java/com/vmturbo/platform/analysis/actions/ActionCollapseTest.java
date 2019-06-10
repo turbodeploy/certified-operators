@@ -30,9 +30,11 @@ public class ActionCollapseTest {
     private static final Basket EMPTY = new Basket();
     private static final Basket CPU_MEM_BASKET = new Basket(TestUtils.CPU, TestUtils.MEM);
     private static final Basket ST_BASKET = new Basket(TestUtils.ST_AMT);
+    private static final Basket STORAGE_BASKET = new Basket(TestUtils.STORAGE);
     private static final int TYPE_PM = 0;
     private static final int TYPE_VM = 1;
     private static final int TYPE_DC = 2;
+    private static final int TYPE_ST = 3;
 
     @Test
     public final void testCollapsed_movesOnly() {
@@ -139,6 +141,86 @@ public class ActionCollapseTest {
         actions = Collections.unmodifiableList(actions);
         List<Action> collapsed = ActionCollapse.collapsed(actions);
         assertEquals(collapsed, actions);
+    }
+
+    @Test
+    public final void testCollapsed_movesAndCompoundMove() {
+        Economy economy = new Economy();
+        // Sellers
+        Trader PMSource = economy.addTrader(TYPE_PM, TraderState.ACTIVE, CPU_MEM_BASKET);
+        Trader STSource = economy.addTrader(TYPE_ST, TraderState.ACTIVE, CPU_MEM_BASKET);
+        Trader PMDestination1 = economy.addTrader(TYPE_PM, TraderState.ACTIVE, STORAGE_BASKET);
+        Trader STDestination1 = economy.addTrader(TYPE_ST, TraderState.ACTIVE, STORAGE_BASKET);
+        Trader PMDestination2 = economy.addTrader(TYPE_PM, TraderState.ACTIVE, STORAGE_BASKET);
+        Trader STDestination2 = economy.addTrader(TYPE_ST, TraderState.ACTIVE, STORAGE_BASKET);
+        // Buyer
+        Trader buyer = economy.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY);
+        // Shopping lists
+        ShoppingList sl1 = economy.addBasketBought(buyer, CPU_MEM_BASKET);
+        sl1.move(PMSource);
+        ShoppingList sl2 = economy.addBasketBought(buyer, STORAGE_BASKET);
+        sl2.move(STSource);
+
+        // Expected Action.
+        // Since the order of Moves in CompoundMove is uncertain, we need to check both of them.
+        Action expectedAction1 = CompoundMove.createAndCheckCompoundMoveWithExplicitSources(
+            economy, Lists.newArrayList(sl1, sl2),
+            Lists.newArrayList(PMSource, STSource),
+            Lists.newArrayList(PMDestination2, STDestination2));
+        Action expectedAction2 = CompoundMove.createAndCheckCompoundMoveWithExplicitSources(
+            economy, Lists.newArrayList(sl2, sl1),
+            Lists.newArrayList(STSource, PMSource),
+            Lists.newArrayList(STDestination2, PMDestination2));
+
+        // Individual moves are generated during the first placement,
+        // and a compoundMove is generated during the second placement.
+        // Merge to a compoundMove.
+        List<Action> actions = new ArrayList<>();
+        actions.add(new Move(economy, sl1, PMSource, PMDestination1));
+        actions.add(new Move(economy, sl2, STSource, STDestination1));
+        actions.add(CompoundMove.createAndCheckCompoundMoveWithExplicitSources(
+            economy, Lists.newArrayList(sl1, sl2),
+            Lists.newArrayList(PMDestination1, STDestination1),
+            Lists.newArrayList(PMDestination2, STDestination2)));
+
+        List<Action> collapsed = ActionCollapse.collapsed(actions);
+        assertEquals(1, collapsed.size());
+        assertTrue(expectedAction1.equals(collapsed.get(0)) ||
+            expectedAction2.equals(collapsed.get(0)));
+
+        // A compoundMove is generated during the first placement,
+        // and individual moves are generated during the second placement.
+        // Merge to a compoundMove.
+        actions = new ArrayList<>();
+        actions.add(CompoundMove.createAndCheckCompoundMoveWithExplicitSources(
+            economy, Lists.newArrayList(sl1, sl2),
+            Lists.newArrayList(PMSource, STSource),
+            Lists.newArrayList(PMDestination1, STDestination1)));
+        actions.add(new Move(economy, sl1, PMDestination1, PMDestination2));
+        actions.add(new Move(economy, sl2, STDestination1, STDestination2));
+
+        collapsed = ActionCollapse.collapsed(actions);
+        assertEquals(1, collapsed.size());
+        assertTrue(expectedAction1.equals(collapsed.get(0)) ||
+            expectedAction2.equals(collapsed.get(0)));
+
+        // A compoundMove is generated during the first placement,
+        // and a compoundMove is generated during the second placement.
+        // Merge to a compoundMove.
+        actions = new ArrayList<>();
+        actions.add(CompoundMove.createAndCheckCompoundMoveWithExplicitSources(
+            economy, Lists.newArrayList(sl1, sl2),
+            Lists.newArrayList(PMSource, STSource),
+            Lists.newArrayList(PMDestination1, STDestination1)));
+        actions.add(CompoundMove.createAndCheckCompoundMoveWithExplicitSources(
+            economy, Lists.newArrayList(sl1, sl2),
+            Lists.newArrayList(PMDestination1, STDestination1),
+            Lists.newArrayList(PMDestination2, STDestination2)));
+
+        collapsed = ActionCollapse.collapsed(actions);
+        assertEquals(1, collapsed.size());
+        assertTrue(expectedAction1.equals(collapsed.get(0)) ||
+            expectedAction2.equals(collapsed.get(0)));
     }
 
     /*
