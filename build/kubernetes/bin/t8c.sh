@@ -84,6 +84,13 @@ then
 fi
 
 
+# Setup the node keys for communication
+if (( ${tLen} > 1 ))
+then
+  echo "Setup nodes to communicate using keys"
+  /opt/local/bin/multi-node-keygen.sh
+fi
+
 # List the master nodes:
 echo
 echo
