@@ -30,8 +30,9 @@ env:
     value: market
   - name: consul_host
     value: consul
-  - name: instance_id
-    value: market-1
+      valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
   - name: kafkaServers
     value: kafka:9092
 
