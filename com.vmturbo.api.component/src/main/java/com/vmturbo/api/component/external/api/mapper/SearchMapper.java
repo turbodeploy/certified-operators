@@ -131,30 +131,6 @@ public class SearchMapper {
     }
 
     /**
-     * Convert a {@link com.vmturbo.common.protobuf.search.Search.Entity} to a {@link ServiceEntityApiDTO}.
-     * @param entity the entity to convert
-     * @return the to resulting service entity API DTO.
-     */
-    public static ServiceEntityApiDTO seDTO(@Nonnull Entity entity,
-                                            @Nonnull Map<Long, String> targetIdToProbeType) {
-        ServiceEntityApiDTO seDTO = new ServiceEntityApiDTO();
-        seDTO.setDisplayName(entity.getDisplayName());
-        seDTO.setState(UIEntityState.fromEntityState(entity.getState()).apiStr());
-        seDTO.setClassName(UIEntityType.fromType(entity.getType()).apiStr());
-        seDTO.setUuid(String.valueOf(entity.getOid()));
-        // set discoveredBy
-        if (entity.getTargetIdsCount() > 0) {
-            seDTO.setDiscoveredBy(createDiscoveredBy(String.valueOf(entity.getTargetIdsList().get(0)),
-                targetIdToProbeType));
-        } else if (targetIdToProbeType.size() > 0) {
-            seDTO.setDiscoveredBy(createDiscoveredBy(
-                Long.toString(targetIdToProbeType.keySet().iterator().next()),
-                targetIdToProbeType));
-        }
-        return seDTO;
-    }
-
-    /**
      * Create a discoveredBy for the se, based on the given target id and probe type map.
      *
      * @param targetId id of the target

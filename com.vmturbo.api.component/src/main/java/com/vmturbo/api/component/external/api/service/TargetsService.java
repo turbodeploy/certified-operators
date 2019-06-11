@@ -38,7 +38,7 @@ import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification;
 import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification.TargetStatus;
 import com.vmturbo.api.component.communication.ApiComponentTargetListener;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.component.external.api.mapper.SearchMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
@@ -1090,7 +1090,7 @@ public class TargetsService implements ITargetsService {
         Map<Long, String> targetIdToProbeType = new HashMap<>();
         targetIdToProbeType.put(Long.parseLong(targetUuid), targetType);
         List<ServiceEntityApiDTO> targetEntities = getTargetEntities(targetUuid).stream()
-            .map(entity -> SearchMapper.seDTO(entity, targetIdToProbeType))
+            .map(entity -> ServiceEntityMapper.toServiceEntityApiDTO(entity, targetIdToProbeType))
             .collect(Collectors.toList());
 
         // Severity isn't part of searchEntities response, hence the following line.

@@ -38,7 +38,6 @@ import io.grpc.StatusRuntimeException;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
-import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchMapper;
@@ -56,7 +55,7 @@ import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
-import com.vmturbo.api.component.external.api.util.action.SearchUtil;
+import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -133,7 +132,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
  * Service implementation of Groups functionality.
@@ -167,8 +165,6 @@ public class GroupsService implements IGroupsService {
 
     private final GroupServiceBlockingStub groupServiceRpc;
 
-    private final ActionSpecMapper actionSpecMapper;
-
     private final GroupMapper groupMapper;
 
     private final GroupExpander groupExpander;
@@ -195,13 +191,11 @@ public class GroupsService implements IGroupsService {
 
     private final SeverityPopulator severityPopulator;
 
-    private final TopologyProcessor topologyProcessor;
-
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
 
     private StatsService statsService = null;
 
-    private final SearchUtil searchUtil;
+    private final ActionSearchUtil actionSearchUtil;
 
     private final SettingsMapper settingsMapper;
 
@@ -211,7 +205,6 @@ public class GroupsService implements IGroupsService {
 
     GroupsService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
                   @Nonnull final GroupServiceBlockingStub groupServiceRpc,
-                  @Nonnull final ActionSpecMapper actionSpecMapper,
                   @Nonnull final GroupMapper groupMapper,
                   @Nonnull final GroupExpander groupExpander,
                   @Nonnull final UuidMapper uuidMapper,
@@ -224,15 +217,13 @@ public class GroupsService implements IGroupsService {
                   @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
                   @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
                   @Nonnull final SeverityPopulator severityPopulator,
-                  @Nonnull final TopologyProcessor topologyProcessor,
                   @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
-                  @Nonnull final SearchUtil searchUtil,
+                  @Nonnull final ActionSearchUtil actionSearchUtil,
                   @Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub,
                   @Nonnull final SettingsMapper settingsMapper,
                   @Nonnull final TargetsService targetsService) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
-        this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.groupMapper = Objects.requireNonNull(groupMapper);
         this.groupExpander = Objects.requireNonNull(groupExpander);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
@@ -245,10 +236,9 @@ public class GroupsService implements IGroupsService {
         this.searchServiceBlockingStub = searchServiceBlockingStub;
         this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
-        this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
         this.settingPolicyServiceBlockingStub = Objects.requireNonNull(settingPolicyServiceBlockingStub);
-        this.searchUtil = Objects.requireNonNull(searchUtil);
+        this.actionSearchUtil = Objects.requireNonNull(actionSearchUtil);
         this.settingsMapper = Objects.requireNonNull(settingsMapper);
         this.targetsService = Objects.requireNonNull(targetsService);
     }
@@ -318,7 +308,7 @@ public class GroupsService implements IGroupsService {
             leafEntities = expandUuids(Collections.singleton(uuid), Collections.emptyList(), null);
         } else {
             // check if scope is entity, if not, throw exception
-            Search.Entity entity = searchUtil.fetchEntity(uuid).orElseThrow(() ->
+            Search.Entity entity = repositoryApi.fetchEntity(uuid).orElseThrow(() ->
                 new UnsupportedOperationException("Scope: " + uuid + " is not supported"));
             // check if supported grouping entity
             if (!GROUPING_ENTITY_TYPES_TO_EXPAND.containsKey(entity.getType())) {
@@ -382,7 +372,7 @@ public class GroupsService implements IGroupsService {
                                       ActionApiInputDTO inputDto,
                                       ActionPaginationRequest paginationRequest) throws Exception {
         return
-            searchUtil.getActionsByEntityUuids(
+            actionSearchUtil.getActionsByEntityUuids(
                 getMemberIds(uuid).orElseGet(Collections::emptySet), inputDto, paginationRequest);
     }
 

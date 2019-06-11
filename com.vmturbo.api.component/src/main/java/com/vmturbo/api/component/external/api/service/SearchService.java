@@ -45,11 +45,11 @@ import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
-import com.vmturbo.api.component.external.api.util.action.SearchUtil;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -157,8 +157,6 @@ public class SearchService implements ISearchService {
 
     private final GroupServiceBlockingStub groupServiceRpc;
 
-    private final SearchUtil searchUtil;
-
     SearchService(@Nonnull final RepositoryApi repositoryApi,
                   @Nonnull final MarketsService marketsService,
                   @Nonnull final GroupsService groupsService,
@@ -179,7 +177,6 @@ public class SearchService implements ISearchService {
                   @Nonnull BusinessUnitMapper businessUnitMapper,
                   final long realtimeTopologyContextId,
                   @Nonnull final UserSessionContext userSessionContext,
-                  @Nonnull final SearchUtil searchUtil,
                   @Nonnull final GroupServiceBlockingStub groupServiceRpc) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.marketsService = Objects.requireNonNull(marketsService);
@@ -201,7 +198,6 @@ public class SearchService implements ISearchService {
         this.businessUnitMapper = businessUnitMapper;
         this.realtimeContextId = realtimeTopologyContextId;
         this.userSessionContext = userSessionContext;
-        this.searchUtil = searchUtil;
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
     }
 
@@ -220,10 +216,7 @@ public class SearchService implements ISearchService {
             // not a group or cluster...fall through
         }
         // The input is the uuid for a single entity.
-        ServiceEntityApiDTO entity = repositoryApi.getServiceEntityForUuid(Long.valueOf(uuidString));
-        // fetch information about the discovering target
-        entity.setDiscoveredBy(searchUtil.fetchDiscoveringTarget(entity));
-        return entity;
+        return repositoryApi.getServiceEntityForUuid(Long.valueOf(uuidString));
     }
 
     /**
@@ -480,7 +473,14 @@ public class SearchService implements ISearchService {
                     .build();
             final SearchEntitiesResponse response = searchServiceRpc.searchEntities(searchEntitiesRequest);
             List<ServiceEntityApiDTO> entities = response.getEntitiesList().stream()
-                .map(entity -> SearchMapper.seDTO(entity, targetIdToProbeType))
+                .map(entity -> {
+                    final ServiceEntityApiDTO serviceEntityApiDTO =
+                        ServiceEntityMapper.toServiceEntityApiDTO(entity, targetIdToProbeType);
+                    if (serviceEntityApiDTO.getDiscoveredBy() != null) {
+                        repositoryApi.populateTargetApiDTO(serviceEntityApiDTO.getDiscoveredBy());
+                    }
+                    return serviceEntityApiDTO;
+                })
                 .collect(Collectors.toList());
             severityPopulator.populate(realtimeContextId, entities);
             return buildPaginationResponse(entities,

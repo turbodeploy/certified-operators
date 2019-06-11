@@ -208,6 +208,7 @@ public class CommunicationConfig {
         return new RepositoryApi(severityPopulator(),
             repositoryRpcService(),
             searchServiceBlockingStub(),
+            topologyProcessor(),
             realtimeTopologyContextId);
     }
 

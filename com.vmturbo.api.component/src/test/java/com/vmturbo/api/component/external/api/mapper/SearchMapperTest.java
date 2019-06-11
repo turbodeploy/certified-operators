@@ -14,12 +14,8 @@ import org.junit.Test;
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
-import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
-import com.vmturbo.common.protobuf.search.Search.SearchFilter;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -44,7 +40,7 @@ public class SearchMapperTest {
                     .setDisplayName(displayName)
                     .setType(vmType)
                     .build();
-        ServiceEntityApiDTO seDTO = SearchMapper.seDTO(entity, Collections.emptyMap());
+        ServiceEntityApiDTO seDTO = ServiceEntityMapper.toServiceEntityApiDTO(entity, Collections.emptyMap());
         assertEquals(displayName, seDTO.getDisplayName());
         assertEquals(String.valueOf(oid), seDTO.getUuid());
         assertEquals("MAINTENANCE", seDTO.getState());

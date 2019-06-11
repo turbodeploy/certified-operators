@@ -44,7 +44,6 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
@@ -56,7 +55,6 @@ import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers
 import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
-import com.vmturbo.api.component.external.api.util.action.SearchUtil;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
@@ -172,11 +170,6 @@ public class SearchServiceTest {
         final GroupServiceBlockingStub groupServiceBlockingStub =
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(userSessionContext.isUserScoped()).thenReturn(false);
-        final SearchUtil searchUtil =
-            new SearchUtil(
-                searchGrpcStub, topologyProcessor, actionsServiceBlockingStub,
-                mock(ActionSpecMapper.class), mock(PaginationMapper.class),
-                supplyChainFetcherFactory, realTimeContextId);
         searchService = spy(new SearchService(
                 repositoryApi,
                 marketsService,
@@ -198,7 +191,6 @@ public class SearchServiceTest {
                 businessUnitMapper,
                 realTimeContextId,
                 userSessionContext,
-                searchUtil,
                 groupServiceBlockingStub));
 
         doReturn(ImmutableMap.of(
@@ -220,8 +212,7 @@ public class SearchServiceTest {
         final ServiceEntityApiDTO desiredResponse = new ServiceEntityApiDTO();
         final TargetApiDTO target = new TargetApiDTO();
         target.setUuid(Long.toString(targetUuid));
-        // Note that we are not setting the type on the target, as Repository does not do this
-        // It must be handled by the API layer--this is what we're testing!
+        target.setType(targetType);
         desiredResponse.setDiscoveredBy(target);
 
         // Prepare Topology Processor responses

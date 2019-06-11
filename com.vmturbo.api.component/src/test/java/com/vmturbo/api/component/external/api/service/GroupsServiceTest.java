@@ -52,7 +52,7 @@ import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers
 import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
-import com.vmturbo.api.component.external.api.util.action.SearchUtil;
+import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
@@ -106,7 +106,6 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 public class GroupsServiceTest {
 
@@ -185,18 +184,16 @@ public class GroupsServiceTest {
         final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub =
                 SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final PaginationMapper paginationMapper = new PaginationMapper();
-        final TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
-        final SearchUtil searchUtil =
-                new SearchUtil(
-                        searchServiceRpc, topologyProcessor, actionOrchestratorRpcService, actionSpecMapper,
-                        paginationMapper, supplyChainFetcherFactory, CONTEXT_ID);
+        final ActionSearchUtil actionSearchUtil =
+                new ActionSearchUtil(
+                        actionOrchestratorRpcService, actionSpecMapper,
+                        paginationMapper, supplyChainFetcherFactory, repositoryApi, CONTEXT_ID);
         final SettingsMapper settingsMapper = mock(SettingsMapper.class);
 
         groupsService =
             new GroupsService(
                 actionOrchestratorRpcService,
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                actionSpecMapper,
                 groupMapper,
                 groupExpander,
                 uuidMapper,
@@ -209,9 +206,8 @@ public class GroupsServiceTest {
                 searchServiceRpc,
                 actionStatsQueryExecutor,
                 severityPopulator,
-                topologyProcessor,
                 supplyChainFetcherFactory,
-                searchUtil,
+                actionSearchUtil,
                 settingPolicyServiceBlockingStub,
                 settingsMapper,
                 targetsService);

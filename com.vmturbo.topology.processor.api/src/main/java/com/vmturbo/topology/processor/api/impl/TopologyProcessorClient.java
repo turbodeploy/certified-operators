@@ -30,7 +30,7 @@ import com.vmturbo.topology.processor.api.TopologySummaryListener;
 import com.vmturbo.topology.processor.api.ValidationStatus;
 
 /**
- * Topology processor API client-side implementation. Obtained instance of this class shoule be
+ * Topology processor API client-side implementation. Obtained instance of this class should be
  * closed in order to release all the resources
  */
 public class TopologyProcessorClient extends
@@ -200,5 +200,4 @@ public class TopologyProcessorClient extends
         }
         return notificationClient;
     }
-
 }

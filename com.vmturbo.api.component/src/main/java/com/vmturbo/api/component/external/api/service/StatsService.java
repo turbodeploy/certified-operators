@@ -1,12 +1,9 @@
 package com.vmturbo.api.component.external.api.service;
 
-import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.toServiceEntityApiDTO;
-
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
@@ -1390,7 +1387,11 @@ public class StatsService implements IStatsService {
             .map(entityStats -> {
                 final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
                 final TopologyDTO.TopologyEntityDTO planEntity = entityStats.getPlanEntity();
-                final ServiceEntityApiDTO serviceEntityApiDTO = toServiceEntityApiDTO(planEntity, null);
+                final ServiceEntityApiDTO serviceEntityApiDTO =
+                        ServiceEntityMapper.toServiceEntityApiDTO(planEntity, null);
+                if (serviceEntityApiDTO.getDiscoveredBy() != null) {
+                    repositoryApi.populateTargetApiDTO(serviceEntityApiDTO.getDiscoveredBy());
+                }
                 entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
                 entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
                 entityStatsApiDTO.setClassName(UIEntityType.fromType(planEntity.getEntityType()).apiStr());

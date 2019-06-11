@@ -24,7 +24,7 @@ import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
-import com.vmturbo.api.component.external.api.util.action.SearchUtil;
+import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.serviceinterfaces.ISAMLService;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
@@ -39,7 +39,6 @@ import com.vmturbo.kvstore.PublicKeyStoreConfig;
 import com.vmturbo.kvstore.SAMLConfigurationStoreConfig;
 import com.vmturbo.notification.api.impl.NotificationClientConfig;
 import com.vmturbo.reporting.api.ReportingClientConfig;
-import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
 
@@ -213,7 +212,6 @@ public class ServiceConfig {
                 communicationConfig.searchServiceBlockingStub(),
                 communicationConfig.groupRpcService(),
                 mapperConfig.entityAspectMapper(),
-                communicationConfig.topologyProcessor(),
                 communicationConfig.severityPopulator(),
                 statsService(),
                 actionStatsQueryExecutor(),
@@ -222,7 +220,7 @@ public class ServiceConfig {
                 communicationConfig.settingPolicyRpcService(),
                 communicationConfig.settingRpcService(),
                 mapperConfig.settingsMapper(),
-                searchUtil(),
+                actionSearchUtil(),
                 communicationConfig.repositoryApi());
     }
 
@@ -231,7 +229,6 @@ public class ServiceConfig {
         return new GroupsService(
                 communicationConfig.actionsRpcService(),
                 communicationConfig.groupRpcService(),
-                mapperConfig.actionSpecMapper(),
                 mapperConfig.groupMapper(),
                 communicationConfig.groupExpander(),
                 mapperConfig.uuidMapper(),
@@ -244,9 +241,8 @@ public class ServiceConfig {
                 communicationConfig.searchServiceBlockingStub(),
                 actionStatsQueryExecutor(),
                 communicationConfig.severityPopulator(),
-                communicationConfig.topologyProcessor(),
                 communicationConfig.supplyChainFetcher(),
-                searchUtil(),
+                actionSearchUtil(),
                 communicationConfig.settingPolicyRpcService(),
                 mapperConfig.settingsMapper(),
                 targetService());
@@ -399,7 +395,6 @@ public class ServiceConfig {
                 mapperConfig.businessUnitMapper(),
                 communicationConfig.getRealtimeTopologyContextId(),
                 userSessionContext(),
-                searchUtil(),
                 communicationConfig.groupRpcService());
     }
 
@@ -545,14 +540,13 @@ public class ServiceConfig {
     }
 
     @Bean
-    public SearchUtil searchUtil() {
-        return new SearchUtil(
-            communicationConfig.searchServiceBlockingStub(),
-            communicationConfig.topologyProcessor(),
+    public ActionSearchUtil actionSearchUtil() {
+        return new ActionSearchUtil(
             communicationConfig.actionsRpcService(),
             mapperConfig.actionSpecMapper(),
             mapperConfig.paginationMapper(),
             communicationConfig.supplyChainFetcher(),
+            communicationConfig.repositoryApi(),
             communicationConfig.getRealtimeTopologyContextId());
     }
 }

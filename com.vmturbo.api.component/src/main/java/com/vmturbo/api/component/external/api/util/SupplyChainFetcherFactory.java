@@ -110,6 +110,24 @@ public class SupplyChainFetcherFactory {
     }
 
     /**
+     * Utility method to expand a seed into the set of all ids in its supply scope.
+     *
+     * @param entityUuids ids of entities in the seed.
+     * @param relatedEntityTypes entity types of entities to fetch (if empty, fetch all entities).
+     * @return the ids of the supply chain requested.
+     * @throws OperationFailedException operation failed.
+     */
+    public Set<Long> expandScope(@Nonnull Set<Long> entityUuids, @Nonnull List<String> relatedEntityTypes)
+            throws OperationFailedException {
+        return
+            newNodeFetcher()
+                .addSeedUuids(
+                    entityUuids.stream().map(Object::toString).collect(Collectors.toList()))
+                .entityTypes(relatedEntityTypes)
+                .fetchEntityIds();
+    }
+
+    /**
      * A builder for a {@link SupplychainNodeFetcher} that returns the raw
      * {@link SupplyChainNode}s, arranged by entity type.
      */

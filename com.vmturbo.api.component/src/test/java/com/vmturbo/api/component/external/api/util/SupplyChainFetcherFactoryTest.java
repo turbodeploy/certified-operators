@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -15,6 +16,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -36,6 +38,7 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.enums.EntityDetailType;
@@ -219,6 +222,43 @@ public class SupplyChainFetcherFactoryTest {
         assertThat(nodes.size(), is(1));
         assertThat(nodes.get(VM), is(vms));
         assertThat(nodes.get(VM).containsMembersByState(EntityState.POWERED_ON.getNumber()), is(true));
+    }
+
+    /**
+     * Tests that, when {@link SupplyChainNodeFetcherBuilder#expandScope} is called,
+     * a supply chain fetcher will be created, that the two requirements will be passed
+     * correctly to it, and that the method {@link SupplyChainNodeFetcherBuilder#fetch}
+     * will be called.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testExpandScopeCheckServiceCalls() throws Exception {
+        // input
+        final Set<Long> seedsIds = ImmutableSet.of(1L, 2L, 3L);
+        final Set<String> seedIdStrings = ImmutableSet.of("1", "2", "3");
+        final Set<Long> result = Collections.singleton(150L);
+        final List<String> relatedEntityTypes = Collections.singletonList(VM);
+
+        // mock underlying supply chain call
+        when(groupExpander.expandUuids(eq(seedIdStrings))).thenReturn(seedsIds);
+        when(supplyChainServiceBackend.getSupplyChain(
+                GetSupplyChainRequest.newBuilder()
+                    .addAllEntityTypesToInclude(relatedEntityTypes)
+                    .addAllStartingEntityOid(seedsIds)
+                    .setEnforceUserScope(true)
+                    .build()))
+            .thenReturn(
+                GetSupplyChainResponse.newBuilder()
+                    .setSupplyChain(SupplyChain.newBuilder()
+                    .addSupplyChainNodes(
+                        SupplyChainNode.newBuilder()
+                            .setEntityType(VM)
+                            .putMembersByState(10, MemberList.newBuilder().addMemberOids(150L).build())))
+                    .build());
+
+        // call service
+        Assert.assertEquals(result, supplyChainFetcherFactory.expandScope(seedsIds, relatedEntityTypes));
     }
 
     /**

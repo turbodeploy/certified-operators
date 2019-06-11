@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.service;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -46,7 +47,7 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
-import com.vmturbo.api.component.external.api.util.action.SearchUtil;
+import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.constraints.ConstraintApiDTO;
 import com.vmturbo.api.constraints.ConstraintApiInputDTO;
 import com.vmturbo.api.controller.GroupsController;
@@ -105,7 +106,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTOREST.GroupDTO.ConstraintType;
-import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 public class EntitiesService implements IEntitiesService {
     // these two constants are used to create hateos links for getEntitiesByUuid only.
@@ -135,8 +135,6 @@ public class EntitiesService implements IEntitiesService {
 
     private final EntityAspectMapper entityAspectMapper;
 
-    private final TopologyProcessor topologyProcessor;
-
     private final SeverityPopulator severityPopulator;
 
     private final StatsService statsService;
@@ -153,7 +151,7 @@ public class EntitiesService implements IEntitiesService {
 
     private final SettingsMapper settingsMapper;
 
-    private final SearchUtil searchUtil;
+    private final ActionSearchUtil actionSearchUtil;
 
     private final RepositoryApi repositoryApi;
 
@@ -202,7 +200,6 @@ public class EntitiesService implements IEntitiesService {
             @Nonnull final SearchServiceBlockingStub searchServiceRpc,
             @Nonnull final GroupServiceBlockingStub groupServiceClient,
             @Nonnull final EntityAspectMapper entityAspectMapper,
-            @Nonnull final TopologyProcessor topologyProcessor,
             @Nonnull final SeverityPopulator severityPopulator,
             @Nonnull final StatsService statsService,
             @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
@@ -211,7 +208,7 @@ public class EntitiesService implements IEntitiesService {
             @Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub,
             @Nonnull final SettingServiceBlockingStub settingServiceBlockingStub,
             @Nonnull final SettingsMapper settingsMapper,
-            @Nonnull final SearchUtil searchUtil,
+            @Nonnull final ActionSearchUtil actionSearchUtil,
             @Nonnull final RepositoryApi repositoryApi) {
 
         this.actionOrchestratorRpcService = Objects.requireNonNull(actionOrchestratorRpcService);
@@ -224,14 +221,13 @@ public class EntitiesService implements IEntitiesService {
         this.settingPolicyServiceBlockingStub = Objects.requireNonNull(settingPolicyServiceBlockingStub);
         this.settingServiceBlockingStub = Objects.requireNonNull(settingServiceBlockingStub);
         this.entityAspectMapper = Objects.requireNonNull(entityAspectMapper);
-        this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.statsService = Objects.requireNonNull(statsService);
         this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
         this.statsHistoryService = Objects.requireNonNull(statsHistoryService);
         this.settingsMapper = Objects.requireNonNull(settingsMapper);
-        this.searchUtil = Objects.requireNonNull(searchUtil);
+        this.actionSearchUtil = Objects.requireNonNull(actionSearchUtil);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
     }
 
@@ -255,14 +251,8 @@ public class EntitiesService implements IEntitiesService {
             throws Exception {
         // get information about this entity from the repository
         final long oid = Long.valueOf(uuid);
-        final TopologyEntityDTO entityAsTopologyEntityDTO = searchUtil.getTopologyEntityDTO(oid);
         final ServiceEntityApiDTO result =
-            ServiceEntityMapper.toServiceEntityApiDTO(
-                entityAsTopologyEntityDTO,
-                includeAspects ? entityAspectMapper : null);
-
-        // fetch information about the discovering target
-        result.setDiscoveredBy(searchUtil.fetchDiscoveringTarget(entityAsTopologyEntityDTO));
+            repositoryApi.getServiceEntityById(oid, includeAspects ? entityAspectMapper : null);
 
         // fetch all consumers
         try {
@@ -375,7 +365,7 @@ public class EntitiesService implements IEntitiesService {
                                        ActionApiInputDTO inputDto,
                                        ActionPaginationRequest paginationRequest) throws Exception {
         return
-            searchUtil.getActionsByEntityUuids(
+            actionSearchUtil.getActionsByEntityUuids(
                 Collections.singleton(Long.valueOf(uuid)), inputDto, paginationRequest);
     }
 
@@ -406,7 +396,7 @@ public class EntitiesService implements IEntitiesService {
                 "related to the action %s.", uuid, aUuid));
         }
         // add discovering targets to all entities associated with the action object
-        searchUtil.populateActionApiDTOWithTargets(result);
+        actionSearchUtil.populateActionApiDTOWithTargets(result);
         return result;
     }
 
@@ -603,7 +593,7 @@ public class EntitiesService implements IEntitiesService {
     public List<TagApiDTO> getTagsByEntityUuid(final String s) throws Exception {
         return
             TagsMapper.convertTagsToApi(
-                    searchUtil.getTopologyEntityDTO(Long.valueOf(s)).getTags().getTagsMap());
+                    repositoryApi.getTopologyEntityDTO(Long.valueOf(s)).getTags().getTagsMap());
     }
 
     @Override

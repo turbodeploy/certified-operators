@@ -1,7 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getStatsByUuidsQuery;
-import static java.lang.Boolean.TRUE;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
@@ -10,12 +9,12 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -228,7 +227,7 @@ public class StatsServiceTest {
             groupServiceSpy, planServiceSpy, repositoryServiceSpy, costServiceSpy, riUtilizationCoverageSpy);
 
     @Before
-    public void setUp() throws IOException, OperationFailedException {
+    public void setUp() throws IOException, InterruptedException, OperationFailedException {
         final StatsHistoryServiceBlockingStub statsServiceRpc =
             StatsHistoryServiceGrpc.newBlockingStub(testServer.getChannel());
         final PlanServiceGrpc.PlanServiceBlockingStub planRpcService =
@@ -286,6 +285,7 @@ public class StatsServiceTest {
         final StatSnapshotApiDTO apiDto = new StatSnapshotApiDTO();
         apiDto.setStatistics(Collections.emptyList());
         when(statsMapper.toStatSnapshotApiDTO(any())).thenReturn(apiDto);
+        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
 
         final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(oid1, inputDto);
 
@@ -373,6 +373,7 @@ public class StatsServiceTest {
         when(statsMapper.toStatSnapshotApiDTO(any(), any(), any(), any(), any(), any())).thenReturn(apiDto);
         when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
         when(riService.fetchPlanInstance("111")).thenReturn(Optional.empty());
+        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
 
         final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery("111", inputDto);
 
@@ -449,6 +450,7 @@ public class StatsServiceTest {
         when(statsMapper.toCloudStatSnapshotApiDTO(any())).thenReturn(apiDto);
         when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
         when(riService.fetchPlanInstance(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID)).thenReturn(Optional.empty());
+        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
 
         final List<StatSnapshotApiDTO> resp = statsService
                 .getStatsByEntityQuery(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID, inputDto);
@@ -508,8 +510,8 @@ public class StatsServiceTest {
         final StatSnapshotApiDTO apiDto = new StatSnapshotApiDTO();
         apiDto.setStatistics(Collections.emptyList());
         when(statsMapper.toCloudStatSnapshotApiDTO(any())).thenReturn(apiDto);
-
         when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
+        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
 
         final List<StatSnapshotApiDTO> resp = statsService
                 .getStatsByEntityQuery("11111", inputDto);
@@ -584,8 +586,8 @@ public class StatsServiceTest {
         apiDto.setStatistics(Collections.emptyList());
         when(statsMapper.toCloudStatSnapshotApiDTO(any())).thenReturn(apiDto);
         when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
-        doReturn(ImmutableMap.of(UIEntityType.VIRTUAL_MACHINE.apiStr(), Sets.newHashSet(1L)))
-            .when(statsService).fetchRelatedEntitiesForScopes(any(), any(), any());
+        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
+
 
         final List<StatSnapshotApiDTO> resp = statsService
                 .getStatsByEntityQuery("11111", inputDto);
@@ -626,6 +628,7 @@ public class StatsServiceTest {
         EntityAccessScope accessScope = new EntityAccessScope(null, null,
                 new ArrayOidSet(Arrays.asList(apiId1.oid())), null);
         when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
 
         // verify that the request will not get interrupted on a request for entity 1
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
@@ -728,6 +731,7 @@ public class StatsServiceTest {
         final StatSnapshotApiDTO apiDto = new StatSnapshotApiDTO();
         apiDto.setStatistics(Collections.emptyList());
         when(statsMapper.toStatSnapshotApiDTO(any())).thenReturn(apiDto);
+        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
 
         final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(oid1, inputDto);
 
@@ -818,6 +822,7 @@ public class StatsServiceTest {
                                 .setPlanId(planId)
                                 .setStatus(PlanStatus.SUCCEEDED))
                         .build());
+        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
         final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(planIdString, inputDto);
         verify(statsHistoryServiceSpy, never()).getProjectedStats(any());
         verifyZeroInteractions(costServiceSpy);
@@ -842,6 +847,7 @@ public class StatsServiceTest {
         final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
         dto.setStatistics(Collections.emptyList());
         when(statsMapper.toStatSnapshotApiDTO(any())).thenReturn(dto);
+        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
 
         // act
         final List<StatSnapshotApiDTO> retDtos = statsService.getStatsByEntityQuery(oid1, inputDto);
@@ -894,6 +900,7 @@ public class StatsServiceTest {
         when(statsMapper.toAveragedEntityStatsRequest(oids, inputDto, Optional.empty()))
                 .thenReturn(request);
         when(riService.fetchPlanInstance("7")).thenReturn(Optional.empty());
+        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
 
         // We don't really care about what happens after the RPC call, because the thing
         // we're testing is that the datacenter gets expanded into the right IDs before
@@ -958,6 +965,7 @@ public class StatsServiceTest {
         final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.getDefaultInstance();
         when(statsMapper.toAveragedEntityStatsRequest(expandedOids, inputDto, Optional.empty()))
                 .thenReturn(request);
+        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
 
         // act
         statsService.getStatsByEntityQuery(oid1, inputDto);
@@ -991,6 +999,7 @@ public class StatsServiceTest {
         final StatSnapshotApiDTO retDto = new StatSnapshotApiDTO();
         retDto.setStatistics(Collections.emptyList());
         when(statsMapper.toStatSnapshotApiDTO(any())).thenReturn(retDto);
+        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
 
         // act
         final List<StatSnapshotApiDTO> results = statsService.getStatsByEntityQuery(oid1, inputDto);
@@ -1328,13 +1337,14 @@ public class StatsServiceTest {
         when(statsMapper.normalizeRelatedType(inputDto.getRelatedType())).thenReturn(inputDto.getRelatedType());
 
         when(groupExpander.getGroup(any())).thenReturn(Optional.empty());
+        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenThrow(UnknownObjectException.class);
 
         // We don't care about the result - for this test we just want to make sure
         // that the vm ID gets expanded into the PM id.
         try {
             statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
         } catch (UnknownObjectException e) {
-            // This is expected, since we didn't mock out the call to the repository API.
+            // this is expected
         }
 
         // Make sure we normalize the related entity type.

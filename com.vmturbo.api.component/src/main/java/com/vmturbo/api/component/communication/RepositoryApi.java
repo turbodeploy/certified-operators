@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.communication;
 
+import java.nio.file.AccessDeniedException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -17,33 +18,41 @@ import javax.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import io.grpc.StatusRuntimeException;
 
-import com.vmturbo.api.component.external.api.mapper.SearchMapper;
+import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.topology.processor.api.TargetData;
+import com.vmturbo.topology.processor.api.TargetInfo;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
+import com.vmturbo.topology.processor.api.TopologyProcessorException;
 
 
 /**
  * This class is an API wrapper for the Repository Component.
- *
- * TODO (roman, Dec 19 2016): This stuff shouldn't live here. We should migrate the API's to
- * gRPC instead :)
  */
 public class RepositoryApi {
 
@@ -57,14 +66,18 @@ public class RepositoryApi {
 
     private final SearchServiceBlockingStub searchServiceBlockingStub;
 
+    private final TopologyProcessor topologyProcessor;
+
     public RepositoryApi(@Nonnull final SeverityPopulator severityPopulator,
                          @Nonnull final RepositoryServiceBlockingStub repositoryService,
                          @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
+                         @Nonnull final TopologyProcessor topologyProcessor,
                          final long realtimeTopologyContextId) {
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
-        this.searchServiceBlockingStub = searchServiceBlockingStub;
-        this.repositoryService = repositoryService;
+        this.searchServiceBlockingStub = Objects.requireNonNull(searchServiceBlockingStub);
+        this.repositoryService = Objects.requireNonNull(repositoryService);
+        this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
     }
 
     @Nonnull
@@ -101,12 +114,14 @@ public class RepositoryApi {
                         .setPaginationParams(PaginationParameters.newBuilder()
                             .setCursor(nextCursor))
                         .build());
-                // TODO (roman, May 23 2019) OM-44276: We should get the probe type map and pass
-                // it to the mapper, in order to populate the type in the returned discoveredBy
-                // field.
                 response.getEntitiesList().stream()
-                    .map(entity -> SearchMapper.seDTO(entity, Collections.emptyMap()))
-                    .forEach(entities::add);
+                    .map(entity -> ServiceEntityMapper.toServiceEntityApiDTO(entity, Collections.emptyMap()))
+                    .forEach(entity -> {
+                        entities.add(entity);
+                        if (entity != null && entity.getDiscoveredBy() != null) {
+                            populateTargetApiDTO(entity.getDiscoveredBy());
+                        }
+                    });
                 nextCursor = response.getPaginationResponse().getNextCursor();
             } catch (StatusRuntimeException e) {
                 logger.error("Error retrieving data: {}", e);
@@ -118,24 +133,29 @@ public class RepositoryApi {
     }
 
     /**
-     * Request the full Service Entity description, {@link ServiceEntityApiDTO}, from the
+     * Requests the full Service Entity description, {@link ServiceEntityApiDTO}, from the
      * Repository Component.
+     *
+     * The functionality of this method is subsumed by
+     * {@link RepositoryApi#getServiceEntityById(long, EntityAspectMapper)}.
+     * No new code should use this method.
+     * TODO: A future refactoring will remove this method ensuring that no existing caller breaks. (OM-47354)
      *
      * @param serviceEntityId the unique id (uuid/oid) for the service entity to be retrieved.
      * @return the {@link ServiceEntityApiDTO} describing the Service Entity with the requested ID.
      * @throws UnknownObjectException if there is no service entity with the given UUID.
      */
+    @Deprecated
     public ServiceEntityApiDTO getServiceEntityForUuid(long serviceEntityId)
             throws UnknownObjectException {
-
         final SearchParameters params =
-            SearchProtoUtil.makeSearchParameters(SearchProtoUtil.idFilter(serviceEntityId))
-                .build();
+                SearchProtoUtil.makeSearchParameters(SearchProtoUtil.idFilter(serviceEntityId))
+                        .build();
         final SearchEntitiesResponse response =
-            searchServiceBlockingStub.searchEntities(SearchEntitiesRequest.newBuilder()
-                .addSearchParameters(params)
-                .setPaginationParams(PaginationParameters.getDefaultInstance())
-                .build());
+                searchServiceBlockingStub.searchEntities(SearchEntitiesRequest.newBuilder()
+                        .addSearchParameters(params)
+                        .setPaginationParams(PaginationParameters.getDefaultInstance())
+                        .build());
         if (response.getEntitiesList().isEmpty()) {
             throw new UnknownObjectException(Long.toString(serviceEntityId));
         } else {
@@ -145,24 +165,57 @@ public class RepositoryApi {
             if (response.getEntitiesCount() > 1) {
                 logger.error("Got multiple entities for ID {}! This shouldn't happen.", serviceEntityId);
             }
-            // TODO (roman, May 23 2019) OM-44276: We should get the probe type map and pass
-            // it to the mapper, in order to populate the type in the returned discoveredBy
-            // field.
             final ServiceEntityApiDTO entity =
-                SearchMapper.seDTO(response.getEntities(0), Collections.emptyMap());
+                ServiceEntityMapper.toServiceEntityApiDTO(response.getEntities(0), Collections.emptyMap());
+            if (entity != null && entity.getDiscoveredBy() != null) {
+                populateTargetApiDTO(entity.getDiscoveredBy());
+            }
             return severityPopulator.populate(realtimeTopologyContextId, entity);
         }
     }
 
     /**
-     * Request several service entity descriptions from the Repository.
+     * Requests the full Service Entity description, {@link ServiceEntityApiDTO}, from the
+     * Repository Component.
+     *
+     * @param serviceEntityId the unique id (uuid/oid) for the service entity to be retrieved.
+     * @param entityAspectMapper An optional {@link EntityAspectMapper}.
+     *                           If non-null, we use it to populate the result with entity aspects.
+     * @return the {@link ServiceEntityApiDTO} describing the Service Entity with the requested ID.
+     * @throws UnknownObjectException if there is no service entity with the given UUID.
+     */
+    public ServiceEntityApiDTO getServiceEntityById(
+            long serviceEntityId, @Nullable final EntityAspectMapper entityAspectMapper)
+            throws UnknownObjectException {
+        final ServiceEntitiesRequest serviceEntitiesRequest =
+                ServiceEntitiesRequest.newBuilder(Collections.singleton(serviceEntityId)).build();
+        final Collection<Optional<ServiceEntityApiDTO>> resultSet =
+                getServiceEntitiesById(serviceEntitiesRequest, entityAspectMapper).values();
+        if (resultSet.isEmpty()) {
+            throw new UnknownObjectException("Entity with id " + serviceEntityId + " was not found");
+        }
+        if (resultSet.size() > 1) {
+            final String message = "Multiple entities with id " + serviceEntityId + " were found";
+            logger.error(message);
+            throw new UnknownObjectException(message);
+        }
+        return resultSet.iterator().next().orElseThrow(() ->
+                  new UnknownObjectException("Entity with id " + serviceEntityId + " was not found"));
+    }
+
+    /**
+     * Requests several service entity descriptions from the Repository.
      *
      * @param request The {@link ServiceEntitiesRequest} describing the search.
+     * @param entityAspectMapper An optional {@link EntityAspectMapper}.
+     *                           If non-null, we use it to populate the result with entity aspects.
      * @return A map of OID -> an optional containing the entity, or an empty optional if the entity was not found.
      *         Each OID in entityIds will have a matching entry in the returned map.
      */
     @Nonnull
-    public Map<Long, Optional<ServiceEntityApiDTO>> getServiceEntitiesById(@Nonnull final ServiceEntitiesRequest request) {
+    public Map<Long, Optional<ServiceEntityApiDTO>> getServiceEntitiesById(
+            @Nonnull final ServiceEntitiesRequest request,
+            @Nullable final EntityAspectMapper entityAspectMapper) {
         if (request.getEntityIds().isEmpty()) {
             return Collections.emptyMap();
         }
@@ -178,18 +231,122 @@ public class RepositoryApi {
         final Map<Long, Optional<ServiceEntityApiDTO>> results = request.getEntityIds().stream()
             .collect(Collectors.toMap(Function.identity(), id -> Optional.empty()));
         try {
-            // TODO (roman, May 23 2019) OM-44276: We should get the probe type map and pass
-            // use it to populate the discoveredBy field in the returned entities.
             RepositoryDTOUtil.topologyEntityStream(repositoryService.retrieveTopologyEntities(reqBuilder.build()))
                 .forEach(entity -> {
-                    results.put(entity.getOid(),
-                        Optional.of(ServiceEntityMapper.toServiceEntityApiDTO(entity, null)));
+                    final ServiceEntityApiDTO serviceEntityApiDTO =
+                            ServiceEntityMapper.toServiceEntityApiDTO(entity, entityAspectMapper);
+                    if (serviceEntityApiDTO != null && serviceEntityApiDTO.getDiscoveredBy() != null) {
+                        populateTargetApiDTO(serviceEntityApiDTO.getDiscoveredBy());
+                    }
+                    results.put(entity.getOid(), Optional.of(serviceEntityApiDTO));
                 });
             severityPopulator.populate(contextId, results);
             return results;
         } catch (StatusRuntimeException e) {
             logger.error("Failed to retrieve entities due to error: {}", e.getMessage());
             return Collections.emptyMap();
+        }
+    }
+
+    /**
+     * Request several service entity descriptions from the Repository.
+     *
+     * @param request The {@link ServiceEntitiesRequest} describing the search.
+     * @return A map of OID -> an optional containing the entity, or an empty optional if the entity was not found.
+     *         Each OID in entityIds will have a matching entry in the returned map.
+     */
+    @Nonnull
+    public Map<Long, Optional<ServiceEntityApiDTO>> getServiceEntitiesById(
+            @Nonnull final ServiceEntitiesRequest request) {
+        return getServiceEntitiesById(request, null);
+    }
+
+    /**
+     * Fetches an entity in {@link TopologyEntityDTO} form, given its oid.
+     *
+     * @param oid the oid of the entity to fetch.
+     * @return the entity in a {@link TopologyEntityDTO} format.
+     *
+     * @throws UnknownObjectException if the entity was not found.
+     * @throws OperationFailedException if the operation failed.
+     * @throws UnauthorizedObjectException if user does not have proper access privileges.
+     * @throws InterruptedException if thread is interrupted during processing.
+     * @throws AccessDeniedException if user is properly authenticated.
+     */
+    @Nonnull
+    public TopologyEntityDTO getTopologyEntityDTO(long oid) throws Exception {
+        // get information about this entity from the repository
+        final SearchTopologyEntityDTOsResponse searchTopologyEntityDTOsResponse;
+        try {
+            searchTopologyEntityDTOsResponse =
+                    searchServiceBlockingStub.searchTopologyEntityDTOs(
+                            SearchTopologyEntityDTOsRequest.newBuilder()
+                                    .addEntityOid(oid)
+                                    .build());
+        } catch (StatusRuntimeException e) {
+            throw ExceptionMapper.translateStatusException(e);
+        }
+        if (searchTopologyEntityDTOsResponse.getTopologyEntityDtosCount() == 0) {
+            final String message = "Error fetching entity with uuid: " + oid;
+            logger.error(message);
+            throw new UnknownObjectException(message);
+        }
+        return searchTopologyEntityDTOsResponse.getTopologyEntityDtos(0);
+    }
+
+    /**
+     * Populates a {@link TargetApiDTO} structure which has already a target id,
+     * with the display name, the probe id and the probe type.
+     * If communication with the topology processor fails or if the topology processor
+     * does not fetch the requested information, the structure will not be populated.
+     *
+     * @param targetApiDTO the structure to populate.
+     */
+    public void populateTargetApiDTO(@Nonnull TargetApiDTO targetApiDTO) {
+        if (targetApiDTO.getUuid() == null) {
+            return;
+        }
+        long targetId = Long.valueOf(targetApiDTO.getUuid());
+
+        // get target info from the topology processor
+        final TargetInfo targetInfo;
+        try {
+            targetInfo = topologyProcessor.getTarget(targetId);
+        } catch (TopologyProcessorException | CommunicationException e) {
+            logger.warn("Error communicating with the topology processor", e);
+            return;
+        }
+        targetApiDTO.setDisplayName(
+                TargetData.getDisplayName(targetInfo).orElseGet(() -> {
+                    logger.warn("Cannot find the display name of target with id {}", targetId);
+                    return "";
+                }));
+
+        // fetch information about the probe, and store the probe type in the result
+        try {
+            targetApiDTO.setType(topologyProcessor.getProbe(targetInfo.getProbeId()).getType());
+        } catch (TopologyProcessorException | CommunicationException e) {
+            logger.warn("Error communicating with the topology processor", e);
+        }
+    }
+
+    /**
+     * Fetches the entity for the given string uuid from repository.
+     *
+     * @param uuid string id
+     * @return entity or empty if not existing
+     */
+    public Optional<Search.Entity> fetchEntity(@Nonnull String uuid) {
+        try {
+            long entityOid = Long.valueOf(uuid);
+            List<Search.Entity> entities = searchServiceBlockingStub.searchEntities(
+                    SearchEntitiesRequest.newBuilder()
+                            .addEntityOid(entityOid)
+                            .setPaginationParams(PaginationParameters.newBuilder().setLimit(1).build())
+                            .build()).getEntitiesList();
+            return entities.isEmpty() ? Optional.empty() : Optional.of(entities.get(0));
+        } catch (StatusRuntimeException | NumberFormatException e) {
+            return Optional.empty();
         }
     }
 
@@ -263,7 +420,7 @@ public class RepositoryApi {
             }
 
             /**
-             * Override the topology context ID to use for the request. The default is to
+             * Overrides the topology context ID to use for the request. The default is to
              * search in the realtime topology context.
              *
              * @param contextId The desired topology context ID.
@@ -275,7 +432,7 @@ public class RepositoryApi {
             }
 
             /**
-             * Request the search of entities in the projected topology instead of the source
+             * Requests the search of entities in the projected topology instead of the source
              * topology. The projected topology is the simulated result of applying all actions
              * recommended by the market to the source topology in the same topology context.
              * <p>
