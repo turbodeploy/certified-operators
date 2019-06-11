@@ -164,6 +164,7 @@ public class ActionTranslatorTest {
     @Test
     public void testToSpecWithoutDecision() throws Exception {
         final Action action = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(1), actionPlanId, actionModeCalculator);
+        action.setDescription("Move VM1 from PM1 to PM2");
         final ActionSpec spec = translator.translateToSpec(action);
 
         assertTrue(spec.getIsExecutable());
@@ -178,6 +179,7 @@ public class ActionTranslatorTest {
         final Action action = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(1), actionPlanId, actionModeCalculator);
         final long clearingPlanId = 5;
         action.receive(new ActionEvent.NotRecommendedEvent(clearingPlanId));
+        action.setDescription("Move VM1 from PM1 to PM2");
         final ActionSpec spec = translator.translateToSpec(action);
 
         assertFalse(spec.getIsExecutable());
@@ -194,8 +196,8 @@ public class ActionTranslatorTest {
     @Test
     public void testToSpecUntranslated() {
         final Action action = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(1), actionPlanId, actionModeCalculator);
+        action.setDescription("Move VM1 from PM1 to PM2");
         final ActionSpec spec = translator.translateToSpec(action);
-
         assertEquals(action.getRecommendation(), spec.getRecommendation());
     }
 
@@ -203,6 +205,7 @@ public class ActionTranslatorTest {
     public void testToSpecTranslationFailed() {
         final Action action = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(1), actionPlanId, actionModeCalculator);
         action.getActionTranslation().setTranslationFailure();
+        action.setDescription("Move VM1 from PM1 to PM2");
         final ActionSpec spec = translator.translateToSpec(action);
 
         assertEquals(action.getRecommendation(), spec.getRecommendation());
@@ -214,6 +217,7 @@ public class ActionTranslatorTest {
         final ActionDTO.Action translatedRecommendation = ActionOrchestratorTestUtils.createMoveRecommendation(2);
         action.getActionTranslation().setTranslationSuccess(translatedRecommendation);
 
+        action.setDescription("Move VM1 from PM1 to PM2");
         final ActionSpec spec = translator.translateToSpec(action);
 
         assertNotEquals(action.getRecommendation(), spec.getRecommendation());

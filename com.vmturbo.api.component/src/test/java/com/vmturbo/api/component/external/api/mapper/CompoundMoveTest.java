@@ -183,8 +183,6 @@ public class CompoundMoveTest {
         assertEquals(1, apiDto.getCompoundActions().size());
         assertEquals(String.valueOf(ST1_ID), apiDto.getCurrentValue());
         assertEquals(String.valueOf(ST2_ID), apiDto.getNewValue());
-        assertEquals(details("Virtual Machine", TARGET_NAME, ST1_NAME, ST2_NAME),
-            apiDto.getDetails());
     }
 
     /**
@@ -204,9 +202,6 @@ public class CompoundMoveTest {
         assertEquals(1, apiDto.getCompoundActions().size());
         assertEquals(String.valueOf(ST1_ID), apiDto.getCurrentValue());
         assertEquals(String.valueOf(ST2_ID), apiDto.getNewValue());
-        assertEquals(moveDetailsWithResource("Virtual Volume", VOL1_NAME, "Virtual Machine",
-                TARGET_NAME, ST1_NAME, ST2_NAME),
-                apiDto.getDetails());
     }
 
     /**
@@ -226,8 +221,6 @@ public class CompoundMoveTest {
         assertEquals(2, apiDto.getCompoundActions().size());
         assertEquals(String.valueOf(PM1_ID), apiDto.getCurrentValue());
         assertEquals(String.valueOf(PM2_ID), apiDto.getNewValue());
-        assertEquals(details("Virtual Machine", TARGET_NAME, PM1_NAME, PM2_NAME),
-            apiDto.getDetails());
     }
 
     /**
@@ -248,8 +241,6 @@ public class CompoundMoveTest {
         assertEquals(2, apiDto.getCompoundActions().size());
         assertEquals(String.valueOf(PM1_ID), apiDto.getCurrentValue());
         assertEquals(String.valueOf(PM2_ID), apiDto.getNewValue());
-        assertEquals(details("Virtual Machine", TARGET_NAME, PM1_NAME, PM2_NAME),
-            apiDto.getDetails());
     }
 
     private static String details(String targetType, String targetName, String providerName1,

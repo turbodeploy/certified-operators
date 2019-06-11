@@ -54,6 +54,7 @@ import com.vmturbo.action.orchestrator.store.ActionFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
@@ -113,6 +114,8 @@ public class ActionExecutionRpcTest {
 
     private final EntitiesAndSettingsSnapshotFactory entitySettingsCache = mock(EntitiesAndSettingsSnapshotFactory.class);
 
+    private final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
+
     private final LiveActionsStatistician statistician = mock(LiveActionsStatistician.class);
 
     private static final long ACTION_PLAN_ID = 2;
@@ -170,11 +173,15 @@ public class ActionExecutionRpcTest {
      */
     @Test
     public void testAcceptAction() throws Exception {
-        final ActionPlan plan = actionPlan(ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID));
+        ActionDTO.Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
+        final ActionPlan plan = actionPlan(recommendation);
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
             .setActionId(ACTION_ID)
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
+
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         actionStorehouse.storeActions(plan);
         AcceptActionResponse response =  actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
@@ -192,11 +199,15 @@ public class ActionExecutionRpcTest {
      */
     @Test
     public void testAcceptActionNotFound() throws Exception {
-        final ActionPlan plan = actionPlan(ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID));
+        ActionDTO.Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
+        final ActionPlan plan = actionPlan(recommendation);
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
             .setActionId(ACTION_ID)
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
+
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         actionStorehouse.storeActions(plan);
         actionStorehouse.getStore(TOPOLOGY_CONTEXT_ID).get().overwriteActions(ImmutableMap.of(
@@ -224,11 +235,15 @@ public class ActionExecutionRpcTest {
 
     @Test
     public void testAcceptActionUpdatesSeverityCache() throws Exception {
-        final ActionPlan plan = actionPlan(ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID));
+        ActionDTO.Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
+        final ActionPlan plan = actionPlan(recommendation);
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
             .setActionId(ACTION_ID)
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
+
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         EntitySeverityCache severityCacheMock = mock(EntitySeverityCache.class);
         doReturn(severityCacheMock).when(actionStoreSpy).getEntitySeverityCache();
@@ -244,11 +259,15 @@ public class ActionExecutionRpcTest {
 
     @Test
     public void testAcceptNotAuthorized() throws Exception {
-        final ActionPlan plan = actionPlan(ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID));
+        ActionDTO.Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
+        final ActionPlan plan = actionPlan(recommendation);
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
             .setActionId(ACTION_ID)
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
+
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         actionStorehouse.storeActions(plan);
 
@@ -275,6 +294,9 @@ public class ActionExecutionRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
 
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
+
         actionStorehouse.storeActions(plan);
         when(actionTargetSelector.getTargetForAction(eq(recommendation)))
             .thenReturn(ImmutableActionTargetInfo.builder()
@@ -297,6 +319,9 @@ public class ActionExecutionRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
 
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
+
         actionStorehouse.storeActions(plan);
 
         when(actionTargetSelector.getTargetForAction(Mockito.eq(recommendation))).thenReturn(
@@ -318,6 +343,10 @@ public class ActionExecutionRpcTest {
         final ActionDTO.Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
         final ActionDTO.Action translationResult = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID + 1);
         assertNotEquals(recommendation, translationResult);
+
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
+
         final ActionPlan plan = actionPlan(recommendation);
         final SingleActionRequest acceptActionContext = SingleActionRequest.newBuilder()
             .setActionId(ACTION_ID)
@@ -351,6 +380,10 @@ public class ActionExecutionRpcTest {
             .setActionId(ACTION_ID)
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
+
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
+
         // We use a new actionTranslator for this test. This spy translator does not do the
         // translation successfully.
         // Since wthis test uses a new actionTranslator, all the dependent objects are

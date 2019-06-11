@@ -226,7 +226,6 @@ public class LiveActionStore implements ActionStore {
 
             final long planId = actionPlan.getId();
             final MutableInt newActionCounts = new MutableInt(0);
-
             final Stream<Action> translatedReadyActions = actionTranslator.translate(actionsWithSupportLevel.stream()
                 .map(recommendedAction -> {
                     final Optional<Action> existingActionOpt = recommendations.take(recommendedAction.getInfo());

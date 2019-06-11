@@ -18,7 +18,6 @@ import com.google.common.base.Preconditions;
 
 import com.vmturbo.action.orchestrator.store.query.QueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
-import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.ActionOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
@@ -46,16 +45,7 @@ public class ActionPaginator {
 
     static {
         final Map<ActionOrderBy, Comparator<ActionView>> registry = new EnumMap<>(ActionOrderBy.class);
-        // TODO (roman, 5 April 2018): The action types in ActionDTO.ActionType are not completely
-        // in sync with the action types we return to the API. Using these types for the sort
-        // order means there may be some inconsistencies - i.e. two action with the same
-        // ActionDTO.ActionType will be treated as equivalent for sorting purposes even if they are
-        // mapped to two different types in the API component.
-        //
-        // We need to have a single source-of-truth for action types, and it needs to be the
-        // action orchestrator for pagination to work properly.
-        registry.put(ActionOrderBy.ACTION_TYPE, Comparator.comparing(actionView ->
-                        ActionDTOUtil.getActionInfoActionType(actionView.getRecommendation())));
+        registry.put(ActionOrderBy.ACTION_NAME, Comparator.comparing(ActionView::getDescription));
         registry.put(ActionOrderBy.ACTION_SEVERITY,
                 Comparator.comparingDouble(view -> view.getRecommendation().getImportance()));
         registry.put(ActionOrderBy.ACTION_RISK_CATEGORY, (a1, a2) -> {

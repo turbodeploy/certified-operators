@@ -166,7 +166,8 @@ class LiveActions implements QueryableActionViews {
 
     /**
      * Replace all market actions. THIS SHOULD ONLY BE CALLED WHEN RESTORING FROM DIAGS!
-     * For normal operation use {@link LiveActions#updateMarketActions(Collection, Collection, EntitiesAndSettingsSnapshot)}.
+     * For normal operation use {@link LiveActions#
+     * updateMarketActions(Collection, Collection, EntitiesAndSettingsSnapshot)}.
      *
      * @param newActions The new market actions.
      */
@@ -217,8 +218,8 @@ class LiveActions implements QueryableActionViews {
             updateIndices();
 
             // Now that we updated the entities + settings cache, refresh the action modes
-            // of all market actions.
-            marketActions.values().forEach(action -> action.refreshActionMode(newEntitiesSnapshot));
+            // of all market actions and set action description.
+            marketActions.values().forEach(action -> action.refreshAction(newEntitiesSnapshot));
 
             marketActions.values().stream()
                 .collect(Collectors.groupingBy(a ->
