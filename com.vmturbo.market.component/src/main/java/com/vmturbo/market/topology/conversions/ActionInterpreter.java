@@ -570,59 +570,67 @@ public class ActionInterpreter {
             @Nonnull final MoveTO move, @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
             Long targetOid) {
         List<ChangeProvider> changeProviders = new ArrayList<>();
-        MarketTier sourceMt = move.hasSource() ? cloudTc.getMarketTier(move.getSource()) : null;
-        MarketTier destMt = move.hasDestination() ? cloudTc.getMarketTier(move.getDestination()) : null;
-        TopologyEntityDTO sourceAz = null;
-        TopologyEntityDTO destAz = null;
+        MarketTier sourceMarketTier = move.hasSource() ?
+                cloudTc.getMarketTier(move.getSource()) : null;
+        MarketTier destMarketTier = move.hasDestination() ?
+                cloudTc.getMarketTier(move.getDestination()) : null;
+        TopologyEntityDTO sourceAzOrRegion = null;
+        TopologyEntityDTO destAzOrRegion = null;
         TopologyEntityDTO sourceTier = null;
         TopologyEntityDTO destTier = null;
         TopologyEntityDTO target = originalTopology.get(targetOid);
         Long moveSource = move.hasSource() ? move.getSource() : null;
-        if (destMt != null ) {
+        if (destMarketTier != null ) {
             // TODO: We are considering the destination AZ as the first AZ of the destination
             // region. In case of zonal RIs, we need to get the zone of the RI.
-            destAz = TopologyDTOUtil.getConnectedEntitiesOfType(
-                    destMt.getRegion(), EntityType.AVAILABILITY_ZONE_VALUE,
-                    originalTopology).get(0);
-            destTier = destMt.getTier();
+            List<TopologyEntityDTO> connectedEntities = TopologyDTOUtil.getConnectedEntitiesOfType(
+                    destMarketTier.getRegion(), EntityType.AVAILABILITY_ZONE_VALUE, originalTopology);
+            destAzOrRegion = connectedEntities.isEmpty() ?
+                    destMarketTier.getRegion() : connectedEntities.get(0);
+            destTier = destMarketTier.getTier();
         }
-        if (sourceMt != null) {
-            // Soruce AZ is the AZ which the target is connected to.
-            sourceAz = TopologyDTOUtil.getConnectedEntitiesOfType(target,
-                    EntityType.AVAILABILITY_ZONE_VALUE, originalTopology).get(0);
-            sourceTier = sourceMt.getTier();
+        if (sourceMarketTier != null) {
+            // Soruce AZ or Region is the AZ or Region which the target is connected to.
+            List<TopologyEntityDTO> connectedEntities = TopologyDTOUtil.getConnectedEntitiesOfType(target,
+                Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE),
+                originalTopology);
+            if (!connectedEntities.isEmpty())
+                sourceAzOrRegion = connectedEntities.get(0);
+            else
+                logger.error("{} is not connected to any AZ or Region", target.getDisplayName());
+            sourceTier = sourceMarketTier.getTier();
         }
         Long resourceId = shoppingListOidToInfos.get(move.getShoppingListToMove()).resourceId;
         // 4 case of moves:
         // 1) Cloud to cloud. 2) on prem to cloud. 3) cloud to on prem. 4) on prem to on prem.
-        if (sourceMt != null && destMt != null) {
-            if ((destMt.getRegion() == sourceMt.getRegion()) && (destTier == sourceTier)
+        if (sourceMarketTier != null && destMarketTier != null) {
+            if ((destMarketTier.getRegion() == sourceMarketTier.getRegion()) && (destTier == sourceTier)
                     && (move.hasCouponDiscount()&& move.hasCouponId())) {
                 logger.warn("ACCOUNTING action generated for {}. We do not handle accounting " +
                         "actions YET. Dropping action.", target.getDisplayName());
             }
             // Cloud to cloud move
-            if (destMt.getRegion() != sourceMt.getRegion()) {
-                // AZ change provider. We create an AZ change provider because the target is
-                // connected to AZ.
-                changeProviders.add(createChangeProvider(sourceAz.getOid(),
-                        destAz.getOid(), null, projectedTopology));
+            if (destMarketTier.getRegion() != sourceMarketTier.getRegion()) {
+                // AZ or Region change provider. We create an AZ or Region change provider
+                // because the target is connected to AZ or Region.
+                changeProviders.add(createChangeProvider(sourceAzOrRegion.getOid(),
+                    destAzOrRegion.getOid(), null, projectedTopology));
             }
             if (destTier != sourceTier) {
                 // Tier change provider
                 changeProviders.add(createChangeProvider(sourceTier.getOid(),
                         destTier.getOid(), resourceId, projectedTopology));
             }
-        } else if (sourceMt == null && destMt != null) {
+        } else if (sourceMarketTier == null && destMarketTier != null) {
             // On prem to cloud move (with or without source)
-            // AZ change provider. We create an AZ change provider because the target is
-            // connected to AZ
+            // AZ or Region change provider. We create an AZ or Region change provider
+            // because the target is connected to AZ or Region.
             changeProviders.add(createChangeProvider(moveSource,
-                    destAz.getOid(), null, projectedTopology));
+                destAzOrRegion.getOid(), null, projectedTopology));
             // Tier change provider
             changeProviders.add(createChangeProvider(moveSource,
                     destTier.getOid(), resourceId, projectedTopology));
-        } else if (sourceMt != null && destMt == null) {
+        } else if (sourceMarketTier != null && destMarketTier == null) {
             // Cloud to on prem move
             changeProviders.add(createChangeProvider(sourceTier.getOid(),
                     move.getDestination(), resourceId, projectedTopology));

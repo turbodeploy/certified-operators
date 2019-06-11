@@ -695,10 +695,15 @@ public class TopologyEntitiesHandlerTest {
 
     public static Set<TopologyEntityDTO.Builder> readCloudTopologyFromJsonFile()
             throws FileNotFoundException, InvalidProtocolBufferException {
+        return readCloudTopologyFromJsonFile(SIMPLE_CLOUD_TOPOLOGY_JSON_FILE);
+    }
+
+    public static Set<TopologyEntityDTO.Builder> readCloudTopologyFromJsonFile(String fileName)
+            throws FileNotFoundException, InvalidProtocolBufferException {
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        final URL topologyFileResource = classLoader.getResource(SIMPLE_CLOUD_TOPOLOGY_JSON_FILE);
+        final URL topologyFileResource = classLoader.getResource(fileName);
         if (topologyFileResource == null) {
-            throw new FileNotFoundException("Error reading " + SIMPLE_CLOUD_TOPOLOGY_JSON_FILE);
+            throw new FileNotFoundException("Error reading " + fileName);
         }
         File file = new File(topologyFileResource.getFile());
         final InputStream dtoInputStream = new FileInputStream(file);

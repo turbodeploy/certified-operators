@@ -18,6 +18,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.ProfileDTO.CommodityProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.VMProfileDTO;
+import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.VMProfileDTO.InstanceDiskType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
@@ -132,46 +133,40 @@ public class ComputeTierConverter implements IEntityConverter {
 
         // CPU
         float totalCpuSold = vmProfileDTO.getVCPUSpeed() * vmProfileDTO.getNumVCPUs();
-        soldCommodities.add(CommodityDTO.newBuilder()
-                .setCommodityType(CommodityType.CPU)
-                .setCapacity(totalCpuSold)
-                .build());
+        soldCommodities.add(createCommodityDTO(CommodityType.CPU, totalCpuSold));
 
         // CPU_PROVISIONED
-        soldCommodities.add(CommodityDTO.newBuilder()
-                .setCommodityType(CommodityType.CPU_PROVISIONED)
-                .setCapacity(totalCpuSold)
-                .build());
+        soldCommodities.add(createCommodityDTO(CommodityType.CPU_PROVISIONED, totalCpuSold));
 
         // MEM
-        soldCommodities.add(CommodityDTO.newBuilder()
-                .setCommodityType(CommodityType.MEM)
-                .setCapacity(memorySize)
-                .build());
+        soldCommodities.add(createCommodityDTO(CommodityType.MEM, memorySize));
 
         // MEM_PROVISIONED
-        soldCommodities.add(CommodityDTO.newBuilder()
-                .setCommodityType(CommodityType.MEM_PROVISIONED)
-                .setCapacity(memorySize)
-                .build());
+        soldCommodities.add(createCommodityDTO(CommodityType.MEM_PROVISIONED, memorySize));
 
         // IO_THROUGHPUT
-        soldCommodities.add(CommodityDTO.newBuilder()
-                .setCommodityType(CommodityType.IO_THROUGHPUT)
-                .setCapacity(ioThroughputSize)
-                .build());
+        soldCommodities.add(createCommodityDTO(CommodityType.IO_THROUGHPUT, ioThroughputSize));
 
         // NET_THROUGHPUT
-        soldCommodities.add(CommodityDTO.newBuilder()
-                .setCommodityType(CommodityType.NET_THROUGHPUT)
-                .setCapacity(netThroughputSize)
-                .build());
+        soldCommodities.add(createCommodityDTO(CommodityType.NET_THROUGHPUT, netThroughputSize));
 
         // NUM_DISK
-        soldCommodities.add(CommodityDTO.newBuilder()
-                .setCommodityType(CommodityType.NUM_DISK)
-                .setCapacity(numDiskSize)
-                .build());
+        soldCommodities.add(createCommodityDTO(CommodityType.NUM_DISK, numDiskSize));
+
+        // INSTANCE_DISK_TYPE
+        if (vmProfileDTO.hasInstanceDiskType() &&
+            vmProfileDTO.getInstanceDiskType() != InstanceDiskType.NONE) {
+            soldCommodities.add(createCommodityDTO(
+                // Set the capacity of INSTANCE_DISK_TYPE to the enum number.
+                // Then an entity can only be moved to a better disk.
+                CommodityType.INSTANCE_DISK_TYPE, vmProfileDTO.getInstanceDiskType().getNumber()));
+        }
+
+        // INSTANCE_DISK_SIZE
+        if (vmProfileDTO.hasInstanceDiskSize()) {
+            soldCommodities.add(createCommodityDTO(
+                CommodityType.INSTANCE_DISK_SIZE, vmProfileDTO.getInstanceDiskSize()));
+        }
 
         // LICENSE_ACCESS
         // todo: currently we collect all licenses for all regions and add commodity for each
@@ -187,5 +182,19 @@ public class ComputeTierConverter implements IEntityConverter {
                                 .build()));
 
         return soldCommodities;
+    }
+
+    /**
+     * Create a {@link CommodityDTO} using commodityType and capacity.
+     *
+     * @param commodityType the type of {@link CommodityDTO}
+     * @param capacity the capacity of {@link CommodityDTO}
+     * @return {@link CommodityDTO}
+     */
+    private CommodityDTO createCommodityDTO(CommodityType commodityType, double capacity) {
+        return CommodityDTO.newBuilder()
+                   .setCommodityType(commodityType)
+                   .setCapacity(capacity)
+                   .build();
     }
 }

@@ -76,6 +76,10 @@ public class InterpretActionTest {
             .setTopologyType(TopologyType.REALTIME)
             .build();
 
+    // No AZ in this json file. Entities are connected to Region.
+    private static String SIMPLE_CLOUD_TOPOLOGY_NO_AZ_JSON_FILE =
+        "protobuf/messages/simple-cloudTopology-no-AZ.json";
+
     private CommodityDTOs.CommoditySpecificationTO economyCommodity1;
     private CommodityType topologyCommodity1;
     private CommodityDTOs.CommoditySpecificationTO economyCommodity2;
@@ -486,18 +490,30 @@ public class InterpretActionTest {
 
     @Test
     public void testInterpretMoveAction_Cloud() throws IOException {
-        interpretMoveToCheaperTemplateActionForCloud(false);
+        interpretMoveToCheaperTemplateActionForCloud(false, true);
     }
 
     @Test
     public void testInterpretCompoundMoveAction_Cloud() throws IOException {
-        interpretMoveToCheaperTemplateActionForCloud(true);
+        interpretMoveToCheaperTemplateActionForCloud(true, true);
     }
 
+    @Test
+    public void testInterpretMoveAction_Cloud_No_AZ() throws IOException {
+        interpretMoveToCheaperTemplateActionForCloud(false, false);
+    }
 
-    private void interpretMoveToCheaperTemplateActionForCloud(boolean isVmShopTogether) throws IOException {
-        Set<TopologyEntityDTO.Builder> topologyEntityDTOBuilders = TopologyEntitiesHandlerTest
-                .readCloudTopologyFromJsonFile();
+    @Test
+    public void testInterpretCompoundMoveAction_Cloud_No_AZ() throws IOException {
+        interpretMoveToCheaperTemplateActionForCloud(true, false);
+    }
+
+    private void interpretMoveToCheaperTemplateActionForCloud(boolean isVmShopTogether, boolean hasAZ)
+            throws IOException {
+        Set<TopologyEntityDTO.Builder> topologyEntityDTOBuilders = hasAZ ?
+            TopologyEntitiesHandlerTest.readCloudTopologyFromJsonFile() :
+            TopologyEntitiesHandlerTest.readCloudTopologyFromJsonFile(
+                SIMPLE_CLOUD_TOPOLOGY_NO_AZ_JSON_FILE);
         TopologyEntityDTO.Builder vmBuilder = topologyEntityDTOBuilders.stream().filter(
                 builder -> builder.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
                 .collect(Collectors.toList()).get(0);

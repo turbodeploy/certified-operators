@@ -115,6 +115,24 @@ public final class TopologyDTOUtil {
     }
 
     /**
+     * Get the {@link TopologyEntityDTO}s of type connectedEntityType which are connected to an entity.
+     *
+     * @param topologyEntity entity for which connected entities are retrieved
+     * @param connectedEntityType the type of connectedEntity which should be retrieved
+     * @return List of connected TopologyEntityDTOs
+     */
+    @Nonnull
+    public static List<TopologyEntityDTO> getConnectedEntitiesOfType(
+            @Nonnull final TopologyEntityDTO topologyEntity, final Set<Integer> connectedEntityType,
+            @Nonnull Map<Long, TopologyEntityDTO> topology) {
+        return topologyEntity.getConnectedEntityListList().stream()
+            .filter(entity -> connectedEntityType.contains(entity.getConnectedEntityType()))
+            .map(entity -> topology.get(entity.getConnectedEntityId()))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+    }
+
+    /**
      * Return a list containing the oids of the connected entities of the given type.
      *
      * @param entity to start from

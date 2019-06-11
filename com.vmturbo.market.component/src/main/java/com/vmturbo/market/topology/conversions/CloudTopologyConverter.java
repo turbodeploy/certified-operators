@@ -304,6 +304,14 @@ public class CloudTopologyConverter {
      */
     @Nullable
     TopologyEntityDTO getRegionOfCloudConsumer(@Nonnull TopologyEntityDTO entity) {
+        List<TopologyEntityDTO> regions = TopologyDTOUtil.getConnectedEntitiesOfType(
+            entity, EntityType.REGION_VALUE, topology);
+        // For Azure, a VM is directly connected to Region. It's not connected to Availability Zone.
+        // So if an entity is connected to Region, then return this region.
+        // Otherwise, find the Region through Availability Zone.
+        if (!regions.isEmpty())
+            return regions.get(0);
+
         TopologyEntityDTO region = null;
         if (azToRegionMap.isEmpty()) {
             logger.error("azToRegionMap not yet initialized.");

@@ -18,6 +18,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.VMProfileDTO;
+import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.VMProfileDTO.InstanceDiskType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
@@ -54,6 +56,7 @@ public class VirtualMachineConverter implements IEntityConverter {
         if (!entity.hasProfileId()) {
             return false;
         }
+        VMProfileDTO vmProfileDTO = converter.getProfileDTO(entity.getProfileId()).getVmProfileDTO();
 
         // find id of az for this VM, which will be used later in volume entity and zone commodity
         Optional<String> azId = converter.getRawEntityDTO(entity.getId())
@@ -71,6 +74,13 @@ public class VirtualMachineConverter implements IEntityConverter {
             cbBuilder.addAllBought(commodityBought.getBoughtList()
                     .stream()
                     .filter(commodityDTO -> !ACCESS_COMMODITY_TYPES_TO_REMOVE.contains(commodityDTO.getCommodityType()))
+                    // TODO: we will require a setting where for AWS, we can enable diskType and diskSize
+                    //       if for a particular entity, this setting is true in policy tab.
+                    .filter(commodityDTO -> commodityDTO.getCommodityType() != CommodityType.INSTANCE_DISK_SIZE ||
+                            vmProfileDTO.hasInstanceDiskSize())
+                    .filter(commodityDTO -> commodityDTO.getCommodityType() != CommodityType.INSTANCE_DISK_TYPE ||
+                            (vmProfileDTO.hasInstanceDiskType() &&
+                                    vmProfileDTO.getInstanceDiskType() != InstanceDiskType.NONE))
                     .map(commodityDTO ->
                             // clear active field (active is true by default) for some
                             // commodities since they are set to false in probe, we can't

@@ -103,8 +103,13 @@ public class TopologyConverter {
     private static final boolean INCLUDE_GUARANTEED_BUYER_DEFAULT =
             MarketSettings.BooleanKey.INCLUDE_GUARANTEED_BUYER.value();
 
+    // Key is the type of original entity, value is a set of types
+    // Copy the connected entities of original entity into the projected entity except for the
+    // ones in the map, which need to be computed like Availability zone or Region
+    // because the AZ or Region might have changed.
     private Map<Integer, Set<Integer>> projectedConnectedEntityTypesToCompute = ImmutableMap.of(
-            EntityType.VIRTUAL_MACHINE_VALUE, ImmutableSet.of(EntityType.AVAILABILITY_ZONE_VALUE),
+            EntityType.VIRTUAL_MACHINE_VALUE,
+                    ImmutableSet.of(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE),
             EntityType.DATABASE_VALUE, ImmutableSet.of(EntityType.AVAILABILITY_ZONE_VALUE),
             EntityType.DATABASE_SERVER_VALUE, ImmutableSet.of(EntityType.AVAILABILITY_ZONE_VALUE));
 
@@ -1001,15 +1006,17 @@ public class TopologyConverter {
                             .setConnectionType(ConnectionType.NORMAL_CONNECTION).build();
                     volume.addConnectedEntityList(connectedStorageOrStorageTier);
 
-                    // Get the AZ the VM is connected to (there is no zone for azure or on-prem)
-                    Optional<TopologyEntityDTO> azOpt = topologyEntityDTO.getConnectedEntityListList()
-                        .stream().filter(c -> c.getConnectedEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
-                        .map(c -> entityOidToDto.get(c.getConnectedEntityId())).findFirst();
-                    if (azOpt.isPresent()) {
-                        ConnectedEntity connectedAz = ConnectedEntity.newBuilder()
-                            .setConnectedEntityId(azOpt.get().getOid())
-                            .setConnectedEntityType(azOpt.get().getEntityType()).build();
-                        volume.addConnectedEntityList(connectedAz);
+                    // Get the AZ or Region the VM is connected to (there is no zone for azure or on-prem)
+                    List<TopologyEntityDTO> azOrRegion = TopologyDTOUtil.getConnectedEntitiesOfType(
+                        topologyEntityDTO,
+                        Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE),
+                        entityOidToDto);
+                    if (!azOrRegion.isEmpty()) {
+                        // Use the first AZ or Region we get.
+                        ConnectedEntity connectedAzOrRegion = ConnectedEntity.newBuilder()
+                            .setConnectedEntityId(azOrRegion.get(0).getOid())
+                            .setConnectedEntityType(azOrRegion.get(0).getEntityType()).build();
+                        volume.addConnectedEntityList(connectedAzOrRegion);
                     }
                     copyStaticAttributes(originalVolume, volume);
                     volume.setDisplayName(originalVolume.getDisplayName());
@@ -1032,7 +1039,8 @@ public class TopologyConverter {
         List<ConnectedEntity> connectedEntities = new ArrayList<>();
         TopologyEntityDTO originalCloudConsumer = entityOidToDto.get(traderTO.getOid());
         // Copy the connected entities of original entity into the projected entity except for the
-        // ones which need to be computed like Availability zone because the AZ might have changed.
+        // ones in the map, which need to be computed like Availability zone or Region
+        // because the AZ or Region might have changed.
         if (originalCloudConsumer != null) {
             Set<Integer> connectionsToCompute = projectedConnectedEntityTypesToCompute
                     .get(originalCloudConsumer.getEntityType());
@@ -1051,25 +1059,26 @@ public class TopologyConverter {
                             traderTO.getDebugInfoNeverUseInCode());
                 } else {
                     TopologyEntityDTO sourceRegion = cloudTc.getRegionOfCloudConsumer(originalCloudConsumer);
-                    if (sourceRegion == destinationPrimaryMarketTier.getRegion()) {
+                    TopologyEntityDTO destinationRegion = destinationPrimaryMarketTier.getRegion();
+                    TopologyEntityDTO destAZOrRegion = null;
+                    if (sourceRegion == destinationRegion) {
                         // cloud consumer (VM / DB) did NOT move to a different region
-                        TopologyEntityDTO sourceAZ = cloudTc.getAZOfCloudConsumer(originalCloudConsumer);
-                        if (sourceAZ != null) {
-                            ConnectedEntity az = ConnectedEntity.newBuilder().setConnectedEntityId(sourceAZ.getOid())
-                                    .setConnectedEntityType(sourceAZ.getEntityType())
-                                    .setConnectionType(ConnectionType.NORMAL_CONNECTION).build();
-                            connectedEntities.add(az);
-                        }
+                        destAZOrRegion = cloudTc.getAZOfCloudConsumer(originalCloudConsumer);
                     } else {
                         // cloud consumer (VM / DB) has moved to a different region
-                        // Pick the first AZ in the destination region
-                        TopologyEntityDTO destAZ = TopologyDTOUtil.getConnectedEntitiesOfType(sourceRegion,
-                                EntityType.AVAILABILITY_ZONE_VALUE, unmodifiableEntityOidToDtoMap).get(0);
-                        ConnectedEntity az = ConnectedEntity.newBuilder().setConnectedEntityId(destAZ.getOid())
-                                .setConnectedEntityType(destAZ.getEntityType())
-                                .setConnectionType(ConnectionType.NORMAL_CONNECTION).build();
-                        connectedEntities.add(az);
+                        // Pick the first AZ in the destination region if AZ exists
+                        List<TopologyEntityDTO> destAZs = TopologyDTOUtil.getConnectedEntitiesOfType(destinationRegion,
+                                EntityType.AVAILABILITY_ZONE_VALUE, unmodifiableEntityOidToDtoMap);
+                        if (!destAZs.isEmpty()) {
+                            destAZOrRegion = destAZs.get(0);
+                        }
                     }
+                    destAZOrRegion = destAZOrRegion != null ? destAZOrRegion : destinationRegion;
+                    ConnectedEntity az = ConnectedEntity.newBuilder()
+                        .setConnectedEntityId(destAZOrRegion.getOid())
+                        .setConnectedEntityType(destAZOrRegion.getEntityType())
+                        .setConnectionType(ConnectionType.NORMAL_CONNECTION).build();
+                    connectedEntities.add(az);
                 }
             }
         }
