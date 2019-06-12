@@ -708,14 +708,14 @@ public class StatsService implements IStatsService {
      * @return true if it is a cloud service entity, false otherwise
      * @throws UnknownObjectException
      */
-    public boolean isCloudServiceEntity(final String uuid) throws UnknownObjectException {
+    private boolean isCloudServiceEntity(final String uuid) {
         // Finding if the service entity is a cloud service entity
-        ServiceEntityApiDTO entity = repositoryApi.getServiceEntityForUuid(Long.valueOf(uuid));
-
-        if (entity != null) {
-            return entity.getEnvironmentType()
-                    == com.vmturbo.api.enums.EnvironmentType.CLOUD;
-        } else {
+        try {
+            final ServiceEntityApiDTO entity = repositoryApi.getServiceEntityForUuid(Long.valueOf(uuid));
+            return entity != null && entity.getEnvironmentType() ==
+                com.vmturbo.api.enums.EnvironmentType.CLOUD;
+        } catch (UnknownObjectException e) {
+            // the uuid may be a plan id rather than entity id
             return false;
         }
     }
