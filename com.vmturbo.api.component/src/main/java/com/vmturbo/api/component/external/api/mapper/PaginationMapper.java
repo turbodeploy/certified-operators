@@ -49,12 +49,8 @@ public class PaginationMapper {
                     ((ActionPaginationRequest)request).getOrderBy();
             switch (apiOrderBy) {
                 case NAME:
-                    // The "name" sort order actually sorts by the description of the action,
-                    // and the dominant part of the description is the action type.
-                    // Since the action orchestrator doesn't (and probably shouldn't)
-                    // format the actual descriptions, we just sort by type.
                     return Optional.of(OrderBy.newBuilder()
-                        .setAction(ActionOrderBy.ACTION_TYPE).build());
+                        .setAction(ActionOrderBy.ACTION_NAME).build());
                 case SEVERITY:
                     return Optional.of(OrderBy.newBuilder()
                             .setAction(ActionOrderBy.ACTION_SEVERITY).build());

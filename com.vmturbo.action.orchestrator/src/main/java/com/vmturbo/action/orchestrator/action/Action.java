@@ -1,11 +1,15 @@
 package com.vmturbo.action.orchestrator.action;
 
+import java.text.MessageFormat;
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -13,10 +17,15 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang.WordUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.StringUtils;
 
+import com.google.common.base.CaseFormat;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 
 import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceEvent;
@@ -35,19 +44,35 @@ import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ExecutionDecision;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
+import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
+import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
+import com.vmturbo.commons.Units;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 
@@ -112,7 +137,7 @@ public class Action implements ActionView {
      * component according to the group and setting policies defined by the user. When the
      * Action Orchestrator processes an action plan it gets these per-entity settings, and
      * can then determine the new action mode. The processing code is responsible for calling
-     * {@link Action#refreshActionMode(EntitiesAndSettingsSnapshot)} for all live actions when the per-entity settings
+     * {@link Action#refreshAction(EntitiesAndSettingsSnapshot)} for all live actions when the per-entity settings
      * are updated.
      * <p>
      */
@@ -128,7 +153,7 @@ public class Action implements ActionView {
      * action execution.
      * <p>
      * Live:
-     * Updated every broadcast via {@link Action#refreshActionMode(EntitiesAndSettingsSnapshot)} for all live actions.
+     * Updated every broadcast via {@link Action#refreshAction(EntitiesAndSettingsSnapshot)} for all live actions.
      */
     private volatile Map<ActionState, SettingProto.Setting> workflowSettingsForState =
         Collections.emptyMap();
@@ -149,6 +174,8 @@ public class Action implements ActionView {
     private ExecutionDecision.Reason acceptanceReason;
 
     private String executionAuthorizerId;
+
+    private String description;
 
 
     /**
@@ -343,15 +370,18 @@ public class Action implements ActionView {
     }
 
     /**
-     * Refresh the currently saved action mode.
+     * Refreshes the currently saved action mode and sets the action description
      * <p>
-     * This should only be called during live action plan processing, after the {@link EntitiesAndSettingsSnapshotFactory}
-     * is updated with the new snapshot of the settings and entities needed to resolve action modes.
+     * This should only be called during live action plan processing, after the
+     * {@link EntitiesAndSettingsSnapshotFactory} is updated with the new snapshot of the settings
+     * and entities needed to resolve action modes and form the action description.
      */
-    public void refreshActionMode(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot) {
+    public void refreshAction(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot) {
         synchronized (recommendationLock) {
             actionMode = actionModeCalculator.calculateActionMode(this, entitiesSnapshot);
             workflowSettingsForState = actionModeCalculator.calculateWorkflowSettings(recommendation, entitiesSnapshot);
+            setDescription(ActionDescriptionBuilder.buildActionDescription(entitiesSnapshot,
+                actionTranslation.getTranslationResultOrOriginal()));
         }
     }
 
@@ -363,6 +393,29 @@ public class Action implements ActionView {
     @Override
     public ActionMode getMode() {
         return actionMode;
+    }
+
+    /**
+     * Gets the action description.
+     *
+     * @return The action description string.
+     */
+    @Override
+    public String getDescription() {
+        return description;
+    }
+
+    /**
+     * Sets action description.
+     *
+     * The action description is being built by
+     *
+     * @param description The action description that will be set.
+     */
+    @Override
+    public void setDescription(final String description) {
+        this.description =  description;
+
     }
 
     /**

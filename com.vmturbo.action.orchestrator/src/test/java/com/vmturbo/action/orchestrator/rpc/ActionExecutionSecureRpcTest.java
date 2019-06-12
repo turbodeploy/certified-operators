@@ -49,6 +49,7 @@ import com.vmturbo.action.orchestrator.store.ActionFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
@@ -123,6 +124,8 @@ public class ActionExecutionSecureRpcTest {
     private final LiveActionsStatistician actionsStatistician = mock(LiveActionsStatistician.class);
 
     private final EntitiesAndSettingsSnapshotFactory entitySettingsCache = mock(EntitiesAndSettingsSnapshotFactory.class);
+
+    private final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
 
     private final Clock clock = new MutableFixedClock(1_000_000);
 
@@ -223,11 +226,15 @@ public class ActionExecutionSecureRpcTest {
      */
     @Test
     public void testAcceptAction() {
-        final ActionPlan plan = actionPlan(ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID));
+        ActionDTO.Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
+        final ActionPlan plan = actionPlan(recommendation);
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
                 .setActionId(ACTION_ID)
                 .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                 .build();
+
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         actionStorehouse.storeActions(plan);
         AcceptActionResponse response = actionOrchestratorServiceClient
@@ -251,11 +258,15 @@ public class ActionExecutionSecureRpcTest {
      */
     @Test
     public void testAcceptActionWithClientInterceptor() {
-        final ActionPlan plan = actionPlan(ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID));
+        Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
+        final ActionPlan plan = actionPlan(recommendation);
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
                 .setActionId(ACTION_ID)
                 .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                 .build();
+
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         actionStorehouse.storeActions(plan);
         AcceptActionResponse response = actionOrchestratorServiceClientWithInterceptor
@@ -276,11 +287,15 @@ public class ActionExecutionSecureRpcTest {
      */
     @Test
     public void testAcceptActionWithInvalidJwtToken() {
-        final ActionPlan plan = actionPlan(ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID));
+        Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
+        final ActionPlan plan = actionPlan(recommendation);
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
                 .setActionId(ACTION_ID)
                 .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                 .build();
+
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         actionStorehouse.storeActions(plan);
         expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.UNAUTHENTICATED)
@@ -295,11 +310,15 @@ public class ActionExecutionSecureRpcTest {
      */
     @Test
     public void testAcceptActionWithoutJwtToken() {
-        final ActionPlan plan = actionPlan(ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID));
+        Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
+        final ActionPlan plan = actionPlan(recommendation);
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
                 .setActionId(ACTION_ID)
                 .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                 .build();
+
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         actionStorehouse.storeActions(plan);
         AcceptActionResponse response = actionOrchestratorServiceClient
@@ -333,11 +352,15 @@ public class ActionExecutionSecureRpcTest {
         ActionsServiceBlockingStub actionOrchestratorServiceTestClient = ActionsServiceGrpc.newBlockingStub(managedChannel);
 
         // perform actual action execution test
-        final ActionPlan plan = actionPlan(ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID));
+        Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
+        final ActionPlan plan = actionPlan(recommendation);
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
                 .setActionId(ACTION_ID)
                 .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                 .build();
+
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         actionStorehouse.storeActions(plan);
         AcceptActionResponse response = actionOrchestratorServiceTestClient

@@ -6,7 +6,10 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
@@ -169,4 +172,24 @@ public interface ActionView {
      * corresponding Action type.
      */
     Optional<WorkflowDTO.Workflow> getWorkflow(WorkflowStore workflowStore);
+
+    /**
+     * Gets the action description.
+     *
+     * @return The action description string.
+     */
+    String getDescription();
+
+    /**
+     * Sets action description.
+     *
+     * This method is exposed to permit setting action description in tests without the need to
+     * go through Action Store logic.
+     *
+     * The action description is being built by
+     * {@link ActionDescriptionBuilder#buildActionDescription(EntitiesAndSettingsSnapshot, ActionDTO.Action)}
+     *
+     * @param description The action description that will be set.
+     */
+    void setDescription(String description);
 }
