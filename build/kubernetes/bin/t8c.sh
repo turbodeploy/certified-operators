@@ -25,7 +25,7 @@ fi
 source /opt/local/etc/turbo.conf
 
 # Update the yaml files to run offline
-/opt/local/bin/offlineUpdate.sh
+#/opt/local/bin/offlineUpdate.sh
 
 # Create the ssh keys to run with
 if [ ! -f ~/.ssh/authorized_keys ]
