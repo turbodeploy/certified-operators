@@ -6,6 +6,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.function.Function;
@@ -21,6 +22,9 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
+
+import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -752,6 +756,14 @@ public class Stages {
             this.changes = Objects.requireNonNull(changes);
         }
 
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        protected boolean required() {
+            return true;
+        }
+
         @Override
         public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> input) {
             final PolicyApplicator.Results applicationResults =
@@ -816,21 +828,13 @@ public class Stages {
         @Nonnull
         @Override
         public StageResult<GraphWithSettings> execute(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
-            try {
-                final GraphWithSettings graphWithSettings = entitySettingsResolver.resolveSettings(
-                    getContext().getGroupResolver(), topologyGraph,
-                    settingOverrides, getContext().getTopologyInfo());
-                return StageResult.withResult(graphWithSettings)
-                    // TODO (roman, Oct 23 2018): Provide some information about number of
-                    // setting policies applied.
-                    .andStatus(Status.success());
-            } catch (RuntimeException e) {
-                logger.error("Error resolving settings for graph", e);
-                final GraphWithSettings graphWithSettings = new GraphWithSettings(topologyGraph,
-                    Collections.emptyMap(), Collections.emptyMap());
-                return StageResult.withResult(graphWithSettings)
-                    .andStatus(Status.failed("Failed settings resolution: " + e.getLocalizedMessage()));
-            }
+            final GraphWithSettings graphWithSettings = entitySettingsResolver.resolveSettings(
+                getContext().getGroupResolver(), topologyGraph,
+                settingOverrides, getContext().getTopologyInfo());
+            return StageResult.withResult(graphWithSettings)
+                // TODO (roman, Oct 23 2018): Provide some information about number of
+                // setting policies applied.
+                .andStatus(Status.success());
         }
     }
 
@@ -853,6 +857,13 @@ public class Stages {
                 input.getEntitySettings());
             return Status.success();
         }
+
+        @Override
+        protected boolean required() {
+            // If settings upload fails, then the system won't be able to properly handle the
+            // broadcast - and may recommend wrong actions.
+            return true;
+        }
     }
 
     /**
@@ -874,6 +885,13 @@ public class Stages {
             // TODO (roman, Oct 23 2018): Information about number of entities modified as part of
             // setting application.
             return Status.success();
+        }
+
+        @Override
+        protected boolean required() {
+            // If settings application fails, the broadcast topology will be unaffected by any
+            // setting policies, and we will generate wrong actions.
+            return true;
         }
     }
 

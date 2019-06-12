@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -12,7 +13,9 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CaseFormat;
+import com.google.common.base.Preconditions;
 
+import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -33,6 +36,10 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  * @param <PipelineOutput> The output of the pipeline. This is the output of the last stage.
  */
 public class TopologyPipeline<PipelineInput, PipelineOutput> {
+
+    private static final int MAX_STAGE_RETRIES = 3;
+
+    private static final long MAX_STAGE_RETRY_INTERVAL_MS = 30_000;
 
     private static final String TOPOLOGY_TYPE_LABEL = "topology_type";
 
@@ -56,7 +63,7 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
             .build()
             .register();
 
-    private static final Logger LOGGER = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
     private final List<Stage> stages;
 
@@ -83,7 +90,7 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
     @Nonnull
     public PipelineOutput run(@Nonnull PipelineInput input)
             throws TopologyPipelineException, InterruptedException {
-        LOGGER.info("Running the topology pipeline for context {}",
+        logger.info("Running the topology pipeline for context {}",
                 context.getTopologyInfo().getTopologyContextId());
         pipelineSummary.start();
         Object curStageInput = input;
@@ -95,7 +102,7 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
                                  getSnakeCaseName(stage)).startTimer()) {
                     // TODO (roman, Nov 13) OM-27195: Consider refactoring the builder and pipeline
                     // into more of a linked-list format so that there is better type safety.
-                    LOGGER.info("Executing stage {}", stage.getClass().getSimpleName());
+                    logger.info("Executing stage {}", stage.getClass().getSimpleName());
                     final StageResult result = stage.execute(curStageInput);
                     curStageInput = result.getResult();
                     pipelineSummary.endStage(result.status());
@@ -103,13 +110,13 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
                     final String message = "Topology pipeline failed at stage " +
                             stage.getClass().getSimpleName() + " with error: " + e.getMessage();
                     pipelineSummary.fail(message);
-                    LOGGER.info("\n{}", pipelineSummary);
+                    logger.info("\n{}", pipelineSummary);
                     throw new TopologyPipelineException(message, e);
                 }
             }
         }
-        LOGGER.info("\n{}", pipelineSummary);
-        LOGGER.info("Topology pipeline for context {} finished successfully.",
+        logger.info("\n{}", pipelineSummary);
+        logger.info("Topology pipeline for context {} finished successfully.",
                 context.getTopologyInfo().getTopologyContextId());
         return (PipelineOutput)curStageInput;
     }
@@ -136,37 +143,89 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
             return false;
         }
 
+        /**
+         * If the stage should be re-tried after a particular exception,
+         * get the number of ms to wait before retrying the stage.
+         *
+         * Note - if the stage is to be retried, it is the stage writer's responsibility to
+         * make sure it's idemnpotent (i.e. re-running the stage should be safe).
+         *
+         * @param numAttempts The number of attempts so far. Starts at 1.
+         * @param e The exception encountered on this attempt.
+         * @return An {@link Optional} containing the ms to wait before retrying. Empty optional if
+         *         no retry.
+         */
+        @Nonnull
+        protected Optional<Long> getRetryIntervalMs(final int numAttempts, final Exception e) {
+            return Optional.empty();
+        }
+
         @Nonnull
         @Override
         public StageResult<InputType> execute(@Nonnull InputType input) throws PipelineStageException {
             Status status = null;
-            try {
-                status = passthrough(input);
-            } catch (PipelineStageException e) {
-                if (!required()) {
-                    status = Status.failed("Error: " + e.getLocalizedMessage());
-                    LOGGER.warn("Non-required pipeline stage {} failed with error: {}",
-                            getClass().getSimpleName(), e.getMessage());
-                } else {
-                    throw e;
-                }
-            } catch (RuntimeException e) {
-                if (!required()) {
-                    status = Status.failed("Runtime Error: " + e.getLocalizedMessage());
-                    String stageName = getClass().getSimpleName();
-                    if (e instanceof StatusRuntimeException) {
-                        // we don't want to print the entire stack trace when it is a grpc exception
-                        // as it will pollute the logs with unnecessary details.
-                        LOGGER.warn("Non-required pipeline stage {} failed with grpcError: {}",
-                                    stageName, e.getMessage());
+            boolean retry = false;
+            int numAttempts = 0;
+            Exception terminatingException = null;
+            do {
+                retry = false;
+                numAttempts++;
+                try {
+                    status = passthrough(input);
+                    break;
+                } catch (PipelineStageException | RuntimeException e) {
+                    // If the stage configured some kind of retry behaviour, we should respect
+                    // it (unless it's been retrying too much!).
+                    final Optional<Long> retryIntervalOpt = getRetryIntervalMs(numAttempts, e);
+                    if (numAttempts <= MAX_STAGE_RETRIES && retryIntervalOpt.isPresent()) {
+                        retry = true;
+                        final long retryDelayMs =
+                            Math.max(0, Math.min(retryIntervalOpt.get(), MAX_STAGE_RETRY_INTERVAL_MS));
+                        logger.warn("Pipeline stage {} failed with transient error. " +
+                                "Retrying after {}ms. Error: {}",
+                            getClass().getSimpleName(), retryDelayMs, e.getMessage());
+                        try {
+                            Thread.sleep(retryDelayMs);
+                        } catch (InterruptedException e1) {
+                            terminatingException = e1;
+                        }
                     } else {
-                        LOGGER.warn("Non-required pipeline stage {} failed with runtime Error: {}",
-                                stageName, e.getMessage(), e);
+                        terminatingException = e;
+                    }
+                }
+            } while (retry);
+
+            // We should terminate with either an exception or a status.
+            Preconditions.checkArgument(terminatingException != null || status != null);
+
+            if (terminatingException != null) {
+                if (terminatingException instanceof PipelineStageException) {
+                    if (!required()) {
+                        status = Status.failed("Error: " + terminatingException.getLocalizedMessage());
+                        logger.warn("Non-required pipeline stage {} failed with error: {}",
+                            getClass().getSimpleName(), terminatingException.getMessage());
+                    } else {
+                        throw (PipelineStageException) terminatingException;
                     }
                 } else {
-                    throw new PipelineStageException(e);
+                    if (!required()) {
+                        status = Status.failed("Runtime Error: " + terminatingException.getLocalizedMessage());
+                        String stageName = getClass().getSimpleName();
+                        if (terminatingException instanceof StatusRuntimeException) {
+                            // we don't want to print the entire stack trace when it is a grpc exception
+                            // as it will pollute the logs with unnecessary details.
+                            logger.warn("Non-required pipeline stage {} failed with grpcError: {}",
+                                stageName, terminatingException.getMessage());
+                        } else {
+                            logger.warn("Non-required pipeline stage {} failed with runtime Error: {}",
+                                stageName, terminatingException.getMessage(), terminatingException);
+                        }
+                    } else {
+                        throw new PipelineStageException(terminatingException);
+                    }
                 }
             }
+
             return StageResult.withResult(input)
                     .andStatus(status);
         }

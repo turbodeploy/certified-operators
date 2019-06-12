@@ -49,6 +49,7 @@ import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupMemberCache
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
+import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
@@ -312,6 +313,14 @@ public class StagesTest {
         final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
         policyStage.setContext(context);
 
+        final PolicyApplicator.Results results = mock(PolicyApplicator.Results.class);
+        when(results.errors()).thenReturn(Collections.emptyMap());
+        when(results.appliedCounts()).thenReturn(Collections.emptyMap());
+        when(results.addedCommodityCounts()).thenReturn(Collections.emptyMap());
+
+        when(policyManager.applyPolicies(topologyGraph, groupResolver, Collections.emptyList()))
+            .thenReturn(results);
+
         policyStage.execute(topologyGraph);
 
         verify(policyManager).applyPolicies(eq(topologyGraph), eq(groupResolver), eq(Collections.emptyList()));
@@ -333,7 +342,14 @@ public class StagesTest {
         when(context.getGroupResolver()).thenReturn(groupResolver);
         when(context.getTopologyInfo()).thenReturn(topologyInfo);
 
+
         final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
+
+        final GraphWithSettings graphWithSettings = mock(GraphWithSettings.class);
+
+        when(entitySettingsResolver.resolveSettings(eq(groupResolver), eq(topologyGraph), any(), any()))
+            .thenReturn(graphWithSettings);
+
         stage.setContext(context);
         stage.execute(topologyGraph);
 
