@@ -55,6 +55,7 @@ import com.orbitz.consul.model.kv.Value;
 
 import com.vmturbo.api.dto.admin.HttpProxyDTO;
 import com.vmturbo.components.common.OsCommandProcessRunner;
+import com.vmturbo.components.common.utils.Strings;
 
 /**
  * Implement the ClusterMgr Services: component status, component configuration, node configuration.
@@ -1307,20 +1308,19 @@ public class ClusterMgrService {
         // it's mainly not writing proxy password to log file.
         final List <String> argsListDebug = Lists.newArrayList(argsList);
         if (httpProxyDTO.getIsProxyEnabled()) {
-            if (!StringUtils.isEmpty(httpProxyDTO.getProxyHost()) &&
-                !StringUtils.isEmpty(httpProxyDTO.getPortNumber())) {
+            String hostPortTuple = httpProxyDTO.getProxyHostAndPortTuple();
+            if (StringUtils.isNotBlank(hostPortTuple)) {
                 // using proxy
                 argsList.add("-x");
                 argsListDebug.add("-x");
-                if (!StringUtils.isEmpty(httpProxyDTO.getUserName()) &&
-                    !StringUtils.isEmpty(httpProxyDTO.getPassword())) {
-                    argsList.add(httpProxyDTO.getUserName() + COLLON + httpProxyDTO.getPassword() + AT
-                        + httpProxyDTO.getProxyHost()+ COLLON +httpProxyDTO.getPortNumber());
-                    argsListDebug.add(httpProxyDTO.getUserName() + COLLON + "*****" + AT
-                        + httpProxyDTO.getProxyHost()+ COLLON +httpProxyDTO.getPortNumber());
+
+                String userNamePasswordTuple = httpProxyDTO.getUserNameAndPasswordTuple();
+                if (StringUtils.isNotBlank(userNamePasswordTuple)) {
+                    argsList.add(Strings.concat(userNamePasswordTuple, AT, hostPortTuple));
+                    argsListDebug.add(Strings.concat(httpProxyDTO.getUserNameAndHiddenPasswordTuple(), AT, hostPortTuple));
                 } else {
-                    argsList.add(httpProxyDTO.getProxyHost()+ COLLON +httpProxyDTO.getPortNumber());
-                    argsListDebug.add(httpProxyDTO.getProxyHost()+ COLLON +httpProxyDTO.getPortNumber());
+                    argsList.add(hostPortTuple);
+                    argsListDebug.add(hostPortTuple);
                 }
             }
         }
