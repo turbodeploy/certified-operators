@@ -7,15 +7,16 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -42,7 +43,6 @@ import com.vmturbo.common.protobuf.logging.Logging.SetLogLevelsRequest;
 import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController.LogConfigurationServiceResponse;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.utils.LoggingUtils;
-import com.vmturbo.components.common.utils.Strings;
 import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
 
@@ -271,7 +271,7 @@ public class AdminService implements IAdminService {
     @Override
     public HttpProxyDTO getProxyInfo() {
         final HttpProxyDTO httpProxyDTO = retrieveProxyInfoFrom();
-        if (StringUtils.isNotBlank(httpProxyDTO.getPassword())) {
+        if (!StringUtils.isEmpty(httpProxyDTO.getPassword())) {
             httpProxyDTO.setPassword(ClusterService.ASTERISKS);
         }
         return httpProxyDTO;
@@ -287,7 +287,7 @@ public class AdminService implements IAdminService {
         httpProxyDTO.setUserName(keyValueStore.get(PROXY_USER_NAME).orElse(""));
         httpProxyDTO.setPassword(plainTextPassword);
         httpProxyDTO.setProxyHost(keyValueStore.get(PROXY_HOST).orElse(""));
-        httpProxyDTO.setProxyPortNumber(keyValueStore.get(PROXY_PORT_NUMBER).map(Strings::parseInteger).orElse(null));
+        httpProxyDTO.setPortNumber(keyValueStore.get(PROXY_PORT_NUMBER).orElse(""));
         return httpProxyDTO;
     }
 
@@ -300,7 +300,7 @@ public class AdminService implements IAdminService {
     @Override
     public HttpProxyDTO setProxyConfig(final HttpProxyDTO httpProxyDTO) throws InvalidOperationException {
         final boolean isProxyEnabled = httpProxyDTO.getIsProxyEnabled();
-        final boolean isSecureProxy = StringUtils.isNotBlank(httpProxyDTO.getUserName());
+        final boolean isSecureProxy = !StringUtils.isEmpty(httpProxyDTO.getUserName());
         validateProxyInputs(httpProxyDTO, isProxyEnabled, isSecureProxy);
         storeProxyConfig(httpProxyDTO, isProxyEnabled, isSecureProxy);
         return httpProxyDTO;
@@ -316,7 +316,7 @@ public class AdminService implements IAdminService {
             keyValueStore.put(PROXY_USER_PASSWORD, encrypt(httpProxyDTO.getPassword()));
         }
         keyValueStore.put(PROXY_HOST, httpProxyDTO.getProxyHost());
-        keyValueStore.put(PROXY_PORT_NUMBER, Strings.toString(httpProxyDTO.getProxyPortNumber()));
+        keyValueStore.put(PROXY_PORT_NUMBER, httpProxyDTO.getPortNumber());
         httpProxyDTO.setPassword(ClusterService.ASTERISKS);
     }
 
@@ -333,14 +333,15 @@ public class AdminService implements IAdminService {
         final String plainTextPassword = httpProxyDTO.getPassword();
         // if user name is entered, the proxy is secured.
         // asterisks are masked password, and cannot be password itself.
-        if (isSecureProxy && (StringUtils.isBlank(plainTextPassword) ||
+        if (isSecureProxy && (StringUtils.isEmpty(plainTextPassword) ||
             plainTextPassword.equalsIgnoreCase(ClusterService.ASTERISKS))) {
             final String message = "plainTextPassword cannot be asterisks or empty";
             logger.warn(message);
             throw new IllegalArgumentException(message);
         }
         if (isProxyEnabled) {
-            if (StringUtils.isBlank(httpProxyDTO.getProxyHost()) || httpProxyDTO.getProxyPortNumber() == null) {
+            if (StringUtils.isEmpty(httpProxyDTO.getProxyHost()) ||
+                StringUtils.isEmpty(httpProxyDTO.getPortNumber())) {
                 final String message = "proxy server requires both host and port number";
                 logger.warn(message);
                 throw new InvalidOperationException(message);

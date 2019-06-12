@@ -115,7 +115,7 @@ public class AdminServiceTest {
     public void testSetProxyConfigInsureProxy() throws Exception {
         HttpProxyDTO dto = new HttpProxyDTO();
         dto.setProxyHost("10.10.10.1");
-        dto.setProxyPortNumber(3306);
+        dto.setPortNumber("3306");
         dto.setIsProxyEnabled(true);
         adminService.setProxyConfig(dto);
         verify(keyValueStoreTest).put(eq(PROXY_ENABLED), eq("true"));
@@ -129,7 +129,7 @@ public class AdminServiceTest {
     public void testSetProxyConfigSureProxyWithAsterisksPassword() throws Exception {
         HttpProxyDTO dto = new HttpProxyDTO();
         dto.setProxyHost("10.10.10.1");
-        dto.setProxyPortNumber(3306);
+        dto.setPortNumber("3306");
         dto.setIsProxyEnabled(true);
         dto.setUserName("user");
         dto.setPassword(ClusterService.ASTERISKS);
@@ -148,7 +148,7 @@ public class AdminServiceTest {
     public void testSetProxyConfigSureProxy() throws Exception {
         HttpProxyDTO dto = new HttpProxyDTO();
         dto.setProxyHost("10.10.10.1");
-        dto.setProxyPortNumber(3306);
+        dto.setPortNumber("3306");
         dto.setIsProxyEnabled(true);
         dto.setUserName("user");
         dto.setPassword(ClusterService.ASTERISKS);

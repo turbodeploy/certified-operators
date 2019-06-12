@@ -346,7 +346,7 @@ public class ClusterMgrServiceTest {
     public void testGetCurlArgs() {
         HttpProxyDTO dto = new HttpProxyDTO();
         dto.setProxyHost("10.10.10.10");
-        dto.setProxyPortNumber(1080);
+        dto.setPortNumber("1080");
         String[] curlArgs = clusterMgrService.getCurlArgs("/home/turbonomic/data/turbonomic-diags-_111.zip", dto);
         String[] expectedArgs = {"-F", "ufile=@/home/turbonomic/data/turbonomic-diags-_111.zip",
             UPLOAD_VMTURBO_COM_URL};
