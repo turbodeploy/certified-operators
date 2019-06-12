@@ -796,10 +796,6 @@ message ActionSpec {
     // The category of the action. It is consumed by UI to indicate if the effect of the action is
     // assure performance, improve efficiency, prevention or compliance.
     optional ActionCategory category = 10 [default = UNKNOWN];
-
-    // The action description that will be set by AO and returned to the API.
-    optional string description = 11;
-
 }
 
 // A filter to be supplied with action queries.

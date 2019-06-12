@@ -224,8 +224,7 @@ public class ActionTranslator {
             .setActionState(actionView.getState())
             .setIsExecutable(actionView.determineExecutability())
             .setExplanation(ExplanationComposer.composeExplanation(recommendationForDisplay))
-            .setCategory(actionView.getActionCategory())
-            .setDescription(actionView.getDescription());
+            .setCategory(actionView.getActionCategory());
 
         actionView.getDecision()
             .ifPresent(specBuilder::setDecision);

@@ -166,7 +166,6 @@ public class ActionQueryRpcTest {
     @Test
     public void testGetAction() throws Exception {
         final ActionView actionView = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
-        actionView.setDescription("Move VM1 from Host1 to Host2");
         when(actionStore.getActionView(1)).thenReturn(Optional.of(actionView));
 
         SingleActionRequest actionRequest = SingleActionRequest.newBuilder()
@@ -227,8 +226,6 @@ public class ActionQueryRpcTest {
     public void testGetAllActions() throws Exception {
         final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
         final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
-        visibleAction.setDescription("Move VM1 from Host1 to Host2");
-        disabledAction.setDescription("Move VM2 from HostA to HostB");
         doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
         final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
             visibleAction.getId(), visibleAction,
@@ -256,7 +253,6 @@ public class ActionQueryRpcTest {
         ActionView resizeAction = new Action(ActionOrchestratorTestUtils
                 .createResizeRecommendation(1, id, CommodityType.VCPU, 5000,
                         2500), actionPlanId, actionModeCalculator);
-        resizeAction.setDescription("Resize down vcpu for VM1 from 5 to 2.5");
         final Resize newResize = ActionDTO.Resize.newBuilder()
                 .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU.getNumber()))
                 .setOldCapacity((float)5)
@@ -286,7 +282,6 @@ public class ActionQueryRpcTest {
     @Test
     public void testGetAllActionsPaginationParamsSetWithCursor() {
         final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
-        visibleAction.setDescription("Move VM1 from HostA to HostB");
         final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
                 visibleAction.getId(), visibleAction), PlanActionStore.VISIBILITY_PREDICATE);
         when(actionStore.getActionViews()).thenReturn(actionViews);
@@ -319,7 +314,6 @@ public class ActionQueryRpcTest {
     @Test
     public void testGetAllActionsPaginationParamsSetNoCursor() {
         final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
-        visibleAction.setDescription("Move VM1 from Host1 to Host2");
         final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
                 visibleAction.getId(), visibleAction), PlanActionStore.VISIBILITY_PREDICATE);
         when(actionStore.getActionViews()).thenReturn(actionViews);
@@ -352,8 +346,6 @@ public class ActionQueryRpcTest {
     public void testGetFilteredActionsForRealTime() throws Exception {
         final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
         final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
-        visibleAction.setDescription("Move VM1 from Host1 to Host2");
-        disabledAction.setDescription("Move VM2 from Host1 to Host2");
         doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
         final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
             visibleAction.getId(), visibleAction,
@@ -380,8 +372,6 @@ public class ActionQueryRpcTest {
     public void testGetFilteredActionsForPlan() throws Exception {
         final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
         final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
-        visibleAction.setDescription("Move VM1 from Host1 to Host2");
-        disabledAction.setDescription("Move VM2 from Host1 to Host2");
         doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
         final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
             visibleAction.getId(), visibleAction,
@@ -435,10 +425,6 @@ public class ActionQueryRpcTest {
         final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
         final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
         final ActionView notRetrievedAction = ActionOrchestratorTestUtils.createMoveAction(3, actionPlanId);
-        visibleAction.setDescription("Move VM1 from Host1 to Host2");
-        disabledAction.setDescription("Move VM2 from Host1 to Host2");
-        notRetrievedAction.setDescription("Move VM3 from Host1 to Host2");
-
         doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
         final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
             visibleAction.getId(), visibleAction,
@@ -467,8 +453,6 @@ public class ActionQueryRpcTest {
     public void testGetMultiActionSomeMissing() throws Exception {
         final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
         final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
-        visibleAction.setDescription("Move VM1 from Host1 to Host2");
-        disabledAction.setDescription("Move VM2 from Host1 to Host2");
         doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
         final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
             visibleAction.getId(), visibleAction,

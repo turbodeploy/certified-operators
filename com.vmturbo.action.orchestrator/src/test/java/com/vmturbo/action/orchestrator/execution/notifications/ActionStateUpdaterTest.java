@@ -78,8 +78,7 @@ public class ActionStateUpdaterTest {
         when(entitySettingsCache.getSettingsForEntity(eq(3L)))
             .thenReturn(makeActionModeSetting(ActionMode.MANUAL));
         testAction = new Action(recommendation, 4, actionModeCalculator);
-        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entitySettingsCache, testAction);
-        testAction.refreshAction(entitySettingsCache);
+        testAction.refreshActionMode(entitySettingsCache);
         when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(Optional.of(actionStore));
         when(actionStore.getAction(eq(actionId))).thenReturn(Optional.of(testAction));
         when(actionStore.getAction(eq(notFoundId))).thenReturn(Optional.empty());

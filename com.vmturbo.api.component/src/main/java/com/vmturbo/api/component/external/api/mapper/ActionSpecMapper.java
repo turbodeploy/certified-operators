@@ -27,10 +27,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.CaseFormat;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -82,6 +84,8 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
@@ -354,9 +358,6 @@ public class ActionSpecMapper {
 
         // The target definition
         actionApiDTO.setStats(createStats(actionSpec));
-
-        // Action details has been set in AO
-        actionApiDTO.setDetails(actionSpec.getDescription());
 
         final ActionDTO.ActionInfo info = recommendation.getInfo();
         ActionDTO.ActionType actionType = ActionDTOUtil.getActionInfoActionType(recommendation);
@@ -736,6 +737,7 @@ public class ActionSpecMapper {
             actions.add(singleMove(actionType, wrapperDto, move.getTarget().getId(), change, context));
         }
         wrapperDto.addCompoundActions(actions);
+        wrapperDto.setDetails(actionDetails(hasPrimarySource, wrapperDto, primaryChange, context));
 
         wrapperDto.getRisk().setReasonCommodity(getReasonCommodities(moveExplanation));
     }
@@ -857,6 +859,20 @@ public class ActionSpecMapper {
         }
 
         actionApiDTO.setCurrentValue(Long.toString(reconfigure.getSource().getId()));
+
+        if (reconfigure.hasSource()) {
+            actionApiDTO.setDetails(MessageFormat.format(
+                "Reconfigure {0} which requires {1} but is hosted by {2} which does not provide {1}",
+                readableEntityTypeAndName(actionApiDTO.getTarget()),
+                readableCommodityTypes(explanation.getReconfigureCommodityList().stream()
+                                       .map(ReasonCommodity::getCommodityType)
+                                       .collect(Collectors.toList())),
+                readableEntityTypeAndName(actionApiDTO.getCurrentEntity())));
+        } else {
+            actionApiDTO.setDetails(MessageFormat.format(
+                "Reconfigure {0} as it is unplaced",
+                readableEntityTypeAndName(actionApiDTO.getTarget())));
+        }
     }
 
     private void addProvisionInfo(@Nonnull final ActionApiDTO actionApiDTO,
@@ -880,6 +896,9 @@ public class ActionSpecMapper {
             ServiceEntityMapper.copyServiceEntityAPIDTO(currentEntity));
         actionApiDTO.setTarget(
             ServiceEntityMapper.copyServiceEntityAPIDTO(actionApiDTO.getNewEntity()));
+
+        actionApiDTO.setDetails(MessageFormat.format("Provision {0}",
+                readableEntityTypeAndName(currentEntity)));
     }
 
     private void addResizeInfo(@Nonnull final ActionApiDTO actionApiDTO,
@@ -901,6 +920,20 @@ public class ActionSpecMapper {
         Objects.requireNonNull(commodityType, "Commodity for number "
                 + resize.getCommodityType().getType());
         actionApiDTO.getRisk().setReasonCommodity(commodityType.name());
+        // Check if we need to describe the action as a "remove limit" instead of regular resize.
+        if (resize.getCommodityAttribute() == CommodityAttribute.LIMIT) {
+            actionApiDTO.setDetails(MessageFormat.format("Remove {0} limit on entity {1}",
+                    readableCommodityTypes(Collections.singletonList(resize.getCommodityType())),
+                    readableEntityTypeAndName(actionApiDTO.getTarget())));
+        } else {
+            // Regular case
+            actionApiDTO.setDetails(MessageFormat.format("Resize {0} {1} for {2} from {3} to {4}",
+                    resize.getNewCapacity() > resize.getOldCapacity() ? UP : DOWN,
+                    readableCommodityTypes(Collections.singletonList(resize.getCommodityType())),
+                    readableEntityTypeAndName(actionApiDTO.getTarget()),
+                    formatResizeActionCommodityValue(commodityType, resize.getOldCapacity()),
+                    formatResizeActionCommodityValue(commodityType, resize.getNewCapacity())));
+        }
         if (resize.hasCommodityAttribute()) {
             actionApiDTO.setResizeAttribute(resize.getCommodityAttribute().name());
         }
@@ -932,6 +965,7 @@ public class ActionSpecMapper {
             ReservedInstanceApiDTO riApiDTO = reservedInstanceMapper
                     .mapToReservedInstanceApiDTO(ri, riSpec, context.getServiceEntityApiDTOs());
             actionApiDTO.setReservedInstance(riApiDTO);
+            actionApiDTO.setDetails(getRIBuyActionDetails(buyRI, context.getServiceEntityApiDTOs()));
             actionApiDTO.setTarget(
                     ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(buyRI.getRegionId().getId())));
         } catch (NotFoundMatchPaymentOptionException e) {
@@ -943,6 +977,31 @@ public class ActionSpecMapper {
         }
     }
 
+    private String getRIBuyActionDetails(@Nonnull final BuyRI buyRI,
+                                       Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOs)  {
+        String count = String.valueOf(buyRI.getCount());
+        ServiceEntityApiDTO computeTier = serviceEntityApiDTOs.get(buyRI.getComputeTier().getId());
+        String computeTierName = "";
+        if (computeTier != null) {
+            computeTierName = computeTier.getDisplayName();
+        }
+
+        ServiceEntityApiDTO masterAccount = serviceEntityApiDTOs.get(buyRI.getMasterAccount().getId());
+        String masterAccountName = "";
+        if (masterAccount != null) {
+            masterAccountName = masterAccount.getDisplayName();
+        }
+
+        ServiceEntityApiDTO region = serviceEntityApiDTOs.get(buyRI.getRegionId().getId());
+        String regionName = "";
+        if (region != null) {
+            regionName = region.getDisplayName();
+        }
+
+        String detail = "Buy " + count + " " + computeTierName + " RI's for " + masterAccountName +
+                        " in " + regionName;
+        return detail;
+    }
     /**
      * Format resize actions commodity capacity value to more readable format.
      *
@@ -980,6 +1039,12 @@ public class ActionSpecMapper {
 
         actionApiDTO.getRisk()
             .setReasonCommodity(reasonCommodityNames.stream().collect(Collectors.joining(",")));
+
+        String detailsMessage = MessageFormat.format(
+            "Start {0} due to increased demand for resources",
+            readableEntityTypeAndName(actionApiDTO.getTarget()));
+
+        actionApiDTO.setDetails(detailsMessage);
     }
 
     private void addDeactivateInfo(@Nonnull final ActionApiDTO actionApiDTO,
@@ -1003,6 +1068,13 @@ public class ActionSpecMapper {
 
         actionApiDTO.getRisk().setReasonCommodity(
             reasonCommodityNames.stream().collect(Collectors.joining(",")));
+
+        String detailsMessage = MessageFormat.format("{0} {1}",
+            // this will convert from "SUSPEND" to "Suspend" case format
+            CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_CAMEL, ActionType.SUSPEND.name()
+                .toLowerCase()),
+            readableEntityTypeAndName(actionApiDTO.getTarget()));
+        actionApiDTO.setDetails(detailsMessage);
     }
 
     /**
@@ -1029,6 +1101,13 @@ public class ActionSpecMapper {
             ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
 
         actionApiDTO.setActionType(ActionType.DELETE);
+        // TODO need to give savings in terms of cost instead of file size for Cloud entities
+        String detailsMessage = MessageFormat.format("Delete wasted file ''{0}'' from {1}{2}",
+            delete.getFilePath().substring(delete.getFilePath().lastIndexOf('/') + 1),
+            readableEntityTypeAndName(actionApiDTO.getTarget()),
+            " to free up " + FileUtils
+                .byteCountToDisplaySize(deleteExplanation.getSizeKb() * FileUtils.ONE_KB));
+        actionApiDTO.setDetails(detailsMessage);
     }
 
     /**
@@ -1055,6 +1134,20 @@ public class ActionSpecMapper {
             ActionDTOUtil.getSpaceSeparatedWordsFromCamelCaseString(entityDTO.getClassName()),
             entityDTO.getDisplayName()
         );
+    }
+
+    /**
+     * Convert a list of commodity type numbers to a comma-separated string of readable commodity names.
+     *
+     * Example: BALLOONING, SWAPPING, CPU_ALLOCATION -> Ballooning, Swapping, Cpu Allocation
+     *
+     * @param commodityTypes commodity types
+     * @return comma-separated string commodity types
+     */
+    private String readableCommodityTypes(@Nonnull final List<TopologyDTO.CommodityType> commodityTypes) {
+        return commodityTypes.stream()
+            .map(commodityType -> ActionDTOUtil.getCommodityDisplayName(commodityType))
+            .collect(Collectors.joining(", "));
     }
 
     /**

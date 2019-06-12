@@ -216,6 +216,8 @@ public class ActionSpecMapperTest {
 
         assertEquals(ActionType.MOVE, actionApiDTO.getActionType());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
+
+        assertTrue(actionApiDTO.getDetails().startsWith("Move"));
     }
 
     @Test
@@ -244,6 +246,8 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.START, actionApiDTO.getActionType());
         assertEquals(null, actionApiDTO.getCurrentValue());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
+
+        assertTrue(actionApiDTO.getDetails().startsWith(START));
     }
 
     @Test
@@ -377,6 +381,11 @@ public class ActionSpecMapperTest {
         assertEquals("1", actionApiDTO.getCurrentValue());
 
         assertEquals(ActionType.RECONFIGURE, actionApiDTO.getActionType());
+        assertEquals(
+            "Reconfigure Virtual Machine Target which requires Cpu Allocation, Network TestNetworkName1 but " +
+                    "is hosted by Physical Machine Source which does not provide Cpu Allocation, Network " +
+                    "TestNetworkName1",
+            actionApiDTO.getDetails());
     }
 
     @Test
@@ -409,6 +418,9 @@ public class ActionSpecMapperTest {
         assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
 
         assertEquals( ActionType.RECONFIGURE, actionApiDTO.getActionType());
+        assertEquals(
+            "Reconfigure Virtual Machine Target as it is unplaced",
+            actionApiDTO.getDetails());
     }
 
     @Test
@@ -443,6 +455,7 @@ public class ActionSpecMapperTest {
         assertEquals("3", actionApiDTO.getNewEntity().getUuid());
 
         assertEquals(ActionType.PROVISION, actionApiDTO.getActionType());
+        assertThat(actionApiDTO.getDetails(), containsString("Provision Virtual Machine EntityToClone"));
     }
 
     @Test
@@ -502,6 +515,7 @@ public class ActionSpecMapperTest {
                 mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize), CONTEXT_ID);
 
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
+        assertTrue(actionApiDTO.getDetails().contains(expectedDetailCapacityy));
         assertEquals(CommodityDTO.CommodityType.VMEM.name(),
                 actionApiDTO.getRisk().getReasonCommodity());
     }
@@ -532,6 +546,7 @@ public class ActionSpecMapperTest {
             mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize), CONTEXT_ID);
 
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
+        assertTrue(actionApiDTO.getDetails().contains(expectedDetailCapacityy));
         assertEquals(CommodityDTO.CommodityType.HEAP.name(),
             actionApiDTO.getRisk().getReasonCommodity());
     }
@@ -573,6 +588,11 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
         assertEquals(CommodityDTO.CommodityType.MEM.name(),
                 actionApiDTO.getRisk().getReasonCommodity());
+        // Verify that we recognize this as a mem limit removal. We'll just check the start of the
+        // string, there isn't much point to checking the entity-describing remainder of the
+        // string that follows.
+        final String REMOVE_DESCRIPTION = "Remove Mem limit on entity";
+        assertTrue(actionApiDTO.getDetails().startsWith(REMOVE_DESCRIPTION));
     }
 
     @Test
@@ -604,6 +624,7 @@ public class ActionSpecMapperTest {
             IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
                     CommodityDTO.CommodityType.CPU.name(),
                     CommodityDTO.CommodityType.MEM.name()));
+        assertThat(actionApiDTO.getDetails(), containsString("Start Virtual Machine"));
     }
 
     /**
@@ -637,6 +658,7 @@ public class ActionSpecMapperTest {
         assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
                 IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
                         CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
+        assertThat(actionApiDTO.getDetails(), containsString("Start " + prettyClassName ));
     }
 
     @Test
@@ -650,6 +672,7 @@ public class ActionSpecMapperTest {
         Explanation deactivate = Explanation.newBuilder()
             .setDeactivate(DeactivateExplanation.newBuilder().build()).build();
         final String entityToDeactivateName = "EntityToDeactivate";
+        final String prettyClassName = "Virtual Machine";
         Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
             .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
                 .addAllTopologyEntityDtos(Lists.newArrayList(
@@ -664,6 +687,8 @@ public class ActionSpecMapperTest {
         assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
             IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
                 CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
+        assertThat(actionApiDTO.getDetails(), is("Suspend " + prettyClassName +
+            " " + entityToDeactivateName));
     }
 
     @Test
@@ -679,6 +704,7 @@ public class ActionSpecMapperTest {
         Explanation delete = Explanation.newBuilder()
             .setDelete(DeleteExplanation.newBuilder().setSizeKb(2048l).build()).build();
         final String entityToDelete = "EntityToDelete";
+        final String prettyClassName = "Storage";
         Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
             .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
                 .addAllTopologyEntityDtos(Lists.newArrayList(
@@ -690,6 +716,8 @@ public class ActionSpecMapperTest {
         assertEquals(entityToDelete, actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
         assertEquals(ActionType.DELETE, actionApiDTO.getActionType());
+        assertThat(actionApiDTO.getDetails(), is("Delete wasted file '" + fileName + "' from " + prettyClassName +
+            " " + entityToDelete + " to free up 2 MB"));
     }
 
     /**
@@ -708,6 +736,7 @@ public class ActionSpecMapperTest {
         Explanation deactivate = Explanation.newBuilder()
                 .setDeactivate(DeactivateExplanation.newBuilder().build()).build();
         final String entityToDeactivateName = "EntityToDeactivate";
+        final String prettyClassName = "Disk Array";
         Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
             .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
                 .addAllTopologyEntityDtos(Lists.newArrayList(
@@ -721,6 +750,8 @@ public class ActionSpecMapperTest {
         assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
                 IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
                         CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
+        assertThat(actionApiDTO.getDetails(), is("Suspend " + prettyClassName +
+                " " + entityToDeactivateName));
     }
 
     @Test

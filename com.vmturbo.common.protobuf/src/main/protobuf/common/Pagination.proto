@@ -18,7 +18,7 @@ message OrderBy {
     // This should stay in sync with the Java implementation.
     // See: com.vmturbo.api.pagination.ActionOrderBy
     enum ActionOrderBy {
-        ACTION_NAME = 1;
+        ACTION_TYPE = 1;
         ACTION_SEVERITY = 2;
         ACTION_RISK_CATEGORY = 3;
         ACTION_SAVINGS = 4;

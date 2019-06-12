@@ -55,7 +55,7 @@ public class PaginationMapperTest {
         final ActionPaginationRequest paginationRequest =
                 new ActionPaginationRequest(null, null, true, ActionOrderBy.NAME.name());
         final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
-        assertThat(params.getOrderBy().getAction(), is(OrderBy.ActionOrderBy.ACTION_NAME));
+        assertThat(params.getOrderBy().getAction(), is(OrderBy.ActionOrderBy.ACTION_TYPE));
     }
 
     @Test

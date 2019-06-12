@@ -5,7 +5,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -38,12 +37,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
-import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class LiveActionsTest {
 
@@ -94,15 +91,11 @@ public class LiveActionsTest {
     }
 
     @Test
-    public void testUpdateMarketActions() {
+    public void updateMarketActions() {
         final Action action1 = ActionOrchestratorTestUtils.createMoveAction(1, 2);
         final Action action2 = ActionOrchestratorTestUtils.createMoveAction(2, 2);
         final Action action3 = ActionOrchestratorTestUtils.createMoveAction(3, 2);
         final EntitiesAndSettingsSnapshot entityCacheSnapshot = mock(EntitiesAndSettingsSnapshot.class);
-
-        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entityCacheSnapshot,action1);
-        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entityCacheSnapshot,action2);
-        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entityCacheSnapshot,action3);
 
         // Initialize to action1
         liveActions.replaceMarketActions(Stream.of(action1));

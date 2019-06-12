@@ -63,7 +63,6 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Integration tests related to the LiveActionStore.
@@ -122,8 +121,6 @@ public class LiveActionStoreTest {
 
     private final EntitiesAndSettingsSnapshotFactory entitySettingsCache = mock(EntitiesAndSettingsSnapshotFactory.class);
 
-    private final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-
     private SpyActionFactory spyActionFactory = spy(new SpyActionFactory());
     private ActionStore actionStore;
 
@@ -147,7 +144,6 @@ public class LiveActionStoreTest {
                     .supportingLevel(SupportLevel.SUPPORTED)
                     .build()));
         });
-        setEntitiesOIDs();
         IdentityGenerator.initPrefix(0);
     }
 
@@ -156,38 +152,6 @@ public class LiveActionStoreTest {
                                                  long destinationId, int destinationType) {
         return ActionOrchestratorTestUtils.createMoveRecommendation(IdentityGenerator.next(),
             targetId, sourceId, sourceType, destinationId, destinationType).toBuilder();
-    }
-
-    public void setEntitiesOIDs() {
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
-        when(snapshot.getEntityFromOid(eq(vm1)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(vm1,
-                EntityType.VIRTUAL_MACHINE.getNumber(),
-                EntityType.PHYSICAL_MACHINE.getNumber(), EntityType.STORAGE.getNumber())));
-        when(snapshot.getEntityFromOid(eq(vm2)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(vm2,
-                EntityType.VIRTUAL_MACHINE.getNumber(),
-                EntityType.PHYSICAL_MACHINE.getNumber(), EntityType.STORAGE.getNumber())));
-        when(snapshot.getEntityFromOid(eq(vm3)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(vm3,
-                EntityType.VIRTUAL_MACHINE.getNumber(),
-                EntityType.PHYSICAL_MACHINE.getNumber(), EntityType.STORAGE.getNumber())));
-        when(snapshot.getEntityFromOid(eq(hostA)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(hostA,
-                EntityType.PHYSICAL_MACHINE.getNumber(),
-                EntityType.DATACENTER.getNumber(), EntityType.STORAGE.getNumber())));
-        when(snapshot.getEntityFromOid(eq(hostB)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(hostB,
-                EntityType.PHYSICAL_MACHINE.getNumber(),
-                EntityType.DATACENTER.getNumber(), EntityType.STORAGE.getNumber())));
-        when(snapshot.getEntityFromOid(eq(hostC)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(hostC,
-                EntityType.PHYSICAL_MACHINE.getNumber(),
-                EntityType.DATACENTER.getNumber(), EntityType.STORAGE.getNumber())));
-        when(snapshot.getEntityFromOid(eq(hostD)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(hostD,
-                EntityType.PHYSICAL_MACHINE.getNumber(),
-                EntityType.DATACENTER.getNumber(), EntityType.STORAGE.getNumber())));
     }
 
     @Test
@@ -501,6 +465,7 @@ public class LiveActionStoreTest {
     public void testGetActionViews() throws Exception {
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
         ActionDTO.Action.Builder secondMove = move(vm1, hostA, vmType, hostB, vmType);
+
         ActionPlan plan = ActionPlan.newBuilder()
             .setInfo(ActionPlanInfo.newBuilder()
                 .setMarket(MarketActionPlanInfo.newBuilder()
@@ -541,6 +506,9 @@ public class LiveActionStoreTest {
             .setId(firstPlanId)
             .addAction(move(vm1, hostA, vmType, hostB, vmType))
             .build();
+
+        EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
 
         actionStore.populateRecommendedActions(plan);
 

@@ -11,7 +11,6 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -20,11 +19,13 @@ import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFac
 import com.vmturbo.action.orchestrator.action.ActionPaginator.DefaultActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionViews;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.Builder;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
@@ -235,20 +236,18 @@ public class ActionPaginatorTest {
                         .setId(1)
                         .setType(1)))));
 
-        when(smallerView.getDescription()).thenReturn("Move VM 1 from A to B");
-        when(largerView.getDescription()).thenReturn("Start VM 2 on PM 1");
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         final PaginatedActionViews ascendingResults = paginator.applyPagination(
                 Stream.of(smallerView, largerView), PaginationParameters.newBuilder()
                         .setOrderBy(OrderBy.newBuilder()
-                                .setAction(ActionOrderBy.ACTION_NAME))
+                                .setAction(ActionOrderBy.ACTION_TYPE))
                         .setAscending(true)
                         .build());
         assertThat(ascendingResults.getResults(), contains(smallerView, largerView));
         final PaginatedActionViews descendingResults = paginator.applyPagination(
                 Stream.of(smallerView, largerView), PaginationParameters.newBuilder()
                         .setOrderBy(OrderBy.newBuilder()
-                                .setAction(ActionOrderBy.ACTION_NAME))
+                                .setAction(ActionOrderBy.ACTION_TYPE))
                         .setAscending(false)
                         .build());
         assertThat(descendingResults.getResults(), contains(largerView, smallerView));

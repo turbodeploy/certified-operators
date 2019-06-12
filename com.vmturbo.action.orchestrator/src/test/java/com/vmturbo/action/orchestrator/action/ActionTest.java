@@ -85,44 +85,20 @@ public class ActionTest {
         reconfigureRecommendation = makeRec(makeReconfigureInfo(11L, 22L), SupportLevel.SUPPORTED).build();
 
 
-        setEntitiesOIDs();
         moveAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator);
-        moveAction.refreshAction(entitySettingsCache);
+        moveAction.refreshActionMode(entitySettingsCache);
         resizeAction = new Action(resizeRecommendation, actionPlanId, actionModeCalculator);
-        resizeAction.refreshAction(entitySettingsCache);
+        resizeAction.refreshActionMode(entitySettingsCache);
         deactivateAction = new Action(deactivateRecommendation, actionPlanId, actionModeCalculator);
-        deactivateAction.refreshAction(entitySettingsCache);
+        deactivateAction.refreshActionMode(entitySettingsCache);
         activateAction = new Action(activateRecommendation, actionPlanId, actionModeCalculator);
-        activateAction.refreshAction(entitySettingsCache);
+        activateAction.refreshActionMode(entitySettingsCache);
         storageMoveAction =
                 new Action(storageMoveRecommendation, actionPlanId, actionModeCalculator);
-        storageMoveAction.refreshAction(entitySettingsCache);
+        storageMoveAction.refreshActionMode(entitySettingsCache);
         reconfigureAction =
                 new Action(reconfigureRecommendation, actionPlanId, actionModeCalculator);
-        reconfigureAction.refreshAction(entitySettingsCache);
-    }
-
-    public void setEntitiesOIDs() {
-        when(entitySettingsCache.getEntityFromOid(eq(11L)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(11L,
-                EntityType.VIRTUAL_MACHINE.getNumber(),
-                EntityType.PHYSICAL_MACHINE.getNumber(), EntityType.STORAGE.getNumber())));
-        when(entitySettingsCache.getEntityFromOid(eq(22L)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(22L,
-                EntityType.PHYSICAL_MACHINE.getNumber(),
-                EntityType.DATACENTER.getNumber(), EntityType.STORAGE.getNumber())));
-        when(entitySettingsCache.getEntityFromOid(eq(33L)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(33L,
-                EntityType.PHYSICAL_MACHINE.getNumber(),
-                EntityType.DATACENTER.getNumber(), EntityType.STORAGE.getNumber())));
-        when(entitySettingsCache.getEntityFromOid(eq(44L)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(44L,
-                EntityType.STORAGE.getNumber(),
-                EntityType.DISK_ARRAY.getNumber(), EntityType.DATACENTER.getNumber())));
-        when(entitySettingsCache.getEntityFromOid(eq(55L)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(55L,
-                EntityType.STORAGE.getNumber(),
-                EntityType.DISK_ARRAY.getNumber(), EntityType.DATACENTER.getNumber())));
+        reconfigureAction.refreshActionMode(entitySettingsCache);
     }
 
     @Test
@@ -215,7 +191,7 @@ public class ActionTest {
             .calculateActionMode(moveAction, entitySettingsCache);
 
         // Invalidate
-        moveAction.refreshAction(entitySettingsCache);
+        moveAction.refreshActionMode(entitySettingsCache);
 
         // The next call to getMode() should result in another call to actionModeCalculator
         assertThat(moveAction.getMode(), is(ActionMode.MANUAL));
@@ -315,12 +291,12 @@ public class ActionTest {
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
                 .thenReturn(settings);
 
-        moveAction.refreshAction(entitySettingsCache);
-        resizeAction.refreshAction(entitySettingsCache);
-        activateAction.refreshAction(entitySettingsCache);
-        deactivateAction.refreshAction(entitySettingsCache);
-        storageMoveAction.refreshAction(entitySettingsCache);
-        reconfigureAction.refreshAction(entitySettingsCache);
+        moveAction.refreshActionMode(entitySettingsCache);
+        resizeAction.refreshActionMode(entitySettingsCache);
+        activateAction.refreshActionMode(entitySettingsCache);
+        deactivateAction.refreshActionMode(entitySettingsCache);
+        storageMoveAction.refreshActionMode(entitySettingsCache);
+        reconfigureAction.refreshActionMode(entitySettingsCache);
         assertEquals(moveAction.getMode(), ActionMode.DISABLED);
         assertEquals(resizeAction.getMode(), ActionMode.DISABLED);
         assertEquals(activateAction.getMode(), ActionMode.DISABLED);
@@ -345,12 +321,12 @@ public class ActionTest {
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
                 .thenReturn(settings);
 
-        moveAction.refreshAction(entitySettingsCache);
-        resizeAction.refreshAction(entitySettingsCache);
-        activateAction.refreshAction(entitySettingsCache);
-        deactivateAction.refreshAction(entitySettingsCache);
-        storageMoveAction.refreshAction(entitySettingsCache);
-        reconfigureAction.refreshAction(entitySettingsCache);
+        moveAction.refreshActionMode(entitySettingsCache);
+        resizeAction.refreshActionMode(entitySettingsCache);
+        activateAction.refreshActionMode(entitySettingsCache);
+        deactivateAction.refreshActionMode(entitySettingsCache);
+        storageMoveAction.refreshActionMode(entitySettingsCache);
+        reconfigureAction.refreshActionMode(entitySettingsCache);
         assertEquals(resizeAction.getMode(), ActionMode.AUTOMATIC);
         assertEquals(activateAction.getMode(), ActionMode.AUTOMATIC);
         assertEquals(deactivateAction.getMode(), ActionMode.AUTOMATIC);

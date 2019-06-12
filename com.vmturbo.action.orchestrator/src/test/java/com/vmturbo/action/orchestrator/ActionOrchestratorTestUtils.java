@@ -1,11 +1,8 @@
 package com.vmturbo.action.orchestrator;
 
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
@@ -21,7 +18,6 @@ import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
-import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator.TranslationExecutor;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -29,14 +25,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
-import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
-import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -180,66 +172,6 @@ public class ActionOrchestratorTestUtils {
                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                         .setValue(mode.toString()).build())
                 .build());
-    }
-
-    public static Optional<TopologyEntityDTO> createTopologyEntityDTO(Long Oid, int entityType,
-                                                                      int provider1, int provider2) {
-        return Optional.of(TopologyEntityDTO.newBuilder()
-            .setOid(Oid)
-            .setEntityType(entityType)
-            .addCommoditiesBoughtFromProviders(
-                CommoditiesBoughtFromProvider.newBuilder()
-                    .setProviderId(2L)
-                    .setProviderEntityType(provider1))
-            .addCommoditiesBoughtFromProviders(
-                CommoditiesBoughtFromProvider.newBuilder()
-                    .setProviderId(3L)
-                    .setProviderEntityType(provider2))
-            .build());
-    }
-
-    public static void setEntityAndSourceAndDestination(EntitiesAndSettingsSnapshot entityCacheSnapshot,
-                                                        Action action) {
-        Long action1EntityId = action.getRecommendation().getInfo().getMove().getTarget().getId();
-        ChangeProvider primaryChange = ActionDTOUtil
-            .getPrimaryChangeProvider(action.getRecommendation().getInfo().getMove());
-        Long actionSourceId = primaryChange.getSource().getId();
-        Long actionDestinationId = primaryChange.getDestination().getId();
-
-        when(entityCacheSnapshot.getEntityFromOid(eq(action1EntityId)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(action1EntityId,
-                action.getRecommendation().getInfo().getMove().getTarget().getType(),
-                EntityType.PHYSICAL_MACHINE.getNumber(), EntityType.STORAGE.getNumber())));
-        when(entityCacheSnapshot.getEntityFromOid(eq(actionSourceId)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(actionSourceId,
-                primaryChange.getSource().getType(),
-                EntityType.STORAGE.getNumber(), EntityType.DATACENTER.getNumber())));
-        when(entityCacheSnapshot.getEntityFromOid(eq(actionDestinationId)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(actionDestinationId,
-                primaryChange.getDestination().getType(),
-                EntityType.STORAGE.getNumber(), EntityType.DATACENTER.getNumber())));
-    }
-
-    public static void setEntityAndSourceAndDestination(EntitiesAndSettingsSnapshot entityCacheSnapshot,
-                                                        ActionDTO.Action action) {
-        Long action1EntityId = action.getInfo().getMove().getTarget().getId();
-        ChangeProvider primaryChange = ActionDTOUtil
-            .getPrimaryChangeProvider(action.getInfo().getMove());
-        Long actionSourceId = primaryChange.getSource().getId();
-        Long actionDestinationId = primaryChange.getDestination().getId();
-
-        when(entityCacheSnapshot.getEntityFromOid(eq(action1EntityId)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(action1EntityId,
-                action.getInfo().getMove().getTarget().getType(),
-                EntityType.PHYSICAL_MACHINE.getNumber(), EntityType.STORAGE.getNumber())));
-        when(entityCacheSnapshot.getEntityFromOid(eq(actionSourceId)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(actionSourceId,
-                primaryChange.getSource().getType(),
-                EntityType.STORAGE.getNumber(), EntityType.DATACENTER.getNumber())));
-        when(entityCacheSnapshot.getEntityFromOid(eq(actionDestinationId)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(actionDestinationId,
-                primaryChange.getDestination().getType(),
-                EntityType.STORAGE.getNumber(), EntityType.DATACENTER.getNumber())));
     }
 
     public static ActionEntity createActionEntity(long id) {
