@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -32,12 +33,14 @@ import javax.ws.rs.NotFoundException;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpEntity;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -109,6 +112,64 @@ public class ClusterMgrService {
         "/home/turbonomic/data/turbonomic-diags-_%d.zip";
     public static final String COLLON = ":";
     public static final String AT = "@";
+
+
+    /**
+     * The socket timeout in milliseconds, which is the timeout for
+     * waiting for data  or, put differently, a maximum period inactivity
+     * between two consecutive data packets).
+     * <p>
+     * A timeout value of zero is interpreted as an infinite timeout.
+     * A negative value is interpreted as undefined (system default).
+     * </p>
+     * <p>
+     * Default: {@code -1}
+     * </p>
+     */
+    private static final int SOCKET_TIMEOUT = 10 * 60 * 1000;
+
+    /**
+     * Timeout in milliseconds until a connection is established.
+     * A timeout value of zero is interpreted as an infinite timeout.
+     * <p>
+     * A timeout value of zero is interpreted as an infinite timeout.
+     * A negative value is interpreted as undefined (system default).
+     * </p>
+     * <p>
+     * Default: {@code -1}
+     * </p>
+     */
+    private static final int CONNECT_TIMEOUT = 10 * 1000;
+
+    /**
+     * Timeout in milliseconds used when requesting a connection
+     * from the connection manager. A timeout value of zero is interpreted
+     * as an infinite timeout.
+     * <p>
+     * A timeout value of zero is interpreted as an infinite timeout.
+     * A negative value is interpreted as undefined (system default).
+     * </p>
+     * <p>
+     * Default: {@code -1}
+     * </p>
+     */
+    private static final int CONNECTION_REQUEST_TIMEOUT = 10 * 1000;
+
+    private static final String NEXT_LINE = "\n";
+
+    private static final Predicate<String> IS_SERVICE_PREDICATE = name -> !name.startsWith("mediation");
+
+    @VisibleForTesting
+    static final String DIAGS_SUMMARY_SUCCESS_TXT = "DiagsSummary-Success.txt";
+
+    @VisibleForTesting
+    static final String DIAGS_SUMMARY_FAIL_TXT = "DiagsSummary-Fail.txt";
+
+    // Custom diags collecting request configuration
+    private final RequestConfig requestConfig = RequestConfig.custom()
+        .setConnectTimeout(CONNECT_TIMEOUT)
+        .setConnectionRequestTimeout(CONNECTION_REQUEST_TIMEOUT)
+        .setSocketTimeout(SOCKET_TIMEOUT).build();
 
     // Default configuration properties global to all component types
     private final ComponentProperties globalDefaultProperties = new ComponentProperties();
@@ -400,7 +461,7 @@ public class ClusterMgrService {
                     log.error("error retrieving the response value from the /service/refresh requrest");
                 }
             }
-        });
+        }, java.util.Optional.empty());
     }
 
     /**
@@ -587,6 +648,7 @@ public class ClusterMgrService {
         String acceptTypes = MediaType.toString(Arrays.asList(
                 MediaType.valueOf("application/zip"),
                 MediaType.APPLICATION_OCTET_STREAM));
+        final StringBuilder errorMessagesBuild = new StringBuilder();
         visitActiveComponents("/diagnostics", acceptTypes, (componentInfo, entity) -> {
             String componentName = componentInfo.getServiceId();
             log.info(componentInfo.toString() + " --- Begin diagnostic collection");
@@ -600,6 +662,11 @@ public class ClusterMgrService {
             } catch (IOException e) {
                 // log the error and continue to the next service in the list of services
                 log.error(componentInfo.toString() + " --- Error reading diagnostic stream", e);
+                final String serviceName = componentInfo.getServiceName();
+                // Currently only count error in service (not mediation)
+                if (IS_SERVICE_PREDICATE.test(serviceName)) {
+                    errorMessagesBuild.append(serviceName + NEXT_LINE);
+                }
             } finally {
                 log.debug(componentInfo.toString() + " --- closing zip entry");
                 try {
@@ -608,8 +675,9 @@ public class ClusterMgrService {
                     log.error("Error closing diagnostic .zip", e);
                 }
             }
-        });
-        getRsyslogDiags(diagnosticZip, acceptTypes);
+        }, errorMessagesBuild);
+        getRsyslogDiags(diagnosticZip, acceptTypes, errorMessagesBuild);
+        insertDiagsSummaryFile(diagnosticZip, errorMessagesBuild);
 
         // finished all instances of all known components - finish the aggregate output .zip file
         // stream
@@ -633,14 +701,16 @@ public class ClusterMgrService {
      * @param diagnosticZip The diagnostic zip stream.
      * @param acceptResponseTypes The HTTP header for accepted responses.
      */
-    private void getRsyslogDiags(ZipOutputStream diagnosticZip, String acceptResponseTypes) {
+    private void getRsyslogDiags(ZipOutputStream diagnosticZip, String acceptResponseTypes,
+                                 @Nonnull final StringBuilder errorMessageBuilder) {
         // Handle the rsyslog
         // It is not part of the consul-managed set of components.
         String componentName = "rsyslog";
         URI requestUri = getComponentInstanceUri(componentName, 8080, "/diagnostics");
         HttpGet request = new HttpGet(requestUri);
         request.addHeader("Accept", acceptResponseTypes);
-        try (CloseableHttpClient httpclient = HttpClients.createDefault()) {
+        try (CloseableHttpClient httpclient =  HttpClientBuilder.create().
+            setDefaultRequestConfig(requestConfig).build()) {
             // execute the request
             try (CloseableHttpResponse response = httpclient.execute(request)) {
                 log.debug(componentName + " --- response status: " + response.getStatusLine());
@@ -657,6 +727,7 @@ public class ClusterMgrService {
                     } catch (IOException e) {
                         // log the error and continue to the next service in the list of services
                         log.error(componentName + " --- Error reading diagnostic stream", e);
+                        errorMessageBuilder.append(componentName + NEXT_LINE);
                     } finally {
                         log.debug(componentName + " --- closing zip entry");
                         try {
@@ -675,7 +746,32 @@ public class ClusterMgrService {
         }
     }
 
-
+    // Insert summary file:
+    // If all service component were assembled successfully, empty file with name "DiagsSummary-Success.txt".
+    // Otherwise, file name is "DiagsSummary-Fail.txt" and it contains failed service component names.
+    @VisibleForTesting
+    void insertDiagsSummaryFile(@Nonnull final ZipOutputStream diagnosticZip,
+                                @Nonnull final StringBuilder errorMessages) {
+        final boolean isSuccessful = errorMessages.toString().isEmpty();
+        final String summaryFileName = isSuccessful ? DIAGS_SUMMARY_SUCCESS_TXT : DIAGS_SUMMARY_FAIL_TXT;
+        final ZipEntry zipEntry = new ZipEntry(summaryFileName);
+        try {
+            diagnosticZip.putNextEntry(zipEntry);
+            if (!isSuccessful) {
+                final byte[] data = errorMessages.toString().getBytes();
+                diagnosticZip.write(data, 0, data.length);
+            }
+        } catch (IOException e) {
+            log.error("Error adding diagnostic stream", e);
+        } finally {
+            log.debug(" closing zip entry");
+            try {
+                diagnosticZip.closeEntry();
+            } catch (IOException e) {
+                log.error("Error closing diagnostic .zip", e);
+            }
+        }
+    }
     /**
      * Specialized request for the rsyslog to retrieve all the logs.
      * The reason for an independent method lies in fact that rsyslog is not a component
@@ -727,14 +823,16 @@ public class ClusterMgrService {
      */
     private void visitActiveComponents(String requestPath,
                                        String acceptResponseTypes,
-                                       ResponseEntityProcessor responseEntityProcessor) {
+                                       ResponseEntityProcessor responseEntityProcessor,
+                                       @Nonnull final StringBuilder errorMessageBuilder) {
         for (String componentName : getKnownComponents()) {
             log.debug("getting " + requestPath + " for component type: " + componentName);
             for (CatalogService componentInfo : consulService.getService(componentName)) {
                 URI requestUri = getComponentInstanceUri(componentInfo, requestPath);
                 HttpGet request = new HttpGet(requestUri);
                 request.addHeader("Accept", acceptResponseTypes);
-                sendRequestToComponent(componentInfo, request, responseEntityProcessor);
+                sendRequestToComponent(componentInfo, request, responseEntityProcessor,
+                    java.util.Optional.of(errorMessageBuilder));
 
             }
         }
@@ -751,9 +849,11 @@ public class ClusterMgrService {
      * @param responseEntityProcessor the processor for the response.getEntity() after the http request completes.
      */
     private void sendRequestToComponent(CatalogService componentInfo, HttpUriRequest request,
-                                        ResponseEntityProcessor responseEntityProcessor) {
+                                        ResponseEntityProcessor responseEntityProcessor,
+                                        @Nonnull final java.util.Optional<StringBuilder> errorMessagBuilder) {
         // open an HttpClient link
-        try (CloseableHttpClient httpclient = HttpClients.createDefault()) {
+        try (CloseableHttpClient httpclient = HttpClientBuilder.create().
+            setDefaultRequestConfig(requestConfig).build()) {
             // execute the request
             try (CloseableHttpResponse response = httpclient.execute(request)) {
                 log.debug(componentInfo.toString() + " --- response status: " + response.getStatusLine());
@@ -762,16 +862,27 @@ public class ClusterMgrService {
                 if (entity != null) {
                     responseEntityProcessor.process(componentInfo, entity);
                 } else {
+                    appendFailedServiceName(componentInfo, errorMessagBuilder);
                     // log the error and continue to the next service in the list of services
                     log.error(componentInfo.toString() + " --- missing response entity");
                 }
             }
         } catch (IOException e) {
+            appendFailedServiceName(componentInfo, errorMessagBuilder);
             // log the error and continue to the next service
             log.error("{} --- Error executing http request {}: {}",
                     componentInfo.toString(),
                     request.getURI().toString(),
                     e.getMessage());
+        }
+    }
+
+    @VisibleForTesting
+    void appendFailedServiceName(@Nonnull final CatalogService componentInfo,
+                                 @Nonnull final java.util.Optional<StringBuilder> errorMessageBuilder) {
+        final String componentName = componentInfo.getServiceName();
+        if (IS_SERVICE_PREDICATE.test(componentName)) {
+            errorMessageBuilder.ifPresent(builder -> builder.append(componentName + NEXT_LINE));
         }
     }
 

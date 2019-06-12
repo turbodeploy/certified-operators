@@ -3,24 +3,33 @@ package com.vmturbo.clustermgr;
 
 import static com.vmturbo.clustermgr.ClusterMgrService.HOME_TURBONOMIC_DATA_TURBO_FILE_ZIP;
 import static com.vmturbo.clustermgr.ClusterMgrService.UPLOAD_VMTURBO_COM_URL;
+import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.anyByte;
+import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.argThat;
 import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 
@@ -28,6 +37,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -363,5 +373,64 @@ public class ClusterMgrServiceTest {
         String[] expectedArgsWithSecureProxy = {"-F", "ufile=@/home/turbonomic/data/turbonomic-diags-_111.zip",
             UPLOAD_VMTURBO_COM_URL, "-x", "user:password@10.10.10.10:1080"};
         assertArrayEquals(expectedArgsWithSecureProxy, curlArgs);
+    }
+
+    @Test
+    public void testInsertDiagsSummaryFileSuccess() throws IOException {
+        ZipOutputStream zipOutputStream = mock(ZipOutputStream.class);
+        clusterMgrService.insertDiagsSummaryFile(zipOutputStream, new StringBuilder());
+        final ZipEntry zipEntry = new ZipEntry(ClusterMgrService.DIAGS_SUMMARY_SUCCESS_TXT);
+        verify(zipOutputStream).putNextEntry(argThat(new MatchesZipEntiry(zipEntry)));
+        verify(zipOutputStream, never()).write(new byte[]{anyByte()}, anyInt(), anyInt());
+        verify(zipOutputStream).closeEntry();
+    }
+
+    @Test
+    public void testInsertDiagsSummaryFileFail() throws IOException {
+        ZipOutputStream zipOutputStream = mock(ZipOutputStream.class);
+        final StringBuilder errorMessages = new StringBuilder();
+        errorMessages.append("clustermgr\n");
+        clusterMgrService.insertDiagsSummaryFile(zipOutputStream, errorMessages);
+        final ZipEntry zipEntry = new ZipEntry(ClusterMgrService.DIAGS_SUMMARY_FAIL_TXT);
+        verify(zipOutputStream).putNextEntry(argThat(new MatchesZipEntiry(zipEntry)));
+        verify(zipOutputStream, times(1)).write(new byte[]{anyByte()}, anyInt(), anyInt());
+        verify(zipOutputStream).closeEntry();
+    }
+
+    @Test
+    public void testAppendFailedServiceNameSkipMediation() {
+        final StringBuilder errorMessages = new StringBuilder();
+        final CatalogService service = mock(CatalogService.class);
+        when(service.getServiceName()).thenReturn("mediation-1");
+        clusterMgrService.appendFailedServiceName(service, java.util.Optional.of(errorMessages));
+        assertTrue(errorMessages.toString().isEmpty());
+    }
+
+    @Test
+    public void testAppendFailedServiceName() {
+        final StringBuilder errorMessages = new StringBuilder();
+        final CatalogService service = mock(CatalogService.class);
+        when(service.getServiceName()).thenReturn("ClusterMgr");
+        clusterMgrService.appendFailedServiceName(service, java.util.Optional.of(errorMessages));
+        assertEquals("ClusterMgr\n", errorMessages.toString());
+    }
+
+
+    private class MatchesZipEntiry extends ArgumentMatcher<ZipEntry> {
+
+        private final ZipEntry zipEntry;
+
+        public MatchesZipEntiry(final ZipEntry zipEntry) {
+            this.zipEntry = zipEntry;
+        }
+
+        @Override
+        public boolean matches(final Object argument) {
+            if (!(argument instanceof ZipEntry)) {
+                return false;
+            }
+            final ZipEntry entry = (ZipEntry)argument;
+            return entry.getName().equals(zipEntry.getName());
+        }
     }
 }
