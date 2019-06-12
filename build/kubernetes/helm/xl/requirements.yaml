@@ -36,7 +36,7 @@ dependencies:
   - name: api
     repository: file://../services/api
     version: 0.1.0
-    condition: ui.enabled
+    condition: platform.enabled
   - name: auth
     repository: file://../services/auth
     version: 0.1.0
