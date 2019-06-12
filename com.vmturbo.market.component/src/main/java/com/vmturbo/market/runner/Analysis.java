@@ -343,6 +343,10 @@ public class Analysis {
                 converter.updateShoppingListMap(results.getNewShoppingListToBuyerEntryList());
                 logger.info(logPrefix + "Done performing analysis");
 
+            // Calculate reservedCapacity and generate resize actions
+            ReservedCapacityAnalysis reservedCapacityAnalysis = new ReservedCapacityAnalysis(topologyDTOs);
+            reservedCapacityAnalysis.execute();
+
             List<TraderTO> projectedTraderDTO = new ArrayList<>();
 
             try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.startTimer()) {
@@ -368,7 +372,8 @@ public class Analysis {
                 projectedEntities = converter.convertFromMarket(
                     projectedTraderDTO,
                     topologyDTOs,
-                    results.getPriceIndexMsg(), topologyCostCalculator.getCloudCostData());
+                    results.getPriceIndexMsg(), topologyCostCalculator.getCloudCostData(),
+                    reservedCapacityAnalysis);
                 copySkippedEntitiesToProjectedTopology();
 
                     // Calculate the projected entity costs.
@@ -400,6 +405,7 @@ public class Analysis {
                 // TODO move wasted files action out of main analysis once we have a framework
                 // to support multiple analyses for the same topology ID
                 actionPlanBuilder.addAllAction(getWastedFilesActions());
+                actionPlanBuilder.addAllAction(reservedCapacityAnalysis.getActions());
                 logger.info(logPrefix + "Completed successfully");
                 processResultTime.observe();
                 state = AnalysisState.SUCCEEDED;

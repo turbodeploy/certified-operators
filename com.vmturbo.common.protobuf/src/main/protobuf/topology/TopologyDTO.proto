@@ -679,10 +679,7 @@ message CommodityBoughtDTO {
     // the aggregates.
     repeated string aggregates = 9;
 
-    // Collection of commodity utilization points. The collection contains series of usage points
-    // with given timestamp and interval between points.
-    // Certain probes may send more than one point per discovery request.
-    optional UtilizationData utilizationData = 10;
+    optional double reserved_capacity = 10 [default = 0.0];
 }
 
 message CommoditySoldDTO {
@@ -697,7 +694,8 @@ message CommoditySoldDTO {
 
     optional double effectiveCapacityPercentage = 5 [default = 100];
 
-    optional double reservedCapacity = 6 [default = 0.0];
+    // This field is deprecated - No need to set reservedCapacity for CommoditySoldDTO
+    optional double reservedCapacity = 6 [deprecated = true];
 
     optional bool isResizeable = 7 [default = true];
 

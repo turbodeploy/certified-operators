@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -293,6 +294,8 @@ public class ExplanationComposer {
                 ? " in "+ buildEntityTypeAndName(resize.getTarget())
                 : "";
 
+        commodityType = commodityType +
+            (resize.getCommodityAttribute() == CommodityAttribute.RESERVED ? " reservation" : "");
         if (isResizeDown) {
             sb.append("Underutilized ").append(commodityType).append(targetClause);
         }

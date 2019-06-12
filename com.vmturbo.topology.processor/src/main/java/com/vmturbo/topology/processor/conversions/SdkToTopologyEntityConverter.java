@@ -31,6 +31,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -109,6 +110,10 @@ public class SdkToTopologyEntityConverter {
 
     private static Set<CommodityDTO.CommodityType> DSPM_OR_DATASTORE =
                     Sets.newHashSet(CommodityDTO.CommodityType.DSPM_ACCESS, CommodityDTO.CommodityType.DATASTORE);
+
+    private static Set<CommodityDTO.CommodityType> reservedCommodityType =
+        Sets.newHashSet(CommodityDTO.CommodityType.CPU, CommodityDTO.CommodityType.MEM,
+                        CommodityDTO.CommodityType.VCPU, CommodityDTO.CommodityType.VMEM);
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -542,6 +547,10 @@ public class SdkToTopologyEntityConverter {
                     .filter(prop -> prop.getName().equals(SDKConstants.AGGREGATES))
                     .flatMap(prop -> prop.getValuesList().stream())
                     .collect(Collectors.toList()));
+        // Only set reservedCapacity for specific commodityType
+        if (reservedCommodityType.contains(commDTO.getCommodityType())) {
+            retCommBoughtBuilder.setReservedCapacity(commDTO.getReservation());
+        }
         return retCommBoughtBuilder.build();
     }
 
@@ -559,7 +568,6 @@ public class SdkToTopologyEntityConverter {
                 .setUsed(getUsedForSoldCommodity(commDTO))
                 .setPeak(commDTO.getPeak())
                 .setCapacity(commDTO.getCapacity())
-                .setReservedCapacity(commDTO.getReservation())
                 .setIsThin(commDTO.getThin())
                 .setActive(commDTO.getActive())
                 .setIsResizeable(commDTO.getResizable())

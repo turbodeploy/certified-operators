@@ -59,6 +59,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
+import com.vmturbo.market.runner.ReservedCapacityAnalysis;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.settings.EntitySettings;
 import com.vmturbo.market.settings.MarketSettings;
@@ -486,13 +487,16 @@ public class TopologyConverter {
      * @param originalTopology the original set of {@link TopologyDTO.TopologyEntityDTO}s by OID.
      * @param priceIndexMessage the price index message
      * @param cloudCostData the cloud cost information
+     * @param reservedCapacityAnalysis the reserved capacity information
      * @return list of {@link TopologyDTO.ProjectedTopologyEntity}s
      */
     @Nonnull
     public Map<Long, TopologyDTO.ProjectedTopologyEntity> convertFromMarket(
                 @Nonnull final List<EconomyDTOs.TraderTO> projectedTraders,
                 @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> originalTopology,
-                @Nonnull final PriceIndexMessage priceIndexMessage, @Nonnull final CloudCostData cloudCostData) {
+                @Nonnull final PriceIndexMessage priceIndexMessage,
+                @Nonnull final CloudCostData cloudCostData,
+                @Nonnull final ReservedCapacityAnalysis reservedCapacityAnalysis) {
         conversionErrorCounts.startPhase(Phase.CONVERT_FROM_MARKET);
         try {
             final Map<Long, PriceIndexMessagePayload> priceIndexByOid =
@@ -505,7 +509,7 @@ public class TopologyConverter {
                 projectedTraders.size());
             for (TraderTO projectedTrader : projectedTraders) {
                 final Set<TopologyEntityDTO> projectedEntities =
-                    traderTOtoTopologyDTO(projectedTrader, originalTopology);
+                    traderTOtoTopologyDTO(projectedTrader, originalTopology, reservedCapacityAnalysis);
                 for (TopologyEntityDTO projectedEntity : projectedEntities) {
                     final ProjectedTopologyEntity.Builder projectedEntityBuilder =
                         ProjectedTopologyEntity.newBuilder().setEntity(projectedEntity);
@@ -805,10 +809,12 @@ public class TopologyConverter {
      * @param traderTO {@link EconomyDTOs.TraderTO} that is to be converted to a {@link TopologyDTO.TopologyEntityDTO}
      * @param traderOidToEntityDTO whose key is the traderOid and the value is the original
      * traderTO
+     * @param reservedCapacityAnalysis the reserved capacity information
      * @return set of {@link TopologyDTO.TopologyEntityDTO}s
      */
     private Set<TopologyDTO.TopologyEntityDTO> traderTOtoTopologyDTO(EconomyDTOs.TraderTO traderTO,
-                    @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> traderOidToEntityDTO) {
+                    @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> traderOidToEntityDTO,
+                    @Nonnull final ReservedCapacityAnalysis reservedCapacityAnalysis) {
         Set<TopologyDTO.TopologyEntityDTO> topologyEntityDTOs = Sets.newHashSet();
         if (cloudTc.isMarketTier(traderTO.getOid())) {
             // Tiers and regions are added from the original topology into the projected traders
@@ -850,8 +856,8 @@ public class TopologyConverter {
                         commList.add(newCommodity(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE, pmOid));
                     }
                 } else {
-                    commBoughtTOtoCommBoughtDTO(traderTO.getOid(), sl.getSupplier(), commBought, sl.getOid())
-                        .ifPresent(commList::add);
+                    commBoughtTOtoCommBoughtDTO(traderTO.getOid(), sl.getSupplier(), sl.getOid(),
+                        commBought, reservedCapacityAnalysis).ifPresent(commList::add);
                 }
             }
             topoDTOCommonBoughtGrouping.add(createCommoditiesBoughtFromProvider(sl, commList));
@@ -1248,13 +1254,14 @@ public class TopologyConverter {
      *
      * @param commBoughtTO {@link CommodityBoughtTO} that is to be converted to
      * {@link TopologyDTO.CommodityBoughtDTO}
+     * @param reservedCapacityAnalysis the reserved capacity information
      * @return {@link TopologyDTO.CommoditySoldDTO} that the trader sells
      */
     @Nonnull
     private Optional<TopologyDTO.CommodityBoughtDTO> commBoughtTOtoCommBoughtDTO(
-        final long traderOid, final long supplierOid,
-            @Nonnull final CommodityBoughtTO commBoughtTO,
-            final long slOid) {
+        final long traderOid, final long supplierOid, final long slOid,
+        @Nonnull final CommodityBoughtTO commBoughtTO,
+        @Nonnull final ReservedCapacityAnalysis reservedCapacityAnalysis) {
 
         float peak = commBoughtTO.getPeakQuantity();
         if (peak < 0) {
@@ -1273,6 +1280,7 @@ public class TopologyConverter {
                 .map(commType -> TopologyDTO.CommodityBoughtDTO.newBuilder()
                     .setUsed(reverseScaleCommBought(commBoughtTO.getQuantity(),
                         commodityIndex.getCommBought(traderOid, supplierOid, commType, volumeId)))
+                    .setReservedCapacity(reservedCapacityAnalysis.getReservedCapacity(traderOid, commType))
                     .setCommodityType(commType)
                     .setPeak(peakQuantity)
                     .build());
