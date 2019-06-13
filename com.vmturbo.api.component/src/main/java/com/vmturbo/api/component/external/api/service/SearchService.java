@@ -237,11 +237,12 @@ public class SearchService implements ISearchService {
                                                      @Nullable EntityDetailType entityDetailType,
                                                      SearchPaginationRequest paginationRequest,
                                                      List<String> entityTypes,
-                                                     List<String> probeTypes)
+                                                     List<String> probeTypes,
+                                                     boolean isRegex)
             throws Exception {
         // temporally hack to accommodate signature changes.
         final String groupType = (groupTypes != null && groupTypes.size() > 0) ? groupTypes.get(0) : null;
-
+        // TODO: escape any special chars in query string if isregex is false.
 
         List<BaseApiDTO> result = null;
         // Determine which of many (many) types of searches is requested.
