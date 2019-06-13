@@ -22,9 +22,11 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.repository.dto.ApplicationInfoRepoDTO;
 import com.vmturbo.repository.dto.BusinessAccountInfoRepoDTO;
+import com.vmturbo.repository.dto.BusinessUserInfoRepoDTO;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.ComputeTierInfoRepoDTO;
 import com.vmturbo.repository.dto.DatabaseInfoRepoDTO;
+import com.vmturbo.repository.dto.DesktopPoolInfoRepoDTO;
 import com.vmturbo.repository.dto.DiskArrayInfoRepoDTO;
 import com.vmturbo.repository.dto.EntityPipelineErrorsRepoDTO;
 import com.vmturbo.repository.dto.LogicalPoolInfoRepoDTO;
@@ -56,6 +58,8 @@ class TopologyEntityDTOConverter {
                     .put(TypeCase.VIRTUAL_VOLUME, VirtualVolumeInfoRepoDTO.class)
                     .put(TypeCase.VIRTUAL_MACHINE, VirtualMachineInfoRepoDTO.class)
                     .put(TypeCase.PHYSICAL_MACHINE, PhysicalMachineInfoRepoDTO.class)
+                    .put(TypeCase.DESKTOP_POOL, DesktopPoolInfoRepoDTO.class)
+                    .put(TypeCase.BUSINESS_USER, BusinessUserInfoRepoDTO.class)
                     .build();
 
 
