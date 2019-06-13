@@ -11,13 +11,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.xerial.snappy.SnappyInputStream;
+import org.xerial.snappy.SnappyOutputStream;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search.Entity;
@@ -105,9 +105,9 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
 
         byte[] bytes = null;
         try (final ByteArrayOutputStream bos = new ByteArrayOutputStream();
-             final GZIPOutputStream gos = new GZIPOutputStream(bos)) {
-            gos.write(src.toByteArray());
-            gos.finish();
+             final SnappyOutputStream gos = new SnappyOutputStream(bos)) {
+            src.writeTo(gos);
+            gos.flush();
             bytes = bos.toByteArray();
         } catch (IOException e) {
             logger.error("Failed to compress entity {}. Error: {}", this.oid, e.getMessage());
@@ -229,7 +229,7 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
     @Nonnull
     public TopologyEntityDTO getTopologyEntity() {
         try (final ByteArrayInputStream bis = new ByteArrayInputStream(compressedEntityBytes);
-             final GZIPInputStream zis = new GZIPInputStream(bis)) {
+             final SnappyInputStream zis = new SnappyInputStream(bis)) {
             return TopologyEntityDTO.parseFrom(zis);
         } catch (IOException e) {
             logger.error("Failed to decompress entity {}. Error: {}", this.oid, e.getMessage());
