@@ -672,8 +672,12 @@ public class StatsService implements IStatsService {
                     // we are only passing the possible global temp group type if the user is not scoped
                     // -- scoped users need to retrieve based on specific entities, rather than a global
                     // temp group
+                    //copy the input object and set it with the new updated filters for the query
+                    final StatPeriodApiInputDTO requestInputDto =
+                        new StatPeriodApiInputDTO(inputDto.getStartDate(), inputDto.getEndDate(),
+                            statsFilters.isEmpty() ? null : statsFilters);
                     final GetAveragedEntityStatsRequest request =
-                            statsMapper.toAveragedEntityStatsRequest(entityStatOids, inputDto,
+                            statsMapper.toAveragedEntityStatsRequest(entityStatOids, requestInputDto,
                                     userSessionContext.isUserScoped() ? Optional.empty() : globalTempGroupEntityType);
 
                     final Iterable<StatSnapshot> statsIterator = () -> statsServiceRpc.getAveragedEntityStats(request);

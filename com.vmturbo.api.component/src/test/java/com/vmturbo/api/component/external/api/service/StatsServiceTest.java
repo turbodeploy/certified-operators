@@ -415,7 +415,8 @@ public class StatsServiceTest {
 
         final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(StatsService.MARKET, inputDto);
 
-        verify(statsMapper).toAveragedEntityStatsRequest(Collections.EMPTY_SET, inputDto, Optional.empty());
+        verify(statsMapper).toAveragedEntityStatsRequest(eq(Collections.EMPTY_SET), anyObject(),
+            eq(Optional.empty()));
     }
 
     @Test
@@ -617,7 +618,7 @@ public class StatsServiceTest {
         assertEquals(0, resp.size());
 
         // verify retrieving stats from history component
-        verify(statsHistoryServiceSpy).getAveragedEntityStats(request);
+        verify(statsHistoryServiceSpy).getAveragedEntityStats(anyObject());
     }
 
     @Test
@@ -1007,7 +1008,8 @@ public class StatsServiceTest {
         final List<StatSnapshotApiDTO> results = statsService.getStatsByEntityQuery(oid1, inputDto);
 
         // assert
-        verify(statsMapper).toAveragedEntityStatsRequest(expandedOid, inputDto, Optional.empty());
+        verify(statsMapper).toAveragedEntityStatsRequest(eq(expandedOid), anyObject(),
+            eq(Optional.empty()));
         verify(statsHistoryServiceSpy).getAveragedEntityStats(request);
         // we will return an extra data point to represent current record which may not be in DB
         verify(statsMapper, times(2)).toStatSnapshotApiDTO(any());
