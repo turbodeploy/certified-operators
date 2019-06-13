@@ -33,7 +33,7 @@ public class EntityValidator {
      * so that it makes sense to do calculations with it in the market.
      */
     private static final double HACKED_INFINITE_CAPACITY = 999999999999.999;
-    private static final double HACKED_CAPACITY = 101013370101.7;
+    private static final double HACKED_CAPACITY = 101013370.7;
 
     private static final Logger logger = LogManager.getLogger();
 
