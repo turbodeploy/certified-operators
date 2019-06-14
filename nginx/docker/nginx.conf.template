@@ -4,13 +4,13 @@ include /etc/nginx/userconf/*.conf;
 # keep process alive so docker container doesn't exit
 daemon off;
 
-worker_processes  1;
+worker_processes $WORKER_PROCESSES;
 
 error_log  /var/log/nginx/error.log warn;
 pid        /var/run/nginx.pid;
 
 events {
-    worker_connections 256;
+    worker_connections $WORKER_CONNECTIONS;
 }
 
 http {
