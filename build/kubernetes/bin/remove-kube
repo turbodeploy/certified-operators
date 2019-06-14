@@ -1,5 +1,0 @@
-#!/bin/bash
-
-# Delete the complete XL application using helm
-cd ~/git/xl/build/kubernetes/helm
-helm delete --purge xl-release
