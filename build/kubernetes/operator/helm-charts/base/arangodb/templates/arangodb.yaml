@@ -118,7 +118,7 @@ metadata:
   name: {{ .Chart.Name }}
 spec:
   ports:
-  - name: http-arangodb
+  - name: tcp-arangodb
     port: 8529
   - name: http-arangodb-dump
     port: 8599
