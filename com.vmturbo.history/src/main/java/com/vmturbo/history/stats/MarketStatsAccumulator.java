@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -47,6 +48,7 @@ import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.utils.HistoryStatsUtils;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 
 /**
@@ -146,6 +148,13 @@ public class MarketStatsAccumulator {
                 .put(NUM_VCPU_FUNC, NUM_VCPUS)
                 .build();
 
+    /**
+     * Set of commodities which were set to inactive, but we still want to persist them since they
+     * are useful and we want to show them to user.
+     */
+    private static final Set<Integer> INACTIVE_COMMODITIES_TO_PERSIST = ImmutableSet.of(
+        CommodityType.SWAPPING_VALUE, CommodityType.BALLOONING_VALUE
+    );
 
     /**
      * Create an object to accumulate min / max / total / capacity over the commodities for
@@ -317,20 +326,18 @@ public class MarketStatsAccumulator {
                                 @Nonnull final List<TopologyDTO.CommoditySoldDTO> commoditySoldList)
             throws VmtDbException {
         for (TopologyDTO.CommoditySoldDTO commoditySoldDTO : commoditySoldList) {
-            // do not persist commodity if it is not active
-            if (!commoditySoldDTO.getActive()) {
-                logger.debug("Skipping inactive sold commodity type {}",
-                        () -> commoditySoldDTO.getCommodityType().getType());
+            final int intCommodityType = commoditySoldDTO.getCommodityType().getType();
+            // do not persist commodity if it is not active, but we want to persist some special
+            // inactive commodities like Swapping and Ballooning
+            if (!commoditySoldDTO.getActive() &&
+                    !INACTIVE_COMMODITIES_TO_PERSIST.contains(intCommodityType)) {
+                logger.debug("Skipping inactive sold commodity type {}", intCommodityType);
                 continue;
             }
 
-            final int intCommodityType = commoditySoldDTO.getCommodityType().getType();
-
-            Double capacity = adjustCapacity(commoditySoldDTO.getCapacity());
             String mixedCaseCommodityName = HistoryStatsUtils.formatCommodityName(intCommodityType);
             if (mixedCaseCommodityName == null) {
-                logger.warn("Skipping commodity sold type {}",
-                        commoditySoldDTO.getCommodityType().getType());
+                logger.warn("Skipping commodity sold type {}", intCommodityType);
                 continue;
             }
             // filter out Commodities, such as Access Commodities, that shouldn't be persisted
@@ -340,6 +347,7 @@ public class MarketStatsAccumulator {
 
             // if we have a non-null capacity and an effective capacity %, calculate effective capacity
             // otherwise set it to capacity.
+            Double capacity = adjustCapacity(commoditySoldDTO.getCapacity());
             Double effectiveCapacity
                     = (commoditySoldDTO.hasEffectiveCapacityPercentage() && (capacity != null))
                     ? (commoditySoldDTO.getEffectiveCapacityPercentage() / 100.0 * capacity)
@@ -530,18 +538,18 @@ public class MarketStatsAccumulator {
             CommoditiesBoughtFromProvider commoditiesBought, Map<Long, Map<Integer, Double>> capacities,
             Map<Long, TopologyEntityDTO> entityByOid) throws VmtDbException {
         for (CommodityBoughtDTO commodityBoughtDTO : commoditiesBought.getCommodityBoughtList()) {
-            // do not persist commodity if it is not active
-            if (!commodityBoughtDTO.getActive()) {
-                logger.debug("Skipping inactive bought commodity type {}",
-                        () -> commodityBoughtDTO.getCommodityType().getType());
+            final int commType = commodityBoughtDTO.getCommodityType().getType();
+            // do not persist commodity if it is not active, but we want to persist some special
+            // inactive commodities like Swapping and Ballooning
+            if (!commodityBoughtDTO.getActive() &&
+                    !INACTIVE_COMMODITIES_TO_PERSIST.contains(commType)) {
+                logger.debug("Skipping inactive bought commodity type {}", commType);
                 continue;
             }
 
-            final int commType = commodityBoughtDTO.getCommodityType().getType();
             String mixedCaseCommodityName = HistoryStatsUtils.formatCommodityName(commType);
             if (mixedCaseCommodityName == null) {
-                logger.warn("Skipping commodity bought type {} ",
-                        commodityBoughtDTO.getCommodityType().getType());
+                logger.warn("Skipping commodity bought type {} ", commType);
                 continue;
             }
             // filter out Commodities, such as Access Commodities, that shouldn't be persisted

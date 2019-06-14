@@ -187,8 +187,8 @@ public class LiveStatsDBTest {
         // MemAllocation, StorageCluster, Mem, Swapping, Ballooning, CPUProvisioned,
         // CPU, CPUAllocation, MemProvisioned, NetThrloughput, IOThroughput x 8
         // numSockets, numCpus x 8
-        // Total is 225, of which 82 are inactive.
-        checkTableCount(PmStatsLatest.PM_STATS_LATEST, 143);
+        // Total is 225, of which 82 are inactive (16 of the inactive are Swapping and Ballooning).
+        checkTableCount(PmStatsLatest.PM_STATS_LATEST, 159);
         checkTableCount(ScStatsLatest.SC_STATS_LATEST, 0);
         checkTableCount(SwStatsLatest.SW_STATS_LATEST, 0);
         // 1 VDC buys MemAllocation and CPUAllocation from 6 PMs
@@ -199,11 +199,12 @@ public class LiveStatsDBTest {
         // Total = 6 x 2 + 2 x 2 + 4 x 2 + 6 x 2 + 6 = 42
         checkTableCount(VdcStatsLatest.VDC_STATS_LATEST, 42);
         // Most VMs buys/sell/Produce 18 metrics, total is 531, of which 118 are inactive
-        checkTableCount(VmStatsLatest.VM_STATS_LATEST, 413);
+        // (58 of the inactive are Swapping and Ballooning)
+        checkTableCount(VmStatsLatest.VM_STATS_LATEST, 471);
         checkTableCount(VpodStatsLatest.VPOD_STATS_LATEST, 0);
 
-        // stats counts: application (4), DC (4), DA (3), PM (24), ST (8), VDC (2), VM (29) = 74
-        checkTableCount(MarketStatsLatest.MARKET_STATS_LATEST, 51);
+        // stats counts: application (3), DC (3), DA (1), PM (20), ST (7), VDC (2), VM (19) = 55
+        checkTableCount(MarketStatsLatest.MARKET_STATS_LATEST, 55);
         checkPropertyValue(NUM_HOSTS, 8);
         checkPropertyValue(NUM_VMS, 29);
         checkPropertyValue(NUM_STORAGES, 10);
