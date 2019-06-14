@@ -18,6 +18,8 @@ sed -i '/- facts/a\
     ignore_errors: yes' /opt/kubespray/roles/download/tasks/download_container.yml
 sed -i '/run_once: yes/a\
     ignore_errors: yes' /opt/kubespray/roles/download/tasks/download_container.yml
+sed -i '/- pull_required/a\
+    ignore_errors: yes' /opt/kubespray/roles/download/tasks/download_container.yml
 sed -i '/- group_names/a\
     ignore_errors: yes' /opt/kubespray/roles/download/tasks/download_container.yml
 sed -i 's/retries: 4/retries: 1/g' /opt/kubespray/roles/download/tasks/download_container.yml
@@ -53,6 +55,12 @@ sed -i 's/retries: 4/retries: 1/g' /opt/kubespray/roles/download/tasks/download_
 cp /opt/kubespray/roles/kubernetes-apps/helm/tasks/main.yml /opt/kubespray/roles/kubernetes-apps/helm/tasks/main.yml.online 
 sed -i '/proxy_env/a\
   ignore_errors: yes' /opt/kubespray/roles/kubernetes-apps/helm/tasks/main.yml
+
+cp /opt/kubespray/roles/container-engine/docker/tasks/main.yml /opt/kubespray/roles/container-engine/docker/tasks/main.yml
+sed -i '/when: ansible_distribution/a\
+  ignore_errors: yes' /opt/kubespray/roles/container-engine/docker/tasks/main.yml
+sed -i '/- yum_result.results/a\
+  ignore_errors: yes' /opt/kubespray/roles/container-engine/docker/tasks/main.yml
 
 #sudo cp /etc/yum.repos.d/CentOS-Base.repo /etc/yum.repos.d/CentOS-Base.repo.online
 #sudo sed -i '/enabled=0/d' /etc/yum.repos.d/CentOS-Base.repo
