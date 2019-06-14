@@ -41,7 +41,9 @@ env:
   - name: component_type
     value: mediation-scaleio
   - name: instance_id
-    value: mediation-scaleio-1
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
 
 resources:
   limits:

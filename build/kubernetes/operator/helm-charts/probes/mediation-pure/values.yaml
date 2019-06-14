@@ -41,7 +41,9 @@ env:
   - name: component_type
     value: mediation-pure
   - name: instance_id
-    value: mediation-pure-1
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
 
 resources:
   limits:

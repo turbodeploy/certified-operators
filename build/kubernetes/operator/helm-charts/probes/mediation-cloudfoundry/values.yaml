@@ -41,7 +41,9 @@ env:
   - name: component_type
     value: mediation-cloudfoundry
   - name: instance_id
-    value: mediation-cloudfoundry-1
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
 
 resources:
   limits:

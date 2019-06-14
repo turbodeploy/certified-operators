@@ -41,7 +41,9 @@ env:
   - name: component_type
     value: mediation-azurecost
   - name: instance_id
-    value: mediation-azurecost-1
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
 
 resources:
   limits:

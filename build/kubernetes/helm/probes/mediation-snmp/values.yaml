@@ -41,7 +41,9 @@ env:
   - name: component_type
     value: mediation-snmp
   - name: instance_id
-    value: mediation-snmp-1
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
 
 resources:
   limits:

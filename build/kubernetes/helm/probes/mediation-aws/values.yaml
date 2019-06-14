@@ -41,7 +41,9 @@ env:
   - name: component_type
     value: mediation-aws
   - name: instance_id
-    value: mediation-aws-1
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
 
 resources:
   limits:

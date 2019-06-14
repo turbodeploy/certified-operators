@@ -45,7 +45,9 @@ env:
   - name: component_type
     value: mediation-vcenterbrowsing
   - name: instance_id
-    value: mediation-vcenterbrowsing-1
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
 
 resources:
   limits:
