@@ -24,7 +24,6 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.ede.QuoteMinimizer;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
@@ -474,9 +473,14 @@ public class CostFunctionFactory {
                 costMap.get(priceId) : costMap.get(balanceAccountId);
 
         if (costByLicense == null) {
-            logger.warn("No entry found in cost map on seller: {}, for shopping list: {}, using " +
-                    "priceId: {}, balanceAccountId: {}", seller.getDebugInfoNeverUseInCode(),
-                    sl.getDebugInfoNeverUseInCode(), priceId, balanceAccountId);
+            if (logger.isTraceEnabled() || seller.isDebugEnabled()
+                    || sl.getBuyer().isDebugEnabled()) {
+                logger.warn("No entry found in cost map on seller: {}, for shopping list: {}, using " +
+                                "priceId: {}, balanceAccountId: {}, costMap keys: {}",
+                        seller.getDebugInfoNeverUseInCode(),
+                        sl.getDebugInfoNeverUseInCode(), priceId, balanceAccountId,
+                        costMap.keySet());
+            }
             return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
         }
 
@@ -980,10 +984,13 @@ public class CostFunctionFactory {
                     priceMap.get(priceId) : priceMap.get(balanceAccountId);
 
             if (priceDataList == null) {
-                logger.warn("No entry found in cost map for shopping list: {}, " +
-                                "using priceId: {}, balanceAccountId: {}",
-                        sl.getDebugInfoNeverUseInCode(), priceId, balanceAccountId);
-                return Double.POSITIVE_INFINITY;
+                if (logger.isTraceEnabled() || sl.getBuyer().isDebugEnabled()) {
+                    logger.warn("No entry found in cost map for shopping list: {}, " +
+                                    "using priceId: {}, balanceAccountId: {}, priceMap keys: {}",
+                            sl.getDebugInfoNeverUseInCode(), priceId, balanceAccountId,
+                            priceMap.keySet());
+                    return Double.POSITIVE_INFINITY;
+                }
             }
 
             for (PriceData priceData : priceDataList) {
