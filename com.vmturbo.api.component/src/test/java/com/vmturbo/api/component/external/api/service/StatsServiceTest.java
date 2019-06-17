@@ -57,6 +57,7 @@ import com.google.common.collect.Sets;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
@@ -254,7 +255,8 @@ public class StatsServiceTest {
         statsService = spy(new StatsService(statsServiceRpc, planRpcService, repositoryApi,
             repositoryRpcService, searchServiceClient, supplyChainFetcherFactory, statsMapper,
             groupExpander, mockClock, targetsService, groupService, Duration.ofMillis(LIVE_STATS_RETRIEVAL_WINDOW_MS),
-            costService, magicScopeGateway, userSessionContext, riService, REALTIME_CONTEXT_ID));
+            costService, magicScopeGateway, userSessionContext, riService,
+            Mockito.mock(ServiceEntityMapper.class), REALTIME_CONTEXT_ID));
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
         when(uuidMapper.fromUuid(oid2)).thenReturn(apiId2);
         when(apiId1.uuid()).thenReturn(oid1);

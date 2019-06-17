@@ -62,6 +62,7 @@ import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
@@ -488,7 +489,7 @@ public class MarketsServiceTest {
                     groupRpcService(), repositoryRpcService(), new UserSessionContext(),
                     uiNotificationChannel(), actionStatsQueryExecutor(), topologyProcessor(),
                     entitySeverityRpcService(), statsHistoryRpcService(),
-                    statsService(), REALTIME_CONTEXT_ID);
+                    statsService(), serviceEntityMapper(), REALTIME_CONTEXT_ID);
         }
 
         @Bean
@@ -523,7 +524,12 @@ public class MarketsServiceTest {
 
         @Bean
         public MarketMapper marketMapper() {
-            return new MarketMapper(scenarioMapper());
+            return new MarketMapper(scenarioMapper(), serviceEntityMapper());
+        }
+
+        @Bean
+        public ServiceEntityMapper serviceEntityMapper() {
+            return new ServiceEntityMapper(topologyProcessor());
         }
 
         @Bean

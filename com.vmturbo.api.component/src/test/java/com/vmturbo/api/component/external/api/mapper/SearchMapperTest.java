@@ -26,27 +26,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  *
  */
 public class SearchMapperTest {
-
-    private static long oid = 123456;
-    private static EntityState state = EntityState.MAINTENANCE; // MAINTENANCE
-    private static String displayName = "foo";
-    private static int vmType = EntityType.VIRTUAL_MACHINE_VALUE;
-
-    @Test
-    public void testSeDTO() {
-        Entity entity = Entity.newBuilder()
-                    .setOid(oid)
-                    .setState(state)
-                    .setDisplayName(displayName)
-                    .setType(vmType)
-                    .build();
-        ServiceEntityApiDTO seDTO = ServiceEntityMapper.toServiceEntityApiDTO(entity, Collections.emptyMap());
-        assertEquals(displayName, seDTO.getDisplayName());
-        assertEquals(String.valueOf(oid), seDTO.getUuid());
-        assertEquals("MAINTENANCE", seDTO.getState());
-        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), seDTO.getClassName());
-    }
-
     /**
      * This test verifies that changes in the types specified in {@link ServiceEntityMapper}
      * will not affect {@link SearchMapper#SEARCH_ALL_TYPES} (and if they do affect then the

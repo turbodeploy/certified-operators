@@ -284,6 +284,7 @@ public class ServiceConfig {
                 communicationConfig.entitySeverityService(),
                 communicationConfig.historyRpcService(),
                 statsService(),
+                communicationConfig.serviceEntityMapper(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
 
@@ -395,7 +396,8 @@ public class ServiceConfig {
                 mapperConfig.businessUnitMapper(),
                 communicationConfig.getRealtimeTopologyContextId(),
                 userSessionContext(),
-                communicationConfig.groupRpcService());
+                communicationConfig.groupRpcService(),
+                communicationConfig.serviceEntityMapper());
     }
 
     @Bean
@@ -432,6 +434,7 @@ public class ServiceConfig {
                 magicScopeGateway(),
                 userSessionContext(),
                 reservedInstancesService(),
+                communicationConfig.serviceEntityMapper(),
                 communicationConfig.getRealtimeTopologyContextId());
         groupsService().setStatsService(statsService);
         //marketsService().setStatsService(statsService);
@@ -469,6 +472,7 @@ public class ServiceConfig {
                 communicationConfig.severityPopulator(),
                 mapperConfig.actionSpecMapper(),
                 communicationConfig.actionsRpcService(),
+                communicationConfig.serviceEntityMapper(),
                 communicationConfig.getRealtimeTopologyContextId(),
                 websocketConfig.websocketHandler());
     }
@@ -546,7 +550,6 @@ public class ServiceConfig {
             mapperConfig.actionSpecMapper(),
             mapperConfig.paginationMapper(),
             communicationConfig.supplyChainFetcher(),
-            communicationConfig.repositoryApi(),
             communicationConfig.getRealtimeTopologyContextId());
     }
 }

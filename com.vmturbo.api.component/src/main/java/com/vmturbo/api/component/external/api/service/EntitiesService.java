@@ -2,7 +2,6 @@ package com.vmturbo.api.component.external.api.service;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -184,7 +183,7 @@ public class EntitiesService implements IEntitiesService {
                     ConstraintType.CLUSTER.toString(), 3);
 
     private static final Set<String> BREADCRUMB_ENTITIES_TO_FETCH =
-            new HashSet<String>(Arrays.asList(
+            new HashSet<>(Arrays.asList(
                     UIEntityType.REGION.apiStr(),
                     UIEntityType.AVAILABILITY_ZONE.apiStr(),
                     UIEntityType.DATACENTER.apiStr(),
@@ -210,7 +209,6 @@ public class EntitiesService implements IEntitiesService {
             @Nonnull final SettingsMapper settingsMapper,
             @Nonnull final ActionSearchUtil actionSearchUtil,
             @Nonnull final RepositoryApi repositoryApi) {
-
         this.actionOrchestratorRpcService = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -395,8 +393,6 @@ public class EntitiesService implements IEntitiesService {
             throw new IllegalArgumentException(String.format("Entity %s in the query is not " +
                 "related to the action %s.", uuid, aUuid));
         }
-        // add discovering targets to all entities associated with the action object
-        actionSearchUtil.populateActionApiDTOWithTargets(result);
         return result;
     }
 

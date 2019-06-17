@@ -14,13 +14,16 @@ public interface TargetData {
     /**
      * The 'displayName' for a target is taken from either the 'address' or 'nameOrAddress' property
      */
-    Set<String> TARGET_ADDRESS_KEYS = Sets.newHashSet("address", "nameOrAddress");
+    String TARGET_ADDRESS = "address";
+    String TARGET_NAME_OR_ADDRESS = "nameOrAddress";
+    Set<String> TARGET_ADDRESS_KEYS = Sets.newHashSet(TARGET_ADDRESS, TARGET_NAME_OR_ADDRESS);
 
     /**
      * Account values configuration for the specific target.
      *
      * @return account values
      */
+    @Nonnull
     Set<AccountValue> getAccountData();
 
     /**

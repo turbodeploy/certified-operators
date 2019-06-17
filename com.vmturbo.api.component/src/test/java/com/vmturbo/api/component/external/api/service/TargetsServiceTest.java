@@ -68,6 +68,7 @@ import com.vmturbo.api.NotificationDTO.Notification;
 import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification.TargetStatus;
 import com.vmturbo.api.component.communication.ApiComponentTargetListener;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.service.MarketsServiceTest.PlanServiceMock;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
@@ -115,6 +116,9 @@ public class TargetsServiceTest {
 
     @Autowired
     private TopologyProcessor topologyProcessor;
+
+    @Autowired
+    private ServiceEntityMapper serviceEntityMapper;
 
     private final ActionsServiceMole actionsServiceBackend =
         spy(new ActionsServiceMole());
@@ -655,7 +659,9 @@ public class TargetsServiceTest {
         final TargetsService targetsService = new TargetsService(
             topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
             Duration.ofMillis(50), Duration.ofMillis(100), null,
-            apiComponentTargetListener,searchServiceRpc,severityPopulator,actionSpecMapper,actionsRpcService,REALTIME_CONTEXT_ID, apiWebsocketHandler);
+            apiComponentTargetListener, searchServiceRpc, severityPopulator,
+            actionSpecMapper, actionsRpcService, serviceEntityMapper, REALTIME_CONTEXT_ID,
+            apiWebsocketHandler);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -682,8 +688,8 @@ public class TargetsServiceTest {
         final TargetsService targetsService = new TargetsService(
             topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
             Duration.ofMillis(50), Duration.ofMillis(100), null, apiComponentTargetListener,
-            searchServiceRpc, severityPopulator, actionSpecMapper, actionsRpcService, REALTIME_CONTEXT_ID,
-            apiWebsocketHandler);
+            searchServiceRpc, severityPopulator, actionSpecMapper, actionsRpcService, serviceEntityMapper,
+            REALTIME_CONTEXT_ID, apiWebsocketHandler);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -709,7 +715,8 @@ public class TargetsServiceTest {
         final TargetsService targetsService = new TargetsService(
             topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
             Duration.ofMillis(50), Duration.ofMillis(100), null,
-            apiComponentTargetListener,searchServiceRpc,severityPopulator,actionSpecMapper,actionsRpcService,REALTIME_CONTEXT_ID, apiWebsocketHandler);
+            apiComponentTargetListener, searchServiceRpc, severityPopulator, actionSpecMapper,
+            actionsRpcService, serviceEntityMapper, REALTIME_CONTEXT_ID, apiWebsocketHandler);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -991,12 +998,18 @@ public class TargetsServiceTest {
         }
 
         @Bean
+        public ServiceEntityMapper serviceEntityMapper() {
+            return new ServiceEntityMapper(topologyProcessor());
+        }
+
+        @Bean
         public TargetsService targetsService() {
             return new TargetsService(topologyProcessor(), Duration.ofSeconds(60), Duration.ofSeconds(1),
                 Duration.ofSeconds(60), Duration.ofSeconds(1), null,
                 apiComponentTargetListener(), searchServiceRpc(), severityPopulator(),
                 actionSpecMapper(),
                 actionRpcService(),
+                serviceEntityMapper(),
                 REALTIME_CONTEXT_ID,
                 new ApiWebsocketHandler(60 * 30, TimeUnit.SECONDS));
         }

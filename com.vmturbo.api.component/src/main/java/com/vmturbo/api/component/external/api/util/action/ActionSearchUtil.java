@@ -7,13 +7,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang.StringUtils;
-
-import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -41,7 +37,6 @@ public class ActionSearchUtil {
     private final ActionSpecMapper actionSpecMapper;
     private final PaginationMapper paginationMapper;
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
-    private final RepositoryApi repositoryApi;
     private final long realtimeTopologyContextId;
 
     public ActionSearchUtil(
@@ -49,36 +44,12 @@ public class ActionSearchUtil {
             @Nonnull ActionSpecMapper actionSpecMapper,
             @Nonnull PaginationMapper paginationMapper,
             @Nonnull SupplyChainFetcherFactory supplyChainFetcherFactory,
-            @Nonnull RepositoryApi repositoryApi,
             long realtimeTopologyContextId) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpc);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
-        this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
-    }
-
-    /**
-     * Obtains an {@link ActionApiDTO} object and populates all "discovered by" fields
-     * of all associated entities that it contains.
-     *
-     * @param actionApiDTO the {@link ActionApiDTO} object whose entities are to be populated
-     *                     with target information.
-     */
-    public void populateActionApiDTOWithTargets(@Nonnull ActionApiDTO actionApiDTO) {
-        Stream.of(actionApiDTO.getTarget(), actionApiDTO.getCurrentEntity(), actionApiDTO.getNewEntity())
-                .filter(Objects::nonNull)
-                // in some cases (e.g. START action), currentEntity may be a default
-                // ServiceEntityApiDTO, with all null fields since the UI reacts poorly to a null
-                // currentEntity.  We need to filter those out here since they don't represent
-                // actual service entities.
-                .filter(serviceEntityApiDTO -> StringUtils.isNotEmpty(serviceEntityApiDTO.getUuid()))
-                .forEach(serviceEntityApiDTO -> {
-                    if (serviceEntityApiDTO.getDiscoveredBy() != null) {
-                        repositoryApi.populateTargetApiDTO(serviceEntityApiDTO.getDiscoveredBy());
-                    }
-                });
     }
 
     /**
@@ -135,7 +106,6 @@ public class ActionSearchUtil {
                     .map(ActionOrchestratorAction::getActionSpec)
                     .collect(Collectors.toList()),
                 realtimeTopologyContextId);
-        results.forEach(this::populateActionApiDTOWithTargets);
 
         return
             PaginationProtoUtil

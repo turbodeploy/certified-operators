@@ -157,6 +157,8 @@ public class SearchService implements ISearchService {
 
     private final GroupServiceBlockingStub groupServiceRpc;
 
+    private final ServiceEntityMapper serviceEntityMapper;
+
     SearchService(@Nonnull final RepositoryApi repositoryApi,
                   @Nonnull final MarketsService marketsService,
                   @Nonnull final GroupsService groupsService,
@@ -177,7 +179,8 @@ public class SearchService implements ISearchService {
                   @Nonnull BusinessUnitMapper businessUnitMapper,
                   final long realtimeTopologyContextId,
                   @Nonnull final UserSessionContext userSessionContext,
-                  @Nonnull final GroupServiceBlockingStub groupServiceRpc) {
+                  @Nonnull final GroupServiceBlockingStub groupServiceRpc,
+                  @Nonnull final ServiceEntityMapper serviceEntityMapper) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.marketsService = Objects.requireNonNull(marketsService);
         this.groupsService = Objects.requireNonNull(groupsService);
@@ -199,6 +202,7 @@ public class SearchService implements ISearchService {
         this.realtimeContextId = realtimeTopologyContextId;
         this.userSessionContext = userSessionContext;
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
+        this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
     }
 
     @Override
@@ -476,10 +480,7 @@ public class SearchService implements ISearchService {
             List<ServiceEntityApiDTO> entities = response.getEntitiesList().stream()
                 .map(entity -> {
                     final ServiceEntityApiDTO serviceEntityApiDTO =
-                        ServiceEntityMapper.toServiceEntityApiDTO(entity, targetIdToProbeType);
-                    if (serviceEntityApiDTO.getDiscoveredBy() != null) {
-                        repositoryApi.populateTargetApiDTO(serviceEntityApiDTO.getDiscoveredBy());
-                    }
+                        serviceEntityMapper.toServiceEntityApiDTO(entity, targetIdToProbeType);
                     return serviceEntityApiDTO;
                 })
                 .collect(Collectors.toList());

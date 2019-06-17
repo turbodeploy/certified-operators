@@ -40,6 +40,7 @@ import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequ
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
@@ -106,6 +107,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 public class GroupsServiceTest {
 
@@ -177,6 +179,8 @@ public class GroupsServiceTest {
         MockitoAnnotations.initMocks(this);
 
         // create inputs for the service
+        final ServiceEntityMapper serviceEntityMapper =
+                new ServiceEntityMapper(mock(TopologyProcessor.class));
         final SearchServiceBlockingStub searchServiceRpc =
                 SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final ActionsServiceBlockingStub actionOrchestratorRpcService =
@@ -187,7 +191,7 @@ public class GroupsServiceTest {
         final ActionSearchUtil actionSearchUtil =
                 new ActionSearchUtil(
                         actionOrchestratorRpcService, actionSpecMapper,
-                        paginationMapper, supplyChainFetcherFactory, repositoryApi, CONTEXT_ID);
+                        paginationMapper, supplyChainFetcherFactory, CONTEXT_ID);
         final SettingsMapper settingsMapper = mock(SettingsMapper.class);
 
         groupsService =

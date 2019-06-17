@@ -35,10 +35,15 @@ public class MarketMapper {
 
     private final ScenarioMapper scenarioMapper;
 
+    private final ServiceEntityMapper serviceEntityMapper;
+
     public static final String MARKET = "Market";
 
-    public MarketMapper(@Nonnull final ScenarioMapper scenarioMapper) {
+    public MarketMapper(
+            @Nonnull final ScenarioMapper scenarioMapper,
+            @Nonnull final ServiceEntityMapper serviceEntityMapper) {
         this.scenarioMapper = Objects.requireNonNull(scenarioMapper);
+        this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
     }
 
     @Nonnull
@@ -133,7 +138,7 @@ public class MarketMapper {
     public List<ServiceEntityApiDTO> seDtosFromTopoResponse(List<TopologyEntityDTO> topologyEntityDTOS) {
         List<ServiceEntityApiDTO> entitiesList = new ArrayList<>();
         for (TopologyEntityDTO entity : topologyEntityDTOS) {
-            ServiceEntityApiDTO dto = ServiceEntityMapper.toServiceEntityApiDTO(entity, null);
+            ServiceEntityApiDTO dto = serviceEntityMapper.toServiceEntityApiDTO(entity, null);
             entitiesList.add(dto);
         }
         return entitiesList;

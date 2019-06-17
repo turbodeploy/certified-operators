@@ -145,6 +145,8 @@ public class ActionSpecMapper {
 
     private final ActionSpecMappingContextFactory actionSpecMappingContextFactory;
 
+    private final ServiceEntityMapper serviceEntityMapper;
+
     private final long realtimeTopologyContextId;
 
     private static final Logger logger = LogManager.getLogger();
@@ -166,9 +168,10 @@ public class ActionSpecMapper {
     };
 
     public ActionSpecMapper(@Nonnull ActionSpecMappingContextFactory actionSpecMappingContextFactory,
-                            final long realtimeTopologyContextId,@Nonnull CostClientConfig costClientConfig,
+                            @Nonnull ServiceEntityMapper serviceEntityMapper, final long realtimeTopologyContextId,@Nonnull CostClientConfig costClientConfig,
                             @Nonnull CommunicationConfig communicationConfig, @Nonnull MapperConfig mapperConfig) {
         this.actionSpecMappingContextFactory = Objects.requireNonNull(actionSpecMappingContextFactory);
+        this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.costClientConfig = Objects.requireNonNull(costClientConfig);
         this.communicationConfig = Objects.requireNonNull(communicationConfig);
@@ -474,7 +477,7 @@ public class ActionSpecMapper {
             // set location, which is the region
             TopologyEntityDTO region = context.getRegionForVM(targetEntityId);
             if (region != null) {
-                BaseApiDTO regionDTO = ServiceEntityMapper.toServiceEntityApiDTO(region, null);
+                BaseApiDTO regionDTO = serviceEntityMapper.toServiceEntityApiDTO(region, null);
                 // todo: set current and new location to be different if region could be changed
                 actionApiDTO.setCurrentLocation(regionDTO);
                 actionApiDTO.setNewLocation(regionDTO);

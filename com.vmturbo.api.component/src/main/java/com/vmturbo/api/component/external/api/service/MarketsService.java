@@ -207,6 +207,8 @@ public class MarketsService implements IMarketsService {
 
     private final StatsHistoryServiceBlockingStub statsHistory;
 
+    private final ServiceEntityMapper serviceEntityMapper;
+
     // Exclude request for price index for commodities of real market not saved in DB
     private final Set<Integer> notSavedEntityTypes = ImmutableSet.of(EntityDTO.EntityType.NETWORK.getValue(),
             EntityDTO.EntityType.INTERNET.getValue(),
@@ -232,6 +234,7 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final EntitySeverityServiceBlockingStub entitySeverity,
                           @Nonnull final StatsHistoryServiceBlockingStub statsHistory,
                           @Nonnull final StatsService statsService,
+                          @Nonnull final ServiceEntityMapper serviceEntityMapper,
                           final long realtimeTopologyContextId) {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
@@ -255,6 +258,7 @@ public class MarketsService implements IMarketsService {
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.statsHistory = Objects.requireNonNull(statsHistory);
         this.statsService = Objects.requireNonNull(statsService);
+        this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
     }
 
     /**
@@ -919,7 +923,7 @@ public class MarketsService implements IMarketsService {
                     final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
                     final TopologyDTO.TopologyEntityDTO planEntity = entityStats.getPlanEntity();
                     final ServiceEntityApiDTO serviceEntityApiDTO =
-                            ServiceEntityMapper.toServiceEntityApiDTO(planEntity, null);
+                        serviceEntityMapper.toServiceEntityApiDTO(planEntity, null);
                     entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
                     entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
                     entityStatsApiDTO.setClassName(UIEntityType.fromType(planEntity.getEntityType()).apiStr());
@@ -1096,7 +1100,7 @@ public class MarketsService implements IMarketsService {
      */
     private ServiceEntityApiDTO createServiceEntityApiDTO(TopologyEntityDTO entity,
                                                           Map<Long, TopologyEntityDTO> providers) {
-        ServiceEntityApiDTO seEntity = ServiceEntityMapper.toServiceEntityApiDTO(entity, null);
+        ServiceEntityApiDTO seEntity = serviceEntityMapper.toServiceEntityApiDTO(entity, null);
         StringJoiner placedOnJoiner = new StringJoiner(",");
         StringJoiner notPlacedOnJoiner = new StringJoiner(",");
         // for all of the commodities bought, build a string description of which are placed

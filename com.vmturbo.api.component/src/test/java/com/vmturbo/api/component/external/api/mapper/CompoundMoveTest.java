@@ -4,16 +4,16 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.mockito.Matchers.any;
 
-import java.io.IOException;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -29,7 +29,7 @@ import com.vmturbo.api.component.external.api.mapper.aspect.VirtualMachineAspect
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.dto.action.ActionApiDTO;
-import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -53,10 +53,16 @@ import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.api.AccountValue;
+import com.vmturbo.topology.processor.api.ProbeInfo;
+import com.vmturbo.topology.processor.api.TargetInfo;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
  * Test the construction of {@link ActionApiDTO} with compound moves.
@@ -81,9 +87,13 @@ public class CompoundMoveTest {
     private static final int PM = EntityType.PHYSICAL_MACHINE_VALUE;
     private static final int ST = EntityType.STORAGE_VALUE;
 
+    private static final long TARGET_ID = 100L;
+    private static final String TARGET_DISPLAY_NAME = "target display name";
+    private static final String PROBE_TYPE = "probe type";
+
     private SearchServiceMole searchMole;
 
-    private static final long TARGET_ID = 10;
+    private static final long TARGET_ENTITY_ID = 10;
     private static final String TARGET_NAME = "vm-1";
     private static final long ST1_ID = 20;
     private static final String ST1_NAME = "storage-1";
@@ -96,8 +106,12 @@ public class CompoundMoveTest {
     private static final long VOL1_ID = 40;
     private static final String VOL1_NAME = "vol-1";
 
+    private TopologyProcessor topologyProcessor = Mockito.mock(TopologyProcessor.class);
+
+    private final ServiceEntityMapper serviceEntityMapper = new ServiceEntityMapper(topologyProcessor);
+
     @Before
-    public void setup() throws IOException {
+    public void setup() throws Exception {
         policyMole = Mockito.spy(PolicyDTOMoles.PolicyServiceMole.class);
         final List<PolicyResponse> policyResponses = ImmutableList.of(
             PolicyResponse.newBuilder().setPolicy(Policy.newBuilder()
@@ -116,22 +130,24 @@ public class CompoundMoveTest {
         SearchServiceBlockingStub searchServiceBlockingStub = SearchServiceGrpc.newBlockingStub(
             searchGrpcServer.getChannel());
 
+        mockTopologyProcessorOutputs();
+
         actionSpecMappingContextFactory = new ActionSpecMappingContextFactory(policyService,
             Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()),
             searchServiceBlockingStub, Mockito.mock(CloudAspectMapper.class),
             Mockito.mock(VirtualMachineAspectMapper.class),
             Mockito.mock(VirtualVolumeAspectMapper.class), REAL_TIME_TOPOLOGY_CONTEXT_ID,
             Mockito.mock(CostClientConfig.class), null,
-            null);
+            null, serviceEntityMapper);
 
-        mapper = new ActionSpecMapper(actionSpecMappingContextFactory, REAL_TIME_TOPOLOGY_CONTEXT_ID,
+        mapper = new ActionSpecMapper(actionSpecMappingContextFactory, Mockito.mock(ServiceEntityMapper.class), REAL_TIME_TOPOLOGY_CONTEXT_ID,
                  Mockito.mock(CostClientConfig.class), Mockito.mock(CommunicationConfig.class),
                  Mockito.mock(MapperConfig.class));
         IdentityGenerator.initPrefix(0);
         Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
             .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
                 .addAllTopologyEntityDtos(Lists.newArrayList(
-                    topologyEntityDTO(TARGET_NAME, TARGET_ID, EntityType.VIRTUAL_MACHINE_VALUE),
+                    topologyEntityDTO(TARGET_NAME, TARGET_ENTITY_ID, EntityType.VIRTUAL_MACHINE_VALUE),
                     topologyEntityDTO(PM1_NAME, PM1_ID, EntityType.PHYSICAL_MACHINE_VALUE),
                     topologyEntityDTO(PM2_NAME, PM2_ID, EntityType.PHYSICAL_MACHINE_VALUE),
                     topologyEntityDTO(ST1_NAME, ST1_ID, EntityType.STORAGE_VALUE),
@@ -143,28 +159,13 @@ public class CompoundMoveTest {
     private TopologyEntityDTO topologyEntityDTO(@Nonnull final String displayName, long oid,
                                                 int entityType) {
         return TopologyEntityDTO.newBuilder()
-            .setOid(oid)
-            .setDisplayName(displayName)
-            .setEntityType(entityType)
-            .build();
-    }
-
-    private Map<Long, Optional<ServiceEntityApiDTO>> oidToEntityMap(
-                    ServiceEntityApiDTO... dtos) {
-        Map<Long, Optional<ServiceEntityApiDTO>> answer = new HashMap<>();
-        for (ServiceEntityApiDTO dto : dtos) {
-            answer.put(Long.valueOf(dto.getUuid()), Optional.of(dto));
-        }
-        return answer;
-    }
-
-    private ServiceEntityApiDTO entityApiDTO(@Nonnull final String displayName, long oid,
-                    @Nonnull String className) {
-        ServiceEntityApiDTO seDTO = new ServiceEntityApiDTO();
-        seDTO.setDisplayName(displayName);
-        seDTO.setUuid(Long.toString(oid));
-        seDTO.setClassName(className);
-        return seDTO;
+                .setOid(oid)
+                .setDisplayName(displayName)
+                .setEntityType(entityType)
+                .setOrigin(
+                    Origin.newBuilder()
+                        .setDiscoveryOrigin(DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(TARGET_ID)))
+                .build();
     }
 
     /**
@@ -177,12 +178,13 @@ public class CompoundMoveTest {
     public void testSimpleAction()
                     throws UnknownObjectException, UnsupportedActionException, ExecutionException,
                     InterruptedException {
-        ActionDTO.Action moveStorage = makeAction(TARGET_ID, VM, ST1_ID, ST, ST2_ID, ST, null);
+        ActionDTO.Action moveStorage = makeAction(TARGET_ENTITY_ID, VM, ST1_ID, ST, ST2_ID, ST, null);
         ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveStorage), 77L);
         assertSame(ActionType.MOVE, apiDto.getActionType());
         assertEquals(1, apiDto.getCompoundActions().size());
         assertEquals(String.valueOf(ST1_ID), apiDto.getCurrentValue());
         assertEquals(String.valueOf(ST2_ID), apiDto.getNewValue());
+        checkTargetsInActionApiDTO(apiDto);
     }
 
     /**
@@ -196,12 +198,13 @@ public class CompoundMoveTest {
     public void testSimpleActionWithResource()
             throws UnknownObjectException, UnsupportedActionException, ExecutionException,
             InterruptedException {
-        ActionDTO.Action moveVolume = makeAction(TARGET_ID, VM, ST1_ID, ST, ST2_ID, ST, VOL1_ID);
+        ActionDTO.Action moveVolume = makeAction(TARGET_ENTITY_ID, VM, ST1_ID, ST, ST2_ID, ST, VOL1_ID);
         ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveVolume), 77L);
         assertSame(ActionType.MOVE, apiDto.getActionType());
         assertEquals(1, apiDto.getCompoundActions().size());
         assertEquals(String.valueOf(ST1_ID), apiDto.getCurrentValue());
         assertEquals(String.valueOf(ST2_ID), apiDto.getNewValue());
+        checkTargetsInActionApiDTO(apiDto);
     }
 
     /**
@@ -215,12 +218,13 @@ public class CompoundMoveTest {
     public void testCompoundAction1()
                     throws UnknownObjectException, UnsupportedActionException, ExecutionException,
                     InterruptedException {
-        ActionDTO.Action moveBoth1 = makeAction(TARGET_ID, VM, ST1_ID, ST, ST2_ID, ST, PM1_ID, PM, PM2_ID, PM);
+        ActionDTO.Action moveBoth1 = makeAction(TARGET_ENTITY_ID, VM, ST1_ID, ST, ST2_ID, ST, PM1_ID, PM, PM2_ID, PM);
         ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveBoth1), 77L);
         assertSame(ActionType.MOVE, apiDto.getActionType());
         assertEquals(2, apiDto.getCompoundActions().size());
         assertEquals(String.valueOf(PM1_ID), apiDto.getCurrentValue());
         assertEquals(String.valueOf(PM2_ID), apiDto.getNewValue());
+        checkTargetsInActionApiDTO(apiDto);
     }
 
     /**
@@ -234,34 +238,14 @@ public class CompoundMoveTest {
     public void testCompoundAction2()
                     throws UnknownObjectException, UnsupportedActionException, ExecutionException,
                     InterruptedException {
-        ActionDTO.Action moveBoth2 = makeAction(TARGET_ID, VM,
+        ActionDTO.Action moveBoth2 = makeAction(TARGET_ENTITY_ID, VM,
             PM1_ID, PM, PM2_ID, PM, ST1_ID, ST, ST2_ID, ST); // different order
         ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveBoth2), 77L);
         assertSame(ActionType.MOVE, apiDto.getActionType());
         assertEquals(2, apiDto.getCompoundActions().size());
         assertEquals(String.valueOf(PM1_ID), apiDto.getCurrentValue());
         assertEquals(String.valueOf(PM2_ID), apiDto.getNewValue());
-    }
-
-    private static String details(String targetType, String targetName, String providerName1,
-                                  String providerName2) {
-        return "Move " + targetType + " "
-                        + targetName
-                        + " from "
-                        + providerName1
-                        + " to "
-                        + providerName2;
-    }
-
-    private static String moveDetailsWithResource(String resourceType, String resourceName,
-                                                  String targetType, String targetName,
-                                                  String providerName1, String providerName2) {
-        return "Move " + resourceType + " "
-                + resourceName + " of " + targetType + " " + targetName
-                + " from "
-                + providerName1
-                + " to "
-                + providerName2;
+        checkTargetsInActionApiDTO(apiDto);
     }
 
     private ActionSpec buildActionSpec(ActionDTO.Action action) {
@@ -324,5 +308,35 @@ public class CompoundMoveTest {
             changeProviderBuilder.setResource(ApiUtilsTest.createActionEntity(resource));
         }
         return changeProviderBuilder.build();
+    }
+
+    private void mockTopologyProcessorOutputs() throws Exception {
+        final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
+        final ProbeInfo probeInfo = Mockito.mock(ProbeInfo.class);
+        final AccountValue accountValue = Mockito.mock(AccountValue.class);
+        Mockito.when(targetInfo.getId()).thenReturn(TARGET_ID);
+        final long probeId = 11L;
+        Mockito.when(targetInfo.getProbeId()).thenReturn(probeId);
+        Mockito.when(targetInfo.getAccountData()).thenReturn(Collections.singleton(accountValue));
+        Mockito.when(accountValue.getName()).thenReturn(TargetInfo.TARGET_ADDRESS);
+        Mockito.when(accountValue.getStringValue()).thenReturn(TARGET_DISPLAY_NAME);
+        Mockito.when(probeInfo.getId()).thenReturn(probeId);
+        Mockito.when(probeInfo.getType()).thenReturn(PROBE_TYPE);
+        Mockito.when(topologyProcessor.getProbe(Mockito.eq(probeId))).thenReturn(probeInfo);
+        Mockito.when(topologyProcessor.getTarget(Mockito.eq(TARGET_ID))).thenReturn(targetInfo);
+    }
+
+    private void checkTargetsInActionApiDTO(ActionApiDTO actionApiDTO) {
+        Assert.assertNotNull(actionApiDTO);
+        Stream.of(actionApiDTO.getTarget(), actionApiDTO.getNewEntity(), actionApiDTO.getCurrentEntity())
+                .filter(Objects::nonNull)
+                .forEach(e -> checkTarget(e.getDiscoveredBy()));
+    }
+
+    private void checkTarget(TargetApiDTO targetApiDTO) {
+        Assert.assertNotNull(targetApiDTO);
+        Assert.assertEquals(TARGET_ID, (long)Long.valueOf(targetApiDTO.getUuid()));
+        Assert.assertEquals(TARGET_DISPLAY_NAME, targetApiDTO.getDisplayName());
+        Assert.assertEquals(PROBE_TYPE, targetApiDTO.getType());
     }
 }

@@ -206,6 +206,8 @@ public class StatsService implements IStatsService {
 
     private final ReservedInstancesService riService;
 
+    private final ServiceEntityMapper serviceEntityMapper;
+
     private final long realtimeTopologyContextId;
 
     // CLUSTER_STATS is a collection of the cluster-headroom stats calculated from nightly plans.
@@ -299,6 +301,7 @@ public class StatsService implements IStatsService {
                  @Nonnull final MagicScopeGateway magicScopeGateway,
                  @Nonnull final UserSessionContext userSessionContext,
                  @Nonnull final ReservedInstancesService riService,
+                 @Nonnull final ServiceEntityMapper serviceEntityMapper,
                  final long realtimeTopologyContextId) {
         this.statsServiceRpc = Objects.requireNonNull(statsServiceRpc);
         this.planRpcService = planRpcService;
@@ -317,6 +320,7 @@ public class StatsService implements IStatsService {
         this.magicScopeGateway = Objects.requireNonNull(magicScopeGateway);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
         this.riService = Objects.requireNonNull(riService);
+        this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
@@ -1221,7 +1225,7 @@ public class StatsService implements IStatsService {
                             UIEntityType.CLOUD_SERVICE.apiStr())))
                     .build());
             return response.getTopologyEntityDtosList().stream()
-                .map(topologyEntity -> ServiceEntityMapper.toServiceEntityApiDTO(topologyEntity, null))
+                .map(topologyEntity -> serviceEntityMapper.toServiceEntityApiDTO(topologyEntity, null))
                 .collect(Collectors.toList());
         } catch (Exception e) {
             logger.error("Failed to search Cloud service");
@@ -1388,10 +1392,7 @@ public class StatsService implements IStatsService {
                 final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
                 final TopologyDTO.TopologyEntityDTO planEntity = entityStats.getPlanEntity();
                 final ServiceEntityApiDTO serviceEntityApiDTO =
-                        ServiceEntityMapper.toServiceEntityApiDTO(planEntity, null);
-                if (serviceEntityApiDTO.getDiscoveredBy() != null) {
-                    repositoryApi.populateTargetApiDTO(serviceEntityApiDTO.getDiscoveredBy());
-                }
+                        serviceEntityMapper.toServiceEntityApiDTO(planEntity, null);
                 entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
                 entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
                 entityStatsApiDTO.setClassName(UIEntityType.fromType(planEntity.getEntityType()).apiStr());

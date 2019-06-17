@@ -43,7 +43,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterRequest;
@@ -51,7 +50,6 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsRequest
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
-import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
@@ -91,6 +89,8 @@ public class ActionSpecMappingContextFactory {
 
     private final ReservedInstanceSpecServiceBlockingStub riSpecServiceClient;
 
+    private final ServiceEntityMapper serviceEntityMapper;
+
     public ActionSpecMappingContextFactory(@Nonnull PolicyServiceBlockingStub policyService,
                                            @Nonnull ExecutorService executorService,
                                            @Nonnull SearchServiceBlockingStub searchServiceRpc,
@@ -100,7 +100,8 @@ public class ActionSpecMappingContextFactory {
                                            final long realtimeTopologyContextId,
                                            @Nonnull CostClientConfig costClientConfig,
                                            @Nonnull BuyReservedInstanceServiceBlockingStub buyRIServiceClient,
-                                           @Nonnull ReservedInstanceSpecServiceBlockingStub riSpecServiceClient) {
+                                           @Nonnull ReservedInstanceSpecServiceBlockingStub riSpecServiceClient,
+                                           @Nonnull ServiceEntityMapper serviceEntityMapper) {
         this.policyService = Objects.requireNonNull(policyService);
         this.executorService = Objects.requireNonNull(executorService);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
@@ -111,6 +112,7 @@ public class ActionSpecMappingContextFactory {
         this.costClientConfig = costClientConfig;
         this.buyRIServiceClient = buyRIServiceClient;
         this.riSpecServiceClient = riSpecServiceClient;
+        this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
     }
 
     /**
@@ -191,7 +193,8 @@ public class ActionSpecMappingContextFactory {
             final Map<Long, TopologyEntityDTO> entitiesById = topologyEntityDTOs.stream()
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
             return new ActionSpecMappingContext(entitiesById, policies.get(), Collections.emptyMap(),
-                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), buyRIIdToRIBoughtandRISpec);
+                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+                buyRIIdToRIBoughtandRISpec, serviceEntityMapper);
         }
 
         // fetch more info for plan actions
@@ -220,7 +223,7 @@ public class ActionSpecMappingContextFactory {
             }
         }
         return new ActionSpecMappingContext(entitiesById, policies.get(), zoneIdToRegion,
-            volumesAspectsByVM, cloudAspects, vmAspects, buyRIIdToRIBoughtandRISpec);
+            volumesAspectsByVM, cloudAspects, vmAspects, buyRIIdToRIBoughtandRISpec, serviceEntityMapper);
     }
 
     @Nonnull
@@ -360,11 +363,12 @@ public class ActionSpecMappingContextFactory {
                                  @Nonnull Map<Long, EntityAspect> cloudAspects,
                                  @Nonnull Map<Long, EntityAspect> vmAspects,
                                  @Nonnull Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>>
-                                 buyRIIdToRIBoughtandRISpec) {
+                                         buyRIIdToRIBoughtandRISpec,
+                                 @Nonnull ServiceEntityMapper serviceEntityMapper) {
             this.topologyEntityDTOs = topologyEntityDTOs;
             this.serviceEntityApiDTOs = topologyEntityDTOs.entrySet().stream()
                 .collect(Collectors.toMap(Entry::getKey, entry ->
-                    ServiceEntityMapper.toServiceEntityApiDTO(entry.getValue(), null)));
+                    serviceEntityMapper.toServiceEntityApiDTO(entry.getValue(), null)));
             this.policies = Objects.requireNonNull(policies);
             this.zoneIdToRegion = Objects.requireNonNull(zoneIdToRegion);
             this.volumeAspectsByVM = Objects.requireNonNull(volumeAspectsByVM);

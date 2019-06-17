@@ -70,6 +70,7 @@ public class MapperConfig {
     public ActionSpecMapper actionSpecMapper() {
         return new ActionSpecMapper(
             actionSpecMappingContextFactory(),
+            communicationConfig.serviceEntityMapper(),
             communicationConfig.getRealtimeTopologyContextId(),
             costClientConfig,
             communicationConfig,
@@ -88,7 +89,8 @@ public class MapperConfig {
             communicationConfig.getRealtimeTopologyContextId(),
             costClientConfig,
             BuyReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
-            ReservedInstanceSpecServiceGrpc.newBlockingStub(costClientConfig.costChannel()));
+            ReservedInstanceSpecServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
+            communicationConfig.serviceEntityMapper());
     }
 
     @Bean
@@ -135,7 +137,7 @@ public class MapperConfig {
 
     @Bean
     public MarketMapper marketMapper() {
-        return new MarketMapper(scenarioMapper());
+        return new MarketMapper(scenarioMapper(), communicationConfig.serviceEntityMapper());
     }
 
     @Bean

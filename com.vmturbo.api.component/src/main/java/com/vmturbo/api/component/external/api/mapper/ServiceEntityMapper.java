@@ -4,10 +4,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -16,10 +20,23 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.mapping.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
+import com.vmturbo.topology.processor.api.TargetData;
+import com.vmturbo.topology.processor.api.TargetInfo;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
+import com.vmturbo.topology.processor.api.TopologyProcessorException;
 
 public class ServiceEntityMapper {
+
+    private final Logger logger = LogManager.getLogger();
+
+    private final TopologyProcessor topologyProcessor;
+
+    public ServiceEntityMapper(@Nonnull TopologyProcessor topologyProcessor) {
+        this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
+    }
 
     /**
      * Copies the the basic fields of a {@link BaseApiDTO} object from a {@link TopologyEntityDTO}
@@ -31,7 +48,7 @@ public class ServiceEntityMapper {
     public static void setBasicFields(
             @Nonnull BaseApiDTO baseApiDTO,
             @Nonnull TopologyEntityDTO topologyEntityDTO) {
-        baseApiDTO.setDisplayName(Objects.requireNonNull(topologyEntityDTO).getDisplayName());
+        baseApiDTO.setDisplayName(topologyEntityDTO.getDisplayName());
         baseApiDTO.setClassName(UIEntityType.fromEntity(topologyEntityDTO).apiStr());
         baseApiDTO.setUuid(String.valueOf(topologyEntityDTO.getOid()));
     }
@@ -49,41 +66,40 @@ public class ServiceEntityMapper {
      * @return an {@link ServiceEntityApiDTO} populated from the given topologyEntity
      */
     @Nonnull
-    public static ServiceEntityApiDTO toServiceEntityApiDTO(
+    public ServiceEntityApiDTO toServiceEntityApiDTO(
             @Nonnull TopologyEntityDTO topologyEntityDTO,
             @Nullable EntityAspectMapper aspectMapper) {
         // basic information
-        final ServiceEntityApiDTO seDTO = new ServiceEntityApiDTO();
-        setBasicFields(seDTO, topologyEntityDTO);
+        final ServiceEntityApiDTO result = new ServiceEntityApiDTO();
+        setBasicFields(result, topologyEntityDTO);
         if (topologyEntityDTO.hasEntityState()) {
-            seDTO.setState(UIEntityState.fromEntityState(topologyEntityDTO.getEntityState()).apiStr());
+            result.setState(UIEntityState.fromEntityState(topologyEntityDTO.getEntityState()).apiStr());
         }
         if (topologyEntityDTO.hasEnvironmentType()) {
             EnvironmentTypeMapper
                 .fromXLToApi(topologyEntityDTO.getEnvironmentType())
-                .ifPresent(seDTO::setEnvironmentType);
+                .ifPresent(result::setEnvironmentType);
         }
 
         // aspects, if required
         if (aspectMapper != null) {
-            seDTO.setAspects(aspectMapper.getAspectsByEntity(topologyEntityDTO));
+            result.setAspects(aspectMapper.getAspectsByEntity(topologyEntityDTO));
         }
 
-        final List<Long> discoveringTargetIdList = topologyEntityDTO
-            .getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList();
+        // target
+        final List<Long> discoveringTargetIdList =
+            topologyEntityDTO.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList();
         if (!discoveringTargetIdList.isEmpty()) {
-            final TargetApiDTO discoveringTarget = new TargetApiDTO();
-            discoveringTarget.setUuid(Long.toString(discoveringTargetIdList.get(0)));
-            seDTO.setDiscoveredBy(discoveringTarget);
+            getTargetApiDTO(discoveringTargetIdList.get(0)).ifPresent(result::setDiscoveredBy);
         }
 
         //tags
-        seDTO.setTags(
+        result.setTags(
             topologyEntityDTO.getTags().getTagsMap().entrySet().stream()
                 .collect(
                     Collectors.toMap(Entry::getKey, entry -> entry.getValue().getValuesList())));
 
-        return seDTO;
+        return result;
     }
 
     /**
@@ -106,6 +122,15 @@ public class ServiceEntityMapper {
         // aspects, if required
         result.setAspects(serviceEntityApiDTO.getAspects());
 
+        // target, if exists
+        if (serviceEntityApiDTO.getDiscoveredBy() != null) {
+            final TargetApiDTO targetApiDTO = new TargetApiDTO();
+            targetApiDTO.setUuid(serviceEntityApiDTO.getDiscoveredBy().getUuid());
+            targetApiDTO.setDisplayName(serviceEntityApiDTO.getDiscoveredBy().getDisplayName());
+            targetApiDTO.setType(serviceEntityApiDTO.getDiscoveredBy().getType());
+            result.setDiscoveredBy(targetApiDTO);
+        }
+
         //tags
         result.setTags(serviceEntityApiDTO.getTags());
 
@@ -116,25 +141,50 @@ public class ServiceEntityMapper {
      * Convert a {@link com.vmturbo.common.protobuf.search.Search.Entity} to a {@link ServiceEntityApiDTO}.
      *
      * @param entity the entity to convert
-     * @param targetIdToProbeType map from target ids to probe types.
+     * @param targetIdToProbeType map from target ids to probe types. TODO: remove. OM-47354
      * @return the to resulting service entity API DTO.
      */
-    public static ServiceEntityApiDTO toServiceEntityApiDTO(@Nonnull Entity entity,
-                                                            @Nonnull Map<Long, String> targetIdToProbeType) {
-        ServiceEntityApiDTO seDTO = new ServiceEntityApiDTO();
-        seDTO.setDisplayName(entity.getDisplayName());
-        seDTO.setState(UIEntityState.fromEntityState(entity.getState()).apiStr());
-        seDTO.setClassName(UIEntityType.fromType(entity.getType()).apiStr());
-        seDTO.setUuid(String.valueOf(entity.getOid()));
-        // set discoveredBy
+    public ServiceEntityApiDTO toServiceEntityApiDTO(@Nonnull Entity entity,
+                                                     @Nonnull Map<Long, String> targetIdToProbeType) {
+        final ServiceEntityApiDTO result = new ServiceEntityApiDTO();
+        result.setDisplayName(entity.getDisplayName());
+        result.setState(UIEntityState.fromEntityState(entity.getState()).apiStr());
+        result.setClassName(UIEntityType.fromType(entity.getType()).apiStr());
+        result.setUuid(String.valueOf(entity.getOid()));
         if (entity.getTargetIdsCount() > 0) {
-            seDTO.setDiscoveredBy(SearchMapper.createDiscoveredBy(String.valueOf(entity.getTargetIdsList().get(0)),
-                targetIdToProbeType));
+            getTargetApiDTO(entity.getTargetIdsList().get(0)).ifPresent(result::setDiscoveredBy);
         } else if (targetIdToProbeType.size() > 0) {
-            seDTO.setDiscoveredBy(SearchMapper.createDiscoveredBy(
+            result.setDiscoveredBy(SearchMapper.createDiscoveredBy(
                 Long.toString(targetIdToProbeType.keySet().iterator().next()),
                 targetIdToProbeType));
         }
-        return seDTO;
+        return result;
+    }
+
+    @Nonnull
+    private Optional<TargetApiDTO> getTargetApiDTO(long targetId) {
+        final TargetApiDTO result = new TargetApiDTO();
+        result.setUuid(Long.toString(targetId));
+
+        final TargetInfo targetInfo;
+        try {
+            // get target info from the topology processor
+            targetInfo = topologyProcessor.getTarget(targetId);
+            result.setDisplayName(
+                TargetData.getDisplayName(targetInfo)
+                    .orElseGet(() -> {
+                        logger.warn("Cannot find the display name of target with id {}", targetId);
+                        return "";
+                    }));
+
+            // fetch information about the probe, and store the probe type in the result
+            result.setType(topologyProcessor.getProbe(targetInfo.getProbeId()).getType());
+
+        } catch (TopologyProcessorException | CommunicationException e) {
+            logger.warn("Error communicating with the topology processor", e);
+            return Optional.empty();
+        }
+
+        return Optional.of(result);
     }
 }

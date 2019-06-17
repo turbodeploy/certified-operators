@@ -1,7 +1,6 @@
 package com.vmturbo.api.component.communication;
 
 import java.net.URISyntaxException;
-import java.util.EnumSet;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
@@ -18,6 +17,7 @@ import com.vmturbo.api.ReportNotificationDTO.ReportNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification.ReportStatus;
 import com.vmturbo.api.component.ApiComponentGlobalConfig;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -208,7 +208,7 @@ public class CommunicationConfig {
         return new RepositoryApi(severityPopulator(),
             repositoryRpcService(),
             searchServiceBlockingStub(),
-            topologyProcessor(),
+            serviceEntityMapper(),
             realtimeTopologyContextId);
     }
 
@@ -437,5 +437,10 @@ public class CommunicationConfig {
                 new ApiComponentNotificationListener(notificationStore());
         notificationClientConfig.systemNotificationListener().addNotificationListener(listener);
         return listener;
+    }
+
+    @Bean
+    public ServiceEntityMapper serviceEntityMapper() {
+        return new ServiceEntityMapper(topologyProcessor());
     }
 }

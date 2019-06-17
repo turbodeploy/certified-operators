@@ -65,7 +65,7 @@ public class MarketMapperTest {
 
     @Before
     public void setup() {
-        marketMapper = new MarketMapper(scenarioMapper);
+        marketMapper = new MarketMapper(scenarioMapper, Mockito.mock(ServiceEntityMapper.class));
 
         // Since we use the same base scenario for all tests, configure
         // the mock scenario mapper to return something reasonable

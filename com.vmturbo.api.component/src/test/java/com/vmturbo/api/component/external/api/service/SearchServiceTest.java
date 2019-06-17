@@ -48,6 +48,7 @@ import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
@@ -107,6 +108,7 @@ import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.repository.api.RepositoryClient;
+import com.vmturbo.topology.processor.api.AccountValue;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.ProbeDescription;
@@ -191,7 +193,8 @@ public class SearchServiceTest {
                 businessUnitMapper,
                 realTimeContextId,
                 userSessionContext,
-                groupServiceBlockingStub));
+                groupServiceBlockingStub,
+                new ServiceEntityMapper(topologyProcessor)));
 
         doReturn(ImmutableMap.of(
             targetId1, probeType1,
@@ -507,10 +510,28 @@ public class SearchServiceTest {
     @Test
     public void testGetMembersBasedOnFilterQuery() throws Exception {
         GroupApiDTO request = new GroupApiDTO();
-        final List<Entity> entities = Arrays.asList(
-                Entity.newBuilder().setOid(1).setDisplayName("afoobar").setType(0).addTargetIds(targetId1).build(),
-                Entity.newBuilder().setOid(4).setDisplayName("Foo").setType(0).addTargetIds(targetId2).build()
-        );
+        final List<Entity> entities = Collections.singletonList(
+            Entity.newBuilder()
+                .setOid(1)
+                .setDisplayName("afoobar")
+                .setType(0)
+                .addTargetIds(targetId1)
+                .build());
+        final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
+        final ProbeInfo probeInfo = Mockito.mock(ProbeInfo.class);
+        final AccountValue accountValue = Mockito.mock(AccountValue.class);
+        final long probeId = 11L;
+        final String targetDisplayName = "target display name";
+        Mockito.when(targetInfo.getId()).thenReturn(targetId1);
+        Mockito.when(targetInfo.getProbeId()).thenReturn(probeId);
+        Mockito.when(targetInfo.getAccountData()).thenReturn(Collections.singleton(accountValue));
+        Mockito.when(accountValue.getName()).thenReturn(TargetInfo.TARGET_ADDRESS);
+        Mockito.when(accountValue.getStringValue()).thenReturn(targetDisplayName);
+        Mockito.when(probeInfo.getId()).thenReturn(probeId);
+        Mockito.when(probeInfo.getType()).thenReturn(probeType1);
+        Mockito.when(topologyProcessor.getProbe(Mockito.eq(probeId))).thenReturn(probeInfo);
+        Mockito.when(topologyProcessor.getTarget(Mockito.eq(targetId1))).thenReturn(targetInfo);
+
         when(searchServiceSpy.searchEntities(any())).thenReturn(SearchEntitiesResponse.newBuilder()
             .addAllEntities(entities)
             .setPaginationResponse(PaginationResponse.newBuilder())
@@ -536,10 +557,9 @@ public class SearchServiceTest {
         final Map<Long, BaseApiDTO> resultById = resultCaptor.getValue().stream()
             .collect(Collectors.toMap(se -> Long.valueOf(se.getUuid()), Function.identity()));
 
-        assertThat(resultIds.size(), is(2));
-        assertThat(resultById.keySet(), containsInAnyOrder(1L, 4L));
+        assertThat(resultIds.size(), is(1));
+        assertThat(resultById.keySet(), containsInAnyOrder(1L));
         verifyDiscoveredBy(resultById.get(1L), targetId1, probeType1);
-        verifyDiscoveredBy(resultById.get(4L), targetId2, probeType2);
     }
 
     /**

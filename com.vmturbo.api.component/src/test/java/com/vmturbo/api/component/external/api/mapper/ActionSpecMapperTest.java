@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -9,7 +8,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -17,10 +15,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -37,7 +37,6 @@ import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.api.component.communication.CommunicationConfig;
-import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFactory.ActionSpecMappingContext;
 import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualMachineAspectMapper;
@@ -46,6 +45,7 @@ import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -97,19 +97,25 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.api.AccountValue;
+import com.vmturbo.topology.processor.api.ProbeInfo;
+import com.vmturbo.topology.processor.api.TargetInfo;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
  * Unit tests for {@link ActionSpecMapper}.
  */
 public class ActionSpecMapperTest {
 
-    public static final int POLICY_ID = 10;
-    public static final String POLICY_NAME = "policy";
+    private static final int POLICY_ID = 10;
+    private static final String POLICY_NAME = "policy";
     private static final String ENTITY_TO_RESIZE_NAME = "EntityToResize";
     private static final long REAL_TIME_TOPOLOGY_CONTEXT_ID = 777777L;
     private static final long CONTEXT_ID = 777L;
@@ -123,11 +129,14 @@ public class ActionSpecMapperTest {
     private static final ReasonCommodity HEAP =
                     createReasonCommodity(CommodityDTO.CommodityType.HEAP_VALUE, "foo");
 
-    private static final String START = "Start";
     private static final String TARGET = "Target";
     private static final String SOURCE = "Source";
     private static final String DESTINATION = "Destination";
     private static final String DEFAULT_EXPLANATION = "default explanation";
+
+    private static final long TARGET_ID = 10L;
+    private static final String TARGET_DISPLAY_NAME = "target display name";
+    private static final String PROBE_TYPE = "probe type";
 
     private ActionSpecMapper mapper;
 
@@ -153,8 +162,12 @@ public class ActionSpecMapperTest {
 
     private SearchServiceMole searchMole;
 
+    private TopologyProcessor topologyProcessor = Mockito.mock(TopologyProcessor.class);
+
+    private final ServiceEntityMapper serviceEntityMapper = new ServiceEntityMapper(topologyProcessor);
+
     @Before
-    public void setup() throws IOException {
+    public void setup() throws Exception {
         policyMole = Mockito.spy(PolicyDTOMoles.PolicyServiceMole.class);
         final List<PolicyResponse> policyResponses = ImmutableList.of(
             PolicyResponse.newBuilder().setPolicy(Policy.newBuilder()
@@ -180,13 +193,15 @@ public class ActionSpecMapperTest {
         communicationConfig = Mockito.mock(CommunicationConfig.class);
         mapperConfig = Mockito.mock(MapperConfig.class);
 
+        mockTopologyProcessorOutputs();
+
         actionSpecMappingContextFactory = new ActionSpecMappingContextFactory(policyService,
             Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()),
             searchServiceBlockingStub, cloudAspectMapper, vmAspectMapper, volumeAspectMapper,
             REAL_TIME_TOPOLOGY_CONTEXT_ID, costClientConfig, null,
-            null);
-        mapper = new ActionSpecMapper(actionSpecMappingContextFactory, REAL_TIME_TOPOLOGY_CONTEXT_ID,
-                costClientConfig, communicationConfig, mapperConfig);
+            null, serviceEntityMapper);
+        mapper = new ActionSpecMapper(actionSpecMappingContextFactory, serviceEntityMapper,
+                REAL_TIME_TOPOLOGY_CONTEXT_ID, costClientConfig, communicationConfig, mapperConfig);
     }
 
     @Test
@@ -216,6 +231,8 @@ public class ActionSpecMapperTest {
 
         assertEquals(ActionType.MOVE, actionApiDTO.getActionType());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
+
+        checkTargetsInActionApiDTO(actionApiDTO);
     }
 
     @Test
@@ -273,6 +290,8 @@ public class ActionSpecMapperTest {
 
         assertEquals(ActionType.MOVE, actionApiDTO.getActionType());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
+
+        checkTargetsInActionApiDTO(actionApiDTO);
     }
 
     /**
@@ -377,6 +396,8 @@ public class ActionSpecMapperTest {
         assertEquals("1", actionApiDTO.getCurrentValue());
 
         assertEquals(ActionType.RECONFIGURE, actionApiDTO.getActionType());
+
+        checkTargetsInActionApiDTO(actionApiDTO);
     }
 
     @Test
@@ -443,6 +464,8 @@ public class ActionSpecMapperTest {
         assertEquals("3", actionApiDTO.getNewEntity().getUuid());
 
         assertEquals(ActionType.PROVISION, actionApiDTO.getActionType());
+
+        checkTargetsInActionApiDTO(actionApiDTO);
     }
 
     @Test
@@ -475,6 +498,8 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
         assertEquals(CommodityDTO.CommodityType.CPU.name(),
                 actionApiDTO.getRisk().getReasonCommodity());
+
+        checkTargetsInActionApiDTO(actionApiDTO);
     }
 
     @Test
@@ -487,7 +512,6 @@ public class ActionSpecMapperTest {
                         .setNewCapacity(1024 * 1024 * 1)
                         .setCommodityType(VMEM.getCommodityType()))
                 .build();
-        final String expectedDetailCapacityy = "from 2 GB to 1 GB";
         Explanation resize = Explanation.newBuilder()
                 .setResize(ResizeExplanation.newBuilder()
                         .setStartUtilization(0.2f)
@@ -504,6 +528,8 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
         assertEquals(CommodityDTO.CommodityType.VMEM.name(),
                 actionApiDTO.getRisk().getReasonCommodity());
+
+        checkTargetsInActionApiDTO(actionApiDTO);
     }
 
 
@@ -517,7 +543,6 @@ public class ActionSpecMapperTest {
                 .setNewCapacity(1024 * 1024 * 1)
                 .setCommodityType(HEAP.getCommodityType()))
             .build();
-        final String expectedDetailCapacityy = "from 2 GB to 1 GB";
         Explanation resize = Explanation.newBuilder()
             .setResize(ResizeExplanation.newBuilder()
                 .setStartUtilization(0.2f)
@@ -534,6 +559,8 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
         assertEquals(CommodityDTO.CommodityType.HEAP.name(),
             actionApiDTO.getRisk().getReasonCommodity());
+
+        checkTargetsInActionApiDTO(actionApiDTO);
     }
 
     /**
@@ -573,6 +600,7 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
         assertEquals(CommodityDTO.CommodityType.MEM.name(),
                 actionApiDTO.getRisk().getReasonCommodity());
+        checkTargetsInActionApiDTO(actionApiDTO);
     }
 
     @Test
@@ -604,6 +632,7 @@ public class ActionSpecMapperTest {
             IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
                     CommodityDTO.CommodityType.CPU.name(),
                     CommodityDTO.CommodityType.MEM.name()));
+        checkTargetsInActionApiDTO(actionApiDTO);
     }
 
     /**
@@ -637,6 +666,7 @@ public class ActionSpecMapperTest {
         assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
                 IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
                         CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
+        checkTargetsInActionApiDTO(actionApiDTO);
     }
 
     @Test
@@ -664,6 +694,7 @@ public class ActionSpecMapperTest {
         assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
             IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
                 CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
+        checkTargetsInActionApiDTO(actionApiDTO);
     }
 
     @Test
@@ -690,6 +721,7 @@ public class ActionSpecMapperTest {
         assertEquals(entityToDelete, actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
         assertEquals(ActionType.DELETE, actionApiDTO.getActionType());
+        checkTargetsInActionApiDTO(actionApiDTO);
     }
 
     /**
@@ -721,6 +753,7 @@ public class ActionSpecMapperTest {
         assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
                 IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
                         CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
+        checkTargetsInActionApiDTO(actionApiDTO);
     }
 
     @Test
@@ -739,6 +772,7 @@ public class ActionSpecMapperTest {
 
         // Assert
         assertThat(actionApiDTO.getUpdateTime(), is(expectedUpdateTime));
+        checkTargetsInActionApiDTO(actionApiDTO);
     }
 
     @Test
@@ -904,7 +938,6 @@ public class ActionSpecMapperTest {
         final ActionApiDTO realTimeActionApiDTO =
                 mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), REAL_TIME_TOPOLOGY_CONTEXT_ID);
         assertEquals(com.vmturbo.api.enums.ActionState.READY, realTimeActionApiDTO.getActionState());
-
     }
 
     @Test
@@ -918,6 +951,7 @@ public class ActionSpecMapperTest {
         final ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
         assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.READY));
+        checkTargetsInActionApiDTO(actionApiDTO);
     }
 
     @Test
@@ -931,6 +965,7 @@ public class ActionSpecMapperTest {
         final ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
         assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.READY));
+        checkTargetsInActionApiDTO(actionApiDTO);
     }
 
     @Test
@@ -944,6 +979,7 @@ public class ActionSpecMapperTest {
         final ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
         assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.READY));
+        checkTargetsInActionApiDTO(actionApiDTO);
     }
 
     @Test
@@ -957,6 +993,7 @@ public class ActionSpecMapperTest {
         final ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
         assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.READY));
+        checkTargetsInActionApiDTO(actionApiDTO);
     }
 
     @Test
@@ -969,6 +1006,7 @@ public class ActionSpecMapperTest {
         final ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
         assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.QUEUED));
+        checkTargetsInActionApiDTO(actionApiDTO);
     }
 
     @Test
@@ -1027,6 +1065,7 @@ public class ActionSpecMapperTest {
 
         final ActionQueryFilter filter = mapper.createLiveActionFilter(inputDto, Optional.empty());
         assertFalse(filter.hasEnvironmentType());
+        assertFalse(filter.hasEnvironmentType());
     }
 
     @Test
@@ -1074,7 +1113,8 @@ public class ActionSpecMapperTest {
         entitiesMap.put(1L, entity);
         ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesMap,
             Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-            Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
+            Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+            serviceEntityMapper);
         context.getOptionalEntity(1L).get().setCostPrice(1.0f);
 
         String noTranslationNeeded = "Simple string";
@@ -1147,7 +1187,7 @@ public class ActionSpecMapperTest {
     }
 
     @Test
-    public void testMapPostInProgress(){
+    public void testMapPostInProgress() {
         ActionSpec.Builder builder = ActionSpec.newBuilder()
             .setActionState(ActionState.POST_IN_PROGRESS);
         ActionSpec actionSpec = builder.build();
@@ -1156,7 +1196,7 @@ public class ActionSpecMapperTest {
     }
 
     @Test
-    public void testMapPreInProgress(){
+    public void testMapPreInProgress() {
         ActionSpec.Builder builder = ActionSpec.newBuilder()
             .setActionState(ActionState.PRE_IN_PROGRESS);
         ActionSpec actionSpec = builder.build();
@@ -1226,31 +1266,15 @@ public class ActionSpecMapperTest {
         return answer;
     }
 
-
-    /**
-     * Create a new instances of {@link ServiceEntityApiDTO} and initialize the displayName,
-     * uuid, and class name fields.
-     *
-     * @param displayName the displayName for the new SE
-     * @param oid the OID, to be converted to String and set as the uuid
-     * @param className the class name for the new SE
-     * @return a service entity DTO
-     */
-    private ServiceEntityApiDTO entityApiDTO(@Nonnull final String displayName, long oid,
-                                             @Nonnull String className) {
-        ServiceEntityApiDTO seDTO = new ServiceEntityApiDTO();
-        seDTO.setDisplayName(displayName);
-        seDTO.setUuid(Long.toString(oid));
-        seDTO.setClassName(className);
-        return seDTO;
-    }
-
     private TopologyEntityDTO topologyEntityDTO(@Nonnull final String displayName, long oid,
                                                 int entityType) {
         return TopologyEntityDTO.newBuilder()
             .setOid(oid)
             .setDisplayName(displayName)
             .setEntityType(entityType)
+            .setOrigin(
+                Origin.newBuilder()
+                    .setDiscoveryOrigin(DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(TARGET_ID)))
             .build();
     }
 
@@ -1288,5 +1312,35 @@ public class ActionSpecMapperTest {
             ct.setKey(key);
         }
         return ReasonCommodity.newBuilder().setCommodityType(ct.build()).build();
+    }
+
+    private void mockTopologyProcessorOutputs() throws Exception {
+        final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
+        final ProbeInfo probeInfo = Mockito.mock(ProbeInfo.class);
+        final AccountValue accountValue = Mockito.mock(AccountValue.class);
+        Mockito.when(targetInfo.getId()).thenReturn(TARGET_ID);
+        final long probeId = 11L;
+        Mockito.when(targetInfo.getProbeId()).thenReturn(probeId);
+        Mockito.when(targetInfo.getAccountData()).thenReturn(Collections.singleton(accountValue));
+        Mockito.when(accountValue.getName()).thenReturn(TargetInfo.TARGET_ADDRESS);
+        Mockito.when(accountValue.getStringValue()).thenReturn(TARGET_DISPLAY_NAME);
+        Mockito.when(probeInfo.getId()).thenReturn(probeId);
+        Mockito.when(probeInfo.getType()).thenReturn(PROBE_TYPE);
+        Mockito.when(topologyProcessor.getProbe(Mockito.eq(probeId))).thenReturn(probeInfo);
+        Mockito.when(topologyProcessor.getTarget(Mockito.eq(TARGET_ID))).thenReturn(targetInfo);
+    }
+
+    private void checkTargetsInActionApiDTO(ActionApiDTO actionApiDTO) {
+        Assert.assertNotNull(actionApiDTO);
+        Stream.of(actionApiDTO.getTarget(), actionApiDTO.getNewEntity(), actionApiDTO.getCurrentEntity())
+                .filter(Objects::nonNull)
+                .forEach(e -> checkTarget(e.getDiscoveredBy()));
+    }
+
+    private void checkTarget(TargetApiDTO targetApiDTO) {
+        Assert.assertNotNull(targetApiDTO);
+        Assert.assertEquals(TARGET_ID, (long)Long.valueOf(targetApiDTO.getUuid()));
+        Assert.assertEquals(TARGET_DISPLAY_NAME, targetApiDTO.getDisplayName());
+        Assert.assertEquals(PROBE_TYPE, targetApiDTO.getType());
     }
 }

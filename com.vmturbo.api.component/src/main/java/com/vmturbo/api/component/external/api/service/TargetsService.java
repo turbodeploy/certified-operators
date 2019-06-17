@@ -208,6 +208,8 @@ public class TargetsService implements ITargetsService {
 
     private final ActionsServiceBlockingStub actionOrchestratorRpc;
 
+    private final ServiceEntityMapper serviceEntityMapper;
+
     private final long realtimeTopologyContextId;
 
     private final ApiWebsocketHandler apiWebsocketHandler;
@@ -223,6 +225,7 @@ public class TargetsService implements ITargetsService {
                           @Nonnull final SeverityPopulator severityPopulator,
                           @Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
+                          @Nonnull final ServiceEntityMapper serviceEntityMapper,
                           final long realtimeTopologyContextId,
                           @Nonnull final ApiWebsocketHandler apiWebsocketHandler) {
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
@@ -236,6 +239,7 @@ public class TargetsService implements ITargetsService {
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
+        this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.apiWebsocketHandler = Objects.requireNonNull(apiWebsocketHandler);
         logger.debug("Created TargetsService with topology processor instance {}",
@@ -1090,7 +1094,7 @@ public class TargetsService implements ITargetsService {
         Map<Long, String> targetIdToProbeType = new HashMap<>();
         targetIdToProbeType.put(Long.parseLong(targetUuid), targetType);
         List<ServiceEntityApiDTO> targetEntities = getTargetEntities(targetUuid).stream()
-            .map(entity -> ServiceEntityMapper.toServiceEntityApiDTO(entity, targetIdToProbeType))
+            .map(entity -> serviceEntityMapper.toServiceEntityApiDTO(entity, targetIdToProbeType))
             .collect(Collectors.toList());
 
         // Severity isn't part of searchEntities response, hence the following line.

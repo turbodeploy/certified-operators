@@ -50,7 +50,6 @@ import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 
-
 /**
  * This class is an API wrapper for the Repository Component.
  */
@@ -66,18 +65,18 @@ public class RepositoryApi {
 
     private final SearchServiceBlockingStub searchServiceBlockingStub;
 
-    private final TopologyProcessor topologyProcessor;
+    private final ServiceEntityMapper serviceEntityMapper;
 
     public RepositoryApi(@Nonnull final SeverityPopulator severityPopulator,
                          @Nonnull final RepositoryServiceBlockingStub repositoryService,
                          @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
-                         @Nonnull final TopologyProcessor topologyProcessor,
+                         @Nonnull final ServiceEntityMapper serviceEntityMapper,
                          final long realtimeTopologyContextId) {
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.searchServiceBlockingStub = Objects.requireNonNull(searchServiceBlockingStub);
         this.repositoryService = Objects.requireNonNull(repositoryService);
-        this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
+        this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
     }
 
     @Nonnull
@@ -115,13 +114,9 @@ public class RepositoryApi {
                             .setCursor(nextCursor))
                         .build());
                 response.getEntitiesList().stream()
-                    .map(entity -> ServiceEntityMapper.toServiceEntityApiDTO(entity, Collections.emptyMap()))
-                    .forEach(entity -> {
-                        entities.add(entity);
-                        if (entity != null && entity.getDiscoveredBy() != null) {
-                            populateTargetApiDTO(entity.getDiscoveredBy());
-                        }
-                    });
+                    .map(entity ->
+                            serviceEntityMapper.toServiceEntityApiDTO(entity, Collections.emptyMap()))
+                    .forEach(entities::add);
                 nextCursor = response.getPaginationResponse().getNextCursor();
             } catch (StatusRuntimeException e) {
                 logger.error("Error retrieving data: {}", e);
@@ -166,10 +161,7 @@ public class RepositoryApi {
                 logger.error("Got multiple entities for ID {}! This shouldn't happen.", serviceEntityId);
             }
             final ServiceEntityApiDTO entity =
-                ServiceEntityMapper.toServiceEntityApiDTO(response.getEntities(0), Collections.emptyMap());
-            if (entity != null && entity.getDiscoveredBy() != null) {
-                populateTargetApiDTO(entity.getDiscoveredBy());
-            }
+                serviceEntityMapper.toServiceEntityApiDTO(response.getEntities(0), Collections.emptyMap());
             return severityPopulator.populate(realtimeTopologyContextId, entity);
         }
     }
@@ -234,10 +226,7 @@ public class RepositoryApi {
             RepositoryDTOUtil.topologyEntityStream(repositoryService.retrieveTopologyEntities(reqBuilder.build()))
                 .forEach(entity -> {
                     final ServiceEntityApiDTO serviceEntityApiDTO =
-                            ServiceEntityMapper.toServiceEntityApiDTO(entity, entityAspectMapper);
-                    if (serviceEntityApiDTO != null && serviceEntityApiDTO.getDiscoveredBy() != null) {
-                        populateTargetApiDTO(serviceEntityApiDTO.getDiscoveredBy());
-                    }
+                            serviceEntityMapper.toServiceEntityApiDTO(entity, entityAspectMapper);
                     results.put(entity.getOid(), Optional.of(serviceEntityApiDTO));
                 });
             severityPopulator.populate(contextId, results);
@@ -292,42 +281,6 @@ public class RepositoryApi {
             throw new UnknownObjectException(message);
         }
         return searchTopologyEntityDTOsResponse.getTopologyEntityDtos(0);
-    }
-
-    /**
-     * Populates a {@link TargetApiDTO} structure which has already a target id,
-     * with the display name, the probe id and the probe type.
-     * If communication with the topology processor fails or if the topology processor
-     * does not fetch the requested information, the structure will not be populated.
-     *
-     * @param targetApiDTO the structure to populate.
-     */
-    public void populateTargetApiDTO(@Nonnull TargetApiDTO targetApiDTO) {
-        if (targetApiDTO.getUuid() == null) {
-            return;
-        }
-        long targetId = Long.valueOf(targetApiDTO.getUuid());
-
-        // get target info from the topology processor
-        final TargetInfo targetInfo;
-        try {
-            targetInfo = topologyProcessor.getTarget(targetId);
-        } catch (TopologyProcessorException | CommunicationException e) {
-            logger.warn("Error communicating with the topology processor", e);
-            return;
-        }
-        targetApiDTO.setDisplayName(
-                TargetData.getDisplayName(targetInfo).orElseGet(() -> {
-                    logger.warn("Cannot find the display name of target with id {}", targetId);
-                    return "";
-                }));
-
-        // fetch information about the probe, and store the probe type in the result
-        try {
-            targetApiDTO.setType(topologyProcessor.getProbe(targetInfo.getProbeId()).getType());
-        } catch (TopologyProcessorException | CommunicationException e) {
-            logger.warn("Error communicating with the topology processor", e);
-        }
     }
 
     /**
