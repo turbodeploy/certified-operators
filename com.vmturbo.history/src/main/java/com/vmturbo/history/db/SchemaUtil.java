@@ -68,7 +68,6 @@ public class SchemaUtil {
             + "...");
 
         Flyway fway = flyway(additionallLocations);
-        fway.setBaselineOnMigrate(true);
         if (clean)
             fway.clean();
         if (version != null) {
