@@ -29,6 +29,7 @@ import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
@@ -240,8 +241,9 @@ public class ReplayActions {
                 } else {
                     // If controllable is false, deactivate the trader without checking criteria
                     // as entities may not be able to move out of the trader with controllable false.
+                    List<Market> marketsAsSeller = economy.getMarketsAsSeller(newTrader);
                     Deactivate replayedSuspension = new Deactivate(economy, newTrader,
-                                    economy.getMarketsAsSeller(newTrader).get(0));
+                                    !marketsAsSeller.isEmpty() ? marketsAsSeller.get(0) : null);
                     suspendActions.add(replayedSuspension.take());
                     suspendActions.addAll(replayedSuspension.getSubsequentActions());
                 }

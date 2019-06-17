@@ -177,9 +177,11 @@ public class DeactivateTest {
         Trader t2 = topology1.addTrader("id2","name2","type2",TraderState.INACTIVE, Arrays.asList());
         topology1.addBasketBought(t2, Arrays.asList("a"));
 
+
         return new Object[][]{
-            {new Deactivate(e1, t1, topology1.getEconomy().getMarket(EMPTY)),topology1,"Because of insufficient demand for []."},
-            {new Deactivate(e1, t2, topology1.getEconomy().getMarket(EMPTY)),topology1,"Because of insufficient demand for []."},
+            {new Deactivate(e1, t1, topology1.getEconomy().getMarket(EMPTY)), topology1, "Because of insufficient demand for []."},
+            {new Deactivate(e1, t2, topology1.getEconomy().getMarket(EMPTY)), topology1, "Because of insufficient demand for []."},
+            {new Deactivate(e1, t1, null), topology1, "Because trader has no customers."},
         };
     }
 
@@ -197,8 +199,13 @@ public class DeactivateTest {
         Deactivate deactivate2 = new Deactivate(e, t1, m1);
         Deactivate deactivate3 = new Deactivate(e, t2, m1);
         Deactivate deactivate4 = new Deactivate(e, t1, m2);
+        // last parameter,  can be null
+        Deactivate deactivate5 = new Deactivate(e, t1, null);
+        Deactivate deactivate6 = new Deactivate(e, t1, null);
+        Deactivate deactivate7 = new Deactivate(e, t2, null);
         return new Object[][] {{deactivate1, deactivate2, true}, {deactivate1, deactivate3, false},
-                        {deactivate2, deactivate4, false}, {deactivate1, deactivate4, false}};
+                        {deactivate2, deactivate4, false}, {deactivate1, deactivate4, false},
+                        {deactivate5, deactivate6, true}, {deactivate5, deactivate7, false}};
     }
 
     @Test
