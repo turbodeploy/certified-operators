@@ -161,7 +161,8 @@ public class RemoteMediationImpl implements IRemoteMediation {
     @Nonnull
     @Override
     public GetActionStateResponse getActionItemStates(@Nonnull SdkTarget target,
-            @Nonnull Collection<Long> actionOids) throws InterruptedException {
+            @Nonnull Collection<Long> actionOids, boolean retrieveAllUnclosed)
+            throws InterruptedException {
         throw new NotImplementedException("Feature is not implemented for in XL now");
     }
 
