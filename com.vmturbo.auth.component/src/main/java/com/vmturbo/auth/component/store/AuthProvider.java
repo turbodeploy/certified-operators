@@ -447,12 +447,8 @@ public class AuthProvider {
             // Persist the intialization status.
             Files.write(encryptionFile,
                         CryptoFacility.encrypt(compact).getBytes(CHARSET_CRYPTO));
-            try {
-                return addImpl(AuthUserDTO.PROVIDER.LOCAL, userName, password,
-                    ImmutableList.of("ADMINISTRATOR"), null);
-            }  catch (IllegalArgumentException e) {
-                return false;
-            }
+            return addImpl(AuthUserDTO.PROVIDER.LOCAL, userName, password,
+                           ImmutableList.of("ADMINISTRATOR"), null);
         } catch (IOException e) {
             throw new SecurityException(e);
         }
@@ -767,10 +763,11 @@ public class AuthProvider {
                             final @Nonnull String password,
                             final @Nonnull List<String> roleNames,
                             final @Nullable List<Long> scopeGroups)
-            throws SecurityException, IllegalArgumentException {
+            throws SecurityException {
         Optional<String> json = getKVValue(composeUserInfoKey(provider, userName));
         if (json.isPresent()) {
-            throw new IllegalArgumentException("A user with name " + userName + " already exists.");
+            logger_.error("AUDIT::FAILURE:EXISTING: Error adding existing user: " + userName);
+            return false;
         }
 
         validateScopeGroups(roleNames, scopeGroups);

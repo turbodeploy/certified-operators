@@ -5,7 +5,6 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -220,16 +219,11 @@ public class AuthUsersController {
                     consumes = {MediaType.APPLICATION_JSON_VALUE},
                     produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
-    public @Nonnull ResponseEntity<String> addUser(@RequestBody AuthUserDTO dto) throws Exception {
-        try {
-            boolean success = targetStore_.add(dto.getProvider(), dto.getUser(),
-                dto.getPassword(), dto.getRoles(), dto.getScopeGroups());
-            if (success) {
-                return new ResponseEntity<>("users://" + dto.getUser(), HttpStatus.OK);
-            }
-        } catch (Exception e) {
-            return new ResponseEntity<>(e.getMessage(),
-                HttpStatus.FORBIDDEN);
+    public @Nonnull String addUser(@RequestBody AuthUserDTO dto) throws Exception {
+        boolean success = targetStore_.add(dto.getProvider(), dto.getUser(),
+                                           dto.getPassword(), dto.getRoles(), dto.getScopeGroups());
+        if (success) {
+            return "users://" + dto.getUser();
         }
         throw new SecurityException("Unable to add user: " + dto.getUser());
     }
