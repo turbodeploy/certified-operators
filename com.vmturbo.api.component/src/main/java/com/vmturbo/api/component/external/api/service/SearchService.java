@@ -263,6 +263,8 @@ public class SearchService implements ISearchService {
         } else if (types != null) {
             // Check for a type that requires a query to a specific service, vs. Repository search.
             if (types.contains(StringConstants.GROUP)) {
+                // IN Classic, this returns all Groups + Clusters. So we call getGroups which gets
+                // all Groups(supertype).
                 final Collection<GroupApiDTO> groups = groupsService.getGroups();
                 result = Lists.newArrayList(groups);
             } else if (types.contains(CLUSTER)) {

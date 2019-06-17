@@ -258,6 +258,7 @@ public class GroupsService implements IGroupsService {
         return getGroupApiDTOS(GetGroupsRequest.newBuilder()
             .addTypeFilter(Type.GROUP)
             .addTypeFilter(Type.NESTED_GROUP)
+            .addTypeFilter(Type.CLUSTER)
             .build(), true);
     }
 
