@@ -22,8 +22,8 @@ public class EntitySettings {
                 return AnalysisUtil.CLONABLE_TYPES.contains(entity.getEntityType());
             }
         },
-
-        ENABLE_SUSPEND(true);
+        ENABLE_SUSPEND(true),
+        PROVIDER_MUST_CLONE(false);
 
         private boolean defaultValue;
 

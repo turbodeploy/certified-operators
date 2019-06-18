@@ -174,6 +174,7 @@ public class SdkToTopologyEntityConverter {
         final boolean availableAsProvider = dto.getProviderPolicy().getAvailableForPlacement();
         final boolean isShopTogether = dto.getConsumerPolicy().getShopsTogether();
         final boolean isControllable = dto.getConsumerPolicy().getControllable();
+        final boolean isProviderMustClone = dto.getConsumerPolicy().getProviderMustClone();
         final boolean isMonitored = dto.getMonitored();
         final Map<String, TagValuesDTO> entityTags = extractTags(dto);
 
@@ -291,6 +292,7 @@ public class SdkToTopologyEntityConverter {
             availableAsProvider,
             isShopTogether,
             isControllable(isControllable, isMonitored),
+            isProviderMustClone,
             calculateSuspendabilityWithStitchingEntity(entity)
         );
 
@@ -340,6 +342,7 @@ public class SdkToTopologyEntityConverter {
         final boolean availableAsProvider = dto.getProviderPolicy().getAvailableForPlacement();
         final boolean isShopTogether =  dto.getConsumerPolicy().getShopsTogether();
         final boolean isControllable = dto.getConsumerPolicy().getControllable();
+        final boolean isProviderMustClone = dto.getConsumerPolicy().getProviderMustClone();
         final boolean isMonitored = dto.getMonitored();
         final Map<String, TagValuesDTO> entityTags = extractTags(dto);
 
@@ -443,6 +446,7 @@ public class SdkToTopologyEntityConverter {
                 availableAsProvider,
                 isShopTogether,
                 isControllable(isControllable, isMonitored),
+                isProviderMustClone,
                 calculateSuspendability(dto)
         );
 
@@ -468,12 +472,14 @@ public class SdkToTopologyEntityConverter {
             boolean availableAsProvider,
             boolean isShopTogether,
             boolean isControllable,
+            boolean isProviderMustClone,
             Optional<Boolean> suspendable
         ) {
         AnalysisSettings.Builder analysisSettingsBuilder =
             TopologyDTO.TopologyEntityDTO.AnalysisSettings.newBuilder()
                 .setShopTogether(isShopTogether)
                 .setControllable(isControllable)
+                .setProviderMustClone(isProviderMustClone)
                 .setIsAvailableAsProvider(availableAsProvider);
         if (suspendable.isPresent()) {
             boolean suspendableValue = suspendable.get();

@@ -87,7 +87,8 @@ public class TopologyConversionUtils {
                 .map(topology::get)
                 .map(TopologyDTO.TopologyEntityDTO::getEntityType)
                 .anyMatch(type -> AnalysisUtil.GUARANTEED_SELLER_TYPES.contains(type))
-                || entityType == EntityType.DPOD_VALUE;
+                || entityType == EntityType.DPOD_VALUE
+                || entityType == EntityType.VIRTUAL_APPLICATION_VALUE;
     }
 
     @VisibleForTesting

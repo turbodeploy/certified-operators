@@ -911,6 +911,7 @@ public class TopologyConverter {
                        + traderSetting.getMinDesiredUtilization()) / 2)
                 .setDesiredUtilizationRange(traderSetting.getMaxDesiredUtilization()
                        - traderSetting.getMinDesiredUtilization())
+                .setProviderMustClone(traderSetting.getProviderMustClone())
             .build();
         TopologyDTO.TopologyEntityDTO.Builder entityDTOBuilder =
                 TopologyDTO.TopologyEntityDTO.newBuilder()
@@ -1306,6 +1307,8 @@ public class TopologyConverter {
             final int entityType = topologyDTO.getEntityType();
             boolean clonable = EntitySettings.BooleanKey.ENABLE_PROVISION.value(topologyDTO);
             boolean suspendable = EntitySettings.BooleanKey.ENABLE_SUSPEND.value(topologyDTO);
+            boolean isProviderMustClone = EntitySettings.BooleanKey
+                    .PROVIDER_MUST_CLONE.value(topologyDTO);
             if (bottomOfSupplyChain && active) {
                 suspendable = false;
             }
@@ -1329,6 +1332,10 @@ public class TopologyConverter {
             suspendable = topologyDTO.getAnalysisSettings().hasSuspendable()
                             ? topologyDTO.getAnalysisSettings().getSuspendable()
                                             : suspendable;
+            // If topologyEntity set providerMustClone, we need to use its value.
+            isProviderMustClone = topologyDTO.getAnalysisSettings().hasProviderMustClone()
+                ? topologyDTO.getAnalysisSettings().getProviderMustClone()
+                : isProviderMustClone;
 
             if (entityType == EntityType.DATABASE_VALUE ||
                     entityType == EntityType.DATABASE_SERVER_VALUE) {
@@ -1347,7 +1354,7 @@ public class TopologyConverter {
                     .setControllable(controllable)
                     // cloud providers do not come here. We will hence be setting this to true just for
                     // on-prem storages
-                    .setCanSimulateAction(topologyDTO.getEntityType() == EntityType.STORAGE_VALUE)
+                    .setCanSimulateAction(entityType == EntityType.STORAGE_VALUE)
                     .setSuspendable(suspendable)
                     .setCanAcceptNewCustomers(topologyDTO.getAnalysisSettings().getIsAvailableAsProvider()
                                               && controllable)
@@ -1356,7 +1363,10 @@ public class TopologyConverter {
                     .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                             .setSumOfCommodity(SumOfCommodity.getDefaultInstance()))
                     .setQuoteFactor(isEntityFromCloud ? CLOUD_QUOTE_FACTOR :quoteFactor)
-                    .setMoveCostFactor((isPlan() || isEntityFromCloud) ? PLAN_MOVE_COST_FACTOR : liveMarketMoveCostFactor);
+                    .setMoveCostFactor((isPlan() || isEntityFromCloud)
+                            ? PLAN_MOVE_COST_FACTOR
+                            : liveMarketMoveCostFactor)
+                    .setProviderMustClone(isProviderMustClone);
             if (cloudEntityToBusinessAccount.get(topologyDTO) != null) {
                 settingsBuilder.setBalanceAccount(createBalanceAccountDTO(topologyDTO));
             }

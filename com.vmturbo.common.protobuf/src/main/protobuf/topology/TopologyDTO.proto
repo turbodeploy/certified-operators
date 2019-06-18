@@ -293,6 +293,9 @@ message TopologyEntityDTO {
         // Whether the entity is in "control" state -- there are moves occurring on the entity so that
         // it can not move, clone, suspend, accept entities move into or out of itself
         optional bool controllable = 8 [default = true];
+
+        // Whether a trader's provider should clone when the trader clones
+        optional bool provider_must_clone = 9;
     }
 
     optional Origin origin = 10;
