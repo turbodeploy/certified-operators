@@ -56,7 +56,7 @@ cp /opt/kubespray/roles/kubernetes-apps/helm/tasks/main.yml /opt/kubespray/roles
 sed -i '/proxy_env/a\
   ignore_errors: yes' /opt/kubespray/roles/kubernetes-apps/helm/tasks/main.yml
 
-cp /opt/kubespray/roles/container-engine/docker/tasks/main.yml /opt/kubespray/roles/container-engine/docker/tasks/main.yml.online
+cp /opt/kubespray/roles/container-engine/docker/tasks/main.yml /opt/kubespray/roles/container-engine/docker/tasks/main.yml
 sed -i '/when: ansible_distribution/a\
   ignore_errors: yes' /opt/kubespray/roles/container-engine/docker/tasks/main.yml
 sed -i '/- yum_result.results/a\
