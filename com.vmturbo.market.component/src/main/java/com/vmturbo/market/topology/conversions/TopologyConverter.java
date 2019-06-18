@@ -1306,6 +1306,16 @@ public class TopologyConverter {
             final boolean topOfSupplyChain = topologyDTO.getCommoditySoldListList().isEmpty();
             final int entityType = topologyDTO.getEntityType();
             boolean clonable = EntitySettings.BooleanKey.ENABLE_PROVISION.value(topologyDTO);
+            /*
+             * Whether trader is suspendable in market or not depends on multiple conditions
+             * 1. Topology settings - policy sends suspendable flag as false
+             * (entity settings and analysis settings (happens later))
+             * 2. Topology sends controllable flag as false
+             * 3. Whether entity is a VM in plan (to improve)
+             * 4. Whether in plan the VM hosts containers (in which case trump 3)
+             * 5. Whether entity is top of supply chain (to improve)
+             * 6. Whether it is a DB or DBServer on cloud
+             */
             boolean suspendable = EntitySettings.BooleanKey.ENABLE_SUSPEND.value(topologyDTO);
             boolean isProviderMustClone = EntitySettings.BooleanKey
                     .PROVIDER_MUST_CLONE.value(topologyDTO);
