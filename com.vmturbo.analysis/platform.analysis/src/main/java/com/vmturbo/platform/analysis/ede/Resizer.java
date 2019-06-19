@@ -563,8 +563,12 @@ public class Resizer {
                     double newQuantityBought = commSoldBySupplier.getQuantity() -
                                                         (oldQuantityBought - decrementedQuantity);
                     if (!supplier.isTemplateProvider()) {
-                        checkArgument(newQuantityBought >= 0, "Expected new quantity bought %s to >= 0",
-                                      newQuantityBought);
+                        if (newQuantityBought < 0) {
+                            logger.warn("Expected new quantity bought {} to >= 0. Buyer is {}. " +
+                                "Supplier is {}.", newQuantityBought, seller.getDebugInfoNeverUseInCode(),
+                                supplier.getDebugInfoNeverUseInCode());
+                            continue;
+                        }
                         commSoldBySupplier.setQuantity(newQuantityBought);
                     }
                     shoppingList.getQuantities()[boughtIndex] = decrementedQuantity;
