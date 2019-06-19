@@ -1,19 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: {{ .Chart.Name }}
   labels:
     zone: secure
-    io.kompose.service: mediation-awscost
-  name: mediation-awscost
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
         zone: secure
-        io.kompose.service: mediation-awscost
+        app.kubernetes.io/name: {{ .Chart.Name }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       containers:
       - name: {{ .Chart.Name }}
@@ -61,15 +64,18 @@ spec:
         emptyDir: {}
   selector:
     matchLabels:
-      io.kompose.service: mediation-awscost
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
+  name: {{ .Chart.Name }}
   labels:
     zone: secure
-    io.kompose.service: mediation-awscost
-  name: mediation-awscost
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
   ports:
   - name: http-mediation-awscost
@@ -81,4 +87,5 @@ spec:
   {{- end -}}
 {{- end }}
   selector:
-    io.kompose.service: mediation-awscost
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
