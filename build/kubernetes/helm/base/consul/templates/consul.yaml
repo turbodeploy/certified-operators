@@ -1,12 +1,10 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ .Chart.Name }}-data
   labels:
     zone: secure
-    app.kubernetes.io/name: {{ .Chart.Name }}-data
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    io.kompose.service: consuldata
+  name: {{ .Chart.Name }}data
 spec:
   accessModes:
   - ReadWriteOnce
@@ -17,22 +15,19 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Chart.Name }}
   labels:
     zone: secure
-    app.kubernetes.io/name: {{ .Chart.Name }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    io.kompose.service: consul
+  name: {{ .Chart.Name }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: 1
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
         zone: secure
-        app.kubernetes.io/name: {{ .Chart.Name }}
-        app.kubernetes.io/instance: {{ .Release.Name }}
+        io.kompose.service: consul
     spec:
       containers:
       - name: {{ .Chart.Name }}
@@ -73,23 +68,20 @@ spec:
       volumes:
       - name: consuldata
         persistentVolumeClaim:
-          claimName: {{ .Chart.Name }}-data
+          claimName: consuldata
       - name: consul-tmpfs0
         emptyDir: {}
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ .Chart.Name }}
-      app.kubernetes.io/instance: {{ .Release.Name }}
+      io.kompose.service: consul
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Chart.Name }}
   labels:
     zone: secure
-    app.kubernetes.io/name: {{ .Chart.Name }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    io.kompose.service: consul
+  name: {{ .Chart.Name }}
 spec:
   ports:
   # the port that this service should serve on
@@ -106,5 +98,4 @@ spec:
   - name: udp-consuldns
     port: 8600
   selector:
-    app.kubernetes.io/name: {{ .Chart.Name }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
+    io.kompose.service: consul

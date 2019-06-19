@@ -1,12 +1,10 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ .Chart.Name }}
   labels:
     zone: secure
-    app.kubernetes.io/name: {{ .Chart.Name }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    io.kompose.service: arangodb
+  name: {{ .Chart.Name }}
 spec:
   accessModes:
   - ReadWriteOnce
@@ -19,11 +17,11 @@ kind: PersistentVolumeClaim
 metadata:
   labels:
     zone: secure
-    io.kompose.service: arangodb-apps
-  name: {{ .Chart.Name }}-apps
+    io.kompose.service: arangodb-dump
+  name: {{ .Chart.Name }}-dump
 spec:
   accessModes:
-    - ReadWriteOnce
+  - ReadWriteOnce
   resources:
     requests:
       storage: 2Gi
@@ -31,12 +29,10 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ .Chart.Name }}-dump
   labels:
     zone: secure
-    app.kubernetes.io/name: {{ .Chart.Name }}-dump
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    io.kompose.service: arangodb-apps
+  name: {{ .Chart.Name }}-apps
 spec:
   accessModes:
   - ReadWriteOnce
@@ -47,22 +43,19 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Chart.Name }}
   labels:
     zone: secure
-    app.kubernetes.io/name: {{ .Chart.Name }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    io.kompose.service: arangodb
+  name: {{ .Chart.Name }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: 1
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
         zone: secure
-        app.kubernetes.io/name: {{ .Chart.Name }}
-        app.kubernetes.io/instance: {{ .Release.Name }}
+        io.kompose.service: arangodb
     spec:
       containers:
       - name: {{ .Chart.Name }}
@@ -103,29 +96,26 @@ spec:
       volumes:
       - name: arangodb
         persistentVolumeClaim:
-          claimName: {{ .Chart.Name }}
+          claimName: arangodb
       - name: arangodb-apps
         persistentVolumeClaim:
-          claimName: {{ .Chart.Name }}-apps
+          claimName: arangodb-apps
       - name: arangodb-dump
         persistentVolumeClaim:
-          claimName: {{ .Chart.Name }}-dump
+          claimName: arangodb-dump
       - name: arangodb-tmpfs0
         emptyDir: {}
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ .Chart.Name }}
-      app.kubernetes.io/instance: {{ .Release.Name }}
+      io.kompose.service: arangodb
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Chart.Name }}
   labels:
     zone: secure
-    app.kubernetes.io/name: {{ .Chart.Name }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    io.kompose.service: arangodb
+  name: {{ .Chart.Name }}
 spec:
   ports:
   - name: tcp-arangodb
@@ -133,5 +123,4 @@ spec:
   - name: http-arangodb-dump
     port: 8599
   selector:
-    app.kubernetes.io/name: {{ .Chart.Name }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
+    io.kompose.service: arangodb

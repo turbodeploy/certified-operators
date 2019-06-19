@@ -1,12 +1,10 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ .Chart.Name }}
   labels:
     zone: internal
-    app.kubernetes.io/name: {{ .Chart.Name }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    io.kompose.service: clustermgr
+  name: {{ .Chart.Name }}
 spec:
   accessModes:
   - ReadWriteOnce
@@ -17,22 +15,19 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Chart.Name }}
   labels:
     zone: internal
-    app.kubernetes.io/name: {{ .Chart.Name }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    io.kompose.service: clustermgr
+  name: {{ .Chart.Name }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: 1
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
         zone: internal
-        app.kubernetes.io/name: {{ .Chart.Name }}
-        app.kubernetes.io/instance: {{ .Release.Name }}
+        io.kompose.service: clustermgr
     spec:
       containers:
       - name: {{ .Chart.Name }}
@@ -78,23 +73,20 @@ spec:
       volumes:
       - name: clustermgr
         persistentVolumeClaim:
-          claimName: {{ .Chart.Name }}
+          claimName: clustermgr
       - name: clustermgr-tmpfs0
         emptyDir: {}
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ .Chart.Name }}
-      app.kubernetes.io/instance: {{ .Release.Name }}
+      io.kompose.service: clustermgr
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Chart.Name }}
   labels:
     zone: internal
-    app.kubernetes.io/name: {{ .Chart.Name }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    io.kompose.service: clustermgr
+  name: {{ .Chart.Name }}
 spec:
   ports:
   - name: http-clustermgr
@@ -108,5 +100,4 @@ spec:
   - name: grpc-clustermgr
     port: 9001
   selector:
-    app.kubernetes.io/name: {{ .Chart.Name }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
+    io.kompose.service: clustermgr

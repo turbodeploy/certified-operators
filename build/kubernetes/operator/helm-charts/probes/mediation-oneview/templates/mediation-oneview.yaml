@@ -1,22 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Chart.Name }}
   labels:
     zone: secure
-    app.kubernetes.io/name: {{ .Chart.Name }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    io.kompose.service: mediation-oneview
+  name: mediation-oneview
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: 1
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
         zone: secure
-        app.kubernetes.io/name: {{ .Chart.Name }}
-        app.kubernetes.io/instance: {{ .Release.Name }}
+        io.kompose.service: mediation-oneview
     spec:
       containers:
       - name: {{ .Chart.Name }}
@@ -60,18 +57,15 @@ spec:
         emptyDir: {}
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ .Chart.Name }}
-      app.kubernetes.io/instance: {{ .Release.Name }}
+      io.kompose.service: mediation-oneview
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Chart.Name }}
   labels:
     zone: secure
-    app.kubernetes.io/name: {{ .Chart.Name }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    io.kompose.service: mediation-oneview
+  name: mediation-oneview
 spec:
   ports:
   - name: http-mediation-oneview
@@ -83,5 +77,4 @@ spec:
   {{- end -}}
 {{- end }}
   selector:
-    app.kubernetes.io/name: {{ .Chart.Name }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
+    io.kompose.service: mediation-oneview
