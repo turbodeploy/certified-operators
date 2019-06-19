@@ -1,17 +1,17 @@
 package com.vmturbo.action.orchestrator.action;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -23,13 +23,13 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
-import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.ActionOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 
 public class ActionPaginatorTest {
 
@@ -49,20 +49,21 @@ public class ActionPaginatorTest {
 
     @Test
     public void testNoCursor() {
-        final ActionView mockView = newActionView(action -> action.setImportance(1.0));
+        final ActionView mockView = newActionView(1, action -> action.setImportance(1.0));
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         final PaginatedActionViews results =
                 paginator.applyPagination(Stream.of(mockView), PaginationParameters.getDefaultInstance());
         assertThat(results.getResults(), containsInAnyOrder(mockView));
     }
 
-    private ActionView newActionView(Consumer<ActionDTO.Action.Builder> recommendationCustomizer) {
+    private ActionView newActionView(final long id, Consumer<ActionDTO.Action.Builder> recommendationCustomizer) {
         final ActionView actionView = mock(ActionView.class);
         final ActionDTO.Action.Builder recommendationBuilder = ActionDTO.Action.newBuilder()
-                .setId(1)
+                .setId(id)
                 .setInfo(ActionInfo.getDefaultInstance())
                 .setExplanation(Explanation.getDefaultInstance());
         recommendationCustomizer.accept(recommendationBuilder);
+        when(actionView.getId()).thenReturn(id);
         when(actionView.getRecommendation()).thenReturn(recommendationBuilder.build());
         return actionView;
     }
@@ -71,8 +72,8 @@ public class ActionPaginatorTest {
     public void testDefaultLimit() {
         final ActionPaginatorFactory smallLimitFactory = new DefaultActionPaginatorFactory(1, 10);
         // Relying on default order - by severity
-        final ActionView mockView1 = newActionView(action -> action.setImportance(1.0));
-        final ActionView mockView2 = newActionView(action -> action.setImportance(2.0));
+        final ActionView mockView1 = newActionView(1, action -> action.setImportance(1.0));
+        final ActionView mockView2 = newActionView(2, action -> action.setImportance(2.0));
         final ActionPaginator paginator = smallLimitFactory.newPaginator();
         final PaginatedActionViews results = paginator.applyPagination(
                 Stream.of(mockView1, mockView2), PaginationParameters.newBuilder()
@@ -86,8 +87,8 @@ public class ActionPaginatorTest {
     public void testMaxLimitExceeded() {
         final ActionPaginatorFactory smallLimitFactory = new DefaultActionPaginatorFactory(1, 1);
         // Relying on default order - by severity
-        final ActionView mockView1 = newActionView(action -> action.setImportance(1.0));
-        final ActionView mockView2 = newActionView(action -> action.setImportance(2.0));
+        final ActionView mockView1 = newActionView(1, action -> action.setImportance(1.0));
+        final ActionView mockView2 = newActionView(2, action -> action.setImportance(2.0));
         final ActionPaginator paginator = smallLimitFactory.newPaginator();
         final PaginatedActionViews results = paginator.applyPagination(
                 Stream.of(mockView1, mockView2), PaginationParameters.newBuilder()
@@ -101,8 +102,8 @@ public class ActionPaginatorTest {
     @Test
     public void testLimit() {
         // Relying on default order - by severity
-        final ActionView mockView1 = newActionView(action -> action.setImportance(1.0));
-        final ActionView mockView2 = newActionView(action -> action.setImportance(2.0));
+        final ActionView mockView1 = newActionView(1, action -> action.setImportance(1.0));
+        final ActionView mockView2 = newActionView(2, action -> action.setImportance(2.0));
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         final PaginatedActionViews results = paginator.applyPagination(
                 Stream.of(mockView1, mockView2), PaginationParameters.newBuilder()
@@ -114,8 +115,8 @@ public class ActionPaginatorTest {
     @Test
     public void testNextCursor() {
         // Relying on default order - by severity
-        final ActionView mockView1 = newActionView(action -> action.setImportance(1.0));
-        final ActionView mockView2 = newActionView(action -> action.setImportance(2.0));
+        final ActionView mockView1 = newActionView(1, action -> action.setImportance(1.0));
+        final ActionView mockView2 = newActionView(2, action -> action.setImportance(2.0));
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         final PaginatedActionViews results = paginator.applyPagination(
                 Stream.of(mockView1, mockView2), PaginationParameters.newBuilder()
@@ -128,9 +129,9 @@ public class ActionPaginatorTest {
     @Test
     public void testNextNextCursor() {
         // Relying on default order - by severity
-        final ActionView mockView1 = newActionView(action -> action.setImportance(1.0));
-        final ActionView mockView2 = newActionView(action -> action.setImportance(2.0));
-        final ActionView mockView3 = newActionView(action -> action.setImportance(3.0));
+        final ActionView mockView1 = newActionView(1, action -> action.setImportance(1.0));
+        final ActionView mockView2 = newActionView(2, action -> action.setImportance(2.0));
+        final ActionView mockView3 = newActionView(3, action -> action.setImportance(3.0));
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         // Relying on initial next cursor working properly.
         final String nextCursor = paginator.applyPagination(
@@ -152,8 +153,8 @@ public class ActionPaginatorTest {
     @Test
     public void testNoMoreResultsCursor() {
         // Relying on default order - by severity
-        final ActionView mockView1 = newActionView(action -> action.setImportance(1.0));
-        final ActionView mockView2 = newActionView(action -> action.setImportance(2.0));
+        final ActionView mockView1 = newActionView(1, action -> action.setImportance(1.0));
+        final ActionView mockView2 = newActionView(2, action -> action.setImportance(2.0));
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         final PaginatedActionViews results = paginator.applyPagination(
                 Stream.of(mockView1, mockView2), PaginationParameters.newBuilder()
@@ -165,49 +166,37 @@ public class ActionPaginatorTest {
 
     @Test
     public void testDefaultOrderBy() {
-        final ActionView mockView1 = newActionView(action -> action.setImportance(1.0));
-        final ActionView mockView2 = newActionView(action -> action.setImportance(2.0));
+        final ActionView mockView1 = newActionView(1, action -> action.setImportance(1.0));
+        final ActionView mockView1LargerId = newActionView(2, action -> action.setImportance(1.0));
+        final ActionView mockView2 = newActionView(3, action -> action.setImportance(2.0));
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         final PaginatedActionViews results = paginator.applyPagination(
-                Stream.of(mockView1, mockView2), PaginationParameters.newBuilder()
+                Stream.of(mockView1, mockView2, mockView1LargerId), PaginationParameters.newBuilder()
                         .setLimit(3)
                         .build());
         // Should be in ordered by importance.
-        assertThat(results.getResults(), contains(mockView1, mockView2));
+        assertThat(results.getResults(), contains(mockView1, mockView1LargerId, mockView2));
         final PaginatedActionViews results2 = paginator.applyPagination(
-                Stream.of(mockView1, mockView2), PaginationParameters.newBuilder()
+                Stream.of(mockView1, mockView2, mockView1LargerId), PaginationParameters.newBuilder()
                         .setLimit(3)
                         .setAscending(false)
                         .build());
-        assertThat(results2.getResults(), contains(mockView2, mockView1));
-    }
-
-    @Test
-    public void testOrderByDescending() {
-        // Relying on default order - by severity
-        final ActionView mockView1 = newActionView(action -> action.setImportance(1.0));
-        final ActionView mockView2 = newActionView(action -> action.setImportance(2.0));
-        final ActionPaginator paginator = paginatorFactory.newPaginator();
-        final PaginatedActionViews results = paginator.applyPagination(
-                Stream.of(mockView1, mockView2), PaginationParameters.newBuilder()
-                        .setLimit(3)
-                        .setAscending(false)
-                        .build());
-        assertThat(results.getResults(), contains(mockView2, mockView1));
+        assertThat(results2.getResults(), contains(mockView2, mockView1LargerId, mockView1));
     }
 
     @Test
     public void testOrderBySeverity() {
-        final ActionView mockView1 = newActionView(action -> action.setImportance(1.0));
-        final ActionView mockView2 = newActionView(action -> action.setImportance(2.0));
+        final ActionView mockView1 = newActionView(1, action -> action.setImportance(1.0));
+        final ActionView mockView1LargerId = newActionView(2, action -> action.setImportance(1.0));
+        final ActionView mockView2 = newActionView(3, action -> action.setImportance(2.0));
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         final PaginatedActionViews ascendingResults = paginator.applyPagination(
-                Stream.of(mockView1, mockView2), PaginationParameters.newBuilder()
+                Stream.of(mockView1, mockView2, mockView1LargerId), PaginationParameters.newBuilder()
                         .setOrderBy(OrderBy.newBuilder()
                                 .setAction(ActionOrderBy.ACTION_SEVERITY))
                         .setAscending(true)
                         .build());
-        assertThat(ascendingResults.getResults(), contains(mockView1, mockView2));
+        assertThat(ascendingResults.getResults(), contains(mockView1, mockView1LargerId, mockView2));
         final PaginatedActionViews descendingResults = paginator.applyPagination(
                 Stream.of(mockView1, mockView2), PaginationParameters.newBuilder()
                         .setOrderBy(OrderBy.newBuilder()
@@ -219,39 +208,46 @@ public class ActionPaginatorTest {
 
     @Test
     public void testOrderByDetails() {
-        final ActionView smallerView = newActionView(action -> action
-            .setImportance(1.0)
-            .setInfo(ActionInfo.newBuilder()
-                .setMove(Move.newBuilder()
-                    .setTarget(ActionEntity.newBuilder()
-                        .setId(1)
-                        .setType(1)))));
-        // Activate considered "larger" because it appears later in the oneof.
-        final ActionView largerView = newActionView(action -> action
-            .setImportance(1.0)
-            .setInfo(ActionInfo.newBuilder()
-                .setActivate(Activate.newBuilder()
-                    .setTarget(ActionEntity.newBuilder()
-                        .setId(1)
-                        .setType(1)))));
+        final ActionInfo info = ActionInfo.newBuilder()
+            .setMove(Move.newBuilder()
+                .setTarget(ActionEntity.newBuilder()
+                    .setId(1)
+                    .setType(1)))
+            .build();
 
-        when(smallerView.getDescription()).thenReturn("Move VM 1 from A to B");
-        when(largerView.getDescription()).thenReturn("Start VM 2 on PM 1");
+        final ActionView smallerView = newActionView(1, action -> action
+            .setImportance(1.0)
+            .setInfo(info));
+        final ActionView smallerViewLargerId = newActionView(2, action -> action
+            .setImportance(1.0)
+            .setInfo(info));
+        // Activate considered "larger" because it appears later in the oneof.
+        final ActionView largerView = newActionView(3, action -> action
+            .setImportance(1.0)
+            .setInfo(info));
+
+        final String smallerDesc = "Move VM 1 from A to B";
+        final String largerDesc = "Start VM 2 on PM 1";
+        when(smallerView.getDescription()).thenReturn(smallerDesc);
+        // Same description.
+        when(smallerViewLargerId.getDescription()).thenReturn(smallerDesc);
+
+        when(largerView.getDescription()).thenReturn(largerDesc);
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         final PaginatedActionViews ascendingResults = paginator.applyPagination(
-                Stream.of(smallerView, largerView), PaginationParameters.newBuilder()
+                Stream.of(smallerView, largerView, smallerViewLargerId), PaginationParameters.newBuilder()
                         .setOrderBy(OrderBy.newBuilder()
                                 .setAction(ActionOrderBy.ACTION_NAME))
                         .setAscending(true)
                         .build());
-        assertThat(ascendingResults.getResults(), contains(smallerView, largerView));
+        assertThat(ascendingResults.getResults(), contains(smallerView, smallerViewLargerId, largerView));
         final PaginatedActionViews descendingResults = paginator.applyPagination(
-                Stream.of(smallerView, largerView), PaginationParameters.newBuilder()
+                Stream.of(smallerView, largerView, smallerViewLargerId), PaginationParameters.newBuilder()
                         .setOrderBy(OrderBy.newBuilder()
                                 .setAction(ActionOrderBy.ACTION_NAME))
                         .setAscending(false)
                         .build());
-        assertThat(descendingResults.getResults(), contains(largerView, smallerView));
+        assertThat(descendingResults.getResults(), contains(largerView, smallerViewLargerId, smallerView));
     }
 
     @Test
@@ -262,30 +258,116 @@ public class ActionPaginatorTest {
                             .setId(1)
                             .setType(1)))
             .build();
-        final ActionView smallerView = newActionView(action -> action
+        final ActionView smallerView = newActionView(1, action -> action
                 .setImportance(1.0)
                 .setInfo(resizeInfo));
-        when(smallerView.getActionCategory()).thenReturn(ActionCategory.PERFORMANCE_ASSURANCE);
-        final ActionView largerView = newActionView(action -> action
+        final ActionCategory smallerCat = ActionCategory.PERFORMANCE_ASSURANCE;
+        final ActionCategory largerCat = ActionCategory.EFFICIENCY_IMPROVEMENT;
+        when(smallerView.getActionCategory()).thenReturn(smallerCat);
+        final ActionView smallerViewLargerId = newActionView(2, action -> action
+            .setImportance(1.0)
+            .setInfo(resizeInfo));
+        when(smallerViewLargerId.getActionCategory()).thenReturn(smallerCat);
+        final ActionView largerView = newActionView(3, action -> action
                 .setImportance(1.0)
                 .setInfo(resizeInfo));
-        when(largerView.getActionCategory()).thenReturn(ActionCategory.EFFICIENCY_IMPROVEMENT);
+        when(largerView.getActionCategory()).thenReturn(largerCat);
 
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         final PaginatedActionViews ascendingResults = paginator.applyPagination(
-                Stream.of(smallerView, largerView), PaginationParameters.newBuilder()
-                        .setOrderBy(OrderBy.newBuilder()
-                                .setAction(ActionOrderBy.ACTION_RISK_CATEGORY))
-                        .setAscending(true)
-                        .build());
-        assertThat(ascendingResults.getResults(), contains(smallerView, largerView));
+            Stream.of(smallerView, largerView, smallerViewLargerId), PaginationParameters.newBuilder()
+                .setOrderBy(OrderBy.newBuilder()
+                    .setAction(ActionOrderBy.ACTION_RISK_CATEGORY))
+                .setAscending(true)
+                .build());
+        assertThat(ascendingResults.getResults(), contains(smallerView, smallerViewLargerId, largerView));
         final PaginatedActionViews descendingResults = paginator.applyPagination(
-                Stream.of(smallerView, largerView), PaginationParameters.newBuilder()
-                        .setOrderBy(OrderBy.newBuilder()
-                                .setAction(ActionOrderBy.ACTION_RISK_CATEGORY))
-                        .setAscending(false)
-                        .build());
-        assertThat(descendingResults.getResults(), contains(largerView, smallerView));
+            Stream.of(smallerViewLargerId, smallerView, largerView), PaginationParameters.newBuilder()
+                .setOrderBy(OrderBy.newBuilder()
+                    .setAction(ActionOrderBy.ACTION_RISK_CATEGORY))
+                .setAscending(false)
+                .build());
+        assertThat(descendingResults.getResults(), contains(largerView, smallerViewLargerId, smallerView));
     }
 
+    @Test
+    public void testOrderBySavings() {
+        final ActionInfo resizeInfo = ActionInfo.newBuilder()
+            .setResize(Resize.newBuilder()
+                .setTarget(ActionEntity.newBuilder()
+                    .setId(1)
+                    .setType(1)))
+            .build();
+        final ActionView smallerView = newActionView(1, action -> action
+            .setImportance(1.0)
+            .setSavingsPerHour(CurrencyAmount.newBuilder()
+                .setAmount(1))
+            .setInfo(resizeInfo));
+        final ActionView smallerViewLargerId = newActionView(2, action -> action
+            .setImportance(1.0)
+            .setSavingsPerHour(CurrencyAmount.newBuilder()
+                .setAmount(1))
+            .setInfo(resizeInfo));
+        final ActionView largerView = newActionView(3, action -> action
+            .setImportance(1.0)
+            .setSavingsPerHour(CurrencyAmount.newBuilder()
+                .setAmount(2))
+            .setInfo(resizeInfo));
+
+        final ActionPaginator paginator = paginatorFactory.newPaginator();
+        final PaginatedActionViews ascendingResults = paginator.applyPagination(
+            Stream.of(smallerView, largerView, smallerViewLargerId), PaginationParameters.newBuilder()
+                .setOrderBy(OrderBy.newBuilder()
+                    .setAction(ActionOrderBy.ACTION_SAVINGS))
+                .setAscending(true)
+                .build());
+        assertThat(ascendingResults.getResults(), contains(smallerView, smallerViewLargerId, largerView));
+        final PaginatedActionViews descendingResults = paginator.applyPagination(
+            Stream.of(smallerView, largerView, smallerViewLargerId), PaginationParameters.newBuilder()
+                .setOrderBy(OrderBy.newBuilder()
+                    .setAction(ActionOrderBy.ACTION_SAVINGS))
+                .setAscending(false)
+                .build());
+        assertThat(descendingResults.getResults(), contains(largerView, smallerViewLargerId, smallerView));
+    }
+
+    @Test
+    public void testOrderByRecommendationDate() {
+        final ActionInfo resizeInfo = ActionInfo.newBuilder()
+            .setResize(Resize.newBuilder()
+                .setTarget(ActionEntity.newBuilder()
+                    .setId(1)
+                    .setType(1)))
+            .build();
+        final ActionView smallerView = newActionView(1, action -> action
+            .setImportance(1.0)
+            .setInfo(resizeInfo));
+        LocalDateTime smallerTime = LocalDateTime.of(2007, 7, 7, 7, 7);
+        LocalDateTime largerTime = LocalDateTime.of(2008, 8, 8, 8, 8);
+        when(smallerView.getRecommendationTime()).thenReturn(smallerTime);
+        final ActionView smallerViewLargerId = newActionView(2, action -> action
+            .setImportance(1.0)
+            .setInfo(resizeInfo));
+        when(smallerViewLargerId.getRecommendationTime()).thenReturn(smallerTime);
+        final ActionView largerView = newActionView(3, action -> action
+            .setImportance(1.0)
+            .setInfo(resizeInfo));
+        when(largerView.getRecommendationTime()).thenReturn(largerTime);
+
+        final ActionPaginator paginator = paginatorFactory.newPaginator();
+        final PaginatedActionViews ascendingResults = paginator.applyPagination(
+            Stream.of(smallerView, largerView, smallerViewLargerId), PaginationParameters.newBuilder()
+                .setOrderBy(OrderBy.newBuilder()
+                    .setAction(ActionOrderBy.ACTION_RECOMMENDATION_TIME))
+                .setAscending(true)
+                .build());
+        assertThat(ascendingResults.getResults(), contains(smallerView, smallerViewLargerId, largerView));
+        final PaginatedActionViews descendingResults = paginator.applyPagination(
+            Stream.of(smallerViewLargerId, smallerView, largerView), PaginationParameters.newBuilder()
+                .setOrderBy(OrderBy.newBuilder()
+                    .setAction(ActionOrderBy.ACTION_RECOMMENDATION_TIME))
+                .setAscending(false)
+                .build());
+        assertThat(descendingResults.getResults(), contains(largerView, smallerViewLargerId, smallerView));
+    }
 }

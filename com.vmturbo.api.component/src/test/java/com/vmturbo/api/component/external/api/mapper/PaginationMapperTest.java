@@ -75,6 +75,14 @@ public class PaginationMapperTest {
     }
 
     @Test
+    public void testActionOrderByCreationDate() throws InvalidOperationException {
+        final ActionPaginationRequest paginationRequest =
+            new ActionPaginationRequest(null, null, true, ActionOrderBy.CREATION_DATE.name());
+        final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
+        assertThat(params.getOrderBy().getAction(), is(OrderBy.ActionOrderBy.ACTION_RECOMMENDATION_TIME));
+    }
+
+    @Test
     public void testSearchOrderByName() throws InvalidOperationException {
         final SearchPaginationRequest paginationRequest =
                 new SearchPaginationRequest(null, null, true, SearchOrderBy.NAME.name());

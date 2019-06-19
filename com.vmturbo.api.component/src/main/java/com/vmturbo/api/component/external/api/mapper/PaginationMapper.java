@@ -53,13 +53,16 @@ public class PaginationMapper {
                         .setAction(ActionOrderBy.ACTION_NAME).build());
                 case SEVERITY:
                     return Optional.of(OrderBy.newBuilder()
-                            .setAction(ActionOrderBy.ACTION_SEVERITY).build());
+                        .setAction(ActionOrderBy.ACTION_SEVERITY).build());
                 case RISK_CATEGORY:
                     return Optional.of(OrderBy.newBuilder()
-                            .setAction(ActionOrderBy.ACTION_RISK_CATEGORY).build());
+                        .setAction(ActionOrderBy.ACTION_RISK_CATEGORY).build());
                 case SAVINGS:
                     return Optional.of(OrderBy.newBuilder()
-                            .setAction(ActionOrderBy.ACTION_SAVINGS).build());
+                        .setAction(ActionOrderBy.ACTION_SAVINGS).build());
+                case CREATION_DATE:
+                    return Optional.of(OrderBy.newBuilder()
+                        .setAction(ActionOrderBy.ACTION_RECOMMENDATION_TIME).build());
                 default:
                     logger.error("Unhandled action sort order: {}", apiOrderBy);
             }
@@ -69,16 +72,16 @@ public class PaginationMapper {
             switch (apiOrderBy) {
                 case NAME:
                     return Optional.of(OrderBy.newBuilder()
-                            .setSearch(SearchOrderBy.ENTITY_NAME).build());
+                        .setSearch(SearchOrderBy.ENTITY_NAME).build());
                 case UTILIZATION:
                     return Optional.of(OrderBy.newBuilder()
-                            .setSearch(SearchOrderBy.ENTITY_UTILIZATION).build());
+                        .setSearch(SearchOrderBy.ENTITY_UTILIZATION).build());
                 case SEVERITY:
                     return Optional.of(OrderBy.newBuilder()
-                            .setSearch(SearchOrderBy.ENTITY_SEVERITY).build());
+                        .setSearch(SearchOrderBy.ENTITY_SEVERITY).build());
                 case COST:
                     return Optional.of(OrderBy.newBuilder()
-                            .setSearch(SearchOrderBy.ENTITY_COST).build());
+                        .setSearch(SearchOrderBy.ENTITY_COST).build());
                 default:
                     logger.error("Unhandled search sort order: {}", apiOrderBy);
             }

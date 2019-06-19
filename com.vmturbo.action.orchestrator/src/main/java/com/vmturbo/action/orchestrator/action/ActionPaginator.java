@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.action;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -45,17 +46,24 @@ public class ActionPaginator {
 
     static {
         final Map<ActionOrderBy, Comparator<ActionView>> registry = new EnumMap<>(ActionOrderBy.class);
-        registry.put(ActionOrderBy.ACTION_NAME, Comparator.comparing(ActionView::getDescription));
+        registry.put(ActionOrderBy.ACTION_NAME,
+            new StableActionComparator(Comparator.comparing(ActionView::getDescription)));
         registry.put(ActionOrderBy.ACTION_SEVERITY,
-                Comparator.comparingDouble(view -> view.getRecommendation().getImportance()));
-        registry.put(ActionOrderBy.ACTION_RISK_CATEGORY, (a1, a2) -> {
+            new StableActionComparator(Comparator.comparingDouble(view -> view.getRecommendation().getImportance())));
+        registry.put(ActionOrderBy.ACTION_RISK_CATEGORY, new StableActionComparator((a1, a2) -> {
             final ActionCategory a1Category = a1.getActionCategory();
             final ActionCategory a2Category = a2.getActionCategory();
             return a1Category.compareTo(a2Category);
-        });
-        // We don't have savings/cost implemented for actions in XL, so all actions
-        // are the same in this regard.
-        registry.put(ActionOrderBy.ACTION_SAVINGS, (a1, a2) -> 0);
+        }));
+        registry.put(ActionOrderBy.ACTION_SAVINGS,
+            new StableActionComparator(Comparator.comparingDouble(view -> view.getRecommendation().getSavingsPerHour().getAmount())));
+        registry.put(ActionOrderBy.ACTION_RECOMMENDATION_TIME,
+            new StableActionComparator((a1, a2) -> {
+            final LocalDateTime a1Time = a1.getRecommendationTime();
+            final LocalDateTime a2Time = a2.getRecommendationTime();
+            return a1Time.compareTo(a2Time);
+        }));
+
 
         COMPARATOR_REGISTRY = Collections.unmodifiableMap(registry);
     }
@@ -210,4 +218,24 @@ public class ActionPaginator {
             return views;
         }
     }
+
+    /**
+     * A comparator that guarantees a stable sort order for {@link ActionView}s by using the
+     * action's ID as a backup.
+     */
+    private static class StableActionComparator implements Comparator<ActionView> {
+
+        private final Comparator<ActionView> internalComparator;
+
+        private StableActionComparator(@Nonnull final Comparator<ActionView> internalComparator) {
+            this.internalComparator = internalComparator;
+        }
+
+        @Override
+        public int compare(@Nonnull final ActionView a1, @Nonnull final ActionView a2) {
+            final int compareResult = internalComparator.compare(a1, a2);
+            return compareResult == 0 ? Long.compare(a1.getId(), a2.getId()) : compareResult;
+        }
+    }
+
 }

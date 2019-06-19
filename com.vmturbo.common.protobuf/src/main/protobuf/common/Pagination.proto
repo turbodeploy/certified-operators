@@ -22,6 +22,7 @@ message OrderBy {
         ACTION_SEVERITY = 2;
         ACTION_RISK_CATEGORY = 3;
         ACTION_SAVINGS = 4;
+        ACTION_RECOMMENDATION_TIME = 5;
     }
 
     // The ordering parameters for search requests.
