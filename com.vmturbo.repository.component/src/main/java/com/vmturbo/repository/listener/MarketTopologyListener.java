@@ -2,7 +2,6 @@ package com.vmturbo.repository.listener;
 
 import java.util.Collection;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
@@ -13,11 +12,9 @@ import org.apache.logging.log4j.Logger;
 
 import com.arangodb.ArangoDBException;
 
-
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
@@ -44,7 +41,7 @@ public class MarketTopologyListener implements ProjectedTopologyListener, Analys
     private final Object topologyInfoLock = new Object();
 
     @GuardedBy("topologyInfoLock")
-    private long latestKnownProjectedTopologyId;
+    private long latestKnownProjectedTopologyId = -1;
 
     public MarketTopologyListener(@Nonnull final RepositoryNotificationSender notificationSender,
                                   @Nonnull final TopologyLifecycleManager topologyManager) {
@@ -65,28 +62,38 @@ public class MarketTopologyListener implements ProjectedTopologyListener, Analys
                     "Faled to send notification about received topology " + projectedTopologyId, e);
         }
     }
+
+    private void updateLatestKnownProjectedTopologyId(final long id) {
+        synchronized (topologyInfoLock) {
+            latestKnownProjectedTopologyId = Math.max(id, latestKnownProjectedTopologyId);
+        }
+    }
+
     @Override
     public void onAnalysisSummary(@Nonnull final AnalysisSummary analysisSummary){
             TopologyInfo topologyInfo = analysisSummary.getSourceTopologyInfo();
             if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
                 synchronized (topologyInfoLock) {
-                    latestKnownProjectedTopologyId =
-                        analysisSummary.getProjectedTopologyInfo().getProjectedTopologyId();
+                    updateLatestKnownProjectedTopologyId(
+                        analysisSummary.getProjectedTopologyInfo().getProjectedTopologyId());
                     logger.info("Setting latest known projected realtime topology id to {}, " +
                             "referring to source topology {}",
                         latestKnownProjectedTopologyId, topologyInfo.getTopologyId());
                 }
             }
     }
+
     private boolean shouldProcessTopology(TopologyInfo originalTopologyInfo, long projectedTopologyId) {
         // should we skip this one? We will skip it only if the most up to date projected
         // topology received so far, is "newer" than the one we just received.
         if (originalTopologyInfo.getTopologyType() == TopologyType.REALTIME) {
-                // don't process if this projected topology is older than the once we already
+            // don't process if this projected topology is older than the once we already
             // received.
+            synchronized (topologyInfoLock) {
                 if (latestKnownProjectedTopologyId > projectedTopologyId) {
                     return false;
                 }
+            }
         }
         return true;
     }
@@ -95,6 +102,9 @@ public class MarketTopologyListener implements ProjectedTopologyListener, Analys
             TopologyInfo originalTopologyInfo,
             @Nonnull final RemoteIterator<ProjectedTopologyEntity> projectedTopo)
             throws CommunicationException, InterruptedException {
+
+        updateLatestKnownProjectedTopologyId(projectedTopologyId);
+
         final long topologyContextId = originalTopologyInfo.getTopologyContextId();
         final TopologyID tid = new TopologyID(topologyContextId, projectedTopologyId,
             TopologyID.TopologyType.PROJECTED);
