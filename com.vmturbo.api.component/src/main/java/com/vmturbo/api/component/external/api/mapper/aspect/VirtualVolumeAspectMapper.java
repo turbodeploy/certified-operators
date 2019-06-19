@@ -21,6 +21,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.STEntityAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
@@ -536,7 +537,7 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
         VirtualDiskApiDTO retVal = new VirtualDiskApiDTO();
         retVal.setDisplayName(file.getPath());
         retVal.setEnvironmentType(EnvironmentType.ONPREM);
-        retVal.setProvider(createBaseApiDTO(storage));
+        retVal.setProvider(createServiceEntityApiDTO(storage));
         retVal.setLastModified(file.getModificationTimeMs());
         retVal.setTier(UNKNOWN);
         // storage amount stats
@@ -549,17 +550,17 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
     }
 
     /**
-     * Create the BaseApiDTO based on a TopologyEntityDTO.
+     * Create the ServiceEntityApiDTO based on a TopologyEntityDTO.
      *
      * @param entity The storage enclosing the virtual disk.
-     * @return BaseApiDTO representing the storage.
+     * @return ServiceEntityApiDTO representing the storage.
      */
-    private BaseApiDTO createBaseApiDTO(TopologyEntityDTO entity) {
-        BaseApiDTO baseApiDTO = new BaseApiDTO();
-        baseApiDTO.setUuid(String.valueOf(entity.getOid()));
-        baseApiDTO.setDisplayName(entity.getDisplayName());
+    private ServiceEntityApiDTO createServiceEntityApiDTO(TopologyEntityDTO entity) {
+        ServiceEntityApiDTO serviceEntityApiDTO = new ServiceEntityApiDTO();
+        serviceEntityApiDTO.setUuid(String.valueOf(entity.getOid()));
+        serviceEntityApiDTO.setDisplayName(entity.getDisplayName());
 
-        return baseApiDTO;
+        return serviceEntityApiDTO;
     }
 
     /**
@@ -599,7 +600,7 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
             // set tier
             virtualDiskApiDTO.setTier(storageTier.getDisplayName());
             // set storage tier as provider
-            BaseApiDTO provider = new BaseApiDTO();
+            ServiceEntityApiDTO provider = new ServiceEntityApiDTO();
             provider.setUuid(String.valueOf(storageTier.getOid()));
             provider.setDisplayName(storageTier.getDisplayName());
             virtualDiskApiDTO.setProvider(provider);
