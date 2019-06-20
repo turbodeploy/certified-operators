@@ -230,12 +230,26 @@ public final class Topology implements Serializable {
     }
 
     /**
+     * Returns a modifiable BiMap mapping {@link Trader}s to their OIDs.
+     */
+    public @NonNull BiMap<@NonNull Trader, @NonNull Long> getModifiableTraderOids() {
+        return traderOids_;
+    }
+
+    /**
      * Returns an unmodifiable BiMap mapping {@link ShoppingList}s to their OIDs.
      */
     public @ReadOnly @NonNull BiMap<@NonNull ShoppingList, @NonNull Long>
             getShoppingListOids(@ReadOnly Topology this) {
         return unmodifiableShoppingListOids_;
     }
+
+    /**
+    * Returns a modifiable BiMap mapping {@link ShoppingList}s to their OIDs.
+    */
+   public @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> getModifiableShoppingListOids() {
+       return shoppingListOids_;
+   }
 
     /**
      * Returns an unmodifiable Map mapping OIDs of traders that haven't been added to {@code this}

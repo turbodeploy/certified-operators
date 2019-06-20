@@ -32,6 +32,8 @@ public class AnalysisInstanceInfo {
     private String marketData_;
     // true if this run of analysis is for RT
     private boolean isRealTime;
+    // true if this run of analysis is for balanced deploy market.
+    private boolean isBalanceDeploy;
     // true if moves throttling is enabled
     private boolean isMovesThrottling;
     // suspension throttling config
@@ -203,5 +205,19 @@ public class AnalysisInstanceInfo {
 
     public void setSuspensionsThrottlingConfig(SuspensionsThrottlingConfig suspensionsThrottligConfig) {
         this.suspensionsThrottlingConfig = suspensionsThrottligConfig;
+    }
+
+    /**
+     * @return the isBalanceDeploy.
+     */
+    public boolean isBalanceDeploy() {
+        return isBalanceDeploy;
+    }
+
+    /**
+     * @param isBalanceDeploy the isBalanceDeploy to set.
+     */
+    public void setBalanceDeploy(boolean isBalanceDeploy) {
+        this.isBalanceDeploy = isBalanceDeploy;
     }
 }

@@ -103,6 +103,9 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
 
     private final @NonNull Set<@NonNull CommoditySpecification> commsToAdjustOverhead_ = new HashSet<>();
 
+    // The list of new Traders being added in deploy market.
+    private final @NonNull List<@NonNull Trader> placementEntities_ = new ArrayList<>();
+
     /**
      * The placement statistics associated with this {@link Economy}.
      */
@@ -1075,5 +1078,15 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     @NonNull
     public PlacementStats getPlacementStats() {
         return placementStats;
+    }
+
+    /**
+     * Get the placement entities for deploy market.
+     *
+     * @return placement entities for deploy market.
+     */
+    @Override
+    public List<Trader> getPlacementEntities() {
+        return placementEntities_;
     }
 } // end class Economy

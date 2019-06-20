@@ -377,6 +377,11 @@ public final class ProtobufToAnalysis {
         if (input.getSettings().getIsShopTogether()) {
             topology.addShopTogetherTraders(output);
         }
+        // adds the placement entity trader to a list in economy
+        if (input.getIsPlacementEntity()) {
+            output.setPlacementEntity(true);
+            topology.getEconomy().getPlacementEntities().add(output);
+        }
         output.setTemplateProvider(input.getTemplateProvider());
         output.setScalingGroupId(input.getScalingGroupId());
 

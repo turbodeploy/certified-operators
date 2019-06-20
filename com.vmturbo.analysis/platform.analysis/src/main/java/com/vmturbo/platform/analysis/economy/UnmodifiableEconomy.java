@@ -262,4 +262,11 @@ public interface UnmodifiableEconomy {
      */
     @NonNull
     PlacementStats getPlacementStats();
+
+    /**
+     * Get the placement entities for deploy market.
+     *
+     * @return placement entities for deploy market.
+     */
+    public List<Trader> getPlacementEntities();
 } // end UnmodifiableEconomy interface

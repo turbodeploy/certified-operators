@@ -182,4 +182,6 @@ message TraderTO {
     // Associated scaling group, if any
     optional string scalingGroupId = 16;
 
+    // Trader coming in to analysis in deploy market as new entity for placement.
+    optional bool isPlacementEntity = 17 [default = false];
 }
