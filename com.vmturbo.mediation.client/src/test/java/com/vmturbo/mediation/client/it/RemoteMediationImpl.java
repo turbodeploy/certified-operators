@@ -2,7 +2,6 @@ package com.vmturbo.mediation.client.it;
 
 import java.time.Clock;
 import java.util.Collection;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
@@ -18,7 +17,6 @@ import com.vmturbo.mediation.common.tests.util.IRemoteMediation;
 import com.vmturbo.mediation.common.tests.util.SdkProbe;
 import com.vmturbo.mediation.common.tests.util.SdkTarget;
 import com.vmturbo.mediation.common.tests.util.TestConstants;
-import com.vmturbo.platform.common.dto.ActionExecution.ActionApprovalResponse;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionErrorDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionEventDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
@@ -27,6 +25,8 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
 import com.vmturbo.platform.common.dto.PlanExport.PlanExportDTO;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalResponse;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionErrorsResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionProgress;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
@@ -153,7 +153,7 @@ public class RemoteMediationImpl implements IRemoteMediation {
 
     @Nonnull
     @Override
-    public List<ActionErrorDTO> updateActionItemStates(@Nonnull SdkTarget target,
+    public ActionErrorsResponse updateActionItemStates(@Nonnull SdkTarget target,
             @Nonnull Collection<ActionResponse> actionItem) throws InterruptedException {
         throw new NotImplementedException("Feature is not implemented for in XL now");
     }
@@ -168,7 +168,7 @@ public class RemoteMediationImpl implements IRemoteMediation {
 
     @Nonnull
     @Override
-    public Collection<ActionErrorDTO> auditActions(@Nonnull SdkTarget target,
+    public ActionErrorsResponse auditActions(@Nonnull SdkTarget target,
             @Nonnull Collection<ActionEventDTO> actionEvents) throws InterruptedException {
         throw new NotImplementedException("Feature is not implemented for in XL now");
     }
