@@ -350,6 +350,8 @@ public class ProvisionBySupply extends ActionImpl {
                 getEconomy().removeTrader(((ProvisionBySupply)a).getProvisionedSeller());
             } else if (a instanceof ProvisionByDemand) {
                 getEconomy().removeTrader(((ProvisionByDemand)a).getProvisionedSeller());
+            } else if (a instanceof Resize && a.isExtractAction()) {
+                a.rollback();
             }
         });
         commSoldToReplaceMap_.clear();
