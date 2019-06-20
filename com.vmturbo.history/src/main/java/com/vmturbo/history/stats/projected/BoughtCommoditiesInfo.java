@@ -10,18 +10,19 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
+import com.google.protobuf.TextFormat;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.history.stats.projected.AccumulatedCommodity.AccumulatedBoughtCommodity;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -167,7 +168,9 @@ class BoughtCommoditiesInfo {
      */
     static class Builder {
         private final Map<String, Map<Long, Multimap<Long, CommodityBoughtDTO>>> boughtCommodities
-                = new HashMap<>();
+            = new HashMap<>();
+        private final Map<Integer, MutableInt> duplicateCommoditiesBought
+            = new HashMap();
 
         private Builder() {}
 
@@ -228,9 +231,14 @@ class BoughtCommoditiesInfo {
                     } else {
                         // in this case we are buying duplicate commodity from same provider
                         // in the same commodity set. we print a message and we don't save it
-                        logger.warn("Entity {}[{}] is buying the duplicate commodity {} from the " +
-                                        "provider {}. Skipping saving stats for this commodity.",
-                                entity.getOid(), entity.getDisplayName(), commodityType, providerId);
+                        logger.debug("Entity {}[{}] is buying the duplicate commodity {} " +
+                                "from the provider {}. Skipping saving stats for this commodity.",
+                            () -> entity.getOid(), () -> entity.getDisplayName(),
+                            () -> TextFormat.shortDebugString(commodityType), () -> providerId);
+                        // count these for summary logging
+                        duplicateCommoditiesBought
+                            .computeIfAbsent(commodityType.getType(), MutableInt::new)
+                            .increment();
                     }
                 }
             }
@@ -246,6 +254,10 @@ class BoughtCommoditiesInfo {
          */
         @Nonnull
         BoughtCommoditiesInfo build(@Nonnull final SoldCommoditiesInfo soldCommoditiesInfo) {
+            // provide summary logs of commodities that arose in duplicate buying scenarios
+            duplicateCommoditiesBought.forEach((k,v) ->
+                logger.warn("Commodity was involved in {} duplicate buying relationships: " +
+                    "type {}; log@DEBUG for details",  v, k));
             return new BoughtCommoditiesInfo(soldCommoditiesInfo, boughtCommodities);
         }
 

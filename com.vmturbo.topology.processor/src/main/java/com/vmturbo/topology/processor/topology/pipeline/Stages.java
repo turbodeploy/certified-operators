@@ -6,7 +6,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.function.Function;
@@ -22,9 +21,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
-
-import io.grpc.Status.Code;
-import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -79,6 +75,7 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationFailure;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
+import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger.KeyChangeOutcome;
 import com.vmturbo.topology.processor.topology.CloudTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
@@ -344,8 +341,12 @@ public class Stages {
 
         @Override
         public Status passthrough(final TopologyGraph<TopologyEntity> topologyGraph) {
-            final int keysChanged = applicationCommodityKeyChanger.execute(topologyGraph);
-            return Status.success(keysChanged + " commodity keys changed.");
+            final Map<KeyChangeOutcome, Integer> keysChangeCounts
+                = applicationCommodityKeyChanger.execute(topologyGraph);
+            final String summary = keysChangeCounts.entrySet().stream()
+                .map((e) -> String.format("%s: %s", e.getKey(), e.getValue()))
+                .collect(Collectors.joining("; "));
+            return Status.success("Commodity key change counts: " + summary);
         }
     }
 

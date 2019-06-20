@@ -15,6 +15,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import javax.annotation.Nonnull;
+
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
@@ -1190,8 +1193,8 @@ public abstract class BasedbIO {
                                     + "Last known query was:%n"
                                     + "%s%n------%n", tries, ex, lastQuery), ex);
                         } else {
-                            logger.warn("Query failed with soft error (try: {})." +
-                                " Exception message: {}", tries, ex.getMessage());
+                            logSoftError("Query failed with soft error (try: {})." +
+                                " Exception message: {}", tries, ex);
                         }
                         continue;
                     case SERVER:
@@ -1236,8 +1239,31 @@ public abstract class BasedbIO {
         }
     }
 
-
-
+    /**
+     * Log a soft error encountered when performing a db operation, taking care to deal with JOOQ's
+     * large and often largely useless messages.
+     * <p>If we're logging at debug level or above, we'll log the complete exception message, in which
+     * JOOQ will often copy the entire SQL statement that was being executed, formatted on multiple
+     * lines and often including hundreds of lists of question-mark placeholders, where values
+     * were bound for batch execution.</p>
+     *
+     * <p>At lower log levels, we include only the first line of the exception message, to avoid
+     * the cruft mentioned above.</p>
+     *
+     * @param s Log message, including "{}" placeholders for tries count and exception message
+     * @param tries tries count for this operation
+     * @param e exception returned for operation
+     */
+    private void logSoftError(@Nonnull final String s, final int tries, @Nonnull final Throwable e) {
+        if (logger.isEnabled(Level.DEBUG)) {
+            logger.debug(s, tries, e.getMessage());
+        } else {
+            String[] lines = e.getMessage().split("\n");
+            String abbreviatedMsg = lines[0]
+                + (lines.length > 1 ? "... "+lines[lines.length-1] : "");
+            logger.warn(s, tries, abbreviatedMsg);
+        }
+    }
 
     /**
      * Convenience override to execute a query.  This method
