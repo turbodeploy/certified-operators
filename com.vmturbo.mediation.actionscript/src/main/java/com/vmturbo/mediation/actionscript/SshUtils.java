@@ -10,6 +10,7 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.sshd.client.ClientBuilder;
@@ -25,7 +26,7 @@ import org.apache.sshd.common.random.RandomFactory;
 import org.apache.sshd.common.random.SingletonRandomFactory;
 import org.apache.sshd.common.util.security.SecurityUtils;
 
-import sun.misc.IOUtils;
+import com.google.common.base.Charsets;
 
 import com.vmturbo.mediation.actionscript.exception.KeyValidationException;
 import com.vmturbo.mediation.actionscript.exception.RemoteExecutionException;
@@ -182,13 +183,10 @@ public class SshUtils {
             try {
                 SftpClient sftp = null;
                 sftp = SftpClientFactory.instance().createSftpClient(session);
-                return new String(IOUtils.readFully(sftp.read(path),
-                    Integer.MAX_VALUE, // read to end of stream
-                    true)); // this arg is ignored when prior is -1 or MAX_VALUE
+                return new String(IOUtils.toString(sftp.read(path), Charsets.UTF_8));
             } catch (IOException e) {
                 throw new RemoteExecutionException("Failed to fetch remote file", e);
             }
-
         };
         return runner.run(cmd);
     }
