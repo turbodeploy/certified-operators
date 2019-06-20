@@ -532,8 +532,8 @@ public class CostFunctionFactory {
                     logger.info("Buyer {} is not in CBTP {} scope, buyer accountId: {}, seller " +
                                     "accountId: {}", buyer.getDebugInfoNeverUseInCode(),
                             seller.getDebugInfoNeverUseInCode(), buyerAccountId, sellerAccountId);
+                    return Double.POSITIVE_INFINITY;
                 }
-                return Double.POSITIVE_INFINITY;
             }
         }
         // Match the vm with a template in order to:
@@ -989,8 +989,8 @@ public class CostFunctionFactory {
                                     "using priceId: {}, balanceAccountId: {}, priceMap keys: {}",
                             sl.getDebugInfoNeverUseInCode(), priceId, balanceAccountId,
                             priceMap.keySet());
+                    return Double.POSITIVE_INFINITY;
                 }
-                return Double.POSITIVE_INFINITY;
             }
 
             for (PriceData priceData : priceDataList) {
