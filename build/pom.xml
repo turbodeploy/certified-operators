@@ -32,10 +32,10 @@
         <guava.version>23.0</guava.version>
         <units.of.measure.version>1.0.2</units.of.measure.version>
 
-        <grpc.version>1.21.0</grpc.version>
+        <grpc.version>1.11.0</grpc.version>
         <grpc.prometheus.version>0.3.0</grpc.prometheus.version>
 
-        <protobuf.version>3.6.1</protobuf.version>
+        <protobuf.version>3.5.1</protobuf.version>
         <protobuf.maven.plugin.version>0.5.1</protobuf.maven.plugin.version>
         <os.maven.plugin.version>1.4.1.Final</os.maven.plugin.version>
 
@@ -123,7 +123,7 @@
         <surefire.version>2.20</surefire.version>
         <!-- This allows nested modules to override the path to the root checkstyle.xml -->
         <checkstyle.path>${project.basedir}/../build/checkstyle.xml</checkstyle.path>
-        <jetty.version>9.4.19.v20190610</jetty.version>
+        <jetty.version>9.4.17.v20190418</jetty.version>
         <bouncycastle.version>1.57</bouncycastle.version>
         <!-- FlexLM, for use with Cisco licenses -->
         <flex.lm.version>11.14.1.1</flex.lm.version>
