@@ -23,7 +23,6 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
-import java.io.IOException;
 import java.rmi.activation.UnknownObjectException;
 import java.time.Clock;
 import java.time.Duration;
@@ -82,8 +81,6 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
-import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
-import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityTypeFilter;
@@ -95,7 +92,6 @@ import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostMoles.ReservedInstanceUtilizationCoverageServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
-import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -120,7 +116,6 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
@@ -148,6 +143,10 @@ import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.api.AccountValue;
+import com.vmturbo.topology.processor.api.ProbeInfo;
+import com.vmturbo.topology.processor.api.TargetInfo;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 @RunWith(MockitoJUnitRunner.class)
 public class StatsServiceTest {
@@ -156,7 +155,17 @@ public class StatsServiceTest {
 
     private static final long REALTIME_CONTEXT_ID = 777777;
 
-    public static final String PHYSICAL_MACHINE_TYPE = "PhysicalMachine";
+    private static final String PHYSICAL_MACHINE_TYPE = UIEntityType.PHYSICAL_MACHINE.apiStr();
+
+    private static final long TARGET_ID = 10L;
+
+    private static final String TARGET_DISPLAY_NAME = "display name";
+
+    private static final String PROBE_TYPE = "probe type";
+
+    private final TopologyProcessor topologyProcessor = Mockito.mock(TopologyProcessor.class);
+
+    private final ServiceEntityMapper serviceEntityMapper = new ServiceEntityMapper(topologyProcessor);
 
     private StatsService statsService;
 
@@ -174,8 +183,6 @@ public class StatsServiceTest {
 
     private RepositoryServiceMole repositoryServiceSpy = spy(new RepositoryServiceMole());
 
-    private SearchServiceMole searchServiceMole = spy(new SearchServiceMole());
-
     private SupplyChainFetcherFactory supplyChainFetcherFactory =
             Mockito.mock(SupplyChainFetcherFactory.class);
 
@@ -183,7 +190,8 @@ public class StatsServiceTest {
 
     private StatsMapper statsMapper = Mockito.mock(StatsMapper.class);
 
-    private SearchService searchService = Mockito.mock(SearchService.class);
+    private final SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder supplychainApiDTOFetcherBuilder =
+            Mockito.mock(SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder.class);
 
     private TargetsService targetsService = Mockito.mock(TargetsService.class);
 
@@ -228,7 +236,7 @@ public class StatsServiceTest {
             groupServiceSpy, planServiceSpy, repositoryServiceSpy, costServiceSpy, riUtilizationCoverageSpy);
 
     @Before
-    public void setUp() throws IOException, InterruptedException, OperationFailedException {
+    public void setUp() throws Exception {
         final StatsHistoryServiceBlockingStub statsServiceRpc =
             StatsHistoryServiceGrpc.newBlockingStub(testServer.getChannel());
         final PlanServiceGrpc.PlanServiceBlockingStub planRpcService =
@@ -237,9 +245,8 @@ public class StatsServiceTest {
             RepositoryServiceGrpc.newBlockingStub(testServer.getChannel());
         final SearchServiceBlockingStub searchServiceClient = SearchServiceGrpc.newBlockingStub(
             testServer.getChannel());
-        final ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub
-            riUtilizationCoverageRpcService = ReservedInstanceUtilizationCoverageServiceGrpc
-                .newBlockingStub(testServer.getChannel());
+
+        mockTopologyProcessorOutputs();
 
         groupExpander = Mockito.mock(GroupExpander.class);
         GroupServiceBlockingStub groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
@@ -251,12 +258,13 @@ public class StatsServiceTest {
         when(riService.fetchPlanInstance(oid2)).thenReturn(Optional.empty());
         when(riService.fetchPlanInstance("11111")).thenReturn(Optional.empty());
         when(riService.fetchPlanInstance(StatsService.MARKET)).thenReturn(Optional.empty());
+        when(repositoryApi.getServiceEntityById(anyLong(), any())).thenReturn(new ServiceEntityApiDTO());
 
         statsService = spy(new StatsService(statsServiceRpc, planRpcService, repositoryApi,
             repositoryRpcService, searchServiceClient, supplyChainFetcherFactory, statsMapper,
             groupExpander, mockClock, targetsService, groupService, Duration.ofMillis(LIVE_STATS_RETRIEVAL_WINDOW_MS),
             costService, magicScopeGateway, userSessionContext, riService,
-            Mockito.mock(ServiceEntityMapper.class), REALTIME_CONTEXT_ID));
+            serviceEntityMapper, REALTIME_CONTEXT_ID));
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
         when(uuidMapper.fromUuid(oid2)).thenReturn(apiId2);
         when(apiId1.uuid()).thenReturn(oid1);
@@ -287,7 +295,6 @@ public class StatsServiceTest {
         final StatSnapshotApiDTO apiDto = new StatSnapshotApiDTO();
         apiDto.setStatistics(Collections.emptyList());
         when(statsMapper.toStatSnapshotApiDTO(any())).thenReturn(apiDto);
-        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
 
         final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(oid1, inputDto);
 
@@ -375,7 +382,6 @@ public class StatsServiceTest {
         when(statsMapper.toStatSnapshotApiDTO(any(), any(), any(), any(), any(), any())).thenReturn(apiDto);
         when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
         when(riService.fetchPlanInstance("111")).thenReturn(Optional.empty());
-        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
 
         final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery("111", inputDto);
 
@@ -453,7 +459,6 @@ public class StatsServiceTest {
         when(statsMapper.toCloudStatSnapshotApiDTO(any())).thenReturn(apiDto);
         when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
         when(riService.fetchPlanInstance(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID)).thenReturn(Optional.empty());
-        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
 
         final List<StatSnapshotApiDTO> resp = statsService
                 .getStatsByEntityQuery(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID, inputDto);
@@ -472,7 +477,6 @@ public class StatsServiceTest {
         assertEquals(1, resp.size());
     }
 
-
     //custom group and entityid are both in id form, so this test also cover the getting stat from an entity
     @Test
     public void testGetStatsByEntityQueryWithFilteringForCostBottomUpWorkloadWithCustomGroupOrEntity() throws Exception {
@@ -489,7 +493,7 @@ public class StatsServiceTest {
         final Set<Long> expandedOidList = Sets.newHashSet(apiId1.oid());
         when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
         when(groupExpander.expandUuid(anyObject())).thenReturn(expandedOidList);
-
+        expectedEntityIdsAfterSupplyChainTraversal(expandedOidList);
 
         when(statsMapper.toAveragedEntityStatsRequest(expandedOidList, inputDto, Optional.empty()))
                 .thenReturn(request);
@@ -514,27 +518,12 @@ public class StatsServiceTest {
         apiDto.setStatistics(Collections.emptyList());
         when(statsMapper.toCloudStatSnapshotApiDTO(any())).thenReturn(apiDto);
         when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
-        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
 
         final List<StatSnapshotApiDTO> resp = statsService
                 .getStatsByEntityQuery("11111", inputDto);
 
-        GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest.newBuilder()
-                .setEntityFilter(EntityFilter.newBuilder().addEntityId(1l).build())
-                .setEntityTypeFilter(EntityTypeFilter.newBuilder()
-                    .addEntityTypeId(EntityType.VIRTUAL_MACHINE_VALUE))
-                .build();
+        verifySupplyChainTraversal();
 
-        final CloudCostStatRecord expectedCloudStatRecord = CloudCostStatRecord.newBuilder()
-                .setSnapshotDate(DateTimeUtil.toString(1))
-                .addStatRecords(StatRecord.newBuilder()
-                        .setName(StringConstants.COST_PRICE)
-                        .setUnits(StringConstants.DOLLARS_PER_HOUR)
-                        .setValues(StatValue.newBuilder().setTotal(value1 + value2 + value3)
-                                .setMin(value1).setMax(value3).setAvg((value1 + value2 + value3)/3).build())
-                        .setAssociatedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                        .build())
-                .build();
         // Should have called targets service to get a list of targets.
         verify(targetsService).getTargets(null);
         assertEquals(0, resp.size());
@@ -544,7 +533,6 @@ public class StatsServiceTest {
     // from both Cost and History component .
     @Test
     public void testGetStatsByEntityQueryWithBothCloudCostAndNonCloudStats() throws Exception {
-
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
         // Cloud cost stat
         final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
@@ -564,7 +552,7 @@ public class StatsServiceTest {
         final Set<Long> expandedOidList = Sets.newHashSet(apiId1.oid());
         when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
         when(groupExpander.expandUuid(anyObject())).thenReturn(expandedOidList);
-
+        when(supplyChainFetcherFactory.expandScope(any(), any())).thenReturn(expandedOidList);
 
         when(statsMapper.toAveragedEntityStatsRequest(expandedOidList, inputDto, Optional.empty()))
                 .thenReturn(request);
@@ -589,30 +577,13 @@ public class StatsServiceTest {
         apiDto.setStatistics(Collections.emptyList());
         when(statsMapper.toCloudStatSnapshotApiDTO(any())).thenReturn(apiDto);
         when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
-        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
-
+        when(repositoryApi.getServiceEntityById(anyLong(), any())).thenReturn(new ServiceEntityApiDTO());
 
         final List<StatSnapshotApiDTO> resp = statsService
                 .getStatsByEntityQuery("11111", inputDto);
 
-        GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest.newBuilder()
-                .setEntityFilter(EntityFilter.newBuilder().addEntityId(1l).build())
-                .setEntityTypeFilter(EntityTypeFilter.newBuilder()
-                    .addAllEntityTypeId(StatsService.ENTITY_TYPES_COUNTED_AS_WORKLOAD.stream()
-                        .map(UIEntityType::fromString)
-                        .map(UIEntityType::typeNumber)
-                        .collect(Collectors.toSet())))
-                .build();
+        verifySupplyChainTraversal();
 
-        final CloudCostStatRecord expectedCloudStatRecord = CloudCostStatRecord.newBuilder()
-                .setSnapshotDate(DateTimeUtil.toString(1))
-                .addStatRecords(StatRecord.newBuilder()
-                        .setName(StringConstants.COST_PRICE)
-                        .setUnits(StringConstants.DOLLARS_PER_HOUR)
-                        .setValues(StatValue.newBuilder().setTotal(value1 + value2 + value3)
-                                .setMin(value1).setMax(value3).setAvg((value1 + value2 + value3)/3).build())
-                        .build())
-                .build();
         // Should have called targets service to get a list of targets.
         verify(targetsService).getTargets(null);
         assertEquals(0, resp.size());
@@ -631,7 +602,6 @@ public class StatsServiceTest {
         EntityAccessScope accessScope = new EntityAccessScope(null, null,
                 new ArrayOidSet(Arrays.asList(apiId1.oid())), null);
         when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
-        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
 
         // verify that the request will not get interrupted on a request for entity 1
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
@@ -734,7 +704,6 @@ public class StatsServiceTest {
         final StatSnapshotApiDTO apiDto = new StatSnapshotApiDTO();
         apiDto.setStatistics(Collections.emptyList());
         when(statsMapper.toStatSnapshotApiDTO(any())).thenReturn(apiDto);
-        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
 
         final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(oid1, inputDto);
 
@@ -825,7 +794,6 @@ public class StatsServiceTest {
                                 .setPlanId(planId)
                                 .setStatus(PlanStatus.SUCCEEDED))
                         .build());
-        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
         final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(planIdString, inputDto);
         verify(statsHistoryServiceSpy, never()).getProjectedStats(any());
         verifyZeroInteractions(costServiceSpy);
@@ -850,7 +818,6 @@ public class StatsServiceTest {
         final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
         dto.setStatistics(Collections.emptyList());
         when(statsMapper.toStatSnapshotApiDTO(any())).thenReturn(dto);
-        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
 
         // act
         final List<StatSnapshotApiDTO> retDtos = statsService.getStatsByEntityQuery(oid1, inputDto);
@@ -903,7 +870,6 @@ public class StatsServiceTest {
         when(statsMapper.toAveragedEntityStatsRequest(oids, inputDto, Optional.empty()))
                 .thenReturn(request);
         when(riService.fetchPlanInstance("7")).thenReturn(Optional.empty());
-        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
 
         // We don't really care about what happens after the RPC call, because the thing
         // we're testing is that the datacenter gets expanded into the right IDs before
@@ -968,7 +934,7 @@ public class StatsServiceTest {
         final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.getDefaultInstance();
         when(statsMapper.toAveragedEntityStatsRequest(expandedOids, inputDto, Optional.empty()))
                 .thenReturn(request);
-        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
+        expectedEntityIdsAfterSupplyChainTraversal(expandedOids);
 
         // act
         statsService.getStatsByEntityQuery(oid1, inputDto);
@@ -1002,7 +968,6 @@ public class StatsServiceTest {
         final StatSnapshotApiDTO retDto = new StatSnapshotApiDTO();
         retDto.setStatistics(Collections.emptyList());
         when(statsMapper.toStatSnapshotApiDTO(any())).thenReturn(retDto);
-        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenReturn(new ServiceEntityApiDTO());
 
         // act
         final List<StatSnapshotApiDTO> results = statsService.getStatsByEntityQuery(oid1, inputDto);
@@ -1341,7 +1306,8 @@ public class StatsServiceTest {
         when(statsMapper.normalizeRelatedType(inputDto.getRelatedType())).thenReturn(inputDto.getRelatedType());
 
         when(groupExpander.getGroup(any())).thenReturn(Optional.empty());
-        when(repositoryApi.getServiceEntityForUuid(anyLong())).thenThrow(UnknownObjectException.class);
+        when(repositoryApi.getServiceEntityById(anyLong(), any())).thenThrow(UnknownObjectException.class);
+        expectedEntityIdsAfterSupplyChainTraversal(Collections.singleton(pmId));
 
         // We don't care about the result - for this test we just want to make sure
         // that the vm ID gets expanded into the PM id.
@@ -1350,6 +1316,8 @@ public class StatsServiceTest {
         } catch (UnknownObjectException e) {
             // this is expected
         }
+
+        verifySupplyChainTraversal();
 
         // Make sure we normalize the related entity type.
         verify(statsMapper, atLeastOnce()).normalizeRelatedType(inputDto.getRelatedType());
@@ -1628,5 +1596,30 @@ public class StatsServiceTest {
         EntityList entityList = argumentCaptor.getValue().getEntityList();
         Assert.assertEquals(1, entityList.getEntitiesCount());
         Assert.assertEquals(1, entityList.getEntities(0));
+    }
+
+    private void expectedEntityIdsAfterSupplyChainTraversal(Set<Long> entityIds)
+            throws OperationFailedException, InterruptedException {
+        when(supplyChainFetcherFactory.expandScope(any(), any())).thenReturn(entityIds);
+    }
+
+    private void verifySupplyChainTraversal() throws OperationFailedException, InterruptedException {
+        verify(supplyChainFetcherFactory).expandScope(any(), any());
+    }
+
+    private void mockTopologyProcessorOutputs() throws Exception {
+        final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
+        final ProbeInfo probeInfo = Mockito.mock(ProbeInfo.class);
+        final AccountValue accountValue = Mockito.mock(AccountValue.class);
+        Mockito.when(targetInfo.getId()).thenReturn(TARGET_ID);
+        final long probeId = 11L;
+        Mockito.when(targetInfo.getProbeId()).thenReturn(probeId);
+        Mockito.when(targetInfo.getAccountData()).thenReturn(Collections.singleton(accountValue));
+        Mockito.when(accountValue.getName()).thenReturn(TargetInfo.TARGET_ADDRESS);
+        Mockito.when(accountValue.getStringValue()).thenReturn(TARGET_DISPLAY_NAME);
+        Mockito.when(probeInfo.getId()).thenReturn(probeId);
+        Mockito.when(probeInfo.getType()).thenReturn(PROBE_TYPE);
+        Mockito.when(topologyProcessor.getProbe(Mockito.eq(probeId))).thenReturn(probeInfo);
+        Mockito.when(topologyProcessor.getTarget(Mockito.eq(TARGET_ID))).thenReturn(targetInfo);
     }
 }

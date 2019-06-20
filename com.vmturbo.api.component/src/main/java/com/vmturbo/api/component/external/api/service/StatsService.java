@@ -41,6 +41,7 @@ import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
+import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
@@ -408,6 +409,15 @@ public class StatsService implements IStatsService {
     @Override
     public List<StatSnapshotApiDTO> getStatsByEntityQuery(String originalUuid, StatPeriodApiInputDTO inputDto)
             throws Exception {
+        try {
+            return getStatsByEntityQueryInternal(originalUuid, inputDto);
+        } catch (StatusRuntimeException e) {
+            throw ExceptionMapper.translateStatusException(e);
+        }
+    }
+
+    private List<StatSnapshotApiDTO> getStatsByEntityQueryInternal(
+            String originalUuid, StatPeriodApiInputDTO inputDto) throws Exception {
         final long currentTimeStamp = Clock.systemUTC().millis();
         // NOTE: to anyone updating this method, Gary Z. is offering a *generous* reward to any who can
         // refactor this function into smaller and simpler pieces, as it is getting cumbersome. Please
@@ -492,7 +502,19 @@ public class StatsService implements IStatsService {
                         groupExpander.expandUuid(uuid) : Sets.newHashSet(Long.valueOf(uuid));
                 // expand any ServiceEntities that should be replaced by related ServiceEntities,
                 // e.g. DataCenter is replaced by the PhysicalMachines in the DataCenter
-                entityStatOids = expandGroupingServiceEntities(expandedOidsList);
+                // and perform supply chain traversal to fetch connected entities
+                // whose type is included in the "relatedEntityType" fields of the present query
+                if (inputDto.getStatistics() != null) {
+                    entityStatOids =
+                        performSupplyChainTraversal(
+                            expandGroupingServiceEntities(expandedOidsList),
+                            inputDto.getStatistics().stream()
+                                .map(StatApiInputDTO::getRelatedEntityType)
+                                .filter(Objects::nonNull)
+                                .collect(Collectors.toList()));
+                } else {
+                    entityStatOids = expandGroupingServiceEntities(expandedOidsList);
+                }
 
                 // if empty expansion and not "Market", must be an empty group/expandable entity
                 // quick return.
@@ -682,7 +704,7 @@ public class StatsService implements IStatsService {
 
                     final Iterable<StatSnapshot> statsIterator = () -> statsServiceRpc.getAveragedEntityStats(request);
                     final List<StatSnapshot> statsList = new ArrayList<>();
-                    statsIterator.forEach(s -> statsList.add(s));
+                    statsIterator.forEach(statsList::add);
                     // If the request is:
                     //    1) In the realtime topology.
                     //    2) Looking for historical points in a time range, and not a single snapshot.
@@ -710,14 +732,36 @@ public class StatsService implements IStatsService {
     }
 
     /**
+     * When a stats query contains related entity types and a non-empty scope, then
+     * a supply chain traversal should bring all entities of the related entity types
+     * that are transitively connected to the scope.  This is the role of this method.
+     * If the list of related entity types is empty, then the method will return
+     * without traversing the supply chain.
+     *
+     * @param entityIds scope of the stats query.
+     * @param relatedEntityTypes a list of related entity types.
+     * @return the set of all entity ids after the supply chain traversal
+     * @throws OperationFailedException supply chain traversal failed
+     */
+    @Nonnull
+    private Set<Long> performSupplyChainTraversal(
+            @Nonnull Set<Long> entityIds,
+            @Nonnull List<String> relatedEntityTypes
+    ) throws OperationFailedException {
+        return relatedEntityTypes.isEmpty() ? entityIds
+                    : supplyChainFetcherFactory.expandScope(entityIds, relatedEntityTypes);
+    }
+
+    /**
      * A helper method to find if the entity with a specific uuid is a cloud entity.
+     * If this is not a service entity (e.g., it could be a group),
+     * the method returns false.
      *
      * @param uuid The uuid of the service entity
      * @return true if it is a cloud service entity, false otherwise
      * @throws UnknownObjectException
      */
-    private boolean isCloudServiceEntity(final String uuid) {
-        // Finding if the service entity is a cloud service entity
+    private boolean isCloudServiceEntity(final @Nonnull String uuid) {
         try {
             final ServiceEntityApiDTO entity = repositoryApi.getServiceEntityForUuid(Long.valueOf(uuid));
             return entity != null && entity.getEnvironmentType() ==
@@ -1034,7 +1078,7 @@ public class StatsService implements IStatsService {
      * @return map from related entity type to entities
      * @throws Exception
      */
-    public Map<String, Set<Long>> fetchRelatedEntitiesForScopes(@Nonnull Set<Long> scopes,
+    private Map<String, Set<Long>> fetchRelatedEntitiesForScopes(@Nonnull Set<Long> scopes,
                                                                 @Nonnull List<String> relatedEntityTypes,
                                                                 @Nullable EnvironmentType environmentType) throws Exception {
         // get all VMs ids in the plan scope, using supply chain fetcher
@@ -1493,10 +1537,11 @@ public class StatsService implements IStatsService {
      * @param inputDto The {@link StatScopesApiInputDTO}.
      * @return A set of entity OIDs of entities in the scope.
      * @throws OperationFailedException If any part of the operation failed.
+     * @throws InterruptedException a gRPC call has been interrupted.
      */
     @Nonnull
     private Set<Long> getExpandedScope(@Nonnull final StatScopesApiInputDTO inputDto)
-                throws OperationFailedException {
+                throws OperationFailedException, InterruptedException {
         final Set<Long> expandedUuids;
         final Optional<String> relatedType = Optional.ofNullable(inputDto.getRelatedType())
                 // Treat unknown type as non-existent.
@@ -1536,19 +1581,23 @@ public class StatsService implements IStatsService {
             // This shouldn't happen, because we handle the full market case earlier on.
             Preconditions.checkArgument(UuidMapper.hasLimitedScope(seedUuids));
 
-            if (relatedType.isPresent()) {
-                // If the UI sets a related type, we need to do a supply chain query to get
-                // the entities of that type related to the seed uuids.
-                final Map<String, SupplyChainNode> result = supplyChainFetcherFactory.newNodeFetcher()
-                        .addSeedUuids(seedUuids)
-                        .entityTypes(Collections.singletonList(relatedType.get()))
-                        .fetch();
-                final SupplyChainNode relatedTypeNode = result.get(relatedType.get());
-                expandedUuids = relatedTypeNode == null ?
-                        Collections.emptySet() : RepositoryDTOUtil.getAllMemberOids(relatedTypeNode);
-            } else {
-                expandedUuids = groupExpander.expandUuids(seedUuids);
+            // Collect related entity types: if there are any we must perform supply chain traversal
+            final List<String> relatedEntityTypes = new ArrayList<>();
+            relatedType.ifPresent(relatedEntityTypes::add);
+            if (inputDto.getPeriod() != null && inputDto.getPeriod().getStatistics() != null) {
+                relatedEntityTypes.addAll(
+                    inputDto.getPeriod().getStatistics().stream()
+                        .map(StatApiInputDTO::getRelatedEntityType)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList()));
             }
+
+            // Expand groups and perform supply chain traversal with the resulting seed
+            // Note that supply chain traversal will not happen if the list of related entity
+            // types is empty
+            expandedUuids =
+                performSupplyChainTraversal(groupExpander.expandUuids(seedUuids), relatedEntityTypes);
+
             // if the user is scoped, we will filter the entities according to their scope
             if (userSessionContext.isUserScoped()) {
                 return userSessionContext.getUserAccessScope().filter(expandedUuids);
@@ -1566,10 +1615,11 @@ public class StatsService implements IStatsService {
      * @param inputDto The {@link StatScopesApiInputDTO}.
      * @return A {@link EntityStatsScope} object to use for the query.
      * @throws OperationFailedException If any part of the operation failed.
+     * @throws InterruptedException a gRPC call has been interrupted
      */
     @Nonnull
     private EntityStatsScope createEntityStatsScope(@Nonnull final StatScopesApiInputDTO inputDto)
-            throws OperationFailedException {
+            throws OperationFailedException, InterruptedException {
         final EntityStatsScope.Builder entityStatsScope = EntityStatsScope.newBuilder();
         final Optional<String> relatedType = Optional.ofNullable(inputDto.getRelatedType())
                 // Treat unknown type as non-existent.
@@ -1645,7 +1695,7 @@ public class StatsService implements IStatsService {
     private EntityStatsPaginationResponse getLiveEntityStats(
                     @Nonnull final StatScopesApiInputDTO inputDto,
                     @Nonnull final EntityStatsPaginationRequest paginationRequest)
-                throws OperationFailedException {
+                throws OperationFailedException, InterruptedException {
 
         // 1. Request the next page of entity stats from the proper service.
 
@@ -1761,6 +1811,17 @@ public class StatsService implements IStatsService {
     public EntityStatsPaginationResponse getStatsByUuidsQuery(@Nonnull StatScopesApiInputDTO inputDto,
                                                   EntityStatsPaginationRequest paginationRequest)
             throws Exception {
+        try {
+            return getStatsByUuidsQueryInternal(inputDto, paginationRequest);
+        } catch (StatusRuntimeException e) {
+            throw ExceptionMapper.translateStatusException(e);
+        }
+    }
+
+    private EntityStatsPaginationResponse getStatsByUuidsQueryInternal(
+            @Nonnull StatScopesApiInputDTO inputDto,
+            EntityStatsPaginationRequest paginationRequest)
+            throws OperationFailedException, InterruptedException {
         // All scopes must enter the magic gateway before they can proceed!
         inputDto.setScopes(magicScopeGateway.enter(inputDto.getScopes()));
 
@@ -1846,11 +1907,11 @@ public class StatsService implements IStatsService {
      * See 6.x method SupplyChainUtils.getUuidsFromScopesByRelatedType() which uses the
      * marker interface EntitiesProvider to determine which Service Entities to expand.
      *<p>
-     * Errors fetching the supplychain are logged and ignored - the input OID will be copied
-     * to the output in case of an error or missing relatedEntityType info in the supplychain.
+     * Errors fetching the supply chain are logged and ignored - the input OID will be copied
+     * to the output in case of an error or missing relatedEntityType info in the supply chain.
      *<p>
-     * First, it will fetch entities which need to expand, then check if any input entity oid is
-     * belong to those entities. Because if input entity set is large, it will cost a lot time to
+     * First, it will fetch entities which need to expand, then check if any input entity oid
+     * belongs to those entities. Because if input entity set is large, it will cost a lot time to
      * fetch huge entity from Repository. Instead, if first fetch those entities which need to expand
      * , the amount will be much less than the input entity set size since right now only DataCenter
      * could expand.

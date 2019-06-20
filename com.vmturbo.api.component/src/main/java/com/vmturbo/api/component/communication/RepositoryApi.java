@@ -26,7 +26,6 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
-import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -44,11 +43,6 @@ import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRespons
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.topology.processor.api.TargetData;
-import com.vmturbo.topology.processor.api.TargetInfo;
-import com.vmturbo.topology.processor.api.TopologyProcessor;
-import com.vmturbo.topology.processor.api.TopologyProcessorException;
 
 /**
  * This class is an API wrapper for the Repository Component.
@@ -176,6 +170,7 @@ public class RepositoryApi {
      * @return the {@link ServiceEntityApiDTO} describing the Service Entity with the requested ID.
      * @throws UnknownObjectException if there is no service entity with the given UUID.
      */
+    @Nonnull
     public ServiceEntityApiDTO getServiceEntityById(
             long serviceEntityId, @Nullable final EntityAspectMapper entityAspectMapper)
             throws UnknownObjectException {
@@ -289,6 +284,7 @@ public class RepositoryApi {
      * @param uuid string id
      * @return entity or empty if not existing
      */
+    @Nonnull
     public Optional<Search.Entity> fetchEntity(@Nonnull String uuid) {
         try {
             long entityOid = Long.valueOf(uuid);
