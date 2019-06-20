@@ -725,10 +725,11 @@ public class AuthProvider {
      *
      * @param roles the list of roles the user has
      * @param scopeGroups the list of scope group ids to validate
-     * @throws SecurityException
+     * @throws SecurityException if the system can't support scope validation
+     * @throws IllegalArgumentException if the scope is invalid.
      */
     protected void validateScopeGroups(final @Nonnull List<String> roles, final @Nullable List<Long> scopeGroups)
-        throws SecurityException {
+        throws SecurityException, IllegalArgumentException {
         // validate the scope groups, if the user is in a "shared" role.
         if (CollectionUtils.isNotEmpty(scopeGroups) && UserScopeUtils.containsSharedRole(roles)) {
             if (! groupServiceClient.isPresent()) {
@@ -941,7 +942,12 @@ public class AuthProvider {
                 + userName, HttpStatus.FORBIDDEN);
         }
 
-        validateScopeGroups(roleNames, scopeGroups);
+        try {
+            validateScopeGroups(roleNames, scopeGroups);
+        } catch (IllegalArgumentException iae) {
+            // any user-actionable problems would come back as illegal argument exceptions
+            return new ResponseEntity(iae.getMessage(), HttpStatus.BAD_REQUEST);
+        }
 
         try {
             info.roles = roleNames;

@@ -395,8 +395,8 @@ public class KVBackedILocalAuthStoreTest {
         Assert.assertEquals(ImmutableList.of(2L), info.scopeGroups);
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testModifyRolesInvalidScopeGroup() throws Exception {
+    @Test
+    public void testModifyRolesInvalidScopeGroup() {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient);
 
@@ -419,9 +419,10 @@ public class KVBackedILocalAuthStoreTest {
                 ImmutableList.of("SHARED_ADVISOR", "USER"), ImmutableList.of(1L));
         Assert.assertTrue(result);
 
-        // change to invalid group should be rejected.
+        // change to invalid group should be rejected with a 400 error
         ResponseEntity<String> result2 = store.setRoles(AuthUserDTO.PROVIDER.LOCAL, "user0",
                 ImmutableList.of("SHARED_ADVISOR", "USER2"), ImmutableList.of(2L));
+        Assert.assertEquals(HttpStatus.BAD_REQUEST, result2.getStatusCode());
     }
 
     @Test
