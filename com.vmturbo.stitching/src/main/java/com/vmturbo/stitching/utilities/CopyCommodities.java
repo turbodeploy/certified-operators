@@ -178,7 +178,7 @@ public class CopyCommodities {
      *                              that don't specify commodityMetaData.
      * @return {@List<CommodityDTO.Builder>} giving the merged commodities.
      */
-    private static List<CommodityDTO.Builder> mergeCommoditiesBought(
+    public static List<CommodityDTO.Builder> mergeCommoditiesBought(
             @Nonnull final List<CommodityDTO.Builder> fromCommodities,
             @Nullable final List<CommodityDTO.Builder> ontoCommodities,
             @Nullable final Optional<Collection<CommodityType>> commodityMetaData,

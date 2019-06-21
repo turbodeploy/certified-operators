@@ -57,8 +57,13 @@ public class ListStringToListStringDataDrivenStitchingOperation extends
 
         @Override
         public Stream<List<String>> findMatches(@Nonnull List<String> externalSignature) {
+            // do a deduplication on the result, since it may find duplicate matches, for example:
+            // given an internalSignature [a, b], the index will be: a -> [[a, b]], b -> [[a, b]]
+            // if the given externalSignature is also [a, b], the result will be stream:
+            // [[a, b], [a, b]], thus a deduplication is needed to ensure one [a, b] is returned
             return externalSignature.stream()
-                    .flatMap(partnerMatchingValue -> index.get(partnerMatchingValue).stream());
+                    .flatMap(partnerMatchingValue -> index.get(partnerMatchingValue).stream())
+                    .distinct();
         }
     }
 }

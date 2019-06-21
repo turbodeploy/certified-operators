@@ -16,6 +16,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
 
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.stitching.EntityToAdd;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingMergeInformation;
@@ -24,6 +25,7 @@ import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.IStitchingJournal.JournalChangeset;
 import com.vmturbo.stitching.journal.JournalableEntity;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
+import com.vmturbo.stitching.utilities.CopyCommodities;
 import com.vmturbo.stitching.utilities.EntityFieldMergers.EntityFieldMerger;
 import com.vmturbo.stitching.utilities.MergeEntities.MergeEntitiesDetails;
 
@@ -240,9 +242,29 @@ public class TopologyStitchingChanges {
                         + " but is not buying any commodities from it.");
             }
 
-            // TODO: Consider adding support for a consumerCommoditiesBoughtMerger
-            toUpdate.getCommodityBoughtListByProvider().computeIfAbsent(newProvider, p ->
-                    new ArrayList<>(commoditiesBought.get().size())).addAll(commoditiesBought.get());
+            final List<CommoditiesBought> commoditiesBoughtList =
+                toUpdate.getCommodityBoughtListByProvider().computeIfAbsent(newProvider, p ->
+                    new ArrayList<>(commoditiesBought.get().size()));
+            // merge old commodities bought list from old provider to new provider
+            commoditiesBought.get().forEach(fromCommoditiesBought -> {
+                final Optional<CommoditiesBought> matchingCommoditiesBought =
+                    toUpdate.getMatchingCommoditiesBought(newProvider, fromCommoditiesBought);
+                if (matchingCommoditiesBought.isPresent()) {
+                    // merge from fromCommoditiesBought to ontoCommoditiesBought
+                    final CommoditiesBought ontoCommoditiesBought = matchingCommoditiesBought.get();
+                    final List<CommodityDTO.Builder> mergedBoughtCommodities =
+                        CopyCommodities.mergeCommoditiesBought(fromCommoditiesBought.getBoughtList(),
+                            ontoCommoditiesBought.getBoughtList(), Optional.empty(), false);
+                    // remove old commodities bought set
+                    commoditiesBoughtList.remove(ontoCommoditiesBought);
+                    // add new merged commodities bought set
+                    commoditiesBoughtList.add(new CommoditiesBought(mergedBoughtCommodities,
+                        ontoCommoditiesBought.getVolumeId()));
+                } else {
+                    // if not matching commodities bought set, just add to existing list
+                    commoditiesBoughtList.add(fromCommoditiesBought);
+                }
+            });
 
             // Make the buying entity a consumer of the new provider.
             newProvider.addConsumer(toUpdate);
