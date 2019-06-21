@@ -37,6 +37,7 @@ RUN mkdir /docker-entrypoint-initdb.d && \
     rm -f ${ARANGO_PACKAGE}*
 
 COPY arangod.conf /etc/arangodb3/
+RUN chown arangodb:arangodb /etc/arangodb3/arangod.conf
 
 # Initialization
 # The presense of /tmp/init_007 indicates the the fact that arangoDB went through the setup,
