@@ -41,6 +41,8 @@
 
         <prometheus.java.client.version>0.4.0</prometheus.java.client.version>
 
+        <lz4.version>1.4</lz4.version>
+
         <!-- START Versions for the various opentracing libraries.
              Do not change them independently without verifying that they are compatible with
              each other! Check the projects' github repositories and nested dependencies. -->
@@ -1742,6 +1744,12 @@
                 <groupId>com.jayway.jsonpath</groupId>
                 <artifactId>json-path</artifactId>
                 <version>${json-path.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.lz4</groupId>
+                <artifactId>lz4-java</artifactId>
+                <version>${lz4.version}</version>
             </dependency>
 
             <!-- Dependencies from MT -->

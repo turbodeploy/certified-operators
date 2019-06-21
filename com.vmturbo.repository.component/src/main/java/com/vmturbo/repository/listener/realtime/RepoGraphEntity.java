@@ -1,9 +1,7 @@
 package com.vmturbo.repository.listener.realtime;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -11,13 +9,17 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.protobuf.InvalidProtocolBufferException;
+
+import net.jpountz.lz4.LZ4Compressor;
+import net.jpountz.lz4.LZ4Factory;
+import net.jpountz.lz4.LZ4FastDecompressor;
 
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -65,7 +67,13 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
      */
     private final byte[] compressedEntityBytes;
 
-    private RepoGraphEntity(@Nonnull final TopologyEntityDTO src) {
+    /**
+     * The length of the uncompressed {@link TopologyEntityDTO} - needed for faster lz4 decompression.
+     */
+    private final int uncompressedLength;
+
+    private RepoGraphEntity(@Nonnull final TopologyEntityDTO src,
+                            @Nonnull final SharedByteBuffer sharedCompressionBuffer) {
         this.oid = src.getOid();
         this.displayName = src.getDisplayName();
         this.typeSpecificInfo = src.getTypeSpecificInfo();
@@ -107,21 +115,27 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
             commsToPersist.forEach(comm -> soldCommodities.put(comm.getCommodityType().getType(), comm));
         }
 
-        byte[] bytes = null;
-        try (final ByteArrayOutputStream bos = new ByteArrayOutputStream();
-             final GZIPOutputStream gos = new GZIPOutputStream(bos)) {
-            gos.write(src.toByteArray());
-            gos.finish();
-            bytes = bos.toByteArray();
-        } catch (IOException e) {
-            logger.error("Failed to compress entity {}. Error: {}", this.oid, e.getMessage());
-        }
-        this.compressedEntityBytes = bytes;
+        // Use the fastest java instance to avoid using JNI & off-heap memory.
+        // Note - for a 200k topology we saw the size
+        final LZ4Compressor compressor = LZ4Factory.fastestJavaInstance().fastCompressor();
+
+        final byte[] uncompressedBytes = src.toByteArray();
+        uncompressedLength = uncompressedBytes.length;
+        final int maxCompressedLength = compressor.maxCompressedLength(uncompressedLength);
+        final byte[] compressionBuffer = sharedCompressionBuffer.getBuffer(maxCompressedLength);
+        final int compressedLength = compressor.compress(uncompressedBytes, compressionBuffer);
+        this.compressedEntityBytes = Arrays.copyOf(compressionBuffer, compressedLength);
     }
 
     @Nonnull
     public static Builder newBuilder(@Nonnull final TopologyEntityDTO entity) {
-        return new Builder(entity);
+        return new Builder(entity, new SharedByteBuffer());
+    }
+
+    @Nonnull
+    public static Builder newBuilder(@Nonnull final TopologyEntityDTO entity,
+                                     @Nonnull final SharedByteBuffer sharedCompressionBuffer) {
+        return new Builder(entity, sharedCompressionBuffer);
     }
 
     private void addConnectedTo(@Nonnull final RepoGraphEntity entity) {
@@ -232,10 +246,11 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
      */
     @Nonnull
     public TopologyEntityDTO getTopologyEntity() {
-        try (final ByteArrayInputStream bis = new ByteArrayInputStream(compressedEntityBytes);
-             final GZIPInputStream zis = new GZIPInputStream(bis)) {
-            return TopologyEntityDTO.parseFrom(zis);
-        } catch (IOException e) {
+        // Use the fastest available java instance to avoid using off-heap memory.
+        final LZ4FastDecompressor decompressor = LZ4Factory.fastestJavaInstance().fastDecompressor();
+        try {
+            return TopologyEntityDTO.parseFrom(decompressor.decompress(compressedEntityBytes, uncompressedLength));
+        } catch (InvalidProtocolBufferException e) {
             logger.error("Failed to decompress entity {}. Error: {}", this.oid, e.getMessage());
             return getPartialTopologyEntity();
         }
@@ -317,7 +332,8 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
         private final Set<Long> providerIds;
         private final Set<Long> connectedIds;
 
-        private Builder(@Nonnull final TopologyEntityDTO dto) {
+        private Builder(@Nonnull final TopologyEntityDTO dto,
+                        @Nonnull final SharedByteBuffer sharedByteBuffer) {
             this.providerIds = dto.getCommoditiesBoughtFromProvidersList().stream()
                 .filter(CommoditiesBoughtFromProvider::hasProviderId)
                 .map(CommoditiesBoughtFromProvider::getProviderId)
@@ -325,7 +341,7 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
             this.connectedIds = dto.getConnectedEntityListList().stream()
                 .map(ConnectedEntity::getConnectedEntityId)
                 .collect(Collectors.toSet());
-            this.repoGraphEntity = new RepoGraphEntity(dto);
+            this.repoGraphEntity = new RepoGraphEntity(dto, sharedByteBuffer);
         }
 
         @Override

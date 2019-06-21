@@ -2,6 +2,7 @@ package com.vmturbo.repository.listener.realtime;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -9,6 +10,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.google.common.base.Stopwatch;
 import com.google.gson.Gson;
 
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
@@ -19,6 +24,7 @@ import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.StreamingDiagnosable;
+import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity.Builder;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
@@ -120,6 +126,8 @@ public class SourceRealtimeTopology implements StreamingDiagnosable {
      * and {@link SourceRealtimeTopologyBuilder#finish()} when done.
      */
     public static class SourceRealtimeTopologyBuilder {
+        private static final Logger logger = LogManager.getLogger();
+
         private final TopologyInfo topologyInfo;
         private final Consumer<SourceRealtimeTopology> onFinish;
 
@@ -128,6 +136,24 @@ public class SourceRealtimeTopology implements StreamingDiagnosable {
         private final TopologyGraphCreator<Builder, RepoGraphEntity> graphCreator =
             new TopologyGraphCreator<>();
 
+        /**
+         * The size of the compression buffer in the most recently completed projected topology
+         * builder. We assume that (in general) topologies stay roughly the same size once targets
+         * are added, so we can use the last topology's buffer size to avoid unnecessary allocations
+         * on the next one.
+         *
+         * Note - the buffer will be relavitely small - it is bounded by the largest
+         * entity in the topology.
+         */
+        private static volatile int sharedBufferSize = 0;
+
+        /**
+         * Reuse the same intermediate compression buffer for the full topology.
+         */
+        private final SharedByteBuffer compressionBuffer;
+
+        private final Stopwatch builderStopwatch = Stopwatch.createUnstarted();
+
         SourceRealtimeTopologyBuilder(
                 @Nonnull final TopologyInfo topologyInfo,
                 @Nonnull final GlobalSupplyChainCalculator globalSupplyChainCalculator,
@@ -135,23 +161,45 @@ public class SourceRealtimeTopology implements StreamingDiagnosable {
             this.topologyInfo = topologyInfo;
             this.onFinish = onFinish;
             this.globalSupplyChainCalculator = globalSupplyChainCalculator;
+            this.compressionBuffer = new SharedByteBuffer(sharedBufferSize);
         }
 
         public void addEntities(@Nonnull final Collection<TopologyEntityDTO> entities) {
+            builderStopwatch.start();
             for (TopologyEntityDTO entity : entities) {
-                graphCreator.addEntity(RepoGraphEntity.newBuilder(entity));
+                graphCreator.addEntity(RepoGraphEntity.newBuilder(entity, compressionBuffer));
             }
+            builderStopwatch.stop();
         }
 
         @Nonnull
         public SourceRealtimeTopology finish() {
+            builderStopwatch.start();
             final TopologyGraph<RepoGraphEntity> graph = graphCreator.build();
 
             final SourceRealtimeTopology sourceRealtimeTopology =
                 new SourceRealtimeTopology(topologyInfo, graph, globalSupplyChainCalculator);
             onFinish.accept(sourceRealtimeTopology);
+            builderStopwatch.stop();
+
+            final long elapsedSec = builderStopwatch.elapsed(TimeUnit.SECONDS);
+            Metrics.CONSTRUCTION_TIME_SUMMARY.observe((double)elapsedSec);
+            logger.info("Spent total of {}s to construct source realtime topology.", elapsedSec);
+
+            // Update the shared buffer size, so the next projected topology can use it
+            // as a starting point.
+            sharedBufferSize = compressionBuffer.getSize();
+
             return sourceRealtimeTopology;
         }
 
+    }
+
+    private static class Metrics {
+        private static final DataMetricSummary CONSTRUCTION_TIME_SUMMARY = DataMetricSummary.builder()
+            .withName("repo_source_realtime_construction_seconds")
+            .withHelp("Total time taken to build the source realtime topology.")
+            .build()
+            .register();
     }
 }
