@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -171,7 +172,7 @@ public class StatsMapper {
                                                    @Nonnull final List<TargetApiDTO> targetApiDTOs,
                                                    @Nonnull final Function<TargetApiDTO, String> typeFunction,
                                                    @Nonnull final Function<TargetApiDTO, String> valueFunction,
-                                                   @Nonnull final List<BaseApiDTO> cloudServiceDTOs,
+                                                   @Nonnull final Collection<BaseApiDTO> cloudServiceDTOs,
                                                    @Nonnull final TargetsService targetsService) {
         // construct target UUID -> targetApiDTO map
         targetApiDTOs.forEach(targetApiDTO -> {
@@ -239,7 +240,7 @@ public class StatsMapper {
     private StatApiDTO toStatApiDtoWithTargets(@Nonnull final CloudCostStatRecord.StatRecord statRecord,
                                                @Nonnull final Function<TargetApiDTO, String> typeFunction,
                                                @Nonnull final Function<TargetApiDTO, String> valueFunction,
-                                               @Nonnull final List<BaseApiDTO> cloudServiceDTOs) {
+                                               @Nonnull final Collection<BaseApiDTO> cloudServiceDTOs) {
         final StatApiDTO statApiDTO = new StatApiDTO();
         statApiDTO.setName(statRecord.getName());
         statApiDTO.setUnits(statRecord.getUnits());
@@ -273,7 +274,7 @@ public class StatsMapper {
     }
 
     // populate Cloud service name based on uuid match
-    private Optional<String> popluateCloudServiceName(@Nonnull final List<BaseApiDTO> finalCloudServiceOids,
+    private Optional<String> popluateCloudServiceName(@Nonnull final Collection<BaseApiDTO> finalCloudServiceOids,
                                                       @Nonnull final StatApiDTO statApiDTO) {
        return finalCloudServiceOids.stream()
                .filter(service -> statApiDTO.getRelatedEntity() != null

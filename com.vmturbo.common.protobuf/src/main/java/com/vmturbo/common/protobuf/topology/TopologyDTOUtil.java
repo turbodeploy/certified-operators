@@ -17,6 +17,7 @@ import com.google.common.collect.ImmutableSet;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -47,6 +48,21 @@ public final class TopologyDTOUtil {
             EntityType.STORAGE_TIER_VALUE);
 
     private TopologyDTOUtil() {
+    }
+
+    public static long getOid(@Nonnull final PartialEntity partialEntity) {
+        switch (partialEntity.getTypeCase()) {
+            case FULL_ENTITY:
+                return partialEntity.getFullEntity().getOid();
+            case MINIMAL:
+                return partialEntity.getMinimal().getOid();
+            case ACTION:
+                return partialEntity.getAction().getOid();
+            case API:
+                return partialEntity.getApi().getOid();
+            default:
+                throw new IllegalArgumentException("Invalid type: " + partialEntity.getTypeCase());
+        }
     }
 
     /**

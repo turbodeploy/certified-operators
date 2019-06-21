@@ -28,7 +28,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
@@ -635,17 +634,9 @@ public class SupplyChainFetcherFactory {
                 // fetch service entities, if requested
                 final Map<String, ServiceEntityApiDTO> serviceEntityApiDTOS = new HashMap<>();
                 if (entityDetailType != null) {
-                    // fetch a map from member OID to optional<ServiceEntityApiDTO>, where the
-                    // optional is empty if the OID was not found; include severities
-                    Map<Long, Optional<ServiceEntityApiDTO>> serviceEntitiesFromRepository =
-                        repositoryApi.getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(
-                            memberOidsList).build());
-
-                    // ignore the unknown OIDs for now...perhaps should complain in the future
-                    serviceEntityApiDTOS.putAll(serviceEntitiesFromRepository.entrySet().stream()
-                        .filter(entry -> entry.getValue().isPresent())
-                        .collect(Collectors.toMap(entry -> Long.toString(entry.getKey()),
-                            entry -> entry.getValue().get())));
+                    repositoryApi.entitiesRequest(memberOidsList)
+                        .getSEList()
+                        .forEach(e -> serviceEntityApiDTOS.put(e.getUuid(), e));
                 }
 
                 final Map<Severity, Long> severities = new HashMap<>();

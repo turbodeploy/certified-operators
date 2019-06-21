@@ -104,25 +104,20 @@ public class ActionTest {
 
     public void setEntitiesOIDs() {
         when(entitySettingsCache.getEntityFromOid(eq(11L)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(11L,
-                EntityType.VIRTUAL_MACHINE.getNumber(),
-                EntityType.PHYSICAL_MACHINE.getNumber(), EntityType.STORAGE.getNumber())));
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(11L,
+                EntityType.VIRTUAL_MACHINE.getNumber()));
         when(entitySettingsCache.getEntityFromOid(eq(22L)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(22L,
-                EntityType.PHYSICAL_MACHINE.getNumber(),
-                EntityType.DATACENTER.getNumber(), EntityType.STORAGE.getNumber())));
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(22L,
+                EntityType.PHYSICAL_MACHINE.getNumber()));
         when(entitySettingsCache.getEntityFromOid(eq(33L)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(33L,
-                EntityType.PHYSICAL_MACHINE.getNumber(),
-                EntityType.DATACENTER.getNumber(), EntityType.STORAGE.getNumber())));
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(33L,
+                EntityType.PHYSICAL_MACHINE.getNumber()));
         when(entitySettingsCache.getEntityFromOid(eq(44L)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(44L,
-                EntityType.STORAGE.getNumber(),
-                EntityType.DISK_ARRAY.getNumber(), EntityType.DATACENTER.getNumber())));
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(44L,
+                EntityType.STORAGE.getNumber()));
         when(entitySettingsCache.getEntityFromOid(eq(55L)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(55L,
-                EntityType.STORAGE.getNumber(),
-                EntityType.DISK_ARRAY.getNumber(), EntityType.DATACENTER.getNumber())));
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(55L,
+                EntityType.STORAGE.getNumber()));
     }
 
     @Test

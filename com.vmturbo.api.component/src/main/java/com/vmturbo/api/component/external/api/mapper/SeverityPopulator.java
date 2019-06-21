@@ -139,13 +139,12 @@ public class SeverityPopulator {
      * @return The input DTOs.
      */
     @Nonnull
-    public Map<Long, Optional<ServiceEntityApiDTO>> populate(final long topologyContextId,
-                                                            @Nonnull final Map<Long, Optional<ServiceEntityApiDTO>> entityDTOs) {
+    public Map<Long, ServiceEntityApiDTO> populate(final long topologyContextId,
+                                                   @Nonnull final Map<Long, ServiceEntityApiDTO> entityDTOs) {
         try {
             final SeverityMap severityMap = new SeverityMap(getSeverities(
                 entityDTOs.keySet(), topologyContextId));
-            entityDTOs.forEach((entityId, optionalDTO) ->
-                optionalDTO.ifPresent(dto -> dto.setSeverity(severityMap.getSeverity(entityId))));
+            entityDTOs.forEach((entityId, dto) -> dto.setSeverity(severityMap.getSeverity(entityId)));
         } catch (RuntimeException e) {
             logger.error("Error requesting severity from action orchestrator: {}", e);
         }

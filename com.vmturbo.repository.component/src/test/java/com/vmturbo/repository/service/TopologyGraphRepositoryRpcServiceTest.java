@@ -18,10 +18,11 @@ import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityBatch;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.repository.listener.realtime.GlobalSupplyChainCalculator;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
@@ -40,9 +41,11 @@ public class TopologyGraphRepositoryRpcServiceTest {
 
     private long REALTIME_CONTEXT_ID = 777777L;
 
+    private PartialEntityConverter partialEntityConverter = new PartialEntityConverter();
+
     private TopologyGraphRepositoryRpcService repositoryRpcService = new TopologyGraphRepositoryRpcService(
-            liveTopologyStore, arangoRepoRpcService, REALTIME_CONTEXT_ID, 1000,
-            userSessionContext);
+        liveTopologyStore, arangoRepoRpcService, partialEntityConverter,
+        REALTIME_CONTEXT_ID, 1000, userSessionContext);
 
     @Test
     public void testRetrieveTopologyEntitiesWithScopedUser() {
@@ -57,16 +60,16 @@ public class TopologyGraphRepositoryRpcServiceTest {
                 .addAllEntityOids(Arrays.asList(1L,2L,3L))
                 .build();
 
-        StreamObserver<EntityBatch> responseObserver = Mockito.mock(StreamObserver.class);
-        ArgumentCaptor<EntityBatch> responseCaptor = ArgumentCaptor.forClass(EntityBatch.class);
+        StreamObserver<PartialEntityBatch> responseObserver = Mockito.mock(StreamObserver.class);
+        ArgumentCaptor<PartialEntityBatch> responseCaptor = ArgumentCaptor.forClass(PartialEntityBatch.class);
 
         repositoryRpcService.retrieveTopologyEntities(request, responseObserver);
 
         Mockito.verify(responseObserver).onNext(responseCaptor.capture());
 
         Set<Long> responseOids = responseCaptor.getValue().getEntitiesList().stream()
-                .map(TopologyEntityDTO::getOid)
-                .collect(Collectors.toSet());
+            .map(TopologyDTOUtil::getOid)
+            .collect(Collectors.toSet());
         Assert.assertThat(responseOids, containsInAnyOrder(1L,2L, 3L));
 
 
@@ -82,7 +85,7 @@ public class TopologyGraphRepositoryRpcServiceTest {
 
         // verify that the non-scoped user can only see entity 2.
         responseOids = responseCaptor.getValue().getEntitiesList().stream()
-                .map(TopologyEntityDTO::getOid)
+                .map(TopologyDTOUtil::getOid)
                 .collect(Collectors.toSet());
         Assert.assertFalse(responseOids.contains(1L));
         Assert.assertTrue(responseOids.contains(2L));

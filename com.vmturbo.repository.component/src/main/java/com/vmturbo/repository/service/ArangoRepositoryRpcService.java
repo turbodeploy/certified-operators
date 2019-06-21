@@ -32,7 +32,6 @@ import javaslang.control.Either;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.DeleteTopologyRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityBatch;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStats;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
@@ -46,6 +45,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -86,6 +86,8 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
 
     private final PlanEntityStatsExtractor planEntityStatsExtractor;
 
+    private final PartialEntityConverter partialEntityConverter;
+
     private final int maxEntitiesPerChunk; // the max number of entities to send in a single message
 
     public ArangoRepositoryRpcService(@Nonnull final TopologyLifecycleManager topologyLifecycleManager,
@@ -93,10 +95,11 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
                                       @Nonnull final GraphDBService graphDBService,
                                       @Nonnull final EntityStatsPaginationParamsFactory paginationParamsFactory,
                                       @Nonnull final EntityStatsPaginator entityStatsPaginator,
+                                      @Nonnull final PartialEntityConverter partialEntityConverter,
                                       final int maxEntitiesPerChunk) {
         this(topologyLifecycleManager, topologyProtobufsManager, graphDBService,
             paginationParamsFactory, entityStatsPaginator, new DefaultPlanEntityStatsExtractor(),
-                maxEntitiesPerChunk);
+            partialEntityConverter, maxEntitiesPerChunk);
     }
 
     ArangoRepositoryRpcService(@Nonnull final TopologyLifecycleManager topologyLifecycleManager,
@@ -105,6 +108,7 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
                                @Nonnull final EntityStatsPaginationParamsFactory paginationParamsFactory,
                                @Nonnull final EntityStatsPaginator entityStatsPaginator,
                                @Nonnull final PlanEntityStatsExtractor planEntityStatsExtractor,
+                               @Nonnull final PartialEntityConverter partialEntityConverter,
                                final int maxEntitiesPerChunk) {
         this.topologyLifecycleManager = Objects.requireNonNull(topologyLifecycleManager);
         this.topologyProtobufsManager = Objects.requireNonNull(topologyProtobufsManager);
@@ -112,6 +116,7 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
         this.paginationParamsFactory = Objects.requireNonNull(paginationParamsFactory);
         this.entityStatsPaginator = Objects.requireNonNull(entityStatsPaginator);
         this.planEntityStatsExtractor = Objects.requireNonNull(planEntityStatsExtractor);
+        this.partialEntityConverter = partialEntityConverter;
         this.maxEntitiesPerChunk = maxEntitiesPerChunk;
     }
 
@@ -199,7 +204,7 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
 
     @Override
     public void retrieveTopologyEntities(RetrieveTopologyEntitiesRequest request,
-                                         StreamObserver<EntityBatch> responseObserver) {
+                                         StreamObserver<PartialEntityBatch> responseObserver) {
 
         if (!request.hasTopologyContextId() || !request.hasTopologyType()) {
             logger.error("Missing parameters for retrieve topology entities: " + request);
@@ -233,11 +238,12 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
                 : Collections.emptyList();
         // send the results in batches, if needed
         Iterators.partition(filteredEntities.iterator(), maxEntitiesPerChunk).forEachRemaining(chunk -> {
-            EntityBatch batch = EntityBatch.newBuilder()
-                    .addAllEntities(chunk)
-                    .build();
-            logger.debug("Sending entity batch of {} items ({} bytes)", batch.getEntitiesCount(), batch.getSerializedSize());
-            responseObserver.onNext(batch);
+            PartialEntityBatch.Builder batch = PartialEntityBatch.newBuilder();
+            chunk.forEach(e -> batch.addEntities(
+                partialEntityConverter.createPartialEntity(e, request.getReturnType())));
+
+            logger.debug("Sending entity batch of {} items", batch.getEntitiesCount());
+            responseObserver.onNext(batch.build());
         });
 
         responseObserver.onCompleted();

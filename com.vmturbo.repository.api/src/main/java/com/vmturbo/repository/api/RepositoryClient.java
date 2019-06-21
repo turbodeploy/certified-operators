@@ -16,7 +16,6 @@ import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.DeleteTopologyRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityBatch;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
@@ -25,6 +24,8 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequ
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
 /**
@@ -63,13 +64,14 @@ public class RepositoryClient {
             return Stream.empty();
         }
         RetrieveTopologyEntitiesRequest request = RetrieveTopologyEntitiesRequest.newBuilder()
-                .addAllEntityOids(oids)
-                .setTopologyContextId(realtimeContextId)
-                .setTopologyType(TopologyType.SOURCE)
-                .build();
+            .addAllEntityOids(oids)
+            .setTopologyContextId(realtimeContextId)
+            .setTopologyType(TopologyType.SOURCE)
+            .setReturnType(Type.FULL)
+            .build();
 
-        Iterator<EntityBatch> batchIterator = repositoryService.retrieveTopologyEntities(request);
-        return RepositoryDTOUtil.topologyEntityStream(batchIterator);
+        return RepositoryDTOUtil.topologyEntityStream(repositoryService.retrieveTopologyEntities(request))
+            .map(PartialEntity::getFullEntity);
     }
 
     public RepositoryOperationResponse deleteTopology(long topologyId,

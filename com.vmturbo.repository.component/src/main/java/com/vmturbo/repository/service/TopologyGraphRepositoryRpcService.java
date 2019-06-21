@@ -12,26 +12,27 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
+import com.google.protobuf.util.JsonFormat;
 
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.DeleteTopologyRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityBatch;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceImplBase;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.listener.realtime.ProjectedRealtimeTopology;
+import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
-import com.google.protobuf.util.JsonFormat;
-import com.vmturbo.components.api.tracing.Tracing;
 
 /**
  * An implementation of {@link RepositoryServiceImplBase} (see RepositoryDTO.proto) that uses
@@ -49,15 +50,19 @@ public class TopologyGraphRepositoryRpcService extends RepositoryServiceImplBase
 
     private final LiveTopologyStore liveTopologyStore;
 
+    private final PartialEntityConverter partialEntityConverter;
+
     private final UserSessionContext userSessionContext;
 
     public TopologyGraphRepositoryRpcService(@Nonnull final LiveTopologyStore liveTopologyStore,
                                       @Nonnull final ArangoRepositoryRpcService arangoRepoRpcService,
+                                      @Nonnull final PartialEntityConverter partialEntityConverter,
                                       final long realtimeTopologyContextId,
                                       final int maxEntitiesPerChunk,
                                       final UserSessionContext userSessionContext) {
         this.arangoRepoRpcService = arangoRepoRpcService;
         this.liveTopologyStore = Objects.requireNonNull(liveTopologyStore);
+        this.partialEntityConverter = Objects.requireNonNull(partialEntityConverter);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.maxEntitiesPerChunk = maxEntitiesPerChunk;
         this.userSessionContext = userSessionContext;
@@ -79,46 +84,49 @@ public class TopologyGraphRepositoryRpcService extends RepositoryServiceImplBase
 
     @Override
     public void retrieveTopologyEntities(RetrieveTopologyEntitiesRequest request,
-                                         StreamObserver<EntityBatch> responseObserver) {
+                                         StreamObserver<PartialEntityBatch> responseObserver) {
         final TopologyType topologyType = (request.getTopologyType() ==
             RetrieveTopologyEntitiesRequest.TopologyType.PROJECTED) ? TopologyType.PROJECTED :
             TopologyType.SOURCE;
         final boolean realtime = !request.hasTopologyContextId()  ||
             request.getTopologyContextId() == realtimeTopologyContextId;
-	Tracing.log(() -> "Getting topology entities. Request: " + JsonFormat.printer().print(request));
+        Tracing.log(() -> "Getting topology entities. Request: " + JsonFormat.printer().print(request));
         if (realtime) {
-            final Stream<TopologyEntityDTO> filteredEntities;
+            final Stream<PartialEntity> filteredEntities;
             if (topologyType == TopologyType.SOURCE) {
                 final Optional<SourceRealtimeTopology> realtimeTopology = liveTopologyStore.getSourceTopology();
 
                 filteredEntities = realtimeTopology
                     .map(topo -> filterEntityByType(request, topo.entityGraph()
-                        .getEntities(ImmutableSet.copyOf(request.getEntityOidsList()))
-                        .map(RepoGraphEntity::getTopologyEntity)))
+                            .getEntities(ImmutableSet.copyOf(request.getEntityOidsList())))
+                                .map(repoGraphEntity -> partialEntityConverter.createPartialEntity(
+                                    repoGraphEntity, request.getReturnType())))
                     .orElse(Stream.empty());
             } else {
                 final Optional<ProjectedRealtimeTopology> projectedTopology = liveTopologyStore.getProjectedTopology();
                 filteredEntities = projectedTopology
                     .map(projectedTopo -> projectedTopo.getEntities(
-                        ImmutableSet.copyOf(request.getEntityOidsList()),
-                        ImmutableSet.copyOf(request.getEntityTypeList())))
+                            ImmutableSet.copyOf(request.getEntityOidsList()),
+                            ImmutableSet.copyOf(request.getEntityTypeList()))
+                        .map(topoEntity -> partialEntityConverter.createPartialEntity(topoEntity, request.getReturnType())))
                     .orElse(Stream.empty());
             }
 
             // if the user is scoped, attach a filter to the matching entities.
-            Predicate<TopologyEntityDTO> accessFilter = userSessionContext.isUserScoped()
-                    ? e -> userSessionContext.getUserAccessScope().contains(e.getOid())
+            Predicate<PartialEntity> accessFilter = userSessionContext.isUserScoped()
+                    ? e -> userSessionContext.getUserAccessScope().contains(TopologyDTOUtil.getOid(e))
                     : e -> true;
 
             // send the results in batches, if needed
-            Iterators.partition(filteredEntities.filter(accessFilter).iterator(), maxEntitiesPerChunk).forEachRemaining(chunk -> {
-                EntityBatch batch = EntityBatch.newBuilder()
-                    .addAllEntities(chunk)
-                    .build();
-                Tracing.log(() -> "Sending chunk of " + batch.getEntitiesCount() + " entities.");
-                logger.debug("Sending entity batch of {} items ({} bytes)", batch.getEntitiesCount(), batch.getSerializedSize());
-                responseObserver.onNext(batch);
-            });
+            Iterators.partition(filteredEntities.filter(accessFilter).iterator(), maxEntitiesPerChunk)
+                .forEachRemaining(chunk -> {
+                    PartialEntityBatch batch = PartialEntityBatch.newBuilder()
+                        .addAllEntities(chunk)
+                        .build();
+                    Tracing.log(() -> "Sending chunk of " + batch.getEntitiesCount() + " entities.");
+                    logger.debug("Sending entity batch of {} items ({} bytes)", batch.getEntitiesCount(), batch.getSerializedSize());
+                    responseObserver.onNext(batch);
+                });
 
             responseObserver.onCompleted();
         } else {
@@ -126,8 +134,8 @@ public class TopologyGraphRepositoryRpcService extends RepositoryServiceImplBase
         }
     }
 
-    private Stream<TopologyEntityDTO> filterEntityByType(RetrieveTopologyEntitiesRequest request,
-                                                         Stream<TopologyEntityDTO> entities) {
+    private Stream<RepoGraphEntity> filterEntityByType(RetrieveTopologyEntitiesRequest request,
+                                                         Stream<RepoGraphEntity> entities) {
         if (!request.getEntityTypeList().isEmpty()) {
             return entities
                     .filter(e -> request.getEntityTypeList().contains(e.getEntityType()));

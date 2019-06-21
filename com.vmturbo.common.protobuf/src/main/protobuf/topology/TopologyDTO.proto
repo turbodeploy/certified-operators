@@ -172,6 +172,109 @@ message TypeSpecificInfo {
     }
 }
 
+// A batch of Partial Entities.
+//
+// When returning a stream, it is more efficient to batch the entities into chunks, instead of
+// returning each entity individual.
+message PartialEntityBatch {
+    repeated PartialEntity entities = 1;
+}
+
+// When components request entity information from the repository they typically don't need all
+// fields of an entity. In fact, they usually need just a few fields. In large topologies it is
+// very wasteful to return full DTOs (which can be several kB in size) when we only need a few
+// bytes of information. In the future we will have a generic mechanism for components to specify
+// exactly the fields they need. For now, the "Partial Entity" is the placeholder to achieve
+// a similar result, with more hard-coding :) This is the place for components to specify their
+// own type, with the subset of the TopologyEntityDTO that the component needs for its
+// computation.
+message PartialEntity {
+
+    // These line up with the message types declared below.
+    enum Type {
+        // The following are "generic" detail levels.
+        FULL = 1;
+        MINIMAL = 2;
+
+        // The following are component-specific.
+        // Some components require fairly specific subsets of the TopologyEntityDTO, and it would be
+        // too confusing and inaccurate to come up with general-sounding terms to represent those
+        // subsets. We opt for clarity.
+        ACTION = 10;
+        API = 11;
+    }
+
+    // A minimal entity contains just the bare essentials.
+    message MinimalEntity {
+        required int64 oid = 1;
+
+        optional string display_name = 2;
+
+        optional int32 entity_type = 3;
+
+        optional .common.EnvironmentType environment_type = 4;
+    }
+
+    // Contains the fields required by the action orchestrator to calculate action modes.
+    message ActionPartialEntity {
+        required int64 oid = 1;
+
+        optional string display_name = 2;
+
+        optional int32 entity_type = 3;
+
+        // Contains the commodities the action orchestrator needs.
+        repeated .topology.CommoditySoldDTO commodity_sold = 10;
+    }
+
+    // Contains the fields required by the API for conversion to the external API's entities.
+    //
+    // Note - the API sometimes requires the full entity, but this is the detail level that will
+    // work in most of the API's use cases.
+    message ApiPartialEntity {
+        required int64 oid = 1;
+
+        optional string display_name = 2;
+
+        required int32 entity_type = 3;
+
+        optional .common.EnvironmentType environment_type = 4;
+
+        optional .topology.EntityState entity_state = 5 [default = POWERED_ON];
+
+        repeated int64 discovering_target_ids = 6;
+
+        optional .tag.Tags tags = 10;
+
+        // Note - we don't serve consumer and connected_from related entities, because in the
+        // cases where we DON'T use the topology graph these can be a bit expensive to get.
+
+        repeated RelatedEntity providers = 20;
+
+        repeated RelatedEntity connected_to = 22;
+
+        message RelatedEntity {
+
+            required int64 oid = 1;
+
+            optional int32 entity_type = 2;
+
+            // Note - we don't serve the display name of the related entity because it's a bit
+            // expensive to get in cases where we DON'T use the topology graph.
+        }
+    }
+
+    // The type of the entity.
+    // The index should align with the Type value.
+    oneof type {
+        .topology.TopologyEntityDTO full_entity = 1;
+        MinimalEntity minimal = 2;
+
+        ActionPartialEntity action = 10;
+        ApiPartialEntity api = 11;
+    }
+}
+
 message TopologyEntityDTO {
 
     // type of entity

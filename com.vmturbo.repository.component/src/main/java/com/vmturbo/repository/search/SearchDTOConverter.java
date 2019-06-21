@@ -2,7 +2,6 @@ package com.vmturbo.repository.search;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -11,14 +10,13 @@ import javax.annotation.Nonnull;
 import javaslang.control.Either;
 
 import com.vmturbo.common.protobuf.search.Search;
-import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.PropertyTypeCase;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.UIEntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 
 public class SearchDTOConverter {
@@ -141,30 +139,15 @@ public class SearchDTOConverter {
         return Either.right(Filter.propertyFilter(propertyFilter));
     }
 
-    /**
-     * Converts object from {@link ServiceEntityRepoDTO} to {@link Search.Entity}.
-     *
-     * @param serviceEntityRepoDTO The ServiceEntityRepoDTO to convert.
-     * @return The Search.SearchParameters converted.
-     */
-    public static Search.Entity toSearchEntity(final ServiceEntityRepoDTO serviceEntityRepoDTO) {
-        Objects.requireNonNull(serviceEntityRepoDTO, "serviceEntityRepoDTO must not be null");
-
-        final EntityState state = UIEntityState.fromString(serviceEntityRepoDTO.getState()).toEntityState();
-        final int type = UIEntityType.fromString(serviceEntityRepoDTO.getEntityType()).typeNumber();
-
-        Entity.Builder entityBuilder = Search.Entity.newBuilder()
+    @Nonnull
+    public static MinimalEntity toSearchEntity(@Nonnull final ServiceEntityRepoDTO serviceEntityRepoDTO) {
+        MinimalEntity.Builder eBldr = MinimalEntity.newBuilder()
             .setDisplayName(serviceEntityRepoDTO.getDisplayName())
-            .setOid(Long.parseLong(serviceEntityRepoDTO.getOid()))
-            .setState(state)
-            .setType(type);
+            .setEntityType(UIEntityType.fromString(serviceEntityRepoDTO.getEntityType()).typeNumber())
+            .setOid(Long.parseLong(serviceEntityRepoDTO.getOid()));
 
-        if (serviceEntityRepoDTO.getTargetIds() != null) {
-            entityBuilder.addAllTargetIds(serviceEntityRepoDTO.getTargetIds().stream()
-                .map(Long::valueOf)
-                .collect(Collectors.toList()));
-        }
-
-        return entityBuilder.build();
+        UIEnvironmentType.fromString(serviceEntityRepoDTO.getEnvironmentType()).toEnvType()
+            .ifPresent(eBldr::setEnvironmentType);
+        return eBldr.build();
     }
 }

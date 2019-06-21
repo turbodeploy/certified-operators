@@ -31,15 +31,12 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
-import io.grpc.StatusRuntimeException;
-
 import com.vmturbo.api.TargetNotificationDTO.TargetNotification;
 import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification;
 import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification.TargetStatus;
 import com.vmturbo.api.component.communication.ApiComponentTargetListener;
+import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
-import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -64,14 +61,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
-import com.vmturbo.common.protobuf.search.Search;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
-import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -200,19 +190,15 @@ public class TargetsService implements ITargetsService {
 
     private final ApiComponentTargetListener apiComponentTargetListener;
 
-    private final SearchServiceBlockingStub searchServiceRpc;
-
-    private final SeverityPopulator severityPopulator;
-
     private final ActionSpecMapper actionSpecMapper;
 
     private final ActionsServiceBlockingStub actionOrchestratorRpc;
 
-    private final ServiceEntityMapper serviceEntityMapper;
-
     private final long realtimeTopologyContextId;
 
     private final ApiWebsocketHandler apiWebsocketHandler;
+
+    private final RepositoryApi repositoryApi;
 
     public TargetsService(@Nonnull final TopologyProcessor topologyProcessor,
                           @Nonnull final Duration targetValidationTimeout,
@@ -221,11 +207,9 @@ public class TargetsService implements ITargetsService {
                           @Nonnull final Duration targetDiscoveryPollInterval,
                           @Nullable final LicenseCheckClient licenseCheckClient,
                           @Nonnull final ApiComponentTargetListener apiComponentTargetListener,
-                          @Nonnull final SearchServiceBlockingStub searchServiceRpc,
-                          @Nonnull final SeverityPopulator severityPopulator,
+                          @Nonnull final RepositoryApi repositoryApi,
                           @Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
-                          @Nonnull final ServiceEntityMapper serviceEntityMapper,
                           final long realtimeTopologyContextId,
                           @Nonnull final ApiWebsocketHandler apiWebsocketHandler) {
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
@@ -235,11 +219,9 @@ public class TargetsService implements ITargetsService {
         this.targetDiscoveryPollInterval = Objects.requireNonNull(targetDiscoveryPollInterval);
         this.licenseCheckClient = licenseCheckClient;
         this.apiComponentTargetListener = Objects.requireNonNull(apiComponentTargetListener);
-        this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
-        this.severityPopulator = Objects.requireNonNull(severityPopulator);
+        this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
-        this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.apiWebsocketHandler = Objects.requireNonNull(apiWebsocketHandler);
         logger.debug("Created TargetsService with topology processor instance {}",
@@ -1093,47 +1075,10 @@ public class TargetsService implements ITargetsService {
         // targetIdToProbeType is needed to fill discoveredBy attribute of the entities.
         Map<Long, String> targetIdToProbeType = new HashMap<>();
         targetIdToProbeType.put(Long.parseLong(targetUuid), targetType);
-        List<ServiceEntityApiDTO> targetEntities = getTargetEntities(targetUuid).stream()
-            .map(entity -> serviceEntityMapper.toServiceEntityApiDTO(entity, targetIdToProbeType))
-            .collect(Collectors.toList());
-
-        // Severity isn't part of searchEntities response, hence the following line.
-        severityPopulator.populate(realtimeTopologyContextId, targetEntities);
-
-        return targetEntities;
-    }
-
-    /**
-     * Gets the entities that belong to the given target.
-     *
-     * @param targetUuid uuid of the target
-     * @return A list of ServiceEntityApiDTO of the target's entities
-     * @throws OperationFailedException
-     */
-    public List<Search.Entity> getTargetEntities(@Nonnull String targetUuid)
-            throws OperationFailedException{
-        final PropertyFilter filter = PropertyFilter.newBuilder()
-            .setPropertyName("targetIds")
-            .setListFilter(ListFilter.newBuilder()
-                .setStringFilter(StringFilter.newBuilder()
-                    .setStringPropertyRegex(targetUuid)
-                    .build())
+        return repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
+                    SearchProtoUtil.discoveredBy(Long.parseLong(targetUuid)))
                 .build())
-            .build();
-
-        // Passing a PaginationParameters without limit defaults to 100. Since setting it
-        // is mandatory, passing a very big limit because we need the entire response.
-        final SearchEntitiesRequest request = SearchEntitiesRequest.newBuilder()
-            .addSearchParameters(SearchParameters.newBuilder().setStartingFilter(filter)
-                .build())
-            .setPaginationParams(PaginationParameters.newBuilder().setLimit(Integer.MAX_VALUE)
-                .build())
-            .build();
-        try {
-            return searchServiceRpc.searchEntities(request).getEntitiesList();
-        } catch (StatusRuntimeException e) {
-            throw new OperationFailedException("Retrieval of target entities failed", e);
-        }
+            .getSEList();
     }
 
     /**

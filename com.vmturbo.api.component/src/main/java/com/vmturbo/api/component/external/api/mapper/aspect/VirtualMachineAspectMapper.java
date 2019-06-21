@@ -7,7 +7,6 @@ import javax.annotation.Nonnull;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.VMEntityAspectApiDTO;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
@@ -17,12 +16,6 @@ import com.vmturbo.components.common.utils.StringConstants;
  * Topology Extension data related to Virtual Machine.
  **/
 public class VirtualMachineAspectMapper implements IAspectMapper {
-
-    private final SearchServiceBlockingStub searchServiceBlockingStub;
-
-    public VirtualMachineAspectMapper(final SearchServiceBlockingStub searchServiceBlockingStub) {
-        this.searchServiceBlockingStub = searchServiceBlockingStub;
-    }
 
     @Override
     public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {

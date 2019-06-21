@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -31,6 +30,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.commons.Units;
@@ -167,7 +167,7 @@ public class ActionDescriptionBuilder {
         final Reconfigure reconfigure = recommendation.getInfo().getReconfigure();
         final Long entityId = reconfigure.getTarget().getId();
         if (reconfigure.hasSource()) {
-            TopologyEntityDTO currentEntityDTO = entitiesSnapshot.getEntityFromOid(
+            ActionPartialEntity currentEntityDTO = entitiesSnapshot.getEntityFromOid(
                 reconfigure.getSource().getId()).get();
             return MessageFormat.format(
                 ACTION_DESCRIPTION_RECONFIGURE_WITH_SOURCE,
@@ -204,10 +204,10 @@ public class ActionDescriptionBuilder {
         final boolean hasSource = !initialPlacement && primaryChange.hasSource();
 
         // All moves should have a target entity and a destination.
-        TopologyEntityDTO targetEntityDTO = entitiesSnapshot.getEntityFromOid(
+        ActionPartialEntity targetEntityDTO = entitiesSnapshot.getEntityFromOid(
             move.getTarget().getId()).get();
 
-        TopologyEntityDTO newEntityDTO = entitiesSnapshot.getEntityFromOid(
+        ActionPartialEntity newEntityDTO = entitiesSnapshot.getEntityFromOid(
             primaryChange.getDestination().getId()).get();
 
         if (!hasSource) {
@@ -215,7 +215,7 @@ public class ActionDescriptionBuilder {
                 beautifyEntityTypeAndName(targetEntityDTO),
                 beautifyEntityTypeAndName(newEntityDTO));
         } else {
-            TopologyEntityDTO currentEntityDTO = entitiesSnapshot.getEntityFromOid(
+            ActionPartialEntity currentEntityDTO = entitiesSnapshot.getEntityFromOid(
                 primaryChange.getSource().getId()).get();
             String sourceType = EntityType.forNumber(
                 currentEntityDTO.getEntityType()).getDescriptorForType().getFullName();
@@ -225,7 +225,7 @@ public class ActionDescriptionBuilder {
                 && TIER_VALUES.contains(sourceType) ? SCALE : MOVE;
             String resource = "";
             if (primaryChange.hasResource()) {
-                Optional<TopologyEntityDTO> resourceEntity = entitiesSnapshot.getEntityFromOid(
+                Optional<ActionPartialEntity> resourceEntity = entitiesSnapshot.getEntityFromOid(
                     primaryChange.getResource().getId());
                 if (resourceEntity.isPresent()) {
                     resource = beautifyEntityTypeAndName(resourceEntity.get()) + OF;
@@ -250,13 +250,13 @@ public class ActionDescriptionBuilder {
                                              @Nonnull final ActionDTO.Action recommendation)  {
         BuyRI buyRI = recommendation.getInfo().getBuyRi();
         String count = String.valueOf(buyRI.getCount());
-        TopologyEntityDTO computeTier = entitiesSnapshot.getEntityFromOid(buyRI.getComputeTier().getId()).get();
+        ActionPartialEntity computeTier = entitiesSnapshot.getEntityFromOid(buyRI.getComputeTier().getId()).get();
         final String computeTierName = (computeTier != null) ? computeTier.getDisplayName() : "";
 
-        TopologyEntityDTO masterAccount = entitiesSnapshot.getEntityFromOid(buyRI.getMasterAccount().getId()).get();
+        ActionPartialEntity masterAccount = entitiesSnapshot.getEntityFromOid(buyRI.getMasterAccount().getId()).get();
         final String masterAccountName = (masterAccount != null) ? masterAccount.getDisplayName() : "";
 
-        TopologyEntityDTO region = entitiesSnapshot.getEntityFromOid(buyRI.getRegionId().getId()).get();
+        ActionPartialEntity region = entitiesSnapshot.getEntityFromOid(buyRI.getRegionId().getId()).get();
         final String regionName = (region != null) ? region.getDisplayName() : "";
 
         return MessageFormat.format(ACTION_DESCRIPTION_BUYRI, count, computeTierName,
@@ -302,7 +302,7 @@ public class ActionDescriptionBuilder {
      * @param entityDTO {@link TopologyEntityDTO} entity object.
      * @return The entity type and name separated by a space.
      */
-    private static String beautifyEntityTypeAndName(@Nonnull final TopologyEntityDTO entityDTO) {
+    private static String beautifyEntityTypeAndName(@Nonnull final ActionPartialEntity entityDTO) {
         return String.format("%s %s",
             beautifyString(EntityType.forNumber(entityDTO.getEntityType()).name()),
             entityDTO.getDisplayName()

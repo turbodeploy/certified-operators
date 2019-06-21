@@ -25,7 +25,6 @@ import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -38,7 +37,6 @@ import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.ActionScopesApiInputDTO;
 import com.vmturbo.api.dto.action.EntityActionsApiDTO;
-import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -239,17 +237,13 @@ public class ActionsService implements IActionsService {
 
             // Fill in extra information if the request belongs to an entity.
             if (!CollectionUtils.isEmpty(entityIds)) {
-                for (Map.Entry<Long, Optional<ServiceEntityApiDTO>> entry :
-                    repositoryApi.getServiceEntitiesById(
-                        ServiceEntitiesRequest.newBuilder(entityIds).build())
-                        .entrySet()) {
-                    ServiceEntityApiDTO serviceEntity = entry.getValue().orElseThrow(()
-                        -> new UnknownObjectException(
-                        "ServiceEntity Not Found for oid: " + entry.getKey()));
-                    final EntityStatsApiDTO entityStatsApiDTO = entityStatsByUuid.get(serviceEntity.getUuid());
-                    entityStatsApiDTO.setDisplayName(serviceEntity.getDisplayName());
-                    entityStatsApiDTO.setClassName(serviceEntity.getClassName());
-                }
+                repositoryApi.entitiesRequest(entityIds)
+                    .getMinimalEntities()
+                    .forEach(minEntity -> {
+                        final EntityStatsApiDTO entityStatsApiDTO = entityStatsByUuid.get(Long.toString(minEntity.getOid()));
+                        entityStatsApiDTO.setDisplayName(minEntity.getDisplayName());
+                        entityStatsApiDTO.setClassName(UIEntityType.fromType(minEntity.getEntityType()).apiStr());
+                    });
             }
 
             return Lists.newArrayList(entityStatsByUuid.values());

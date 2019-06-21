@@ -3,13 +3,13 @@ package com.vmturbo.common.protobuf.search;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
@@ -226,8 +226,18 @@ public class SearchProtoUtil {
      * @return a property filter
      */
     public static PropertyFilter entityTypeFilter(Collection<String> entityType) {
-        return SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.ENTITY_TYPE,
-            entityType);
+        if (entityType.size() == 1) {
+            return numericPropertyFilter(SearchableProperties.ENTITY_TYPE,
+                UIEntityType.fromString(entityType.iterator().next()).typeNumber(), ComparisonOperator.EQ);
+        } else {
+            return SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.ENTITY_TYPE,
+                entityType);
+        }
+    }
+
+    public static PropertyFilter entityTypeFilter(UIEntityType entityType) {
+        return numericPropertyFilter(SearchableProperties.ENTITY_TYPE,
+            entityType.typeNumber(), ComparisonOperator.EQ);
     }
 
     public static PropertyFilter entityTypeFilter(String entityType) {
@@ -244,6 +254,23 @@ public class SearchProtoUtil {
         return stringPropertyFilterExact(SearchableProperties.ENTITY_STATE,
             Arrays.asList(state.split("\\|")),
         true, false);
+    }
+
+    public static PropertyFilter discoveredBy(final long targetId) {
+        return discoveredBy(Collections.singleton(targetId));
+    }
+
+    public static PropertyFilter discoveredBy(final Collection<Long> targetIds) {
+        final StringFilter.Builder strFilterBldr = StringFilter.newBuilder();
+        for (long targetId : targetIds) {
+            strFilterBldr.addOptions(Long.toString(targetId));
+        }
+
+        return PropertyFilter.newBuilder()
+            .setPropertyName(SearchableProperties.DISCOVERED_BY_TARGET)
+            .setListFilter(ListFilter.newBuilder()
+                .setStringFilter(strFilterBldr))
+            .build();
     }
 
     /**
@@ -364,6 +391,24 @@ public class SearchProtoUtil {
             makeSearchParameters(SearchProtoUtil.idFilter(oid))
                 .addSearchFilter(
                     SearchFilter.newBuilder().setTraversalFilter(SearchProtoUtil.numberOfHops(direction, 1)))
+                .build();
+    }
+
+    /**
+     * Creates a {@link SearchParameters} objects that begins from a specific entity
+     * and fetches all its neighbors according to a specific traversal direction.
+     *
+     * @param oid the oid of the starting entity.
+     * @param direction the traversal direction.
+     * @return the constructed {@link SearchParameters} filter.
+     */
+    public static SearchParameters neighborsOfType(long oid, TraversalDirection direction, final UIEntityType type) {
+        return
+            makeSearchParameters(SearchProtoUtil.idFilter(oid))
+                .addSearchFilter(
+                    SearchFilter.newBuilder().setTraversalFilter(SearchProtoUtil.numberOfHops(direction, 1)))
+                .addSearchFilter(SearchProtoUtil.searchFilterProperty(
+                    SearchProtoUtil.entityTypeFilter(type.apiStr())))
                 .build();
     }
 

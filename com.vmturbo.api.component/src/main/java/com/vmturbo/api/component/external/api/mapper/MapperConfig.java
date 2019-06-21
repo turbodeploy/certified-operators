@@ -71,10 +71,8 @@ public class MapperConfig {
         return new ActionSpecMapper(
             actionSpecMappingContextFactory(),
             communicationConfig.serviceEntityMapper(),
-            communicationConfig.getRealtimeTopologyContextId(),
-            costClientConfig,
-            communicationConfig,
-            mapperConfig);
+            mapperConfig.reservedInstanceMapper(),
+            communicationConfig.getRealtimeTopologyContextId());
     }
 
     @Bean
@@ -82,12 +80,11 @@ public class MapperConfig {
         return new ActionSpecMappingContextFactory(
             communicationConfig.policyRpcService(),
             executorService(),
-            communicationConfig.searchServiceBlockingStub(),
+            communicationConfig.repositoryApi(),
             cloudAspectMapper(),
             virtualMachineMapper(),
             virtualVolumeAspectMapper(),
             communicationConfig.getRealtimeTopologyContextId(),
-            costClientConfig,
             BuyReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
             ReservedInstanceSpecServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
             communicationConfig.serviceEntityMapper());
@@ -137,7 +134,7 @@ public class MapperConfig {
 
     @Bean
     public MarketMapper marketMapper() {
-        return new MarketMapper(scenarioMapper(), communicationConfig.serviceEntityMapper());
+        return new MarketMapper(scenarioMapper());
     }
 
     @Bean
@@ -208,8 +205,8 @@ public class MapperConfig {
 
     @Bean
     public VirtualVolumeAspectMapper virtualVolumeAspectMapper() {
-        return new VirtualVolumeAspectMapper(communicationConfig.searchServiceBlockingStub(),
-            communicationConfig.costServiceBlockingStub());
+        return new VirtualVolumeAspectMapper(communicationConfig.costServiceBlockingStub(),
+            communicationConfig.repositoryApi());
     }
 
     @Bean
@@ -219,12 +216,12 @@ public class MapperConfig {
 
     @Bean
     public VirtualMachineAspectMapper virtualMachineMapper() {
-        return new VirtualMachineAspectMapper(communicationConfig.searchServiceBlockingStub());
+        return new VirtualMachineAspectMapper();
     }
 
     @Bean
     public PhysicalMachineAspectMapper physicalMachineAspectMapper() {
-        return new PhysicalMachineAspectMapper(communicationConfig.searchServiceBlockingStub());
+        return new PhysicalMachineAspectMapper(communicationConfig.repositoryApi());
     }
 
     @Bean
@@ -233,7 +230,7 @@ public class MapperConfig {
     }
     @Bean
     public PortsAspectMapper portsAspectMapper() {
-        return new PortsAspectMapper(communicationConfig.searchServiceBlockingStub());
+        return new PortsAspectMapper(communicationConfig.repositoryApi());
     }
     @Bean
     public DiskArrayAspectMapper diskArrayAspectMapper() {

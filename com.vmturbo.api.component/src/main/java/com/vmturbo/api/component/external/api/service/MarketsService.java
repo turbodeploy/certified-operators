@@ -40,6 +40,7 @@ import io.grpc.StatusRuntimeException;
 import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
 import com.vmturbo.api.MarketNotificationDTO.StatusNotification;
 import com.vmturbo.api.MarketNotificationDTO.StatusNotification.Status;
+import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
@@ -82,7 +83,6 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
-import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
@@ -128,8 +128,6 @@ import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceBlock
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStats;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
@@ -143,6 +141,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
@@ -207,6 +206,8 @@ public class MarketsService implements IMarketsService {
 
     private final StatsHistoryServiceBlockingStub statsHistory;
 
+    private final RepositoryApi repositoryApi;
+
     private final ServiceEntityMapper serviceEntityMapper;
 
     // Exclude request for price index for commodities of real market not saved in DB
@@ -234,6 +235,7 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final EntitySeverityServiceBlockingStub entitySeverity,
                           @Nonnull final StatsHistoryServiceBlockingStub statsHistory,
                           @Nonnull final StatsService statsService,
+                          @Nonnull final RepositoryApi repositoryApi,
                           @Nonnull final ServiceEntityMapper serviceEntityMapper,
                           final long realtimeTopologyContextId) {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
@@ -258,6 +260,7 @@ public class MarketsService implements IMarketsService {
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.statsHistory = Objects.requireNonNull(statsHistory);
         this.statsService = Objects.requireNonNull(statsService);
+        this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
     }
 
@@ -454,19 +457,15 @@ public class MarketsService implements IMarketsService {
         HashMap<Long, Float> idsToPriceIndices = new HashMap<>();
         final ApiId apiId = uuidMapper.fromUuid(uuid);
         if (apiId.isRealtimeMarket()) {
-            Stream<TopologyEntityDTO> entities = RepositoryDTOUtil.topologyEntityStream(
-                    repositoryRpcService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
-                            .setTopologyContextId(realtimeTopologyContextId)
-                            .setTopologyType(TopologyType.SOURCE)
-                            .build()));
-
-            List<TopologyEntityDTO> entitiesList = entities.collect(Collectors.toList());
-            serviceEntityApiDTOs = marketMapper.seDtosFromTopoResponse(entitiesList);
+            serviceEntityApiDTOs = repositoryApi.entitiesRequest(Collections.emptySet())
+                .allowGetAll()
+                .getSEList();
 
             // Reading the price indices for the entities of real market
             final Multimap<Integer, Long> entityTypesToOids = ArrayListMultimap.create();
-            for (TopologyEntityDTO entityDTO : entitiesList) {
-                entityTypesToOids.put(entityDTO.getEntityType(), entityDTO.getOid());
+            for (ServiceEntityApiDTO entityDTO : serviceEntityApiDTOs) {
+                entityTypesToOids.put(UIEntityType.fromString(entityDTO.getClassName()).typeNumber(),
+                    Long.parseLong(entityDTO.getUuid()));
             }
 
             final List<EntityStats> entityStats = new ArrayList<>();
@@ -923,7 +922,7 @@ public class MarketsService implements IMarketsService {
                     final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
                     final TopologyDTO.TopologyEntityDTO planEntity = entityStats.getPlanEntity();
                     final ServiceEntityApiDTO serviceEntityApiDTO =
-                        serviceEntityMapper.toServiceEntityApiDTO(planEntity, null);
+                        serviceEntityMapper.toServiceEntityApiDTO(planEntity);
                     entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
                     entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
                     entityStatsApiDTO.setClassName(UIEntityType.fromType(planEntity.getEntityType()).apiStr());
@@ -1058,13 +1057,11 @@ public class MarketsService implements IMarketsService {
         if (providers.size() < providerOids.size()) {
             final Set<Long> missingProviders = Sets.difference(providerOids, providers.keySet());
             // Retrieve missing providers and put them in the providers map
-            RepositoryDTOUtil.topologyEntityStream(repositoryRpcService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
-                    .addAllEntityOids(missingProviders)
-                    .setTopologyContextId(plan.getPlanId())
-                    .setTopologyId(plan.getProjectedTopologyId())
-                    .setTopologyType(TopologyType.PROJECTED)
-                    .build()))
-                    .forEach(dto -> providers.put(dto.getOid(), dto));
+            repositoryApi.entitiesRequest(missingProviders)
+                .contextId(plan.getPlanId())
+                .projectedTopology()
+                .getFullEntities()
+                .forEach(dto -> providers.put(dto.getOid(), dto));
         }
 
         // convert to ServiceEntityApiDTOs, filling in the blanks of the placed on / not placed on fields
@@ -1100,7 +1097,7 @@ public class MarketsService implements IMarketsService {
      */
     private ServiceEntityApiDTO createServiceEntityApiDTO(TopologyEntityDTO entity,
                                                           Map<Long, TopologyEntityDTO> providers) {
-        ServiceEntityApiDTO seEntity = serviceEntityMapper.toServiceEntityApiDTO(entity, null);
+        ServiceEntityApiDTO seEntity = serviceEntityMapper.toServiceEntityApiDTO(entity);
         StringJoiner placedOnJoiner = new StringJoiner(",");
         StringJoiner notPlacedOnJoiner = new StringJoiner(",");
         // for all of the commodities bought, build a string description of which are placed
@@ -1337,14 +1334,12 @@ public class MarketsService implements IMarketsService {
          * @return list of data center names.
          */
         private List<String> fetchDataCenterNamesByOids(final List<String> dataCenterIds) {
-            return RepositoryDTOUtil.topologyEntityStream(repositoryRpcService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
-                    .addAllEntityOids(dataCenterIds.stream()
-                            .map(Long::parseLong).collect(Collectors.toList()))
-                    .setTopologyContextId(realtimeTopologyContextId)
-                    .setTopologyType(TopologyType.SOURCE)
-                    .build()))
-                    .map(TopologyEntityDTO::getDisplayName)
-                    .collect(Collectors.toList());
+            return repositoryApi.entitiesRequest(dataCenterIds.stream()
+                    .map(Long::parseLong)
+                    .collect(Collectors.toSet()))
+                .getMinimalEntities()
+                .map(MinimalEntity::getDisplayName)
+                .collect(Collectors.toList());
         }
     }
 }

@@ -36,24 +36,24 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
-import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
 import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
-import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
+import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
@@ -94,20 +94,19 @@ import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 public class GroupsServiceTest {
 
@@ -179,15 +178,10 @@ public class GroupsServiceTest {
         MockitoAnnotations.initMocks(this);
 
         // create inputs for the service
-        final ServiceEntityMapper serviceEntityMapper =
-                new ServiceEntityMapper(mock(TopologyProcessor.class));
-        final SearchServiceBlockingStub searchServiceRpc =
-                SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final ActionsServiceBlockingStub actionOrchestratorRpcService =
                 ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub =
                 SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        final PaginationMapper paginationMapper = new PaginationMapper();
         final ActionSearchUtil actionSearchUtil =
                 new ActionSearchUtil(
                         actionOrchestratorRpcService, actionSpecMapper,
@@ -201,13 +195,11 @@ public class GroupsServiceTest {
                 groupMapper,
                 groupExpander,
                 uuidMapper,
-                paginationMapper,
                 repositoryApi,
                 CONTEXT_ID,
                 mock(SettingsManagerMapping.class),
                 TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 entityAspectMapper,
-                searchServiceRpc,
                 actionStatsQueryExecutor,
                 severityPopulator,
                 supplyChainFetcherFactory,
@@ -429,9 +421,11 @@ public class GroupsServiceTest {
 
         final ServiceEntityApiDTO memberDto = new ServiceEntityApiDTO();
         memberDto.setUuid("7");
-        when(repositoryApi.getServiceEntitiesById(
-                ServiceEntitiesRequest.newBuilder(Sets.newHashSet(memberId)).build()))
-            .thenReturn(ImmutableMap.of(memberId, Optional.of(memberDto)));
+
+        MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(memberDto));
+        when(repositoryApi.entitiesRequest(Collections.singleton(memberId)))
+            .thenReturn(req);
+
         final GroupAndMembers groupAndMembers =
             groupAndMembers(1L, Type.GROUP, Collections.singleton(memberId));
         when(groupExpander.getGroupWithMembers("1")).thenReturn(Optional.of(groupAndMembers));
@@ -644,15 +638,18 @@ public class GroupsServiceTest {
         long entityId11 = 11;
         long entityId12 = 12;
         long entityId21 = 21;
-        Entity entity11 = Entity.newBuilder().setOid(entityId11).setType(EntityType.VIRTUAL_MACHINE_VALUE).build();
-        Entity entity12 = Entity.newBuilder().setOid(entityId12).setType(EntityType.PHYSICAL_MACHINE_VALUE).build();
-        Entity entity21 = Entity.newBuilder().setOid(entityId21).setType(EntityType.VIRTUAL_MACHINE_VALUE).build();
+
+        SearchRequest req = ApiTestUtils.mockSearchMinReq(Lists.newArrayList(
+            MinimalEntity.newBuilder().setOid(entityId11).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).build(),
+            MinimalEntity.newBuilder().setOid(entityId12).setEntityType(EntityType.PHYSICAL_MACHINE_VALUE).build(),
+            MinimalEntity.newBuilder().setOid(entityId21).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).build()));
+
+        when(repositoryApi.newSearchRequest(SearchParameters.newBuilder()
+            .setStartingFilter(SearchProtoUtil.discoveredBy(Arrays.asList(1L, 2L)))
+            .build())).thenReturn(req);
+
         when(targetsService.isTarget(target1)).thenReturn(true);
         when(targetsService.isTarget(target2)).thenReturn(true);
-        when(targetsService.getTargetEntities(target1)).thenReturn(
-            Lists.newArrayList(entity11, entity12));
-        when(targetsService.getTargetEntities(target2)).thenReturn(
-            Lists.newArrayList(entity21));
 
         // without related entity type
         Set<Long> expandedIds = groupsService.expandUuids(Sets.newHashSet(target1, target2), null, null);

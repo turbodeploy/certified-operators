@@ -52,10 +52,15 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 import com.google.gson.Gson;
+
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
+
 import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
 import com.vmturbo.api.MarketNotificationDTO.StatusNotification;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
@@ -121,9 +126,6 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
-
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 
 /**
  * Unit test for {@link MarketsService}.
@@ -343,7 +345,7 @@ public class MarketsServiceTest {
 
         marketService.getEntitiesByMarketUuid("Market");
 
-        Mockito.verify(testConfig.repositoryService()).retrieveTopologyEntities(any());
+        Mockito.verify(testConfig.repositoryApi()).entitiesRequest(any());
 
     }
 
@@ -489,7 +491,7 @@ public class MarketsServiceTest {
                     groupRpcService(), repositoryRpcService(), new UserSessionContext(),
                     uiNotificationChannel(), actionStatsQueryExecutor(), topologyProcessor(),
                     entitySeverityRpcService(), statsHistoryRpcService(),
-                    statsService(), serviceEntityMapper(), REALTIME_CONTEXT_ID);
+                    statsService(), repositoryApi(), serviceEntityMapper(), REALTIME_CONTEXT_ID);
         }
 
         @Bean
@@ -524,7 +526,7 @@ public class MarketsServiceTest {
 
         @Bean
         public MarketMapper marketMapper() {
-            return new MarketMapper(scenarioMapper(), serviceEntityMapper());
+            return new MarketMapper(scenarioMapper());
         }
 
         @Bean
@@ -548,7 +550,10 @@ public class MarketsServiceTest {
 
         @Bean
         public RepositoryApi repositoryApi() {
-            return Mockito.mock(RepositoryApi.class);
+            RepositoryApi api = Mockito.mock(RepositoryApi.class);
+            MultiEntityRequest req = ApiTestUtils.mockMultiEntityReqEmpty();
+            when(api.entitiesRequest(any())).thenReturn(req);
+            return api;
         }
 
         @Bean

@@ -17,7 +17,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
@@ -34,18 +34,16 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.SearchPlanTopologyEntityDTOsRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchPlanTopologyEntityDTOsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsResponse;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceImplBase;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.components.api.tracing.Tracing;
-import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
+import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology;
 import com.vmturbo.repository.service.LiveTopologyPaginator.PaginatedResults;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -66,19 +64,23 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
 
     private final LiveTopologyPaginator liveTopologyPaginator;
 
-    private final ArangoSearchRpcService arangoSearchRpcService;
+    private final PartialEntityConverter partialEntityConverter;
+
+    private final int maxEntitiesPerChunk;
 
     private final UserSessionContext userSessionContext;
 
     public TopologyGraphSearchRpcService(@Nonnull final LiveTopologyStore liveTopologyStore,
-                                         @Nonnull final SearchResolver<RepoGraphEntity> searchResolver,
-                                         @Nonnull final LiveTopologyPaginator liveTopologyPaginator,
-                                         @Nonnull final ArangoSearchRpcService arangoSearchRpcService,
-                                         @Nonnull final UserSessionContext userSessionContext) {
+                         @Nonnull final SearchResolver<RepoGraphEntity> searchResolver,
+                         @Nonnull final LiveTopologyPaginator liveTopologyPaginator,
+                         @Nonnull final PartialEntityConverter partialEntityConverter,
+                         @Nonnull final UserSessionContext userSessionContext,
+                         final int maxEntitiesPerChunk) {
         this.liveTopologyStore = Objects.requireNonNull(liveTopologyStore);
         this.searchResolver = Objects.requireNonNull(searchResolver);
         this.liveTopologyPaginator = Objects.requireNonNull(liveTopologyPaginator);
-        this.arangoSearchRpcService = Objects.requireNonNull(arangoSearchRpcService);
+        this.partialEntityConverter = Objects.requireNonNull(partialEntityConverter);
+        this.maxEntitiesPerChunk = maxEntitiesPerChunk;
         this.userSessionContext = userSessionContext;
     }
 
@@ -172,6 +174,36 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
     }
 
     @Override
+    public void searchEntitiesStream(SearchEntitiesRequest request,
+                                     StreamObserver<PartialEntityBatch> responseObserver) {
+        // Return empty result if current topology doesn't exist.
+        if (!liveTopologyStore.getSourceTopology().isPresent()) {
+            logger.warn("No real-time topology exists for searching request");
+            responseObserver.onError(Status.UNAVAILABLE
+                .withDescription("No real-time topology exists.").asException());
+            return;
+        }
+        final List<SearchParameters> searchParameters = request.getSearchParametersList();
+
+        Tracing.log(() -> logParams("Starting entity stream search with params - ", searchParameters));
+
+        final Stream<PartialEntity> entities = internalSearch(request.getEntityOidList(), searchParameters)
+            .map(entity -> partialEntityConverter.createPartialEntity(entity, request.getReturnType()));
+
+        // send the results in batches, if needed
+        Iterators.partition(entities.iterator(), maxEntitiesPerChunk)
+            .forEachRemaining(chunk -> {
+                PartialEntityBatch batch = PartialEntityBatch.newBuilder()
+                    .addAllEntities(chunk)
+                    .build();
+                Tracing.log(() -> "Sending chunk of " + batch.getEntitiesCount() + " entities.");
+                logger.debug("Sejding entity batch of {} items ({} bytes)", batch.getEntitiesCount(), batch.getSerializedSize());
+                responseObserver.onNext(batch);
+            });
+        responseObserver.onCompleted();
+    }
+
+    @Override
     public void searchEntities(SearchEntitiesRequest request,
                                StreamObserver<SearchEntitiesResponse> responseObserver) {
         logger.debug("Searching for entities with request: {}", request);
@@ -206,46 +238,12 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
             final SearchEntitiesResponse.Builder respBuilder = SearchEntitiesResponse.newBuilder()
                 .setPaginationResponse(paginatedResults.paginationResponse());
             paginatedResults.nextPageEntities()
-                .forEach(entity -> respBuilder.addEntities(entity.getThinEntity()));
+                .forEach(entity -> respBuilder.addEntities(
+                    partialEntityConverter.createPartialEntity(entity, request.getReturnType())));
             responseObserver.onNext(respBuilder.build());
             responseObserver.onCompleted();
         } catch (Throwable e) {
             logger.error("Search entity failed for request {} with exception", request, e);
-            final Status status = Status.ABORTED.withCause(e).withDescription(e.getMessage());
-            responseObserver.onError(status.asRuntimeException());
-        }
-    }
-
-    @Override
-    public void searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest request,
-                                         StreamObserver<SearchTopologyEntityDTOsResponse> responseObserver) {
-        logger.debug("Searching for TopologyEntityDTOs with request: {}", request);
-
-        // Return empty result if current topology doesn't exist.
-        if (!liveTopologyStore.getSourceTopology().isPresent()) {
-            logger.warn("No real-time topology exists for searching request");
-            responseObserver.onNext(SearchTopologyEntityDTOsResponse.getDefaultInstance());
-            responseObserver.onCompleted();
-            return;
-        }
-
-        final List<SearchParameters> searchParameters = request.getSearchParametersList();
-        try {
-            final SearchTopologyEntityDTOsResponse.Builder responseBuilder =
-                SearchTopologyEntityDTOsResponse.newBuilder();
-
-            Tracing.log(() -> logParams("Starting topology entity DTO search with params - ",
-                searchParameters));
-
-            internalSearch(request.getEntityOidList(), searchParameters)
-                .forEach(entity -> responseBuilder.addTopologyEntityDtos(entity.getTopologyEntity()));
-
-            Tracing.log(() -> "Finished search. Got " + responseBuilder.getTopologyEntityDtosCount() + " results.");
-
-            responseObserver.onNext(responseBuilder.build());
-            responseObserver.onCompleted();
-        } catch (Throwable e) {
-            logger.error("Search TopologyEntityDTOs failed for request {} with exception", request, e);
             final Status status = Status.ABORTED.withCause(e).withDescription(e.getMessage());
             responseObserver.onError(status.asRuntimeException());
         }
@@ -342,13 +340,6 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
         }
     }
 
-    @Override
-    public void searchPlanTopologyEntityDTOs(SearchPlanTopologyEntityDTOsRequest request,
-                                             StreamObserver<SearchPlanTopologyEntityDTOsResponse> responseObserver) {
-        arangoSearchRpcService.searchPlanTopologyEntityDTOs(request, responseObserver);
-    }
-
-    @VisibleForTesting
     protected Stream<RepoGraphEntity> internalSearch(@Nonnull final List<Long> entityOidList,
                                                    @Nonnull final List<SearchParameters> params) {
         return liveTopologyStore.getSourceTopology()

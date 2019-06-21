@@ -5,8 +5,7 @@ import static org.junit.Assert.assertEquals;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.stream.Stream;
 
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -17,11 +16,12 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ReservationMapper.PlacementInfo;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -208,11 +208,9 @@ public class ReservationMapperTest {
                 .build()))
                 .thenReturn(template);
 
-        final Map<Long, Optional<ServiceEntityApiDTO>> serviceEntityApiDTOMap =
-                ImmutableMap.of(1L, Optional.of(vmServiceEntity), 2L, Optional.of(pmServiceEntity),
-                        3L, Optional.of(stServiceEntity));
-        Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.any()))
-                .thenReturn(serviceEntityApiDTOMap);
+        MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(vmServiceEntity, pmServiceEntity, stServiceEntity));
+        Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req);
+
         final DemandReservationApiDTO demandReservationApiDTO =
                 reservationMapper.convertToDemandReservationApiDTO(scenarioChange.getTopologyAddition(),
                         Lists.newArrayList(placementInfo));
@@ -292,11 +290,9 @@ public class ReservationMapperTest {
                 .build()))
                 .thenReturn(template);
 
-        final Map<Long, Optional<ServiceEntityApiDTO>> serviceEntityApiDTOMap =
-                ImmutableMap.of(1L, Optional.of(vmServiceEntity), 2L, Optional.of(pmServiceEntity),
-                        3L, Optional.of(stServiceEntity));
-        Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.any()))
-                .thenReturn(serviceEntityApiDTOMap);
+        MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(vmServiceEntity, pmServiceEntity, stServiceEntity));
+        Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req);
+
         final DemandReservationApiDTO reservationApiDTO =
                 reservationMapper.convertReservationToApiDTO(reservation);
         assertEquals("test-reservation", reservationApiDTO.getDisplayName());

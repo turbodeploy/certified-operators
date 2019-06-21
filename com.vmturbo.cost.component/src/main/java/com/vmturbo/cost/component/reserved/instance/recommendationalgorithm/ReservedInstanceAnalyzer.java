@@ -24,17 +24,16 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.base.Stopwatch;
-import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.Table;
-
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.base.Stopwatch;
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.Table;
+
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.BuyRIActionPlanInfo;
 import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
@@ -50,14 +49,14 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositorySe
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.reservedinstance.recommendationalgorithm.RecommendationKernelAlgorithm;
 import com.vmturbo.commons.reservedinstance.recommendationalgorithm.RecommendationKernelAlgorithmResult;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
-import com.vmturbo.components.common.setting.RISettingsEnum.PreferredOfferingClass;
-import com.vmturbo.components.common.setting.RISettingsEnum.PreferredPaymentOption;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
@@ -222,11 +221,13 @@ public class ReservedInstanceAnalyzer {
             // TODO: karthikt - fetch just the entities needed instead of getting all the
             // entities in the topology.
             Stream<TopologyEntityDTO> entities = RepositoryDTOUtil.topologyEntityStream(
-                    repositoryClient.retrieveTopologyEntities(
-                            RetrieveTopologyEntitiesRequest.newBuilder()
-                                    .setTopologyContextId(planId)
-                                    .setTopologyType(TopologyType.SOURCE)
-                                    .build()));
+                repositoryClient.retrieveTopologyEntities(
+                        RetrieveTopologyEntitiesRequest.newBuilder()
+                            .setTopologyContextId(planId)
+                            .setReturnType(Type.FULL)
+                            .setTopologyType(TopologyType.SOURCE)
+                            .build()))
+                .map(PartialEntity::getFullEntity);
             TopologyEntityCloudTopology cloudTopology =
                     cloudTopologyFactory.newCloudTopology(entities);
 

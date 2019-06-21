@@ -4,53 +4,48 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
 import javaslang.control.Either;
-import reactor.core.publisher.Flux;
 
-import com.vmturbo.api.dto.BaseApiDTO;
-import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
-import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.search.Search.CountEntitiesRequest;
-import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.EntityCountResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.SearchPlanTopologyEntityDTOsRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchPlanTopologyEntityDTOsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsResponse;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceImplBase;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
-import com.vmturbo.repository.graph.result.ResultsConverter;
-import com.vmturbo.repository.graph.result.ScopedEntity;
 import com.vmturbo.repository.search.AQLRepr;
 import com.vmturbo.repository.search.SearchDTOConverter;
 import com.vmturbo.repository.search.SearchHandler;
@@ -58,7 +53,6 @@ import com.vmturbo.repository.topology.ServiceEntityRepoDTOConverter;
 import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyDatabases;
 import com.vmturbo.repository.topology.TopologyID;
-import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 
 /**
@@ -74,19 +68,25 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
     private final int defaultPaginationLimit;
     private final int maxPaginationLimit;
     private final UserSessionContext userSessionContext;
+    private final PartialEntityConverter partialEntityConverter;
+    private final int maxChunkSize;
 
     public ArangoSearchRpcService(final SupplyChainService supplyChainService,
                                   final TopologyLifecycleManager lifecycleManager,
                                   final SearchHandler searchHandler,
                                   final int defaultPaginationLimit,
                                   final int maxPaginationLimit,
-                                  final UserSessionContext userSessionContext) {
+                                  final UserSessionContext userSessionContext,
+                                  final PartialEntityConverter partialEntityConverter,
+                                  final int chunkSize) {
         this.supplyChainService = checkNotNull(supplyChainService);
         this.lifecycleManager = checkNotNull(lifecycleManager);
         this.searchHandler = checkNotNull(searchHandler);
         this.defaultPaginationLimit = defaultPaginationLimit;
         this.maxPaginationLimit = maxPaginationLimit;
         this.userSessionContext = userSessionContext;
+        this.partialEntityConverter = partialEntityConverter;
+        this.maxChunkSize = chunkSize;
     }
 
     public String getLiveDatabaseName() {
@@ -170,11 +170,12 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
         final List<SearchParameters> searchParameters = request.getSearchParametersList();
         try {
             // if there is only one search parameter, it can apply pagination directly.
-            final List<Long> entities = searchParameters.size() == 1
+            final List<Long> entities = ((searchParameters.size() == 1
                     ? searchWithOnlyOneParameter(request.getEntityOidList(), searchParameters.get(0),
                     Optional.empty(), searchFunction, convertToLong, realtimeTopologyId)
                     : searchEntityOidMultiParametersWithoutPagination(realtimeTopologyId,
-                        request.getEntityOidList(), searchParameters, Optional.empty());
+                        request.getEntityOidList(), searchParameters, Optional.empty())))
+                .collect(Collectors.toList());
             // filter the results by user scope
             final List<Long> filteredEntities = userSessionContext.isUserScoped()
                     ? userSessionContext.getUserAccessScope().filter(entities)
@@ -187,6 +188,71 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
         } catch (Throwable e) {
             logger.error("Search entity OIDs failed for request {} with exception", request, e);
             final Status status = Status.INVALID_ARGUMENT.withCause(e).withDescription(e.getMessage());
+            responseObserver.onError(status.asRuntimeException());
+        }
+    }
+
+    @Override
+    public void searchEntitiesStream(SearchEntitiesRequest request,
+                                     StreamObserver<PartialEntityBatch> responseObserver) {
+        logger.debug("Streaming entities with request: {}", request);
+
+        // Return empty result if current topology doesn't exist.
+        final Optional<TopologyID> realtimeTopologyIdOpt = lifecycleManager.getRealtimeTopologyId();
+        if (!realtimeTopologyIdOpt.isPresent()) {
+            logger.warn("No real-time topology exists for searching request");
+            responseObserver.onCompleted();
+            return;
+        }
+        final TopologyID realtimeTopologyId = realtimeTopologyIdOpt.get();
+
+        final List<SearchParameters> searchParameters = request.getSearchParametersList();
+        List<Long> entityOidList = request.getEntityOidList();
+        try {
+            final Stream<PartialEntity> retEntities;
+            if (request.getReturnType() == Type.MINIMAL) {
+                final Function<ServiceEntityRepoDTO, MinimalEntity> convertToEntity = SearchDTOConverter::toSearchEntity;
+                final SearchEntityPagination<ServiceEntityRepoDTO> searchFunction = searchHandler::searchEntities;
+                // if there is only one search parameter, it can apply pagination directly.
+                retEntities = ((searchParameters.size() == 1)
+                    ? searchWithOnlyOneParameter(entityOidList, searchParameters.get(0),
+                    Optional.empty(), searchFunction, convertToEntity,
+                    realtimeTopologyId)
+                    : searchEntitiesMultiParameters(entityOidList, searchParameters,
+                    Optional.empty(), convertToEntity,
+                    realtimeTopologyId))
+                    .map(minEntity -> PartialEntity.newBuilder()
+                        .setMinimal(minEntity)
+                        .build());
+            } else {
+                final Function<ServiceEntityRepoDTO, TopologyEntityDTO> convertToEntity = ServiceEntityRepoDTOConverter::convertToTopologyEntityDTO;
+                final SearchEntityPagination<ServiceEntityRepoDTO> searchFunction = searchHandler::searchEntities;
+                // if there is only one search parameter, it can apply pagination directly.
+                retEntities = ((searchParameters.size() == 1)
+                    ? searchWithOnlyOneParameter(entityOidList, searchParameters.get(0),
+                    Optional.empty(), searchFunction, convertToEntity,
+                    realtimeTopologyId)
+                    : searchEntitiesMultiParameters(entityOidList, searchParameters,
+                    Optional.empty(), convertToEntity,
+                    realtimeTopologyId))
+                    .map(e -> partialEntityConverter.createPartialEntity(e, request.getReturnType()));
+            }
+            // filter the results by user scope
+            final Stream<PartialEntity> filteredEntities = userSessionContext.isUserScoped()
+                ? retEntities.filter(entity -> userSessionContext.getUserAccessScope().contains(TopologyDTOUtil.getOid(entity)))
+                : retEntities;
+
+            Iterators.partition(filteredEntities.iterator(), maxChunkSize)
+                .forEachRemaining(chunk -> {
+                    responseObserver.onNext(PartialEntityBatch.newBuilder()
+                        .addAllEntities(chunk)
+                        .build());
+                    logger.debug("Sent chunk of size: {}", chunk);
+                });
+            responseObserver.onCompleted();
+        } catch (Throwable e) {
+            logger.error("Search entity failed for request {} with exception", request, e);
+            final Status status = Status.ABORTED.withCause(e).withDescription(e.getMessage());
             responseObserver.onError(status.asRuntimeException());
         }
     }
@@ -218,25 +284,44 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
                         // increase limit number by one, in order to check if there are more results left.
                         .setLimit(limit + 1)
                         .build();
-        final Function<ServiceEntityRepoDTO, Entity> convertToEntity = SearchDTOConverter::toSearchEntity;
-        final SearchEntityPagination<ServiceEntityRepoDTO> searchFunction = searchHandler::searchEntities;
+
         final List<SearchParameters> searchParameters = request.getSearchParametersList();
         List<Long> entityOidList = request.getEntityOidList();
         try {
-            // if there is only one search parameter, it can apply pagination directly.
-            final List<Entity> entities = (searchParameters.size() == 1)
-                    ? searchWithOnlyOneParameter(entityOidList, searchParameters.get(0),
-                    Optional.of(paginationParamsWithLimitPlusOne), searchFunction, convertToEntity,
-                    realtimeTopologyId)
-                    : searchEntitiesMultiParameters(entityOidList, searchParameters,
-                    Optional.of(paginationParamsWithLimitPlusOne), convertToEntity,
-                    realtimeTopologyId);
+            final Stream<PartialEntity> retEntities;
+            if (request.getReturnType() == Type.MINIMAL) {
+                final Function<ServiceEntityRepoDTO, MinimalEntity> convertToEntity = SearchDTOConverter::toSearchEntity;
+                final SearchEntityPagination<ServiceEntityRepoDTO> searchFunction = searchHandler::searchEntities;
+                // if there is only one search parameter, it can apply pagination directly.
+                retEntities = ((searchParameters.size() == 1)
+                        ? searchWithOnlyOneParameter(entityOidList, searchParameters.get(0),
+                        Optional.of(paginationParamsWithLimitPlusOne), searchFunction, convertToEntity,
+                        realtimeTopologyId)
+                        : searchEntitiesMultiParameters(entityOidList, searchParameters,
+                        Optional.of(paginationParamsWithLimitPlusOne), convertToEntity,
+                        realtimeTopologyId))
+                    .map(minEntity -> PartialEntity.newBuilder()
+                        .setMinimal(minEntity)
+                        .build());
+            } else {
+                final Function<ServiceEntityRepoDTO, TopologyEntityDTO> convertToEntity = ServiceEntityRepoDTOConverter::convertToTopologyEntityDTO;
+                final SearchEntityPagination<ServiceEntityRepoDTO> searchFunction = searchHandler::searchEntities;
+                // if there is only one search parameter, it can apply pagination directly.
+                retEntities = ((searchParameters.size() == 1)
+                        ? searchWithOnlyOneParameter(entityOidList, searchParameters.get(0),
+                        Optional.of(paginationParamsWithLimitPlusOne), searchFunction, convertToEntity,
+                        realtimeTopologyId)
+                        : searchEntitiesMultiParameters(entityOidList, searchParameters,
+                        Optional.of(paginationParamsWithLimitPlusOne), convertToEntity,
+                        realtimeTopologyId))
+                    .map(e -> partialEntityConverter.createPartialEntity(e, request.getReturnType()));
+            }
             // filter the results by user scope
-            final List<Entity> filteredEntities = userSessionContext.isUserScoped()
-                    ? entities.stream()
-                        .filter(entity -> userSessionContext.getUserAccessScope().contains(entity.getOid()))
+            final List<PartialEntity> filteredEntities = userSessionContext.isUserScoped()
+                    ? retEntities
+                        .filter(entity -> userSessionContext.getUserAccessScope().contains(TopologyDTOUtil.getOid(entity)))
                         .collect(Collectors.toList())
-                    : entities;
+                    : retEntities.collect(Collectors.toList());
 
             final SearchEntitiesResponse.Builder responseBuilder = SearchEntitiesResponse.newBuilder()
                     // need to remove last element from result lists.
@@ -260,96 +345,6 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
         }
     }
 
-    @Override
-    public void searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest request,
-            StreamObserver<SearchTopologyEntityDTOsResponse> responseObserver) {
-        logger.debug("Searching for TopologyEntityDTOs with request: {}", request);
-
-        // Return empty result if current topology doesn't exist.
-        Optional<TopologyID> realtimeTopologyIdOpt = lifecycleManager.getRealtimeTopologyId();
-        if (!realtimeTopologyIdOpt.isPresent()) {
-            logger.warn("No real-time topology exists for searching request");
-            responseObserver.onCompleted();
-            return;
-        }
-        final TopologyID realtimeTopologyId = realtimeTopologyIdOpt.get();
-
-        final List<SearchParameters> searchParameters = request.getSearchParametersList();
-        try {
-            final SearchTopologyEntityDTOsResponse.Builder responseBuilder =
-                    SearchTopologyEntityDTOsResponse.newBuilder();
-            final SearchEntityPagination<ServiceEntityRepoDTO> searchFunction =
-                    searchHandler::searchEntitiesFull;
-            final Function<ServiceEntityRepoDTO, TopologyEntityDTO> convertToTopologyEntityDTO =
-                    ServiceEntityRepoDTOConverter::convertToTopologyEntityDTO;
-            final List<TopologyEntityDTO> entities = (searchParameters.size() == 1) ?
-                    searchWithOnlyOneParameter(request.getEntityOidList(), searchParameters.get(0),
-                        Optional.empty(), searchFunction, convertToTopologyEntityDTO,
-                        realtimeTopologyId) :
-                    searchEntitiesMultiParameters(request.getEntityOidList(), searchParameters,
-                        Optional.empty(), convertToTopologyEntityDTO,
-                        realtimeTopologyId);
-            // filter the results by user scope
-            final List<TopologyEntityDTO> filteredEntities = userSessionContext.isUserScoped()
-                    ? entities.stream()
-                    .filter(entity -> userSessionContext.getUserAccessScope().contains(entity.getOid()))
-                    .collect(Collectors.toList())
-                    : entities;
-
-            responseBuilder.addAllTopologyEntityDtos(filteredEntities);
-            responseObserver.onNext(responseBuilder.build());
-            responseObserver.onCompleted();
-        } catch (Throwable e) {
-            logger.error("Search TopologyEntityDTOs failed for request {} with exception", request, e);
-            final Status status = Status.ABORTED.withCause(e).withDescription(e.getMessage());
-            responseObserver.onError(status.asRuntimeException());
-        }
-    }
-
-    @Override
-    public void searchPlanTopologyEntityDTOs(final SearchPlanTopologyEntityDTOsRequest request,
-                                             final StreamObserver<SearchPlanTopologyEntityDTOsResponse> responseObserver) {
-        // check if plan context id is provided
-        if (!request.hasTopologyContextId()) {
-            logger.warn("No plan topology context id provided in the request: " + request);
-            responseObserver.onCompleted();
-        }
-
-        final Optional<TopologyID> topologyID = lifecycleManager.getTopologyId(
-            request.getTopologyContextId(), TopologyType.PROJECTED);
-
-        // Return empty result if requested topology doesn't exist
-        if (!topologyID.isPresent()) {
-            logger.warn("No plan topology exists for requested topology context id: " + request.getTopologyContextId());
-            responseObserver.onCompleted();
-            return;
-        }
-
-        try {
-            final SearchPlanTopologyEntityDTOsResponse.Builder responseBuilder =
-                SearchPlanTopologyEntityDTOsResponse.newBuilder();
-            final Function<ServiceEntityRepoDTO, TopologyEntityDTO> convertToTopologyEntityDTO =
-                ServiceEntityRepoDTOConverter::convertToTopologyEntityDTO;
-            final List<TopologyEntityDTO> entities = searchEntitiesMultiParameters(
-                request.getEntityOidList(), Collections.emptyList(),
-                    Optional.empty(), convertToTopologyEntityDTO, topologyID.get());
-
-            // filter the results by user scope
-            final List<TopologyEntityDTO> filteredEntities = userSessionContext.isUserScoped()
-                ? entities.stream()
-                .filter(entity -> userSessionContext.getUserAccessScope().contains(entity.getOid()))
-                .collect(Collectors.toList())
-                : entities;
-
-            responseBuilder.addAllTopologyEntityDtos(filteredEntities);
-            responseObserver.onNext(responseBuilder.build());
-            responseObserver.onCompleted();
-        } catch (Throwable e) {
-            logger.error("Failed to fetch plan TopologyEntityDTOs for request {} with exception", request, e);
-            final Status status = Status.ABORTED.withCause(e).withDescription(e.getMessage());
-            responseObserver.onError(status.asRuntimeException());
-        }
-    }
 
     /**
      * Request tags from the repository.  Currently, no pagination is supported, for simplicity.
@@ -374,53 +369,6 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
             responseObserver.onError(
                     Status.ABORTED.withCause(e).withDescription(e.getMessage()).asRuntimeException());
         }
-    }
-
-    /**
-     * Request a collection of {@link BaseApiDTO}s from the repository. Currently, only
-     * support searching with entity types and scope.
-     *
-     * @param query Not yet used
-     * @param types The types of entities, e.g., VirtualMachine, PhysicalMachine, ...
-     * @param scope The scope used for searching, e.g., a single entity or the global environment
-     * @param state Not yet used
-     * @param groupType Not yet used
-     * @param related Not yet used
-     * @return
-     * @throws Exception
-     */
-    public Collection<BaseApiDTO> getSearchResults(String query,
-                                                   List<String> types,
-                                                   String scope,
-                                                   String state,
-                                                   Boolean related,
-                                                   String groupType) throws Exception {
-        return getSearchResults(types, scope);
-    }
-
-    private Collection<BaseApiDTO> getSearchResults(List<String> types,
-                                                    String scope) throws Exception {
-        if (!lifecycleManager.getRealtimeTopologyId().isPresent()) {
-            return new HashSet<BaseApiDTO>();
-        }
-
-        final long contextId = lifecycleManager.getRealtimeTopologyId().get().getContextId();
-        Flux<ScopedEntity> scopedEntities = supplyChainService.scopedEntities(contextId, scope, types);
-        return scopedEntities.toStream().map(ArangoSearchRpcService::convert).collect(Collectors.toList());
-    }
-
-    private static ServiceEntityApiDTO convert(ScopedEntity se) {
-        ServiceEntityApiDTO dto = new ServiceEntityApiDTO();
-
-        dto.setUuid(se.getOid());
-        dto.setDisplayName(se.getDisplayName());
-        dto.setClassName(se.getEntityType());
-        dto.setState(se.getState());
-        // XL-only - assume ON_PREM for now
-        dto.setEnvironmentType(EnvironmentType.ONPREM);
-        dto.setDiscoveredBy(ResultsConverter.createDiscoveredBy(se.getTargetIds()));
-
-        return dto;
     }
 
     /**
@@ -489,7 +437,7 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
      * @return a list of {@link RET}.
      * @throws Throwable if query failed.
      */
-    private <RET, TYPE> List<RET> searchWithOnlyOneParameter(
+    private <RET, TYPE> Stream<RET> searchWithOnlyOneParameter(
             @Nonnull final List<Long> entityOidList,
             @Nonnull final SearchParameters searchParameter,
             @Nonnull final Optional<PaginationParameters> paginationParams,
@@ -507,7 +455,7 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
         if (result.isLeft()) {
             throw result.getLeft();
         }
-        return result.get().stream().map(convert).collect(Collectors.toList());
+        return result.get().stream().map(convert);
     }
 
     /**
@@ -524,16 +472,16 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
      * @param entityOidList a list of entity oids.
      * @param searchParametersList a list of {@link SearchParameters}.
      * @param optionalPaginationParams optional {@link PaginationParameters}.
-     * @return a list of {@link Entity}.
+     * @return a list of entities.
      * @throws Throwable if query failed.
      */
-    private <RET> List<RET> searchEntitiesMultiParameters(
+    private <RET> Stream<RET> searchEntitiesMultiParameters(
             @Nonnull final List<Long> entityOidList,
             @Nonnull final List<SearchParameters> searchParametersList,
             @Nonnull final Optional<PaginationParameters> optionalPaginationParams,
             @Nonnull final Function<ServiceEntityRepoDTO, RET> convert,
             @Nonnull final TopologyID topologyID) throws Throwable {
-        final List<Long> sortedCandidateOids =
+        final Stream<Long> sortedCandidateOids =
                 searchEntityOidMultiParametersWithoutPagination(topologyID, entityOidList, searchParametersList,
                         optionalPaginationParams);
 
@@ -544,12 +492,13 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
             final long skipCount = paginationParams.hasCursor()
                     ? Long.parseLong(paginationParams.getCursor())
                     : 0;
-            nextPageOids = sortedCandidateOids.stream()
+            nextPageOids = sortedCandidateOids
                     .skip(skipCount)
                     .limit(paginationParams.getLimit())
                     .collect(Collectors.toList());
         } else {
-            nextPageOids = sortedCandidateOids;
+            nextPageOids = sortedCandidateOids
+                .collect(Collectors.toList());
         }
 
         final Either<Throwable, Collection<ServiceEntityRepoDTO>> entities =
@@ -566,8 +515,7 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
         // Need to make sure to preserve the order.
         return nextPageOids.stream()
                 .map(entitiesById::get)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+                .filter(Objects::nonNull);
     }
 
     /**
@@ -582,7 +530,7 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
      * @throws Throwable if query failed.
      */
     @Nonnull
-    private List<Long> searchEntityOidMultiParametersWithoutPagination(
+    private Stream<Long> searchEntityOidMultiParametersWithoutPagination(
             @Nonnull final TopologyID topologyID,
             @Nonnull final List<Long> entityOidList,
             @Nonnull final List<SearchParameters> searchParametersList,
@@ -607,7 +555,7 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
             if (result.isLeft()) {
                 throw result.getLeft();
             }
-            return result.get().stream().map(Long::parseLong).collect(Collectors.toList());
+            return result.get().stream().map(Long::parseLong);
         }
 
         for (SearchParameters searchParameters : searchParametersList) {
@@ -629,7 +577,7 @@ public class ArangoSearchRpcService extends SearchServiceImplBase {
                 return entities;
             }) : Optional.of(searchResult);
         }
-        return entitiesList.orElse(Collections.emptyList());
+        return entitiesList.orElse(Collections.emptyList()).stream();
     }
 
     private PaginationParameters resetPaginationWithDefaultLimit(

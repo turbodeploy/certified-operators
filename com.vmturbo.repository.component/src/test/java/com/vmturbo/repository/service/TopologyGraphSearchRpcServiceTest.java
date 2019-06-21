@@ -41,13 +41,13 @@ public class TopologyGraphSearchRpcServiceTest {
     private LiveTopologyStore liveTopologyStore = new LiveTopologyStore(GlobalSupplyChainCalculator.newFactory().newCalculator());
     private SearchResolver searchResolver = Mockito.mock(SearchResolver.class);
     private LiveTopologyPaginator liveTopologyPaginator = Mockito.mock(LiveTopologyPaginator.class);
-    private ArangoSearchRpcService arangoSearchRpcService = Mockito.mock(ArangoSearchRpcService.class);
 
+    private PartialEntityConverter partialEntityConverter = new PartialEntityConverter();
     private UserSessionContext userSessionContext = Mockito.mock(UserSessionContext.class);
 
 
     TopologyGraphSearchRpcService topologyGraphSearchRpcService = new TopologyGraphSearchRpcService(liveTopologyStore,
-            searchResolver, liveTopologyPaginator, arangoSearchRpcService, userSessionContext);
+            searchResolver, liveTopologyPaginator, partialEntityConverter, userSessionContext, 1);
 
     @Test
     public void testInternalSearchWithScopedUser() {

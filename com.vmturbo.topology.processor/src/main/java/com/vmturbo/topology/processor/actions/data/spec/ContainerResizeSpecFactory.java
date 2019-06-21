@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.actions.data.spec;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -8,22 +7,15 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
-import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.builders.SDKConstants;
@@ -115,38 +107,25 @@ public class ContainerResizeSpecFactory {
      */
     private List<TopologyEntityDTO> getVirtualApplicationsConsumingFromContainer(
             @Nonnull long containerId) {
-        SearchParameters searchParameter = SearchParameters.newBuilder()
-                // start from container entity oid
-                .setStartingFilter(PropertyFilter.newBuilder()
-                        .setPropertyName(SpecSearchUtil.OID)
-                        .setStringFilter(StringFilter.newBuilder()
-                                .setStringPropertyRegex(Long.toString(containerId))
-                                .setPositiveMatch(true)
-                                .setCaseSensitive(false))
-                        .build())
-                // traverse PRODUCES relationship (Container produces commodities that applications
-                // and virtual applications consume)
-                .addSearchFilter(SearchFilter.newBuilder()
-                        .setTraversalFilter(TraversalFilter.newBuilder()
-                                .setTraversalDirection(TraversalDirection.PRODUCES)
-                                .setStoppingCondition(StoppingCondition.newBuilder()
-                                        // Max of 2 hops - one to reach Application layer and another
-                                        // hop to get from Application to Virtual Application layer.
-                                        .setNumberHops(2).build()))
-                        .build())
-                // find all virtual applications consuming from this entity
-                .addSearchFilter(SearchFilter.newBuilder().setPropertyFilter(
-                        PropertyFilter.newBuilder()
-                                .setPropertyName(SpecSearchUtil.ENTITY_TYPE)
-                                .setNumericFilter(NumericFilter.newBuilder()
-                                        .setValue(EntityType.VIRTUAL_APPLICATION_VALUE)
-                                        .setComparisonOperator(ComparisonOperator.EQ))))
-                .build();
+        final SearchParameters searchParameter = SearchParameters.newBuilder()
+            // start from container entity oid
+            .setStartingFilter(SearchProtoUtil.idFilter(containerId))
+            // traverse PRODUCES relationship (Container produces commodities that applications
+            // and virtual applications consume)
+            .addSearchFilter(SearchFilter.newBuilder()
+                .setTraversalFilter(TraversalFilter.newBuilder()
+                    .setTraversalDirection(TraversalDirection.PRODUCES)
+                    .setStoppingCondition(StoppingCondition.newBuilder()
+                        // Max of 2 hops - one to reach Application layer and another
+                        // hop to get from Application to Virtual Application layer.
+                        .setNumberHops(2).build()))
+                .build())
+            // find all virtual applications consuming from this entity
+            .addSearchFilter(SearchFilter.newBuilder()
+                .setPropertyFilter(SearchProtoUtil.entityTypeFilter(EntityType.VIRTUAL_APPLICATION_VALUE)))
+            .build();
 
-        return SpecSearchUtil.searchTopologyEntityDTOs(
-                SearchTopologyEntityDTOsRequest.newBuilder()
-                        .addSearchParameters(searchParameter)
-                        .build(),
+        return SpecSearchUtil.searchTopologyEntityDTOs(searchParameter,
                 searchServiceRpc);
     }
 

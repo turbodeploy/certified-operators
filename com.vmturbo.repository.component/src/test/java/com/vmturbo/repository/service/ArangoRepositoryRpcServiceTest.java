@@ -34,7 +34,6 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.DeleteTopologyRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityBatch;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStats;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
@@ -48,6 +47,8 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
@@ -58,7 +59,6 @@ import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.PaginatedStats;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
-import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.service.ArangoRepositoryRpcService.PlanEntityStatsExtractor;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
@@ -95,11 +95,11 @@ public class ArangoRepositoryRpcServiceTest {
 
     private PlanEntityStatsExtractor planEntityStatsExtractor = mock(PlanEntityStatsExtractor.class);
 
-    private LiveTopologyStore liveTopologyStore = mock(LiveTopologyStore.class);
+    private PartialEntityConverter partialEntityConverter = new PartialEntityConverter();
 
     private ArangoRepositoryRpcService repoRpcService = new ArangoRepositoryRpcService(
         topologyLifecycleManager, topologyProtobufsManager, graphDBService,
-        paginationParamsFactory, entityStatsPaginator, planEntityStatsExtractor, 10);
+        paginationParamsFactory, entityStatsPaginator, planEntityStatsExtractor, partialEntityConverter, 10);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(repoRpcService);
@@ -259,12 +259,12 @@ public class ArangoRepositoryRpcServiceTest {
                 .setTopologyType(RetrieveTopologyEntitiesRequest.TopologyType.SOURCE)
                 .build();
         // call the service directly so we can monitor the response
-        StreamObserver<EntityBatch> responseStreamObserver = Mockito.spy(StreamObserver.class);
+        StreamObserver<PartialEntityBatch> responseStreamObserver = Mockito.spy(StreamObserver.class);
         repoRpcService.retrieveTopologyEntities(request, responseStreamObserver);
         verify(responseStreamObserver, times(2)).onNext(any());
 
         // verify we get all entities in the final response too
-        Iterator<EntityBatch> response = repositoryService.retrieveTopologyEntities(request);
+        Iterator<PartialEntityBatch> response = repositoryService.retrieveTopologyEntities(request);
         int totalEntities = 0;
         while(response.hasNext()) {
             totalEntities += response.next().getEntitiesCount();

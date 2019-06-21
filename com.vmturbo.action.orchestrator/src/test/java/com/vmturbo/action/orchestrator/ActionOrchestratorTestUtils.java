@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -182,19 +183,10 @@ public class ActionOrchestratorTestUtils {
                 .build());
     }
 
-    public static Optional<TopologyEntityDTO> createTopologyEntityDTO(Long Oid, int entityType,
-                                                                      int provider1, int provider2) {
-        return Optional.of(TopologyEntityDTO.newBuilder()
+    public static Optional<ActionPartialEntity> createTopologyEntityDTO(Long Oid, int entityType) {
+        return Optional.of(ActionPartialEntity.newBuilder()
             .setOid(Oid)
             .setEntityType(entityType)
-            .addCommoditiesBoughtFromProviders(
-                CommoditiesBoughtFromProvider.newBuilder()
-                    .setProviderId(2L)
-                    .setProviderEntityType(provider1))
-            .addCommoditiesBoughtFromProviders(
-                CommoditiesBoughtFromProvider.newBuilder()
-                    .setProviderId(3L)
-                    .setProviderEntityType(provider2))
             .build());
     }
 
@@ -208,16 +200,13 @@ public class ActionOrchestratorTestUtils {
 
         when(entityCacheSnapshot.getEntityFromOid(eq(action1EntityId)))
             .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(action1EntityId,
-                action.getRecommendation().getInfo().getMove().getTarget().getType(),
-                EntityType.PHYSICAL_MACHINE.getNumber(), EntityType.STORAGE.getNumber())));
+                action.getRecommendation().getInfo().getMove().getTarget().getType())));
         when(entityCacheSnapshot.getEntityFromOid(eq(actionSourceId)))
             .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(actionSourceId,
-                primaryChange.getSource().getType(),
-                EntityType.STORAGE.getNumber(), EntityType.DATACENTER.getNumber())));
+                primaryChange.getSource().getType())));
         when(entityCacheSnapshot.getEntityFromOid(eq(actionDestinationId)))
             .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(actionDestinationId,
-                primaryChange.getDestination().getType(),
-                EntityType.STORAGE.getNumber(), EntityType.DATACENTER.getNumber())));
+                primaryChange.getDestination().getType())));
     }
 
     public static void setEntityAndSourceAndDestination(EntitiesAndSettingsSnapshot entityCacheSnapshot,
@@ -230,16 +219,13 @@ public class ActionOrchestratorTestUtils {
 
         when(entityCacheSnapshot.getEntityFromOid(eq(action1EntityId)))
             .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(action1EntityId,
-                action.getInfo().getMove().getTarget().getType(),
-                EntityType.PHYSICAL_MACHINE.getNumber(), EntityType.STORAGE.getNumber())));
+                action.getInfo().getMove().getTarget().getType())));
         when(entityCacheSnapshot.getEntityFromOid(eq(actionSourceId)))
             .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(actionSourceId,
-                primaryChange.getSource().getType(),
-                EntityType.STORAGE.getNumber(), EntityType.DATACENTER.getNumber())));
+                primaryChange.getSource().getType())));
         when(entityCacheSnapshot.getEntityFromOid(eq(actionDestinationId)))
             .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(actionDestinationId,
-                primaryChange.getDestination().getType(),
-                EntityType.STORAGE.getNumber(), EntityType.DATACENTER.getNumber())));
+                primaryChange.getDestination().getType())));
     }
 
     public static ActionEntity createActionEntity(long id) {

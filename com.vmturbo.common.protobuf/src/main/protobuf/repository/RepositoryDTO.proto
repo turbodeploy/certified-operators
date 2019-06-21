@@ -58,20 +58,16 @@ message RetrieveTopologyEntitiesRequest {
     // The type of entity to fetch
     repeated int32 entity_type = 6;
 
+    // The type of entity to return. This allows the client to specify a detail
+    // level, to reduce memory and CPU overhead.
+    optional .topology.PartialEntity.Type return_type = 7;
+
     enum TopologyType {
         // Means source topology.
         SOURCE = 1;
         // Means projected topology.
         PROJECTED = 2;
     }
-}
-
-// a batch of entities. The max number of entities in the batch is expected to be controlled by the
-// repositoryMaxEntitiesPerChunk property.
-message EntityBatch {
-    // Returned topology entity dto which only contains partial fields. Even though it missing all
-    // Market setting fields but we do not need them.
-    repeated topology.TopologyEntityDTO entities = 1;
 }
 
 enum RepositoryOperationResponseCode {
@@ -137,7 +133,10 @@ service RepositoryService {
 
     // Try to get topology entities from Repository, and note that the returned TopologyEntityDTO contains
     // only partial fields, because some fields not stored at ServiceEntityRepoDTO.
-    rpc RetrieveTopologyEntities(RetrieveTopologyEntitiesRequest) returns (stream EntityBatch);
+    //
+    // The max number of entities in the batch is expected to be controlled by the
+    // repositoryMaxEntitiesPerChunk property.
+    rpc RetrieveTopologyEntities(RetrieveTopologyEntitiesRequest) returns (stream .topology.PartialEntityBatch);
 
     // Fetch the stats related to a given plan execution. The request includes a StatsFilter specifying
     // a startDate and endDate. If the startDate is in the past, then this call will include a

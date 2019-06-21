@@ -4,6 +4,7 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -15,12 +16,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualMachineAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
@@ -53,14 +54,11 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.Search.SearchPlanTopologyEntityDTOsRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -73,7 +71,7 @@ public class ActionSpecMappingContextFactory {
 
     private final ExecutorService executorService;
 
-    private final SearchServiceBlockingStub searchServiceRpc;
+    private final RepositoryApi repositoryApi;
 
     private final CloudAspectMapper cloudAspectMapper;
 
@@ -83,8 +81,6 @@ public class ActionSpecMappingContextFactory {
 
     private final long realtimeTopologyContextId;
 
-    private final CostClientConfig costClientConfig;
-
     private final BuyReservedInstanceServiceBlockingStub buyRIServiceClient;
 
     private final ReservedInstanceSpecServiceBlockingStub riSpecServiceClient;
@@ -93,23 +89,21 @@ public class ActionSpecMappingContextFactory {
 
     public ActionSpecMappingContextFactory(@Nonnull PolicyServiceBlockingStub policyService,
                                            @Nonnull ExecutorService executorService,
-                                           @Nonnull SearchServiceBlockingStub searchServiceRpc,
+                                           @Nonnull RepositoryApi repositoryApi,
                                            @Nonnull CloudAspectMapper cloudAspectMapper,
                                            @Nonnull VirtualMachineAspectMapper vmAspectMapper,
                                            @Nonnull VirtualVolumeAspectMapper volumeAspectMapper,
                                            final long realtimeTopologyContextId,
-                                           @Nonnull CostClientConfig costClientConfig,
                                            @Nonnull BuyReservedInstanceServiceBlockingStub buyRIServiceClient,
                                            @Nonnull ReservedInstanceSpecServiceBlockingStub riSpecServiceClient,
                                            @Nonnull ServiceEntityMapper serviceEntityMapper) {
         this.policyService = Objects.requireNonNull(policyService);
         this.executorService = Objects.requireNonNull(executorService);
-        this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
+        this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.cloudAspectMapper = Objects.requireNonNull(cloudAspectMapper);
         this.vmAspectMapper = Objects.requireNonNull(vmAspectMapper);
         this.volumeAspectMapper = Objects.requireNonNull(volumeAspectMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
-        this.costClientConfig = costClientConfig;
         this.buyRIServiceClient = buyRIServiceClient;
         this.riSpecServiceClient = riSpecServiceClient;
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
@@ -126,29 +120,29 @@ public class ActionSpecMappingContextFactory {
                                                                                     new HashMap<>();
 
         if (!buyRIActions.isEmpty()) {
-            final List<Long> buyRIIds = buyRIActions.stream().map(a -> a.getBuyRiId())
+            final List<Long> buyRIIds = buyRIActions.stream().map(BuyRI::getBuyRiId)
                     .collect(Collectors.toList());
 
             final Cost.GetBuyReservedInstancesByFilterResponse buyRIBoughtResponse =
-                    buyRIServiceClient.getBuyReservedInstancesByFilter(GetBuyReservedInstancesByFilterRequest
-                            .newBuilder().addAllBuyRiId(buyRIIds).build());
+                buyRIServiceClient.getBuyReservedInstancesByFilter(GetBuyReservedInstancesByFilterRequest
+                    .newBuilder().addAllBuyRiId(buyRIIds).build());
 
             final List<Long> riSpecs = buyRIBoughtResponse.getReservedInstanceBoughtsList().stream()
-                    .map(r -> r.getReservedInstanceBoughtInfo().getReservedInstanceSpec())
-                    .collect(Collectors.toList());
+                .map(r -> r.getReservedInstanceBoughtInfo().getReservedInstanceSpec())
+                .collect(Collectors.toList());
 
             final GetReservedInstanceSpecByIdsResponse riSpecResponse = riSpecServiceClient
-                    .getReservedInstanceSpecByIds(GetReservedInstanceSpecByIdsRequest.newBuilder()
-                            .addAllReservedInstanceSpecIds(riSpecs)
-                            .build());
+                .getReservedInstanceSpecByIds(GetReservedInstanceSpecByIdsRequest.newBuilder()
+                    .addAllReservedInstanceSpecIds(riSpecs)
+                    .build());
 
             final Map<Long, ReservedInstanceBought> buyRIIdToRIBought = buyRIBoughtResponse
-                                                .getReservedInstanceBoughtsList().stream()
-                                                .collect(Collectors.toMap(a -> a.getId(), a -> a));
+                .getReservedInstanceBoughtsList().stream()
+                .collect(Collectors.toMap(ReservedInstanceBought::getId, a -> a));
 
             final Map<Long, ReservedInstanceSpec> specIdToRISpec = riSpecResponse
-                                                .getReservedInstanceSpecList().stream()
-                                                .collect(Collectors.toMap(a -> a.getId(), a -> a));
+                .getReservedInstanceSpecList().stream()
+                .collect(Collectors.toMap(ReservedInstanceSpec::getId, a -> a));
 
             for (Entry<Long, ReservedInstanceBought> entry : buyRIIdToRIBought.entrySet()) {
                 Long buyRIId = entry.getKey();
@@ -177,11 +171,11 @@ public class ActionSpecMappingContextFactory {
     public ActionSpecMappingContext createActionSpecMappingContext(@Nonnull List<Action> actions,
                                                                    long topologyContextId)
                 throws UnsupportedActionException, ExecutionException, InterruptedException {
-        final Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(actions);
+
         final Future<Map<Long, PolicyDTO.Policy>> policies = executorService.submit(this::getPolicies);
-        final Future<List<TopologyEntityDTO>> entities = executorService
-            .submit(() -> fetchTopologyEntityDTOs(topologyContextId, involvedEntities));
-        List<TopologyEntityDTO> topologyEntityDTOs = entities.get();
+        final Future<List<ApiPartialEntity>> entities = executorService.submit(() ->
+            getEntities(actions, topologyContextId));
+        List<ApiPartialEntity> topologyEntityDTOs = entities.get();
 
         Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>> buyRIIdToRIBoughtandRISpec  =
                                         getBuyRIIdToRIBoughtandRISpec(actions.stream()
@@ -189,9 +183,9 @@ public class ActionSpecMappingContextFactory {
                                         .map(a -> a.getInfo().getBuyRi())
                                         .collect(Collectors.toList()));
 
+        final Map<Long, ApiPartialEntity> entitiesById = topologyEntityDTOs.stream()
+            .collect(Collectors.toMap(ApiPartialEntity::getOid, Function.identity()));
         if (topologyContextId == realtimeTopologyContextId) {
-            final Map<Long, TopologyEntityDTO> entitiesById = topologyEntityDTOs.stream()
-                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
             return new ActionSpecMappingContext(entitiesById, policies.get(), Collections.emptyMap(),
                 Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
                 buyRIIdToRIBoughtandRISpec, serviceEntityMapper);
@@ -199,31 +193,82 @@ public class ActionSpecMappingContextFactory {
 
         // fetch more info for plan actions
         // fetch related regions and create a map from zone id to region
-        final List<TopologyEntityDTO> regions = fetchTopologyEntityDTOs(topologyContextId,
-            collectRegionIds(topologyEntityDTOs));
-        Map<Long, TopologyEntityDTO> zoneIdToRegion = regions.stream()
-            .flatMap(region -> region.getConnectedEntityListList().stream()
-                .filter(c -> c.getConnectedEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
-                .map(zone -> new SimpleEntry<>(zone.getConnectedEntityId(), region)))
-            .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+        final List<ApiPartialEntity> regions = repositoryApi.entitiesRequest(
+                collectRegionIds(entitiesById.values()))
+            .contextId(topologyContextId)
+            .getEntities()
+            .collect(Collectors.toList());
+        // Add the regions to the entities map.
+        regions.forEach(region -> entitiesById.put(region.getOid(), region));
 
-        final Map<Long, TopologyEntityDTO> entitiesById = Stream.of(topologyEntityDTOs, regions)
-            .flatMap(Collection::stream)
-            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+        final Map<Long, ApiPartialEntity> zoneIdToRegion = regions.stream()
+            .flatMap(region -> region.getConnectedToList().stream()
+                .filter(c -> c.getEntityType() == UIEntityType.AVAILABILITY_ZONE.typeNumber())
+                .map(zone -> new SimpleEntry<>(zone.getOid(), region)))
+            .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
 
         // fetch all volume aspects together first rather than fetch one by one to improve performance
         Map<Long, List<VirtualDiskApiDTO>> volumesAspectsByVM = fetchVolumeAspects(actions, topologyContextId);
         // fetch cloud aspects and vm aspects
         final Map<Long, EntityAspect> cloudAspects = new HashMap<>();
         final Map<Long, EntityAspect> vmAspects = new HashMap<>();
-        for (TopologyEntityDTO topologyEntityDTO : topologyEntityDTOs) {
-            cloudAspects.put(topologyEntityDTO.getOid(), cloudAspectMapper.mapEntityToAspect(topologyEntityDTO));
-            if (topologyEntityDTO.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                vmAspects.put(topologyEntityDTO.getOid(), vmAspectMapper.mapEntityToAspect(topologyEntityDTO));
+
+        final Set<Long> cloudVmIds = entitiesById.values().stream()
+            .filter(e -> e.getEntityType() == UIEntityType.VIRTUAL_MACHINE.typeNumber())
+            .filter(e -> e.getEnvironmentType() == EnvironmentType.CLOUD)
+            .map(ApiPartialEntity::getOid)
+            .collect(Collectors.toSet());
+
+        repositoryApi.entitiesRequest(cloudVmIds)
+            .getFullEntities()
+            .forEach(cloudVmFullEntity -> {
+                final EntityAspect vmAspect = vmAspectMapper.mapEntityToAspect(cloudVmFullEntity);
+                vmAspects.put(cloudVmFullEntity.getOid(), vmAspect);
+            });
+
+        for (ApiPartialEntity topologyEntityDTO : entitiesById.values()) {
+            final EntityAspect cloudAspect = cloudAspectMapper.mapEntityToAspect(topologyEntityDTO);
+            if (cloudAspect != null) {
+                cloudAspects.put(topologyEntityDTO.getOid(), cloudAspectMapper.mapEntityToAspect(topologyEntityDTO));
             }
         }
         return new ActionSpecMappingContext(entitiesById, policies.get(), zoneIdToRegion,
             volumesAspectsByVM, cloudAspects, vmAspects, buyRIIdToRIBoughtandRISpec, serviceEntityMapper);
+    }
+
+    @Nonnull
+    private List<ApiPartialEntity> getEntities(@Nonnull final List<Action> actions, final long contextId) {
+        final Set<Long> srcEntities = new HashSet<>();
+        final Set<Long> projEntities = new HashSet<>();
+        ActionDTOUtil.getInvolvedEntityIds(actions)
+            .forEach(id -> {
+                // Because it is faster to retrieve realtime source entities (compared to realtime
+                // projected entities), we try a shortcut:
+                //
+                // Right now (June 21 2019) the Market always assigns negative OIDs to entities that
+                // it provisions. For example, if the market recommends provisioning a host
+                // and moving VM 1 onto the host, the move will be to a host with some negative ID.
+                // We can use this as a quick way to determine of an involved entity can be found
+                // in the source topology (Market-recommended entities will only be
+                // in the projected topology).
+                if (id >= 0) {
+                    srcEntities.add(id);
+                } else {
+                    projEntities.add(id);
+                }
+            });
+        final List<ApiPartialEntity> retList = repositoryApi.entitiesRequest(srcEntities)
+            .contextId(contextId)
+            .getEntities()
+            .collect(Collectors.toList());
+        if (!projEntities.isEmpty()) {
+            repositoryApi.entitiesRequest(projEntities)
+                .contextId(contextId)
+                .projectedTopology()
+                .getEntities()
+                .forEach(retList::add);
+        }
+        return retList;
     }
 
     @Nonnull
@@ -238,46 +283,14 @@ public class ActionSpecMappingContextFactory {
     /**
      * Find ids of related regions from given list of TopologyEntityDTO
      */
-    private Set<Long> collectRegionIds(@Nonnull List<TopologyEntityDTO> topologyEntityDTOs) {
+    private Set<Long> collectRegionIds(@Nonnull Collection<ApiPartialEntity> topologyEntityDTOs) {
         // find connected regions and put into same map together with other entities
         return topologyEntityDTOs.stream()
-            .flatMap(entity -> entity.getConnectedEntityListList().stream())
-            .filter(connectedEntity -> connectedEntity.getConnectedEntityType() == EntityType.REGION_VALUE)
-            .map(ConnectedEntity::getConnectedEntityId)
+            .flatMap(entity -> entity.getConnectedToList().stream())
+            .filter(connectedEntity -> connectedEntity.getEntityType() == EntityType.REGION_VALUE)
+            .map(RelatedEntity::getOid)
             .collect(Collectors.toSet());
 
-    }
-
-    /**
-     * Fetch the TopologyEntityDTOs for the given entities ids from the given topology context id.
-     * We always search the projected topology because the projected topology is
-     * a super-set of the source topology. All involved entities that are in
-     * the source topology will also be in the projected topology, but there will
-     * be entities that are ONLY in the projected topology (e.g. actions involving
-     * newly provisioned hosts/VMs).
-     *
-     * @param topologyContextId id of the topology context to fetch entities from
-     * @param involvedEntities ids of entities to fetch
-     * @return list of TopologyEntityDTOs
-     */
-    private List<TopologyEntityDTO> fetchTopologyEntityDTOs(long topologyContextId,
-                                                            @Nonnull Set<Long> involvedEntities) {
-        if (involvedEntities.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        if (topologyContextId != realtimeTopologyContextId) {
-            SearchPlanTopologyEntityDTOsRequest request = SearchPlanTopologyEntityDTOsRequest.newBuilder()
-                .setTopologyContextId(topologyContextId)
-                .addAllEntityOid(involvedEntities)
-                .build();
-            return searchServiceRpc.searchPlanTopologyEntityDTOs(request).getTopologyEntityDtosList();
-        } else {
-            SearchTopologyEntityDTOsRequest request = SearchTopologyEntityDTOsRequest.newBuilder()
-                .addAllEntityOid(involvedEntities)
-                .build();
-            return searchServiceRpc.searchTopologyEntityDTOs(request).getTopologyEntityDtosList();
-        }
     }
 
     /**
@@ -342,11 +355,11 @@ public class ActionSpecMappingContextFactory {
 
         private final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOs;
 
-        private final Map<Long, TopologyEntityDTO> topologyEntityDTOs;
+        private final Map<Long, ApiPartialEntity> topologyEntityDTOs;
 
         private final Map<Long, PolicyDTO.Policy> policies;
 
-        private final Map<Long, TopologyEntityDTO> zoneIdToRegion;
+        private final Map<Long, ApiPartialEntity> zoneIdToRegion;
 
         private final Map<Long, List<VirtualDiskApiDTO>> volumeAspectsByVM;
 
@@ -356,9 +369,9 @@ public class ActionSpecMappingContextFactory {
 
         private final Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>> buyRIIdToRIBoughtandRISpec;
 
-        ActionSpecMappingContext(@Nonnull Map<Long, TopologyEntityDTO> topologyEntityDTOs,
+        ActionSpecMappingContext(@Nonnull Map<Long, ApiPartialEntity> topologyEntityDTOs,
                                  @Nonnull Map<Long, PolicyDTO.Policy> policies,
-                                 @Nonnull Map<Long, TopologyEntityDTO> zoneIdToRegion,
+                                 @Nonnull Map<Long, ApiPartialEntity> zoneIdToRegion,
                                  @Nonnull Map<Long, List<VirtualDiskApiDTO>> volumeAspectsByVM,
                                  @Nonnull Map<Long, EntityAspect> cloudAspects,
                                  @Nonnull Map<Long, EntityAspect> vmAspects,
@@ -368,7 +381,7 @@ public class ActionSpecMappingContextFactory {
             this.topologyEntityDTOs = topologyEntityDTOs;
             this.serviceEntityApiDTOs = topologyEntityDTOs.entrySet().stream()
                 .collect(Collectors.toMap(Entry::getKey, entry ->
-                    serviceEntityMapper.toServiceEntityApiDTO(entry.getValue(), null)));
+                    serviceEntityMapper.toServiceEntityApiDTO(entry.getValue())));
             this.policies = Objects.requireNonNull(policies);
             this.zoneIdToRegion = Objects.requireNonNull(zoneIdToRegion);
             this.volumeAspectsByVM = Objects.requireNonNull(volumeAspectsByVM);
@@ -392,23 +405,24 @@ public class ActionSpecMappingContextFactory {
             return entity == null ? Optional.empty() : Optional.of(entity);
         }
 
-        TopologyEntityDTO getTopologyEntityDTO(final long oid) throws UnknownObjectException {
-            final TopologyEntityDTO entity = topologyEntityDTOs.get(oid);
+        ApiPartialEntity getTopologyEntityDTO(final long oid) throws UnknownObjectException {
+            final ApiPartialEntity entity = topologyEntityDTOs.get(oid);
             if (entity == null) {
                 throw new UnknownObjectException("Entity: " + oid + " not found.");
             }
             return entity;
         }
 
-        TopologyEntityDTO getRegionForVM(@Nonnull Long entityOid) throws UnknownObjectException {
-            TopologyEntityDTO entityDTO = getTopologyEntityDTO(entityOid);
+        @Nonnull
+        ApiPartialEntity getRegionForVM(@Nonnull Long entityOid) throws UnknownObjectException {
+            ApiPartialEntity entityDTO = getTopologyEntityDTO(entityOid);
             Long zoneId = null;
-            for (ConnectedEntity c : entityDTO.getConnectedEntityListList()) {
-                if (c.getConnectedEntityType() == EntityType.REGION_VALUE) {
+            for (RelatedEntity c : entityDTO.getConnectedToList()) {
+                if (c.getEntityType() == EntityType.REGION_VALUE) {
                     // it means azure
-                    return getTopologyEntityDTO(c.getConnectedEntityId());
-                } else if (c.getConnectedEntityType() == EntityType.AVAILABILITY_ZONE_VALUE) {
-                    zoneId = c.getConnectedEntityId();
+                    return getTopologyEntityDTO(c.getOid());
+                } else if (c.getEntityType() == EntityType.AVAILABILITY_ZONE_VALUE) {
+                    zoneId = c.getOid();
                 }
             }
             // it means aws, find region based on zone

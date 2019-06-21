@@ -8,7 +8,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -33,7 +32,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDTOPossibilities;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
@@ -1199,15 +1197,8 @@ public class ScenarioMapper {
             // This shouldn't be an issue as long as scenarios don't contain absurd numbers of entities,
             // and as long as we're not retrieving detailed information about lots of scenarios.
             // If necessary we can optimize it by exposing an API call that returns only entity types.
-            this.serviceEntityMap =
-                    repositoryApi.getServiceEntitiesById(
-                            ServiceEntitiesRequest.newBuilder(PlanDTOUtil.getInvolvedEntities(changes))
-                                    .build())
-                            .entrySet().stream()
-                            .filter(entry -> entry.getValue().isPresent())
-                            // The .get() here is safe because we filtered out entries where the entity
-                            // information is not present.
-                            .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().get()));
+            this.serviceEntityMap = repositoryApi.entitiesRequest(PlanDTOUtil.getInvolvedEntities(changes))
+                .getSEMap();
             // Get all involved templates
             this.templatesMap =
                     templatesUtils.getTemplatesMapByIds(PlanDTOUtil.getInvolvedTemplates(changes));

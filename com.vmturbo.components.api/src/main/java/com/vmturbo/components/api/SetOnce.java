@@ -7,6 +7,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -45,9 +46,11 @@ public class SetOnce<CONTENT> {
      * Ensure that the {@link SetOnce} is set to a value, using the provided supplier if necessary.
      *
      * @param valueSupplier Supplier for the value if it's not currently set.
-     * @return The value the {@link SetOnce} is set to.
+     * @return The value the {@link SetOnce} is set to. This will only return null if:
+     *           1) The value is not currently set AND
+     *           2) The provided supplier returns null.
      */
-    @Nonnull
+    @Nullable
     public CONTENT ensureSet(@Nonnull Supplier<CONTENT> valueSupplier) {
         CONTENT val;
         // The fast path, to avoid a write lock if the value is already set (which should be
@@ -71,8 +74,9 @@ public class SetOnce<CONTENT> {
         try {
             if (value == null) {
                 final CONTENT newValue = valueSupplier.get();
-                Objects.requireNonNull(newValue);
-                value = newValue;
+                if (newValue != null) {
+                    value = newValue;
+                }
                 return true;
             } else {
                 return false;

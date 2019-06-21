@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
@@ -30,11 +31,10 @@ import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.ConstraintsMapper;
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
-import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
@@ -44,9 +44,9 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
-import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.constraints.ConstraintApiDTO;
 import com.vmturbo.api.constraints.ConstraintApiInputDTO;
 import com.vmturbo.api.controller.GroupsController;
@@ -79,10 +79,8 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
@@ -101,6 +99,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
@@ -125,10 +124,6 @@ public class EntitiesService implements IEntitiesService {
     private final long realtimeTopologyContextId;
 
     private final SupplyChainFetcherFactory supplyChainFetcher;
-
-    private final PaginationMapper paginationMapper;
-
-    private final SearchServiceBlockingStub searchServiceRpc;
 
     private final GroupServiceBlockingStub groupServiceClient;
 
@@ -195,8 +190,6 @@ public class EntitiesService implements IEntitiesService {
             @Nonnull final ActionSpecMapper actionSpecMapper,
             final long realtimeTopologyContextId,
             @Nonnull final SupplyChainFetcherFactory supplyChainFetcher,
-            @Nonnull final PaginationMapper paginationMapper,
-            @Nonnull final SearchServiceBlockingStub searchServiceRpc,
             @Nonnull final GroupServiceBlockingStub groupServiceClient,
             @Nonnull final EntityAspectMapper entityAspectMapper,
             @Nonnull final SeverityPopulator severityPopulator,
@@ -213,8 +206,6 @@ public class EntitiesService implements IEntitiesService {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.supplyChainFetcher = Objects.requireNonNull(supplyChainFetcher);
-        this.paginationMapper = Objects.requireNonNull(paginationMapper);
-        this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
         this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
         this.settingPolicyServiceBlockingStub = Objects.requireNonNull(settingPolicyServiceBlockingStub);
         this.settingServiceBlockingStub = Objects.requireNonNull(settingServiceBlockingStub);
@@ -249,8 +240,12 @@ public class EntitiesService implements IEntitiesService {
             throws Exception {
         // get information about this entity from the repository
         final long oid = Long.valueOf(uuid);
-        final ServiceEntityApiDTO result =
-            repositoryApi.getServiceEntityById(oid, includeAspects ? entityAspectMapper : null);
+        final SingleEntityRequest req = repositoryApi.entityRequest(oid);
+        if (includeAspects) {
+            req.useAspectMapper(entityAspectMapper);
+        }
+        final ServiceEntityApiDTO result = req.getSE()
+            .orElseThrow(() -> new UnknownObjectException(uuid));
 
         // fetch all consumers
         try {
@@ -471,10 +466,7 @@ public class EntitiesService implements IEntitiesService {
 
         long entityOid = Long.valueOf(uuid);
         Optional<ServiceEntityApiDTO> entityApiDTO =
-                repositoryApi.getServiceEntitiesById(
-                        ServiceEntitiesRequest.newBuilder(ImmutableSet.of(entityOid))
-                                .build())
-                .getOrDefault(entityOid, Optional.empty());
+                repositoryApi.entityRequest(entityOid).getSE();
 
 
         if (!entityApiDTO.isPresent()) {
@@ -587,9 +579,10 @@ public class EntitiesService implements IEntitiesService {
 
     @Override
     public List<TagApiDTO> getTagsByEntityUuid(final String s) throws Exception {
-        return
-            TagsMapper.convertTagsToApi(
-                    repositoryApi.getTopologyEntityDTO(Long.valueOf(s)).getTags().getTagsMap());
+        return TagsMapper.convertTagsToApi(repositoryApi.entityRequest(Long.valueOf(s))
+            .getEntity()
+            .orElseThrow(() -> new UnknownObjectException(s))
+            .getTags().getTagsMap());
     }
 
     @Override
@@ -632,12 +625,18 @@ public class EntitiesService implements IEntitiesService {
 
     @Override
     public Map<String, EntityAspect> getAspectsByEntityUuid(String uuid) throws UnauthorizedObjectException, UnknownObjectException {
-        return entityAspectMapper.getAspectsByEntity(getTopologyEntityDTO(uuid));
+        final TopologyEntityDTO entityDTO = repositoryApi.entityRequest(Long.parseLong(uuid))
+            .getFullEntity()
+            .orElseThrow(() -> new UnknownObjectException(uuid));
+        return entityAspectMapper.getAspectsByEntity(entityDTO);
     }
 
     @Override
     public EntityAspect getAspectByEntityUuid(String uuid, String aspectTag) throws UnauthorizedObjectException, UnknownObjectException {
-        return entityAspectMapper.getAspectByEntity(getTopologyEntityDTO(uuid), aspectTag);
+        final TopologyEntityDTO entityDTO = repositoryApi.entityRequest(Long.parseLong(uuid))
+            .getFullEntity()
+            .orElseThrow(() -> new UnknownObjectException(uuid));
+        return entityAspectMapper.getAspectByEntity(entityDTO, aspectTag);
     }
 
     @Override
@@ -696,15 +695,15 @@ public class EntitiesService implements IEntitiesService {
 
         // Now query repo to get the TopologyEntityDTO for the current entity and its consumers.
         List<ConstraintApiDTO> constraintApiDtos = new ArrayList<>();
-        List<String> oidsToQuery = new ArrayList<>();
-        oidsToQuery.addAll(consumerOids);
-        oidsToQuery.add(uuid);
+        Set<Long> oidsToQuery = new HashSet<>();
+        consumerOids.forEach(oid -> oidsToQuery.add(Long.parseLong(oid)));
+        oidsToQuery.add(Long.parseLong(uuid));
 
         // The constraints are embedded in the commodities. We have to fetch the TopologyEntityDTO
         // to get the commodities info.
-        Map<Long, TopologyEntityDTO> entityDtos =
-                getTopologyEntityDTOs(oidsToQuery).stream()
-                        .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+        Map<Long, TopologyEntityDTO> entityDtos = repositoryApi.entitiesRequest(oidsToQuery)
+            .getFullEntities()
+            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
         // We don't have to query the providers as we already have the provider info inside
         // the commoditiesBought object.
@@ -724,37 +723,6 @@ public class EntitiesService implements IEntitiesService {
     @Override
     public List<ServiceEntityApiDTO> getPotentialEntitiesByEntity(String uuid, ConstraintApiInputDTO inputDto) throws Exception {
         throw ApiUtils.notImplementedInXL();
-    }
-
-    /**
-     * Get TopologyEntityDTO based on provided oid.
-     */
-    private List<TopologyEntityDTO> getTopologyEntityDTOs(@Nonnull List<String> uuids)
-            throws UnknownObjectException {
-
-        List<TopologyEntityDTO> entities = searchServiceRpc.searchTopologyEntityDTOs(
-                SearchTopologyEntityDTOsRequest.newBuilder()
-                        .addAllEntityOid(uuids.stream()
-                                .map(Long::valueOf)
-                                .collect(Collectors.toList()))
-                        .build()).getTopologyEntityDtosList();
-        return entities;
-    }
-
-    /**
-     * Get TopologyEntityDTO based on provided oid.
-     */
-    private TopologyEntityDTO getTopologyEntityDTO(@Nonnull String uuid) throws UnknownObjectException {
-        List<TopologyEntityDTO> entityDtos =
-                getTopologyEntityDTOs(Collections.singletonList(uuid));
-
-        if (entityDtos.size() > 1) {
-            throw new UnknownObjectException("Found " + entityDtos.size() + " entities of same id: " + uuid);
-        }
-        if (entityDtos.size() == 0) {
-            throw new UnknownObjectException("Entity: " + uuid + " not found");
-        }
-        return entityDtos.get(0);
     }
 
     private static Link generateLinkTo(@Nonnull Object invocationValue, @Nonnull String relation) {
@@ -780,20 +748,10 @@ public class EntitiesService implements IEntitiesService {
             @Nonnull TraversalDirection traversalDirection,
             @Nonnull Consumer<List<BaseApiDTO>> code)
             throws StatusRuntimeException {
-        final List<TopologyEntityDTO> neighbors =
-            searchServiceRpc.searchTopologyEntityDTOs(
-                    SearchTopologyEntityDTOsRequest.newBuilder()
-                        .addSearchParameters(SearchProtoUtil.neighbors(oid, traversalDirection))
-                        .build())
-                .getTopologyEntityDtosList();
-        code.accept(
-            neighbors.stream()
-                .map(t -> {
-                    final BaseApiDTO baseApiDTO = new BaseApiDTO();
-                    ServiceEntityMapper.setBasicFields(baseApiDTO, t);
-                    return baseApiDTO;
-                })
-                .collect(Collectors.toList())
+        final Stream<MinimalEntity> neighbors = repositoryApi.newSearchRequest(
+            SearchProtoUtil.neighbors(oid, traversalDirection)).getMinimalEntities();
+        code.accept(neighbors.map(ServiceEntityMapper::toBasicEntity)
+            .collect(Collectors.toList())
         );
     }
 

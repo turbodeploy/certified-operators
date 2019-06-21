@@ -40,7 +40,6 @@ import com.google.common.collect.Sets;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
@@ -65,7 +64,6 @@ import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.exceptions.OperationFailedException;
-import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IStatsService;
@@ -104,12 +102,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsReq
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.SearchPlanTopologyEntityDTOsRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
@@ -122,9 +115,9 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -187,8 +180,6 @@ public class StatsService implements IStatsService {
 
     private final RepositoryServiceBlockingStub repositoryRpcService;
 
-    private final SearchServiceBlockingStub searchServiceClient;
-
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
 
     private final GroupExpander groupExpander;
@@ -233,8 +224,8 @@ public class StatsService implements IStatsService {
      * replace requests for stats for a DATACENTER entity with the PHYSICAL_MACHINEs
      * in that DATACENTER.
      */
-    private static final Map<String, String> ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
-            UIEntityType.DATACENTER.apiStr(), UIEntityType.PHYSICAL_MACHINE.apiStr()
+    private static final Map<UIEntityType, UIEntityType> ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
+            UIEntityType.DATACENTER, UIEntityType.PHYSICAL_MACHINE
     );
 
     // set of stats passed from UI, which are for the number of entities grouped by tier
@@ -263,26 +254,26 @@ public class StatsService implements IStatsService {
 
     // the function of how to get the tier id from a given TopologyEntityDTO, this is used
     // for the stats of the number of entities by tier type
-    private static final Map<String, Function<TopologyEntityDTO, Long>> ENTITY_TYPE_TO_GET_TIER_FUNCTION = ImmutableMap.of(
+    private static final Map<String, Function<ApiPartialEntity, Long>> ENTITY_TYPE_TO_GET_TIER_FUNCTION = ImmutableMap.of(
         UIEntityType.VIRTUAL_MACHINE.apiStr(), topologyEntityDTO ->
-            topologyEntityDTO.getCommoditiesBoughtFromProvidersList().stream()
-                .filter(commodityBought -> commodityBought.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE)
-                .map(CommoditiesBoughtFromProvider::getProviderId)
+            topologyEntityDTO.getProvidersList().stream()
+                .filter(provider -> provider.getEntityType() == EntityType.COMPUTE_TIER_VALUE)
+                .map(RelatedEntity::getOid)
                 .findAny().get(),
         UIEntityType.DATABASE.apiStr(), topologyEntityDTO ->
-            topologyEntityDTO.getCommoditiesBoughtFromProvidersList().stream()
-                .filter(commodityBought -> commodityBought.getProviderEntityType() == EntityType.DATABASE_TIER_VALUE)
-                .map(CommoditiesBoughtFromProvider::getProviderId)
+            topologyEntityDTO.getProvidersList().stream()
+                .filter(provider -> provider.getEntityType() == EntityType.DATABASE_TIER_VALUE)
+                .map(RelatedEntity::getOid)
                 .findAny().get(),
         UIEntityType.DATABASE_SERVER.apiStr(), topologyEntityDTO ->
-            topologyEntityDTO.getCommoditiesBoughtFromProvidersList().stream()
-                .filter(commodityBought -> commodityBought.getProviderEntityType() == EntityType.DATABASE_SERVER_TIER_VALUE)
-                .map(CommoditiesBoughtFromProvider::getProviderId)
+            topologyEntityDTO.getProvidersList().stream()
+                .filter(provider -> provider.getEntityType() == EntityType.DATABASE_SERVER_TIER_VALUE)
+                .map(RelatedEntity::getOid)
                 .findAny().get(),
         UIEntityType.VIRTUAL_VOLUME.apiStr(), topologyEntityDTO ->
-            topologyEntityDTO.getConnectedEntityListList().stream()
-                .filter(connectedEntity -> connectedEntity.getConnectedEntityType() == EntityType.STORAGE_TIER_VALUE)
-                .map(ConnectedEntity::getConnectedEntityId)
+            topologyEntityDTO.getProvidersList().stream()
+                .filter(provider -> provider.getEntityType() == EntityType.STORAGE_TIER_VALUE)
+                .map(RelatedEntity::getOid)
                 .findFirst().get()
     );
 
@@ -290,7 +281,6 @@ public class StatsService implements IStatsService {
                  @Nonnull final PlanServiceBlockingStub planRpcService,
                  @Nonnull final RepositoryApi repositoryApi,
                  @Nonnull final RepositoryServiceBlockingStub repositoryRpcService,
-                 @Nonnull final SearchServiceBlockingStub searchServiceClient,
                  @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                  @Nonnull final StatsMapper statsMapper,
                  @Nonnull final GroupExpander groupExpander,
@@ -308,7 +298,6 @@ public class StatsService implements IStatsService {
         this.planRpcService = planRpcService;
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.repositoryRpcService = Objects.requireNonNull(repositoryRpcService);
-        this.searchServiceClient = Objects.requireNonNull(searchServiceClient);
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
         this.clock = Objects.requireNonNull(clock);
         this.groupExpander = groupExpander;
@@ -619,7 +608,7 @@ public class StatsService implements IStatsService {
                         final Function<TargetApiDTO, String> typeFunction = getTypeFunction(requestGroupBySet);
                         // for group by Cloud services, we need to find all the services and
                         // stitch with expenses in Cost component
-                        final List<BaseApiDTO> cloudServiceDTOs = requestGroupBySet.contains(CLOUD_SERVICE) ?
+                        final Collection<BaseApiDTO> cloudServiceDTOs = requestGroupBySet.contains(CLOUD_SERVICE) ?
                                 getDiscoveredServiceDTO() : Collections.emptyList();
 
                         final List<CloudCostStatRecord> cloudStatRecords =
@@ -759,17 +748,12 @@ public class StatsService implements IStatsService {
      *
      * @param uuid The uuid of the service entity
      * @return true if it is a cloud service entity, false otherwise
-     * @throws UnknownObjectException
      */
-    private boolean isCloudServiceEntity(final @Nonnull String uuid) {
-        try {
-            final ServiceEntityApiDTO entity = repositoryApi.getServiceEntityForUuid(Long.valueOf(uuid));
-            return entity != null && entity.getEnvironmentType() ==
-                com.vmturbo.api.enums.EnvironmentType.CLOUD;
-        } catch (UnknownObjectException e) {
-            // the uuid may be a plan id rather than entity id
-            return false;
-        }
+    private boolean isCloudServiceEntity(final String uuid) {
+        return repositoryApi.entityRequest(Long.valueOf(uuid))
+            .getMinimalEntity()
+            .map(e -> e.getEnvironmentType() == EnvironmentType.CLOUD)
+            .orElse(false);
     }
 
     /**
@@ -1013,15 +997,20 @@ public class StatsService implements IStatsService {
                                                          @Nullable Long planTopologyContextId,
                                                          @Nonnull String statName,
                                                          @Nonnull String filterType,
-                                                         @Nonnull Function<TopologyEntityDTO, Long> getTierId) {
+                                                         @Nonnull Function<ApiPartialEntity, Long> getTierId) {
         // fetch entities
-        List<TopologyEntityDTO> entities = fetchTopologyEntityDTOs(entityIds, planTopologyContextId);
+        Map<Long, ApiPartialEntity> entities = repositoryApi.entitiesRequest(entityIds)
+            .contextId(planTopologyContextId)
+            .getEntities()
+            .collect(Collectors.toMap(ApiPartialEntity::getOid, Function.identity()));
         // tier id --> number of entities using the tier
-        Map<Long, Long> tierIdToNumEntities = entities.stream()
+        Map<Long, Long> tierIdToNumEntities = entities.values().stream()
             .collect(Collectors.groupingBy(getTierId, Collectors.counting()));
         // tier id --> tier name
-        Map<Long, String> tierIdToName = fetchTopologyEntityDTOs(tierIdToNumEntities.keySet(), planTopologyContextId).stream()
-            .collect(Collectors.toMap(TopologyEntityDTO::getOid, TopologyEntityDTO::getDisplayName));
+        Map<Long, String> tierIdToName = repositoryApi.entitiesRequest(tierIdToNumEntities.keySet())
+            .contextId(planTopologyContextId)
+            .getMinimalEntities()
+            .collect(Collectors.toMap(MinimalEntity::getOid, MinimalEntity::getDisplayName));
 
         return tierIdToNumEntities.entrySet().stream()
             .map(entry -> createStatApiDTOForPlan(statName, entry.getValue(),
@@ -1094,35 +1083,6 @@ public class StatsService implements IStatsService {
                 entry.getValue().getInstances().keySet().stream()
                     .map(Long::valueOf)
                     .collect(Collectors.toSet())));
-    }
-
-    /**
-     * Fetch the TopologyEntityDTOs from given plan TopologyContextId. If context id is not
-     * provided, it fetch from real time topology.
-     *
-     * @param entityIds ids of entities to fetch
-     * @param planTopologyContextId context id of the plan topology to fetch entities from,
-     *                              or empty if it's for real time topology
-     * @return list of TopologyEntityDTOs
-     */
-    private List<TopologyEntityDTO> fetchTopologyEntityDTOs(@Nonnull Set<Long> entityIds,
-                                                            @Nullable Long planTopologyContextId) {
-        if (entityIds.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        if (planTopologyContextId != null) {
-            SearchPlanTopologyEntityDTOsRequest request = SearchPlanTopologyEntityDTOsRequest.newBuilder()
-                .setTopologyContextId(planTopologyContextId)
-                .addAllEntityOid(entityIds)
-                .build();
-            return searchServiceClient.searchPlanTopologyEntityDTOs(request).getTopologyEntityDtosList();
-        } else {
-            SearchTopologyEntityDTOsRequest request = SearchTopologyEntityDTOsRequest.newBuilder()
-                .addAllEntityOid(entityIds)
-                .build();
-            return searchServiceClient.searchTopologyEntityDTOs(request).getTopologyEntityDtosList();
-        }
     }
 
     private List<CloudCostStatRecord> getCloudStatRecordList(@Nonnull final StatPeriodApiInputDTO inputDto,
@@ -1263,18 +1223,14 @@ public class StatsService implements IStatsService {
     }
 
     // Search discovered Cloud services.
-    private List<BaseApiDTO> getDiscoveredServiceDTO() {
+    private Collection<BaseApiDTO> getDiscoveredServiceDTO() {
         try {
             // find all cloud services
-            final SearchTopologyEntityDTOsResponse response =
-                searchServiceClient.searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
-                    .addSearchParameters(SearchParameters.newBuilder()
-                        .setStartingFilter(SearchProtoUtil.entityTypeFilter(
-                            UIEntityType.CLOUD_SERVICE.apiStr())))
-                    .build());
-            return response.getTopologyEntityDtosList().stream()
-                .map(topologyEntity -> serviceEntityMapper.toServiceEntityApiDTO(topologyEntity, null))
-                .collect(Collectors.toList());
+            return Collections.unmodifiableCollection(
+                repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
+                    SearchProtoUtil.entityTypeFilter(UIEntityType.CLOUD_SERVICE)).build())
+                .getSEMap()
+                .values());
         } catch (Exception e) {
             logger.error("Failed to search Cloud service");
             return Collections.emptyList();
@@ -1440,7 +1396,7 @@ public class StatsService implements IStatsService {
                 final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
                 final TopologyDTO.TopologyEntityDTO planEntity = entityStats.getPlanEntity();
                 final ServiceEntityApiDTO serviceEntityApiDTO =
-                        serviceEntityMapper.toServiceEntityApiDTO(planEntity, null);
+                        serviceEntityMapper.toServiceEntityApiDTO(planEntity);
                 entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
                 entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
                 entityStatsApiDTO.setClassName(UIEntityType.fromType(planEntity.getEntityType()).apiStr());
@@ -1756,14 +1712,14 @@ public class StatsService implements IStatsService {
                 .map(EntityStats::getOid)
                 .collect(Collectors.toSet());
 
-        final Map<Long, Optional<ServiceEntityApiDTO>> entities =
-            repositoryApi.getServiceEntitiesById(
-                ServiceEntitiesRequest.newBuilder(entitiesWithStats).build());
+        final Map<Long, MinimalEntity> entities = repositoryApi.entitiesRequest(entitiesWithStats)
+            .getMinimalEntities()
+            .collect(Collectors.toMap(MinimalEntity::getOid, Function.identity()));
 
         // 3. Combine the results of 1. and 2. and return.
         final List<EntityStatsApiDTO> dto = nextStatsPage.stream()
             .map(entityStats -> {
-                final Optional<ServiceEntityApiDTO> apiDto = entities.get(entityStats.getOid());
+                final Optional<MinimalEntity> apiDto = Optional.ofNullable(entities.get(entityStats.getOid()));
                 return apiDto.map(seApiDto -> constructEntityStatsDto(seApiDto,
                         projectedStatsRequest, entityStats, inputDto));
             })
@@ -1862,13 +1818,13 @@ public class StatsService implements IStatsService {
      * @return A fully configured {@link EntityStatsApiDTO}.
      */
     @Nonnull
-    private EntityStatsApiDTO constructEntityStatsDto(ServiceEntityApiDTO serviceEntity,
+    private EntityStatsApiDTO constructEntityStatsDto(MinimalEntity serviceEntity,
                                                       final boolean projectedStatsRequest,
                                                       final EntityStats entityStats,
                                                       @Nonnull final StatScopesApiInputDTO inputDto) {
         final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
-        entityStatsApiDTO.setUuid(serviceEntity.getUuid());
-        entityStatsApiDTO.setClassName(serviceEntity.getClassName());
+        entityStatsApiDTO.setUuid(Long.toString(serviceEntity.getOid()));
+        entityStatsApiDTO.setClassName(UIEntityType.fromType(serviceEntity.getEntityType()).apiStr());
         entityStatsApiDTO.setDisplayName(serviceEntity.getDisplayName());
         entityStatsApiDTO.setStats(new ArrayList<>());
         if (projectedStatsRequest && entityStats.getStatSnapshotsCount() > 0) {
@@ -1929,33 +1885,32 @@ public class StatsService implements IStatsService {
 
         final Set<Long> expandedEntityOids = Sets.newHashSet();
         // get all service entities which need to expand.
-        final Set<ServiceEntityApiDTO> expandServiceEntities = ENTITY_TYPES_TO_EXPAND.keySet().stream()
-                .flatMap(entityType -> repositoryApi.getSearchResults(
-                    null, Collections.singletonList(entityType), null).stream())
-                .collect(Collectors.toSet());
+        final Map<Long, MinimalEntity> expandServiceEntities = ENTITY_TYPES_TO_EXPAND.keySet().stream()
+                .flatMap(entityType -> repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
+                        SearchProtoUtil.entityTypeFilter(entityType)).build())
+                    .getMinimalEntities())
+            .collect(Collectors.toMap(MinimalEntity::getOid, Function.identity()));
 
-        final Map<Long, ServiceEntityApiDTO> expandServiceEntityMap = expandServiceEntities.stream()
-                .collect(Collectors.toMap(entity -> Long.valueOf(entity.getUuid()), Function.identity()));
         // go through each entity and check if it needs to expand.
         for (Long oidToExpand : entityOidsToExpand) {
             try {
                 // if expandServiceEntityMap contains oid, it means current oid entity needs to expand.
-                if (expandServiceEntityMap.containsKey(oidToExpand)) {
-                    final ServiceEntityApiDTO expandEntity = expandServiceEntityMap.get(oidToExpand);
+                if (expandServiceEntities.containsKey(oidToExpand)) {
+                    final MinimalEntity expandEntity = expandServiceEntities.get(oidToExpand);
                     final String relatedEntityType =
-                            ENTITY_TYPES_TO_EXPAND.get(expandEntity.getClassName());
+                            ENTITY_TYPES_TO_EXPAND.get(UIEntityType.fromType(expandEntity.getEntityType())).apiStr();
                     // fetch the supply chain map:  entity type -> SupplyChainNode
                     Map<String, SupplyChainNode> supplyChainMap = supplyChainFetcherFactory
                             .newNodeFetcher()
                             .entityTypes(Collections.singletonList(relatedEntityType))
-                            .addSeedUuid(expandEntity.getUuid())
+                            .addSeedUuid(Long.toString(expandEntity.getOid()))
                             .fetch();
                     SupplyChainNode relatedEntities = supplyChainMap.get(relatedEntityType);
                     if (relatedEntities != null) {
                         expandedEntityOids.addAll(RepositoryDTOUtil.getAllMemberOids(relatedEntities));
                     } else {
                         logger.warn("RelatedEntityType {} not found in supply chain for {}; " +
-                                "the entity is discarded", relatedEntityType, expandEntity.getUuid());
+                                "the entity is discarded", relatedEntityType, expandEntity.getOid());
                     }
                 } else {
                     expandedEntityOids.add(oidToExpand);
@@ -1997,9 +1952,9 @@ public class StatsService implements IStatsService {
 
         // if it is global temp group and need to expand, should return target expand entity type.
         if (isGlobalTempGroup && ENTITY_TYPES_TO_EXPAND.containsKey(
-                UIEntityType.fromType(tempGroup.getEntityType()).apiStr())) {
-            return Optional.of(UIEntityType.fromString(ENTITY_TYPES_TO_EXPAND.get(
-                UIEntityType.fromType(tempGroup.getEntityType()))).typeNumber());
+                UIEntityType.fromType(tempGroup.getEntityType()))) {
+            return Optional.of(ENTITY_TYPES_TO_EXPAND.get(
+                UIEntityType.fromType(tempGroup.getEntityType())).typeNumber());
         } else if (isGlobalTempGroup) {
             // if it is global temp group and not need to expand.
             return Optional.of(tempGroup.getEntityType());

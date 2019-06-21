@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
 import com.vmturbo.api.component.ApiTestUtils;
+import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
@@ -57,19 +58,10 @@ public class ActionStatsQueryExecutorTest {
     private UuidMapper uuidMapper = mock(UuidMapper.class);
     private CurrentQueryMapper currentQueryMapper = mock(CurrentQueryMapper.class);
     private ActionStatsMapper actionStatsMapper = mock(ActionStatsMapper.class);
-    SearchServiceMole searchServiceSpy = Mockito.spy(new SearchServiceMole());
-    private SearchServiceBlockingStub searchServiceBlockingStub;
+    private RepositoryApi repositoryApi = mock(RepositoryApi.class);
 
     @Rule
     public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(actionsServiceMole);
-
-    @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(searchServiceSpy);
-
-    @Before
-    public void init() throws Exception {
-        searchServiceBlockingStub = SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
-    }
 
     @Test
     public void testExecuteHistoricalQuery() throws OperationFailedException {
@@ -80,7 +72,7 @@ public class ActionStatsQueryExecutorTest {
             historicalQueryMapper,
             currentQueryMapper,
             actionStatsMapper,
-            searchServiceBlockingStub);
+            repositoryApi);
         final ActionStatsQuery actionStatsQuery = mock(ActionStatsQuery.class);
         ActionApiInputDTO inputDTO = new ActionApiInputDTO();
         inputDTO.setGroupBy(new ArrayList<>());
@@ -130,7 +122,7 @@ public class ActionStatsQueryExecutorTest {
             historicalQueryMapper,
             currentQueryMapper,
             actionStatsMapper,
-            searchServiceBlockingStub);
+            repositoryApi);
         final ActionStatsQuery actionStatsQuery = mock(ActionStatsQuery.class);
         when(actionStatsQuery.isHistorical()).thenReturn(false);
         ActionApiInputDTO inputDTO = new ActionApiInputDTO();

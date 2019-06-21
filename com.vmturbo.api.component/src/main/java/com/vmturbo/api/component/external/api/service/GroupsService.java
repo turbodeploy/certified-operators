@@ -1,7 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -10,7 +9,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -29,17 +27,14 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
-import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
@@ -53,9 +48,9 @@ import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
-import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -121,13 +116,11 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByNameRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.common.protobuf.search.Search;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupResponse;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -171,8 +164,6 @@ public class GroupsService implements IGroupsService {
 
     private final UuidMapper uuidMapper;
 
-    private final PaginationMapper paginationMapper;
-
     private final EntityAspectMapper entityAspectMapper;
 
     private final SettingsManagerMapping settingsManagerMapping;
@@ -182,8 +173,6 @@ public class GroupsService implements IGroupsService {
     private final RepositoryApi repositoryApi;
 
     private final long realtimeTopologyContextId;
-
-    private final SearchServiceBlockingStub searchServiceBlockingStub;
 
     private final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub;
 
@@ -208,13 +197,11 @@ public class GroupsService implements IGroupsService {
                   @Nonnull final GroupMapper groupMapper,
                   @Nonnull final GroupExpander groupExpander,
                   @Nonnull final UuidMapper uuidMapper,
-                  @Nonnull final PaginationMapper paginationMapper,
                   @Nonnull final RepositoryApi repositoryApi,
                   final long realtimeTopologyContextId,
                   @Nonnull final SettingsManagerMapping settingsManagerMapping,
                   @Nonnull final TemplateServiceBlockingStub templateService,
                   @Nonnull final EntityAspectMapper entityAspectMapper,
-                  @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
                   @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
                   @Nonnull final SeverityPopulator severityPopulator,
                   @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
@@ -227,13 +214,11 @@ public class GroupsService implements IGroupsService {
         this.groupMapper = Objects.requireNonNull(groupMapper);
         this.groupExpander = Objects.requireNonNull(groupExpander);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
-        this.paginationMapper = Objects.requireNonNull(paginationMapper);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.settingsManagerMapping = Objects.requireNonNull(settingsManagerMapping);
         this.templateService = templateService;
         this.entityAspectMapper = entityAspectMapper;
-        this.searchServiceBlockingStub = searchServiceBlockingStub;
         this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
@@ -295,8 +280,10 @@ public class GroupsService implements IGroupsService {
     public List<?> getEntitiesByGroupUuid(String uuid) throws Exception {
         // check if scope is real time market, return all entities in the market
         if (UuidMapper.UI_REAL_TIME_MARKET_STR.equals(uuid)) {
-            return Lists.newArrayList(repositoryApi.getSearchResults(null,
-                SearchMapper.SEARCH_ALL_TYPES, null));
+            return repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
+                    SearchProtoUtil.entityTypeFilter(SearchMapper.SEARCH_ALL_TYPES))
+                    .build())
+                .getSEList();
         }
 
         final Set<Long> leafEntities;
@@ -309,14 +296,14 @@ public class GroupsService implements IGroupsService {
             leafEntities = expandUuids(Collections.singleton(uuid), Collections.emptyList(), null);
         } else {
             // check if scope is entity, if not, throw exception
-            Search.Entity entity = repositoryApi.fetchEntity(uuid).orElseThrow(() ->
-                new UnsupportedOperationException("Scope: " + uuid + " is not supported"));
+            MinimalEntity entity = repositoryApi.entityRequest(Long.parseLong(uuid)).getMinimalEntity()
+                .orElseThrow(() -> new UnsupportedOperationException("Scope: " + uuid + " is not supported"));
             // check if supported grouping entity
-            if (!GROUPING_ENTITY_TYPES_TO_EXPAND.containsKey(entity.getType())) {
+            if (!GROUPING_ENTITY_TYPES_TO_EXPAND.containsKey(entity.getEntityType())) {
                 throw new UnsupportedOperationException("Entity: " + uuid + " is not supported");
             }
             leafEntities = expandUuids(Collections.singleton(uuid),
-                GROUPING_ENTITY_TYPES_TO_EXPAND.get(entity.getType()), null);
+                GROUPING_ENTITY_TYPES_TO_EXPAND.get(entity.getEntityType()), null);
         }
 
         // Special handling for the empty member list, because passing empty to repositoryApi returns all entities.
@@ -325,22 +312,14 @@ public class GroupsService implements IGroupsService {
         }
 
         // Get entities from the repository component
-        final Map<Long, Optional<ServiceEntityApiDTO>> entities =
-            repositoryApi.getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(leafEntities).build());
+        final List<ServiceEntityApiDTO> entities = repositoryApi.entitiesRequest(leafEntities)
+            .getSEList();
 
-        int missingEntities = 0;
-        final List<ServiceEntityApiDTO> results = new ArrayList<>();
-        for (Optional<ServiceEntityApiDTO> optEntity : entities.values()) {
-            if (optEntity.isPresent()) {
-                results.add(optEntity.get());
-            } else {
-                missingEntities++;
-            }
-        }
+        int missingEntities = leafEntities.size() - entities.size();
         if (missingEntities > 0) {
             logger.warn("{} entities from scope {} not found in repository.", missingEntities, uuid);
         }
-        return results;
+        return entities;
     }
 
     @Override
@@ -800,25 +779,14 @@ public class GroupsService implements IGroupsService {
                     return Collections.emptyList();
                 } else {
                     // Get entities of group members from the repository component
-                    final Map<Long, Optional<ServiceEntityApiDTO>> entities =
-                        repositoryApi.getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(
-                            Sets.newHashSet(groupAndMembers.members())).build());
+                    final List<ServiceEntityApiDTO> results =
+                        repositoryApi.entitiesRequest(Sets.newHashSet(groupAndMembers.members()))
+                            .getSEList();
 
-                    final AtomicLong missingEntities = new AtomicLong(0);
-                    final List<ServiceEntityApiDTO> results = entities.values().stream()
-                        .filter(optEntity -> {
-                            if (!optEntity.isPresent()) {
-                                missingEntities.incrementAndGet();
-                                return false;
-                            } else {
-                                return true;
-                            }
-                        })
-                        .map(Optional::get)
-                        .collect(Collectors.toList());
-                    if (missingEntities.get() > 0) {
+                    final int missingEntities = groupAndMembers.members().size() - results.size();
+                    if (missingEntities > 0) {
                         logger.warn("{} group members from group {} not found in repository.",
-                            missingEntities.get(), uuid);
+                            missingEntities, uuid);
                     }
                     return results;
                 }
@@ -1093,12 +1061,9 @@ public class GroupsService implements IGroupsService {
             return Collections.emptyList();
         } else {
             // Get group members as TopologyEntityDTOs from the repository component
-            final SearchTopologyEntityDTOsResponse response =
-                searchServiceBlockingStub.searchTopologyEntityDTOs(
-                    SearchTopologyEntityDTOsRequest.newBuilder()
-                        .addAllEntityOid(groupAndMembers.members())
-                        .build());
-            return response.getTopologyEntityDtosList();
+            return repositoryApi.entitiesRequest(Sets.newHashSet(groupAndMembers.members()))
+                .getFullEntities()
+                .collect(Collectors.toList());
         }
     }
 
@@ -1137,11 +1102,11 @@ public class GroupsService implements IGroupsService {
         // since the given scopeUuids can be heterogeneous, we should divide them into different groups
         // one for targets, the other for entities or groups (which will be used as seeds to fetch
         // related entities in supply chain)
-        final Set<String> targetUuids = new HashSet<>();
+        final Set<Long> targetUuids = new HashSet<>();
         final Set<String> seedUuids = new HashSet<>();
         scopeUuids.forEach(scopeUuid -> {
             if (targetsService.isTarget(scopeUuid)) {
-                targetUuids.add(scopeUuid);
+                targetUuids.add(Long.parseLong(scopeUuid));
             } else {
                 seedUuids.add(scopeUuid);
             }
@@ -1150,22 +1115,24 @@ public class GroupsService implements IGroupsService {
         // if there are targets in scopes, add entities discovered by that target, these entities
         // should not be added to seedUuids since they are all the entities for the target
         if (!targetUuids.isEmpty()) {
-            final List<Search.Entity> targetEntities = new ArrayList<>();
-            for (String uuid : targetUuids) {
-                targetEntities.addAll(targetsService.getTargetEntities(uuid));
-            }
+            final List<MinimalEntity> targetEntities =
+                repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
+                        SearchProtoUtil.discoveredBy(targetUuids))
+                        .build())
+                    .getMinimalEntities()
+                    .collect(Collectors.toList());
             final Set<Integer> relatedEntityTypesInt = relatedEntityTypes == null
                 ? Collections.emptySet()
                 : relatedEntityTypes.stream()
                     .map(UIEntityType::fromString)
                     .map(UIEntityType::typeNumber)
                     .collect(Collectors.toSet());
-            final Predicate<Search.Entity> filterByType = relatedEntityTypesInt.isEmpty()
+            final Predicate<MinimalEntity> filterByType = relatedEntityTypesInt.isEmpty()
                 ? entity -> true
-                : entity -> relatedEntityTypesInt.contains(entity.getType());
+                : entity -> relatedEntityTypesInt.contains(entity.getEntityType());
             result.addAll(targetEntities.stream()
                 .filter(filterByType)
-                .map(Search.Entity::getOid)
+                .map(MinimalEntity::getOid)
                 .collect(Collectors.toSet()));
         }
 

@@ -1,40 +1,21 @@
 package com.vmturbo.action.orchestrator.action;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.core.Is.is;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.contains;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.Map;
 import java.util.Optional;
 
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.google.common.collect.ImmutableMap;
-
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
-import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
@@ -45,11 +26,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
-import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -201,21 +179,12 @@ public class ActionDescriptionBuilderTest {
             .build());
     }
 
-    public static Optional<TopologyEntityDTO> createEntity(Long Oid, int entityType,
-                                                              int provider1, int provider2,
-                                                              String displayName) {
-        return Optional.of(TopologyEntityDTO.newBuilder()
+    public static Optional<ActionPartialEntity> createEntity(Long Oid, int entityType,
+                                                             String displayName) {
+        return Optional.of(ActionPartialEntity.newBuilder()
             .setOid(Oid)
             .setEntityType(entityType)
             .setDisplayName(displayName)
-            .addCommoditiesBoughtFromProviders(
-                CommoditiesBoughtFromProvider.newBuilder()
-                    .setProviderId(2L)
-                    .setProviderEntityType(provider1))
-            .addCommoditiesBoughtFromProviders(
-                CommoditiesBoughtFromProvider.newBuilder()
-                    .setProviderId(3L)
-                    .setProviderEntityType(provider2))
             .build());
     }
 
@@ -224,19 +193,16 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
-                EntityType.PHYSICAL_MACHINE.getNumber(), EntityType.STORAGE.getNumber(),
                 VM1_DISPLAY_NAME)));
 
         when(entitySettingsCache.getEntityFromOid(eq(PM_SOURCE_ID)))
             .thenReturn((createEntity(PM_SOURCE_ID,
                 EntityType.PHYSICAL_MACHINE.getNumber(),
-                EntityType.DATACENTER.getNumber(), EntityType.STORAGE.getNumber(),
                 PM_SOURCE_DISPLAY_NAME)));
 
         when(entitySettingsCache.getEntityFromOid(eq(PM_DESTINATION_ID)))
             .thenReturn((createEntity(PM_DESTINATION_ID,
                 EntityType.PHYSICAL_MACHINE.getNumber(),
-                EntityType.DATACENTER.getNumber(), EntityType.STORAGE.getNumber(),
                 PM_DESTINATION_DISPLAY_NAME)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
@@ -249,13 +215,11 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
-                EntityType.PHYSICAL_MACHINE.getNumber(), EntityType.STORAGE.getNumber(),
                 VM1_DISPLAY_NAME)));
 
         when(entitySettingsCache.getEntityFromOid(eq(PM_SOURCE_ID)))
             .thenReturn((createEntity(PM_SOURCE_ID,
                 EntityType.PHYSICAL_MACHINE.getNumber(),
-                EntityType.DATACENTER.getNumber(), EntityType.STORAGE.getNumber(),
                 PM_SOURCE_DISPLAY_NAME)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
@@ -268,7 +232,6 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
-                EntityType.PHYSICAL_MACHINE.getNumber(), EntityType.STORAGE.getNumber(),
                 VM1_DISPLAY_NAME)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
@@ -282,7 +245,6 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
-                EntityType.PHYSICAL_MACHINE.getNumber(), EntityType.STORAGE.getNumber(),
                 VM1_DISPLAY_NAME)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
@@ -296,7 +258,6 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
-                EntityType.PHYSICAL_MACHINE.getNumber(), EntityType.STORAGE.getNumber(),
                 VM1_DISPLAY_NAME)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
@@ -310,7 +271,6 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(ST_SOURCE_ID)))
             .thenReturn((createEntity(ST_SOURCE_ID,
                 EntityType.STORAGE.getNumber(),
-                EntityType.DATACENTER.getNumber(), EntityType.DISK_ARRAY.getNumber(),
                 ST_SOURCE_DISPLAY_NAME)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
@@ -324,7 +284,6 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(ST_SOURCE_ID)))
             .thenReturn((createEntity(ST_SOURCE_ID,
                 EntityType.STORAGE.getNumber(),
-                EntityType.DATACENTER.getNumber(), EntityType.DISK_ARRAY.getNumber(),
                 ST_SOURCE_DISPLAY_NAME)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
@@ -338,17 +297,14 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(COMPUTE_TIER_ID)))
             .thenReturn((createEntity(COMPUTE_TIER_ID,
                 EntityType.COMPUTE_TIER.getNumber(),
-                EntityType.AVAILABILITY_ZONE.getNumber(), EntityType.STORAGE.getNumber(),
                 COMPUTE_TIER_DISPLAY_NAME)));
         when(entitySettingsCache.getEntityFromOid(eq(MASTER_ACCOUNT_ID)))
             .thenReturn((createEntity(MASTER_ACCOUNT_ID,
                 EntityType.BUSINESS_ACCOUNT.getNumber(),
-                EntityType.AVAILABILITY_ZONE.getNumber(), EntityType.REGION.getNumber(),
                 MASTER_ACCOUNT_DISPLAY_NAME)));
         when(entitySettingsCache.getEntityFromOid(eq(REGION_ID)))
             .thenReturn((createEntity(REGION_ID,
                 EntityType.REGION.getNumber(),
-                EntityType.DATABASE.getNumber(), EntityType.STORAGE.getNumber(),
                 REGION_DISPLAY_NAME)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(

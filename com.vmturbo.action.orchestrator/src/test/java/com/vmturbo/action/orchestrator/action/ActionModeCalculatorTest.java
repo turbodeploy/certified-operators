@@ -40,6 +40,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -763,7 +764,7 @@ public class ActionModeCalculatorTest {
         return settings;
     }
 
-    private TopologyEntityDTO getVMEntity(long vmId, boolean hotAddSupported) {
+    private ActionPartialEntity getVMEntity(long vmId, boolean hotAddSupported) {
         CommoditySoldDTO vCPU = CommoditySoldDTO.newBuilder()
                         .setCommodityType(CommodityType.newBuilder()
                                         .setType(CommodityDTO.CommodityType.VCPU_VALUE))
@@ -776,11 +777,11 @@ public class ActionModeCalculatorTest {
                                         .setHotResizeInfo(HotResizeInfo.newBuilder()
                                             .setHotReplaceSupported(hotAddSupported))
                         .build();
-        ImmutableList<CommoditySoldDTO> commoditiesSold = ImmutableList.of(vCPU, vMEM);
-        return TopologyEntityDTO.newBuilder()
-                .setOid(vmId)
-                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .addAllCommoditySoldList(commoditiesSold)
-                .build();
+        return ActionPartialEntity.newBuilder()
+            .setOid(vmId)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .addCommoditySold(vCPU)
+            .addCommoditySold(vMEM)
+            .build();
     }
 }

@@ -13,12 +13,12 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -28,6 +28,8 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -139,13 +141,15 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
         // get plan projected topology entity DTO from repository
         long topologyContextId = topoInfo.getTopologyContextId();
         Map<Long,TopologyEntityDTO> entityMap = RepositoryDTOUtil.topologyEntityStream(repositoryClient
-                .retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
-                        .setTopologyContextId(topoInfo.getTopologyContextId())
-                        .setTopologyId(projectedTopologyId)
-                        .setTopologyType(TopologyType.PROJECTED)
-                        .addAllEntityType(entityTypeSet)
-                        .build()))
-                        .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+            .retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
+                .setTopologyContextId(topoInfo.getTopologyContextId())
+                .setTopologyId(projectedTopologyId)
+                .setReturnType(Type.FULL)
+                .setTopologyType(TopologyType.PROJECTED)
+                .addAllEntityType(entityTypeSet)
+                .build()))
+            .map(PartialEntity::getFullEntity)
+            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         Set<TopologyEntityDTO> allRegion = entityMap.values()
                 .stream().filter( v -> v.getEntityType() == EntityType.REGION_VALUE)
                 .collect(Collectors.toSet());

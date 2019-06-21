@@ -4,8 +4,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -14,6 +16,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.commons.lang3.text.WordUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -21,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.base.CaseFormat;
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -47,6 +51,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class ActionDTOUtil {
     private static final Logger logger = LogManager.getLogger();
+
+    public static final Set<Integer> NON_DISRUPTIVE_SETTING_COMMODITIES = ImmutableSet.of(
+        CommodityDTO.CommodityType.VCPU_VALUE,
+        CommodityDTO.CommodityType.VMEM_VALUE);
 
     public static final double NORMAL_SEVERITY_THRESHOLD = Integer.getInteger("importance.normal", -1000).doubleValue();
     public static final double MINOR_SEVERITY_THRESHOLD = Integer.getInteger("importance.minor", 0).doubleValue();
@@ -223,15 +231,30 @@ public class ActionDTOUtil {
      *
      * @param actions The actions to consider.
      * @return A set of IDs of involved entities.
-     * @throws UnsupportedActionException If the type of the action is not supported.
      */
     @Nonnull
-    public static Set<Long> getInvolvedEntityIds(@Nonnull final Collection<Action> actions)
-            throws UnsupportedActionException {
+    public static Set<Long> getInvolvedEntityIds(@Nonnull final Collection<Action> actions) {
         final Set<Long> involvedEntitiesSet = new HashSet<>();
+
+        // Avoid allocation of actual map until we actually have an error.
+        Map<ActionTypeCase, MutableInt> unsupportedActionTypes = Collections.emptyMap();
+
         for (final Action action : actions) {
-            involvedEntitiesSet.addAll(ActionDTOUtil.getInvolvedEntityIds(action));
+            try {
+                involvedEntitiesSet.addAll(ActionDTOUtil.getInvolvedEntityIds(action));
+            } catch (UnsupportedActionException e) {
+                if (unsupportedActionTypes.isEmpty()) {
+                    unsupportedActionTypes = new HashMap<>();
+                }
+                unsupportedActionTypes.computeIfAbsent(e.getActionType(), k -> new MutableInt()).increment();
+            }
         }
+
+        if (!unsupportedActionTypes.isEmpty()) {
+            logger.error("Encountered unsupported actions of the following types: {}",
+                unsupportedActionTypes);
+        }
+
         return involvedEntitiesSet;
     }
 

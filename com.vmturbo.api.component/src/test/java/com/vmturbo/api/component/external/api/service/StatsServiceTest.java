@@ -55,7 +55,9 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -116,6 +118,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
@@ -136,6 +139,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -223,13 +227,11 @@ public class StatsServiceTest {
             .addStatSnapshots(STAT_SNAPSHOT)
             .build();
 
-    private static final ServiceEntityApiDTO ENTITY_DESCRIPTOR = new ServiceEntityApiDTO();
-
-    static {
-        ENTITY_DESCRIPTOR.setUuid("1");
-        ENTITY_DESCRIPTOR.setDisplayName("hello japan");
-        ENTITY_DESCRIPTOR.setClassName(UIEntityType.PHYSICAL_MACHINE.apiStr());
-    }
+    private static final MinimalEntity ENTITY_DESCRIPTOR = MinimalEntity.newBuilder()
+        .setOid(1)
+        .setDisplayName("hello japan")
+        .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
+        .build();
 
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(statsHistoryServiceSpy,
@@ -248,6 +250,9 @@ public class StatsServiceTest {
 
         mockTopologyProcessorOutputs();
 
+        MultiEntityRequest req = ApiTestUtils.mockMultiEntityReqEmpty();
+        when(repositoryApi.entitiesRequest(any())).thenReturn(req);
+
         groupExpander = Mockito.mock(GroupExpander.class);
         GroupServiceBlockingStub groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
         CostServiceBlockingStub costService = CostServiceGrpc.newBlockingStub(testServer.getChannel());
@@ -258,10 +263,9 @@ public class StatsServiceTest {
         when(riService.fetchPlanInstance(oid2)).thenReturn(Optional.empty());
         when(riService.fetchPlanInstance("11111")).thenReturn(Optional.empty());
         when(riService.fetchPlanInstance(StatsService.MARKET)).thenReturn(Optional.empty());
-        when(repositoryApi.getServiceEntityById(anyLong(), any())).thenReturn(new ServiceEntityApiDTO());
 
         statsService = spy(new StatsService(statsServiceRpc, planRpcService, repositoryApi,
-            repositoryRpcService, searchServiceClient, supplyChainFetcherFactory, statsMapper,
+            repositoryRpcService, supplyChainFetcherFactory, statsMapper,
             groupExpander, mockClock, targetsService, groupService, Duration.ofMillis(LIVE_STATS_RETRIEVAL_WINDOW_MS),
             costService, magicScopeGateway, userSessionContext, riService,
             serviceEntityMapper, REALTIME_CONTEXT_ID));
@@ -276,6 +280,9 @@ public class StatsServiceTest {
         se1.setClassName("ClassName-1");
         se2.setUuid(apiId2.uuid());
         se2.setClassName("ClassName-2");
+
+        final SearchRequest dcReq = ApiTestUtils.mockSearchMinReq(Collections.emptyList());
+        when(repositoryApi.newSearchRequest(any(SearchParameters.class))).thenReturn(dcReq);
     }
 
     @Test
@@ -295,6 +302,9 @@ public class StatsServiceTest {
         final StatSnapshotApiDTO apiDto = new StatSnapshotApiDTO();
         apiDto.setStatistics(Collections.emptyList());
         when(statsMapper.toStatSnapshotApiDTO(any())).thenReturn(apiDto);
+
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(MinimalEntity.getDefaultInstance());
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(req);
 
         final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(oid1, inputDto);
 
@@ -383,6 +393,9 @@ public class StatsServiceTest {
         when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
         when(riService.fetchPlanInstance("111")).thenReturn(Optional.empty());
 
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(MinimalEntity.getDefaultInstance());
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(req);
+
         final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery("111", inputDto);
 
         verify(costServiceSpy).getAccountExpenseStats(
@@ -460,6 +473,9 @@ public class StatsServiceTest {
         when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
         when(riService.fetchPlanInstance(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID)).thenReturn(Optional.empty());
 
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(MinimalEntity.getDefaultInstance());
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(req);
+
         final List<StatSnapshotApiDTO> resp = statsService
                 .getStatsByEntityQuery(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID, inputDto);
 
@@ -519,6 +535,9 @@ public class StatsServiceTest {
         when(statsMapper.toCloudStatSnapshotApiDTO(any())).thenReturn(apiDto);
         when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
 
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(MinimalEntity.getDefaultInstance());
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(req);
+
         final List<StatSnapshotApiDTO> resp = statsService
                 .getStatsByEntityQuery("11111", inputDto);
 
@@ -577,7 +596,10 @@ public class StatsServiceTest {
         apiDto.setStatistics(Collections.emptyList());
         when(statsMapper.toCloudStatSnapshotApiDTO(any())).thenReturn(apiDto);
         when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
-        when(repositoryApi.getServiceEntityById(anyLong(), any())).thenReturn(new ServiceEntityApiDTO());
+
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(MinimalEntity.getDefaultInstance());
+        when(repositoryApi.entityRequest(anyLong()))
+            .thenReturn(req);
 
         final List<StatSnapshotApiDTO> resp = statsService
                 .getStatsByEntityQuery("11111", inputDto);
@@ -602,6 +624,10 @@ public class StatsServiceTest {
         EntityAccessScope accessScope = new EntityAccessScope(null, null,
                 new ArrayOidSet(Arrays.asList(apiId1.oid())), null);
         when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(MinimalEntity.getDefaultInstance());
+        when(repositoryApi.entityRequest(anyLong()))
+            .thenReturn(req);
 
         // verify that the request will not get interrupted on a request for entity 1
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
@@ -705,6 +731,9 @@ public class StatsServiceTest {
         apiDto.setStatistics(Collections.emptyList());
         when(statsMapper.toStatSnapshotApiDTO(any())).thenReturn(apiDto);
 
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(MinimalEntity.getDefaultInstance());
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(req);
+
         final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(oid1, inputDto);
 
         // Match on 'any' StatPeriodApiInputDTO because the service may replace null with an empty DTO
@@ -794,6 +823,9 @@ public class StatsServiceTest {
                                 .setPlanId(planId)
                                 .setStatus(PlanStatus.SUCCEEDED))
                         .build());
+
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(MinimalEntity.getDefaultInstance());
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(req);
         final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(planIdString, inputDto);
         verify(statsHistoryServiceSpy, never()).getProjectedStats(any());
         verifyZeroInteractions(costServiceSpy);
@@ -818,6 +850,9 @@ public class StatsServiceTest {
         final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
         dto.setStatistics(Collections.emptyList());
         when(statsMapper.toStatSnapshotApiDTO(any())).thenReturn(dto);
+
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(MinimalEntity.getDefaultInstance());
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(req);
 
         // act
         final List<StatSnapshotApiDTO> retDtos = statsService.getStatsByEntityQuery(oid1, inputDto);
@@ -845,11 +880,13 @@ public class StatsServiceTest {
 
         // set up DataCenter id 7
         when(groupExpander.expandUuid(anyObject())).thenReturn(Sets.newHashSet(7L));
-        ServiceEntityApiDTO se7 = new ServiceEntityApiDTO();
-        se7.setUuid("7");
-        se7.setClassName(UIEntityType.DATACENTER.apiStr());
-        when(repositoryApi.getSearchResults(any(), any(), any()))
-                .thenReturn(Lists.newArrayList(se7));
+        MinimalEntity se7 = MinimalEntity.newBuilder()
+            .setOid(7)
+            .setEntityType(UIEntityType.DATACENTER.typeNumber())
+            .build();
+        final SearchRequest seReq = ApiTestUtils.mockSearchMinReq(Lists.newArrayList(se7));
+        when(repositoryApi.newSearchRequest(any(SearchParameters.class)))
+            .thenReturn(seReq);
 
         final Set<Long> oids = Sets.newHashSet(101L, 102L);
 
@@ -870,6 +907,9 @@ public class StatsServiceTest {
         when(statsMapper.toAveragedEntityStatsRequest(oids, inputDto, Optional.empty()))
                 .thenReturn(request);
         when(riService.fetchPlanInstance("7")).thenReturn(Optional.empty());
+
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(MinimalEntity.getDefaultInstance());
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(req);
 
         // We don't really care about what happens after the RPC call, because the thing
         // we're testing is that the datacenter gets expanded into the right IDs before
@@ -898,14 +938,17 @@ public class StatsServiceTest {
         // set up a group with two datacenters, OID 7 & 8
         final Set<Long> listOfOidsInGroup = Sets.newHashSet(7L, 8L);
         when(groupExpander.expandUuid(anyObject())).thenReturn(listOfOidsInGroup);
-        ServiceEntityApiDTO se7 = new ServiceEntityApiDTO();
-        se7.setUuid("7");
-        se7.setClassName(UIEntityType.DATACENTER.apiStr());
-        ServiceEntityApiDTO se8 = new ServiceEntityApiDTO();
-        se8.setUuid("8");
-        se8.setClassName(UIEntityType.DATACENTER.apiStr());
-        when(repositoryApi.getSearchResults(any(), any(), any()))
-                .thenReturn(Lists.newArrayList(se7, se8));
+        MinimalEntity se7 = MinimalEntity.newBuilder()
+            .setOid(7)
+            .setEntityType(UIEntityType.DATACENTER.typeNumber())
+            .build();
+        MinimalEntity se8 = MinimalEntity.newBuilder()
+            .setOid(8)
+            .setEntityType(UIEntityType.DATACENTER.typeNumber())
+            .build();
+        final SearchRequest seReq = ApiTestUtils.mockSearchMinReq(Lists.newArrayList(se7, se8));
+        when(repositoryApi.newSearchRequest(any(SearchParameters.class)))
+            .thenReturn(seReq);
 
         // first req, for DC 7, return PMs 101 and 102 for supply chain
         Map<String, SupplyChainProto.SupplyChainNode> supplyChainNodeMap1 = ImmutableMap.of(
@@ -934,6 +977,10 @@ public class StatsServiceTest {
         final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.getDefaultInstance();
         when(statsMapper.toAveragedEntityStatsRequest(expandedOids, inputDto, Optional.empty()))
                 .thenReturn(request);
+
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(MinimalEntity.getDefaultInstance());
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(req);
+
         expectedEntityIdsAfterSupplyChainTraversal(expandedOids);
 
         // act
@@ -955,8 +1002,10 @@ public class StatsServiceTest {
         // just a simple SE, not group or cluster; expanded list is just the input OID
         final Set<Long> expandedOid = Collections.singleton(1L);
         when(groupExpander.expandUuid(oid1)).thenReturn(expandedOid);
-        when(repositoryApi.getServiceEntitiesById(Mockito.any()))
-                .thenReturn(ImmutableMap.of(1L, Optional.of(se1)));
+
+        MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(se1));
+        when(repositoryApi.entitiesRequest(any()))
+            .thenReturn(req);
 
         final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.getDefaultInstance();
         when(statsMapper.toAveragedEntityStatsRequest(expandedOid, inputDto, Optional.empty()))
@@ -968,6 +1017,9 @@ public class StatsServiceTest {
         final StatSnapshotApiDTO retDto = new StatSnapshotApiDTO();
         retDto.setStatistics(Collections.emptyList());
         when(statsMapper.toStatSnapshotApiDTO(any())).thenReturn(retDto);
+
+        SingleEntityRequest minReq = ApiTestUtils.mockSingleEntityRequest(MinimalEntity.getDefaultInstance());
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(minReq);
 
         // act
         final List<StatSnapshotApiDTO> results = statsService.getStatsByEntityQuery(oid1, inputDto);
@@ -1050,8 +1102,8 @@ public class StatsServiceTest {
         final EntityStatsPaginationRequest paginationRequest =
                 spy(new EntityStatsPaginationRequest("foo", 1, true, "order"));
 
-        when(repositoryApi.getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(expandedUids)
-                .build())).thenReturn(ImmutableMap.of(1L, Optional.of(ENTITY_DESCRIPTOR)));
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Lists.newArrayList(ENTITY_DESCRIPTOR));
+        when(repositoryApi.entitiesRequest(any())).thenReturn(req);
 
         final GetEntityStatsRequest request = GetEntityStatsRequest.getDefaultInstance();
         when(statsMapper.toEntityStatsRequest(any(), eq(period), eq(paginationRequest)))
@@ -1076,8 +1128,8 @@ public class StatsServiceTest {
         verify(statsHistoryServiceSpy, times(0)).getProjectedStats(anyObject(),
                 anyObject());
 
+        verify(repositoryApi).entitiesRequest(expandedUids);
         verify(groupExpander).expandUuids(Collections.singleton("1"));
-        verify(repositoryApi).getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(expandedUids).build());
         verify(statsMapper).toEntityStatsRequest(EntityStatsScope.newBuilder()
                 .setEntityList(EntityList.newBuilder()
                     .addEntities(1L))
@@ -1092,9 +1144,9 @@ public class StatsServiceTest {
 
         final EntityStatsApiDTO entityStatDto = response.getRawResults().get(0);
         assertThat(entityStatDto.getStats(), is(statDtos));
-        assertThat(entityStatDto.getUuid(), is(ENTITY_DESCRIPTOR.getUuid()));
+        assertThat(entityStatDto.getUuid(), is(Long.toString(ENTITY_DESCRIPTOR.getOid())));
         assertThat(entityStatDto.getDisplayName(), is(ENTITY_DESCRIPTOR.getDisplayName()));
-        assertThat(entityStatDto.getClassName(), is(ENTITY_DESCRIPTOR.getClassName()));
+        assertThat(entityStatDto.getClassName(), is(UIEntityType.fromType(ENTITY_DESCRIPTOR.getEntityType()).apiStr()));
 
     }
 
@@ -1117,8 +1169,9 @@ public class StatsServiceTest {
         final EntityStatsPaginationRequest paginationRequest =
                 spy(new EntityStatsPaginationRequest("foo", 1, true, "order"));
 
-        when(repositoryApi.getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(expandedUids)
-                .build())).thenReturn(ImmutableMap.of(1L, Optional.of(ENTITY_DESCRIPTOR)));
+
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Lists.newArrayList(ENTITY_DESCRIPTOR));
+        when(repositoryApi.entitiesRequest(expandedUids)).thenReturn(req);
 
         final GetEntityStatsRequest request = GetEntityStatsRequest.getDefaultInstance();
         when(statsMapper.toEntityStatsRequest(any(), eq(period), eq(paginationRequest)))
@@ -1142,9 +1195,9 @@ public class StatsServiceTest {
         // Assert
         verify(statsHistoryServiceSpy, times(0)).getProjectedStats(anyObject(),
                 anyObject());
+        verify(repositoryApi).entitiesRequest(expandedUids);
 
         verify(groupExpander, never()).expandUuids(any());
-        verify(repositoryApi).getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(expandedUids).build());
         verify(statsMapper).toEntityStatsRequest(EntityStatsScope.newBuilder()
                 .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
                 .build(), period, paginationRequest);
@@ -1158,9 +1211,9 @@ public class StatsServiceTest {
 
         final EntityStatsApiDTO entityStatDto = response.getRawResults().get(0);
         assertThat(entityStatDto.getStats(), is(statDtos));
-        assertThat(entityStatDto.getUuid(), is(ENTITY_DESCRIPTOR.getUuid()));
+        assertThat(entityStatDto.getUuid(), is(Long.toString(ENTITY_DESCRIPTOR.getOid())));
         assertThat(entityStatDto.getDisplayName(), is(ENTITY_DESCRIPTOR.getDisplayName()));
-        assertThat(entityStatDto.getClassName(), is(ENTITY_DESCRIPTOR.getClassName()));
+        assertThat(entityStatDto.getClassName(), is(UIEntityType.fromType(ENTITY_DESCRIPTOR.getEntityType()).apiStr()));
 
     }
 
@@ -1180,8 +1233,8 @@ public class StatsServiceTest {
         final EntityStatsPaginationRequest paginationRequest =
                 spy(new EntityStatsPaginationRequest("foo", 1, true, "order"));
 
-        when(repositoryApi.getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(expandedUids)
-                .build())).thenReturn(ImmutableMap.of(1L, Optional.of(ENTITY_DESCRIPTOR)));
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Lists.newArrayList(ENTITY_DESCRIPTOR));
+        when(repositoryApi.entitiesRequest(expandedUids)).thenReturn(req);
 
         final ProjectedEntityStatsRequest request = ProjectedEntityStatsRequest.getDefaultInstance();
         when(statsMapper.toProjectedEntityStatsRequest(expandedUids, period, paginationRequest))
@@ -1207,7 +1260,7 @@ public class StatsServiceTest {
         verify(statsHistoryServiceSpy, times(0)).getEntityStats(anyObject(),
                 anyObject());
         verify(groupExpander).expandUuids(Collections.singleton("1"));
-        verify(repositoryApi).getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(expandedUids).build());
+        verify(repositoryApi).entitiesRequest(expandedUids);
         verify(statsMapper).toProjectedEntityStatsRequest(expandedUids, period, paginationRequest);
         verify(statsHistoryServiceSpy).getProjectedEntityStats(request);
         verify(statsMapper).toStatSnapshotApiDTO(STAT_SNAPSHOT);
@@ -1219,9 +1272,9 @@ public class StatsServiceTest {
 
         final EntityStatsApiDTO entityStatDto = response.getRawResults().get(0);
         assertThat(entityStatDto.getStats(), containsInAnyOrder(statDto));
-        assertThat(entityStatDto.getUuid(), is(ENTITY_DESCRIPTOR.getUuid()));
+        assertThat(entityStatDto.getUuid(), is(Long.toString(ENTITY_DESCRIPTOR.getOid())));
         assertThat(entityStatDto.getDisplayName(), is(ENTITY_DESCRIPTOR.getDisplayName()));
-        assertThat(entityStatDto.getClassName(), is(ENTITY_DESCRIPTOR.getClassName()));
+        assertThat(entityStatDto.getClassName(), is(UIEntityType.fromType(ENTITY_DESCRIPTOR.getEntityType()).apiStr()));
     }
 
     @Test
@@ -1306,7 +1359,9 @@ public class StatsServiceTest {
         when(statsMapper.normalizeRelatedType(inputDto.getRelatedType())).thenReturn(inputDto.getRelatedType());
 
         when(groupExpander.getGroup(any())).thenReturn(Optional.empty());
-        when(repositoryApi.getServiceEntityById(anyLong(), any())).thenThrow(UnknownObjectException.class);
+
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityEmptyRequest();
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(req);
         expectedEntityIdsAfterSupplyChainTraversal(Collections.singleton(pmId));
 
         // We don't care about the result - for this test we just want to make sure
@@ -1339,20 +1394,22 @@ public class StatsServiceTest {
         // Shouldn't have called any RPCs, because there should be an early return
         // if there are no entities to look for (since group is empty)
         verify(supplyChainFetcherFactory, never()).newNodeFetcher();
-        verify(repositoryApi, never()).getSearchResults(any(), any(), any());
+        verify(repositoryApi, never()).newSearchRequest(any(SearchParameters.class));
         verify(statsHistoryServiceSpy, never()).getAveragedEntityStats(any());
     }
 
     @Test
     public void testStatsByQueryEmptySupplyChainEarlyReturn() throws Exception {
         final String dcId = "1";
-        final ServiceEntityApiDTO dcDto = new ServiceEntityApiDTO();
-        dcDto.setClassName(UIEntityType.DATACENTER.apiStr());
-        dcDto.setUuid(dcId);
+        final MinimalEntity dcDto = MinimalEntity.newBuilder()
+            .setOid(1)
+            .setEntityType(UIEntityType.DATACENTER.typeNumber())
+            .build();
         when(groupExpander.getGroup(eq(dcId))).thenReturn(Optional.empty());
-        // Query for entities of type DC return the dcDto
-        when(repositoryApi.getSearchResults(null, Collections.singletonList(UIEntityType.DATACENTER.apiStr()), null))
-                .thenReturn(Collections.singletonList(dcDto));
+
+        final SearchRequest seReq = ApiTestUtils.mockSearchMinReq(Lists.newArrayList(dcDto));
+        when(repositoryApi.newSearchRequest(any(SearchParameters.class)))
+            .thenReturn(seReq);
 
         final SupplyChainNodeFetcherBuilder fetcherBuilder = ApiTestUtils.mockNodeFetcherBuilder(
             ImmutableMap.of(UIEntityType.PHYSICAL_MACHINE.apiStr(),
@@ -1459,13 +1516,15 @@ public class StatsServiceTest {
                             .setNextCursor(nextCursor))
                     .build());
 
-        final ServiceEntityApiDTO entityDescriptor = new ServiceEntityApiDTO();
-        entityDescriptor.setUuid("1");
-        entityDescriptor.setDisplayName("hello japan");
-        entityDescriptor.setClassName(PHYSICAL_MACHINE_TYPE);
+        final MinimalEntity entityDescriptor = MinimalEntity.newBuilder()
+            .setOid(1)
+            .setDisplayName("hello japan")
+            .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
+            .build();
 
-        when(repositoryApi.getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(expandedIds)
-                .build())).thenReturn(ImmutableMap.of(1L, Optional.of(entityDescriptor)));
+
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Lists.newArrayList(entityDescriptor));
+        when(repositoryApi.entitiesRequest(expandedIds)).thenReturn(req);
 
         final List<StatSnapshotApiDTO> statsList =
                 Collections.singletonList(new StatSnapshotApiDTO());
@@ -1481,15 +1540,15 @@ public class StatsServiceTest {
                 .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
                 .build(), period, paginationRequest);
         verify(statsHistoryServiceSpy).getEntityStats(request);
-        verify(repositoryApi).getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(expandedIds).build());
+        verify(repositoryApi).entitiesRequest(expandedIds);
         verify(statsMapper).toStatsSnapshotApiDtoList(entityStats);
         verify(paginationRequest).nextPageResponse(any(), eq(nextCursor));
 
         assertThat(response.getRawResults().size(), equalTo(1));
         final EntityStatsApiDTO resultEntity = response.getRawResults().get(0);
         assertThat(resultEntity.getDisplayName(), is(entityDescriptor.getDisplayName()));
-        assertThat(resultEntity.getUuid(), is(entityDescriptor.getUuid()));
-        assertThat(resultEntity.getClassName(), is(entityDescriptor.getClassName()));
+        assertThat(resultEntity.getUuid(), is(Long.toString(entityDescriptor.getOid())));
+        assertThat(resultEntity.getClassName(), is(UIEntityType.fromType(entityDescriptor.getEntityType()).apiStr()));
         assertThat(resultEntity.getStats(), is(statsList));
     }
 

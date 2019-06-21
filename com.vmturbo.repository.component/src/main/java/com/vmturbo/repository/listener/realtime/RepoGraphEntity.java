@@ -19,8 +19,8 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -94,7 +94,11 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
         }
 
         final List<CommoditySoldDTO> commsToPersist = src.getCommoditySoldListList().stream()
-            .filter(commSold -> COMM_SOLD_TYPES_TO_PERSIST.contains(commSold.getCommodityType().getType()))
+            .filter(commSold -> {
+                final int commType = commSold.getCommodityType().getType();
+                return COMM_SOLD_TYPES_TO_PERSIST.contains(commType) ||
+                    ActionDTOUtil.NON_DISRUPTIVE_SETTING_COMMODITIES.contains(commType);
+            })
             .collect(Collectors.toList());
         if (commsToPersist.isEmpty()) {
             soldCommodities = Collections.emptyMap();
@@ -242,7 +246,7 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
      * than the entity returned by {@link RepoGraphEntity#getTopologyEntity()}.
      */
     @Nonnull
-    public TopologyEntityDTO getPartialTopologyEntity() {
+    private TopologyEntityDTO getPartialTopologyEntity() {
         final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
             .setOid(oid)
             .setDisplayName(displayName)
@@ -266,17 +270,6 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
 
         builder.addAllCommoditySoldList(soldCommodities.values());
         return builder.build();
-    }
-
-    @Nonnull
-    public Entity getThinEntity() {
-        return Entity.newBuilder()
-            .setDisplayName(displayName)
-            .setOid(oid)
-            .setState(state)
-            .setType(type)
-            .addAllTargetIds(discoveringTargetIds)
-            .build();
     }
 
     @Nonnull

@@ -43,6 +43,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 
@@ -152,7 +153,7 @@ public class ReservedInstanceMapper {
      */
     public EntityStatsApiDTO riCountMapToEntityStatsApiDTO(
             @Nonnull final  Map<Long, Long> reservedInstanceCountMap,
-            @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap) {
+            @Nonnull final Map<Long, MinimalEntity> serviceEntityApiDTOMap) {
         final EntityStatsApiDTO result = new EntityStatsApiDTO();
         final List<StatApiDTO> statApiDTOS =
                 convertRiCountMapToStatApiDTO(reservedInstanceCountMap, serviceEntityApiDTOMap);
@@ -270,8 +271,10 @@ public class ReservedInstanceMapper {
         } else if (optPlan.isPresent()) {
             return optPlan.get().getScenario().getScenarioInfo().getName();
         } else {
-            final ServiceEntityApiDTO scopeEntity = repositoryApi.getServiceEntityForUuid(Long.valueOf(scope));
-            return scopeEntity.getDisplayName();
+            return repositoryApi.entityRequest(Long.valueOf(scope))
+                .getMinimalEntity()
+                .orElseThrow(() -> new UnknownObjectException(scope))
+                .getDisplayName();
         }
     }
 
@@ -451,7 +454,7 @@ public class ReservedInstanceMapper {
      */
     private List<StatApiDTO> convertRiCountMapToStatApiDTO(
             @Nonnull final  Map<Long, Long> reservedInstanceCountMap,
-            @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap) {
+            @Nonnull final Map<Long, MinimalEntity> serviceEntityApiDTOMap) {
         return reservedInstanceCountMap.keySet().stream()
                 .map(riType ->
                         riCountToStatApiDTO(reservedInstanceCountMap.get(riType),
@@ -467,7 +470,7 @@ public class ReservedInstanceMapper {
      * @return a {@link StatApiDTO}.
      */
     private StatApiDTO riCountToStatApiDTO(
-            final Long value, @Nonnull final ServiceEntityApiDTO serviceEntityApiDTO) {
+            final Long value, @Nonnull final MinimalEntity serviceEntityApiDTO) {
         final StatApiDTO statApiDTO = new StatApiDTO();
         StatValueApiDTO statsValueDto = new StatValueApiDTO();
         statsValueDto.setMin(value.floatValue());

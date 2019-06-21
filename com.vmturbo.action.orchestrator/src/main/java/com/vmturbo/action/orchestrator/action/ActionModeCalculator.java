@@ -36,7 +36,6 @@ import org.immutables.value.Value;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
@@ -54,6 +53,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.Units;
@@ -73,10 +73,6 @@ public class ActionModeCalculator {
     private final ActionTranslator actionTranslator;
 
     private final RangeAwareSpecCalculator rangeAwareSpecCalculator;
-
-    private static final ImmutableSet<Integer> nonDisruptiveSettingCommodities = ImmutableSet.of(
-                    CommodityDTO.CommodityType.VCPU_VALUE,
-                    CommodityDTO.CommodityType.VMEM_VALUE);
 
     public ActionModeCalculator(@Nonnull ActionTranslator actionTranslator) {
         this.actionTranslator = actionTranslator;
@@ -223,7 +219,7 @@ public class ActionModeCalculator {
                                 ActionMode mode = ActionMode.AUTOMATIC;
                                 if (setting != null && setting.hasBooleanSettingValue()
                                         && setting.getBooleanSettingValue().getValue()) {
-                                    Optional<TopologyEntityDTO> entity = entitiesCache.getEntityFromOid(targetEntityId);
+                                    Optional<ActionPartialEntity> entity = entitiesCache.getEntityFromOid(targetEntityId);
                                     if (entity.isPresent()) {
                                         mode = applyNonDisruptiveSetting(entity.get(), action.getRecommendation());
                                     } else {
@@ -259,7 +255,7 @@ public class ActionModeCalculator {
     }
 
 
-    private ActionMode applyNonDisruptiveSetting(TopologyEntityDTO entity, Action action) {
+    private ActionMode applyNonDisruptiveSetting(ActionPartialEntity entity, Action action) {
         final ActionTypeCase actionType = action.getInfo().getActionTypeCase();
         // Check for VM Resize.
         if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
@@ -268,11 +264,11 @@ public class ActionModeCalculator {
             final Integer commType = resizeAction.getCommodityType().getType();
 
             // Check applicable commodities.
-            if (nonDisruptiveSettingCommodities.contains(commType)
+            if (ActionDTOUtil.NON_DISRUPTIVE_SETTING_COMMODITIES.contains(commType)
                     && resizeAction.getCommodityAttribute() == CommodityAttribute.CAPACITY) {
-                Optional<CommoditySoldDTO> commoditySold = entity.getCommoditySoldListList().stream()
-                                .filter(commSold -> commType == commSold.getCommodityType().getType())
-                                .findFirst();
+                Optional<CommoditySoldDTO> commoditySold = entity.getCommoditySoldList().stream()
+                    .filter(commSold -> commType == commSold.getCommodityType().getType())
+                    .findFirst();
                 boolean supportsHotReplace = false;
                 if (commoditySold.isPresent()) {
                     CommoditySoldDTO commSold = commoditySold.get();

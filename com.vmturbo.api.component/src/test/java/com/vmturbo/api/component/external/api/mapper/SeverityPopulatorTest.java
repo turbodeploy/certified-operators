@@ -72,9 +72,9 @@ public class SeverityPopulatorTest {
 
     @Test
     public void testPopulateSeveritiesMap() throws Exception {
-        final Map<Long, Optional<ServiceEntityApiDTO>> entityDTOs = ImmutableMap.of(
-            Long.parseLong(vm1.getUuid()), Optional.of(vm1),
-            Long.parseLong(vm2.getUuid()), Optional.of(vm2)
+        final Map<Long, ServiceEntityApiDTO> entityDTOs = ImmutableMap.of(
+            Long.parseLong(vm1.getUuid()), vm1,
+            Long.parseLong(vm2.getUuid()), vm2
         );
 
         actionOrchestratorImpl.setSeveritySupplier(() -> ImmutableList.of(

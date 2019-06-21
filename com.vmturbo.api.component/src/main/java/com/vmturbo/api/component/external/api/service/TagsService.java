@@ -8,7 +8,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
+import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.TagsMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -16,16 +16,12 @@ import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.serviceinterfaces.ITagsService;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
-import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
-import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
-import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsResponse;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 
@@ -40,11 +36,13 @@ import com.vmturbo.components.common.utils.StringConstants;
 public class TagsService implements ITagsService {
     private final SearchServiceBlockingStub searchServiceBlockingStub;
     private final GroupExpander groupExpander;
+    private final RepositoryApi repositoryApi;
 
-    public TagsService(
-            @Nonnull SearchServiceBlockingStub searchServiceBlockingStub,
+    public TagsService(@Nonnull SearchServiceBlockingStub searchServiceBlockingStub,
+            @Nonnull final RepositoryApi repositoryApi,
             @Nonnull GroupExpander groupExpander) {
         this.searchServiceBlockingStub = searchServiceBlockingStub;
+        this.repositoryApi = repositoryApi;
         this.groupExpander = groupExpander;
     }
 
@@ -122,42 +120,12 @@ public class TagsService implements ITagsService {
      */
     @Override
     public List<ServiceEntityApiDTO> getEntitiesByTagKey(@Nonnull final String tagKey) throws Exception {
-        final SearchEntitiesRequest request =
-                SearchEntitiesRequest
-                    .newBuilder()
-                    .addSearchParameters(
-                        SearchParameters
-                            .newBuilder()
-                            .setStartingFilter(
-                                PropertyFilter
-                                    .newBuilder()
-                                    .setPropertyName(StringConstants.TAGS_ATTR)
-                                    .setMapFilter(MapFilter.newBuilder().setKey(tagKey).build())
-                                    .build()
-                            ).build()
-                    ).setPaginationParams(PaginationParameters.newBuilder().build())
-                    .build();
-        final List<Entity> entities;
-        try {
-            entities = searchServiceBlockingStub.searchEntities(request).getEntitiesList();
-        } catch (Exception e) {
-            throw new Exception(
-                    "Retrieval of entities based on tag key \"" + tagKey + "\" related filter failed", e);
-        }
-
-        // translate entities to a list of ServiceEntityApiDTO
-        return entities.stream().map(
-                e -> {
-                    final ServiceEntityApiDTO result = new ServiceEntityApiDTO();
-                    if (e.hasDisplayName()) {
-                        result.setDisplayName(e.getDisplayName());
-                    }
-                    if (e.hasState()) {
-                        result.setState(UIEntityState.fromEntityState(e.getState()).apiStr());
-                    }
-                    result.setUuid(Long.toString(e.getOid()));
-                    result.setClassName(UIEntityType.fromType(e.getType()).apiStr());
-                    return result;
-                }).collect(Collectors.toList());
+        final SearchParameters params = SearchParameters.newBuilder()
+            .setStartingFilter(PropertyFilter.newBuilder()
+                .setPropertyName(StringConstants.TAGS_ATTR)
+                .setMapFilter(MapFilter.newBuilder().setKey(tagKey).build()))
+            .build();
+        return repositoryApi.newSearchRequest(params)
+            .getSEList();
     }
 }

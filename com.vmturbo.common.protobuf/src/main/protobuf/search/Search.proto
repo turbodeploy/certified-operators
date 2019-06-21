@@ -268,19 +268,6 @@ message SearchEntityOidsResponse {
     repeated int64 entities = 1;
 }
 
-message Entity {
-    required int32 type = 1;
-
-    required int64 oid = 2;
-
-    optional string displayName = 3;
-
-    optional .topology.EntityState state = 4;
-
-    // ids of the targets from which this entity was discovered
-    repeated int64 target_ids = 5;
-}
-
 message SearchEntitiesRequest {
     repeated SearchParameters searchParameters = 1;
 
@@ -289,6 +276,9 @@ message SearchEntitiesRequest {
     // it means the search parameters will be applied to global entities.
     repeated int64 entity_oid = 2;
 
+    // Allows caller to control return type.
+    optional .topology.PartialEntity.Type return_type = 5;
+
     // If not set, use the default instance of PaginationParameters. The backend
     // will enforce a default ordering and limit, and retrieve the first page.
     optional common.PaginationParameters pagination_params = 3;
@@ -296,36 +286,9 @@ message SearchEntitiesRequest {
 
 message SearchEntitiesResponse {
     // A list of matched entities.
-    repeated Entity entities = 1;
+    repeated .topology.PartialEntity entities = 1;
 
     optional common.PaginationResponse pagination_response = 2;
-}
-
-message SearchTopologyEntityDTOsRequest {
-    repeated SearchParameters searchParameters = 1;
-
-    // If the entity oids list is not empty, it means the search parameters will be only applied to those
-    // entity oids, the response will be subset of those entity oids. If the entity oids list is empty,
-    // it means the search parameters will be applied to global entities.
-    repeated int64 entity_oid = 2;
-}
-
-message SearchTopologyEntityDTOsResponse {
-    // A list of matched entities.
-    repeated .topology.TopologyEntityDTO topology_entity_dtos = 1;
-}
-
-message SearchPlanTopologyEntityDTOsRequest {
-    // The id of the plan topology context.
-    optional int64 topology_context_id = 1;
-
-    // ids of the entities to fetch from plan topology
-    repeated int64 entity_oid = 2;
-}
-
-message SearchPlanTopologyEntityDTOsResponse {
-    // A list of matched plan entities.
-    repeated .topology.TopologyEntityDTO topology_entity_dtos = 1;
 }
 
 message CountEntitiesRequest {
@@ -364,13 +327,11 @@ service SearchService {
     rpc SearchEntityOids(SearchEntityOidsRequest) returns (SearchEntityOidsResponse);
 
     // Search for entities based on the search parameters and return entity objects
+    // This method is the non-stream alternative to do pagination.
     rpc SearchEntities(SearchEntitiesRequest) returns (SearchEntitiesResponse);
 
-    // Search for TopologyEntityDTOs based on the search parameters and return TopologyEntityDTO objects
-    rpc SearchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest) returns (SearchTopologyEntityDTOsResponse);
-
-    // Search for TopologyEntityDTOs in the plan topology based on the request and return TopologyEntityDTO objects
-    rpc SearchPlanTopologyEntityDTOs(SearchPlanTopologyEntityDTOsRequest) returns (SearchPlanTopologyEntityDTOsResponse);
+    // This is meant for internal use between components - streams instead of pagination.
+    rpc SearchEntitiesStream(SearchEntitiesRequest) returns (stream .topology.PartialEntityBatch);
 
     rpc CountEntities(CountEntitiesRequest) returns (EntityCountResponse);
 

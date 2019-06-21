@@ -26,13 +26,14 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceImplBase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
@@ -177,44 +178,46 @@ public class GroupScopeResolverTest {
                 .build();
     }
 
-    private final static SearchTopologyEntityDTOsResponse getRetrieveScopedVMEntitiesResponse(int index) {
-        return SearchTopologyEntityDTOsResponse.newBuilder()
-                .addTopologyEntityDtos(TopologyEntityDTO.newBuilder()
-                        .setOid(memberId[index])
-                        .setDisplayName(displayName[index])
-                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                        .setOrigin(Origin.newBuilder()
-                                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                                        .addDiscoveringTargetIds(targetId[index])))
-                        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                                        .setType(CommodityType.VCPU_VALUE))
-                                .setCapacity(VCPU_CAPACITY[index])
-                                .build())
-                        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                                        .setType(CommodityType.VMEM_VALUE))
-                                .setCapacity(VMEM_CAPACITY[index])
-                                .build())
-                        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                                        .setType(CommodityType.VSTORAGE_VALUE)
-                                        .setKey(VSTORAGE_KEY[index]))
-                                .build())
-                        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                                .setVirtualMachine(VirtualMachineInfo.newBuilder()
-                                        .addIpAddresses(IpAddress.newBuilder()
-                                                .setIpAddress(IP_ADDRESS[index])
-                                                .build())
-                                        .build())
-                                .build())
-                        .setEntityState(EntityState.MAINTENANCE))
-                .build();
+    private final static PartialEntityBatch getRetrieveScopedVMEntitiesResponse(int index) {
+        return PartialEntityBatch.newBuilder()
+            .addEntities(PartialEntity.newBuilder()
+                .setFullEntity(TopologyEntityDTO.newBuilder()
+                    .setOid(memberId[index])
+                    .setDisplayName(displayName[index])
+                    .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                    .setOrigin(Origin.newBuilder()
+                            .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                                    .addDiscoveringTargetIds(targetId[index])))
+                    .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                            .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                    .setType(CommodityType.VCPU_VALUE))
+                            .setCapacity(VCPU_CAPACITY[index])
+                            .build())
+                    .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                            .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                    .setType(CommodityType.VMEM_VALUE))
+                            .setCapacity(VMEM_CAPACITY[index])
+                            .build())
+                    .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                            .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                    .setType(CommodityType.VSTORAGE_VALUE)
+                                    .setKey(VSTORAGE_KEY[index]))
+                            .build())
+                    .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                            .setVirtualMachine(VirtualMachineInfo.newBuilder()
+                                    .addIpAddresses(IpAddress.newBuilder()
+                                            .setIpAddress(IP_ADDRESS[index])
+                                            .build())
+                                    .build())
+                            .build())
+                    .setEntityState(EntityState.MAINTENANCE)))
+            .build();
     }
 
-    private final static SearchTopologyEntityDTOsResponse getRetrieveGuestLoadAppEntitiesResponse(int index) {
-        return SearchTopologyEntityDTOsResponse.newBuilder()
-                .addTopologyEntityDtos(TopologyEntityDTO.newBuilder()
+    private final static PartialEntityBatch getRetrieveGuestLoadAppEntitiesResponse(int index) {
+        return PartialEntityBatch.newBuilder()
+                .addEntities(PartialEntity.newBuilder()
+                    .setFullEntity(TopologyEntityDTO.newBuilder()
                         .setOid(guestLoadId[index])
                         .setDisplayName(guestLoadDisplayName[index])
                         .setEntityType(EntityType.APPLICATION_VALUE)
@@ -222,7 +225,7 @@ public class GroupScopeResolverTest {
                                 .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
                                         .addDiscoveringTargetIds(targetId[index])))
                         .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider
-                                .newBuilder().setProviderId(memberId[index])))
+                                .newBuilder().setProviderId(memberId[index]))))
                 .build();
     }
 
@@ -429,17 +432,15 @@ public class GroupScopeResolverTest {
         private int entitiesRetrievingIndicator = 0;
 
         @Override
-        public void searchTopologyEntityDTOs(final SearchTopologyEntityDTOsRequest request,
-                                             final StreamObserver<SearchTopologyEntityDTOsResponse>
-                                                     responseObserver) {
+        public void searchEntitiesStream(final SearchEntitiesRequest request,
+                                   final StreamObserver<PartialEntityBatch> responseObserver) {
             responseObserver.onNext(retrieveSearchEntities(request.getEntityOid(0)));
             responseObserver.onCompleted();
         }
 
         @Nonnull
-        private SearchTopologyEntityDTOsResponse retrieveSearchEntities(long oid) {
-            SearchTopologyEntityDTOsResponse response = SearchTopologyEntityDTOsResponse
-                    .getDefaultInstance();
+        private PartialEntityBatch retrieveSearchEntities(long oid) {
+            PartialEntityBatch response = PartialEntityBatch.getDefaultInstance();
             for (int i = 0; i < memberId.length; i ++) {
                 if (memberId[i] == oid) {
                     response = (entitiesRetrievingIndicator ++ % 2 == 0)

@@ -23,8 +23,8 @@ import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
-import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
+import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.serviceinterfaces.ISAMLService;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
@@ -208,8 +208,6 @@ public class ServiceConfig {
                 mapperConfig.actionSpecMapper(),
                 communicationConfig.getRealtimeTopologyContextId(),
                 communicationConfig.supplyChainFetcher(),
-                mapperConfig.paginationMapper(),
-                communicationConfig.searchServiceBlockingStub(),
                 communicationConfig.groupRpcService(),
                 mapperConfig.entityAspectMapper(),
                 communicationConfig.severityPopulator(),
@@ -232,13 +230,11 @@ public class ServiceConfig {
                 mapperConfig.groupMapper(),
                 communicationConfig.groupExpander(),
                 mapperConfig.uuidMapper(),
-                mapperConfig.paginationMapper(),
                 communicationConfig.repositoryApi(),
                 communicationConfig.getRealtimeTopologyContextId(),
                 mapperConfig.settingManagerMappingLoader().getMapping(),
                 communicationConfig.templateServiceBlockingStub(),
                 mapperConfig.entityAspectMapper(),
-                communicationConfig.searchServiceBlockingStub(),
                 actionStatsQueryExecutor(),
                 communicationConfig.severityPopulator(),
                 communicationConfig.supplyChainFetcher(),
@@ -284,6 +280,7 @@ public class ServiceConfig {
                 communicationConfig.entitySeverityService(),
                 communicationConfig.historyRpcService(),
                 statsService(),
+                communicationConfig.repositoryApi(),
                 communicationConfig.serviceEntityMapper(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
@@ -386,7 +383,6 @@ public class ServiceConfig {
                 communicationConfig.historyRpcService(),
                 communicationConfig.groupExpander(),
                 communicationConfig.supplyChainFetcher(),
-                communicationConfig.topologyProcessor(),
                 mapperConfig.groupMapper(),
                 mapperConfig.paginationMapper(),
                 mapperConfig.groupUseCaseParser(),
@@ -422,7 +418,6 @@ public class ServiceConfig {
                 communicationConfig.planRpcService(),
                 communicationConfig.repositoryApi(),
                 communicationConfig.repositoryRpcService(),
-                communicationConfig.searchServiceBlockingStub(),
                 communicationConfig.supplyChainFetcher(),
                 mapperConfig.statsMapper(),
                 communicationConfig.groupExpander(),
@@ -456,6 +451,7 @@ public class ServiceConfig {
     public TagsService tagsService() {
         return new TagsService(
                 communicationConfig.searchServiceBlockingStub(),
+                communicationConfig.repositoryApi(),
                 communicationConfig.groupExpander());
     }
 
@@ -468,11 +464,9 @@ public class ServiceConfig {
                 Duration.ofSeconds(targetDiscoveryPollIntervalSeconds),
                 licenseCheckClientConfig.licenseCheckClient(),
                 communicationConfig.apiComponentTargetListener(),
-                communicationConfig.searchServiceBlockingStub(),
-                communicationConfig.severityPopulator(),
+                communicationConfig.repositoryApi(),
                 mapperConfig.actionSpecMapper(),
                 communicationConfig.actionsRpcService(),
-                communicationConfig.serviceEntityMapper(),
                 communicationConfig.getRealtimeTopologyContextId(),
                 websocketConfig.websocketHandler());
     }
@@ -540,7 +534,7 @@ public class ServiceConfig {
             communicationConfig.groupExpander(),
             communicationConfig.supplyChainFetcher(),
             userSessionContext(),
-            communicationConfig.searchServiceBlockingStub());
+            communicationConfig.repositoryApi());
     }
 
     @Bean

@@ -6,25 +6,18 @@ import static junit.framework.TestCase.assertTrue;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.VMEntityAspectApiDTO;
-import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
-import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
@@ -39,17 +32,6 @@ public class VirtualMachineAspectMapperTest extends BaseAspectMapperTest {
             CONNECTED_NETWORK_NAME_1, CONNECTED_NETWORK_NAME_2);
     private static final List<String> IP_ADDRESSES = ImmutableList.of("1.2.3.4", "5.6.7.8");
 
-    SearchServiceBlockingStub searchRpc;
-
-    SearchServiceMole searchServiceSpy = Mockito.spy(new SearchServiceMole());
-
-    @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(searchServiceSpy);
-
-    @Before
-    public void init() throws Exception {
-        searchRpc = SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
-    }
     @Test
     public void testMapEntityToAspect() {
         final TypeSpecificInfo typeSpecificInfo = TypeSpecificInfo.newBuilder()
@@ -67,7 +49,7 @@ public class VirtualMachineAspectMapperTest extends BaseAspectMapperTest {
         final TopologyEntityDTO.Builder topologyEntityDTO = topologyEntityDTOBuilder(
             EntityType.VIRTUAL_MACHINE, typeSpecificInfo);
 
-        VirtualMachineAspectMapper testMapper = new VirtualMachineAspectMapper(searchRpc);
+        VirtualMachineAspectMapper testMapper = new VirtualMachineAspectMapper();
         // act
         final EntityAspect resultAspect = testMapper.mapEntityToAspect(topologyEntityDTO.build());
         // assert

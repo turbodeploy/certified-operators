@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord.StatValue;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 
@@ -86,12 +87,12 @@ public class ReservedInstanceMapperTest {
                     .setTotal(6))
             .build();
 
-    private Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap = new HashMap<>();
 
     private static float DELTA = 0.000001f;
 
     @Test
     public void testMapToReservedInstanceApiDTO() throws Exception {
+        final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap = new HashMap<>();
         final float delta = 0.000001f;
         ServiceEntityApiDTO availabilityZoneEntity = new ServiceEntityApiDTO();
         availabilityZoneEntity.setUuid("22");
@@ -128,15 +129,19 @@ public class ReservedInstanceMapperTest {
         final float delta = 0.000001f;
         final Map<Long, Long> riCountMap = ImmutableMap.of(11L, 5L, 12L, 10L,
                 13L, 15L);
-        ServiceEntityApiDTO templateEntityOne = new ServiceEntityApiDTO();
-        templateEntityOne.setUuid("11");
-        templateEntityOne.setDisplayName("c3.xlarge");
-        ServiceEntityApiDTO templateEntityTwo = new ServiceEntityApiDTO();
-        templateEntityTwo.setUuid("12");
-        templateEntityTwo.setDisplayName("m3.xlarge");
-        ServiceEntityApiDTO templateEntityThree = new ServiceEntityApiDTO();
-        templateEntityThree.setUuid("13");
-        templateEntityThree.setDisplayName("r3.xlarge");
+        final Map<Long, MinimalEntity> serviceEntityApiDTOMap = new HashMap<>();
+        MinimalEntity templateEntityOne = MinimalEntity.newBuilder()
+            .setOid(11)
+            .setDisplayName("c3.xlarge")
+            .build();
+        MinimalEntity templateEntityTwo = MinimalEntity.newBuilder()
+            .setOid(12)
+            .setDisplayName("m3.xlarge")
+            .build();
+        MinimalEntity templateEntityThree = MinimalEntity.newBuilder()
+            .setOid(13)
+            .setDisplayName("r3.xlarge")
+            .build();
         serviceEntityApiDTOMap.put(11L, templateEntityOne);
         serviceEntityApiDTOMap.put(12L, templateEntityTwo);
         serviceEntityApiDTOMap.put(13L, templateEntityThree);

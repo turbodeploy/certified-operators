@@ -67,9 +67,8 @@ import com.google.gson.Gson;
 import com.vmturbo.api.NotificationDTO.Notification;
 import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification.TargetStatus;
 import com.vmturbo.api.component.communication.ApiComponentTargetListener;
+import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
-import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.service.MarketsServiceTest.PlanServiceMock;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.controller.TargetsController;
@@ -117,9 +116,6 @@ public class TargetsServiceTest {
     @Autowired
     private TopologyProcessor topologyProcessor;
 
-    @Autowired
-    private ServiceEntityMapper serviceEntityMapper;
-
     private final ActionsServiceMole actionsServiceBackend =
         spy(new ActionsServiceMole());
 
@@ -135,7 +131,7 @@ public class TargetsServiceTest {
 
     SearchServiceBlockingStub searchServiceRpc;
 
-    SeverityPopulator severityPopulator;
+    private RepositoryApi repositoryApi = mock(RepositoryApi.class);
 
     private MockMvc mockMvc;
 
@@ -160,7 +156,6 @@ public class TargetsServiceTest {
         actionsRpcService = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         searchServiceRpc = SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
         actionSpecMapper = Mockito.mock(ActionSpecMapper.class);
-        severityPopulator = wac.getBean(SeverityPopulator.class);
         registeredTargets = new HashMap<>();
         registeredProbes = new HashMap<>();
         when(topologyProcessor.getProbe(Mockito.anyLong()))
@@ -659,9 +654,7 @@ public class TargetsServiceTest {
         final TargetsService targetsService = new TargetsService(
             topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
             Duration.ofMillis(50), Duration.ofMillis(100), null,
-            apiComponentTargetListener, searchServiceRpc, severityPopulator,
-            actionSpecMapper, actionsRpcService, serviceEntityMapper, REALTIME_CONTEXT_ID,
-            apiWebsocketHandler);
+            apiComponentTargetListener,repositoryApi,actionSpecMapper,actionsRpcService,REALTIME_CONTEXT_ID, apiWebsocketHandler);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -688,8 +681,8 @@ public class TargetsServiceTest {
         final TargetsService targetsService = new TargetsService(
             topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
             Duration.ofMillis(50), Duration.ofMillis(100), null, apiComponentTargetListener,
-            searchServiceRpc, severityPopulator, actionSpecMapper, actionsRpcService, serviceEntityMapper,
-            REALTIME_CONTEXT_ID, apiWebsocketHandler);
+            repositoryApi, actionSpecMapper, actionsRpcService, REALTIME_CONTEXT_ID,
+            apiWebsocketHandler);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -715,8 +708,7 @@ public class TargetsServiceTest {
         final TargetsService targetsService = new TargetsService(
             topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
             Duration.ofMillis(50), Duration.ofMillis(100), null,
-            apiComponentTargetListener, searchServiceRpc, severityPopulator, actionSpecMapper,
-            actionsRpcService, serviceEntityMapper, REALTIME_CONTEXT_ID, apiWebsocketHandler);
+            apiComponentTargetListener,repositoryApi, actionSpecMapper,actionsRpcService,REALTIME_CONTEXT_ID, apiWebsocketHandler);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -998,20 +990,19 @@ public class TargetsServiceTest {
         }
 
         @Bean
-        public ServiceEntityMapper serviceEntityMapper() {
-            return new ServiceEntityMapper(topologyProcessor());
-        }
-
-        @Bean
         public TargetsService targetsService() {
             return new TargetsService(topologyProcessor(), Duration.ofSeconds(60), Duration.ofSeconds(1),
                 Duration.ofSeconds(60), Duration.ofSeconds(1), null,
-                apiComponentTargetListener(), searchServiceRpc(), severityPopulator(),
+                apiComponentTargetListener(), repositoryApi(),
                 actionSpecMapper(),
                 actionRpcService(),
-                serviceEntityMapper(),
                 REALTIME_CONTEXT_ID,
                 new ApiWebsocketHandler(60 * 30, TimeUnit.SECONDS));
+        }
+
+        @Bean
+        public RepositoryApi repositoryApi() {
+            return Mockito.mock(RepositoryApi.class);
         }
 
         @Bean
@@ -1054,16 +1045,6 @@ public class TargetsServiceTest {
         @Bean
         public ActionsServiceBlockingStub actionRpcService() {
             return ActionsServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
-        }
-
-        @Bean
-        public SearchServiceBlockingStub searchServiceRpc() {
-            return SearchServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
-        }
-
-        @Bean
-        public SeverityPopulator severityPopulator() {
-            return Mockito.mock(SeverityPopulator.class);
         }
 
         @Bean

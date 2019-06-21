@@ -14,6 +14,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
@@ -33,9 +34,10 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityBatch;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -161,15 +163,20 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
         @SuppressWarnings("unchecked")
         Map<Long, Double> riUsage = new HashMap<>();
         riUsage.put(5l, 0.2);
-        List<EntityReservedInstanceCoverage> entityRICoverage = Arrays
-                        .asList(EntityReservedInstanceCoverage
-                        .newBuilder()
-                        .setEntityId(101l)
-                        .putAllCouponsCoveredByRi(riUsage)
-                        .build());
+        List<EntityReservedInstanceCoverage> entityRICoverage = Arrays.asList(EntityReservedInstanceCoverage
+            .newBuilder()
+            .setEntityId(101l)
+            .putAllCouponsCoveredByRi(riUsage)
+            .build());
         when(repositoryService.retrieveTopologyEntities(any()))
-                .thenReturn(Arrays.asList(EntityBatch.newBuilder()
-                        .addAllEntities(entityMap.values()).build()));
+            .thenReturn(Arrays.asList(PartialEntityBatch.newBuilder()
+                .addAllEntities(entityMap.values()
+                    .stream()
+                    .map(e -> PartialEntity.newBuilder()
+                        .setFullEntity(e)
+                        .build())
+                    .collect(Collectors.toList()))
+                .build()));
         store.updateProjectedRICoverageTableForPlan(projectedTopoId, topoInfo, entityRICoverage);
         final List<PlanProjectedReservedInstanceCoverageRecord> records = dsl
                         .selectFrom(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE).fetch();
@@ -246,8 +253,13 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
                         .putAllCouponsCoveredByRi(riUsage)
                         .build());
         when(repositoryService.retrieveTopologyEntities(any()))
-            .thenReturn(Arrays.asList(EntityBatch.newBuilder()
-                .addAllEntities(getEntityMap().values()).build()));
+            .thenReturn(Arrays.asList(PartialEntityBatch.newBuilder()
+                .addAllEntities(getEntityMap().values().stream()
+                    .map(e -> PartialEntity.newBuilder()
+                        .setFullEntity(e)
+                        .build())
+                    .collect(Collectors.toList()))
+                .build()));
         Thread thread1 = new Thread(new Runnable() {
             @Override
             public void run() {

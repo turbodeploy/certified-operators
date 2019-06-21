@@ -10,6 +10,8 @@ import com.vmturbo.api.dto.entityaspect.CloudAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -24,7 +26,7 @@ public class CloudAspectMapper implements IAspectMapper {
 
     @Override
     @Nullable
-    public EntityAspect mapEntityToAspect(@Nonnull TopologyEntityDTO entity) {
+    public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
         // this aspect only applies to cloud service entities
         if (!IAspectMapper.isCloudEntity(entity)) {
             return null;
@@ -32,7 +34,21 @@ public class CloudAspectMapper implements IAspectMapper {
         final CloudAspectApiDTO aspect = new CloudAspectApiDTO();
         if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
             // get latest RI coverage
-            setRiCoverage(entity, aspect);
+            setRiCoverage(entity.getOid(), aspect);
+        }
+        return aspect;
+    }
+
+    @Nullable
+    public EntityAspect mapEntityToAspect(@Nonnull final ApiPartialEntity entity) {
+        // this aspect only applies to cloud service entities
+        if (!IAspectMapper.isCloudEntity(entity)) {
+            return null;
+        }
+        final CloudAspectApiDTO aspect = new CloudAspectApiDTO();
+        if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+            // get latest RI coverage
+            setRiCoverage(entity.getOid(), aspect);
         }
         return aspect;
     }
@@ -40,14 +56,14 @@ public class CloudAspectMapper implements IAspectMapper {
     /**
      * Fetch and set the riCoverage and riCoveragePercentage on the given entity's CloudAspectApiDTO.
      *
-     * @param entity the TopologyEntityDTO to fetch riCoverage for
+     * @param entityId the id of the entity to fetch riCoverage for.
      * @param aspect the CloudAspectApiDTO to set riCoverage and riCoveragePercentage on
      */
-    private void setRiCoverage(@Nonnull TopologyEntityDTO entity,
+    private void setRiCoverage(final long entityId,
                                @Nonnull CloudAspectApiDTO aspect) {
         // get latest RI coverage
         Optional<StatApiDTO> optRiCoverage = riService.getLatestRICoverageStats(
-            String.valueOf(entity.getOid()));
+            String.valueOf(entityId));
         optRiCoverage.ifPresent(riCoverage -> {
             // set riCoverage
             aspect.setRiCoverage(riCoverage);

@@ -21,23 +21,24 @@ import com.google.common.collect.Sets;
 
 import io.grpc.Channel;
 
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.commons.Pair;
@@ -253,11 +254,13 @@ public class GroupScopeResolver {
     private List<TopologyEntityDTO> retrieveGroupScopedTopologyEntityDTOs(
             @Nonnull final Collection<Long> groupScopedEntitiesOids) {
         // build search group scoped entities request
-        final SearchTopologyEntityDTOsRequest.Builder searchTopologyRequest =
-                SearchTopologyEntityDTOsRequest.newBuilder()
-                        .addAllEntityOid(groupScopedEntitiesOids);
-        return searchService.searchTopologyEntityDTOs(
-                searchTopologyRequest.build()).getTopologyEntityDtosList();
+        final SearchEntitiesRequest.Builder searchTopologyRequest = SearchEntitiesRequest.newBuilder()
+            .setReturnType(Type.FULL)
+            .addAllEntityOid(groupScopedEntitiesOids);
+        return RepositoryDTOUtil.topologyEntityStream(searchService.searchEntitiesStream(
+                searchTopologyRequest.build()))
+            .map(PartialEntity::getFullEntity)
+            .collect(Collectors.toList());
     }
 
     /**
@@ -275,27 +278,21 @@ public class GroupScopeResolver {
     @Nonnull
     private List<TopologyEntityDTO> retrieveGuestLoadTopologyEntityDTOs(
             @Nonnull final Collection<Long> groupScopedEntitiesOids) {
-        final SearchTopologyEntityDTOsRequest.Builder searchTopologyRequest =
-                SearchTopologyEntityDTOsRequest.newBuilder()
-                .addAllEntityOid(groupScopedEntitiesOids)
-                .addSearchParameters(SearchParameters.newBuilder()
-                        .setStartingFilter(PropertyFilter.newBuilder()
-                                .setPropertyName(ENTITY_TYPE_PROPERTY)
-                                .setNumericFilter(NumericFilter.newBuilder()
-                                        .setComparisonOperator(ComparisonOperator.EQ)
-                                        .setValue(EntityType.VIRTUAL_MACHINE.getNumber()))
-                        ).addSearchFilter(SearchFilter.newBuilder()
-                                .setTraversalFilter(TraversalFilter.newBuilder()
-                                        .setTraversalDirection(TraversalDirection.PRODUCES)
-                                        .setStoppingCondition(StoppingCondition.newBuilder()
-                                                .setStoppingPropertyFilter(PropertyFilter.newBuilder()
-                                                        .setPropertyName(ENTITY_TYPE_PROPERTY)
-                                                        .setNumericFilter(NumericFilter.newBuilder()
-                                                                .setComparisonOperator(ComparisonOperator.EQ)
-                                                                .setValue(EntityType.APPLICATION.getNumber()))))
-                                )));
-        return searchService.searchTopologyEntityDTOs(
-                searchTopologyRequest.build()).getTopologyEntityDtosList();
+        final SearchEntitiesRequest.Builder searchTopologyRequest = SearchEntitiesRequest.newBuilder()
+            .addAllEntityOid(groupScopedEntitiesOids)
+            .setReturnType(Type.FULL)
+            .addSearchParameters(SearchParameters.newBuilder()
+                .setStartingFilter(SearchProtoUtil.entityTypeFilter(EntityType.VIRTUAL_MACHINE_VALUE))
+                .addSearchFilter(SearchFilter.newBuilder()
+                    .setTraversalFilter(TraversalFilter.newBuilder()
+                        .setTraversalDirection(TraversalDirection.PRODUCES)
+                        .setStoppingCondition(StoppingCondition.newBuilder()
+                            .setStoppingPropertyFilter(SearchProtoUtil.entityTypeFilter(EntityType.APPLICATION.getNumber())))
+                    )));
+        return RepositoryDTOUtil.topologyEntityStream(searchService.searchEntitiesStream(
+                searchTopologyRequest.build()))
+            .map(PartialEntity::getFullEntity)
+            .collect(Collectors.toList());
     }
 
     /**

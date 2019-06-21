@@ -10,6 +10,8 @@ public class SearchableProperties {
 
     public static final String ENTITY_STATE = "state";
 
+    public static final String DISCOVERED_BY_TARGET = "targetIds";
+
     public static final String ENVIRONMENT_TYPE = "environmentType";
 
     public static final String TAGS_TYPE_PROPERTY_NAME = "tags";

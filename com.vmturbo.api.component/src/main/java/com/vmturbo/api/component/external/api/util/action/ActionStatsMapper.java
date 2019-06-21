@@ -26,7 +26,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionStats;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.search.Search.Entity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.components.common.utils.StringConstants;
 
 /**
@@ -61,7 +61,7 @@ class ActionStatsMapper {
      *
      * @param currentActionStats The current stats retrieved from the action orchestrator.
      * @param query The {@link ActionStatsQuery} the stats are for.
-     * @param entityLookup A map of entity oid to {@link Entity}. In the case of group by template
+     * @param entityLookup A map of entity oid to {@link MinimalEntity}. In the case of group by template
      *                     requests, we need to have the name of the entity in the response.
      *                     The names are looked up using this map.
      * @return The {@link StatSnapshotApiDTO} to return to the caller.
@@ -70,7 +70,7 @@ class ActionStatsMapper {
     public StatSnapshotApiDTO currentActionStatsToApiSnapshot(
             @Nonnull final List<CurrentActionStat> currentActionStats,
             @Nonnull final ActionStatsQuery query,
-            @Nonnull Map<Long, Entity> entityLookup) {
+            @Nonnull Map<Long, MinimalEntity> entityLookup) {
         final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
         statSnapshotApiDTO.setDate(query.currentTimeStamp().isPresent() ? query.currentTimeStamp().get()
                         : DateTimeUtil.toString(clock.millis()));
@@ -107,7 +107,7 @@ class ActionStatsMapper {
     @Nonnull
     private List<StatApiDTO> currentActionStatXlToApi(@Nonnull final CurrentActionStat actionStat,
                                                       @Nonnull final ActionStatsQuery query,
-                                                      @Nonnull final Map<Long, Entity> entityLookup) {
+                                                      @Nonnull final Map<Long, MinimalEntity> entityLookup) {
         // The filters that applied to get this action stat
         final GroupByFilters groupByFilters = groupByFiltersFactory.filtersForQuery(query);
         if (actionStat.getStatGroup().hasActionCategory()) {
@@ -144,7 +144,7 @@ class ActionStatsMapper {
 
         if (actionStat.getStatGroup().hasTargetEntityId()) {
             if (query.actionInput().getGroupBy().contains(StringConstants.TEMPLATE)) {
-                Entity template = entityLookup.get(actionStat.getStatGroup().getTargetEntityId());
+                MinimalEntity template = entityLookup.get(actionStat.getStatGroup().getTargetEntityId());
                 if (template != null) {
                     groupByFilters.setTemplate(template.getDisplayName());
                 } else {

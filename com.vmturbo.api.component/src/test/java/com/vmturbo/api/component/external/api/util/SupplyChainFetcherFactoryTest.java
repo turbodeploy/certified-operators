@@ -8,17 +8,14 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
@@ -34,10 +31,11 @@ import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
@@ -58,8 +56,8 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.M
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
+import com.vmturbo.components.api.test.GrpcTestServer;
 
 public class SupplyChainFetcherFactoryTest {
     private static final String VM = "VirtualMachine";
@@ -307,19 +305,16 @@ public class SupplyChainFetcherFactoryTest {
                     .addAllEntitySeverity(Collections.singletonList(newSeverity(5L, Severity.MAJOR)))
                     .build());
 
-        doAnswer(invocation -> {
-            ServiceEntitiesRequest req = invocation.getArgumentAt(0, ServiceEntitiesRequest.class);
-            final Map<Long, Optional<ServiceEntityApiDTO>> retMap = new HashMap<>();
-            if (req.getEntityIds().equals(ImmutableSet.of(1L, 2L))) {
-                retMap.put(1L, Optional.of(createServiceEntityApiDTO(1L, VM, Severity.CRITICAL)));
-                retMap.put(2L, Optional.of(createServiceEntityApiDTO(2L, VM, null)));
-            } else if (req.getEntityIds().equals(ImmutableSet.of(5L))) {
-                retMap.put(5L, Optional.of(createServiceEntityApiDTO(5L, PM, Severity.MAJOR)));
-            } else {
-                return Collections.emptyMap();
-            }
-            return retMap;
-        }).when(repositoryApiBackend).getServiceEntitiesById(any());
+        RepositoryApi.MultiEntityRequest req1and2 = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(
+            createServiceEntityApiDTO(1L, VM, Severity.CRITICAL),
+            createServiceEntityApiDTO(2L, VM, null)));
+        when(repositoryApiBackend.entitiesRequest(ImmutableSet.of(1L, 2L)))
+            .thenReturn(req1and2);
+
+        RepositoryApi.MultiEntityRequest req5 = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(
+            createServiceEntityApiDTO(5L, PM, Severity.MAJOR)));
+        when(repositoryApiBackend.entitiesRequest(ImmutableSet.of(5L)))
+            .thenReturn(req5);
 
         // act
         final SupplychainApiDTO result = supplyChainFetcherFactory.newApiDtoFetcher()

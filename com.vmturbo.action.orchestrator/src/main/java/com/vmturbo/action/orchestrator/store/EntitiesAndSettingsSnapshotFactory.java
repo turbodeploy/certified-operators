@@ -29,7 +29,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRespons
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 
 /**
@@ -58,10 +59,10 @@ public class EntitiesAndSettingsSnapshotFactory {
      */
     public static class EntitiesAndSettingsSnapshot {
         private final Map<Long, Map<String, Setting>> settingsByEntityAndSpecName;
-        private final Map<Long, TopologyEntityDTO> oidToEntityMap;
+        private final Map<Long, ActionPartialEntity> oidToEntityMap;
 
         public EntitiesAndSettingsSnapshot(@Nonnull final Map<Long, Map<String, Setting>> settings,
-                                           @Nonnull final Map<Long, TopologyEntityDTO> entityMap) {
+                                           @Nonnull final Map<Long, ActionPartialEntity> entityMap) {
             this.settingsByEntityAndSpecName = settings;
             this.oidToEntityMap = entityMap;
         }
@@ -79,7 +80,7 @@ public class EntitiesAndSettingsSnapshotFactory {
         }
 
         @Nonnull
-        public Optional<TopologyEntityDTO> getEntityFromOid(final long entityOid) {
+        public Optional<ActionPartialEntity> getEntityFromOid(final long entityOid) {
             return Optional.ofNullable(oidToEntityMap.get(entityOid));
         }
     }
@@ -102,7 +103,7 @@ public class EntitiesAndSettingsSnapshotFactory {
                                                    final long topologyId) {
         final Map<Long, Map<String, Setting>> newSettings = retrieveEntityToSettingListMap(entities,
             topologyContextId, topologyId);
-        final Map<Long, TopologyEntityDTO> entityMap = retrieveOidToEntityMap(entities,
+        final Map<Long, ActionPartialEntity> entityMap = retrieveOidToEntityMap(entities,
             topologyContextId, topologyId);
         return new EntitiesAndSettingsSnapshot(newSettings, entityMap);
     }
@@ -114,7 +115,7 @@ public class EntitiesAndSettingsSnapshotFactory {
      * @param topologyId of topology.
      * @return mapping with oid as key and TopologyEntityDTO as value.
      */
-    private Map<Long, TopologyEntityDTO> retrieveOidToEntityMap(Set<Long> entities,
+    private Map<Long, ActionPartialEntity> retrieveOidToEntityMap(Set<Long> entities,
                     long topologyContextId, long topologyId) {
         try {
             RetrieveTopologyEntitiesRequest getEntitiesrequest = RetrieveTopologyEntitiesRequest.newBuilder()
@@ -122,9 +123,11 @@ public class EntitiesAndSettingsSnapshotFactory {
                 .setTopologyId(topologyId)
                 .setTopologyType(TopologyType.SOURCE)
                 .addAllEntityOids(entities)
+                .setReturnType(PartialEntity.Type.ACTION)
                 .build();
             return RepositoryDTOUtil.topologyEntityStream(repositoryService.retrieveTopologyEntities(getEntitiesrequest))
-                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+                .map(PartialEntity::getAction)
+                .collect(Collectors.toMap(ActionPartialEntity::getOid, Function.identity()));
         } catch (StatusRuntimeException ex) {
             logger.error("Failed to fetch entities due to exception : " + ex);
             return Collections.emptyMap();

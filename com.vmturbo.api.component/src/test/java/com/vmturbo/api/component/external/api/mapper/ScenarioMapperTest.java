@@ -18,7 +18,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -31,9 +30,12 @@ import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper.ScenarioChangeMappingContext;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDTOPossibilities;
@@ -122,8 +124,8 @@ public class ScenarioMapperTest {
         groupRpcService = GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
 
         // Return empty by default to keep NPE's at bay.
-        when(repositoryApi.getServiceEntitiesById(any()))
-            .thenReturn(Collections.emptyMap());
+        MultiEntityRequest req = ApiTestUtils.mockMultiEntityReqEmpty();
+        when(repositoryApi.entitiesRequest(any())).thenReturn(req);
 
         scenarioMapper = new ScenarioMapper(repositoryApi,
                 templatesUtils, settingsManagerMapping, settingsMapper,
@@ -551,11 +553,12 @@ public class ScenarioMapperTest {
             .build());
 
         ServiceEntityApiDTO vmDto = new ServiceEntityApiDTO();
+        vmDto.setUuid("1");
         vmDto.setClassName("VirtualMachine");
         vmDto.setDisplayName("VM #100");
 
-        when(repositoryApi.getServiceEntitiesById(any()))
-                .thenReturn(ImmutableMap.of(1L, Optional.of(vmDto)));
+        MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(vmDto));
+        when(repositoryApi.entitiesRequest(any())).thenReturn(req);
 
         ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
         AddObjectApiDTO changeDto = dto.getTopologyChanges().getAddList().get(0);

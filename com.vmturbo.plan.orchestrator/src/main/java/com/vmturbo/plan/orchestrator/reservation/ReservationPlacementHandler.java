@@ -24,6 +24,8 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEnti
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
@@ -109,15 +111,11 @@ public class ReservationPlacementHandler {
                 .map(ReservationInstance::getEntityId)
                 .collect(Collectors.toSet());
 
-        final RetrieveTopologyEntitiesRequest retrieveReservationEntityRequest =
-                RetrieveTopologyEntitiesRequest.newBuilder()
-                        .setTopologyContextId(contextId)
-                        .setTopologyId(topologyId)
-                        .addAllEntityOids(reservationEntityIds)
-                        .setTopologyType(TopologyType.PROJECTED)
-                        .build();
-
-        return retrieveTopologyEntities(retrieveReservationEntityRequest);
+        return retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
+            .setTopologyContextId(contextId)
+            .setTopologyId(topologyId)
+            .addAllEntityOids(reservationEntityIds)
+            .setTopologyType(TopologyType.PROJECTED));
     }
 
     /**
@@ -141,15 +139,13 @@ public class ReservationPlacementHandler {
                 .filter(CommoditiesBoughtFromProvider::hasProviderId)
                 .map(CommoditiesBoughtFromProvider::getProviderId)
                 .collect(Collectors.toSet());
-        final RetrieveTopologyEntitiesRequest retrieveProviderEntityRequest =
-                RetrieveTopologyEntitiesRequest.newBuilder()
-                        .setTopologyContextId(contextId)
-                        .setTopologyId(topologyId)
-                        .addAllEntityOids(providerIds)
-                        .setTopologyType(TopologyType.PROJECTED)
-                        .build();
 
-        return retrieveTopologyEntities(retrieveProviderEntityRequest);
+
+        return retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
+            .setTopologyContextId(contextId)
+            .setTopologyId(topologyId)
+            .addAllEntityOids(providerIds)
+            .setTopologyType(TopologyType.PROJECTED));
     }
 
     /**
@@ -161,9 +157,12 @@ public class ReservationPlacementHandler {
      * @return a list of {@link TopologyEntityDTO}.
      */
     private List<TopologyEntityDTO> retrieveTopologyEntities(
-            @Nonnull final RetrieveTopologyEntitiesRequest request) {
-        return RepositoryDTOUtil.topologyEntityStream(repositoryService.retrieveTopologyEntities(request))
-                .collect(Collectors.toList());
+            @Nonnull final RetrieveTopologyEntitiesRequest.Builder request) {
+        return RepositoryDTOUtil.topologyEntityStream(repositoryService.retrieveTopologyEntities(
+                request.setReturnType(Type.FULL)
+                    .build()))
+            .map(PartialEntity::getFullEntity)
+            .collect(Collectors.toList());
     }
 
     private Reservation updateReservationPlacement(
@@ -172,7 +171,6 @@ public class ReservationPlacementHandler {
             @Nonnull final Map<Long, Integer> providerIdToEntityType) {
         reservation.getReservationTemplateCollectionBuilder()
                 .getReservationTemplateBuilderList()
-                .stream()
                 .forEach(reservationTemplate ->
                         updateReservationTemplate(reservationTemplate, entityIdToEntityMap,
                                 providerIdToEntityType));
@@ -193,7 +191,7 @@ public class ReservationPlacementHandler {
             @Nonnull final ReservationTemplate.Builder reservationTemplate,
             @Nonnull final Map<Long, TopologyEntityDTO> entityIdToEntityMap,
             @Nonnull final Map<Long, Integer> providerIdToEntityType) {
-        reservationTemplate.getReservationInstanceBuilderList().stream()
+        reservationTemplate.getReservationInstanceBuilderList()
                 .forEach(reservationInstance -> updateReservationInstance(reservationInstance,
                         entityIdToEntityMap, providerIdToEntityType));
     }

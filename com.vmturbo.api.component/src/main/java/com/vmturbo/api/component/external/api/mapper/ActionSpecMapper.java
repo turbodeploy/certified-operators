@@ -36,7 +36,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
-import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFactory.ActionSpecMappingContext;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundMatchOfferingClassException;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundMatchPaymentOptionException;
@@ -82,12 +81,11 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 
@@ -151,11 +149,7 @@ public class ActionSpecMapper {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final CostClientConfig costClientConfig;
-
-    private final CommunicationConfig communicationConfig;
-
-    private final MapperConfig mapperConfig;
+    private final ReservedInstanceMapper reservedInstanceMapper;
 
     /**
      * The set of action states for operational actions (ie actions that have not
@@ -168,14 +162,13 @@ public class ActionSpecMapper {
     };
 
     public ActionSpecMapper(@Nonnull ActionSpecMappingContextFactory actionSpecMappingContextFactory,
-                            @Nonnull ServiceEntityMapper serviceEntityMapper, final long realtimeTopologyContextId,@Nonnull CostClientConfig costClientConfig,
-                            @Nonnull CommunicationConfig communicationConfig, @Nonnull MapperConfig mapperConfig) {
+                            @Nonnull final ServiceEntityMapper serviceEntityMapper,
+                            @Nonnull final ReservedInstanceMapper reservedInstanceMapper,
+                            final long realtimeTopologyContextId) {
         this.actionSpecMappingContextFactory = Objects.requireNonNull(actionSpecMappingContextFactory);
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
-        this.costClientConfig = Objects.requireNonNull(costClientConfig);
-        this.communicationConfig = Objects.requireNonNull(communicationConfig);
-        this.mapperConfig = Objects.requireNonNull(mapperConfig);
+        this.reservedInstanceMapper = Objects.requireNonNull(reservedInstanceMapper);
     }
 
     /**
@@ -475,9 +468,9 @@ public class ActionSpecMapper {
             actionApiDTO.setTemplate(templateApiDTO);
 
             // set location, which is the region
-            TopologyEntityDTO region = context.getRegionForVM(targetEntityId);
+            ApiPartialEntity region = context.getRegionForVM(targetEntityId);
             if (region != null) {
-                BaseApiDTO regionDTO = serviceEntityMapper.toServiceEntityApiDTO(region, null);
+                BaseApiDTO regionDTO = serviceEntityMapper.toServiceEntityApiDTO(region);
                 // todo: set current and new location to be different if region could be changed
                 actionApiDTO.setCurrentLocation(regionDTO);
                 actionApiDTO.setNewLocation(regionDTO);
@@ -930,7 +923,6 @@ public class ActionSpecMapper {
         final ReservedInstanceBought ri = pair.first;
         final ReservedInstanceSpec riSpec = pair.second;
 
-        final ReservedInstanceMapper reservedInstanceMapper = mapperConfig.reservedInstanceMapper();
         try {
             ReservedInstanceApiDTO riApiDTO = reservedInstanceMapper
                     .mapToReservedInstanceApiDTO(ri, riSpec, context.getServiceEntityApiDTOs());

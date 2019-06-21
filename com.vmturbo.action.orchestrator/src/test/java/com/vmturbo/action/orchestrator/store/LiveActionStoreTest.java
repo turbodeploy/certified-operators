@@ -161,33 +161,26 @@ public class LiveActionStoreTest {
     public void setEntitiesOIDs() {
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getEntityFromOid(eq(vm1)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(vm1,
-                EntityType.VIRTUAL_MACHINE.getNumber(),
-                EntityType.PHYSICAL_MACHINE.getNumber(), EntityType.STORAGE.getNumber())));
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(vm1,
+                EntityType.VIRTUAL_MACHINE.getNumber()));
         when(snapshot.getEntityFromOid(eq(vm2)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(vm2,
-                EntityType.VIRTUAL_MACHINE.getNumber(),
-                EntityType.PHYSICAL_MACHINE.getNumber(), EntityType.STORAGE.getNumber())));
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(vm2,
+                EntityType.VIRTUAL_MACHINE.getNumber()));
         when(snapshot.getEntityFromOid(eq(vm3)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(vm3,
-                EntityType.VIRTUAL_MACHINE.getNumber(),
-                EntityType.PHYSICAL_MACHINE.getNumber(), EntityType.STORAGE.getNumber())));
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(vm3,
+                EntityType.VIRTUAL_MACHINE.getNumber()));
         when(snapshot.getEntityFromOid(eq(hostA)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(hostA,
-                EntityType.PHYSICAL_MACHINE.getNumber(),
-                EntityType.DATACENTER.getNumber(), EntityType.STORAGE.getNumber())));
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(hostA,
+                EntityType.PHYSICAL_MACHINE.getNumber()));
         when(snapshot.getEntityFromOid(eq(hostB)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(hostB,
-                EntityType.PHYSICAL_MACHINE.getNumber(),
-                EntityType.DATACENTER.getNumber(), EntityType.STORAGE.getNumber())));
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(hostB,
+                EntityType.PHYSICAL_MACHINE.getNumber()));
         when(snapshot.getEntityFromOid(eq(hostC)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(hostC,
-                EntityType.PHYSICAL_MACHINE.getNumber(),
-                EntityType.DATACENTER.getNumber(), EntityType.STORAGE.getNumber())));
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(hostC,
+                EntityType.PHYSICAL_MACHINE.getNumber()));
         when(snapshot.getEntityFromOid(eq(hostD)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(hostD,
-                EntityType.PHYSICAL_MACHINE.getNumber(),
-                EntityType.DATACENTER.getNumber(), EntityType.STORAGE.getNumber())));
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(hostD,
+                EntityType.PHYSICAL_MACHINE.getNumber()));
     }
 
     @Test

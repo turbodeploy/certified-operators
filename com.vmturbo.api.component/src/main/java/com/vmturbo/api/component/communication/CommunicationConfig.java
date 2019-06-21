@@ -231,7 +231,8 @@ public class CommunicationConfig {
 
     @Bean
     public TopologyProcessor topologyProcessor() {
-        return tpClientConfig.topologyProcessorRpcOnly();
+        return tpClientConfig.topologyProcessor(
+            TopologyProcessorSubscription.forTopic(Topic.Notifications));
     }
 
     @Bean
@@ -426,8 +427,7 @@ public class CommunicationConfig {
                 new ApiComponentTargetListener(topologyService(), websocketConfig.websocketHandler());
         historyClientConfig.historyComponent().addStatsListener(apiComponentTargetListener);
         repositoryClientConfig.repository().addListener(apiComponentTargetListener);
-        tpClientConfig.topologyProcessor(TopologyProcessorSubscription.forTopic(Topic.Notifications))
-                .addTargetListener(apiComponentTargetListener);
+        topologyProcessor().addTargetListener(apiComponentTargetListener);
         return apiComponentTargetListener;
     }
 
@@ -441,6 +441,8 @@ public class CommunicationConfig {
 
     @Bean
     public ServiceEntityMapper serviceEntityMapper() {
+        // Normally this would be in MapperConfig, but RepositoryApi needs it and we don't want
+        // to introduce a circular dependency.
         return new ServiceEntityMapper(topologyProcessor());
     }
 }

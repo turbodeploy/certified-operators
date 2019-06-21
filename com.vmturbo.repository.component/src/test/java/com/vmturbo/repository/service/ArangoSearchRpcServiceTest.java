@@ -32,13 +32,15 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.CountEntitiesRequest;
-import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.EntityCountResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.search.AQLRepr;
@@ -96,10 +98,9 @@ public class ArangoSearchRpcServiceTest {
                     .build();
 
 
-    private final SearchEntitiesRequest simpleRequestWithPagination = SearchEntitiesRequest.newBuilder()
+    private final SearchEntitiesRequest.Builder simpleRequestWithPagination = SearchEntitiesRequest.newBuilder()
             .addSearchParameters(searchParameterEntityType)
-            .setPaginationParams(paginationParameters)
-            .build();
+            .setPaginationParams(paginationParameters);
 
     private final SearchEntityOidsRequest requestWithEntityOids = SearchEntityOidsRequest.newBuilder()
             .addSearchParameters(searchParameterEntityType)
@@ -107,23 +108,21 @@ public class ArangoSearchRpcServiceTest {
             .addEntityOid(2L)
             .build();
 
-    private final SearchEntitiesRequest searchEntitiesRequest = SearchEntitiesRequest.newBuilder()
+    private final SearchEntitiesRequest.Builder searchEntitiesRequest = SearchEntitiesRequest.newBuilder()
             .addSearchParameters(searchParameterEntityType)
             .setPaginationParams(paginationParameters)
             .addEntityOid(1L)
-            .addEntityOid(2L)
-            .build();
+            .addEntityOid(2L);
 
     private final SearchEntityOidsRequest searchEntityOidsWithMultiParameters = SearchEntityOidsRequest.newBuilder()
             .addSearchParameters(searchParameterEntityType)
             .addSearchParameters(searchParameterEntityName)
             .build();
 
-    private final SearchEntitiesRequest searchEntitiesWithMultiParameters = SearchEntitiesRequest.newBuilder()
+    private final SearchEntitiesRequest.Builder searchEntitiesWithMultiParameters = SearchEntitiesRequest.newBuilder()
             .addSearchParameters(searchParameterEntityType)
             .addSearchParameters(searchParameterEntityName)
-            .setPaginationParams(paginationParameters)
-            .build();
+            .setPaginationParams(paginationParameters);
 
     // Hold converted results from a list of SearchParameters. Each searchParameters will be converted
     // to a list of AQLRepr, each list of AQLRepr will be send to database for query
@@ -134,10 +133,11 @@ public class ArangoSearchRpcServiceTest {
 
     @Before
     public void setUp() throws Throwable {
+        PartialEntityConverter partialEntityConverter = new PartialEntityConverter();
         arangoSearchRpcService = new ArangoSearchRpcService(supplyChainService,
-                                          topologyManager,
-                                          searchHandler, 100, 500,
-                                            userSessionContext);
+            topologyManager,
+            searchHandler, 100, 500,
+            userSessionContext, partialEntityConverter, 1);
 
         given(topologyManager.getRealtimeDatabase()).willReturn(
                 Optional.of(TopologyDatabase.from(db)));
@@ -307,7 +307,7 @@ public class ArangoSearchRpcServiceTest {
         given(searchHandler.searchEntities(singleReprs.get(0), db, Optional.empty(),
                 Collections.emptyList())).willReturn(Either.left(new Exception()));
 
-        arangoSearchRpcService.searchEntities(simpleRequestWithPagination, mockObserver);
+        arangoSearchRpcService.searchEntities(simpleRequestWithPagination.build(), mockObserver);
 
         verify(mockObserver).onError(any(Exception.class));
         verify(mockObserver, never()).onCompleted();
@@ -320,7 +320,7 @@ public class ArangoSearchRpcServiceTest {
 
         given(topologyManager.getRealtimeTopologyId()).willReturn(Optional.empty());
 
-        arangoSearchRpcService.searchEntities(simpleRequestWithPagination, mockObserver);
+        arangoSearchRpcService.searchEntities(simpleRequestWithPagination.build(), mockObserver);
 
         // There shouldn't be any entity sent as no topology available for search.
         verify(mockObserver, never()).onNext(any());
@@ -332,7 +332,7 @@ public class ArangoSearchRpcServiceTest {
     public void testSearchEntities() {
         final StreamObserver<SearchEntitiesResponse> mockObserver = Mockito.mock(StreamObserver.class);
 
-        final Entity vmEntity = SearchDTOConverter.toSearchEntity(vmRepoDto);
+        final MinimalEntity vmEntity = SearchDTOConverter.toSearchEntity(vmRepoDto);
         final PaginationParameters plusOnePagination =
                 PaginationParameters.newBuilder(paginationParameters)
                         .setLimit(paginationParameters.getLimit() + 1)
@@ -341,8 +341,10 @@ public class ArangoSearchRpcServiceTest {
                 Lists.newArrayList("1", "2"))).willReturn(
                 Either.right(Arrays.asList(vmRepoDto)));
         final SearchEntitiesResponse.Builder responseBuilder = SearchEntitiesResponse.newBuilder()
-                .addEntities(vmEntity);
-        arangoSearchRpcService.searchEntities(searchEntitiesRequest, mockObserver);
+                .addEntities(PartialEntity.newBuilder()
+                    .setMinimal(vmEntity));
+
+        arangoSearchRpcService.searchEntities(searchEntitiesRequest.setReturnType(Type.MINIMAL).build(), mockObserver);
 
         verify(mockObserver, never()).onError(any());
         verify(mockObserver).onNext(responseBuilder
@@ -355,7 +357,7 @@ public class ArangoSearchRpcServiceTest {
     public void testSearchEntitiesWithPagination() {
         final StreamObserver<SearchEntitiesResponse> mockObserver = Mockito.mock(StreamObserver.class);
 
-        final Entity vmEntity = SearchDTOConverter.toSearchEntity(vmRepoDto);
+        final MinimalEntity vmEntity = SearchDTOConverter.toSearchEntity(vmRepoDto);
         final PaginationParameters plusOnePagination =
                 PaginationParameters.newBuilder(simpleRequestWithPagination.getPaginationParams())
                         .setLimit(simpleRequestWithPagination.getPaginationParams().getLimit() + 1)
@@ -365,8 +367,11 @@ public class ArangoSearchRpcServiceTest {
                 Collections.emptyList())).willReturn(
                 Either.right(Arrays.asList(vmRepoDto)));
         final SearchEntitiesResponse.Builder responseBuilder = SearchEntitiesResponse.newBuilder()
-                .addEntities(vmEntity);
-        arangoSearchRpcService.searchEntities(simpleRequestWithPagination, mockObserver);
+                .addEntities(PartialEntity.newBuilder()
+                    .setMinimal(vmEntity));
+        arangoSearchRpcService.searchEntities(simpleRequestWithPagination
+            .setReturnType(Type.MINIMAL)
+            .build(), mockObserver);
 
         verify(mockObserver, never()).onError(any());
         verify(mockObserver).onNext(
@@ -387,14 +392,17 @@ public class ArangoSearchRpcServiceTest {
 
         final List<ServiceEntityRepoDTO> serviceEntityRepoDTOs =
                 com.google.common.collect.Lists.newArrayList(vmRepoDto);
-        final Entity vmEntity = SearchDTOConverter.toSearchEntity(vmRepoDto);
+        final MinimalEntity vmEntity = SearchDTOConverter.toSearchEntity(vmRepoDto);
         given(topologyManager.getRealtimeTopologyId()).willReturn(Optional.of(topologyID));
         given(searchHandler.getEntitiesByOids(Sets.newHashSet(123L), topologyID))
                 .willReturn(Either.right(serviceEntityRepoDTOs));
-        arangoSearchRpcService.searchEntities(searchEntitiesWithMultiParameters, mockObserver);
+        arangoSearchRpcService.searchEntities(searchEntitiesWithMultiParameters
+            .setReturnType(Type.MINIMAL)
+            .build(), mockObserver);
         verify(mockObserver).onNext(SearchEntitiesResponse.newBuilder()
-                .setPaginationResponse(PaginationResponse.newBuilder().build())
-                .addAllEntities(Lists.newArrayList(vmEntity)).build());
+            .setPaginationResponse(PaginationResponse.newBuilder().build())
+            .addEntities(PartialEntity.newBuilder().setMinimal(vmEntity))
+            .build());
         verify(mockObserver).onCompleted();
     }
 
@@ -407,9 +415,10 @@ public class ArangoSearchRpcServiceTest {
         Mockito.when(userSessionContext.getUserAccessScope()).thenReturn(userScope);
 
         final SearchEntitiesRequest searchEntitiesRequest = SearchEntitiesRequest.newBuilder()
-                .addSearchParameters(searchParameterEntityType)
-                .setPaginationParams(paginationParameters)
-                .build();
+            .addSearchParameters(searchParameterEntityType)
+            .setPaginationParams(paginationParameters)
+            .setReturnType(Type.MINIMAL)
+            .build();
 
         final PaginationParameters plusOnePagination =
                 PaginationParameters.newBuilder(paginationParameters)
@@ -423,9 +432,9 @@ public class ArangoSearchRpcServiceTest {
         arangoSearchRpcService.searchEntities(searchEntitiesRequest, mockObserver);
 
         // the scoped should should only see the "123" vm, even though both 123 and 124 are available.
-        final Entity vmEntity = SearchDTOConverter.toSearchEntity(vmRepoDto);
+        final MinimalEntity vmEntity = SearchDTOConverter.toSearchEntity(vmRepoDto);
         final SearchEntitiesResponse.Builder responseBuilder = SearchEntitiesResponse.newBuilder()
-                .addEntities(vmEntity);
+                .addEntities(PartialEntity.newBuilder().setMinimal(vmEntity).build());
 
         verify(mockObserver).onNext(responseBuilder
                 .setPaginationResponse(PaginationResponse.newBuilder()).build());

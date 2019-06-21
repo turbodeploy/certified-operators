@@ -23,6 +23,7 @@ import org.immutables.value.Value;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
@@ -43,11 +44,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsResp
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
-import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
-import com.vmturbo.common.protobuf.search.Search.Entity;
-import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -72,7 +69,7 @@ public class ActionStatsQueryExecutor {
 
     private final ActionStatsMapper actionStatsMapper;
 
-    private final SearchServiceBlockingStub searchServiceBlockingStub;
+    private final RepositoryApi repositoryApi;
 
     public ActionStatsQueryExecutor(@Nonnull final Clock clock,
                                     @Nonnull final ActionsServiceBlockingStub actionsServiceBlockingStub,
@@ -81,14 +78,14 @@ public class ActionStatsQueryExecutor {
                                     @Nonnull final GroupExpander groupExpander,
                                     @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                                     @Nonnull final UserSessionContext userSessionContext,
-                                    @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub) {
+                                    @Nonnull final RepositoryApi repositoryApi) {
         this(actionsServiceBlockingStub,
             userSessionContext,
             uuidMapper,
             new HistoricalQueryMapper(actionSpecMapper),
             new CurrentQueryMapper(actionSpecMapper, groupExpander, supplyChainFetcherFactory, userSessionContext),
             new ActionStatsMapper(clock, actionSpecMapper),
-            searchServiceBlockingStub);
+            repositoryApi);
     }
 
     /**
@@ -101,14 +98,14 @@ public class ActionStatsQueryExecutor {
                              @Nonnull final HistoricalQueryMapper historicalQueryMapper,
                              @Nonnull final CurrentQueryMapper currentQueryMapper,
                              @Nonnull final ActionStatsMapper actionStatsMapper,
-                             @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub) {
+                             @Nonnull final RepositoryApi repositoryApi) {
         this.actionsServiceBlockingStub = Objects.requireNonNull(actionsServiceBlockingStub);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
         this.historicalQueryMapper = Objects.requireNonNull(historicalQueryMapper);
         this.currentQueryMapper = Objects.requireNonNull(currentQueryMapper);
         this.actionStatsMapper = Objects.requireNonNull(actionStatsMapper);
-        this.searchServiceBlockingStub = Objects.requireNonNull(searchServiceBlockingStub);
+        this.repositoryApi = Objects.requireNonNull(repositoryApi);
     }
 
     /**
@@ -164,7 +161,7 @@ public class ActionStatsQueryExecutor {
                 .build()));
         final GetCurrentActionStatsResponse curResponse =
             actionsServiceBlockingStub.getCurrentActionStats(curReqBldr.build());
-        final Map<Long, Entity> entityLookup;
+        final Map<Long, MinimalEntity> entityLookup;
         // If the request was to group by templates, then we group by target id. For these
         // requests, we need to get the names of the target ids from the search service
         if (query.actionInput().getGroupBy() != null &&
@@ -174,12 +171,8 @@ public class ActionStatsQueryExecutor {
                 .filter(stat -> stat.getStatGroup().hasTargetEntityId())
                 .map(stat -> stat.getStatGroup().getTargetEntityId())
                 .collect(Collectors.toSet());
-            SearchEntitiesResponse response = searchServiceBlockingStub.searchEntities(SearchEntitiesRequest.newBuilder()
-                .addAllEntityOid(templatesToLookup)
-                .setPaginationParams(PaginationParameters.newBuilder().setLimit(Integer.MAX_VALUE))
-                .build());
-            entityLookup = response.getEntitiesList().stream()
-                .collect(Collectors.toMap(Entity::getOid, Function.identity()));
+            entityLookup = repositoryApi.entitiesRequest(templatesToLookup).getMinimalEntities()
+                .collect(Collectors.toMap(MinimalEntity::getOid, Function.identity()));
         } else {
             entityLookup = Collections.emptyMap();
         }

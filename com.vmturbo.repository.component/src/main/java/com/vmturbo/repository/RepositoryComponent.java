@@ -89,6 +89,7 @@ import com.vmturbo.repository.service.ArangoSupplyChainRpcService;
 import com.vmturbo.repository.service.GraphDBService;
 import com.vmturbo.repository.service.GraphTopologyService;
 import com.vmturbo.repository.service.LiveTopologyPaginator;
+import com.vmturbo.repository.service.PartialEntityConverter;
 import com.vmturbo.repository.service.SupplyChainService;
 import com.vmturbo.repository.service.TopologyGraphRepositoryRpcService;
 import com.vmturbo.repository.service.TopologyGraphSearchRpcService;
@@ -418,6 +419,10 @@ public class RepositoryComponent extends BaseVmtComponent {
                 repositoryEntityStatsPaginationDefaultSortCommodity);
     }
 
+    @Bean
+    public PartialEntityConverter partialEntityConverter() {
+        return new PartialEntityConverter();
+    }
 
     @Bean
     public RepositoryServiceImplBase repositoryRpcService() {
@@ -426,6 +431,7 @@ public class RepositoryComponent extends BaseVmtComponent {
             graphDBService(),
             paginationParamsFactory(),
             entityStatsPaginator(),
+            partialEntityConverter(),
             maxEntitiesPerChunk);
 
         if (realtimeInMemory()) {
@@ -433,6 +439,7 @@ public class RepositoryComponent extends BaseVmtComponent {
             // non-realtime queries.
             return new TopologyGraphRepositoryRpcService(liveTopologyStore(),
                 arangoRpcService,
+                partialEntityConverter(),
                 realtimeTopologyContextId,
                 maxEntitiesPerChunk,
                 userSessionConfig.userSessionContext());
@@ -457,18 +464,22 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Bean
     public SearchServiceImplBase searchRpcService() throws InterruptedException, CommunicationException,
             URISyntaxException {
-        final ArangoSearchRpcService arangoBackedService = new ArangoSearchRpcService(supplyChainService(),
-            topologyManager(),
-            searchHandler(),
-            repositorySearchPaginationDefaultLimit,
-            repositorySearchPaginationMaxLimit,
-            userSessionConfig.userSessionContext());
-        // For the search service, we don't support searches on plans, so it's either-or:
-        // either we use the one backed by the topology graph, or the one backed by arango.
-        return realtimeInMemory() ?
-            new TopologyGraphSearchRpcService(liveTopologyStore(),
-                searchResolver(), liveTopologyPaginator(), arangoBackedService,
-                    userSessionConfig.userSessionContext()) : arangoBackedService;
+        if (realtimeInMemory()) {
+            return new TopologyGraphSearchRpcService(liveTopologyStore(),
+                searchResolver(), liveTopologyPaginator(),
+                partialEntityConverter(),
+                userSessionConfig.userSessionContext(),
+                maxEntitiesPerChunk);
+        } else {
+            return new ArangoSearchRpcService(supplyChainService(),
+                topologyManager(),
+                searchHandler(),
+                repositorySearchPaginationDefaultLimit,
+                repositorySearchPaginationMaxLimit,
+                userSessionConfig.userSessionContext(),
+                partialEntityConverter(),
+                maxEntitiesPerChunk);
+        }
     }
 
     @Bean

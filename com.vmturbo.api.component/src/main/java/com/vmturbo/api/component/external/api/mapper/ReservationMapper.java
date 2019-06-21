@@ -3,7 +3,6 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -25,7 +24,6 @@ import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -370,8 +368,10 @@ public class ReservationMapper {
         if (getPolicyConstraint(constraintId).isPresent()) {
             return constraint.setType(ReservationConstraintInfo.Type.POLICY).build();
         }
-        final ServiceEntityApiDTO serviceEntityApiDTO = repositoryApi.getServiceEntityForUuid(constraintId);
-        final int entityType = UIEntityType.fromString(serviceEntityApiDTO.getClassName()).typeNumber();
+        final int entityType = repositoryApi.entityRequest(constraintId)
+            .getMinimalEntity()
+            .orElseThrow(() -> new UnknownObjectException("Unknown constraint id: " + constraintId))
+            .getEntityType();
         if (entityType == EntityType.DATACENTER_VALUE) {
             return constraint.setType(ReservationConstraintInfo.Type.DATA_CENTER).build();
         } else if (entityType == EntityType.VIRTUAL_DATACENTER_VALUE) {
@@ -428,12 +428,8 @@ public class ReservationMapper {
                 .collect(Collectors.toSet());
 
         final Map<Long, ServiceEntityApiDTO> serviceEntityMap =
-                repositoryApi.getServiceEntitiesById(
-                        ServiceEntitiesRequest.newBuilder(entitiesOid)
-                                .build())
-                        .entrySet().stream()
-                        .filter(entry -> entry.getValue().isPresent())
-                        .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().get()));
+            repositoryApi.entitiesRequest(entitiesOid)
+                .getSEMap();
         return serviceEntityMap;
     }
 

@@ -73,13 +73,11 @@ public class ActionStateMachineTest {
 
     private void setEntitiesOIDs() {
         when(entitySettingsCache.getEntityFromOid(eq(1L)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(1L,
-                EntityType.VIRTUAL_MACHINE.getNumber(),
-                EntityType.PHYSICAL_MACHINE.getNumber(),EntityType.STORAGE.getNumber())));
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(1L,
+                EntityType.VIRTUAL_MACHINE.getNumber()));
         when(entitySettingsCache.getEntityFromOid(eq(2L)))
-            .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(2L,
-                EntityType.VIRTUAL_MACHINE.getNumber(),
-                EntityType.PHYSICAL_MACHINE.getNumber(),EntityType.STORAGE.getNumber())));
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(2L,
+                EntityType.VIRTUAL_MACHINE.getNumber()));
     }
     @Test
     public void testManuallyAccept() {

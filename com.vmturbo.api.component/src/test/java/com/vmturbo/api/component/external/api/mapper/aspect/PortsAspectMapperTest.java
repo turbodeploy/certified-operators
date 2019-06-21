@@ -2,38 +2,36 @@ package com.vmturbo.api.component.external.api.mapper.aspect;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.anyObject;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
+import com.vmturbo.api.component.ApiTestUtils;
+import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.StatsUtils.PrecisionEnum;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.PortsAspectApiDTO;
 import com.vmturbo.api.dto.statistic.PortChannelApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
-import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.CommodityDTO;
@@ -63,16 +61,10 @@ public class PortsAspectMapperTest extends BaseAspectMapperTest {
     private final List<CommodityBoughtDTO> commodityBoughts = Lists.newArrayList();
     private final List<CommoditySoldDTO> commoditySolds = Lists.newArrayList();
 
-    SearchServiceBlockingStub searchRpc;
-
-    SearchServiceMole searchServiceSpy = Mockito.spy(new SearchServiceMole());
-
-    @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(searchServiceSpy);
+    private final RepositoryApi repositoryApi = mock(RepositoryApi.class);
 
     @Before
     public void setup() {
-        searchRpc = SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
         // init
         commoditySolds.addAll(ImmutableList.of(
             CommoditySoldDTO.newBuilder()
@@ -148,18 +140,21 @@ public class PortsAspectMapperTest extends BaseAspectMapperTest {
             EntityType.SWITCH, TypeSpecificInfo.getDefaultInstance());
         switchDTO.addAllCommoditiesBoughtFromProviders(ImmutableList.of(
             CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(123L)
                 .addAllCommodityBought(commodityBoughts)
                 .build()));
         switchDTO.addAllCommoditySoldList(commoditySolds);
 
-        final PortsAspectMapper testMapper = new PortsAspectMapper(searchRpc);
-        when(searchServiceSpy.searchTopologyEntityDTOs(anyObject())).thenReturn(
-            SearchTopologyEntityDTOsResponse.newBuilder()
-                .addTopologyEntityDtos(TopologyEntityDTO.newBuilder()
-                    .setOid(123L)
-                    .setEntityType(EntityType.SWITCH_VALUE)
-                    .addAllCommoditySoldList(commoditySolds))
-                .build());
+        final MultiEntityRequest providerReq = ApiTestUtils.mockMultiFullEntityReq(
+            Lists.newArrayList(TopologyEntityDTO.newBuilder()
+                .setOid(123L)
+                .setEntityType(EntityType.SWITCH_VALUE)
+                .addAllCommoditySoldList(commoditySolds)
+                .build()));
+        when(repositoryApi.entitiesRequest(Collections.singleton(123L))).thenReturn(providerReq);
+
+        final PortsAspectMapper testMapper = new PortsAspectMapper(repositoryApi);
+
         // act
         final EntityAspect aspectResult = testMapper.mapEntityToAspect(switchDTO.build());
 
