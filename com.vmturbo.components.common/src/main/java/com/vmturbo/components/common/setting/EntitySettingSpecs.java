@@ -356,8 +356,9 @@ public enum EntitySettingSpecs {
     ActivateActionWorkflow("activateActionWorkflow", "Activate Workflow",
             Collections.singletonList("automation"),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE,
-                EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
+            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
+                    EntityType.CONTAINER_POD, EntityType.CONTAINER,
+                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
             string(), true),
 
     /**
@@ -371,8 +372,9 @@ public enum EntitySettingSpecs {
     PreActivateActionWorkflow("preActivateActionWorkflow", "Activate Pre Workflow",
         Collections.singletonList("automation"),
         SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE,
-            EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
+            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
+                    EntityType.CONTAINER_POD, EntityType.CONTAINER,
+                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
         string(), true),
 
     /**
@@ -382,8 +384,9 @@ public enum EntitySettingSpecs {
     PostActivateActionWorkflow("postActivateActionWorkflow", "Activate Post Workflow",
         Collections.singletonList("automation"),
         SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE,
-            EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
+            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
+                    EntityType.CONTAINER_POD, EntityType.CONTAINER,
+                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
         string(), true),
 
     /**
@@ -393,7 +396,8 @@ public enum EntitySettingSpecs {
     MoveActionWorkflow("moveActionWorkflow", "Move Workflow",
         Collections.singletonList("automation"),
         SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
+        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD,
+                EntityType.CONTAINER, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
         string(), true),
 
     /**
@@ -403,8 +407,9 @@ public enum EntitySettingSpecs {
     PreMoveActionWorkflow("preMoveActionWorkflow", "Move Pre Workflow",
         Collections.singletonList("automation"),
         SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
-        string(), true),
+            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD,
+                    EntityType.CONTAINER, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
+            string(), true),
 
     /**
      * Automation Policy for the Move Workflow post workflow. The value is the name of an
@@ -413,7 +418,8 @@ public enum EntitySettingSpecs {
     PostMoveActionWorkflow("postMoveActionWorkflow", "Move Post Workflow",
         Collections.singletonList("automation"),
         SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
+            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD,
+                    EntityType.CONTAINER, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
         string(), true),
 
     /**
@@ -423,8 +429,9 @@ public enum EntitySettingSpecs {
     ProvisionActionWorkflow("provisionActionWorkflow", "Provision Workflow",
             Collections.singletonList("automation"),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.DISK_ARRAY, EntityType.PHYSICAL_MACHINE, EntityType.STORAGE,
-                    EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
+            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
+                    EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
+                    EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER),
             string(), true),
 
     /**
@@ -434,8 +441,9 @@ public enum EntitySettingSpecs {
     PreProvisionActionWorkflow("preProvisionActionWorkflow", "Provision Pre Workflow",
         Collections.singletonList("automation"),
         SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.DISK_ARRAY, EntityType.PHYSICAL_MACHINE, EntityType.STORAGE,
-            EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
+            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
+                    EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
+                    EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER),
         string(), true),
 
     /**
@@ -445,8 +453,9 @@ public enum EntitySettingSpecs {
     PostProvisionActionWorkflow("postProvisionActionWorkflow", "Provision Post Workflow",
         Collections.singletonList("automation"),
         SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.DISK_ARRAY, EntityType.PHYSICAL_MACHINE, EntityType.STORAGE,
-            EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
+            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
+                    EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
+                    EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER),
         string(), true),
 
     /**
@@ -456,7 +465,8 @@ public enum EntitySettingSpecs {
     ResizeActionWorkflow("resizeActionWorkflow", "Resize Workflow",
             Collections.singletonList("automation"),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
+            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
+                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
             string(), true),
 
     /**
@@ -466,8 +476,9 @@ public enum EntitySettingSpecs {
     PreResizeActionWorkflow("preResizeActionWorkflow", "Resize Pre Workflow",
         Collections.singletonList("automation"),
         SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
-        string(), true),
+            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
+                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
+            string(), true),
 
     /**
      * Automation Policy for the Resize post workflow. The value is the name of an
@@ -476,7 +487,8 @@ public enum EntitySettingSpecs {
     PostResizeActionWorkflow("postResizeActionWorkflow", "Resize Post Workflow",
         Collections.singletonList("automation"),
         SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
+            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
+                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
         string(), true),
 
     /**
@@ -486,7 +498,9 @@ public enum EntitySettingSpecs {
     SuspendActionWorkflow("suspendActionWorkflow", "Suspend Workflow",
         Collections.singletonList("automation"),
         SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
+            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
+                    EntityType.CONTAINER_POD, EntityType.CONTAINER,
+                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
         string(), true),
 
     /**
@@ -496,7 +510,9 @@ public enum EntitySettingSpecs {
     PreSuspendActionWorkflow("preSuspendActionWorkflow", "Suspend Pre Workflow",
         Collections.singletonList("automation"),
         SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
+            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
+                    EntityType.CONTAINER_POD, EntityType.CONTAINER,
+                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
         string(), true),
 
     /**
@@ -506,7 +522,9 @@ public enum EntitySettingSpecs {
     PostSuspendActionWorkflow("postSuspendActionWorkflow", "Suspend Post Workflow",
         Collections.singletonList("automation"),
         SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
+            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
+                    EntityType.CONTAINER_POD, EntityType.CONTAINER,
+                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
         string(), true),
 
     /**
