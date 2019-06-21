@@ -1,15 +1,18 @@
 package com.vmturbo.repository.listener.realtime;
 
-import java.util.Arrays;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -19,20 +22,14 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.base.Stopwatch;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
-
-import net.jpountz.lz4.LZ4Compressor;
-import net.jpountz.lz4.LZ4Factory;
-import net.jpountz.lz4.LZ4FastDecompressor;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.StreamingDiagnosable;
-import com.vmturbo.proactivesupport.DataMetricSummary;
 
 @Immutable
 @ThreadSafe
@@ -111,19 +108,6 @@ public class ProjectedRealtimeTopology implements StreamingDiagnosable {
     }
 
     public static class ProjectedTopologyBuilder {
-        private static final Logger logger = LogManager.getLogger();
-
-        /**
-         * The size of the compression buffer in the most recently completed projected topology
-         * builder. We assume that (in general) topologies stay roughly the same size once targets
-         * are added, so we can use the last topology's buffer size to avoid unnecessary allocations
-         * on the next one.
-         *
-         * Note - the buffer will be relavitely small - it is bounded by the largest
-         * entity in the topology.
-         */
-        private static volatile int sharedBufferSize = 0;
-
         private final long topologyId;
 
         private final Consumer<ProjectedRealtimeTopology> onFinish;
@@ -134,46 +118,30 @@ public class ProjectedRealtimeTopology implements StreamingDiagnosable {
 
         private final Map<Integer, Set<Long>> entitiesByType = new HashMap<>();
 
-        private final SharedByteBuffer compressionBuffer;
-
-        private final Stopwatch builderStopwatch = Stopwatch.createUnstarted();
-
         ProjectedTopologyBuilder(@Nonnull final Consumer<ProjectedRealtimeTopology> onFinish,
                                  final long topologyId,
                                  @Nonnull final TopologyInfo originalTopologyInfo) {
             this.topologyId = topologyId;
             this.onFinish = onFinish;
             this.originalTopologyInfo = originalTopologyInfo;
-            this.compressionBuffer = new SharedByteBuffer(sharedBufferSize);
         }
 
         @Nonnull
         public ProjectedTopologyBuilder addEntities(@Nonnull final Collection<ProjectedTopologyEntity> entities) {
-            builderStopwatch.start();
             entities.forEach(entity -> {
                 entitiesByType.computeIfAbsent(
                     entity.getEntity().getEntityType(), k -> new HashSet<>())
                         .add(entity.getEntity().getOid());
-                projectedEntities.put(entity.getEntity().getOid(),
-                    new ProjectedEntity(entity, compressionBuffer));
+                projectedEntities.put(entity.getEntity().getOid(), new ProjectedEntity(entity));
             });
-            builderStopwatch.stop();
             return this;
         }
 
         @Nonnull
         public ProjectedRealtimeTopology finish() {
-            builderStopwatch.start();
             final ProjectedRealtimeTopology projectedRealtimeTopology =
                 new ProjectedRealtimeTopology(topologyId, originalTopologyInfo, projectedEntities, entitiesByType);
             onFinish.accept(projectedRealtimeTopology);
-            builderStopwatch.stop();
-            final long elapsedSec = builderStopwatch.elapsed(TimeUnit.SECONDS);
-            Metrics.CONSTRUCTION_TIME_SUMMARY.observe((double)elapsedSec);
-            logger.info("Spent total of {}s to construct projected realtime topology.", elapsedSec);
-            // Update the shared buffer size, so the next projected topology can use it
-            // as a starting point.
-            sharedBufferSize = compressionBuffer.getSize();
             return projectedRealtimeTopology;
         }
     }
@@ -184,22 +152,22 @@ public class ProjectedRealtimeTopology implements StreamingDiagnosable {
         private final double originalPriceIdx;
         private final double projectedPriceIdx;
         private final byte[] compressedDto;
-        private final int uncompressedLength;
 
-        ProjectedEntity(@Nonnull final ProjectedTopologyEntity projectedTopologyEntity,
-                        @Nonnull final SharedByteBuffer sharedByteBuffer) {
+        ProjectedEntity(@Nonnull final ProjectedTopologyEntity projectedTopologyEntity) {
             this.originalPriceIdx = projectedTopologyEntity.getOriginalPriceIndex();
             this.projectedPriceIdx = projectedTopologyEntity.getOriginalPriceIndex();
-
-            // Use the fastest java instance to avoid using JNI & off-heap memory.
-            final LZ4Compressor compressor = LZ4Factory.fastestJavaInstance().fastCompressor();
-
-            final byte[] uncompressedBytes = projectedTopologyEntity.getEntity().toByteArray();
-            uncompressedLength = uncompressedBytes.length;
-            final int maxCompressedLength = compressor.maxCompressedLength(uncompressedLength);
-            final byte[] compressionBuffer = sharedByteBuffer.getBuffer(maxCompressedLength);
-            final int compressedLength = compressor.compress(uncompressedBytes, compressionBuffer);
-            this.compressedDto = Arrays.copyOf(compressionBuffer, compressedLength);
+            byte[] bytes = null;
+            try (final ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                 final GZIPOutputStream gos = new GZIPOutputStream(bos)) {
+                gos.write(projectedTopologyEntity.getEntity().toByteArray());
+                gos.finish();
+                bytes = bos.toByteArray();
+            } catch (IOException e) {
+                logger.error("Failed to decompress projected entity {}. Error: {}",
+                    projectedTopologyEntity.getEntity().getOid(),
+                    e.getMessage());
+            }
+            this.compressedDto = bytes;
         }
 
         double getOriginalPriceIdx() {
@@ -212,22 +180,13 @@ public class ProjectedRealtimeTopology implements StreamingDiagnosable {
 
         @Nullable
         TopologyEntityDTO getEntity() {
-            // Use the fastest available java instance to avoid using off-heap memory.
-            final LZ4FastDecompressor decompressor = LZ4Factory.fastestJavaInstance().fastDecompressor();
-            try {
-                return TopologyEntityDTO.parseFrom(decompressor.decompress(compressedDto, uncompressedLength));
-            } catch (InvalidProtocolBufferException e) {
-                logger.error("Failed to decompress entity. Error: {}", e.getMessage());
+            try (final ByteArrayInputStream bis = new ByteArrayInputStream(compressedDto);
+                 final GZIPInputStream zis = new GZIPInputStream(bis)) {
+                return TopologyEntityDTO.parseFrom(zis);
+            } catch (IOException e) {
+                logger.error("Failed to decompress projected entity. Error: {}", e.getMessage());
                 return null;
             }
         }
-    }
-
-    private static class Metrics {
-        private static final DataMetricSummary CONSTRUCTION_TIME_SUMMARY = DataMetricSummary.builder()
-            .withName("repo_projected_realtime_construction_seconds")
-            .withHelp("Total time taken to build the projected realtime topology.")
-            .build()
-            .register();
     }
 }

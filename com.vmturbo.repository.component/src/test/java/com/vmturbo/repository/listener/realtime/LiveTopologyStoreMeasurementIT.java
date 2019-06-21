@@ -6,19 +6,14 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.mutable.MutableLong;
-import org.apache.commons.lang3.mutable.MutableInt;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.Ignore;
 import org.junit.Test;
 
 import com.google.common.base.Preconditions;
-import com.google.common.base.Stopwatch;
 import com.google.gson.Gson;
 import com.google.protobuf.util.JsonFormat;
 
@@ -32,7 +27,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.listener.realtime.ProjectedRealtimeTopology.ProjectedTopologyBuilder;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology.SourceRealtimeTopologyBuilder;
-import com.vmturbo.stitching.TopologyEntity;
 
 /**
  * This test is ignored for automatic builds.
@@ -42,7 +36,6 @@ import com.vmturbo.stitching.TopologyEntity;
  */
 @Ignore
 public class LiveTopologyStoreMeasurementIT {
-    private final Logger logger = LogManager.getLogger();
 
     @Test
     @Ignore
@@ -57,50 +50,33 @@ public class LiveTopologyStoreMeasurementIT {
         SourceRealtimeTopologyBuilder sourceRealtimeTopologyBuilder = liveTopologyStore.newRealtimeTopology(TopologyInfo.getDefaultInstance());
         int lineCnt = 0;
         Map<EntityType, MutableLong> countsByType = new HashMap<>();
-
-        final Stopwatch stopwatch = Stopwatch.createUnstarted();
-
+        long msTaken = 0;
         JsonFormat.Parser parser = JsonFormat.parser().ignoringUnknownFields();
         while (reader.ready()) {
             final TopologyEntityDTO.Builder bldr = TopologyEntityDTO.newBuilder();
             parser.merge(reader.readLine(), bldr);
             TopologyEntityDTO entity = bldr.build();
             countsByType.computeIfAbsent(EntityType.forNumber(entity.getEntityType()), k -> new MutableLong(0)).increment();
-            stopwatch.start();
+            long startTime = System.currentTimeMillis();
             sourceRealtimeTopologyBuilder.addEntities(Collections.singleton(entity));
-            stopwatch.stop();
+            msTaken += System.currentTimeMillis() - startTime;
             lineCnt++;
             if (lineCnt % 1000 == 0) {
-                logger.info("Processed {}", lineCnt);
+                System.out.println("Processed " + lineCnt);
             }
         }
 
-
-        logger.info(countsByType);
-        stopwatch.start();
+        System.out.println(countsByType);
+        long preFinishTime = System.currentTimeMillis();
         sourceRealtimeTopologyBuilder.finish();
-        stopwatch.stop();
+        msTaken += System.currentTimeMillis() - preFinishTime;
+        System.out.println("Total construction time: " + msTaken);
+        System.out.println("Size: " + FileUtils.byteCountToDisplaySize(ObjectSizeCalculator.getObjectSize(liveTopologyStore.getSourceTopology().get())));
 
-        logger.info("Total construction time: {}\n" +
-                "Size: {}",
-            stopwatch.elapsed(TimeUnit.MILLISECONDS),
-            FileUtils.byteCountToDisplaySize(ObjectSizeCalculator.getObjectSize(liveTopologyStore.getSourceTopology().get())));
-
-        stopwatch.reset();
-        stopwatch.start();
+        DataMetricTimer timer2 = new DataMetricTimer();
         liveTopologyStore.getSourceTopology().get().globalSupplyChainNodes();
-        stopwatch.stop();
-        logger.info("GSC Took {}", stopwatch.elapsed(TimeUnit.MILLISECONDS));
-        logger.info("Size with global supply chain: {}", FileUtils.byteCountToDisplaySize(ObjectSizeCalculator.getObjectSize(liveTopologyStore.getSourceTopology().get())));
-
-        final MutableInt cnt = new MutableInt(0);
-        stopwatch.reset();
-        stopwatch.start();
-        liveTopologyStore.getSourceTopology().get().entityGraph().entities()
-            .map(RepoGraphEntity::getTopologyEntity)
-            .forEach(e -> cnt.increment());
-        stopwatch.stop();
-        logger.info("Took {} to de-compress {} entities", stopwatch.elapsed(TimeUnit.SECONDS), cnt.intValue());
+        System.out.println("GSC Took " + timer2.getTimeElapsedSecs());
+        System.out.println("Size with global supply chain: " + FileUtils.byteCountToDisplaySize(ObjectSizeCalculator.getObjectSize(liveTopologyStore.getSourceTopology().get())));
     }
 
 
@@ -108,8 +84,9 @@ public class LiveTopologyStoreMeasurementIT {
     @Ignore
     public void testRealtimeProjected() throws IOException {
         // Put the filename here.
-        final String filePath = "/Volumes/Workspace/topologies/bofa/may23/repo/live.topology.source.entities";
+        final String filePath = "";
         Preconditions.checkArgument(!StringUtils.isEmpty(filePath));
+        Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
         final BufferedReader reader =
             new BufferedReader(new FileReader(filePath));
         LiveTopologyStore liveTopologyStore = new LiveTopologyStore(GlobalSupplyChainCalculator.newFactory().newCalculator());
@@ -118,45 +95,24 @@ public class LiveTopologyStoreMeasurementIT {
 
         int lineCnt = 0;
         Map<EntityType, MutableLong> countsByType = new HashMap<>();
-
-        Stopwatch watch = Stopwatch.createUnstarted();
-
-        JsonFormat.Parser parser = JsonFormat.parser().ignoringUnknownFields();
         while (reader.ready()) {
-            TopologyEntityDTO.Builder eBldr = TopologyEntityDTO.newBuilder();
-            parser.merge(reader.readLine(), eBldr);
-            ProjectedTopologyEntity entity = ProjectedTopologyEntity.newBuilder()
+            TopologyEntityDTO eBldr = gson.fromJson(reader.readLine(), TopologyEntityDTO.class);
+            countsByType.computeIfAbsent(EntityType.forNumber(eBldr.getEntityType()), k -> new MutableLong(0)).increment();
+            ptbldr.addEntities(Collections.singleton(ProjectedTopologyEntity.newBuilder()
                 .setOriginalPriceIndex(1)
                 .setProjectedPriceIndex(2)
                 .setEntity(eBldr)
-                .build();
-
-            countsByType.computeIfAbsent(EntityType.forNumber(eBldr.getEntityType()), k -> new MutableLong(0)).increment();
-            watch.start();
-            ptbldr.addEntities(Collections.singleton(entity));
-            watch.stop();
+                .build()));
             lineCnt++;
             if (lineCnt % 1000 == 0) {
-                logger.info("Processed {}", lineCnt);
+                System.out.println("Processed " + lineCnt);
             }
         }
 
-        logger.info(countsByType);
-
-
-        watch.start();
+        System.out.println(countsByType);
+        DataMetricTimer timer = new DataMetricTimer();
         ptbldr.finish();
-        watch.stop();
-
-        logger.info("Construction time: {}\nSize: {}", watch.elapsed(TimeUnit.MILLISECONDS),
-            FileUtils.byteCountToDisplaySize(ObjectSizeCalculator.getObjectSize(liveTopologyStore.getProjectedTopology().get())));
-
-        final MutableInt cnt = new MutableInt(0);
-        watch.reset();
-        watch.start();
-        liveTopologyStore.getProjectedTopology().get().getEntities(Collections.emptySet(), Collections.emptySet())
-            .forEach(e -> cnt.increment());
-        watch.stop();
-        logger.info("Took {} to de-compress {} entities", watch.elapsed(TimeUnit.SECONDS), cnt.intValue());
+        System.out.println("Took " + timer.getTimeElapsedSecs());
+        System.out.println("Size: " + FileUtils.byteCountToDisplaySize(ObjectSizeCalculator.getObjectSize(liveTopologyStore.getProjectedTopology().get())));
     }
 }
