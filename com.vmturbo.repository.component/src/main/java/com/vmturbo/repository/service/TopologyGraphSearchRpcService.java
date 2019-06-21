@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -16,6 +17,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
@@ -23,6 +25,8 @@ import com.google.protobuf.util.JsonFormat;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.search.Search.CountEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.EntityCountResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
@@ -64,14 +68,18 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
 
     private final ArangoSearchRpcService arangoSearchRpcService;
 
+    private final UserSessionContext userSessionContext;
+
     public TopologyGraphSearchRpcService(@Nonnull final LiveTopologyStore liveTopologyStore,
                                          @Nonnull final SearchResolver<RepoGraphEntity> searchResolver,
                                          @Nonnull final LiveTopologyPaginator liveTopologyPaginator,
-                                         @Nonnull final ArangoSearchRpcService arangoSearchRpcService) {
+                                         @Nonnull final ArangoSearchRpcService arangoSearchRpcService,
+                                         @Nonnull final UserSessionContext userSessionContext) {
         this.liveTopologyStore = Objects.requireNonNull(liveTopologyStore);
         this.searchResolver = Objects.requireNonNull(searchResolver);
         this.liveTopologyPaginator = Objects.requireNonNull(liveTopologyPaginator);
         this.arangoSearchRpcService = Objects.requireNonNull(arangoSearchRpcService);
+        this.userSessionContext = userSessionContext;
     }
 
     @Nonnull
@@ -299,9 +307,14 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
             matchingEntities = graph.entities();
         }
 
+        // if the user is scoped, attach a filter to the matching entities.
+        Predicate<RepoGraphEntity> accessFilter = userSessionContext.isUserScoped()
+                ? e -> userSessionContext.getUserAccessScope().contains(e.getOid())
+                : e -> true;
 
         final Map<String, Set<String>> resultWithSetsOfValues = new HashMap<>();
         matchingEntities
+            .filter(accessFilter)
             .map(RepoGraphEntity::getTags)
             .forEach(tagsMap -> tagsMap.forEach((key, tagValues) -> {
                 final Set<String> vals = resultWithSetsOfValues.computeIfAbsent(key, k -> new HashSet<>());
@@ -335,7 +348,8 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
         arangoSearchRpcService.searchPlanTopologyEntityDTOs(request, responseObserver);
     }
 
-    private Stream<RepoGraphEntity> internalSearch(@Nonnull final List<Long> entityOidList,
+    @VisibleForTesting
+    protected Stream<RepoGraphEntity> internalSearch(@Nonnull final List<Long> entityOidList,
                                                    @Nonnull final List<SearchParameters> params) {
         return liveTopologyStore.getSourceTopology()
             .map(realtimeTopology -> {
@@ -353,6 +367,11 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
                         .filter(entity -> entityOidSet.isEmpty() || entityOidSet.contains(entity.getOid()));
                 }
 
+                // if the user is scoped, add a filter to the results.
+                if (userSessionContext.isUserScoped()) {
+                    EntityAccessScope entityAccessScope = userSessionContext.getUserAccessScope();
+                    return results.filter(e -> entityAccessScope.contains(e.getOid()));
+                }
                 return results;
             })
             .orElse(Stream.empty());

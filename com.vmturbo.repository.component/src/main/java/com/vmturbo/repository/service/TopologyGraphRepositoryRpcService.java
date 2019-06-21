@@ -2,6 +2,7 @@ package com.vmturbo.repository.service;
 
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -14,6 +15,7 @@ import com.google.common.collect.Iterators;
 
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.DeleteTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityBatch;
@@ -47,14 +49,18 @@ public class TopologyGraphRepositoryRpcService extends RepositoryServiceImplBase
 
     private final LiveTopologyStore liveTopologyStore;
 
+    private final UserSessionContext userSessionContext;
+
     public TopologyGraphRepositoryRpcService(@Nonnull final LiveTopologyStore liveTopologyStore,
                                       @Nonnull final ArangoRepositoryRpcService arangoRepoRpcService,
                                       final long realtimeTopologyContextId,
-                                      final int maxEntitiesPerChunk) {
+                                      final int maxEntitiesPerChunk,
+                                      final UserSessionContext userSessionContext) {
         this.arangoRepoRpcService = arangoRepoRpcService;
         this.liveTopologyStore = Objects.requireNonNull(liveTopologyStore);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.maxEntitiesPerChunk = maxEntitiesPerChunk;
+        this.userSessionContext = userSessionContext;
     }
 
     @Override
@@ -99,8 +105,13 @@ public class TopologyGraphRepositoryRpcService extends RepositoryServiceImplBase
                     .orElse(Stream.empty());
             }
 
+            // if the user is scoped, attach a filter to the matching entities.
+            Predicate<TopologyEntityDTO> accessFilter = userSessionContext.isUserScoped()
+                    ? e -> userSessionContext.getUserAccessScope().contains(e.getOid())
+                    : e -> true;
+
             // send the results in batches, if needed
-            Iterators.partition(filteredEntities.iterator(), maxEntitiesPerChunk).forEachRemaining(chunk -> {
+            Iterators.partition(filteredEntities.filter(accessFilter).iterator(), maxEntitiesPerChunk).forEachRemaining(chunk -> {
                 EntityBatch batch = EntityBatch.newBuilder()
                     .addAllEntities(chunk)
                     .build();

@@ -434,7 +434,8 @@ public class RepositoryComponent extends BaseVmtComponent {
             return new TopologyGraphRepositoryRpcService(liveTopologyStore(),
                 arangoRpcService,
                 realtimeTopologyContextId,
-                maxEntitiesPerChunk);
+                maxEntitiesPerChunk,
+                userSessionConfig.userSessionContext());
         } else {
             // Use arango for all the things!
             return arangoRpcService;
@@ -466,7 +467,8 @@ public class RepositoryComponent extends BaseVmtComponent {
         // either we use the one backed by the topology graph, or the one backed by arango.
         return realtimeInMemory() ?
             new TopologyGraphSearchRpcService(liveTopologyStore(),
-                searchResolver(), liveTopologyPaginator(), arangoBackedService) : arangoBackedService;
+                searchResolver(), liveTopologyPaginator(), arangoBackedService,
+                    userSessionConfig.userSessionContext()) : arangoBackedService;
     }
 
     @Bean
