@@ -65,6 +65,12 @@ if [ "$1" = 'arangod' ]; then
         echo "Database initialized...Starting System..." 2>&1 | $LOGGER_COMMAND
 	fi
 
+	# Test if arangoDB config file is missing and needs to be placed
+	 if [[ ! -f $ARANGO_CONF ]] ; then
+	    echo "Copying default arangodb config file from $DEFAULT_ARANGO_CONF to $ARANGO_CONF (initial setup)" | $LOGGER_COMMAND
+	    cp $DEFAULT_ARANGO_CONF $ARANGO_CONF 2>&1 | $LOGGER_COMMAND
+	fi
+
     # Test arangoDB version for a mismatch (search for old 3.3.22 version from previous image)
 	echo "Testing if a database upgrade is needed." | $LOGGER_COMMAND
     if [[ `grep  '30322' -r  /var/lib/arangodb3/databases/**/VERSION 2>/dev/null | wc -l` -gt 0 ]] ; then
