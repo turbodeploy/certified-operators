@@ -98,7 +98,7 @@ class CombinedStatsBuckets {
             keyBuilder.category(actionInfo.action().getActionCategory());
         }
         if (groupBy.contains(GroupBy.ACTION_EXPLANATION)) {
-            keyBuilder.explanation(ExplanationComposer.composeExplanation(
+            keyBuilder.explanation(ExplanationComposer.shortExplanation(
                 actionInfo.action().getRecommendation()));
         }
         if (groupBy.contains(GroupBy.ACTION_STATE)) {

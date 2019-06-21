@@ -1,7 +1,5 @@
 package com.vmturbo.action.orchestrator.action;
 
-import static com.vmturbo.components.common.ClassicEnumMapper.COMMODITY_TYPE_MAPPINGS;
-
 import java.text.MessageFormat;
 import java.util.Collection;
 import java.util.List;
@@ -13,8 +11,6 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.ImmutableBiMap;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -32,8 +28,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanatio
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -41,9 +37,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class ExplanationComposer {
     private static final Logger logger = LogManager.getLogger();
-
-    private static final ImmutableBiMap<CommodityDTO.CommodityType, String> COMMODITY_TYPE_TO_STRING_MAPPER =
-            ImmutableBiMap.copyOf(COMMODITY_TYPE_MAPPINGS).inverse();
 
     public static final String MOVE_COMPLIANCE_EXPLANATION_FORMAT =
             "{0} can not satisfy the request for resource(s) ";
@@ -61,7 +54,7 @@ public class ExplanationComposer {
     public static final String PROVISION_BY_DEMAND_EXPLANATION =
         "No current supplier has enough capacity to satisfy demand for ";
     public static final String ACTION_TYPE_ERROR =
-        "Can not give a proper explanation as action type is not defiend";
+        "Can not give a proper explanation as action type is not defined";
     public static final String INCREASE_RI_UTILIZATION =
             "Increase RI Utilization.";
     public static final String WASTED_COST = "Wasted Cost";
@@ -73,6 +66,20 @@ public class ExplanationComposer {
     }
 
     /**
+     * Compose a short explanation for an action. The short explanation does not contain commodity
+     * keys or entity names/ids, and does not require translation. The short explanation can be
+     * used where we don't want entity-specific information in the explanation (e.g. as a group
+     * criteria for action stats), or in other places where full details are not necessary.
+     *
+     * @param action The action.
+     * @return The short explanation.
+     */
+    @Nonnull
+    public static String shortExplanation(@Nonnull ActionDTO.Action action) {
+        return internalComposeExplanation(action, true);
+    }
+
+    /**
      * Compose explanation for various types of actions. Explanation appears below the action
      * details. In Classic, this is called as risk.
      *
@@ -80,6 +87,10 @@ public class ExplanationComposer {
      * @return the explanation sentence
      */
     public static String composeExplanation(ActionDTO.Action action) {
+        return internalComposeExplanation(action, false);
+    }
+
+    private static String internalComposeExplanation(ActionDTO.Action action, boolean keepItShort) {
         Explanation explanation = action.getExplanation();
         switch (explanation.getActionExplanationTypeCase()) {
             case MOVE:
@@ -101,7 +112,7 @@ public class ExplanationComposer {
                 if (firstChangeProviderExplanation.hasInitialPlacement()) {
                     return buildPerformanceExplanation();
                 }
-                StringJoiner sj = new StringJoiner(", ", ActionDTOUtil.TRANSLATION_PREFIX, "");
+                StringJoiner sj = new StringJoiner(", ", keepItShort ? "" : ActionDTOUtil.TRANSLATION_PREFIX, "");
                 // Use primary change explanations if available
                 List<ChangeProviderExplanation> primaryChangeExplanation = changeExplanations.stream()
                     .filter(ChangeProviderExplanation::getIsPrimaryChangeProviderExplanation)
@@ -110,11 +121,11 @@ public class ExplanationComposer {
                     changeExplanations = primaryChangeExplanation;
                 }
                 changeExplanations.stream()
-                    .map(provider -> changeExplanationBuilder(optionalSourceEntity, provider))
+                    .map(provider -> changeExplanationBuilder(optionalSourceEntity, provider, keepItShort))
                     .forEach(sj::add);
                 return sj.toString();
             case RESIZE:
-                return buildResizeExplanation(action);
+                return buildResizeExplanation(action, keepItShort);
             case ACTIVATE:
                 if (!explanation.getActivate().hasMostExpensiveCommodity()) {
                     return ACTIVATE_EXPLANATION_WITHOUT_REASON_COMM;
@@ -126,14 +137,14 @@ public class ExplanationComposer {
                 return buildDeactivateExplanation();
             case RECONFIGURE:
                 return buildReconfigureExplanation(explanation
-                    .getReconfigure().getReconfigureCommodityList());
+                    .getReconfigure().getReconfigureCommodityList(), keepItShort);
             case PROVISION:
                 ProvisionExplanation provExp = explanation.getProvision();
                 switch (provExp.getProvisionExplanationTypeCase()) {
                     case PROVISION_BY_DEMAND_EXPLANATION:
                         return buildProvisionByDemandExplanation(
                             provExp.getProvisionByDemandExplanation()
-                                .getCommodityMaxAmountAvailableList());
+                                .getCommodityMaxAmountAvailableList(), keepItShort);
                     case PROVISION_BY_SUPPLY_EXPLANATION:
                         return buildProvisionBySupplyExplanation(provExp
                             .getProvisionBySupplyExplanation()
@@ -144,13 +155,13 @@ public class ExplanationComposer {
             case DELETE:
                 return buildDeleteExplanation(action);
             case BUYRI:
-                return buildBuyRIExplanation(action);
+                return buildBuyRIExplanation(action, keepItShort);
             default:
                 return ACTION_TYPE_ERROR;
         }
     }
 
-    private static String buildBuyRIExplanation(ActionDTO.Action action) {
+    private static String buildBuyRIExplanation(ActionDTO.Action action, boolean keepItShort) {
         final BuyRIExplanation buyRI = action.getExplanation().getBuyRI();
         if (buyRI.getTotalAverageDemand() <= 0) {
             return "Invalid total demand.";
@@ -158,26 +169,30 @@ public class ExplanationComposer {
         StringBuilder sb = new StringBuilder();
         float coverageIncrease = (buyRI.getCoveredAverageDemand() / buyRI.getTotalAverageDemand())
                 * 100;
-        return sb.append("Increase RI Coverage by ")
+        sb.append("Increase RI Coverage");
+        if (!keepItShort) {
+            sb.append(" by ")
                 .append(Float.toString(coverageIncrease))
-                .append("%.").toString();
+                .append("%.");
+        }
+        return sb.toString();
     }
 
     private static String changeExplanationBuilder(Optional<ActionEntity> sourceEntity,
-                                                   ChangeProviderExplanation changeExp) {
+                                                   ChangeProviderExplanation changeExp,
+                                                   final boolean keepItShort) {
         switch (changeExp.getChangeProviderExplanationTypeCase()) {
             case COMPLIANCE:
                 return buildComplianceExplanation(sourceEntity,
-                    changeExp.getCompliance().getMissingCommoditiesList());
+                    changeExp.getCompliance().getMissingCommoditiesList(), keepItShort);
             case CONGESTION:
-                return buildCongestionExplanation(changeExp.getCongestion());
+                return buildCongestionExplanation(changeExp.getCongestion(), keepItShort);
             case EVACUATION:
-                return buildEvacuationExplanation(
-                    changeExp.getEvacuation().getSuspendedEntity());
+                return buildEvacuationExplanation(changeExp.getEvacuation().getSuspendedEntity(), keepItShort);
             case PERFORMANCE:
                 return buildPerformanceExplanation();
             case EFFICIENCY:
-                return buildEfficiencyExplanation(changeExp.getEfficiency());
+                return buildEfficiencyExplanation(changeExp.getEfficiency(), keepItShort);
             default:
                 return ACTION_TYPE_ERROR;
         }
@@ -192,18 +207,28 @@ public class ExplanationComposer {
      * @return explanation
      */
     public static String buildComplianceExplanation(Optional<ActionEntity> optionalSourceEntity,
-                                                    List<ReasonCommodity> reasons) {
+                                                    List<ReasonCommodity> reasons,
+                                                    final boolean keepItShort) {
         StringBuilder sb = new StringBuilder();
         sb.append(MessageFormat.format(MOVE_COMPLIANCE_EXPLANATION_FORMAT,
-                optionalSourceEntity.isPresent()
+                optionalSourceEntity.isPresent() && !keepItShort
                         ? buildEntityNameOrType(optionalSourceEntity.get())
                         : "Current supplier"));
         sb.append(reasons.stream()
             .map(ReasonCommodity::getCommodityType)
-            .map(ActionDTOUtil::getCommodityDisplayName)
+            .map(commType -> commodityDisplayName(commType, keepItShort))
             .collect(Collectors.joining(" ")));
 
         return sb.toString();
+    }
+
+    @Nonnull
+    private static String commodityDisplayName(@Nonnull final CommodityType commType, final boolean keepItShort) {
+        if (keepItShort) {
+            return UICommodityType.fromType(commType).apiStr();
+        } else {
+            return ActionDTOUtil.getCommodityDisplayName(commType);
+        }
     }
 
     /**
@@ -218,14 +243,14 @@ public class ExplanationComposer {
      * @param congestion The congestion change provider explanation
      * @return explanation
      */
-    public static String buildCongestionExplanation(Congestion congestion) {
+    public static String buildCongestionExplanation(Congestion congestion, final boolean keepItShort) {
         List<ReasonCommodity> congestedComms =  congestion.getCongestedCommoditiesList();
         List<ReasonCommodity> underUtilizedComms =  congestion.getUnderUtilizedCommoditiesList();
         // For the cloud, we should have either congested commodities or increase RI utilization
         // A blank explanation should not occur.
         String congestionExplanation = "";
         if (!congestedComms.isEmpty() || !underUtilizedComms.isEmpty()) {
-            congestionExplanation += buildCommodityUtilizationExplanation(congestedComms, underUtilizedComms);
+            congestionExplanation += buildCommodityUtilizationExplanation(congestedComms, underUtilizedComms, keepItShort);
         } else if (congestion.getIsRiCoverageIncreased()) {
             congestionExplanation += INCREASE_RI_UTILIZATION;
         }
@@ -240,9 +265,10 @@ public class ExplanationComposer {
      * @param entityOID the suspended entity oid
      * @return explanation
      */
-    public static String buildEvacuationExplanation(long entityOID) {
-        return MessageFormat.format(MOVE_EVACUATION_EXPLANATION_FORMAT,
-                ActionDTOUtil.createTranslationBlock(entityOID, "displayName", "Current supplier"));
+    public static String buildEvacuationExplanation(long entityOID, boolean keepItShort) {
+        return MessageFormat.format(MOVE_EVACUATION_EXPLANATION_FORMAT, keepItShort ?
+            "Current supplier" :
+            ActionDTOUtil.createTranslationBlock(entityOID, "displayName", "Current supplier"));
     }
 
     /**
@@ -273,7 +299,7 @@ public class ExplanationComposer {
      * @param action the resize action
      * @return explanation
      */
-    public static String buildResizeExplanation(ActionDTO.Action action) {
+    public static String buildResizeExplanation(ActionDTO.Action action, final boolean keepItShort) {
         // verify it's a resize.
         if (! action.getInfo().hasResize()) {
             logger.warn("Can't build resize explanation for non-resize action {}", action.getId());
@@ -286,11 +312,11 @@ public class ExplanationComposer {
         boolean isResizeDown = resizeExplanation.getStartUtilization() < resizeExplanation.getEndUtilization();
 
         // since we may show entity name, we are going to build a translatable explanation
-        StringBuilder sb = new StringBuilder(ActionDTOUtil.TRANSLATION_PREFIX);
+        StringBuilder sb = new StringBuilder(keepItShort ? "" : ActionDTOUtil.TRANSLATION_PREFIX);
         Resize resize = action.getInfo().getResize();
-        String commodityType = ActionDTOUtil.getCommodityDisplayName(resize.getCommodityType());
+        String commodityType = commodityDisplayName(resize.getCommodityType(), keepItShort);
         // if we have a target, we will try to show it's name in the explanation
-        String targetClause = resize.hasTarget()
+        String targetClause = resize.hasTarget() && !keepItShort
                 ? " in "+ buildEntityTypeAndName(resize.getTarget())
                 : "";
 
@@ -329,17 +355,17 @@ public class ExplanationComposer {
      * @param efficiency The efficiency change provider explanation
      * @return
      */
-    public static String buildEfficiencyExplanation(Efficiency efficiency) {
+    public static String buildEfficiencyExplanation(Efficiency efficiency, final boolean keepItShort) {
         List<ReasonCommodity> overUtilizedComms =  efficiency.getCongestedCommoditiesList();
         List<ReasonCommodity> underUtilizedComms =  efficiency.getUnderUtilizedCommoditiesList();
         boolean isUtilizationDrivenAction = !overUtilizedComms.isEmpty() || !underUtilizedComms.isEmpty();
         String efficiencyExplanation = "";
         if (isUtilizationDrivenAction || efficiency.hasIsRiCoverageIncreased()) {
             if (isUtilizationDrivenAction) {
-                efficiencyExplanation += buildCommodityUtilizationExplanation(
-                        overUtilizedComms, underUtilizedComms);
+                efficiencyExplanation = buildCommodityUtilizationExplanation(
+                        overUtilizedComms, underUtilizedComms, keepItShort);
             } else if (efficiency.getIsRiCoverageIncreased()) {
-                efficiencyExplanation += INCREASE_RI_UTILIZATION;
+                efficiencyExplanation = INCREASE_RI_UTILIZATION;
             }
         } else {
             efficiencyExplanation = WASTED_COST;
@@ -357,14 +383,14 @@ public class ExplanationComposer {
      */
     public static String buildCommodityUtilizationExplanation(
             @Nonnull List<ReasonCommodity> congestedComms,
-            @Nonnull List<ReasonCommodity> underUtilizedComms) {
+            @Nonnull List<ReasonCommodity> underUtilizedComms, final boolean keepItShort) {
         boolean areCongestedCommoditiesPresent = !congestedComms.isEmpty();
         boolean areUnderUtilizedCommoditiesPresent = !underUtilizedComms.isEmpty();
         String commUtilizationExplanation = "";
         if (areCongestedCommoditiesPresent) {
             commUtilizationExplanation = congestedComms.stream()
                             .map(ReasonCommodity::getCommodityType)
-                            .map(c -> ActionDTOUtil.getCommodityDisplayName(c))
+                            .map(c -> commodityDisplayName(c, keepItShort))
                             .collect(Collectors.joining(", ")) + " congestion";
             if (areUnderUtilizedCommoditiesPresent) {
                 commUtilizationExplanation += ". ";
@@ -373,7 +399,7 @@ public class ExplanationComposer {
         if (areUnderUtilizedCommoditiesPresent) {
             commUtilizationExplanation += "Underutilized " + underUtilizedComms.stream()
                             .map(ReasonCommodity::getCommodityType)
-                            .map(c -> ActionDTOUtil.getCommodityDisplayName(c))
+                            .map(c -> commodityDisplayName(c, keepItShort))
                             .collect(Collectors.joining(", "));
         }
         return commUtilizationExplanation;
@@ -415,8 +441,10 @@ public class ExplanationComposer {
      * @return explanation
      */
     public static String buildActivateExplanation(final int commodityType) {
-        return new StringBuilder().append(ACTIVATE_EXPLANATION_WITH_REASON_COMM)
-            .append(COMMODITY_TYPE_TO_STRING_MAPPER.get(CommodityType.forNumber(commodityType))).toString();
+        return new StringBuilder()
+            .append(ACTIVATE_EXPLANATION_WITH_REASON_COMM)
+            .append(UICommodityType.fromType(commodityType).apiStr())
+            .toString();
     }
 
     /**
@@ -437,10 +465,10 @@ public class ExplanationComposer {
      * @return explanation
      */
     public static String buildReconfigureExplanation(
-        @Nonnull final Collection<ReasonCommodity> commodityTypes) {
+        @Nonnull final Collection<ReasonCommodity> commodityTypes, final boolean keepItShort) {
         StringBuilder sb = new StringBuilder().append(RECONFIGURE_EXPLANATION);
         sb.append(commodityTypes.stream().map(reason ->
-                ActionDTOUtil.getCommodityDisplayName(reason.getCommodityType()))
+                commodityDisplayName(reason.getCommodityType(), keepItShort))
                 .collect(Collectors.joining(", ")));
         return sb.toString();
     }
@@ -456,15 +484,19 @@ public class ExplanationComposer {
      * it and the max available amount of it.
      * @return explanation
      */
-    public static String buildProvisionByDemandExplanation(List<CommodityMaxAmountAvailableEntry> entries) {
+    public static String buildProvisionByDemandExplanation(List<CommodityMaxAmountAvailableEntry> entries,
+                                                           final boolean keepItShort) {
         StringBuilder sb = new StringBuilder().append(PROVISION_BY_DEMAND_EXPLANATION);
-        entries.forEach(entry -> sb
-            .append(COMMODITY_TYPE_TO_STRING_MAPPER.get(CommodityType.forNumber(entry.getCommodityBaseType())))
-            .append(" ")
-            .append(" whose requested amount is ")
-            .append(entry.getRequestedAmount())
-            .append(" but max available is ")
-            .append(entry.getMaxAmountAvailable()).append(" "));
+        entries.forEach(entry -> {
+            sb.append(UICommodityType.fromType(entry.getCommodityBaseType()).apiStr());
+            if (!keepItShort) {
+                sb.append(" ")
+                    .append(" whose requested amount is ")
+                    .append(entry.getRequestedAmount())
+                    .append(" but max available is ")
+                    .append(entry.getMaxAmountAvailable()).append(" ");
+            }
+        });
         return sb.toString();
     }
 
@@ -476,7 +508,7 @@ public class ExplanationComposer {
      */
     public static String buildProvisionBySupplyExplanation(int commodity) {
         return new StringBuilder()
-                .append(COMMODITY_TYPE_TO_STRING_MAPPER.get(CommodityType.forNumber(commodity)))
+                .append(UICommodityType.fromType(commodity).apiStr())
                 .append(" congestion")
                 .toString();
     }

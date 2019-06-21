@@ -42,6 +42,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -551,8 +552,7 @@ public class ActionDTOUtil {
      * @return display name string of the commodity
      */
     public static String getCommodityDisplayName(@Nonnull TopologyDTO.CommodityType commType) {
-        CommodityDTO.CommodityType commodity = CommodityDTO.CommodityType.forNumber(
-                commType.getType());
+        UICommodityType commodity = UICommodityType.fromType(commType.getType());
 
         final String commodityName = commodity.name();
 
@@ -566,7 +566,7 @@ public class ActionDTOUtil {
         // Example:
         // a network commodity with key "Network::testNetwork2" should show in the explanation as
         // Network testNetwork2 and not Network Network::testNetwork2
-        if (commodity == CommodityDTO.CommodityType.NETWORK) {
+        if (commodity == UICommodityType.NETWORK) {
             String commKey = commType.getKey();
 
             // normalize the prefixes to everything lower case

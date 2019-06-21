@@ -76,6 +76,8 @@ public class ExplanationComposerTest {
 
         assertEquals("(^_^)~{entity:1:displayName:Physical Machine} can not satisfy the request for resource(s) Mem Cpu",
             ExplanationComposer.composeExplanation(action));
+        assertEquals("Current supplier can not satisfy the request for resource(s) Mem CPU",
+            ExplanationComposer.shortExplanation(action));
     }
 
     /**
@@ -108,6 +110,8 @@ public class ExplanationComposerTest {
 
         assertEquals("(^_^)~Current supplier can not satisfy the request for resource(s) Mem Cpu",
             ExplanationComposer.composeExplanation(action));
+        assertEquals("Current supplier can not satisfy the request for resource(s) Mem CPU",
+            ExplanationComposer.shortExplanation(action));
     }
 
     @Test
@@ -125,6 +129,8 @@ public class ExplanationComposerTest {
 
         assertEquals("Increase RI Coverage by 50.0%.",
                 ExplanationComposer.composeExplanation(action));
+        assertEquals("Increase RI Coverage",
+            ExplanationComposer.shortExplanation(action));
 
         final Builder invalidExplanation = Explanation.newBuilder()
                 .setBuyRI(BuyRIExplanation.newBuilder()
@@ -139,6 +145,8 @@ public class ExplanationComposerTest {
 
         assertEquals("Invalid total demand.",
                 ExplanationComposer.composeExplanation(action));
+        assertEquals("Invalid total demand.",
+            ExplanationComposer.shortExplanation(action));
     }
 
     @Test
@@ -161,10 +169,14 @@ public class ExplanationComposerTest {
         assertEquals("Enable supplier to offer requested resource(s) Segmentation, Network " +
                         "testNetwork1",
             ExplanationComposer.composeExplanation(reconfigure));
+        assertEquals("Enable supplier to offer requested resource(s) SegmentationCommodity, NetworkCommodity",
+            ExplanationComposer.shortExplanation(reconfigure));
 
         assertEquals("Enable supplier to offer requested resource(s) Segmentation, Network " +
                         "testNetwork2",
                 ExplanationComposer.composeExplanation(reconfigureWithPrefix));
+        assertEquals("Enable supplier to offer requested resource(s) SegmentationCommodity, NetworkCommodity",
+            ExplanationComposer.shortExplanation(reconfigureWithPrefix));
     }
 
     @Test
@@ -178,6 +190,7 @@ public class ExplanationComposerTest {
                 .build();
 
         assertEquals("Mem congestion", ExplanationComposer.composeExplanation(provision));
+        assertEquals("Mem congestion", ExplanationComposer.shortExplanation(provision));
     }
 
     @Test
@@ -199,11 +212,15 @@ public class ExplanationComposerTest {
         // test a resize up
         assertEquals("(^_^)~Underutilized Vmem in Virtual Machine {entity:0:displayName:}",
             ExplanationComposer.composeExplanation(action.build()));
+        assertEquals("Underutilized VMem",
+            ExplanationComposer.shortExplanation(action.build()));
 
         // test a resize down
         action.getExplanationBuilder().getResizeBuilder().setStartUtilization(1).setEndUtilization(0);
         assertEquals("(^_^)~Vmem congestion in Virtual Machine {entity:0:displayName:}",
                 ExplanationComposer.composeExplanation(action.build()));
+        assertEquals("VMem congestion",
+            ExplanationComposer.shortExplanation(action.build()));
     }
 
     @Test
@@ -216,6 +233,7 @@ public class ExplanationComposerTest {
                 .build();
 
         assertEquals("Address high utilization of CPU", ExplanationComposer.composeExplanation(activate));
+        assertEquals("Address high utilization of CPU", ExplanationComposer.shortExplanation(activate));
     }
 
     @Test
@@ -227,6 +245,7 @@ public class ExplanationComposerTest {
             .build();
 
         assertEquals("Improve infrastructure efficiency", ExplanationComposer.composeExplanation(deactivate));
+        assertEquals("Improve infrastructure efficiency", ExplanationComposer.shortExplanation(deactivate));
     }
 
     @Test
@@ -239,6 +258,8 @@ public class ExplanationComposerTest {
 
         assertEquals("Idle or non-productive",
             ExplanationComposer.composeExplanation(delete));
+        assertEquals("Idle or non-productive",
+            ExplanationComposer.shortExplanation(delete));
     }
 
     private static ReasonCommodity createReasonCommodity(int baseType, String key) {
