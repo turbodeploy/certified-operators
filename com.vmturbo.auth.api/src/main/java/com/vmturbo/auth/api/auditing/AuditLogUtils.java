@@ -25,6 +25,7 @@ import com.cloudbees.syslog.Severity;
 import com.cloudbees.syslog.sender.TcpSyslogMessageSender;
 import com.google.common.annotations.VisibleForTesting;
 
+import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 
 
@@ -41,6 +42,8 @@ public final class AuditLogUtils {
     private static final DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
     public static final String LEFT_BRACKET = "(";
     public static final String RIGHT_BRACKET = ")";
+    private static final String REMOTE_IP_ADDRESS = "RemoteIpAddress";
+    private static final int stringLength = "RemoteIpAddress: ".length();
     private static final long maxConnectRetryCount = 10;
     private static final int low = 1;
     private static final int high = 1000;
@@ -96,7 +99,7 @@ public final class AuditLogUtils {
                                          String message, String remoteClientIP, boolean isSuccessful) {
         final Date date = new Date();
         final String result = isSuccessful ? RESULT_SUCCESS : RESULT_FAILURE;
-        final String initiator = (actionInitiator != null) ? actionInitiator : getLoggedInUserName().orElse(SYSTEM);
+        final String initiator = (actionInitiator != null) ? actionInitiator : getLoggedInUserName();
 
         final String remoteIP = (remoteClientIP != null) ? remoteClientIP : (getRemoteIpAddress() != null) ?
             getRemoteIpAddress() : (actionInitiator != null && actionInitiator.equalsIgnoreCase(SYSTEM)) ?
@@ -147,8 +150,10 @@ public final class AuditLogUtils {
      *
      * @return username if user was logged in from UI
      */
-    private static Optional<String> getLoggedInUserName() {
-        return Optional.ofNullable(SecurityConstant.USER_ID_CTX_KEY.get());
+    private static String getLoggedInUserName() {
+        return Optional.ofNullable(SecurityConstant.USER_ID_CTX_KEY.get())
+            .orElseGet(() -> SAMLUserUtils.getAuthUserDTO().map(dto -> dto.getUser())
+                .orElse(SYSTEM));
     }
 
 
@@ -158,7 +163,9 @@ public final class AuditLogUtils {
      * @return remote IP address if available otherwise fall back to "lookback".
      */
     private static String getRemoteIpAddress() {
-        return SecurityConstant.USER_IP_ADDRESS_KEY.get();
+        return Optional.ofNullable((SecurityConstant.USER_IP_ADDRESS_KEY.get()))
+            .orElseGet(() -> SAMLUserUtils.getAuthUserDTO().map(dto -> dto.getIpAddress())
+            .orElse(null));
     }
 
     /**

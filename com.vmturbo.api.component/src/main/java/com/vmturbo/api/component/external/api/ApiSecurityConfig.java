@@ -20,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.MethodInvokingFactoryBean;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
@@ -94,6 +95,7 @@ import com.google.common.collect.Iterables;
 import com.vmturbo.api.component.external.api.SAML.SAMLCondition;
 import com.vmturbo.api.component.external.api.SAML.SAMLUtils;
 import com.vmturbo.api.component.external.api.SAML.WebSSOProfileConsumerImplExt;
+import com.vmturbo.api.component.security.FailedAuthRequestAuditor;
 import com.vmturbo.auth.api.Base64CodecUtils;
 
 /**
@@ -139,6 +141,9 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
     private static ImmutableList<String> baseURIs =
             ImmutableList.copyOf(Iterables.transform(ExternalApiConfig.BASE_URL_MAPPINGS,
                     mappingsToBaseURI));
+
+    @Autowired
+    ApplicationContext applicationContext;
 
     @Autowired(required = false)
     private SAMLUserDetailsService samlUserDetailsService;
@@ -648,6 +653,11 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
     @Bean
     SessionRegistry sessionRegistry() {
         return new SessionRegistryImpl();
+    }
+
+    @Bean
+    FailedAuthRequestAuditor failedAuthRequestAuditor() {
+        return new FailedAuthRequestAuditor(applicationContext);
     }
 }
 

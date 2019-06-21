@@ -433,7 +433,7 @@ public class KVBackedILocalAuthStoreTest {
         boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                                    ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
         Assert.assertTrue(result);
-        Assert.assertTrue(store.remove("user0"));
+        Assert.assertTrue(store.remove("user0").isPresent());
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + "USER0");
         Assert.assertFalse(jsonData.isPresent());
@@ -444,7 +444,7 @@ public class KVBackedILocalAuthStoreTest {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore);
 
-        Assert.assertFalse(store.remove("user0"));
+        Assert.assertFalse(store.remove("user0").isPresent());
         Optional<String> jsonData = keyValueStore.get(PREFIX + AuthUserDTO.PROVIDER.LOCAL.name()
                                                       + "/USER0");
         Assert.assertFalse(jsonData.isPresent());

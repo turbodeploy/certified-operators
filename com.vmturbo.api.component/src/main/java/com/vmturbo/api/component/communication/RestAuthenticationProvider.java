@@ -37,7 +37,6 @@ import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
-import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
 import com.vmturbo.auth.api.authorization.kvstore.IComponentJwtStore;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
@@ -179,13 +178,14 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
 
         //First try to authenticate AD users using Spring
         JWTAuthorizationToken token = getAuthData(username, password, remoteIpAddress);
-        return getAuthentication(password, username, token);
+        return getAuthentication(password, username, token, remoteIpAddress);
     }
 
     @Nonnull
     private Authentication getAuthentication(final String password,
                                              final String username,
-                                             final JWTAuthorizationToken token) {
+                                             final JWTAuthorizationToken token,
+                                             final String remoteIpAddress) {
         AuthUserDTO dto;
         try {
             dto = verifier_.verify(token, Collections.emptyList());
@@ -200,7 +200,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
             roles.add(role);
             grantedAuths.add(new SimpleGrantedAuthority("ROLE" + "_" + role.toUpperCase()));
         }
-        AuthUserDTO user = new AuthUserDTO(PROVIDER.LOCAL, username, null, null, dto.getUuid(),
+        AuthUserDTO user = new AuthUserDTO(PROVIDER.LOCAL, username, null, remoteIpAddress, dto.getUuid(),
                                            token.getCompactRepresentation(), roles, dto.getScopeGroups());
         return new UsernamePasswordAuthenticationToken(user, password, grantedAuths);
     }
@@ -256,7 +256,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
         result = restTemplate_.exchange(authRequest, HttpMethod.GET, entity, String.class);
         JWTAuthorizationToken token = new JWTAuthorizationToken(result.getBody());
         // add a dummy password.
-        return getAuthentication(SAML_DUMMY_PASS, username, token);
+        return getAuthentication(SAML_DUMMY_PASS, username, token, remoteIpAddress);
     }
 
     @Override

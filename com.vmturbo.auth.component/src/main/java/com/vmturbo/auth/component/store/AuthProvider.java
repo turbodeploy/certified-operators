@@ -966,11 +966,11 @@ public class AuthProvider {
      * Removes the user.
      *
      * @param uuid The user's UUID or name.
-     * @return {@code true} iff successful.
+     * @return {@code Optional<AuthUserDTO>} iff successful.
      * @throws SecurityException In case of an error deleting the user.
      */
     @PreAuthorize("hasRole('ADMINISTRATOR')")
-    public boolean remove(final @Nonnull String uuid) throws SecurityException {
+    public Optional<AuthUserDTO> remove(final @Nonnull String uuid) throws SecurityException {
         // Look for the correct user.
         Map<String, String> users;
         synchronized (storeLock_) {
@@ -989,22 +989,23 @@ public class AuthProvider {
         if (infoFound == null) {
             logger_.error("AUDIT::FAILURE:UNKNOWN: Error removing unknown user: " +
                           uuid);
-            return false;
+            return Optional.empty();
         }
 
         // Don't allow removing the last local admin user.
         if (isLastLocalAdminUser(infoFound, users)) {
             logger_.error("AUDIT::Don't allow to remove last local admin user: " + uuid);
-            return false;
+            return Optional.empty();
         }
 
         try {
             removeKVKey(composeUserInfoKey(infoFound.provider, infoFound.userName));
             logger_.info("AUDIT::SUCCESS: Success removing user: " + uuid);
-            return true;
+            return Optional.of(new AuthUserDTO(infoFound.provider, infoFound.userName, null, null, infoFound.uuid, null,
+                infoFound.roles, infoFound.scopeGroups));
         } catch (Exception e) {
             logger_.error("AUDIT::FAILURE:AUTH: Error removing user: " + uuid);
-            return false;
+            return Optional.empty();
         }
     }
 

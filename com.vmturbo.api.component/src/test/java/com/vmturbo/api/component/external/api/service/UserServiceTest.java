@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import org.junit.Before;
@@ -36,6 +37,7 @@ import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.api.component.communication.RestAuthenticationProvider;
 import com.vmturbo.api.dto.user.ActiveDirectoryGroupApiDTO;
+import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 
@@ -73,6 +75,11 @@ public class UserServiceTest {
     @Test
     public void testExipreSession() throws Exception {
         logon("admin");
+        final HttpEntity<AuthUserDTO> entity = new HttpEntity<>(composeHttpHeaders());
+        final ResponseEntity<AuthUserDTO> responseEntity = ResponseEntity
+            .ok(new AuthUserDTO("", "", Collections.emptyList()));
+        when(restTemplate.exchange("http://:0/users/remove/testUser", HttpMethod.DELETE, entity, AuthUserDTO.class))
+            .thenReturn(responseEntity);
         usersService.deleteUser(TEST_USER);
         verify(widgetSetsService).transferWidgetsets(TEST_USER);
         verify(sessionRegistry).getAllPrincipals();
@@ -137,5 +144,21 @@ public class UserServiceTest {
         assertEquals(adGroupName, adGroups.get(0).getDisplayName());
         assertEquals(adGroupType, adGroups.get(0).getType());
         assertEquals(adGroupRoleName, adGroups.get(0).getRoleName());
+    }
+
+    private HttpHeaders composeHttpHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(HTTP_ACCEPT);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set(RestAuthenticationProvider.AUTH_HEADER_NAME,
+            geJwtTokenFromSpringSecurityContext().orElseThrow(() ->
+                new SecurityException("Invalid JWT token")));
+        return headers;
+    }
+
+    private static Optional<String> geJwtTokenFromSpringSecurityContext() {
+        return SAMLUserUtils
+            .getAuthUserDTO()
+            .map(AuthUserDTO::getToken);
     }
 }

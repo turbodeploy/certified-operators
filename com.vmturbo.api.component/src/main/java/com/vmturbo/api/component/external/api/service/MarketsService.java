@@ -78,6 +78,8 @@ import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPagina
 import com.vmturbo.api.serviceinterfaces.IMarketsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.ParamStrings.MarketOperations;
+import com.vmturbo.auth.api.auditing.AuditAction;
+import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
@@ -651,8 +653,20 @@ public class MarketsService implements IMarketsService {
             String createdPolicyUuid = Long.toString(createdPolicyID);
             final PolicyApiDTO response = policiesService.getPolicyByUuid(createdPolicyUuid);
 
+            final String details = String.format("Created policy %s", policyApiInputDTO.getPolicyName());
+            AuditLog.newEntry(AuditAction.CREATE_POLICY,
+                details, true)
+                .targetName(policyApiInputDTO.getPolicyName())
+                .audit();
+
             return new ResponseEntity<>(response, HttpStatus.CREATED);
         } catch (RuntimeException e) {
+            final String details = String.format("Failed to create policy %s",
+                policyApiInputDTO.getPolicyName());
+            AuditLog.newEntry(AuditAction.CREATE_POLICY,
+                details, false)
+                .targetName(policyApiInputDTO.getPolicyName())
+                .audit();
             logger.error("Error while adding a policy with name "
                     + policyApiInputDTO.getPolicyName(), e);
             throw e;
@@ -677,8 +691,18 @@ public class MarketsService implements IMarketsService {
                     .build();
             policyRpcService.editPolicy(policyEditRequest);
 
+            final String details = String.format("Changed policy %s", policyInfo.getName());
+            AuditLog.newEntry(AuditAction.CHANGE_POLICY,
+                details, true)
+                .targetName(policyInfo.getName())
+                .audit();
             return new PolicyApiDTO();
         } catch (RuntimeException e) {
+            final String details = String.format("Changed policy with uuid: %s", policyUuid);
+            AuditLog.newEntry(AuditAction.CHANGE_POLICY,
+                details, false)
+                .targetName(policyApiInputDTO.getPolicyName())
+                .audit();
             logger.error("Fail to edit policy " + policyUuid + " with name "
                     + policyApiInputDTO.getPolicyName(), e);
             throw e;
@@ -701,8 +725,18 @@ public class MarketsService implements IMarketsService {
                 mergeDataCenterPolicyHandler.deleteDataCenterHiddenGroup(policyUuid, policy);
             }
 
+            final String details = String.format("Deleted policy %s", policy.getName());
+            AuditLog.newEntry(AuditAction.DELETE_POLICY,
+                details, true)
+                .targetName(policy.getName())
+                .audit();
             return true;
         } catch (RuntimeException e) {
+            final String details = String.format("Failed to deleted policy with uuid: %s", policyUuid);
+            AuditLog.newEntry(AuditAction.DELETE_POLICY,
+                details, false)
+                .targetName(policyUuid)
+                .audit();
             logger.error("Failed to delete policy " + policyUuid, e);
             return false;
         }

@@ -31,7 +31,14 @@ public enum AuditAction {
     ACCEPT_ACTION("Accept Action"),
     SET_LDAP("Configure LDAP"),
     CHECK_AUTHORIZATION("Check Permission"),
-    ACCESS_USER("Access User");
+    ACCESS_USER("Access User"),
+    SYSTEM_INIT("System Initialization"),
+    CREATE_GROUP("Create External Group"),
+    CHANGE_GROUP("Change External Group Role"),
+    DELETE_GROUP("Delete External Group"),
+    CREATE_POLICY("Create Policy"),
+    DELETE_POLICY("Delete Policy"),
+    CHANGE_POLICY("Change Policy");
 
     private String displayName;
 

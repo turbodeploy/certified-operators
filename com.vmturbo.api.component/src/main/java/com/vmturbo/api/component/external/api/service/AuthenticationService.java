@@ -24,6 +24,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.api.component.communication.RestAuthenticationProvider;
@@ -35,6 +36,9 @@ import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.api.exceptions.InvalidCredentialsException;
 import com.vmturbo.api.exceptions.ServiceUnavailableException;
 import com.vmturbo.api.serviceinterfaces.IAuthenticationService;
+import com.vmturbo.auth.api.auditing.AuditAction;
+import com.vmturbo.auth.api.auditing.AuditLog;
+import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.kvstore.IComponentJwtStore;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
@@ -59,6 +63,8 @@ public class AuthenticationService implements IAuthenticationService {
      */
     private static final String AUTH_SERVICE_NOT_AVAILABLE_MSG =
             "The Authorization Service is not responding";
+    @VisibleForTesting
+    static final String LOGIN_MANAGER = "LoginManager";
     /**
      * The auth service host.
      */
@@ -150,8 +156,16 @@ public class AuthenticationService implements IAuthenticationService {
             user.setUsername(username);
             // administrator user will always have "administrator" role.
             user.setRoleName(ADMINISTRATOR);
+            AuditLog.newEntry(AuditAction.SYSTEM_INIT,
+                "Turbonomic instance initialization succeeded", true)
+                .targetName(username)
+                .audit();
             return user;
         } catch (RestClientException e) {
+            AuditLog.newEntry(AuditAction.SYSTEM_INIT,
+                "Turbonomic instance initialization failed", false)
+                .targetName(username)
+                .audit();
             throw new ServiceUnavailableException(AUTH_SERVICE_NOT_AVAILABLE_MSG);
         }
     }
@@ -181,6 +195,13 @@ public class AuthenticationService implements IAuthenticationService {
         // authenticate
         try {
             final Authentication result = authProvider.authenticate(auth);
+            // Auth component authenticated the login.
+            AuditLog.newEntry(AuditAction.LOGIN,
+                "User logged in successfully", true)
+                .remoteClientIP(remoteIpAddress)
+                .targetName(LOGIN_MANAGER)
+                .actionInitiator(username)
+                .audit();
             // prevent session fixation attack, it should be put before setting security context.
             changeSessionId();
             SecurityContextHolder.getContext().setAuthentication(result);
@@ -203,11 +224,24 @@ public class AuthenticationService implements IAuthenticationService {
                     logger.debug("Added user: " + username + "'s session to SessionRegistry");
                 }
             }
+
             return user;
         } catch (AuthenticationException e) {
             logger.warn("Authentication for user " + username + " failed");
+            AuditLog.newEntry(AuditAction.LOGIN,
+                "User login failed", false)
+                .remoteClientIP(remoteIpAddress)
+                .targetName(LOGIN_MANAGER)
+                .actionInitiator(username)
+                .audit();
             throw new InvalidCredentialsException("Authentication failed");
         } catch (RestClientException e) {
+            AuditLog.newEntry(AuditAction.LOGIN,
+                "User login failed", false)
+                .remoteClientIP(remoteIpAddress)
+                .targetName(LOGIN_MANAGER)
+                .actionInitiator(username)
+                .audit();
             throw new ServiceUnavailableException(AUTH_SERVICE_NOT_AVAILABLE_MSG);
         }
     }
@@ -238,13 +272,23 @@ public class AuthenticationService implements IAuthenticationService {
         final HttpServletRequest request = ((ServletRequestAttributes) attrs).getRequest();
         final HttpServletResponse response = ((ServletRequestAttributes) attrs).getResponse();
         if (auth != null) {
+            final AuthUserDTO authUserDTO = SAMLUserUtils.getAuthUserDTO(auth);
             new SecurityContextLogoutHandler().logout(request, response, auth);
             BaseApiDTO success = new BaseApiDTO();
             success.setDisplayName("SUCCESS");
+            AuditLog.newEntry(AuditAction.LOGOUT,
+                "User logout", true)
+                .remoteClientIP(authUserDTO.getIpAddress())
+                .targetName(LOGIN_MANAGER)
+                .actionInitiator(authUserDTO.getUser())
+                .audit();
             return success;
         }
 
         ErrorApiDTO error = new ErrorApiDTO();
+        AuditLog.newEntry(AuditAction.LOGOUT ,
+            "User logout failed", false)
+            .targetName("Anonymous user").audit();
         error.setMessage("FAIL");
         return error;
     }

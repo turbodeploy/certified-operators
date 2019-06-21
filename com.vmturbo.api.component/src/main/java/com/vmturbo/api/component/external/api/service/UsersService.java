@@ -53,6 +53,10 @@ import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.serviceinterfaces.IUsersService;
 import com.vmturbo.auth.api.Base64CodecUtils;
+import com.vmturbo.auth.api.auditing.AuditAction;
+import com.vmturbo.auth.api.auditing.AuditLog;
+import com.vmturbo.auth.api.auditing.AuditLogEntry;
+import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
@@ -80,6 +84,8 @@ public class UsersService implements IUsersService {
     public static final String ENTITY_ID = "entityID";
     public static final String SAML_IDP_ENTITY_NAME = "SAML IDP entity name: ";
     public static final String MD_SINGLE_LOGOUT_SERVICE = "md:SingleLogoutService";
+    private static final String NOT_ASSIGNED = "Not assigned";
+    private static final String PERMISSION_CHANGED = "Permission changed, current role is %s, scope is %s";
 
     /**
      * The logger.
@@ -269,21 +275,35 @@ public class UsersService implements IUsersService {
      */
     @Override
     public UserApiDTO createUser(UserApiDTO userApiDTO) throws Exception {
-        AuthUserDTO dto = UserMapper.toAuthUserDTO(userApiDTO);
-        // Perform the call.
-        // Make sure that the currently authenticated user's token is present.
-        HttpHeaders headers = composeHttpHeaders();
-        HttpEntity<AuthUserDTO> entity = new HttpEntity<>(dto, headers);
-        restTemplate_.exchange(baseRequest().path("/users/add").build().toUriString(),
+        try {
+            AuthUserDTO dto = UserMapper.toAuthUserDTO(userApiDTO);
+            // Perform the call.
+            // Make sure that the currently authenticated user's token is present.
+            HttpHeaders headers = composeHttpHeaders();
+            HttpEntity<AuthUserDTO> entity = new HttpEntity<>(dto, headers);
+            restTemplate_.exchange(baseRequest().path("/users/add").build().toUriString(),
                 HttpMethod.POST, entity, String.class);
-        // Return data.
-        UserApiDTO user = new UserApiDTO();
-        user.setLoginProvider(userApiDTO.getLoginProvider());
-        user.setUsername(userApiDTO.getUsername());
-        user.setRoleName(userApiDTO.getRoleName());
-        user.setScope(userApiDTO.getScope());
-        user.setUuid(userApiDTO.getUuid());
-        return user;
+            // Return data.
+            UserApiDTO user = new UserApiDTO();
+            user.setLoginProvider(userApiDTO.getLoginProvider());
+            user.setUsername(userApiDTO.getUsername());
+            user.setRoleName(userApiDTO.getRoleName());
+            user.setScope(userApiDTO.getScope());
+            user.setUuid(userApiDTO.getUuid());
+            AuditLog.newEntry(AuditAction.CREATE_USER,
+                String.format("Created new user %s", userApiDTO.getUsername()), true)
+                .targetName(userApiDTO.getUsername())
+                .audit();
+            return user;
+        } catch (RuntimeException e) {
+            // Intercept the possible exception for auditing
+            AuditLog.newEntry(AuditAction.CREATE_USER,
+                String.format("Failed to create user s%", userApiDTO.getUsername()), false)
+                .targetName(userApiDTO.getUsername())
+                .audit();
+            // rethrowing it
+            throw e;
+        }
     }
 
     /**
@@ -294,22 +314,41 @@ public class UsersService implements IUsersService {
      * @throws Exception In the case of any error performing the user's data modification.
      */
     private UserApiDTO setUserRoles(final @Nonnull UserApiDTO userApiDTO) throws Exception {
-        UriComponentsBuilder builder = baseRequest().path("/users/setroles");
-        AuthUserDTO dto = UserMapper.toAuthUserDTONoPassword(userApiDTO);
-        // Call AUTH component to perform the action.
-        // Make sure that the currently authenticated user's token is present.
-        HttpHeaders headers = composeHttpHeaders();
-        HttpEntity<AuthUserDTO> entity = new HttpEntity<>(dto, headers);
-        // spring throws exception for error HttpStatus code like 4xx and 5xx, which will be
-        // handled in GlobalExceptionHandler
-        restTemplate_.exchange(builder.build().toUriString(), HttpMethod.PUT, entity, String.class);
-        // Return data.
-        UserApiDTO user = new UserApiDTO();
-        user.setUsername(userApiDTO.getUsername());
-        user.setRoleName(userApiDTO.getRoleName());
-        user.setScope(userApiDTO.getScope());
-        user.setUuid(userApiDTO.getUuid());
-        return user;
+        try {
+            UriComponentsBuilder builder = baseRequest().path("/users/setroles");
+            AuthUserDTO dto = UserMapper.toAuthUserDTONoPassword(userApiDTO);
+            // Call AUTH component to perform the action.
+            // Make sure that the currently authenticated user's token is present.
+            HttpHeaders headers = composeHttpHeaders();
+            HttpEntity<AuthUserDTO> entity = new HttpEntity<>(dto, headers);
+            // spring throws exception for error HttpStatus code like 4xx and 5xx, which will be
+            // handled in GlobalExceptionHandler
+            restTemplate_.exchange(builder.build().toUriString(), HttpMethod.PUT, entity, String.class);
+            // Return data.
+            UserApiDTO user = new UserApiDTO();
+            user.setUsername(userApiDTO.getUsername());
+            user.setRoleName(userApiDTO.getRoleName());
+            user.setScope(userApiDTO.getScope());
+            user.setUuid(userApiDTO.getUuid());
+            final String details = String.format(PERMISSION_CHANGED,
+                userApiDTO.getRoleName() != null ? userApiDTO.getRoleName().toLowerCase() : "",
+                userApiDTO.getScope() != null && !userApiDTO.getScope().isEmpty() ?
+                    userApiDTO.getScope().toString().toLowerCase() : NOT_ASSIGNED);
+            AuditLog.newEntry(AuditAction.CHANGE_ROLE,
+                details, true)
+                .targetName(userApiDTO.getUsername())
+                .audit();
+            return user;
+        } catch (RuntimeException e) {
+            // Intercept the possible exception for auditing
+            final String details = String.format("Failed to change permissions");
+            AuditLog.newEntry(AuditAction.CHANGE_ROLE,
+                details, false)
+                .targetName(userApiDTO.getUsername())
+                .audit();
+            // rethrowing it
+            throw e;
+        }
     }
 
     /**
@@ -321,24 +360,38 @@ public class UsersService implements IUsersService {
      * @throws Exception In the case of any error performing the user's data modification.
      */
     private UserApiDTO setLocalUserPassword(final @Nonnull UserApiDTO userApiDTO) throws Exception {
-        UriComponentsBuilder builder = baseRequest().path("/users/setpassword");
-        // Call AUTH component to perform the action.
-        AuthUserModifyDTO dto = new AuthUserModifyDTO(UserMapper.toAuthUserDTONoPassword(userApiDTO),
-                    userApiDTO.getPassword());
+        try {
+            UriComponentsBuilder builder = baseRequest().path("/users/setpassword");
+            // Call AUTH component to perform the action.
+            AuthUserModifyDTO dto = new AuthUserModifyDTO(UserMapper.toAuthUserDTONoPassword(userApiDTO),
+                userApiDTO.getPassword());
 
-        // Perform the call.
-        // Make sure that the currently authenticated user's token is present.
-        HttpHeaders headers = composeHttpHeaders();
-        HttpEntity<AuthUserModifyDTO> entity = new HttpEntity<>(dto, headers);
-        restTemplate_.exchange(builder.build().toUriString(), HttpMethod.PUT, entity,
-                               Void.class);
-        // Return data.
-        UserApiDTO user = new UserApiDTO();
-        user.setUsername(userApiDTO.getUsername());
-        user.setRoleName(userApiDTO.getRoleName());
-        user.setScope(userApiDTO.getScope());
-        user.setUuid(userApiDTO.getUuid());
-        return user;
+            // Perform the call.
+            // Make sure that the currently authenticated user's token is present.
+            HttpHeaders headers = composeHttpHeaders();
+            HttpEntity<AuthUserModifyDTO> entity = new HttpEntity<>(dto, headers);
+            restTemplate_.exchange(builder.build().toUriString(), HttpMethod.PUT, entity,
+                Void.class);
+            // Return data.
+            UserApiDTO user = new UserApiDTO();
+            user.setUsername(userApiDTO.getUsername());
+            user.setRoleName(userApiDTO.getRoleName());
+            user.setScope(userApiDTO.getScope());
+            user.setUuid(userApiDTO.getUuid());
+            final String details = String.format("User %s password changed", userApiDTO.getUsername());
+            AuditLog.newEntry(AuditAction.CHANGE_PASSWORD,
+                details, true)
+                .targetName(userApiDTO.getUsername())
+                .audit();
+            return user;
+        } catch (RuntimeException e) {
+            final String details = "Failed to change user password";
+            AuditLog.newEntry(AuditAction.CHANGE_PASSWORD,
+                details, false)
+                .targetName(userApiDTO.getUsername())
+                .audit();
+            throw e;
+        }
     }
 
     /**
@@ -372,17 +425,33 @@ public class UsersService implements IUsersService {
      */
     @Override
     public Boolean deleteUser(String uuid) {
-        String request = baseRequest().path("/users/remove/" + uuid).build().toUriString();
-        HttpEntity<AuthUserDTO> entity = new HttpEntity<>(composeHttpHeaders());
         try {
-            restTemplate_.exchange(request, HttpMethod.DELETE, entity, Void.class);
-        } catch (Exception e) {
-            logger_.error("Unable to remove user {}", uuid, e.getCause());
-            throw new IllegalArgumentException("Unable to remove user " + uuid, e.getCause());
+            String request = baseRequest().path("/users/remove/" + uuid).build().toUriString();
+            HttpEntity<AuthUserDTO> entity = new HttpEntity<>(composeHttpHeaders());
+            try {
+                final ResponseEntity<AuthUserDTO> result = restTemplate_.exchange(request,
+                    HttpMethod.DELETE, entity, AuthUserDTO.class);
+                final String userName = result.getBody() != null ? result.getBody().getUser() : "";
+                final String details = String.format("Deleted user %s", userName);
+                AuditLog.newEntry(AuditAction.DELETE_USER,
+                    details, true)
+                    .targetName(userName)
+                    .audit();
+            } catch (Exception e) {
+                logger_.error("Unable to remove user {}", uuid, e.getCause());
+                throw new IllegalArgumentException("Unable to remove user " + uuid, e.getCause());
+            }
+            widgetsetsService.transferWidgetsets(uuid);
+            expireActiveSessions(uuid);
+
+            return Boolean.TRUE;
+        } catch (RuntimeException e) {
+            final String details = String.format("Failed to delete user %s", uuid);
+            AuditLog.newEntry(AuditAction.DELETE_USER, details, false)
+                .targetName(uuid)
+                .audit();
+            throw e;
         }
-        widgetsetsService.transferWidgetsets(uuid);
-        expireActiveSessions(uuid);
-        return Boolean.TRUE;
     }
 
     // Expire active sessions
@@ -563,12 +632,26 @@ public class UsersService implements IUsersService {
     @Override
     public ActiveDirectoryApiDTO createActiveDirectory(
             final ActiveDirectoryApiDTO inputDTO) {
-        final String request = baseRequest().path("/users/ad").build().toUriString();
-        HttpEntity<ActiveDirectoryDTO> entity = new HttpEntity<>(convertADInfoToAuth(inputDTO),
-                                                                 composeHttpHeaders());
-        Class<ActiveDirectoryDTO> clazz = ActiveDirectoryDTO.class;
-        return convertADInfoFromAuth(restTemplate_.exchange(request, HttpMethod.POST,
-                                                            entity, clazz).getBody());
+        try {
+            final String request = baseRequest().path("/users/ad").build().toUriString();
+            HttpEntity<ActiveDirectoryDTO> entity = new HttpEntity<>(convertADInfoToAuth(inputDTO),
+                composeHttpHeaders());
+            Class<ActiveDirectoryDTO> clazz = ActiveDirectoryDTO.class;
+            final String details = String.format("Set LDAP domain to: %s", inputDTO.getDomainName());
+            AuditLog.newEntry(AuditAction.SET_LDAP,
+                details, true)
+                .targetName("LDAP SERVICE")
+                .audit();
+            return convertADInfoFromAuth(restTemplate_.exchange(request, HttpMethod.POST,
+                entity, clazz).getBody());
+        } catch (RuntimeException e) {
+            final String details = String.format("Failed to set LDAP domain to: %s", inputDTO.getDomainName());
+            AuditLog.newEntry(AuditAction.SET_LDAP,
+                details, false)
+                .targetName("LDAP SERVICE")
+                .audit();
+            throw e;
+        }
     }
 
     /**
@@ -612,21 +695,37 @@ public class UsersService implements IUsersService {
     @Override
     public ActiveDirectoryGroupApiDTO createActiveDirectoryGroup(
             final ActiveDirectoryGroupApiDTO adGroupInputDto) {
-        UriComponentsBuilder builder = baseRequest().path("/users/ad/groups");
-        String request = builder.build().toUriString();
-        HttpHeaders headers = composeHttpHeaders();
-        HttpEntity<SecurityGroupDTO> entity;
-        entity = new HttpEntity<>(convertGroupInfoToAuth(adGroupInputDto), headers);
-        Class<SecurityGroupDTO> clazz = SecurityGroupDTO.class;
-        // create a group oid -> object map for the conversion on the way back
-        Map<Long, GroupApiDTO> groupApiDTOMap = new HashMap<>();
-        if (adGroupInputDto.getScope() != null) {
-            adGroupInputDto.getScope().forEach(groupApiDTO ->
+        try {
+            UriComponentsBuilder builder = baseRequest().path("/users/ad/groups");
+            String request = builder.build().toUriString();
+            HttpHeaders headers = composeHttpHeaders();
+            HttpEntity<SecurityGroupDTO> entity;
+            entity = new HttpEntity<>(convertGroupInfoToAuth(adGroupInputDto), headers);
+            Class<SecurityGroupDTO> clazz = SecurityGroupDTO.class;
+            // create a group oid -> object map for the conversion on the way back
+            Map<Long, GroupApiDTO> groupApiDTOMap = new HashMap<>();
+            if (adGroupInputDto.getScope() != null) {
+                adGroupInputDto.getScope().forEach(groupApiDTO ->
                     groupApiDTOMap.put(Long.valueOf(groupApiDTO.getUuid()), groupApiDTO));
-        }
-        return convertGroupInfoFromAuth(
+            }
+            final String details = String.format("Created external group: %s with role: %s",
+                adGroupInputDto.getDisplayName(), adGroupInputDto.getRoleName());
+            AuditLog.newEntry(AuditAction.CREATE_GROUP,
+                details, true)
+                .targetName("EXTERNAL GROUP")
+                .audit();
+            return convertGroupInfoFromAuth(
                 restTemplate_.exchange(request, HttpMethod.POST, entity, clazz).getBody(),
                 groupApiDTOMap);
+        } catch (RuntimeException e) {
+            final String details = String.format("Failed to create external group: %s with role: %s",
+                adGroupInputDto.getDisplayName(), adGroupInputDto.getRoleName());
+            AuditLog.newEntry(AuditAction.CREATE_GROUP,
+                details, false)
+                .targetName("EXTERNAL GROUP")
+                .audit();
+            throw e;
+        }
     }
 
     /**
@@ -638,18 +737,34 @@ public class UsersService implements IUsersService {
     @Override
     public ActiveDirectoryGroupApiDTO changeActiveDirectoryGroup(
             final ActiveDirectoryGroupApiDTO adGroupInputDto) {
-        String request = baseRequest().path("/users/ad/groups").build().toUriString();
-        HttpEntity<SecurityGroupDTO> entity = new HttpEntity<>(
-            convertGroupInfoToAuth(adGroupInputDto), composeHttpHeaders());
-        // create a group oid -> object map for the conversion on the way back
-        Map<Long, GroupApiDTO> groupApiDTOMap = new HashMap<>();
-        if (adGroupInputDto.getScope() != null) {
-            adGroupInputDto.getScope().forEach(groupApiDTO ->
-                groupApiDTOMap.put(Long.valueOf(groupApiDTO.getUuid()), groupApiDTO));
+        try {
+            String request = baseRequest().path("/users/ad/groups").build().toUriString();
+            HttpEntity<SecurityGroupDTO> entity = new HttpEntity<>(
+                convertGroupInfoToAuth(adGroupInputDto), composeHttpHeaders());
+            // create a group oid -> object map for the conversion on the way back
+            Map<Long, GroupApiDTO> groupApiDTOMap = new HashMap<>();
+            if (adGroupInputDto.getScope() != null) {
+                adGroupInputDto.getScope().forEach(groupApiDTO ->
+                    groupApiDTOMap.put(Long.valueOf(groupApiDTO.getUuid()), groupApiDTO));
+            }
+            final String details = String.format("Created external group: %s with role: %s",
+                adGroupInputDto.getDisplayName(), adGroupInputDto.getRoleName());
+            AuditLog.newEntry(AuditAction.CREATE_GROUP,
+                details, true)
+                .targetName("EXTERNAL GROUP")
+                .audit();
+            return convertGroupInfoFromAuth(
+                restTemplate_.exchange(request, HttpMethod.PUT, entity, SecurityGroupDTO.class).getBody(),
+                groupApiDTOMap);
+        } catch (RuntimeException e) {
+            final String details = String.format("Failed to create external group: %s with role: %s",
+                adGroupInputDto.getDisplayName(), adGroupInputDto.getRoleName());
+            AuditLog.newEntry(AuditAction.CREATE_GROUP,
+                details, false)
+                .targetName("EXTERNAL GROUP")
+                .audit();
+            throw e;
         }
-        return convertGroupInfoFromAuth(
-            restTemplate_.exchange(request, HttpMethod.PUT, entity, SecurityGroupDTO.class).getBody(),
-            groupApiDTOMap);
     }
 
     /**
@@ -660,10 +775,24 @@ public class UsersService implements IUsersService {
      */
     @Override
     public Boolean deleteActiveDirectoryGroup(final String groupName) {
-        UriComponentsBuilder builder = baseRequest().path("/users/ad/groups/" + groupName);
-        final String request = builder.build().toUriString();
-        HttpEntity<Boolean> entity = new HttpEntity<>(composeHttpHeaders());
-        return restTemplate_.exchange(request, HttpMethod.DELETE, entity, Boolean.class).getBody();
+        try {
+            UriComponentsBuilder builder = baseRequest().path("/users/ad/groups/" + groupName);
+            final String request = builder.build().toUriString();
+            HttpEntity<Boolean> entity = new HttpEntity<>(composeHttpHeaders());
+            final String details = String.format("Delete external group: %s", groupName);
+            AuditLog.newEntry(AuditAction.DELETE_GROUP,
+                details, true)
+                .targetName("EXTERNAL GROUP")
+                .audit();
+            return restTemplate_.exchange(request, HttpMethod.DELETE, entity, Boolean.class).getBody();
+        } catch (RuntimeException e) {
+            final String details = String.format("Failed to delete external group: %s", groupName);
+            AuditLog.newEntry(AuditAction.DELETE_GROUP,
+                details, false)
+                .targetName("EXTERNAL GROUP")
+                .audit();
+            throw e;
+        }
     }
 
     @Override

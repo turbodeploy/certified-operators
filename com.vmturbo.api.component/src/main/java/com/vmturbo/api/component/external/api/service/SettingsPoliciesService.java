@@ -26,6 +26,8 @@ import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ISettingsPoliciesService;
+import com.vmturbo.auth.api.auditing.AuditAction;
+import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
@@ -160,10 +162,20 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
         final CreateSettingPolicyResponse response;
         try {
             response = settingPolicyService.createSettingPolicy(
-                    CreateSettingPolicyRequest.newBuilder()
-                            .setSettingPolicyInfo(policyInfo)
-                            .build());
+                CreateSettingPolicyRequest.newBuilder()
+                    .setSettingPolicyInfo(policyInfo)
+                    .build());
+            final String details = String.format("Created policy %s", settingPolicy.getDisplayName());
+            AuditLog.newEntry(AuditAction.CREATE_POLICY,
+                details, true)
+                .targetName(settingPolicy.getDisplayName())
+                .audit();
         } catch (StatusRuntimeException e) {
+            final String details = String.format("Failed to create policy %s", settingPolicy.getDisplayName());
+            AuditLog.newEntry(AuditAction.CREATE_POLICY,
+                details, false)
+                .targetName(settingPolicy.getDisplayName())
+                .audit();
             if (e.getStatus().getCode().equals(Code.ALREADY_EXISTS)) {
                 throw new OperationFailedException(e.getStatus().getDescription());
             } else if (e.getStatus().getCode().equals(Code.INVALID_ARGUMENT)) {
@@ -226,8 +238,18 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
                                             .setNewInfo(policyInfo)
                                             .build());
                     editedPolicy = response.getSettingPolicy();
-                }
+            }
+            final String details = String.format("Changed policy %s", settingPolicy.getDisplayName());
+            AuditLog.newEntry(AuditAction.CHANGE_POLICY,
+                details, true)
+                .targetName(settingPolicy.getDisplayName())
+                .audit();
         } catch (StatusRuntimeException e) {
+            final String details = String.format("Failed to change policy %s", settingPolicy.getDisplayName());
+            AuditLog.newEntry(AuditAction.CHANGE_POLICY,
+                details, false)
+                .targetName(settingPolicy.getDisplayName())
+                .audit();
             if (e.getStatus().getCode().equals(Code.ALREADY_EXISTS)) {
                 throw new OperationFailedException(e.getStatus().getDescription());
             } else if (e.getStatus().getCode().equals(Code.INVALID_ARGUMENT)) {
@@ -244,8 +266,22 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
 
     private SettingsPolicyApiDTO editGlobalActionModeSetting(boolean setDefault, SettingsPolicyApiDTO settingPolicy)
                     throws OperationFailedException {
-        settingsMapper.updateGlobalActionModeSetting(setDefault, settingPolicy);
-        return settingsMapper.convertSettingPolicy(createSettingPolicyForGlobalActionMode());
+        try {
+            settingsMapper.updateGlobalActionModeSetting(setDefault, settingPolicy);
+            final String details = String.format("Changed policy %s", settingPolicy.getDisplayName());
+            AuditLog.newEntry(AuditAction.CHANGE_POLICY,
+                details, true)
+                .targetName(settingPolicy.getDisplayName())
+                .audit();
+            return settingsMapper.convertSettingPolicy(createSettingPolicyForGlobalActionMode());
+        } catch (RuntimeException e) {
+            final String details = String.format("Failed to change policy %s", settingPolicy.getDisplayName());
+            AuditLog.newEntry(AuditAction.CHANGE_POLICY,
+                details, false)
+                .targetName(settingPolicy.getDisplayName())
+                .audit();
+            throw e;
+        }
     }
 
     @Override
@@ -256,7 +292,17 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
                 DeleteSettingPolicyRequest.newBuilder()
                     .setId(id)
                     .build());
+            final String details = String.format("Deleted policy with uuid: %s", uuid);
+            AuditLog.newEntry(AuditAction.DELETE_POLICY,
+                details, true)
+                .targetName(uuid)
+                .audit();
         } catch (StatusRuntimeException e) {
+            final String details = String.format("Failed to delete policy with uuid: %s", uuid);
+            AuditLog.newEntry(AuditAction.DELETE_POLICY,
+                details, false)
+                .targetName(uuid)
+                .audit();
             if (e.getStatus().getCode().equals(Code.INVALID_ARGUMENT)) {
                 throw new InvalidOperationException(e.getStatus().getDescription());
             } else if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {

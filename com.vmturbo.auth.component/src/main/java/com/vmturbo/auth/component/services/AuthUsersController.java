@@ -2,6 +2,7 @@ package com.vmturbo.auth.component.services;
 
 import java.net.URLDecoder;
 import java.util.List;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -287,13 +288,15 @@ public class AuthUsersController {
                     method = RequestMethod.DELETE,
                     produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
-    public void removeUser(
+    public AuthUserDTO removeUser(
             @ApiParam(value = "The user UUID", required = true)
             @PathVariable("uuid") String uuid)
             throws Exception {
-        boolean success = targetStore_.remove(uuid);
-        if (!success) {
+        final Optional<AuthUserDTO> authUserDTO = targetStore_.remove(uuid);
+        if (!authUserDTO.isPresent()) {
             throw new SecurityException("Unable to remove user: " + uuid);
+        } else {
+            return authUserDTO.get();
         }
     }
 
