@@ -33,7 +33,6 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
-import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -961,5 +960,92 @@ public class TopologyFilterFactoryTest {
 
         assertTrue(propertyFilter.test(entity1));
         assertFalse(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testDiscoveringTargetFilter() {
+        final TestGraphEntity entity = TestGraphEntity.newBuilder(1L, UIEntityType.APPLICATION)
+                                           .addTarget(1L)
+                                           .build();
+        final PropertyFilter<TestGraphEntity> filter1 =
+            makeDiscoveringTargetFilter(StringFilter.newBuilder()
+                                            .setStringPropertyRegex(".*")
+                                            .build());
+        final PropertyFilter<TestGraphEntity> filter2 =
+            makeDiscoveringTargetFilter(StringFilter.newBuilder()
+                                            .setStringPropertyRegex(".*")
+                                            .setPositiveMatch(false)
+                                            .build());
+        final PropertyFilter<TestGraphEntity> filter3 =
+            makeDiscoveringTargetFilter(StringFilter.newBuilder()
+                                            .setStringPropertyRegex(".*")
+                                            .setCaseSensitive(true)
+                                            .build());
+        final PropertyFilter<TestGraphEntity> filter4 =
+            makeDiscoveringTargetFilter(StringFilter.newBuilder()
+                                            .addOptions("2")
+                                            .addOptions("3")
+                                            .build());
+        final PropertyFilter<TestGraphEntity> filter5 =
+            makeDiscoveringTargetFilter(StringFilter.newBuilder()
+                                            .addOptions("2")
+                                            .addOptions("1")
+                                            .build());
+        final PropertyFilter<TestGraphEntity> filter6 =
+            makeDiscoveringTargetFilter(StringFilter.newBuilder()
+                                            .addOptions("1")
+                                            .setPositiveMatch(false)
+                                            .build());
+        final PropertyFilter<TestGraphEntity> filter7 =
+            makeDiscoveringTargetFilter(StringFilter.newBuilder()
+                                            .addOptions("2")
+                                            .build());
+        final PropertyFilter<TestGraphEntity> filter8 =
+            makeDiscoveringTargetFilter(StringFilter.newBuilder()
+                                            .addOptions("1")
+                                            .build());
+        final PropertyFilter<TestGraphEntity> filter9 =
+            makeDiscoveringTargetFilter(NumericFilter.newBuilder()
+                                            .setValue(2)
+                                            .setComparisonOperator(ComparisonOperator.EQ)
+                                            .build());
+        final PropertyFilter<TestGraphEntity> filter10 =
+            makeDiscoveringTargetFilter(NumericFilter.newBuilder()
+                                            .setValue(1)
+                                            .setComparisonOperator(ComparisonOperator.EQ)
+                                            .build());
+
+        assertTrue(filter1.test(entity));
+        assertFalse(filter2.test(entity));
+        assertTrue(filter3.test(entity));
+        assertFalse(filter4.test(entity));
+        assertTrue(filter5.test(entity));
+        assertFalse(filter6.test(entity));
+        assertFalse(filter7.test(entity));
+        assertTrue(filter8.test(entity));
+        assertFalse(filter9.test(entity));
+        assertTrue(filter10.test(entity));
+    }
+
+    private PropertyFilter<TestGraphEntity> makeDiscoveringTargetFilter(StringFilter stringFilter) {
+        return (PropertyFilter)filterFactory.filterFor(
+                                 SearchFilter.newBuilder()
+                                   .setPropertyFilter(
+                                      Search.PropertyFilter.newBuilder()
+                                          .setPropertyName(SearchableProperties.DISCOVERED_BY_TARGET)
+                                          .setListFilter(ListFilter.newBuilder()
+                                                            .setStringFilter(stringFilter)))
+                                   .build());
+    }
+
+    private PropertyFilter<TestGraphEntity> makeDiscoveringTargetFilter(NumericFilter numericFilter) {
+        return (PropertyFilter)filterFactory.filterFor(
+                SearchFilter.newBuilder()
+                        .setPropertyFilter(
+                                Search.PropertyFilter.newBuilder()
+                                        .setPropertyName(SearchableProperties.DISCOVERED_BY_TARGET)
+                                        .setListFilter(ListFilter.newBuilder()
+                                                .setNumericFilter(numericFilter)))
+                        .build());
     }
 }

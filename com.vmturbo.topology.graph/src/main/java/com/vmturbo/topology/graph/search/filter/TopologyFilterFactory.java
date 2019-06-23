@@ -373,6 +373,26 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                     }
                 }
             }
+        } else if (propertyName.equals(SearchableProperties.DISCOVERED_BY_TARGET)) {
+            // if the original request contains a string filter with a single option
+            // or it contains a numerical filter,
+            // then the newly created property filter will be numerical
+            if ((listCriteria.hasNumericFilter()
+                    && listCriteria.getNumericFilter().getComparisonOperator() == ComparisonOperator.EQ) ||
+                 (listCriteria.hasStringFilter() && listCriteria.getStringFilter().getOptionsCount() == 1)
+                    && listCriteria.getStringFilter().getPositiveMatch()) {
+                long targetId = listCriteria.hasStringFilter() ?
+                        Long.valueOf(listCriteria.getStringFilter().getOptions(0)) :
+                        listCriteria.getNumericFilter().getValue();
+                return new PropertyFilter<>(entity ->
+                             entity.getDiscoveringTargetIds().anyMatch(t -> targetId == t));
+            } else if (listCriteria.hasStringFilter()) {
+                return new PropertyFilter<>(entity ->
+                             entity.getDiscoveringTargetIds()
+                                 .map(t -> Long.toString(t))
+                                 .anyMatch(
+                                     makeCaseSensitivePredicate(listCriteria.getStringFilter())::test));
+            }
         }
 
         throw new IllegalArgumentException("Unknown property: " + propertyName + " for ListFilter "
@@ -568,10 +588,34 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
     }
 
     /**
+     * Takes a {@link StringFilter} and returns an case-sensitive string predicate counterpart.
+     * Case-sensitivity of the {@link StringFilter} object is ignored.
+     *
+     * @param stringFilter the {@link StringFilter} object.
+     * @return the equivalent string predicate.
+     */
+    private static Predicate<String> makeCaseSensitivePredicate(@Nonnull StringFilter stringFilter) {
+        if (stringFilter.hasStringPropertyRegex() && !stringFilter.getStringPropertyRegex().isEmpty()) {
+            final Pattern pattern = Pattern.compile(stringFilter.getStringPropertyRegex());
+            return stringFilter.getPositiveMatch() ?
+                     string -> pattern.matcher(string).find() :
+                     string -> !pattern.matcher(string).find();
+        } else if (stringFilter.getOptionsList() != null) {
+            return stringFilter.getPositiveMatch() ?
+                     string -> stringFilter.getOptionsList().contains(string) :
+                     string -> !stringFilter.getOptionsList().contains(string);
+        }
+
+        throw new IllegalArgumentException(
+                "Cannot transform to predicate the string filter " + stringFilter);
+    }
+
+    /**
      * Compose a string-based predicate for use in a string filter that filters based on a regex.
      *
      * @param regex The regular expression to use when filtering entities.
-     * @param propertyLookup The function to use to lookup an int-value from a given {@link TopologyGraphEntity}.
+     * @param propertyLookup The function to use to lookup a string value
+     *                       from a given {@link TopologyGraphEntity}.
      * @param negate If true, return the opposite of the match. That is, if true return false
      *               if the match succeeds. If false, return the same as the match.
      * @param caseSensitive If true, match the case of the regex. If false, do a case-insensitive comparison.
@@ -588,6 +632,17 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
             entity -> pattern.matcher(propertyLookup.apply(entity)).find();
     }
 
+    /**
+     * Compose a string-based predicate for use in a string filter that filters based on options.
+     *
+     * @param options The options for the string.
+     * @param propertyLookup The function to use to lookup an string value
+     *                       from a given {@link TopologyGraphEntity}.
+     * @param negate If true, return the opposite of the match. That is, if true return false
+     *               if the match succeeds. If false, return the same as the match.
+     * @param caseSensitive If true, match the case of the regex. If false, do a case-insensitive comparison.
+     * @return A predicate.
+     */
     @Nonnull
     private Predicate<E> stringOptionsPredicate(final Collection<String> options,
                                                 @Nonnull final Function<E, String> propertyLookup,

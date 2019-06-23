@@ -192,6 +192,10 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
             return this;
         }
 
+        public Builder addTarget(@Nonnull final long target) {
+            entity.discoveringTargetIds.add(target);
+            return this;
+        }
 
         @Override
         public void clearConsumersAndProviders() {
