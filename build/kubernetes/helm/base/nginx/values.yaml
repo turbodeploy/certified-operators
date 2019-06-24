@@ -15,9 +15,9 @@ env:
   - name: instance_id
     value: nginx-1
   - name: WORKER_CONNECTIONS
-    value: "1024"
+    value: "512"
   - name: WORKER_PROCESSES
-    value: "1"
+    value: "2"
 
 resources: {}
 
