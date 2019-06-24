@@ -195,7 +195,7 @@ public class ClusterMgrServiceTest {
         // create the new instance
         verify(consulServiceMock, times(1)).keyExist(componentInstanceKeyStem);
         verify(consulServiceMock, times(1)).putValue(componentInstanceKeyStem);
-        verify(consulServiceMock, times(1)).getKeys(componentInstanceKeyStem);
+        verify(consulServiceMock, times(1)).getKeys(defaultPropertiesKeyStem);
 
         // fetch the values
         verify(consulServiceMock).getKeys(defaultPropertiesKeyStem);
