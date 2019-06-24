@@ -18,3 +18,24 @@ spec:
     repository: turbonomic
     tag: 7.19.0-SNAPSHOT
     externalIP: 10.0.2.15
+  vcenter:
+    enabled: true
+  hyperv:
+    enabled: true
+  actionscript:
+    enabled: true
+  netapp:
+    enabled: true
+  pure:
+    enabled: true
+  oneview:
+    enabled: true
+  ucs:
+    enabled: true
+  hpe3par:
+    enabled: true
+  vmax:
+    enabled: true
+  vmm:
+    enabled: true
+
