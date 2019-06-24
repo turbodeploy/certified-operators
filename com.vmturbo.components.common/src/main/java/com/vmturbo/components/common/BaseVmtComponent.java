@@ -695,6 +695,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         final ComponentPropertiesDTO defaultComponentProperties = new ComponentPropertiesDTO();
         defaultProperties.forEach((defaultKey, defaultValue) ->
             defaultComponentProperties.put(defaultKey.toString(), defaultValue.toString()));
+        defaultComponentProperties.put(PROP_INSTANCE_ID, instanceId);
         int tryCount = 1;
         do {
             try {

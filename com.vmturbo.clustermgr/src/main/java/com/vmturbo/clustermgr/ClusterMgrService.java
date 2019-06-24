@@ -277,25 +277,16 @@ public class ClusterMgrService {
      * @param componentType name of the VMT Component type of the new instance
      * @return the unique ID of the new instance or {@code null} if the instance already exist
      */
-    private String addComponentInstance(String componentType) {
-        // TODO: get the current count of instances & increment...with locking.
-        int nextInstance = 1;
-        String newInstanceId = componentType + '-' + nextInstance;
-        String newInstanceKey = getComponentInstanceKey(componentType, newInstanceId);
+    private void addComponentInstance(String componentType, String componentInstanceId) {
+        String newInstanceKey = getComponentInstanceKey(componentType, componentInstanceId);
         // check for previously existing component instance with this ID. TODO: this should be done with locking
         try {
-            if (consulService.keyExist(newInstanceKey)) {
-                return null;
+            if (!consulService.keyExist(newInstanceKey)) {
+                consulService.putValue(newInstanceKey);
             }
         } catch (NotFoundException e) {
             // Could return 404.
             log.info("The component instance " + newInstanceKey + " is not yet found.");
-        }
-        consulService.putValue(newInstanceKey);
-        if (consulService.getKeys(newInstanceKey).size() != 1) {
-            return null;
-        } else {
-            return newInstanceId;
         }
     }
 
@@ -1070,7 +1061,11 @@ public class ClusterMgrService {
         addComponentType(componentType);
 
         // ensure at least one instance for this Component type if doesn't exists
-        addComponentInstance(componentType);
+        if (newComponentDefaultProperties.containsKey("instance_id")) {
+            addComponentInstance(componentType, newComponentDefaultProperties.get("instance_id"));
+        } else {
+            addComponentInstance(componentType, componentType + "-1");
+        }
 
         // store those as the new component defaults
         final String componentDefaultsKeyPrefix = getComponentDefaultsKey(componentType);
