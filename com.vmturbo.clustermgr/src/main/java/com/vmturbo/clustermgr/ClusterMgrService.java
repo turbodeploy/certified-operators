@@ -30,6 +30,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.ws.rs.NotFoundException;
 
+import com.vmturbo.components.common.BaseVmtComponent;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpEntity;
@@ -1061,8 +1062,8 @@ public class ClusterMgrService {
         addComponentType(componentType);
 
         // ensure at least one instance for this Component type if doesn't exists
-        if (newComponentDefaultProperties.containsKey("instance_id")) {
-            addComponentInstance(componentType, newComponentDefaultProperties.get("instance_id"));
+        if (newComponentDefaultProperties.containsKey(BaseVmtComponent.PROP_INSTANCE_ID)) {
+            addComponentInstance(componentType, newComponentDefaultProperties.get(BaseVmtComponent.PROP_INSTANCE_ID));
         } else {
             addComponentInstance(componentType, componentType + "-1");
         }
