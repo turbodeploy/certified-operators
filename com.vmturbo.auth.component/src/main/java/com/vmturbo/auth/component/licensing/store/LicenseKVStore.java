@@ -221,7 +221,7 @@ public class LicenseKVStore implements ILicenseStore {
         Optional<String> existingLicense = getKVValue(key);
         if (existingLicense.isPresent()) {
             synchronized (storeLock_) {
-                keyValueStore_.remove(key);
+                keyValueStore_.removeKeysWithPrefix(key);
             }
             return true;
         }

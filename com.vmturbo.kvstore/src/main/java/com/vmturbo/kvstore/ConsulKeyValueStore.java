@@ -134,9 +134,17 @@ public class ConsulKeyValueStore implements KeyValueStore {
     /** {@inheritDoc}
      */
     @Override
-    public void remove(@Nonnull final String key) {
+    public void removeKeysWithPrefix(@Nonnull final String prefix) {
+        // TODO revisit the endless retry with performKeyValueOperation method.
         // KeyValueClient::deleteKVValues allows deleting values or directories
-        performKeyValueOperation(() -> consul.deleteKVValues(fullKey(key)));
+        performKeyValueOperation(() -> consul.deleteKVValues(fullKey(prefix)));
+    }
+
+    /** {@inheritDoc}
+     */
+    @Override
+    public void removeKey(@Nonnull final String key) {
+       performKeyValueOperation(() -> consul.deleteKVValue(fullKey(key)));
     }
 
     /** {@inheritDoc}

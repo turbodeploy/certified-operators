@@ -526,7 +526,7 @@ public class SchedulerTest {
     @Test
     public void testCancelBroadcastScheduleDeletesPersistedSchedule() throws Exception {
         scheduler.cancelBroadcastSchedule();
-        verify(keyValueStore).remove(scheduleKey(Scheduler.BROADCAST_SCHEDULE_KEY));
+        verify(keyValueStore).removeKeysWithPrefix(scheduleKey(Scheduler.BROADCAST_SCHEDULE_KEY));
     }
 
     @Test

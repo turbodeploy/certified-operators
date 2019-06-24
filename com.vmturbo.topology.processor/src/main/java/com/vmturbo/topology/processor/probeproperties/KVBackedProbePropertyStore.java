@@ -159,7 +159,7 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
         // remove old probe properties under this probe
         for (String name :
                 getProbeSpecificProbeProperties(probeId).map(Entry::getKey).collect(Collectors.toList())) {
-            kvStore.remove(probeSpecific(probeId, name));
+            kvStore.removeKeysWithPrefix(probeSpecific(probeId, name));
         }
 
         // put the new probe properties under this probe
@@ -231,7 +231,7 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
                 getTargetSpecificProbeProperties(probeId, targetId)
                     .map(Entry::getKey)
                     .collect(Collectors.toList())) {
-            kvStore.remove(targetSpecific(targetId, name));
+            kvStore.removeKeysWithPrefix(targetSpecific(targetId, name));
         }
 
         // put the new probe properties under this target
@@ -255,7 +255,7 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
         if (!kvStore.containsKey(kvStoreKey)) {
             throw new ProbeException("Probe property " + key.toString() + " does not exist");
         }
-        kvStore.remove(kvStoreKey);
+        kvStore.removeKeysWithPrefix(kvStoreKey);
     }
 
     /**

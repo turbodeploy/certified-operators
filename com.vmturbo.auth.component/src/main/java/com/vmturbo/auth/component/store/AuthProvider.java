@@ -65,7 +65,6 @@ import com.vmturbo.auth.component.store.sso.SsoUtil;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -356,12 +355,13 @@ public class AuthProvider {
 
     /**
      * Removes the value for the key in the KV store.
+     * It's similar to: consul kv delete key
      *
      * @param key The key.
      */
     private void removeKVKey(final @Nonnull String key) {
         synchronized (storeLock_) {
-            keyValueStore_.remove(key);
+            keyValueStore_.removeKey(key);
         }
     }
 

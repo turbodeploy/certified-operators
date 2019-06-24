@@ -61,9 +61,19 @@ public interface KeyValueStore {
     boolean containsKey(@Nonnull final String key);
 
     /**
+     * Delete keys start with prefix from the key value store. No effect if the key is absent.
+     * It's similar to: consul kv delete -recurse prefix
+     *
+     * @param prefix The key to be deleted
+     */
+    void removeKeysWithPrefix(@Nonnull final String prefix);
+
+
+    /**
      * Delete a key from the key value store. No effect if the key is absent.
+     * It's similar to: consul kv delete key
      *
      * @param key The key to be deleted
      */
-    void remove(@Nonnull final String key);
+    void removeKey(@Nonnull final String key);
 }

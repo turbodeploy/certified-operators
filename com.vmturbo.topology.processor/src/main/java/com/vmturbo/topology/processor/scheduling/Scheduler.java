@@ -717,7 +717,7 @@ public class Scheduler implements TargetStoreListener {
      * @param key The key for the schedule in persistent storage.
      */
     private void deleteScheduleData(@Nonnull String key) {
-        scheduleStore.remove(scheduleKey(key));
+        scheduleStore.removeKeysWithPrefix(scheduleKey(key));
     }
 
     /**

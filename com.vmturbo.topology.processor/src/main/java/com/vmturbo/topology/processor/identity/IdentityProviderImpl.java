@@ -325,7 +325,7 @@ public class IdentityProviderImpl implements IdentityProvider {
                 probeTypeToId.clear();
                 probeTypeToId.putAll(newProbeTypeToId);
                 // Keep Consul in sync with the internal cache
-                keyValueStore.remove(PROBE_ID_PREFIX);
+                keyValueStore.removeKeysWithPrefix(PROBE_ID_PREFIX);
                 probeTypeToId.forEach(this::storeProbeId);
             } catch (JsonSyntaxException e) {
                 throw new IllegalArgumentException(

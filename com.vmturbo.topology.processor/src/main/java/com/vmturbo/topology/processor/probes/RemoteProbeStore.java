@@ -187,7 +187,7 @@ public class RemoteProbeStore implements ProbeStore {
             probeInfos.clear();
             probeInfos.putAll(probeInfoMap);
             // Keep Consul in sync with the internal cache
-            keyValueStore.remove(PROBE_KV_STORE_PREFIX);
+            keyValueStore.removeKeysWithPrefix(PROBE_KV_STORE_PREFIX);
             probeInfos.forEach((probeId, probeInfo) -> {
                 try {
                     storeProbeInfo(probeId, probeInfo);

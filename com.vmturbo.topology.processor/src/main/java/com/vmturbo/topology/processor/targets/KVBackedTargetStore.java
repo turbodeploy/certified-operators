@@ -378,7 +378,7 @@ public class KVBackedTargetStore implements TargetStore {
             if (oldTarget == null) {
                 throw new TargetNotFoundException(targetId);
             }
-            keyValueStore.remove(TARGET_KV_STORE_PREFIX + Long.toString(targetId));
+            keyValueStore.removeKeysWithPrefix(TARGET_KV_STORE_PREFIX + Long.toString(targetId));
             identityStore.removeItemOids(ImmutableSet.of(targetId));
             removeDerivedTargetsRelationships(targetId);
         }

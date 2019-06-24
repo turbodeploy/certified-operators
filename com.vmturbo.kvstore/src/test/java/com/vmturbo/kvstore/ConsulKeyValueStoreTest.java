@@ -152,8 +152,19 @@ public class ConsulKeyValueStoreTest {
      */
     @Test
     public void testRemove() throws Exception {
-        consulKeyValueStore.remove("test");
+        consulKeyValueStore.removeKeysWithPrefix("test");
         Mockito.verify(keyValueClient).deleteKVValues("test/test");
+    }
+
+    /**
+     * Test that removeKey calls the right underlying function.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testRemoveKey() throws Exception {
+        consulKeyValueStore.removeKey("test");
+        Mockito.verify(keyValueClient).deleteKVValue("test/test");
     }
 
     /**
@@ -255,7 +266,7 @@ public class ConsulKeyValueStoreTest {
         Mockito.when(keyValueClient.deleteKVValue(Mockito.any()))
             .thenThrow(new ConsulException("down"));
 
-        Thread removeThread = new Thread(() -> consulKeyValueStore.remove("test"));
+        Thread removeThread = new Thread(() -> consulKeyValueStore.removeKeysWithPrefix("test"));
         removeThread.start();
 
         Thread.sleep(retryIntervalMillis);
