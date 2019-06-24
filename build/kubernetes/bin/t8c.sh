@@ -338,6 +338,7 @@ then
   echo "                   Operator Installation                              "
   echo "######################################################################"
   # See if the operator has an external ip
+  sed -i "s/tag:.*/tag: ${turboVersion}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
   grep -r "externalIP:" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
   result="$?"
   if [ $result -ne 0 ]; then
