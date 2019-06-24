@@ -111,7 +111,7 @@ public class EntitySettingsApplicatorTest {
                     .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(5000))
                     .build();
 
-    private static final Setting.Builder REZISE_SETTING_BUILDER = Setting.newBuilder()
+    private static final Setting.Builder RESIZE_SETTING_BUILDER = Setting.newBuilder()
             .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
 
     private static final TopologyEntityDTO PARENT_OBJECT =
@@ -141,9 +141,9 @@ public class EntitySettingsApplicatorTest {
     @Test
     public void testResizeSettingEnabled() {
         final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(true, false));
-        REZISE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+        RESIZE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
                 .setValue(ActionMode.MANUAL.name()));
-        applySettings(TOPOLOGY_INFO, entity, REZISE_SETTING_BUILDER.build());
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_SETTING_BUILDER.build());
         Assert.assertEquals(true, entity.getCommoditySoldList(0).getIsResizeable());
         Assert.assertEquals(false, entity.getCommoditySoldList(1).getIsResizeable());
     }
@@ -155,9 +155,9 @@ public class EntitySettingsApplicatorTest {
     @Test
     public void testResizeSettingDisabled() {
         final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(true, false));
-        REZISE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+        RESIZE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
                 .setValue(ActionMode.DISABLED.name()));
-        applySettings(TOPOLOGY_INFO, entity, REZISE_SETTING_BUILDER.build());
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_SETTING_BUILDER.build());
         Assert.assertEquals(false, entity.getCommoditySoldList(0).getIsResizeable());
         Assert.assertEquals(false, entity.getCommoditySoldList(1).getIsResizeable());
     }
@@ -605,6 +605,32 @@ public class EntitySettingsApplicatorTest {
 
         // Resizeable unchanged for non default setting of vStorage increment.
         assertTrue(builder.getCommoditySoldListBuilder(0).getIsResizeable());
+    }
+
+    @Test
+    public void testResizeManualForAppServer() {
+        final TopologyEntityDTO.Builder builder =
+                createEntityWithCommodity(EntityType.APPLICATION_SERVER, CommodityType.HEAP);
+        RESIZE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(ActionMode.MANUAL.name()));
+
+        applySettings(TOPOLOGY_INFO, builder, RESIZE_SETTING_BUILDER.build());
+
+        // Resizeable false for default setting of vStorage increment.
+        assertTrue(builder.getCommoditySoldListBuilder(0).getIsResizeable());
+    }
+
+    @Test
+    public void testResizeDisabledForAppServer() {
+        final TopologyEntityDTO.Builder builder =
+                createEntityWithCommodity(EntityType.APPLICATION_SERVER, CommodityType.HEAP);
+        RESIZE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(ActionMode.DISABLED.name()));
+
+        applySettings(TOPOLOGY_INFO, builder, RESIZE_SETTING_BUILDER.build());
+
+        // Resizeable false for default setting of vStorage increment.
+        assertFalse(builder.getCommoditySoldListBuilder(0).getIsResizeable());
     }
 
     /**

@@ -46,7 +46,8 @@ public enum EntitySettingSpecs {
      */
     Resize("resize", "Resize", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
-                            EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
+                            EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
+                            EntityType.APPLICATION_SERVER, EntityType.DATABASE_SERVER), actionExecutionModeSetToManual(), true),
     /**
      * Resize action automation mode for vcpu resizes where the target capacity is above the max threshold value {@link EntitySettingSpecs#ResizeVcpuMaxThreshold}.
      */
@@ -466,7 +467,8 @@ public enum EntitySettingSpecs {
             Collections.singletonList("automation"),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
-                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
+                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
+                    EntityType.APPLICATION_SERVER, EntityType.DATABASE_SERVER),
             string(), true),
 
     /**
@@ -477,7 +479,8 @@ public enum EntitySettingSpecs {
         Collections.singletonList("automation"),
         SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
-                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
+                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
+                    EntityType.APPLICATION_SERVER, EntityType.DATABASE_SERVER),
             string(), true),
 
     /**
@@ -488,7 +491,8 @@ public enum EntitySettingSpecs {
         Collections.singletonList("automation"),
         SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
-                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
+                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
+                    EntityType.APPLICATION_SERVER, EntityType.DATABASE_SERVER),
         string(), true),
 
     /**
