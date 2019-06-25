@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.targets;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -20,6 +21,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import io.grpc.Channel;
+import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
@@ -172,7 +174,7 @@ public class GroupScopeResolver {
                 .setId(Long.parseLong(groupId))
                 .setExpectPresent(true)
                 .build());
-        if (!membersResponse.hasMembers()) {
+        if (!membersResponse.hasMembers() || membersResponse.getMembers().getIdsCount() == 0) {
             logger.warn("Group {} has no members.  "
                     + "No property values will be returned for group scope.", groupId);
             return accountVal;
@@ -253,14 +255,24 @@ public class GroupScopeResolver {
     @Nonnull
     private List<TopologyEntityDTO> retrieveGroupScopedTopologyEntityDTOs(
             @Nonnull final Collection<Long> groupScopedEntitiesOids) {
+        if (groupScopedEntitiesOids.isEmpty()) {
+            // return empty list immediately since repository returns all entities for empty oids
+            return Collections.emptyList();
+        }
         // build search group scoped entities request
         final SearchEntitiesRequest.Builder searchTopologyRequest = SearchEntitiesRequest.newBuilder()
             .setReturnType(Type.FULL)
             .addAllEntityOid(groupScopedEntitiesOids);
-        return RepositoryDTOUtil.topologyEntityStream(searchService.searchEntitiesStream(
+
+        try {
+            return RepositoryDTOUtil.topologyEntityStream(searchService.searchEntitiesStream(
                 searchTopologyRequest.build()))
-            .map(PartialEntity::getFullEntity)
-            .collect(Collectors.toList());
+                .map(PartialEntity::getFullEntity)
+                .collect(Collectors.toList());
+        } catch (StatusRuntimeException e) {
+            logger.error("Unable to fetch entities {} from repository", groupScopedEntitiesOids, e);
+            return Collections.emptyList();
+        }
     }
 
     /**
@@ -278,6 +290,10 @@ public class GroupScopeResolver {
     @Nonnull
     private List<TopologyEntityDTO> retrieveGuestLoadTopologyEntityDTOs(
             @Nonnull final Collection<Long> groupScopedEntitiesOids) {
+        if (groupScopedEntitiesOids.isEmpty()) {
+            // return empty list immediately since repository returns all entities for empty oids
+            return Collections.emptyList();
+        }
         final SearchEntitiesRequest.Builder searchTopologyRequest = SearchEntitiesRequest.newBuilder()
             .addAllEntityOid(groupScopedEntitiesOids)
             .setReturnType(Type.FULL)
@@ -289,10 +305,16 @@ public class GroupScopeResolver {
                         .setStoppingCondition(StoppingCondition.newBuilder()
                             .setStoppingPropertyFilter(SearchProtoUtil.entityTypeFilter(EntityType.APPLICATION.getNumber())))
                     )));
-        return RepositoryDTOUtil.topologyEntityStream(searchService.searchEntitiesStream(
+        try {
+            return RepositoryDTOUtil.topologyEntityStream(searchService.searchEntitiesStream(
                 searchTopologyRequest.build()))
-            .map(PartialEntity::getFullEntity)
-            .collect(Collectors.toList());
+                .map(PartialEntity::getFullEntity)
+                .collect(Collectors.toList());
+        } catch (StatusRuntimeException e) {
+            logger.error("Unable to fetch GuestLoad apps for entities {} from repository",
+                groupScopedEntitiesOids, e);
+            return Collections.emptyList();
+        }
     }
 
     /**

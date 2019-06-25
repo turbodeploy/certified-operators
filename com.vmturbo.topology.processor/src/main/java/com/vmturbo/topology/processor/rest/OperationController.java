@@ -246,8 +246,8 @@ public class OperationController {
                     HttpStatus.NOT_FOUND);
         } catch (CommunicationException | InterruptedException | ProbeException e) {
             return new ResponseEntity<>(
-                    OperationResponse.error("Communication with remote probe failed.", targetId),
-                    HttpStatus.INTERNAL_SERVER_ERROR);
+                    OperationResponse.error("Communication with remote probe failed: " +
+                        e.getMessage(), targetId), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -263,8 +263,8 @@ public class OperationController {
                     HttpStatus.NOT_FOUND);
         } catch (CommunicationException | InterruptedException | ProbeException e) {
             return new ResponseEntity<>(
-                    OperationResponse.error("Communication with remote probe failed.", targetId),
-                    HttpStatus.INTERNAL_SERVER_ERROR);
+                    OperationResponse.error("Communication with remote probe failed: " +
+                        e.getMessage(), targetId), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 

@@ -5,6 +5,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -63,7 +64,8 @@ import com.vmturbo.topology.processor.entity.EntityStore;
  */
 public class GroupScopeResolverTest {
 
-    private static long[] groupId = {1L, 11L};
+    // 111 is corresponding to an empty group
+    private static long[] groupId = {1L, 11L, 111L};
 
     private static long[] memberId = {2L, 22L};
 
@@ -310,6 +312,23 @@ public class GroupScopeResolverTest {
         acctDefEntryTester(groupScopeMissingNonMandatory, false, 0);
     }
 
+    @Test
+    public void testEmptyGroupScope() {
+        ProbeInfo pi = ProbeInfo.newBuilder()
+            .setProbeCategory("testCategory")
+            .setProbeType("testProbeType")
+            .addAccountDefinition(groupScopeAccountDefEntry)
+            .build();
+        List<AccountValue> retVal = groupScopeResolver
+            .processGroupScope(ImmutableList.of(getGroupScopeAccountVal(2)),
+                pi.getAccountDefinitionList());
+        assertEquals(1, retVal.size());
+        assertEquals(PredefinedAccountDefinition.ScopedVms.name().toLowerCase(), retVal.get(0).getKey());
+        // check that no exception is thrown when processing empty scope and property values count
+        // after processing is 0
+        assertEquals(0, retVal.get(0).getGroupScopePropertyValuesCount());
+    }
+
     private void acctDefEntryTester(AccountDefEntry groupScopeAcctDefToTest, boolean expectSuccess,
                                     int indexForGroupScopeAccountDef)
             throws Exception {
@@ -411,6 +430,16 @@ public class GroupScopeResolverTest {
 
         @Override
         public void getMembers(final GetMembersRequest request, final StreamObserver<GetMembersResponse> responseObserver) {
+            // return empty group for groupId[2]
+            if (request.getId() == groupId[2]) {
+                responseObserver.onNext(GetMembersResponse.newBuilder()
+                    .setMembers(Members.newBuilder()
+                        .build())
+                    .build());
+                responseObserver.onCompleted();
+                return;
+            }
+
             // figure out which response to use based on which groupId is in the request
             int index = 0;
             // if the request is for the second group, alternate the membership with each
