@@ -1,20 +1,15 @@
 package com.vmturbo.market.topology.conversions;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -35,9 +30,6 @@ import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
@@ -51,7 +43,8 @@ public class CostDTOCreator {
         this.marketPriceTable = marketPriceTable;
     }
 
-    // A mapping between the os type(string) indicated by the license access commodity and the CloudCostDTO.OSType
+    // A mapping between the os type indicated by the license access commodity key which is the
+    // "name" field of com.vmturbo.mediation.hybrid.cloud.utils#OSType and the CloudCostDTO.OSType.
     public static ImmutableMap<String, CloudCostDTO.OSType> OSTypeMapping = ImmutableMap.<String, CloudCostDTO.OSType>builder()
             .put("Linux", CloudCostDTO.OSType.LINUX)
             .put("RHEL", CloudCostDTO.OSType.RHEL)
@@ -62,6 +55,8 @@ public class CostDTOCreator {
             .put("Windows_SQL_Web", CloudCostDTO.OSType.WINDOWS_WITH_SQL_WEB)
             .put("Windows_SQL_Server_Enterprise", CloudCostDTO.OSType.WINDOWS_WITH_SQL_ENTERPRISE)
             .put("Windows_Bring_your_own_license", CloudCostDTO.OSType.WINDOWS_BYOL)
+            .put("Windows Server Burst", CloudCostDTO.OSType.WINDOWS_SERVER_BURST)
+            .put("Windows Server", CloudCostDTO.OSType.WINDOWS_SERVER)
             .put("Linux_SQL_Server_Enterprise", OSType.LINUX_WITH_SQL_ENTERPRISE)
             .put("Linux_SQL_Standard", CloudCostDTO.OSType.LINUX_WITH_SQL_STANDARD)
             .put("Linux_SQL_Web", CloudCostDTO.OSType.LINUX_WITH_SQL_WEB)
