@@ -172,7 +172,7 @@ public class ReservationServiceTest {
         final FilteredActionRequest actionRequest = FilteredActionRequest.newBuilder()
                 .setTopologyContextId(planId)
                 .setFilter(ActionQueryFilter.newBuilder()
-                        .addTypes(ActionType.START))
+                        .addTypes(ActionType.ACTIVATE))
                 .setPaginationParams(PaginationParameters.getDefaultInstance())
                 .build();
         final ActionOrchestratorAction placementMoveAction = ActionOrchestratorAction.newBuilder()

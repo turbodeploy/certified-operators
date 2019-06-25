@@ -16,14 +16,14 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multimap;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -90,6 +90,12 @@ public class ReservationsService implements IReservationsService {
             .withName("reservation_placement_request_seconds")
             .withHelp("How long it takes to receive answers for initial placement requests.")
             .withBuckets(0.6, 0.8, 1.0, 2.0, 3.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0, 600.0)
+            .build();
+
+    // Filter used to find placement actions in a plan. These actions will be matched in the
+    // action orchestrator as ACTIVATE actions, but would be translated in the API to a START action.
+    private static final ActionQueryFilter PLACEMENT_ACTION_FILTER = ActionQueryFilter.newBuilder()
+            .addTypes(ActionType.ACTIVATE)
             .build();
 
     private final ReservationServiceBlockingStub reservationService;
@@ -356,9 +362,7 @@ public class ReservationsService implements IReservationsService {
         do {
             final FilteredActionRequest.Builder requestBuilder = FilteredActionRequest.newBuilder()
                     .setTopologyContextId(planId)
-                    .setFilter(ActionQueryFilter.newBuilder()
-                            // For placement actions, the action type is Start
-                            .addTypes(ActionType.START))
+                    .setFilter(PLACEMENT_ACTION_FILTER)
                     .setPaginationParams(PaginationParameters.getDefaultInstance());
             nextCursor.ifPresent(cursor -> requestBuilder.getPaginationParamsBuilder().setCursor(cursor));
 
