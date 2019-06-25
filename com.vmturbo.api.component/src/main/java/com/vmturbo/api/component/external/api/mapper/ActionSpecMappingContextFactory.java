@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Maps;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
@@ -54,6 +55,9 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
@@ -87,6 +91,8 @@ public class ActionSpecMappingContextFactory {
 
     private final ServiceEntityMapper serviceEntityMapper;
 
+    private final SupplyChainServiceBlockingStub supplyChainServiceClient;
+
     public ActionSpecMappingContextFactory(@Nonnull PolicyServiceBlockingStub policyService,
                                            @Nonnull ExecutorService executorService,
                                            @Nonnull RepositoryApi repositoryApi,
@@ -96,7 +102,8 @@ public class ActionSpecMappingContextFactory {
                                            final long realtimeTopologyContextId,
                                            @Nonnull BuyReservedInstanceServiceBlockingStub buyRIServiceClient,
                                            @Nonnull ReservedInstanceSpecServiceBlockingStub riSpecServiceClient,
-                                           @Nonnull ServiceEntityMapper serviceEntityMapper) {
+                                           @Nonnull ServiceEntityMapper serviceEntityMapper,
+                                           @Nonnull SupplyChainServiceBlockingStub supplyChainServiceClient) {
         this.policyService = Objects.requireNonNull(policyService);
         this.executorService = Objects.requireNonNull(executorService);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
@@ -107,6 +114,7 @@ public class ActionSpecMappingContextFactory {
         this.buyRIServiceClient = buyRIServiceClient;
         this.riSpecServiceClient = riSpecServiceClient;
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
+        this.supplyChainServiceClient = Objects.requireNonNull(supplyChainServiceClient);
     }
 
     /**
@@ -185,10 +193,13 @@ public class ActionSpecMappingContextFactory {
 
         final Map<Long, ApiPartialEntity> entitiesById = topologyEntityDTOs.stream()
             .collect(Collectors.toMap(ApiPartialEntity::getOid, Function.identity()));
+
+        final Map<Long, ApiPartialEntity> datacenterById =
+            getDatacentersByEntity(entitiesById.keySet(), topologyContextId);
         if (topologyContextId == realtimeTopologyContextId) {
             return new ActionSpecMappingContext(entitiesById, policies.get(), Collections.emptyMap(),
                 Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-                buyRIIdToRIBoughtandRISpec, serviceEntityMapper);
+                buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper);
         }
 
         // fetch more info for plan actions
@@ -233,7 +244,88 @@ public class ActionSpecMappingContextFactory {
             }
         }
         return new ActionSpecMappingContext(entitiesById, policies.get(), zoneIdToRegion,
-            volumesAspectsByVM, cloudAspects, vmAspects, buyRIIdToRIBoughtandRISpec, serviceEntityMapper);
+            volumesAspectsByVM, cloudAspects, vmAspects, buyRIIdToRIBoughtandRISpec, datacenterById,
+            serviceEntityMapper);
+    }
+
+    /**
+     * Quick test to check if entity is projected or not.  Relies on fact that Market assigns
+     * negative OIDs to entities that it provisions.
+     *
+     * @param entityId
+     * @return true for projected entities.
+     */
+    private boolean isProjected(long entityId) {
+        return entityId < 0;
+    }
+
+    /**
+     * Take the set of entity Oids for entities related to the set of actions and find the
+     * Datacenter for each Oid.  Return a map of Oids to ApiPartialEntity where each
+     * ApiPartialEntity represents the Datacenter for an entity with a particular Oid.
+     *
+     * @param entityOids - Set of Oids for all the entities related to the set of actions.
+     * @param topologyContextId - ID for the topology.
+     * @return Map of Oids to ApiPartialEntity representing the Datacenter for a given Oid.
+     */
+    private Map<Long, ApiPartialEntity> getDatacentersByEntity(@Nonnull final Set<Long> entityOids,
+                                                               final long topologyContextId) {
+        final GetMultiSupplyChainsRequest.Builder requestBuilder =
+            GetMultiSupplyChainsRequest.newBuilder();
+        // For each OID in the set of entities, get Datacenters in its supply chain
+        entityOids.forEach(oid -> {
+            requestBuilder.addSeeds(SupplyChainSeed.newBuilder()
+                .setSeedOid(oid)
+                .addStartingEntityOid(oid)
+                .addEntityTypesToInclude(UIEntityType.DATACENTER.apiStr()));
+        });
+        final Map<Long, Long> dcOidMap = Maps.newHashMap();
+        supplyChainServiceClient.getMultiSupplyChains(requestBuilder.build())
+            .forEachRemaining(supplyChainResponse -> {
+                // Here there can be only one datacenter for any given oid in the returned
+                // supplychain, even though the protobufs support multiple entities being returned.
+                // Thus, we take the first supplychainnode (there will only ever be one) and
+                // take the first member in the memberlist (again, there will only be one).
+                final long oid = supplyChainResponse.getSeedOid();
+                supplyChainResponse.getSupplyChain().getSupplyChainNodesList().stream()
+                    .findFirst().ifPresent(scNode -> {
+                        scNode.getMembersByStateMap().values().stream()
+                            .findFirst().ifPresent(memberList -> {
+                                memberList.getMemberOidsList().stream()
+                                    .findFirst().ifPresent(dcOid -> dcOidMap.put(oid, dcOid));
+
+                        });
+                });
+            });
+
+        final Set<Long> srcEntities = new HashSet<>();
+        final Set<Long> projEntities = new HashSet<>();
+        dcOidMap.values().forEach(id -> {
+            if (!isProjected(id)) {
+                srcEntities.add(id);
+            } else {
+                projEntities.add(id);
+            }
+        });
+
+        final Map<Long, ApiPartialEntity> oidToPartialEntityMap = Maps.newHashMap();
+        if (!srcEntities.isEmpty()) {
+            repositoryApi.entitiesRequest(srcEntities)
+                .contextId(topologyContextId)
+                .getEntities()
+                .forEach(entity -> oidToPartialEntityMap.put(entity.getOid(), entity));
+        }
+        if (!projEntities.isEmpty()) {
+            repositoryApi.entitiesRequest(projEntities)
+                .contextId(topologyContextId)
+                .projectedTopology()
+                .getEntities()
+                .forEach(entity -> oidToPartialEntityMap.put(entity.getOid(), entity));
+        }
+        return dcOidMap.entrySet().stream()
+            .filter(entry -> Objects.nonNull(oidToPartialEntityMap.get(entry.getValue())))
+            .collect(Collectors.toMap(e -> e.getKey(),
+                e -> oidToPartialEntityMap.get(e.getValue())));
     }
 
     @Nonnull
@@ -251,7 +343,7 @@ public class ActionSpecMappingContextFactory {
                 // We can use this as a quick way to determine of an involved entity can be found
                 // in the source topology (Market-recommended entities will only be
                 // in the projected topology).
-                if (id >= 0) {
+                if (!isProjected(id)) {
                     srcEntities.add(id);
                 } else {
                     projEntities.add(id);
@@ -369,6 +461,8 @@ public class ActionSpecMappingContextFactory {
 
         private final Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>> buyRIIdToRIBoughtandRISpec;
 
+        private final Map<Long, ApiPartialEntity> oidToDatacenter;
+
         ActionSpecMappingContext(@Nonnull Map<Long, ApiPartialEntity> topologyEntityDTOs,
                                  @Nonnull Map<Long, PolicyDTO.Policy> policies,
                                  @Nonnull Map<Long, ApiPartialEntity> zoneIdToRegion,
@@ -377,6 +471,7 @@ public class ActionSpecMappingContextFactory {
                                  @Nonnull Map<Long, EntityAspect> vmAspects,
                                  @Nonnull Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>>
                                          buyRIIdToRIBoughtandRISpec,
+                                 @Nonnull Map<Long, ApiPartialEntity> oidToDatacenter,
                                  @Nonnull ServiceEntityMapper serviceEntityMapper) {
             this.topologyEntityDTOs = topologyEntityDTOs;
             this.serviceEntityApiDTOs = topologyEntityDTOs.entrySet().stream()
@@ -388,6 +483,7 @@ public class ActionSpecMappingContextFactory {
             this.cloudAspects = Objects.requireNonNull(cloudAspects);
             this.vmAspects = Objects.requireNonNull(vmAspects);
             this.buyRIIdToRIBoughtandRISpec = buyRIIdToRIBoughtandRISpec;
+            this.oidToDatacenter = oidToDatacenter;
         }
 
         PolicyDTO.Policy getPolicy(long id) {
@@ -411,6 +507,10 @@ public class ActionSpecMappingContextFactory {
                 throw new UnknownObjectException("Entity: " + oid + " not found.");
             }
             return entity;
+        }
+
+        @Nonnull Optional<ApiPartialEntity> getDatacenterFromOid(@Nonnull Long entityOid) {
+            return Optional.ofNullable(oidToDatacenter.get(entityOid));
         }
 
         @Nonnull

@@ -87,7 +87,8 @@ public class MapperConfig {
             communicationConfig.getRealtimeTopologyContextId(),
             BuyReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
             ReservedInstanceSpecServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
-            communicationConfig.serviceEntityMapper());
+            communicationConfig.serviceEntityMapper(),
+            communicationConfig.supplyChainRpcService());
     }
 
     @Bean

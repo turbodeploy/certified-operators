@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -31,6 +32,7 @@ import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.ActionType;
+import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -48,6 +50,12 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -65,11 +73,17 @@ public class CompoundMoveTest {
 
     private PolicyServiceMole policyMole = spy(PolicyServiceMole.class);
 
+    private SupplyChainServiceMole supplyChainMole = spy(new SupplyChainServiceMole());
+
     private RepositoryApi repositoryApi;
 
     private GrpcTestServer grpcServer;
 
     private PolicyServiceGrpc.PolicyServiceBlockingStub policyService;
+
+    private GrpcTestServer supplyChainGrpcServer;
+
+    private SupplyChainServiceGrpc.SupplyChainServiceBlockingStub supplyChainService;
 
     private ActionSpecMappingContextFactory actionSpecMappingContextFactory;
 
@@ -89,6 +103,11 @@ public class CompoundMoveTest {
     private static final String PM2_NAME = "host-2";
     private static final long VOL1_ID = 40;
     private static final String VOL1_NAME = "vol-1";
+    private static final long DATACENTER_ID = 50;
+    private static final String DC_NAME = "DC-1";
+    private static final long DATACENTER2_ID = 51;
+    private static final String DC2_NAME = "DC-2";
+
 
     private final ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
 
@@ -104,6 +123,19 @@ public class CompoundMoveTest {
         grpcServer = GrpcTestServer.newServer(policyMole);
         grpcServer.start();
         policyService = PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
+
+        final List<GetMultiSupplyChainsResponse> supplyChainResponses = ImmutableList.of(
+            makeGetMultiSupplyChainResponse(TARGET_ENTITY_ID, DATACENTER_ID),
+            makeGetMultiSupplyChainResponse(PM1_ID, DATACENTER_ID),
+            makeGetMultiSupplyChainResponse(PM2_ID, DATACENTER2_ID),
+            makeGetMultiSupplyChainResponse(ST1_ID, DATACENTER_ID),
+            makeGetMultiSupplyChainResponse(ST2_ID, DATACENTER2_ID));
+        when(supplyChainMole.getMultiSupplyChains(Mockito.any())).thenReturn(supplyChainResponses);
+        supplyChainGrpcServer = GrpcTestServer.newServer(supplyChainMole);
+        supplyChainGrpcServer.start();
+        supplyChainService = SupplyChainServiceGrpc
+            .newBlockingStub(supplyChainGrpcServer.getChannel());
+
         repositoryApi = mock(RepositoryApi.class);
 
         actionSpecMappingContextFactory = new ActionSpecMappingContextFactory(policyService,
@@ -112,7 +144,7 @@ public class CompoundMoveTest {
             mock(VirtualMachineAspectMapper.class),
             mock(VirtualVolumeAspectMapper.class), REAL_TIME_TOPOLOGY_CONTEXT_ID,
             null,
-            null, serviceEntityMapper);
+            null, serviceEntityMapper, supplyChainService);
 
         mapper = new ActionSpecMapper(actionSpecMappingContextFactory, serviceEntityMapper,
             mock(ReservedInstanceMapper.class), REAL_TIME_TOPOLOGY_CONTEXT_ID);
@@ -126,8 +158,28 @@ public class CompoundMoveTest {
             topologyEntityDTO(ST2_NAME, ST2_ID, EntityType.STORAGE_VALUE),
             topologyEntityDTO(VOL1_NAME, VOL1_ID, EntityType.VIRTUAL_VOLUME_VALUE)));
 
-        when(repositoryApi.entitiesRequest(any())).thenReturn(multiReq);
+        final MultiEntityRequest multiReq2 = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
+            topologyEntityDTO(DC_NAME, DATACENTER_ID, EntityType.DATACENTER_VALUE),
+                topologyEntityDTO(DC2_NAME, DATACENTER2_ID, EntityType.DATACENTER_VALUE)));
+
+        when(repositoryApi.entitiesRequest(any())).thenReturn(multiReq, multiReq2, multiReq);
     }
+
+    private GetMultiSupplyChainsResponse makeGetMultiSupplyChainResponse(long entityOid,
+                                                                         long dataCenterOid) {
+        return GetMultiSupplyChainsResponse.newBuilder().setSeedOid(entityOid).setSupplyChain(SupplyChain
+            .newBuilder().addSupplyChainNodes(makeSupplyChainNode(dataCenterOid)))
+            .build();
+    }
+
+    private SupplyChainNode makeSupplyChainNode(long oid) {
+        return SupplyChainNode.newBuilder()
+            .setEntityType(UIEntityType.DATACENTER.apiStr())
+            .putMembersByState(EntityState.ACTIVE.ordinal(),
+                MemberList.newBuilder().addMemberOids(oid).build())
+            .build();
+    }
+
 
     private ApiPartialEntity topologyEntityDTO(@Nonnull final String displayName, long oid,
                                                int entityType) {
@@ -162,6 +214,8 @@ public class CompoundMoveTest {
         assertEquals(1, apiDto.getCompoundActions().size());
         assertEquals(String.valueOf(ST1_ID), apiDto.getCurrentValue());
         assertEquals(String.valueOf(ST2_ID), apiDto.getNewValue());
+        assertEquals(DC_NAME, apiDto.getCurrentLocation().getDisplayName());
+        assertEquals(DC2_NAME, apiDto.getNewLocation().getDisplayName());
     }
 
     /**

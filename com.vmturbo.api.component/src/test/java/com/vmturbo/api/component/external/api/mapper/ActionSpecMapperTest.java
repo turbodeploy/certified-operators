@@ -5,6 +5,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -52,6 +53,7 @@ import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.ActionType;
+import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
@@ -94,6 +96,14 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -131,6 +141,10 @@ public class ActionSpecMapperTest {
     private static final long TARGET_ID = 10L;
     private static final String TARGET_DISPLAY_NAME = "target display name";
     private static final String PROBE_TYPE = "probe type";
+    private static final long DATACENTER1_ID = 100L;
+    private static final String DC1_NAME = "DC-1";
+    private static final long DATACENTER2_ID = 200L;
+    private static final String DC2_NAME = "DC-2";
 
     private ActionSpecMapper mapper;
 
@@ -144,10 +158,18 @@ public class ActionSpecMapperTest {
 
     private PolicyDTOMoles.PolicyServiceMole policyMole = spy(new PolicyServiceMole());
 
+    private SupplyChainProtoMoles.SupplyChainServiceMole supplyChainMole =
+        spy(new SupplyChainServiceMole());
+
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(policyMole);
 
+    @Rule
+    public GrpcTestServer supplyChainGrpcServer = GrpcTestServer.newServer(supplyChainMole);
+
     private PolicyServiceGrpc.PolicyServiceBlockingStub policyService;
+
+    private SupplyChainServiceBlockingStub supplyChainService;
 
     private ReservedInstanceMapper reservedInstanceMapper = mock(ReservedInstanceMapper.class);
 
@@ -165,19 +187,34 @@ public class ActionSpecMapperTest {
                 .build());
         Mockito.when(policyMole.getAllPolicies(any())).thenReturn(policyResponses);
         policyService = PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        final List<GetMultiSupplyChainsResponse> supplyChainResponses = ImmutableList.of(
+            makeGetMultiSupplyChainResponse(1L, DATACENTER1_ID),
+            makeGetMultiSupplyChainResponse(2L, DATACENTER2_ID),
+            makeGetMultiSupplyChainResponse(3L, DATACENTER2_ID));
+        Mockito.when(supplyChainMole.getMultiSupplyChains(any())).thenReturn(supplyChainResponses);
+        supplyChainService = SupplyChainServiceGrpc
+            .newBlockingStub(supplyChainGrpcServer.getChannel());
 
         cloudAspectMapper = mock(CloudAspectMapper.class);
         vmAspectMapper = mock(VirtualMachineAspectMapper.class);
         volumeAspectMapper = mock(VirtualVolumeAspectMapper.class);
 
-        MultiEntityRequest emptyReq = ApiTestUtils.mockMultiEntityReqEmpty();
+        final MultiEntityRequest emptyReq = ApiTestUtils.mockMultiEntityReqEmpty();
+
+        final MultiEntityRequest datacenterReq = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
+            topologyEntityDTO(DC1_NAME, DATACENTER1_ID, EntityType.DATACENTER_VALUE),
+            topologyEntityDTO(DC2_NAME, DATACENTER2_ID, EntityType.DATACENTER_VALUE)));
+
         when(repositoryApi.entitiesRequest(any())).thenReturn(emptyReq);
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(DATACENTER1_ID,
+            DATACENTER2_ID)))
+            .thenReturn(datacenterReq);
 
         actionSpecMappingContextFactory = new ActionSpecMappingContextFactory(policyService,
             Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()),
             repositoryApi, cloudAspectMapper, vmAspectMapper, volumeAspectMapper,
             REAL_TIME_TOPOLOGY_CONTEXT_ID, null,
-            null, serviceEntityMapper);
+            null, serviceEntityMapper, supplyChainService);
         mapper = new ActionSpecMapper(actionSpecMappingContextFactory,
             serviceEntityMapper, reservedInstanceMapper, REAL_TIME_TOPOLOGY_CONTEXT_ID);
     }
@@ -376,6 +413,9 @@ public class ActionSpecMapperTest {
         assertEquals("1", actionApiDTO.getCurrentValue());
 
         assertEquals(ActionType.RECONFIGURE, actionApiDTO.getActionType());
+
+        assertEquals(DC1_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
+        assertEquals(DC2_NAME, actionApiDTO.getNewLocation().getDisplayName());
     }
 
     @Test
@@ -413,6 +453,8 @@ public class ActionSpecMapperTest {
         assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
 
         assertEquals( ActionType.RECONFIGURE, actionApiDTO.getActionType());
+        assertNull(actionApiDTO.getCurrentLocation());
+        assertEquals(DC2_NAME, actionApiDTO.getNewLocation().getDisplayName());
     }
 
     @Test
@@ -450,6 +492,8 @@ public class ActionSpecMapperTest {
         assertEquals("3", actionApiDTO.getNewEntity().getUuid());
 
         assertEquals(ActionType.PROVISION, actionApiDTO.getActionType());
+        assertEquals(DC2_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
+        assertEquals(DC2_NAME, actionApiDTO.getNewLocation().getDisplayName());
     }
 
     @Test
@@ -485,6 +529,8 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
         assertEquals(CommodityDTO.CommodityType.CPU.name(),
                 actionApiDTO.getRisk().getReasonCommodity());
+        assertEquals(DC1_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
+        assertEquals(DC1_NAME, actionApiDTO.getNewLocation().getDisplayName());
     }
 
     @Test
@@ -624,6 +670,8 @@ public class ActionSpecMapperTest {
             IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
                     CommodityDTO.CommodityType.CPU.name(),
                     CommodityDTO.CommodityType.MEM.name()));
+        assertEquals(DC1_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
+        assertNull(actionApiDTO.getNewLocation());
     }
 
     /**
@@ -660,6 +708,8 @@ public class ActionSpecMapperTest {
         assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
                 IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
                         CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
+        assertEquals(DC1_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
+        assertNull(actionApiDTO.getNewLocation());
     }
 
     @Test
@@ -690,6 +740,8 @@ public class ActionSpecMapperTest {
         assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
             IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
                 CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
+        assertEquals(DC1_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
+        assertNull(actionApiDTO.getNewLocation());
     }
 
     @Test
@@ -1111,7 +1163,7 @@ public class ActionSpecMapperTest {
         ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesMap,
             Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
             Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-            serviceEntityMapper);
+            Collections.emptyMap(), serviceEntityMapper);
         context.getOptionalEntity(1L).get().setCostPrice(1.0f);
 
         String noTranslationNeeded = "Simple string";
@@ -1332,5 +1384,20 @@ public class ActionSpecMapperTest {
         Assert.assertEquals(TARGET_ID, (long)Long.valueOf(targetApiDTO.getUuid()));
         Assert.assertEquals(TARGET_DISPLAY_NAME, targetApiDTO.getDisplayName());
         Assert.assertEquals(PROBE_TYPE, targetApiDTO.getType());
+    }
+
+    private GetMultiSupplyChainsResponse makeGetMultiSupplyChainResponse(long entityOid,
+                                                                         long dataCenterOid) {
+        return GetMultiSupplyChainsResponse.newBuilder().setSeedOid(entityOid).setSupplyChain(SupplyChain
+            .newBuilder().addSupplyChainNodes(makeSupplyChainNode(dataCenterOid)))
+            .build();
+    }
+
+    private SupplyChainNode makeSupplyChainNode(long oid) {
+        return SupplyChainNode.newBuilder()
+            .setEntityType(UIEntityType.DATACENTER.apiStr())
+            .putMembersByState(EntityState.ACTIVE.ordinal(),
+                MemberList.newBuilder().addMemberOids(oid).build())
+            .build();
     }
 }

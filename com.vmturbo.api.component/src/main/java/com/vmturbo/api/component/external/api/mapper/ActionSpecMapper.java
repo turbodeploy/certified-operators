@@ -560,6 +560,22 @@ public class ActionSpecMapper {
         }
     }
 
+    private void setRelatedDatacenter(long oid,
+                                      @Nonnull ActionApiDTO actionApiDTO,
+                                      @Nonnull ActionSpecMappingContext context,
+                                      boolean newLocation) {
+        context.getDatacenterFromOid(oid)
+            .ifPresent(apiPartialEntity -> {
+                final BaseApiDTO baseApiDTO = serviceEntityMapper.toServiceEntityApiDTO(apiPartialEntity);
+                if (newLocation) {
+                    actionApiDTO.setNewLocation(baseApiDTO);
+                } else {
+                    actionApiDTO.setCurrentLocation(baseApiDTO);
+                }
+            });
+    }
+
+
     @Nonnull
     private String createRiskDescription(@Nonnull final ActionSpec actionSpec,
                     @Nonnull final ActionSpecMappingContext context) {
@@ -716,6 +732,7 @@ public class ActionSpecMapper {
             wrapperDto.setCurrentValue(Long.toString(primarySourceId));
             wrapperDto.setCurrentEntity(
                 ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(primarySourceId)));
+            setRelatedDatacenter(primarySourceId, wrapperDto, context, false);
         } else {
             // For less brittle UI integration, we set the current entity to an empty object.
             // The UI sometimes checks the validity of the "currentEntity.uuid" field,
@@ -726,6 +743,7 @@ public class ActionSpecMapper {
         wrapperDto.setNewValue(Long.toString(primaryDestinationId));
         wrapperDto.setNewEntity(
             ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(primaryDestinationId)));
+        setRelatedDatacenter(primaryDestinationId, wrapperDto, context, true);
 
         List<ActionApiDTO> actions = Lists.newArrayList();
         for (ChangeProvider change : move.getChangesList()) {
@@ -841,10 +859,15 @@ public class ActionSpecMapper {
 
         actionApiDTO.setTarget(
             ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(reconfigure.getTarget().getId())));
+        // Since we may or may not have a current entity, we store the DC for the target as the
+        // new location.  This way, the UI will always be able to find a DC in one of the two
+        // places.
+        setRelatedDatacenter(reconfigure.getTarget().getId(), actionApiDTO, context, true);
         if (reconfigure.hasSource()) {
             actionApiDTO.setCurrentEntity(
                 ServiceEntityMapper.copyServiceEntityAPIDTO(
                     context.getEntity(reconfigure.getSource().getId())));
+            setRelatedDatacenter(reconfigure.getSource().getId(), actionApiDTO, context, false);
         } else {
             // For less brittle UI integration, we set the current entity to an empty object.
             // The UI sometimes checks the validity of the "currentEntity.uuid" field,
@@ -868,12 +891,14 @@ public class ActionSpecMapper {
         actionApiDTO.setCurrentEntity(
             ServiceEntityMapper.copyServiceEntityAPIDTO(
                 context.getEntity(currentEntityId)));
+        setRelatedDatacenter(currentEntityId, actionApiDTO, context, false);
 
         actionApiDTO.setNewValue(provisionedSellerUuid);
 
         ServiceEntityApiDTO currentEntity = actionApiDTO.getCurrentEntity();
         actionApiDTO.setNewEntity(
             ServiceEntityMapper.copyServiceEntityAPIDTO(currentEntity));
+        setRelatedDatacenter(currentEntityId, actionApiDTO, context, true);
         actionApiDTO.setTarget(
             ServiceEntityMapper.copyServiceEntityAPIDTO(actionApiDTO.getNewEntity()));
     }
@@ -891,6 +916,8 @@ public class ActionSpecMapper {
             ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(originalEntityOid)));
         actionApiDTO.setNewEntity(
             ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(originalEntityOid)));
+        setRelatedDatacenter(originalEntityOid, actionApiDTO, context, false);
+        setRelatedDatacenter(originalEntityOid, actionApiDTO, context, true);
 
         final CommodityDTO.CommodityType commodityType = CommodityDTO.CommodityType.forNumber(
                 resize.getCommodityType().getType());
@@ -965,6 +992,7 @@ public class ActionSpecMapper {
             ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
         actionApiDTO.setCurrentEntity(
             ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
+        setRelatedDatacenter(targetEntityId, actionApiDTO, context, false);
 
         final List<String> reasonCommodityNames =
             activate.getTriggeringCommoditiesList().stream()
@@ -986,6 +1014,7 @@ public class ActionSpecMapper {
             ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
         actionApiDTO.setCurrentEntity(
             ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
+        setRelatedDatacenter(targetEntityId, actionApiDTO, context, false);
 
         actionApiDTO.setActionType(ActionType.SUSPEND);
 
