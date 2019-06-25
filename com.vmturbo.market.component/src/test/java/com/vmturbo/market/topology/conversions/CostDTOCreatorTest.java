@@ -17,7 +17,7 @@ public class CostDTOCreatorTest {
 
     /**
      * This test ensures that all the values in Enum OSType have a mapping in
-     * CostDTOCreator::OSTypeMapping
+     * CostDTOCreator::OSTypeMapping, except "Windows Server" and "Windows server Burst".
      */
     @Test
     public void testOSTypeMappings() {
@@ -25,7 +25,8 @@ public class CostDTOCreatorTest {
         Map<OSType, String> inversedOSTypeMapping = OSTypeMapping.entrySet().stream().collect(
                 Collectors.toMap(Entry::getValue, Entry::getKey));
         for (OSType os : OSType.values()) {
-            if (!inversedOSTypeMapping.containsKey(os)) {
+            if (os != OSType.WINDOWS_SERVER && os != OSType.WINDOWS_SERVER_BURST &&
+                    !inversedOSTypeMapping.containsKey(os)) {
                 osWithoutMapping.add(os);
             }
         }
