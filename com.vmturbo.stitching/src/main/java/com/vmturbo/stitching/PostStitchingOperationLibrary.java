@@ -16,6 +16,7 @@ import com.vmturbo.stitching.poststitching.ComputedQxVcpuUsedValuePostStitchingO
 import com.vmturbo.stitching.poststitching.ComputedUsedValuePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuScalingFactorPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.PropagatePowerStatePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetCommodityCapacityFromSettingPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.VmmPmMemoryAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
@@ -306,7 +307,8 @@ public class PostStitchingOperationLibrary {
                     ProbeCategory.GUEST_OS_PROCESSES,
                     "transactionsCapacity",
                     "autoSetTransactionsCapacity"),
-            new WastedFilesPostStitchingOperation()
+            new WastedFilesPostStitchingOperation(),
+            new PropagatePowerStatePostStitchingOperation()
         );
     }
 
