@@ -25,10 +25,8 @@ import static com.vmturbo.history.db.EntityType.SWITCH;
 import static com.vmturbo.history.db.EntityType.VDC;
 
 import java.sql.Timestamp;
-import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -192,6 +190,14 @@ public class HistoryStatsUtils {
                     .put(CommonDTO.EntityDTO.EntityType.LOGICAL_POOL, EntityType.LOGICAL_POOL)
                     .put(CommonDTO.EntityDTO.EntityType.DATABASE_SERVER, EntityType.DATABASE_SERVER)
                     .build();
+
+    public static final Set<Integer> SDK_ENTITY_TYPES_WITHOUT_SAVED_PRICES =
+        ImmutableSet.<Integer>builder()
+            .add(CommonDTO.EntityDTO.EntityType.NETWORK.getNumber())
+            .add(CommonDTO.EntityDTO.EntityType.INTERNET.getNumber())
+            .add(CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME.getNumber())
+            .add(CommonDTO.EntityDTO.EntityType.HYPERVISOR_SERVER.getNumber())
+            .build();
 
     /**
      * Convert an int commodityType value, as defined by the SDK, into a mixed-case name.
