@@ -60,7 +60,7 @@ public class M2UtilsTest {
         ctx.updateLoggers();
     }
 
-    private static final String REPOS_PATH = "src/test/resources/data/repos/";
+    private static final String REPOS_PATH = "target/test-classes/data/repos/";
 
     private static final String XML_TOP = fileToString(REPOS_PATH + "xml_top.xml");
     private static final String XML_BOTTOM = fileToString(REPOS_PATH + "xml_bottom.xml");
