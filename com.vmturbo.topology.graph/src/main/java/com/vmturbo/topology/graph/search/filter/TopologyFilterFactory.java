@@ -351,7 +351,12 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                     }
 
                     final NumericFilter valueFilter = secondProperty.getNumericFilter();
-                    final String commodityType = firstProperty.getStringFilter().getStringPropertyRegex();
+                    final String commodityType;
+                    if (firstProperty.getStringFilter().hasStringPropertyRegex()) {
+                        commodityType = firstProperty.getStringFilter().getStringPropertyRegex();
+                    } else {
+                        commodityType = String.join("|", firstProperty.getStringFilter().getOptionsList());
+                    }
                     if (SearchableProperties.COMMODITY_CAPACITY_PROPERTY_NAME.equals(secondProperty.getPropertyName())) {
                         final Pattern commTypeRegex = Pattern.compile(commodityType);
                         if (commTypeRegex.matcher(UICommodityType.VMEM.apiStr()).matches()) {
