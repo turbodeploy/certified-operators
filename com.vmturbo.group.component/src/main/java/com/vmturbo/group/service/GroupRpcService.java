@@ -1,6 +1,7 @@
 package com.vmturbo.group.service;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -632,7 +633,7 @@ public class GroupRpcService extends GroupServiceImplBase {
      *                       return the immediate members (i.e. the groups).
      * @return The list of requested members.
      */
-                                                        @Nonnull
+    @Nonnull
     private List<Long> getNestedGroupMembers(@Nonnull final NestedGroupInfo nestedGroupInfo,
                                                         final boolean getLeafMembers) {
         switch (nestedGroupInfo.getSelectionCriteriaCase()) {
@@ -640,27 +641,9 @@ public class GroupRpcService extends GroupServiceImplBase {
                 final Map<Long, Optional<Group>> groupsById =
                     groupStore.getGroups(nestedGroupInfo.getStaticGroupMembers().getStaticMemberOidsList());
                 if (getLeafMembers) {
-                    return groupsById.values().stream()
-                        .filter(Optional::isPresent)
-                        .map(Optional::get)
-                        .filter(group -> {
-                            if (group.getType() != Type.CLUSTER) {
-                                // Right now we only support nested groups of clusters.
-                                logger.warn("Nested group {} has non-cluster member group {} " +
-                                        "(id: {}, type: {}). Ignoring it when expanding members.",
-                                    nestedGroupInfo.getName(), GroupProtoUtil.getGroupName(group),
-                                    group.getId(), group.getType());
-                                return false;
-                            } else {
-                                return true;
-                            }
-                        })
-                        // Right now this call is non-recursive, because we don't support nested groups of
-                        // nested groups. If we do support it in the future we should handle cycles and
-                        // potential stack overflows - probably with an iterative instead of recursive
-                        // approach.
-                        .flatMap(group -> getNormalGroupMembers(group, getLeafMembers).stream())
-                        .collect(Collectors.toList());
+                    return expandNestedGroups(nestedGroupInfo, groupsById.values().stream()
+                                    .filter(Optional::isPresent)
+                                    .map(Optional::get));
                 } else {
                     // Just return the members.
                     return groupsById.entrySet().stream()
@@ -673,19 +656,55 @@ public class GroupRpcService extends GroupServiceImplBase {
                 if (nestedGroupInfo.getTypeCase() == TypeCase.CLUSTER) {
                     groupStream = groupStore.getAll().stream()
                         .filter(group -> group.getType() == Group.Type.CLUSTER)
-                        .filter(cluster -> cluster.getCluster().getClusterType() == nestedGroupInfo.getCluster());
+                        .filter(cluster -> cluster.getCluster().getClusterType() == nestedGroupInfo.getCluster())
+                        .filter(g ->
+                                matchFilters(nestedGroupInfo.getPropertyFilterList().getPropertyFiltersList(), g));
                 } else {
                     groupStream = Stream.empty();
                 }
-                return groupStream
-                    .filter(g ->
-                            matchFilters(nestedGroupInfo.getPropertyFilterList().getPropertyFiltersList(), g))
-                    .map(Group::getId)
-                    .collect(Collectors.toList());
+                if (getLeafMembers) {
+                    // get all leaf members of these groups
+                    return expandNestedGroups(nestedGroupInfo, groupStream);
+                } else {
+                    // return the member group ids
+                    return groupStream
+                            .map(Group::getId)
+                            .collect(Collectors.toList());
+                }
             default:
                 throw new IllegalArgumentException("Invalid nested group selection criteria: " +
                     nestedGroupInfo.getSelectionCriteriaCase());
         }
+    }
+
+    /**
+     * Helper method for expanding groups contained within nested groups, applying some validation to
+     * support the Nested Group rules. (mainly that, currently, only clusters may be nested).
+     * @param nestedGroupInfo The Nested Group being expanded
+     * @param groupMembersStream A stream of groups directly contained by the nested groups.
+     * @return a list of the leaf members of all of the groups in the stream.
+     */
+    private List<Long> expandNestedGroups(@Nonnull final NestedGroupInfo nestedGroupInfo,
+                                          Stream<Group> groupMembersStream) {
+        return groupMembersStream
+            .filter(group -> {
+                    if (group.getType() != Type.CLUSTER) {
+                        // Right now we only support nested groups of clusters.
+                        logger.warn("Nested group {} has non-cluster member group {} " +
+                                        "(id: {}, type: {}). Ignoring it when expanding members.",
+                                nestedGroupInfo.getName(), GroupProtoUtil.getGroupName(group),
+                                group.getId(), group.getType());
+                        return false;
+                    } else {
+                        return true;
+                    }
+                })
+            // Right now this call is non-recursive, because we don't support nested groups of
+            // nested groups. If we do support it in the future we should handle cycles and
+            // potential stack overflows - probably with an iterative instead of recursive
+            // approach.
+            .flatMap(group -> getNormalGroupMembers(group, true).stream())
+            .collect(Collectors.toList());
     }
 
     /**

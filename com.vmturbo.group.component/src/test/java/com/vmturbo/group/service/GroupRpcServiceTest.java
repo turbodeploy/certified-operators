@@ -79,6 +79,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
@@ -930,6 +931,86 @@ public class GroupRpcServiceTest {
 
         final GroupDTO.GetMembersResponse expectedExpandedResponse = GetMembersResponse.newBuilder()
                 .setMembers(Members.newBuilder().addAllIds(cluster1Members).addAllIds(cluster2Members))
+                .build();
+
+        groupRpcService.getMembers(requestExpanded, mockObserver);
+
+        verify(mockObserver).onNext(expectedExpandedResponse);
+    }
+
+    @Test
+    public void testGetMembersExpansionDynamic() {
+        final long groupId = 1234L;
+        final List<Long> cluster1Members = Arrays.asList(10L,11L);
+        final List<Long> cluster2Members = Arrays.asList(20L,21L);
+
+        // group 1234 will be a dynamic group that matches "Cluster1" but not "Cluster2"
+        final GroupDTO.Group group1234 = Group.newBuilder()
+                .setId(groupId)
+                .setType(Type.NESTED_GROUP)
+                .setNestedGroup(NestedGroupInfo.newBuilder()
+                        .setCluster(ClusterInfo.Type.COMPUTE)
+                        .setPropertyFilterList(GroupPropertyFilterList.newBuilder()
+                                .addPropertyFilters(PropertyFilter.newBuilder()
+                                        .setPropertyName(SearchableProperties.DISPLAY_NAME)
+                                        .setStringFilter(StringFilter.newBuilder()
+                                                .setStringPropertyRegex("Cluster1.*")))))
+                .build();
+
+        final GroupDTO.Group cluster1 = Group.newBuilder()
+                .setId(1L)
+                .setType(Type.CLUSTER)
+                .setCluster(ClusterInfo.newBuilder()
+                        .setName("Cluster1")
+                        .setDisplayName("Cluster1")
+                        .setClusterType(ClusterInfo.Type.COMPUTE)
+                        .setMembers(GroupDTO.StaticGroupMembers.newBuilder()
+                                .addAllStaticMemberOids(cluster1Members)))
+                .build();
+
+        final GroupDTO.Group cluster2 = Group.newBuilder()
+                .setId(2L)
+                .setType(Type.CLUSTER)
+                .setCluster(ClusterInfo.newBuilder()
+                        .setName("Cluster2")
+                        .setDisplayName("Cluster2")
+                        .setClusterType(ClusterInfo.Type.COMPUTE)
+                        .setMembers(GroupDTO.StaticGroupMembers.newBuilder()
+                                .addAllStaticMemberOids(cluster2Members)))
+                .build();
+
+        given(groupStore.get(groupId)).willReturn(Optional.of(group1234));
+        given(groupStore.get(1L)).willReturn(Optional.of(cluster1));
+        given(groupStore.get(2L)).willReturn(Optional.of(cluster2));
+        Map<Long,Optional<Group>> clustersById = new HashMap<>(2);
+        clustersById.put(cluster1.getId(), Optional.of(cluster1));
+        clustersById.put(cluster2.getId(), Optional.of(cluster2));
+        given(groupStore.getAll()).willReturn(Arrays.asList(group1234, cluster1, cluster2));
+
+        final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
+                (StreamObserver<GroupDTO.GetMembersResponse>) mock(StreamObserver.class);
+
+        // a request without expansion should get the list of clusters
+        final GroupDTO.GetMembersRequest reqNoExpansion = GroupDTO.GetMembersRequest.newBuilder()
+                .setId(groupId)
+                .build();
+
+        groupRpcService.getMembers(reqNoExpansion, mockObserver);
+
+        final GroupDTO.GetMembersResponse expectedNonExpandedResponse = GetMembersResponse.newBuilder()
+                .setMembers(Members.newBuilder().addAllIds(Arrays.asList(1L)))
+                .build();
+
+        verify(mockObserver).onNext(expectedNonExpandedResponse);
+
+        // verify that a request WITH expansion should get all of the cluster members.
+        final GroupDTO.GetMembersRequest requestExpanded = GroupDTO.GetMembersRequest.newBuilder()
+                .setId(groupId)
+                .setExpandNestedGroups(true)
+                .build();
+
+        final GroupDTO.GetMembersResponse expectedExpandedResponse = GetMembersResponse.newBuilder()
+                .setMembers(Members.newBuilder().addAllIds(cluster1Members))
                 .build();
 
         groupRpcService.getMembers(requestExpanded, mockObserver);
