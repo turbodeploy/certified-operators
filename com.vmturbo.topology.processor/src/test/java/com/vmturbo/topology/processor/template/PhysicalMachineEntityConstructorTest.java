@@ -49,10 +49,10 @@ public class PhysicalMachineEntityConstructorTest {
                 .setName(ResourcesCategoryName.Compute))
             .addFields(TemplateField.newBuilder()
                 .setName("numOfCores")
-                .setValue("10"))
+                .setValue("10.0"))
             .addFields(TemplateField.newBuilder()
                 .setName("cpuSpeed")
-                .setValue("20"))
+                .setValue("20.0"))
             .addFields(TemplateField.newBuilder()
                 .setName("memorySize")
                 .setValue("100"))
@@ -179,6 +179,8 @@ public class PhysicalMachineEntityConstructorTest {
         assertTrue(topologyEntityDTO.getCommoditiesBoughtFromProviders(0).getMovable());
         assertFalse(topologyEntityDTO.getAnalysisSettings().getShopTogether());
         assertEquals("cpu-model", topologyEntityDTO.getTypeSpecificInfo().getPhysicalMachine().getCpuModel());
+        assertEquals(10, topologyEntityDTO.getTypeSpecificInfo().getPhysicalMachine().getNumCpus());
+        assertEquals(20, topologyEntityDTO.getTypeSpecificInfo().getPhysicalMachine().getCpuCoreMhz());
     }
 
     @Test

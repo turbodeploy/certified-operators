@@ -16,6 +16,10 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -39,6 +43,7 @@ import com.vmturbo.stitching.TopologyEntity;
 public class PhysicalMachineEntityConstructor implements TopologyEntityConstructor {
 
     private static final String ZERO = "0";
+    private static final Logger logger = LogManager.getLogger();
 
     // Max 256 LUNS based on https://www.vmware.com/pdf/vsphere6/r60/vsphere-60-configuration-maximums.pdf
     public static final int MAX_LUN_LIMIT = 256;
@@ -70,8 +75,8 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
             originalTopologyEntity);
         final Set<CommoditySoldDTO> commoditySoldConstraints = getCommoditySoldConstraint(
             originalTopologyEntity);
-        final List<TemplateResource> computeTemplateResources =
-            TemplatesConverterUtils.getTemplateResources(template, Compute);
+        final Map<String, String> computeTemplateResources = TemplatesConverterUtils
+                .createFieldNameValueMap(TemplatesConverterUtils.getTemplateResources(template, Compute));
         addComputeCommodities(topologyEntityBuilder, computeTemplateResources);
 
         // shopRogether entities are not allowed to sell biclique commodities (why???), and hosts need
@@ -86,13 +91,38 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
             updateRelatedEntityAccesses(originalTopologyEntity.getOid(), topologyEntityBuilder.getOid(),
                 commoditySoldConstraints, topology);
         }
+
+        String templateName = template.hasTemplateInfo() && template.getTemplateInfo().hasName() ?
+                        template.getTemplateInfo().getName() : "";
+        // Set type specific info
+        PhysicalMachineInfo.Builder pmInfoBuilder = PhysicalMachineInfo.newBuilder();
+        int numCores = Double.valueOf(
+                computeTemplateResources.getOrDefault(TemplatesConverterUtils.NUM_OF_CORES, ZERO)).intValue();
+        if (numCores > 0) {
+            pmInfoBuilder.setNumCpus(numCores);
+        } else {
+           logger.error("Incorrect/empty value for number of cores {} for template {}.",
+               computeTemplateResources.get(TemplatesConverterUtils.NUM_OF_CORES),
+               templateName);
+        }
+
+        int cpuSpeed = Double.valueOf(
+                computeTemplateResources.getOrDefault(TemplatesConverterUtils.CPU_SPEED, ZERO)).intValue();
+        if (cpuSpeed > 0) {
+            pmInfoBuilder.setCpuCoreMhz(cpuSpeed);
+        } else {
+           logger.error("Incorrect/empty value of cpu speed {} for template {}. ",
+               computeTemplateResources.get(TemplatesConverterUtils.CPU_SPEED),
+               templateName);
+        }
+
         // if the template has a 'cpu_model' then add it to the new TopologyEntityDTO
         if (template.hasTemplateInfo() && template.getTemplateInfo().hasCpuModel()) {
-            topologyEntityBuilder.setTypeSpecificInfo(
-                TypeSpecificInfo.newBuilder().setPhysicalMachine(PhysicalMachineInfo.newBuilder()
-                    .setCpuModel(template.getTemplateInfo().getCpuModel())
-                ));
+            pmInfoBuilder.setCpuModel(template.getTemplateInfo().getCpuModel());
         }
+        topologyEntityBuilder.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+            .setPhysicalMachine(pmInfoBuilder));
+
         return topologyEntityBuilder;
     }
 
@@ -100,13 +130,11 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
      * Generate commodities for compute template resources.
      *
      * @param topologyEntityBuilder builder of TopologyEntityDTO.
-     * @param computeTemplateResources a list of compute template resources.
+     * @param computeTemplateResources a map (name -> value) of compute template resources.
      */
     private static void addComputeCommodities(@Nonnull TopologyEntityDTO.Builder topologyEntityBuilder,
-                                              @Nonnull List<TemplateResource> computeTemplateResources) {
-        final Map<String, String> fieldNameValueMap =
-            TemplatesConverterUtils.createFieldNameValueMap(computeTemplateResources);
-        addComputeCommoditiesSold(topologyEntityBuilder, fieldNameValueMap);
+                                              @Nonnull Map<String, String> computeTemplateResources) {
+        addComputeCommoditiesSold(topologyEntityBuilder, computeTemplateResources);
     }
 
     /**
