@@ -2,9 +2,11 @@ package com.vmturbo.history.stats;
 
 import static com.vmturbo.history.stats.StatsTestUtils.newStatRecordWithKey;
 import static com.vmturbo.history.stats.StatsTestUtils.newStatRecordWithKeyAndEffectiveCapacity;
+import static com.vmturbo.history.stats.StatsTestUtils.newStatRecordWithProducerUuid;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.mock;
@@ -13,6 +15,8 @@ import static org.mockito.Mockito.when;
 import java.sql.Timestamp;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -22,16 +26,19 @@ import org.jooq.Record;
 import org.junit.Assert;
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.stats.StatRecordBuilder.DefaultStatRecordBuilder;
 import com.vmturbo.history.stats.StatSnapshotCreator.DefaultStatSnapshotCreator;
+import com.vmturbo.history.stats.live.LiveStatsReader;
 
 public class StatSnapshotCreatorTest {
 
@@ -49,7 +56,8 @@ public class StatSnapshotCreatorTest {
         final StatRecord record2 = StatRecord.newBuilder()
                 .setName("mock2")
                 .build();
-        when(statRecordBuilder.buildStatRecord(any(), any(), isA(StatValue.class), any(), any(), any(), any(), any(), any(), any(), any()))
+        when(statRecordBuilder.buildStatRecord(any(), any(), isA(StatValue.class), any(), any(),
+            any(), any(), any(), any(), any(), any()))
                 .thenReturn(record1, record2);
         final List<CommodityRequest> commodityRequests =
                 Collections.singletonList(CommodityRequest.newBuilder()
@@ -71,13 +79,153 @@ public class StatSnapshotCreatorTest {
         assertThat(snapshot.getStatRecordsList(), containsInAnyOrder(record1, record2));
     }
 
+    /**
+     * Test group by relatedEntity for StatSnapshotCreator. It tests the scenario that one
+     * LogicalPool consumes two different disk arrays. We expect to see two set of bought
+     * commodities in the result.
+     *
+     * UI usually passes commodity request filters with all groupBy fields:
+     *     commodityName: StorageAmount, groupBy: [key, relatedEntity, virtualDisk]
+     *     commodityName: StorageAccess, groupBy: [key, relatedEntity, virtualDisk]
+     * Only relatedEntity has effect here, but the others are also added in this test to ensure
+     * they don't have effect on the result. This test will verify that there are two StorageAmount
+     * and two StorageAccess (related to different provider) with different used value in result.
+     */
+    @Test
+    public void testGroupByRelatedEntity() {
+        final String oidDiskArray1 = "111";
+        final String oidDiskArray2 = "112";
+        final String storageAmount = UICommodityType.STORAGE_AMOUNT.apiStr();
+        final String storageAccess = UICommodityType.STORAGE_ACCESS.apiStr();
+        final float delta = 0.000001f;
+
+        LiveStatsReader liveStatsReader = mock(LiveStatsReader.class);
+        when(liveStatsReader.getEntityDisplayNameForId(any())).thenReturn("dummyDisplayName");
+        DefaultStatRecordBuilder statRecordBuilder1 = new DefaultStatRecordBuilder(liveStatsReader);
+        final StatSnapshotCreator snapshotCreator1 = new DefaultStatSnapshotCreator(statRecordBuilder1);
+
+        // only relatedEntity has effect here, although ui passes all groupBy filters
+        final List<CommodityRequest> commodityRequests = ImmutableList.of(
+            CommodityRequest.newBuilder()
+                .setCommodityName(storageAmount)
+                .addGroupBy(StringConstants.KEY)
+                .addGroupBy(StringConstants.RELATED_ENTITY)
+                .addGroupBy(StringConstants.VIRTUAL_DISK)
+                .build(),
+            CommodityRequest.newBuilder()
+                .setCommodityName(storageAccess)
+                .addGroupBy(StringConstants.KEY)
+                .addGroupBy(StringConstants.RELATED_ENTITY)
+                .addGroupBy(StringConstants.VIRTUAL_DISK)
+                .build());
+
+        final List<Record> statsRecordsList = Lists.newArrayList(
+            newStatRecordWithProducerUuid(SNAPSHOT_TIME, 12, storageAmount, "used", oidDiskArray1),
+            newStatRecordWithProducerUuid(SNAPSHOT_TIME, 13, storageAccess, "used", oidDiskArray1),
+            newStatRecordWithProducerUuid(SNAPSHOT_TIME, 14, storageAmount, "used", oidDiskArray2),
+            newStatRecordWithProducerUuid(SNAPSHOT_TIME, 15, storageAccess, "used", oidDiskArray2)
+        );
+
+        final List<StatSnapshot> snapshots =
+            snapshotCreator1.createStatSnapshots(statsRecordsList, false, commodityRequests)
+                .map(StatSnapshot.Builder::build)
+                .collect(Collectors.toList());
+
+        assertThat(snapshots.size(), is(1));
+        List<StatRecord> statRecordsList = snapshots.get(0).getStatRecordsList();
+
+        // check that there are 4 records in response
+        assertThat(statRecordsList.size(), is(4));
+
+        // stats by provider uuid and then by commodity name
+        final Map<String, Map<String, StatRecord>> map = statRecordsList.stream()
+            .collect(Collectors.groupingBy(StatRecord::getProviderUuid,
+                Collectors.toMap(StatRecord::getName, Function.identity())));
+
+        assertEquals(map.get(oidDiskArray1).get(storageAmount).getUsed().getAvg(), 12, delta);
+        assertEquals(map.get(oidDiskArray1).get(storageAccess).getUsed().getAvg(), 13, delta);
+        assertEquals(map.get(oidDiskArray2).get(storageAmount).getUsed().getAvg(), 14, delta);
+        assertEquals(map.get(oidDiskArray2).get(storageAccess).getUsed().getAvg(), 15, delta);
+    }
+
+    /**
+     * Test group by virtualDisk for StatSnapshotCreator. It tests the scenario that one VM buys
+     * two set of commodities from same StorageTier (each set is related to a different volume).
+     * Volume id is stored in the commodity key field. We expect to see two set of bought
+     * commodities with different keys in the result.
+     *
+     * UI usually passes commodity request filters with all groupBy fields:
+     *     commodityName: StorageAmount, groupBy: [key, relatedEntity, virtualDisk]
+     *     commodityName: StorageAccess, groupBy: [key, relatedEntity, virtualDisk]
+     * Only virtualDisk has effect here, but the others are also added in this test to ensure
+     * they don't have effect on the result. This test will verify that there are two StorageAmount
+     * and two StorageAccess (related to different volume) with different used value in result.
+     */
+    @Test
+    public void testGroupByVirtualDisk() {
+        final String volume1 = "111";
+        final String volume2 = "112";
+        final String storageAmount = UICommodityType.STORAGE_AMOUNT.apiStr();
+        final String storageAccess = UICommodityType.STORAGE_ACCESS.apiStr();
+        final float delta = 0.000001f;
+
+        LiveStatsReader liveStatsReader = mock(LiveStatsReader.class);
+        when(liveStatsReader.getEntityDisplayNameForId(any())).thenReturn("dummyDisplayName");
+        DefaultStatRecordBuilder statRecordBuilder1 = new DefaultStatRecordBuilder(liveStatsReader);
+        final StatSnapshotCreator snapshotCreator1 = new DefaultStatSnapshotCreator(statRecordBuilder1);
+
+        // only virtualDisk has effect here, although ui passes all groupBy filters
+        final List<CommodityRequest> commodityRequests = ImmutableList.of(
+            CommodityRequest.newBuilder()
+                .setCommodityName(storageAmount)
+                .addGroupBy(StringConstants.KEY)
+                .addGroupBy(StringConstants.RELATED_ENTITY)
+                .addGroupBy(StringConstants.VIRTUAL_DISK)
+                .build(),
+            CommodityRequest.newBuilder()
+                .setCommodityName(storageAccess)
+                .addGroupBy(StringConstants.KEY)
+                .addGroupBy(StringConstants.RELATED_ENTITY)
+                .addGroupBy(StringConstants.VIRTUAL_DISK)
+                .build());
+
+        final List<Record> statsRecordsList = Lists.newArrayList(
+            newStatRecordWithKey(SNAPSHOT_TIME, 12, storageAmount, "used", volume1),
+            newStatRecordWithKey(SNAPSHOT_TIME, 13, storageAccess, "used", volume1),
+            newStatRecordWithKey(SNAPSHOT_TIME, 14, storageAmount, "used", volume2),
+            newStatRecordWithKey(SNAPSHOT_TIME, 15, storageAccess, "used", volume2)
+        );
+
+        final List<StatSnapshot> snapshots =
+            snapshotCreator1.createStatSnapshots(statsRecordsList, false, commodityRequests)
+                .map(StatSnapshot.Builder::build)
+                .collect(Collectors.toList());
+
+        assertThat(snapshots.size(), is(1));
+        List<StatRecord> statRecordsList = snapshots.get(0).getStatRecordsList();
+
+        // check that there are 4 records in response
+        assertThat(statRecordsList.size(), is(4));
+
+        // stats by virtualDisk id (which is commodity key) and then by commodity name
+        final Map<String, Map<String, StatRecord>> map = statRecordsList.stream()
+            .collect(Collectors.groupingBy(StatRecord::getStatKey,
+                Collectors.toMap(StatRecord::getName, Function.identity())));
+
+        assertEquals(map.get(volume1).get(storageAmount).getUsed().getAvg(), 12, delta);
+        assertEquals(map.get(volume1).get(storageAccess).getUsed().getAvg(), 13, delta);
+        assertEquals(map.get(volume2).get(storageAmount).getUsed().getAvg(), 14, delta);
+        assertEquals(map.get(volume2).get(storageAccess).getUsed().getAvg(), 15, delta);
+    }
+
     @Test
     public void testNoGroupByKey() {
         // arrange
         final StatRecord record = StatRecord.newBuilder()
                 .setName("mock")
                 .build();
-        when(statRecordBuilder.buildStatRecord(any(), any(), isA(StatValue.class), any(), any(), any(), any(), any(), any(), any(), any()))
+        when(statRecordBuilder.buildStatRecord(any(), any(), isA(StatValue.class), any(), any(),
+            any(), any(), any(), any(), any(), any()))
                 .thenReturn(record);
         final List<CommodityRequest> commodityRequests =
             Collections.singletonList(CommodityRequest.newBuilder()

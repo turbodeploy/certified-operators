@@ -17,6 +17,8 @@ public class StringConstants {
     public static final String CLASS_NAME = "class_name";
     public static final String COMMODITY_KEY = "commodity_key";
     public static final String KEY = "key";
+    public static final String RELATED_ENTITY = "relatedEntity";
+    public static final String VIRTUAL_DISK = "virtualDisk";
     public static final String CPU = "CPU";
     public static final String CREATION_CLASS_NAME = "creationClassName";
     public static final String DAY = "day";

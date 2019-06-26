@@ -8,7 +8,6 @@ import java.net.URL;
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -209,6 +208,29 @@ public class StatsTestUtils {
                                               @Nonnull final String propType,
                                               @Nonnull final String propSubType,
                                               @Nullable String commodityKey) {
+        return newStatRecordWithKeyAndEffectiveCapacityAndProducerUuid(snapshotTime, testValue,
+            effectiveCapacityPercentage, propType, propSubType, commodityKey, null);
+    }
+
+    @Nonnull
+    public static Record newStatRecordWithProducerUuid(@Nonnull final Timestamp snapshotTime,
+                                                       final double testValue,
+                                                       @Nonnull final String propType,
+                                                       @Nonnull final String propSubType,
+                                                       @Nonnull String producerUuid) {
+        return newStatRecordWithKeyAndEffectiveCapacityAndProducerUuid(snapshotTime, testValue,
+            1.0, propType, propSubType, null, producerUuid);
+    }
+
+    @Nonnull
+    public static Record newStatRecordWithKeyAndEffectiveCapacityAndProducerUuid(
+                @Nonnull final Timestamp snapshotTime,
+                final double testValue,
+                final double effectiveCapacityPercentage,
+                @Nonnull final String propType,
+                @Nonnull final String propSubType,
+                @Nullable String commodityKey,
+                @Nullable String producerUuid) {
         final PmStatsLatestRecord statsRecord = new PmStatsLatestRecord();
         statsRecord.setSnapshotTime(snapshotTime);
         statsRecord.setPropertyType(propType);
@@ -221,6 +243,9 @@ public class StatsTestUtils {
         statsRecord.setEffectiveCapacity(statsRecord.getCapacity() * effectiveCapacityPercentage);
         if (commodityKey != null) {
             statsRecord.setCommodityKey(commodityKey);
+        }
+        if (producerUuid != null) {
+            statsRecord.setProducerUuid(producerUuid);
         }
         return statsRecord;
     }
