@@ -35,8 +35,8 @@ kind: Deployment
 metadata:
   labels:
     zone: secure
-    app.kubernetes.io/name: {{ .Chart.Name }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
   name: {{ .Chart.Name }}
 spec:
   replicas: {{ .Values.replicaCount }}
@@ -46,8 +46,7 @@ spec:
     metadata:
       labels:
         zone: secure
-        app.kubernetes.io/name: {{ .Chart.Name }}
-        app.kubernetes.io/instance: {{ .Release.Name }}
+        io.kompose.service: influxdb
     spec:
       containers:
       - name: {{ .Chart.Name }}
