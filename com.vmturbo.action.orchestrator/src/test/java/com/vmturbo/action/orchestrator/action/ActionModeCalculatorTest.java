@@ -57,7 +57,7 @@ public class ActionModeCalculatorTest {
         .setId(10289)
         .setExplanation(Explanation.getDefaultInstance())
         .setSupportingLevel(SupportLevel.SUPPORTED)
-        .setImportance(0);
+        .setDeprecatedImportance(0);
 
     private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
 
@@ -689,7 +689,7 @@ public class ActionModeCalculatorTest {
                     .setStartUtilization(25)
                     .setEndUtilization(50)
                     .build()))
-            .setImportance(0);
+            .setDeprecatedImportance(0);
         final ActionDTO.Action recommendation = actionBuilder.setInfo(ActionInfo.newBuilder()
             .setResize(Resize.newBuilder()
                 .setTarget(ActionEntity.newBuilder()
@@ -713,7 +713,7 @@ public class ActionModeCalculatorTest {
                     .setStartUtilization(100)
                     .setEndUtilization(50)
                     .build()))
-            .setImportance(0);
+            .setDeprecatedImportance(0);
         final ActionDTO.Action recommendation = actionBuilder
             .setInfo(ActionInfo.newBuilder()
                 .setResize(Resize.newBuilder()

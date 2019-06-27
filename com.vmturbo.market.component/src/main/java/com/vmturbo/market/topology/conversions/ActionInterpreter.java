@@ -124,7 +124,7 @@ public class ActionInterpreter {
             final Action.Builder action = Action.newBuilder()
                     // Assign a unique ID to each generated action.
                     .setId(IdentityGenerator.next())
-                    .setImportance(actionTO.getImportance())
+                    .setDeprecatedImportance(actionTO.getImportance())
                     .setExplanation(interpretExplanation(actionTO, savings))
                     .setExecutable(!actionTO.getIsNotExecutable());
             savings.ifPresent(action::setSavingsPerHour);

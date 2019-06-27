@@ -32,6 +32,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -163,11 +167,11 @@ public class EntitySeverityCacheTest {
             .setExecutable(true)
             .setSupportingLevel(SupportLevel.SUPPORTED)
             .setId(IdentityGenerator.next())
-            .setImportance(mapSeverityToImportance(severity))
+            .setDeprecatedImportance(mapSeverityToImportance(severity))
             .setInfo(
                     TestActionBuilder.makeMoveInfo(targetId, sourceId, sourceType,
                     destinationId, destinationType))
-            .setExplanation(Explanation.newBuilder().build())
+            .setExplanation(mapSeverityToExplanation(severity))
             .build();
     }
 
@@ -191,6 +195,35 @@ public class EntitySeverityCacheTest {
                 return ActionDTOUtil.MAJOR_SEVERITY_THRESHOLD - 1.0;
             case CRITICAL:
                 return ActionDTOUtil.MAJOR_SEVERITY_THRESHOLD + 1.0;
+            default:
+                throw new IllegalArgumentException("Unknown severity " + severity);
+        }
+    }
+
+    /**
+     * Map the severity category to one of the Explanations of that type of severity.
+     *
+     * @param severity The name of the severity category.
+     * @return The Explanation which can be used to generate severity category.
+     */
+    private static Explanation mapSeverityToExplanation(Severity severity) {
+        switch (severity) {
+            case NORMAL:
+                return Explanation.newBuilder().build();
+            case MINOR:
+                return Explanation.newBuilder().setDeactivate(
+                    DeactivateExplanation.newBuilder().build()).build();
+            case MAJOR:
+                return Explanation.newBuilder().setMove(
+                    MoveExplanation.newBuilder().addChangeProviderExplanation(
+                        ChangeProviderExplanation.newBuilder().setPerformance(
+                            ChangeProviderExplanation.Performance.getDefaultInstance())
+                            .build())
+                        .build())
+                    .build();
+            case CRITICAL:
+                return Explanation.newBuilder().setReconfigure(
+                    ReconfigureExplanation.newBuilder().build()).build();
             default:
                 throw new IllegalArgumentException("Unknown severity " + severity);
         }

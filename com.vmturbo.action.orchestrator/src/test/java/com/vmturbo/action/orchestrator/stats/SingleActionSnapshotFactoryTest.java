@@ -44,7 +44,7 @@ public class SingleActionSnapshotFactoryTest {
                         .setResize(ResizeExplanation.newBuilder()
                                 .setStartUtilization(1)
                                 .setEndUtilization(2)))
-                .setImportance(10)
+                .setDeprecatedImportance(10)
                 .build();
         when(actionView.getRecommendation()).thenReturn(recommendation);
         when(actionView.getState()).thenReturn(ActionState.QUEUED);

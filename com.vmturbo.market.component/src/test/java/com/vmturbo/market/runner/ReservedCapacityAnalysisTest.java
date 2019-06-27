@@ -236,7 +236,7 @@ public class ReservedCapacityAnalysisTest {
         assertEquals(1, rca.getActions().size());
         assertEquals(25, rca.getReservedCapacity(VM_OID, MEM), FLOATING_POINT_DELTA);
         Action action = rca.getActions().iterator().next();
-        assertEquals(-1, action.getImportance(), FLOATING_POINT_DELTA);
+        assertEquals(-1, action.getDeprecatedImportance(), FLOATING_POINT_DELTA);
         assertTrue(action.getExecutable());
         ResizeExplanation explanation = action.getExplanation().getResize();
         assertEquals(25, explanation.getStartUtilization(), FLOATING_POINT_DELTA);

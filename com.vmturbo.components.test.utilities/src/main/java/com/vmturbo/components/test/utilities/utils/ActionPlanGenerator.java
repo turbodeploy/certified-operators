@@ -389,7 +389,7 @@ public class ActionPlanGenerator {
                                     @Nonnull final Chooser chooser) {
             return Action.newBuilder()
                 .setId(IdentityGenerator.next())
-                .setImportance(chooser.nextDouble())
+                .setDeprecatedImportance(chooser.nextDouble())
                 .setExplanation(explanationBuilder)
                 .setInfo(actionBuilder)
                 .setExecutable(true)

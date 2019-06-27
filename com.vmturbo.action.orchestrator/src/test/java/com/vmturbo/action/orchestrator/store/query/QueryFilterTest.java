@@ -185,7 +185,7 @@ public class QueryFilterTest {
         final ActionDTO.Action action = ActionDTO.Action.newBuilder()
                 .setId(0L)
                 .setInfo(TestActionBuilder.makeMoveInfo(3L, 1L, 1, 2L, 1))
-                .setImportance(0)
+                .setDeprecatedImportance(0)
                 .setExecutable(true)
                 .setExplanation(Explanation.newBuilder().setMove(MoveExplanation.newBuilder()
                     .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
@@ -202,7 +202,7 @@ public class QueryFilterTest {
         final ActionDTO.Action action = ActionDTO.Action.newBuilder()
                 .setId(0L)
                 .setInfo(TestActionBuilder.makeMoveInfo(3L, 1L, 1, 2L, 1))
-                .setImportance(0)
+                .setDeprecatedImportance(0)
                 .setExecutable(true)
                 .setExplanation(Explanation.newBuilder().setMove(MoveExplanation.newBuilder()
                         .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
@@ -280,7 +280,7 @@ public class QueryFilterTest {
     public void testEnvironmentFilterMatch() {
         final ActionDTO.Action action = ActionDTO.Action.newBuilder()
             .setId(1)
-            .setImportance(0)
+            .setDeprecatedImportance(0)
             .setExecutable(true)
             .setExplanation(Explanation.newBuilder().build())
             .setInfo(ActionInfo.newBuilder()
@@ -304,7 +304,7 @@ public class QueryFilterTest {
     public void testEnvironmentFilterNoMatch() {
         final ActionDTO.Action action = ActionDTO.Action.newBuilder()
             .setId(1)
-            .setImportance(0)
+            .setDeprecatedImportance(0)
             .setExecutable(true)
             .setExplanation(Explanation.newBuilder().build())
             .setInfo(ActionInfo.newBuilder()
@@ -328,7 +328,7 @@ public class QueryFilterTest {
     public void testEnvironmentFilterUnset() {
         final ActionDTO.Action action = ActionDTO.Action.newBuilder()
             .setId(1)
-            .setImportance(0)
+            .setDeprecatedImportance(0)
             .setExecutable(true)
             .setExplanation(Explanation.newBuilder().build())
             .setInfo(ActionInfo.newBuilder()
@@ -352,7 +352,7 @@ public class QueryFilterTest {
     public void testEnvironmentFilterUnsupportedAction() {
         final ActionDTO.Action action = ActionDTO.Action.newBuilder()
             .setId(1)
-            .setImportance(0)
+            .setDeprecatedImportance(0)
             .setExecutable(true)
             .setExplanation(Explanation.newBuilder().build())
             // No "action type".
@@ -371,7 +371,7 @@ public class QueryFilterTest {
     private ActionView executableMoveAction(long id, long sourceId, int sourceType, long destId, int destType, long targetId) {
         final ActionDTO.Action action = ActionDTO.Action.newBuilder()
                 .setId(id)
-                .setImportance(0)
+                .setDeprecatedImportance(0)
                 .setExecutable(true)
                 .setExplanation(Explanation.newBuilder().build())
                 .setInfo(TestActionBuilder.makeMoveInfo(targetId, sourceId, sourceType, destId, destType))
@@ -383,7 +383,7 @@ public class QueryFilterTest {
     private ActionView notExecutableMoveAction(long id, long sourceId, int sourceType, long destId, int destType, long targetId) {
         final ActionDTO.Action action = ActionDTO.Action.newBuilder()
             .setId(id)
-            .setImportance(0)
+            .setDeprecatedImportance(0)
             .setSupportingLevel(SupportLevel.SUPPORTED)
             .setExplanation(Explanation.newBuilder().build())
             .setExecutable(false)

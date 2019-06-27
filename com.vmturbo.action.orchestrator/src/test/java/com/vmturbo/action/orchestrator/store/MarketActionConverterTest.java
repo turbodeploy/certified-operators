@@ -41,7 +41,7 @@ public class MarketActionConverterTest {
         MarketActionConverter cvt = new MarketActionConverter();
         Action a = Action.newBuilder().setId(1l)
                         .setInfo(ACTION_INFO)
-                        .setImportance(12.6f)
+                        .setDeprecatedImportance(12.6f)
                         .setExplanation(Explanation.newBuilder()
                                         .setActivate(ActivateExplanation.newBuilder()
                                                      .setMostExpensiveCommodity(2))
@@ -73,7 +73,7 @@ public class MarketActionConverterTest {
                                                                                         .newBuilder()
                                                                                         .setType(newType)))))
                         .setInfo(ACTION_INFO)
-                        .setImportance(12.6f)
+                        .setDeprecatedImportance(12.6f)
                         .build();
         Action converted = cvt.from(cvt.to(a));
 
@@ -108,7 +108,7 @@ public class MarketActionConverterTest {
                         .setExplanation(Explanation.newBuilder()
                                         .setReconfigure(builder))
                         .setInfo(ACTION_INFO)
-                        .setImportance(12.6f)
+                        .setDeprecatedImportance(12.6f)
                         .build();
         Action converted = cvt.from(cvt.to(a));
 
@@ -159,7 +159,7 @@ public class MarketActionConverterTest {
                                                                                .setCompliance(compliance))
                                                  ))
                         .setInfo(ACTION_INFO)
-                        .setImportance(12.6f)
+                        .setDeprecatedImportance(12.6f)
                         .build();
         Action converted = cvt.from(cvt.to(a));
 

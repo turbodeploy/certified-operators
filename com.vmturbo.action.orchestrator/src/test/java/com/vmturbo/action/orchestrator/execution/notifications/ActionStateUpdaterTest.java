@@ -63,7 +63,7 @@ public class ActionStateUpdaterTest {
     private final long notFoundId = 99999;
     private final ActionDTO.Action recommendation = ActionDTO.Action.newBuilder()
         .setId(actionId)
-        .setImportance(0)
+        .setDeprecatedImportance(0)
         .setSupportingLevel(SupportLevel.SUPPORTED)
         .setInfo(TestActionBuilder.makeMoveInfo(3, 2, 1, 1, 1))
         .setExplanation(Explanation.newBuilder().build())

@@ -497,7 +497,7 @@ public class ProbeCapabilityCacheTest {
         final int destType2 = 3;
         final ActionDTO.Action testAction = ActionDTO.Action.newBuilder()
             .setId(1)
-            .setImportance(1)
+            .setDeprecatedImportance(1)
             .setExplanation(Explanation.newBuilder().build())
             .setInfo(ActionInfo.newBuilder()
                 .setMove(Move.newBuilder()

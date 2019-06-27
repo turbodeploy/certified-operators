@@ -180,7 +180,7 @@ public class RangeAwareResizeParameterizedTests {
         ActionDTO.Action.Builder actionBuilder = ActionDTO.Action.newBuilder()
                 .setId(10289)
                 .setExplanation(Explanation.getDefaultInstance())
-                .setImportance(0);
+                .setDeprecatedImportance(0);
         final ActionDTO.Action recommendation = actionBuilder
             .setSupportingLevel(SupportLevel.SUPPORTED)
             .setInfo(ActionInfo.newBuilder()

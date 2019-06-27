@@ -87,7 +87,7 @@ public class ActionDescriptionBuilderTest {
                                              final SupportLevel supportLevel) {
         return ActionDTO.Action.newBuilder()
                 .setId(IdentityGenerator.next())
-                .setImportance(0)
+                .setDeprecatedImportance(0)
                 .setExecutable(true)
                 .setSupportingLevel(supportLevel)
                 .setInfo(infoBuilder).setExplanation(Explanation.newBuilder().build());

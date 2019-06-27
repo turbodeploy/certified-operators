@@ -68,7 +68,7 @@ public class ClusterActionAggregatorTest {
     private static final ActionDTO.Action SAVINGS_ACTION = ActionDTO.Action.newBuilder()
             .setId(1)
             .setInfo(ActionInfo.getDefaultInstance())
-            .setImportance(1)
+            .setDeprecatedImportance(1)
             .setExplanation(Explanation.getDefaultInstance())
             .setSavingsPerHour(CurrencyAmount.newBuilder()
                     .setAmount(1.0))

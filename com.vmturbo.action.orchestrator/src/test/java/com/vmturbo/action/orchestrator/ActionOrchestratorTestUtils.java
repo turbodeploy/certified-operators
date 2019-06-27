@@ -162,7 +162,7 @@ public class ActionOrchestratorTestUtils {
         return ActionDTO.Action.newBuilder()
             .setId(actionId)
             .setSupportingLevel(SupportLevel.SUPPORTED)
-            .setImportance(0)
+            .setDeprecatedImportance(0)
             .setExecutable(true)
             .setExplanation(Explanation.newBuilder().build());
     }

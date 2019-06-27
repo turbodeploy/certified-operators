@@ -336,15 +336,14 @@ public class ActionSpecMapper {
         // map the recommendation info
         final ActionDTO.Action recommendation = actionSpec.getRecommendation();
         LogEntryApiDTO risk = new LogEntryApiDTO();
-        actionApiDTO.setImportance((float) recommendation.getImportance());
-        risk.setImportance((float)recommendation.getImportance());
+        actionApiDTO.setImportance((float) recommendation.getDeprecatedImportance());
+        risk.setImportance((float)recommendation.getDeprecatedImportance());
         // set the explanation string
 
         risk.setDescription(createRiskDescription(actionSpec, context));
         risk.setSubCategory(mapXlActionCategoryToApi(actionSpec.getCategory()));
-        risk.setSeverity(
-            ActionDTOUtil.getSeverityName(ActionDTOUtil.mapImportanceToSeverity(recommendation
-                    .getImportance())));
+        risk.setSeverity(ActionDTOUtil.getSeverityName(
+            ActionDTOUtil.mapActionCategoryToSeverity(actionSpec.getCategory())));
         risk.setReasonCommodity("");
         actionApiDTO.setRisk(risk);
 

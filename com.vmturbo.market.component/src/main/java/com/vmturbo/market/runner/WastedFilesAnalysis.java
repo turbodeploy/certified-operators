@@ -179,7 +179,7 @@ public class WastedFilesAnalysis {
         final Action.Builder action = Action.newBuilder()
                 // Assign a unique ID to each generated action.
                 .setId(IdentityGenerator.next())
-                .setImportance(0.0D)
+                .setDeprecatedImportance(0.0D)
                 .setExecutable(false)
                 .setInfo(ActionInfo.newBuilder().setDelete(Delete.newBuilder()
                         .setTarget(ActionEntity.newBuilder()

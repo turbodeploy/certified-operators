@@ -372,7 +372,7 @@ public class ReservedInstanceAnalysisRecommendation {
                                 .setBuyRi(buyRI)
                                 .build())
                         .setExplanation(explanation)
-                        .setImportance(0)
+                        .setDeprecatedImportance(0)
                         .setSupportingLevel(SupportLevel.SHOW_ONLY)
                         .setExecutable(false)
                         .build();

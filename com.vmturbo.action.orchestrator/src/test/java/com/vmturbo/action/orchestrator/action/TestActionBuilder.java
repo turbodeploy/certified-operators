@@ -29,7 +29,7 @@ public class TestActionBuilder {
                                   int sourceType,
                                   long destinationId,
                                   int destinationType) {
-        return Action.newBuilder().setId(actionId.getAndIncrement()).setImportance(1)
+        return Action.newBuilder().setId(actionId.getAndIncrement()).setDeprecatedImportance(1)
             .setExplanation(Explanation.newBuilder().build())
             .setInfo(makeMoveInfo(targetId, sourceId, sourceType, destinationId, destinationType))
             .setSupportingLevel(SupportLevel.SUPPORTED)
@@ -62,7 +62,7 @@ public class TestActionBuilder {
     public Action buildProvisionAction(long entityToCloneId,
                                        @Nullable Long provisionedSeller) {
 
-        return Action.newBuilder().setId(actionId.getAndIncrement()).setImportance(1)
+        return Action.newBuilder().setId(actionId.getAndIncrement()).setDeprecatedImportance(1)
                 .setExplanation(Explanation.newBuilder().build())
                 .setInfo(makeProvisionInfo(entityToCloneId, provisionedSeller))
                 .build();

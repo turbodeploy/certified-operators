@@ -56,7 +56,7 @@ public class TestHelper {
     private static ActionDTO.Action.Builder baseAction(final long actionId) {
         return ActionDTO.Action.newBuilder()
             .setId(actionId)
-            .setImportance(0)
+            .setDeprecatedImportance(0)
             .setExecutable(true)
             .setExplanation(Explanation.newBuilder().build());
     }

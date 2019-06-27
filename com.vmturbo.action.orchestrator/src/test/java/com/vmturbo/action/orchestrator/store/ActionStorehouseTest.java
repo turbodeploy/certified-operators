@@ -60,7 +60,7 @@ public class ActionStorehouseTest {
             executor, actionStoreLoader, actionModeCalculator);
     private final Action moveAction = Action.newBuilder()
         .setId(9999L)
-        .setImportance(0)
+        .setDeprecatedImportance(0)
         .setExplanation(Explanation.getDefaultInstance())
         .setInfo(ActionInfo.getDefaultInstance())
         .build();
@@ -193,7 +193,7 @@ public class ActionStorehouseTest {
     public void testMultipleStores() throws Exception {
         final Action otherMoveAction = Action.newBuilder()
             .setId(19999L)
-            .setImportance(0)
+            .setDeprecatedImportance(0)
             .setExplanation(Explanation.getDefaultInstance())
             .setInfo(ActionInfo.getDefaultInstance())
             .build();

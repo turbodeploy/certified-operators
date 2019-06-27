@@ -64,7 +64,7 @@ public class CurrentActionStatReaderTest {
                     .setId(232)
                     .setType(EntityType.VIRTUAL_MACHINE_VALUE))))
         .setExplanation(Explanation.getDefaultInstance())
-        .setImportance(1)
+        .setDeprecatedImportance(1)
         .build();
 
     @Test

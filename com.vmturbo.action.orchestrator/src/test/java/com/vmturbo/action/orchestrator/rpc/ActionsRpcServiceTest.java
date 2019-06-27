@@ -106,7 +106,7 @@ public class ActionsRpcServiceTest {
                 ActionState state) {
         final ActionDTO.Action action = ActionDTO.Action.newBuilder()
                 .setId(id)
-                .setImportance(0)
+                .setDeprecatedImportance(0)
                 .setExecutable(true)
                 .setExplanation(Explanation.newBuilder().build())
                 .setInfo(TestActionBuilder
@@ -126,7 +126,7 @@ public class ActionsRpcServiceTest {
     private ActionView executableActivateAction(long id, long targetId) {
         final ActionDTO.Action action = ActionDTO.Action.newBuilder()
                 .setId(id)
-                .setImportance(0)
+                .setDeprecatedImportance(0)
                 .setExecutable(true)
                 .setExplanation(Explanation.newBuilder().build())
                 .setInfo(ActionInfo.newBuilder()

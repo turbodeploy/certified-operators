@@ -51,7 +51,7 @@ public class GlobalActionAggregatorTest {
                         .setId(7)
                         .setType(EntityType.VIRTUAL_MACHINE_VALUE)
                         .setEnvironmentType(EnvironmentType.ON_PREM))))
-            .setImportance(1)
+            .setDeprecatedImportance(1)
             .setExplanation(Explanation.getDefaultInstance())
             .build();
 
@@ -135,7 +135,7 @@ public class GlobalActionAggregatorTest {
             .setInfo(ActionInfo.newBuilder()
                 .setActivate(Activate.newBuilder()
                     .setTarget(entity)))
-            .setImportance(1)
+            .setDeprecatedImportance(1)
             .setExplanation(Explanation.getDefaultInstance())
             .build();
 
@@ -219,7 +219,7 @@ public class GlobalActionAggregatorTest {
                     .addChanges(ChangeProvider.newBuilder()
                         .setSource(onPremVm)
                         .setDestination(cloudVm))))
-            .setImportance(1)
+            .setDeprecatedImportance(1)
             .setExplanation(Explanation.getDefaultInstance())
             .build();
 

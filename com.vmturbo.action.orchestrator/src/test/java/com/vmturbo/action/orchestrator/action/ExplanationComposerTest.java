@@ -65,7 +65,7 @@ public class ExplanationComposerTest {
                                 .addChanges(ChangeProvider.newBuilder()
                                     .setSource(ActionEntity.newBuilder()
                                             .setId(1).setType(EntityType.PHYSICAL_MACHINE.getNumber())
-                                    )))).setImportance(0)
+                                    )))).setDeprecatedImportance(0)
                 .setExplanation(Explanation.newBuilder()
                     .setMove(MoveExplanation.newBuilder()
                         .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
@@ -97,7 +97,7 @@ public class ExplanationComposerTest {
                     .addChanges(ChangeProvider.newBuilder()
                         .setSource(ActionEntity.newBuilder().setId(4).setType(EntityType.STORAGE_VALUE))
                         .setDestination(ActionEntity.newBuilder().setId(5).setType(EntityType.STORAGE_VALUE))
-                    ))).setImportance(0)
+                    ))).setDeprecatedImportance(0)
             .setExplanation(Explanation.newBuilder()
                 .setMove(MoveExplanation.newBuilder()
                     .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
@@ -123,7 +123,7 @@ public class ExplanationComposerTest {
                         .build());
 
         ActionDTO.Action action = ActionDTO.Action.newBuilder()
-                .setId(0).setInfo(ActionInfo.getDefaultInstance()).setImportance(0)
+                .setId(0).setInfo(ActionInfo.getDefaultInstance()).setDeprecatedImportance(0)
                 .setExplanation(validExplanation)
                 .build();
 
@@ -139,7 +139,7 @@ public class ExplanationComposerTest {
                         .build());
 
         action = ActionDTO.Action.newBuilder()
-                .setId(0).setInfo(ActionInfo.getDefaultInstance()).setImportance(0)
+                .setId(0).setInfo(ActionInfo.getDefaultInstance()).setDeprecatedImportance(0)
                 .setExplanation(invalidExplanation)
                 .build();
 
@@ -152,14 +152,14 @@ public class ExplanationComposerTest {
     @Test
     public void testReconfigureExplanation() {
         ActionDTO.Action reconfigure = ActionDTO.Action.newBuilder()
-                .setId(0).setInfo(ActionInfo.getDefaultInstance()).setImportance(0)
+                .setId(0).setInfo(ActionInfo.getDefaultInstance()).setDeprecatedImportance(0)
                 .setExplanation(Explanation.newBuilder()
                     .setReconfigure(ReconfigureExplanation.newBuilder()
                         .addReconfigureCommodity(SEGMENTATION).addReconfigureCommodity(NETWORK)))
                     .build();
 
         ActionDTO.Action reconfigureWithPrefix = ActionDTO.Action.newBuilder()
-                .setId(0).setInfo(ActionInfo.getDefaultInstance()).setImportance(0)
+                .setId(0).setInfo(ActionInfo.getDefaultInstance()).setDeprecatedImportance(0)
                 .setExplanation(Explanation.newBuilder()
                         .setReconfigure(ReconfigureExplanation.newBuilder()
                                         .addReconfigureCommodity(SEGMENTATION)
@@ -182,7 +182,7 @@ public class ExplanationComposerTest {
     @Test
     public void testProvisionExplanation() {
         ActionDTO.Action provision = ActionDTO.Action.newBuilder()
-                .setId(0).setInfo(ActionInfo.getDefaultInstance()).setImportance(0)
+                .setId(0).setInfo(ActionInfo.getDefaultInstance()).setDeprecatedImportance(0)
                 .setExplanation(Explanation.newBuilder()
                     .setProvision(ProvisionExplanation.newBuilder()
                             .setProvisionBySupplyExplanation(ProvisionBySupplyExplanation.newBuilder()
@@ -196,7 +196,7 @@ public class ExplanationComposerTest {
     @Test
     public void testResizeUpExplanation() {
         ActionDTO.Action.Builder action = ActionDTO.Action.newBuilder()
-                .setId(0).setImportance(0)
+                .setId(0).setDeprecatedImportance(0)
                 .setInfo(ActionInfo.newBuilder()
                     .setResize(Resize.newBuilder()
                         .setTarget(ActionEntity.newBuilder()
@@ -226,7 +226,7 @@ public class ExplanationComposerTest {
     @Test
     public void testActivateExplanation() {
         ActionDTO.Action activate = ActionDTO.Action.newBuilder()
-                .setId(0).setInfo(ActionInfo.getDefaultInstance()).setImportance(0)
+                .setId(0).setInfo(ActionInfo.getDefaultInstance()).setDeprecatedImportance(0)
                 .setExplanation(Explanation.newBuilder()
                 .setActivate(ActivateExplanation.newBuilder()
                     .setMostExpensiveCommodity(CPU.getCommodityType().getType())))
@@ -239,7 +239,7 @@ public class ExplanationComposerTest {
     @Test
     public void testDeactivateExplanation() {
         ActionDTO.Action deactivate = ActionDTO.Action.newBuilder()
-            .setId(0).setInfo(ActionInfo.getDefaultInstance()).setImportance(0)
+            .setId(0).setInfo(ActionInfo.getDefaultInstance()).setDeprecatedImportance(0)
             .setExplanation(Explanation.newBuilder()
                 .setDeactivate(DeactivateExplanation.getDefaultInstance()))
             .build();
@@ -251,7 +251,7 @@ public class ExplanationComposerTest {
     @Test
     public void testDeleteExplanation() {
         ActionDTO.Action delete = ActionDTO.Action.newBuilder()
-            .setId(0).setInfo(ActionInfo.getDefaultInstance()).setImportance(0)
+            .setId(0).setInfo(ActionInfo.getDefaultInstance()).setDeprecatedImportance(0)
             .setExplanation(Explanation.newBuilder()
                 .setDelete(DeleteExplanation.getDefaultInstance()))
             .build();

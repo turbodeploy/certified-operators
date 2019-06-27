@@ -259,7 +259,7 @@ public class QueryInfoFactoryTest {
                 .setActivate(Activate.newBuilder()
                     .setTarget(CLOUD_VM)))
             .setExplanation(Explanation.getDefaultInstance())
-            .setImportance(1);
+            .setDeprecatedImportance(1);
         actionCustomizer.accept(builder);
 
         final ActionView actionView = mock(ActionView.class);

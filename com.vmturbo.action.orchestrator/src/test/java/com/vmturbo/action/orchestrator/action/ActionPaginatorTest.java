@@ -49,7 +49,7 @@ public class ActionPaginatorTest {
 
     @Test
     public void testNoCursor() {
-        final ActionView mockView = newActionView(1, action -> action.setImportance(1.0));
+        final ActionView mockView = newActionView(1, action -> action.setDeprecatedImportance(1.0));
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         final PaginatedActionViews results =
                 paginator.applyPagination(Stream.of(mockView), PaginationParameters.getDefaultInstance());
@@ -72,8 +72,8 @@ public class ActionPaginatorTest {
     public void testDefaultLimit() {
         final ActionPaginatorFactory smallLimitFactory = new DefaultActionPaginatorFactory(1, 10);
         // Relying on default order - by severity
-        final ActionView mockView1 = newActionView(1, action -> action.setImportance(1.0));
-        final ActionView mockView2 = newActionView(2, action -> action.setImportance(2.0));
+        final ActionView mockView1 = newActionView(1, action -> action.setDeprecatedImportance(1.0));
+        final ActionView mockView2 = newActionView(2, action -> action.setDeprecatedImportance(2.0));
         final ActionPaginator paginator = smallLimitFactory.newPaginator();
         final PaginatedActionViews results = paginator.applyPagination(
                 Stream.of(mockView1, mockView2), PaginationParameters.newBuilder()
@@ -87,8 +87,8 @@ public class ActionPaginatorTest {
     public void testMaxLimitExceeded() {
         final ActionPaginatorFactory smallLimitFactory = new DefaultActionPaginatorFactory(1, 1);
         // Relying on default order - by severity
-        final ActionView mockView1 = newActionView(1, action -> action.setImportance(1.0));
-        final ActionView mockView2 = newActionView(2, action -> action.setImportance(2.0));
+        final ActionView mockView1 = newActionView(1, action -> action.setDeprecatedImportance(1.0));
+        final ActionView mockView2 = newActionView(2, action -> action.setDeprecatedImportance(2.0));
         final ActionPaginator paginator = smallLimitFactory.newPaginator();
         final PaginatedActionViews results = paginator.applyPagination(
                 Stream.of(mockView1, mockView2), PaginationParameters.newBuilder()
@@ -102,8 +102,8 @@ public class ActionPaginatorTest {
     @Test
     public void testLimit() {
         // Relying on default order - by severity
-        final ActionView mockView1 = newActionView(1, action -> action.setImportance(1.0));
-        final ActionView mockView2 = newActionView(2, action -> action.setImportance(2.0));
+        final ActionView mockView1 = newActionView(1, action -> action.setDeprecatedImportance(1.0));
+        final ActionView mockView2 = newActionView(2, action -> action.setDeprecatedImportance(2.0));
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         final PaginatedActionViews results = paginator.applyPagination(
                 Stream.of(mockView1, mockView2), PaginationParameters.newBuilder()
@@ -115,8 +115,8 @@ public class ActionPaginatorTest {
     @Test
     public void testNextCursor() {
         // Relying on default order - by severity
-        final ActionView mockView1 = newActionView(1, action -> action.setImportance(1.0));
-        final ActionView mockView2 = newActionView(2, action -> action.setImportance(2.0));
+        final ActionView mockView1 = newActionView(1, action -> action.setDeprecatedImportance(1.0));
+        final ActionView mockView2 = newActionView(2, action -> action.setDeprecatedImportance(2.0));
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         final PaginatedActionViews results = paginator.applyPagination(
                 Stream.of(mockView1, mockView2), PaginationParameters.newBuilder()
@@ -129,9 +129,9 @@ public class ActionPaginatorTest {
     @Test
     public void testNextNextCursor() {
         // Relying on default order - by severity
-        final ActionView mockView1 = newActionView(1, action -> action.setImportance(1.0));
-        final ActionView mockView2 = newActionView(2, action -> action.setImportance(2.0));
-        final ActionView mockView3 = newActionView(3, action -> action.setImportance(3.0));
+        final ActionView mockView1 = newActionView(1, action -> action.setDeprecatedImportance(1.0));
+        final ActionView mockView2 = newActionView(2, action -> action.setDeprecatedImportance(2.0));
+        final ActionView mockView3 = newActionView(3, action -> action.setDeprecatedImportance(3.0));
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         // Relying on initial next cursor working properly.
         final String nextCursor = paginator.applyPagination(
@@ -153,8 +153,8 @@ public class ActionPaginatorTest {
     @Test
     public void testNoMoreResultsCursor() {
         // Relying on default order - by severity
-        final ActionView mockView1 = newActionView(1, action -> action.setImportance(1.0));
-        final ActionView mockView2 = newActionView(2, action -> action.setImportance(2.0));
+        final ActionView mockView1 = newActionView(1, action -> action.setDeprecatedImportance(1.0));
+        final ActionView mockView2 = newActionView(2, action -> action.setDeprecatedImportance(2.0));
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         final PaginatedActionViews results = paginator.applyPagination(
                 Stream.of(mockView1, mockView2), PaginationParameters.newBuilder()
@@ -166,9 +166,9 @@ public class ActionPaginatorTest {
 
     @Test
     public void testDefaultOrderBy() {
-        final ActionView mockView1 = newActionView(1, action -> action.setImportance(1.0));
-        final ActionView mockView1LargerId = newActionView(2, action -> action.setImportance(1.0));
-        final ActionView mockView2 = newActionView(3, action -> action.setImportance(2.0));
+        final ActionView mockView1 = newActionView(1, action -> action.setDeprecatedImportance(1.0));
+        final ActionView mockView1LargerId = newActionView(2, action -> action.setDeprecatedImportance(1.0));
+        final ActionView mockView2 = newActionView(3, action -> action.setDeprecatedImportance(2.0));
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         final PaginatedActionViews results = paginator.applyPagination(
                 Stream.of(mockView1, mockView2, mockView1LargerId), PaginationParameters.newBuilder()
@@ -186,9 +186,9 @@ public class ActionPaginatorTest {
 
     @Test
     public void testOrderBySeverity() {
-        final ActionView mockView1 = newActionView(1, action -> action.setImportance(1.0));
-        final ActionView mockView1LargerId = newActionView(2, action -> action.setImportance(1.0));
-        final ActionView mockView2 = newActionView(3, action -> action.setImportance(2.0));
+        final ActionView mockView1 = newActionView(1, action -> action.setDeprecatedImportance(1.0));
+        final ActionView mockView1LargerId = newActionView(2, action -> action.setDeprecatedImportance(1.0));
+        final ActionView mockView2 = newActionView(3, action -> action.setDeprecatedImportance(2.0));
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         final PaginatedActionViews ascendingResults = paginator.applyPagination(
                 Stream.of(mockView1, mockView2, mockView1LargerId), PaginationParameters.newBuilder()
@@ -216,14 +216,14 @@ public class ActionPaginatorTest {
             .build();
 
         final ActionView smallerView = newActionView(1, action -> action
-            .setImportance(1.0)
+            .setDeprecatedImportance(1.0)
             .setInfo(info));
         final ActionView smallerViewLargerId = newActionView(2, action -> action
-            .setImportance(1.0)
+            .setDeprecatedImportance(1.0)
             .setInfo(info));
         // Activate considered "larger" because it appears later in the oneof.
         final ActionView largerView = newActionView(3, action -> action
-            .setImportance(1.0)
+            .setDeprecatedImportance(1.0)
             .setInfo(info));
 
         final String smallerDesc = "Move VM 1 from A to B";
@@ -259,17 +259,17 @@ public class ActionPaginatorTest {
                             .setType(1)))
             .build();
         final ActionView smallerView = newActionView(1, action -> action
-                .setImportance(1.0)
+                .setDeprecatedImportance(1.0)
                 .setInfo(resizeInfo));
         final ActionCategory smallerCat = ActionCategory.PERFORMANCE_ASSURANCE;
         final ActionCategory largerCat = ActionCategory.EFFICIENCY_IMPROVEMENT;
         when(smallerView.getActionCategory()).thenReturn(smallerCat);
         final ActionView smallerViewLargerId = newActionView(2, action -> action
-            .setImportance(1.0)
+            .setDeprecatedImportance(1.0)
             .setInfo(resizeInfo));
         when(smallerViewLargerId.getActionCategory()).thenReturn(smallerCat);
         final ActionView largerView = newActionView(3, action -> action
-                .setImportance(1.0)
+                .setDeprecatedImportance(1.0)
                 .setInfo(resizeInfo));
         when(largerView.getActionCategory()).thenReturn(largerCat);
 
@@ -299,17 +299,17 @@ public class ActionPaginatorTest {
                     .setType(1)))
             .build();
         final ActionView smallerView = newActionView(1, action -> action
-            .setImportance(1.0)
+            .setDeprecatedImportance(1.0)
             .setSavingsPerHour(CurrencyAmount.newBuilder()
                 .setAmount(1))
             .setInfo(resizeInfo));
         final ActionView smallerViewLargerId = newActionView(2, action -> action
-            .setImportance(1.0)
+            .setDeprecatedImportance(1.0)
             .setSavingsPerHour(CurrencyAmount.newBuilder()
                 .setAmount(1))
             .setInfo(resizeInfo));
         final ActionView largerView = newActionView(3, action -> action
-            .setImportance(1.0)
+            .setDeprecatedImportance(1.0)
             .setSavingsPerHour(CurrencyAmount.newBuilder()
                 .setAmount(2))
             .setInfo(resizeInfo));
@@ -340,17 +340,17 @@ public class ActionPaginatorTest {
                     .setType(1)))
             .build();
         final ActionView smallerView = newActionView(1, action -> action
-            .setImportance(1.0)
+            .setDeprecatedImportance(1.0)
             .setInfo(resizeInfo));
         LocalDateTime smallerTime = LocalDateTime.of(2007, 7, 7, 7, 7);
         LocalDateTime largerTime = LocalDateTime.of(2008, 8, 8, 8, 8);
         when(smallerView.getRecommendationTime()).thenReturn(smallerTime);
         final ActionView smallerViewLargerId = newActionView(2, action -> action
-            .setImportance(1.0)
+            .setDeprecatedImportance(1.0)
             .setInfo(resizeInfo));
         when(smallerViewLargerId.getRecommendationTime()).thenReturn(smallerTime);
         final ActionView largerView = newActionView(3, action -> action
-            .setImportance(1.0)
+            .setDeprecatedImportance(1.0)
             .setInfo(resizeInfo));
         when(largerView.getRecommendationTime()).thenReturn(largerTime);
 

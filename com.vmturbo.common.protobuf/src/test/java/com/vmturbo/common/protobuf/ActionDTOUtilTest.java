@@ -17,6 +17,7 @@ import org.junit.rules.ExpectedException;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
@@ -63,7 +64,7 @@ public class ActionDTOUtilTest {
 
     private static final Action action = Action.newBuilder()
         .setId(1L)
-        .setImportance(1.0)
+        .setDeprecatedImportance(1.0)
         .setInfo(ActionInfo.newBuilder()
             .setMove(Move.newBuilder()
                 .setTarget(createActionEntity(TARGET))
@@ -120,41 +121,29 @@ public class ActionDTOUtilTest {
     }
 
     @Test
-    public void testMapNormalSeverity() throws Exception {
-        // It must be BELOW the Normal value to map to Normal.
+    public void testMapNormalSeverity() {
         assertEquals(Severity.NORMAL,
-            ActionDTOUtil.mapImportanceToSeverity(ActionDTOUtil.NORMAL_SEVERITY_THRESHOLD - 1.0));
+            ActionDTOUtil.mapActionCategoryToSeverity(ActionCategory.UNKNOWN));
     }
 
     @Test
-    public void testMapMinorSeverity() throws Exception {
-        // This is slightly weird, but if importance maps exactly to the Normal value it is considered Minor.
+    public void testMapMinorSeverity() {
         assertEquals(Severity.MINOR,
-            ActionDTOUtil.mapImportanceToSeverity(ActionDTOUtil.NORMAL_SEVERITY_THRESHOLD));
-        assertEquals(Severity.MINOR,
-            ActionDTOUtil.mapImportanceToSeverity(ActionDTOUtil.MINOR_SEVERITY_THRESHOLD - 1.0));
+            ActionDTOUtil.mapActionCategoryToSeverity(ActionCategory.EFFICIENCY_IMPROVEMENT));
     }
 
     @Test
-    public void testMapMajorSeverity() throws Exception {
+    public void testMapMajorSeverity() {
         assertEquals(Severity.MAJOR,
-            ActionDTOUtil.mapImportanceToSeverity(ActionDTOUtil.MINOR_SEVERITY_THRESHOLD));
-        assertEquals(Severity.MAJOR,
-            ActionDTOUtil.mapImportanceToSeverity(ActionDTOUtil.MAJOR_SEVERITY_THRESHOLD - 1.0));
+            ActionDTOUtil.mapActionCategoryToSeverity(ActionCategory.PREVENTION));
     }
 
     @Test
-    public void testMapCriticalSeverity() throws Exception {
+    public void testMapCriticalSeverity() {
         assertEquals(Severity.CRITICAL,
-            ActionDTOUtil.mapImportanceToSeverity(ActionDTOUtil.MAJOR_SEVERITY_THRESHOLD));
+            ActionDTOUtil.mapActionCategoryToSeverity(ActionCategory.PERFORMANCE_ASSURANCE));
         assertEquals(Severity.CRITICAL,
-            ActionDTOUtil.mapImportanceToSeverity(ActionDTOUtil.MAJOR_SEVERITY_THRESHOLD + 1.0));
-    }
-
-    @Test
-    public void testMapIllegalImportance() throws Exception {
-        expectedException.expect(IllegalArgumentException.class);
-        ActionDTOUtil.mapImportanceToSeverity(Double.NaN);
+            ActionDTOUtil.mapActionCategoryToSeverity(ActionCategory.COMPLIANCE));
     }
 
     @Test
@@ -209,7 +198,7 @@ public class ActionDTOUtilTest {
                     .addChanges(ChangeProvider.newBuilder()
                         .setSource(createActionEntity(1))
                         .setDestination(createActionEntity(2)))))
-            .setImportance(1)
+            .setDeprecatedImportance(1)
             .build();
 
         final List<ReasonCommodity> reasonCommodities =
@@ -236,7 +225,7 @@ public class ActionDTOUtilTest {
                     .addChanges(ChangeProvider.newBuilder()
                         .setSource(createActionEntity(1))
                         .setDestination(createActionEntity(2)))))
-            .setImportance(1)
+            .setDeprecatedImportance(1)
             .build();
 
         final List<ReasonCommodity> reasonCommodities =
@@ -263,7 +252,7 @@ public class ActionDTOUtilTest {
                     .addChanges(ChangeProvider.newBuilder()
                         .setSource(createActionEntity(1))
                         .setDestination(createActionEntity(2)))))
-            .setImportance(1)
+            .setDeprecatedImportance(1)
             .build();
 
         final List<ReasonCommodity> reasonCommodities =
@@ -285,7 +274,7 @@ public class ActionDTOUtilTest {
             .setInfo(ActionInfo.newBuilder()
                 .setReconfigure(Reconfigure.newBuilder()
                     .setTarget(createActionEntity(11))))
-            .setImportance(1)
+            .setDeprecatedImportance(1)
             .build();
 
         final List<ReasonCommodity> reasonCommodities =
@@ -315,7 +304,7 @@ public class ActionDTOUtilTest {
             .setInfo(ActionInfo.newBuilder()
                 .setProvision(Provision.newBuilder()
                     .setEntityToClone(createActionEntity(11))))
-            .setImportance(1)
+            .setDeprecatedImportance(1)
             .build();
 
         final List<ReasonCommodity> reasonCommodities =
@@ -336,7 +325,7 @@ public class ActionDTOUtilTest {
             .setInfo(ActionInfo.newBuilder()
                 .setProvision(Provision.newBuilder()
                     .setEntityToClone(createActionEntity(11))))
-            .setImportance(1)
+            .setDeprecatedImportance(1)
             .build();
 
         final List<ReasonCommodity> reasonCommodities =
@@ -355,7 +344,7 @@ public class ActionDTOUtilTest {
                 .setResize(Resize.newBuilder()
                     .setTarget(createActionEntity(11))
                     .setCommodityType(commodity1.getCommodityType())))
-            .setImportance(1)
+            .setDeprecatedImportance(1)
             .build();
 
         final List<ReasonCommodity> reasonCommodities =
@@ -376,7 +365,7 @@ public class ActionDTOUtilTest {
                     .setTarget(createActionEntity(11))
                     .addTriggeringCommodities(commodity1.getCommodityType())
                     .addTriggeringCommodities(commodity2.getCommodityType())))
-            .setImportance(1)
+            .setDeprecatedImportance(1)
             .build();
 
         final List<ReasonCommodity> reasonCommodities =
@@ -397,7 +386,7 @@ public class ActionDTOUtilTest {
                     .setTarget(createActionEntity(11))
                     .addTriggeringCommodities(commodity1.getCommodityType())
                     .addTriggeringCommodities(commodity2.getCommodityType())))
-            .setImportance(1)
+            .setDeprecatedImportance(1)
             .build();
 
         final List<ReasonCommodity> reasonCommodities =

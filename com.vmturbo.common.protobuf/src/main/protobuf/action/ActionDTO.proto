@@ -375,9 +375,10 @@ message Action {
 
     required ActionInfo info = 2;
 
+    // This field is deprecated - No longer used.
     // The importance signifies a relative weight of the action. The one with the higher
     // importance should be taken first.
-    required double importance = 3;
+    required double __deprecated__importance = 3 [deprecated=true];
 
     // The explanation for the action
     required Explanation explanation = 4;

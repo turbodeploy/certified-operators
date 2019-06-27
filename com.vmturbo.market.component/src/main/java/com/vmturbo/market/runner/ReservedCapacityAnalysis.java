@@ -169,7 +169,7 @@ public class ReservedCapacityAnalysis {
             .setId(IdentityGenerator.next())
             // This action is generated out of market. There is no related revenue which can be used
             // to calculate importance. Just make the severity of this action MINOR.
-            .setImportance(-1.0d)
+            .setDeprecatedImportance(-1.0d)
             .setExplanation(expBuilder.build())
             .setExecutable(true);
 

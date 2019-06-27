@@ -320,7 +320,7 @@ public class CompoundMoveTest {
     private static ActionDTO.Action.Builder genericActionStuff() {
         return ActionDTO.Action.newBuilder()
                         .setId(IdentityGenerator.next())
-                        .setImportance(0)
+                        .setDeprecatedImportance(0)
                         .setExecutable(true)
                         .setSupportingLevel(SupportLevel.SUPPORTED)
                         .setExplanation(Explanation.newBuilder().build());

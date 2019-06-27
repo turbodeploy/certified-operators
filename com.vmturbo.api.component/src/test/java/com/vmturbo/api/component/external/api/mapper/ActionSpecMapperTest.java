@@ -1363,7 +1363,7 @@ public class ActionSpecMapperTest {
 
     private Action buildAction(ActionInfo actionInfo, Explanation explanation) {
         return Action.newBuilder()
-            .setImportance(0)
+            .setDeprecatedImportance(0)
             .setId(1234)
             .setInfo(actionInfo)
             .setExplanation(explanation)

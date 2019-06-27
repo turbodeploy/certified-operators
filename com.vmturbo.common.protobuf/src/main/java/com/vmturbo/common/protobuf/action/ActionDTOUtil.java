@@ -26,6 +26,7 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -326,26 +327,25 @@ public class ActionDTOUtil {
     }
 
     /**
-     * Map the importance value to a severity category.
+     * Map the action category to a severity category.
      *
-     * @param importance The importance value.
-     * @throws IllegalArgumentException When the importance value is a transcendental.
+     * @param category The {@link ActionDTO.ActionCategory}.
      * @return The name of the severity category.
      */
     @Nonnull
-    public static Severity mapImportanceToSeverity(final double importance) {
-        if (importance < NORMAL_SEVERITY_THRESHOLD) {
-            return Severity.NORMAL;
-        } else if (importance < MINOR_SEVERITY_THRESHOLD) {
-            return Severity.MINOR;
-        } else if (importance < MAJOR_SEVERITY_THRESHOLD) {
-            return Severity.MAJOR;
-        } else if (importance >= MAJOR_SEVERITY_THRESHOLD) {
-            return Severity.CRITICAL;
+    public static Severity mapActionCategoryToSeverity(@Nonnull final ActionCategory category) {
+        switch (category) {
+            case PERFORMANCE_ASSURANCE:
+                return Severity.CRITICAL;
+            case COMPLIANCE:
+                return Severity.CRITICAL;
+            case PREVENTION:
+                return Severity.MAJOR;
+            case EFFICIENCY_IMPROVEMENT:
+                return Severity.MINOR;
+            default:
+                return Severity.NORMAL;
         }
-
-        throw new IllegalArgumentException(
-            "The importance to severity algorithm does not support: " + importance);
     }
 
     /**

@@ -499,7 +499,7 @@ public class AutomatedActionExecutorTest {
     private ActionDTO.Action makeActionRec(long actionId, ActionInfo info) {
         return ActionDTO.Action.newBuilder()
             .setId(actionId)
-            .setImportance(0)
+            .setDeprecatedImportance(0)
             .setExecutable(true)
             .setExplanation(Explanation.newBuilder()
                 .setMove(Explanation.MoveExplanation.newBuilder()
@@ -540,7 +540,7 @@ public class AutomatedActionExecutorTest {
                                              final SupportLevel supportLevel) {
         return ActionDTO.Action.newBuilder()
                 .setId(id)
-                .setImportance(0)
+                .setDeprecatedImportance(0)
                 .setExecutable(isExecutable)
                 .setSupportingLevel(supportLevel)
                 .setInfo(infoBuilder).setExplanation(Explanation.newBuilder().build());

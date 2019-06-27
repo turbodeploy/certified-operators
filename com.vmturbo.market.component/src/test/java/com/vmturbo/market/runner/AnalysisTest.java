@@ -104,7 +104,7 @@ public class AnalysisTest {
             .setDelete(Delete.getDefaultInstance()))
         .setExplanation(Explanation.newBuilder()
             .setDelete(DeleteExplanation.getDefaultInstance()))
-        .setImportance(0.0d)
+        .setDeprecatedImportance(0.0d)
         .setId(1234l).build();
 
 

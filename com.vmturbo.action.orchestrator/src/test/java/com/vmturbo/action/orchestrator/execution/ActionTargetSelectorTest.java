@@ -355,7 +355,7 @@ public class ActionTargetSelectorTest {
                 .thenThrow(UnsupportedActionException.class);
         final Action bogusAction = Action.newBuilder()
                 .setId(23)
-                .setImportance(1)
+                .setDeprecatedImportance(1)
                 .setExplanation(Explanation.newBuilder().build())
                 .setInfo(ActionInfo.newBuilder()
                         // Explicitly clearing this for clarity to the reader

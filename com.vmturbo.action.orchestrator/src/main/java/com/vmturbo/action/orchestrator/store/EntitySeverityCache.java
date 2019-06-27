@@ -88,7 +88,7 @@ public class EntitySeverityCache {
             visibleReadyActionViews(actionStore)
                 .filter(actionView -> matchingSeverityEntity(severityEntity, actionView))
                 .map(actionView ->
-                    ActionDTOUtil.mapImportanceToSeverity(actionView.getRecommendation().getImportance()))
+                    ActionDTOUtil.mapActionCategoryToSeverity(actionView.getActionCategory()))
                 .max(severityComparator)
                 .ifPresent(severity -> severities.put(severityEntity, severity));
         } catch (UnsupportedActionException e) {
@@ -149,8 +149,8 @@ public class EntitySeverityCache {
             final long severityEntity =
                             ActionDTOUtil.getSeverityEntity(
                                 actionView.getRecommendation());
-            final Severity nextSeverity = ActionDTOUtil.mapImportanceToSeverity(
-                actionView.getRecommendation().getImportance());
+            final Severity nextSeverity = ActionDTOUtil.mapActionCategoryToSeverity(
+                actionView.getActionCategory());
 
             final Severity maxSeverity = getSeverity(severityEntity)
                 .map(currentSeverity -> maxSeverity(currentSeverity, nextSeverity))

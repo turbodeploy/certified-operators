@@ -65,7 +65,7 @@ public class ActionsListenerTest {
                         .build())
                 .build())
             .setId(121L)
-            .setImportance(0)
+            .setDeprecatedImportance(0)
             .setExplanation(ActionDTO.Explanation.newBuilder().build())
         .build();
 
@@ -79,7 +79,7 @@ public class ActionsListenerTest {
                             .build())
                     .build())
             .setId(122L)
-            .setImportance(0)
+            .setDeprecatedImportance(0)
             .setExplanation(ActionDTO.Explanation.newBuilder().build())
             .build();
 

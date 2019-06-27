@@ -63,7 +63,7 @@ public class FailedCloudVMGroupProcessorTest {
     private final EntitiesAndSettingsSnapshotFactory entitySettingsCache = mock(EntitiesAndSettingsSnapshotFactory.class);
     private final ActionDTO.Action recommendationOnCloud = ActionDTO.Action.newBuilder()
             .setId(actionId)
-            .setImportance(0)
+            .setDeprecatedImportance(0)
             .setSupportingLevel(SupportLevel.SUPPORTED)
             .setInfo(ActionInfo.newBuilder()
                     .setMove(Move.newBuilder()
@@ -77,7 +77,7 @@ public class FailedCloudVMGroupProcessorTest {
 
     private final ActionDTO.Action recommendationOnCloud_2 = ActionDTO.Action.newBuilder()
             .setId(actionId)
-            .setImportance(0)
+            .setDeprecatedImportance(0)
             .setSupportingLevel(SupportLevel.SUPPORTED)
             .setInfo(ActionInfo.newBuilder()
                     .setMove(Move.newBuilder()
@@ -91,7 +91,7 @@ public class FailedCloudVMGroupProcessorTest {
 
     private final ActionDTO.Action recommendationOnPrem = ActionDTO.Action.newBuilder()
             .setId(actionId)
-            .setImportance(0)
+            .setDeprecatedImportance(0)
             .setSupportingLevel(SupportLevel.SUPPORTED)
             .setInfo(ActionInfo.newBuilder()
                     .setMove(Move.newBuilder()
@@ -105,7 +105,7 @@ public class FailedCloudVMGroupProcessorTest {
 
     private final ActionDTO.Action recommendation_reconfigure = ActionDTO.Action.newBuilder()
             .setId(actionId)
-            .setImportance(0)
+            .setDeprecatedImportance(0)
             .setSupportingLevel(SupportLevel.SUPPORTED)
             .setInfo(ActionInfo.newBuilder()
                     .setReconfigure(Reconfigure.newBuilder()

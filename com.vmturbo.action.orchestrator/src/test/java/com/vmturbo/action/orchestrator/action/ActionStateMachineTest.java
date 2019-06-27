@@ -59,7 +59,7 @@ public class ActionStateMachineTest {
 
     private final ActionDTO.Action move = ActionDTO.Action.newBuilder()
         .setId(0)
-        .setImportance(0)
+        .setDeprecatedImportance(0)
         .setSupportingLevel(SupportLevel.SUPPORTED)
         .setInfo(TestActionBuilder.makeMoveInfo(1, 2, 1, 2, 1))
         .setExplanation(Explanation.newBuilder().build())
