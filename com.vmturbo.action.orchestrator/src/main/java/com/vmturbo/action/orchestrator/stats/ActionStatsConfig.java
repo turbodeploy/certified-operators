@@ -76,8 +76,8 @@ public class ActionStatsConfig {
     }
 
     @Bean
-    public StatsActionViewFactory snapshotFactory() {
-        return new StatsActionViewFactory();
+    public SingleActionSnapshotFactory snapshotFactory() {
+        return new SingleActionSnapshotFactory();
     }
 
     @Bean

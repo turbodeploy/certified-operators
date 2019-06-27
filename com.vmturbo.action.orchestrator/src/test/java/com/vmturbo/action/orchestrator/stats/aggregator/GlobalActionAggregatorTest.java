@@ -13,12 +13,11 @@ import java.util.stream.Collectors;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
-import com.vmturbo.action.orchestrator.stats.ImmutableStatsActionView;
+import com.vmturbo.action.orchestrator.stats.ImmutableSingleActionSnapshot;
 import com.vmturbo.action.orchestrator.stats.ManagementUnitType;
-import com.vmturbo.action.orchestrator.stats.StatsActionViewFactory.StatsActionView;
+import com.vmturbo.action.orchestrator.stats.SingleActionSnapshotFactory.SingleActionSnapshot;
 import com.vmturbo.action.orchestrator.stats.aggregator.GlobalActionAggregator.GlobalAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup.ActionGroupKey;
@@ -62,20 +61,20 @@ public class GlobalActionAggregatorTest {
         final ActionGroupKey actionGroupKey = mock(ActionGroupKey.class);
         final ActionGroup actionGroup = mock(ActionGroup.class);
         when(actionGroup.id()).thenReturn(actionGroupId);
-        StatsActionView savingsSnapshot = ImmutableStatsActionView.builder()
-            .actionGroupKey(actionGroupKey)
-            .recommendation(onPremSavingsAction)
-            .addInvolvedEntities(ActionEntity.newBuilder()
-                .setId(7)
-                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .build())
-            .addInvolvedEntities(ActionEntity.newBuilder()
-                .setId(77)
-                .setType(EntityType.PHYSICAL_MACHINE_VALUE)
-                .build())
-            .build();
+        SingleActionSnapshot savingsSnapshot = ImmutableSingleActionSnapshot.builder()
+                .actionGroupKey(actionGroupKey)
+                .recommendation(onPremSavingsAction)
+                .addInvolvedEntities(ActionEntity.newBuilder()
+                        .setId(7)
+                        .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .build())
+                .addInvolvedEntities(ActionEntity.newBuilder()
+                        .setId(77)
+                        .setType(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .build())
+                .build();
 
-        aggregator.processAction(savingsSnapshot, ImmutableSet.of(1L));
+        aggregator.processAction(savingsSnapshot);
 
         final MgmtUnitSubgroup globalSubgroup = ImmutableMgmtUnitSubgroup.builder()
                 .id(987)
@@ -122,7 +121,6 @@ public class GlobalActionAggregatorTest {
         ActionStatsLatestRecord globalRecord = recordsByMgmtUnitSubgroup.get(globalSubgroup.id());
         assertThat(globalRecord.getTotalEntityCount(), is(2));
         assertThat(globalRecord.getTotalActionCount(), is(1));
-        assertThat(globalRecord.getNewActionCount(), is(1));
     }
 
     @Test
@@ -147,13 +145,13 @@ public class GlobalActionAggregatorTest {
         final ActionGroupKey actionGroupKey = mock(ActionGroupKey.class);
         final ActionGroup actionGroup = mock(ActionGroup.class);
         when(actionGroup.id()).thenReturn(actionGroupId);
-        StatsActionView savingsSnapshot = ImmutableStatsActionView.builder()
+        SingleActionSnapshot savingsSnapshot = ImmutableSingleActionSnapshot.builder()
             .actionGroupKey(actionGroupKey)
             .recommendation(cloudSavingsAction)
             .addInvolvedEntities(entity)
             .build();
 
-        aggregator.processAction(savingsSnapshot, ImmutableSet.of(1L));
+        aggregator.processAction(savingsSnapshot);
 
         final MgmtUnitSubgroup globalSubgroup = ImmutableMgmtUnitSubgroup.builder()
             .id(987)
@@ -187,7 +185,6 @@ public class GlobalActionAggregatorTest {
         ActionStatsLatestRecord globalRecord = recordsByMgmtUnitSubgroup.get(globalSubgroup.id());
         assertThat(globalRecord.getTotalEntityCount(), is(1));
         assertThat(globalRecord.getTotalActionCount(), is(1));
-        assertThat(globalRecord.getNewActionCount(), is(1));
     }
 
     /**
@@ -232,7 +229,7 @@ public class GlobalActionAggregatorTest {
         final ActionGroupKey actionGroupKey = mock(ActionGroupKey.class);
         final ActionGroup actionGroup = mock(ActionGroup.class);
         when(actionGroup.id()).thenReturn(actionGroupId);
-        StatsActionView savingsSnapshot = ImmutableStatsActionView.builder()
+        SingleActionSnapshot savingsSnapshot = ImmutableSingleActionSnapshot.builder()
             .actionGroupKey(actionGroupKey)
             .recommendation(hybridAction)
             .addInvolvedEntities(app)
@@ -240,7 +237,7 @@ public class GlobalActionAggregatorTest {
             .addInvolvedEntities(cloudVm)
             .build();
 
-        aggregator.processAction(savingsSnapshot, ImmutableSet.of(1L));
+        aggregator.processAction(savingsSnapshot);
 
         final MgmtUnitSubgroup globalSubgroup = ImmutableMgmtUnitSubgroup.builder()
             .id(987)
@@ -287,6 +284,5 @@ public class GlobalActionAggregatorTest {
         ActionStatsLatestRecord globalRecord = recordsByMgmtUnitSubgroup.get(globalSubgroup.id());
         assertThat(globalRecord.getTotalEntityCount(), is(3));
         assertThat(globalRecord.getTotalActionCount(), is(1));
-        assertThat(globalRecord.getNewActionCount(), is(1));
     }
 }

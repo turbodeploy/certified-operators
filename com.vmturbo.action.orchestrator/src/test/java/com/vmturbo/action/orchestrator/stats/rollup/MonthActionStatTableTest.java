@@ -66,8 +66,6 @@ public class MonthActionStatTableTest {
         final ActionStatsByMonthRecord record =
             writer.statRecord(mgmtSubgroupId, actionGroupId, time,
                 ImmutableRolledUpActionGroupStat.builder()
-                    .priorActionCount(10)
-                    .newActionCount(3)
                     .avgActionCount(3)
                     .avgEntityCount(4)
                     .avgInvestment(5.0)
@@ -117,8 +115,6 @@ public class MonthActionStatTableTest {
         final int mgmtSubgroupId = 1;
         final int actionGroupId = 2;
         final RolledUpActionGroupStat rolledUpStat = ImmutableRolledUpActionGroupStat.builder()
-            .priorActionCount(0)
-            .newActionCount(0)
             .avgActionCount(3)
             .avgEntityCount(4)
             .avgInvestment(5.0)

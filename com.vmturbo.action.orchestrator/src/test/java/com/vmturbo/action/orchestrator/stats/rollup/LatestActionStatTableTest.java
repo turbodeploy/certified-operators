@@ -99,8 +99,6 @@ public class LatestActionStatTableTest {
         final int mgmtSubgroupId = 1;
         final int actionGroupId = 2;
         final RolledUpActionGroupStat rolledUpStat = ImmutableRolledUpActionGroupStat.builder()
-            .priorActionCount(10)
-            .newActionCount(3)
             .avgActionCount(3)
             .avgEntityCount(4)
             .avgInvestment(5.0)
@@ -119,25 +117,22 @@ public class LatestActionStatTableTest {
         record.setMgmtUnitSubgroupId(mgmtSubgroupId);
         record.setActionGroupId(actionGroupId);
 
-        record.setTotalActionCount(10);
-        record.setNewActionCount(7);
+        record.setTotalActionCount(1);
         record.setTotalEntityCount(2);
         record.setTotalInvestment(BigDecimal.valueOf(3));
         record.setTotalSavings(BigDecimal.valueOf(4));
 
         final LatestReader reader = (LatestReader) latestActionStatTable.reader();
         assertThat(reader.recordToGroupStat(record), is(ImmutableRolledUpActionGroupStat.builder()
-            .priorActionCount(3)
-            .newActionCount(7)
-            .avgActionCount(10)
+            .avgActionCount(1.0)
             .avgEntityCount(2.0)
             .avgInvestment(3.0)
             .avgSavings(4.0)
-            .minActionCount(10)
+            .minActionCount(1)
             .minEntityCount(2)
             .minInvestment(3.0)
             .minSavings(4.0)
-            .maxActionCount(10)
+            .maxActionCount(1)
             .maxEntityCount(2)
             .maxInvestment(3.0)
             .maxSavings(4.0)

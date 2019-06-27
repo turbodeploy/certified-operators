@@ -252,8 +252,6 @@ public class HistoricalActionStatReaderTest {
 
     private RolledUpActionGroupStat increasingGroupStat() {
         return ImmutableRolledUpActionGroupStat.builder()
-            .priorActionCount(10)
-            .newActionCount(12)
             .minActionCount(1)
             .avgActionCount(2)
             .maxActionCount(3)

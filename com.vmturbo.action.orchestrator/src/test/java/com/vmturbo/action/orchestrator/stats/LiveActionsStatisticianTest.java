@@ -43,14 +43,13 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionGroupRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotLatestRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.MgmtUnitSubgroupRecord;
-import com.vmturbo.action.orchestrator.stats.StatsActionViewFactory.StatsActionView;
+import com.vmturbo.action.orchestrator.stats.SingleActionSnapshotFactory.SingleActionSnapshot;
 import com.vmturbo.action.orchestrator.stats.aggregator.ActionAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.aggregator.ActionAggregatorFactory.ActionAggregator;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup;
@@ -84,7 +83,7 @@ public class LiveActionsStatisticianTest {
 
     private LiveActionsStatistician statistician;
 
-    private StatsActionViewFactory snapshotFactory = mock(StatsActionViewFactory.class);
+    private SingleActionSnapshotFactory snapshotFactory = mock(SingleActionSnapshotFactory.class);
 
     private ActionAggregatorFactory<ActionAggregator> aggregatorFactory =
             mock(ActionAggregatorFactory.class);
@@ -130,12 +129,12 @@ public class LiveActionsStatisticianTest {
         final ActionView action1 = mock(ActionView.class);
         final ActionView action2 = mock(ActionView.class);
         final ActionView action3 = mock(ActionView.class);
-        final StatsActionView snapshot1 = mock(StatsActionView.class);
-        final StatsActionView snapshot2 = mock(StatsActionView.class);
-        final StatsActionView snapshot3 = mock(StatsActionView.class);
-        when(snapshotFactory.newStatsActionView(eq(action1))).thenReturn(snapshot1);
-        when(snapshotFactory.newStatsActionView(eq(action2))).thenReturn(snapshot2);
-        when(snapshotFactory.newStatsActionView(eq(action3))).thenReturn(snapshot3);
+        final SingleActionSnapshot snapshot1 = mock(SingleActionSnapshot.class);
+        final SingleActionSnapshot snapshot2 = mock(SingleActionSnapshot.class);
+        final SingleActionSnapshot snapshot3 = mock(SingleActionSnapshot.class);
+        when(snapshotFactory.newSnapshot(eq(action1))).thenReturn(snapshot1);
+        when(snapshotFactory.newSnapshot(eq(action2))).thenReturn(snapshot2);
+        when(snapshotFactory.newSnapshot(eq(action3))).thenReturn(snapshot3);
 
         final ActionAggregator aggregator = mock(ActionAggregator.class);
         when(aggregatorFactory.newAggregator(LocalDateTime.now(clock))).thenReturn(aggregator);
@@ -166,15 +165,14 @@ public class LiveActionsStatisticianTest {
             .setCreationTime(clock.millis())
             .setTopologyType(TopologyType.REALTIME)
             .build();
-        statistician.recordActionStats(topologyInfo, Stream.of(action1, action2, action3),
-            ImmutableSet.of());
+        statistician.recordActionStats(topologyInfo, Stream.of(action1, action2, action3));
 
         // Verify that the statistician interacts with the aggregator in the right order.
         final InOrder inOrder = Mockito.inOrder(aggregator);
         inOrder.verify(aggregator).start();
-        inOrder.verify(aggregator).processAction(snapshot1, ImmutableSet.of());
-        inOrder.verify(aggregator).processAction(snapshot2, ImmutableSet.of());
-        inOrder.verify(aggregator).processAction(snapshot3, ImmutableSet.of());
+        inOrder.verify(aggregator).processAction(snapshot1);
+        inOrder.verify(aggregator).processAction(snapshot2);
+        inOrder.verify(aggregator).processAction(snapshot3);
         inOrder.verify(aggregator).createRecords(upsertedSubgroup, upsertedActionGroup);
 
         // Verify that the statistician schedules rollups.
@@ -208,8 +206,8 @@ public class LiveActionsStatisticianTest {
     @Test
     public void testActionAggregatorStartFail() throws UnsupportedActionException {
         final ActionView action1 = mock(ActionView.class);
-        final StatsActionView snapshot1 = mock(StatsActionView.class);
-        when(snapshotFactory.newStatsActionView(eq(action1))).thenReturn(snapshot1);
+        final SingleActionSnapshot snapshot1 = mock(SingleActionSnapshot.class);
+        when(snapshotFactory.newSnapshot(eq(action1))).thenReturn(snapshot1);
 
         final ActionAggregator aggregator = mock(ActionAggregator.class);
         when(aggregatorFactory.newAggregator(LocalDateTime.now(clock))).thenReturn(aggregator);
@@ -221,9 +219,9 @@ public class LiveActionsStatisticianTest {
             .setCreationTime(clock.millis())
             .setTopologyType(TopologyType.REALTIME)
             .build();
-        statistician.recordActionStats(topologyInfo, Stream.of(action1), ImmutableSet.of());
+        statistician.recordActionStats(topologyInfo, Stream.of(action1));
 
-        verify(aggregator, times(0)).processAction(any(), any());
+        verify(aggregator, times(0)).processAction(any());
 
         // No stats aggregated, so stats table should be empty.
         assertTrue(dsl.selectFrom(ACTION_STATS_LATEST)
@@ -247,20 +245,20 @@ public class LiveActionsStatisticianTest {
     @Test
     public void testActionAggregatorProcessFail() throws UnsupportedActionException {
         final ActionView action1 = mock(ActionView.class);
-        final StatsActionView snapshot1 = mock(StatsActionView.class);
-        when(snapshotFactory.newStatsActionView(eq(action1))).thenReturn(snapshot1);
+        final SingleActionSnapshot snapshot1 = mock(SingleActionSnapshot.class);
+        when(snapshotFactory.newSnapshot(eq(action1))).thenReturn(snapshot1);
 
         final ActionAggregator aggregator = mock(ActionAggregator.class);
         when(aggregatorFactory.newAggregator(LocalDateTime.now(clock))).thenReturn(aggregator);
 
-        doThrow(new RuntimeException("foo")).when(aggregator).processAction(any(), any());
+        doThrow(new RuntimeException("foo")).when(aggregator).processAction(any());
 
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
             .setTopologyId(1)
             .setCreationTime(clock.millis())
             .setTopologyType(TopologyType.REALTIME)
             .build();
-        statistician.recordActionStats(topologyInfo, Stream.of(action1), ImmutableSet.of());
+        statistician.recordActionStats(topologyInfo, Stream.of(action1));
 
         // Started properly
         verify(aggregator).start();

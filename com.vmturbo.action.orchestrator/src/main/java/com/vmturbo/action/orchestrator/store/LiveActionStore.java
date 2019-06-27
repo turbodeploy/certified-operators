@@ -23,7 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.Collections2;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
@@ -227,7 +226,6 @@ public class LiveActionStore implements ActionStore {
 
             final long planId = actionPlan.getId();
             final MutableInt newActionCounts = new MutableInt(0);
-            final Set<Long> newActionIds = Sets.newHashSet();
             final Stream<Action> translatedReadyActions = actionTranslator.translate(actionsWithSupportLevel.stream()
                 .map(recommendedAction -> {
                     final Optional<Action> existingActionOpt = recommendations.take(recommendedAction.getInfo());
@@ -248,7 +246,6 @@ public class LiveActionStore implements ActionStore {
                     } else {
                         newActionCounts.getAndIncrement();
                         action = actionFactory.newAction(recommendedAction, planId);
-                        newActionIds.add(action.getId());
                     }
 
                     if (action.getState() == ActionState.READY) {
@@ -327,7 +324,7 @@ public class LiveActionStore implements ActionStore {
                 Stream.concat(completedSinceLastPopulate.stream(),
                         // Need to make a copy because it's not safe to iterate otherwise.
                         actions.copy().values().stream())
-                    .filter(VISIBILITY_PREDICATE), newActionIds);
+                    .filter(VISIBILITY_PREDICATE));
         }
 
         return true;

@@ -9,8 +9,9 @@ import static org.mockito.Mockito.when;
 import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.action.ActionView;
-import com.vmturbo.action.orchestrator.stats.StatsActionViewFactory.StatsActionView;
+import com.vmturbo.action.orchestrator.stats.SingleActionSnapshotFactory.SingleActionSnapshot;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup.ActionGroupKey;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -21,15 +22,14 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
-public class StatsActionViewFactoryTest {
+public class SingleActionSnapshotFactoryTest {
 
     @Test
     public void testFactoryFromActionView() throws UnsupportedActionException {
         // Arrange
-        final StatsActionViewFactory factory = new StatsActionViewFactory();
+        final SingleActionSnapshotFactory factory = new SingleActionSnapshotFactory();
         final ActionView actionView = mock(ActionView.class);
         final ActionEntity targetEntity = ActionEntity.newBuilder()
                 .setId(1L)
@@ -52,7 +52,7 @@ public class StatsActionViewFactoryTest {
         when(actionView.getActionCategory()).thenReturn(ActionCategory.PERFORMANCE_ASSURANCE);
 
         // Act
-        final StatsActionView snapshot = factory.newStatsActionView(actionView);
+        final SingleActionSnapshot snapshot = factory.newSnapshot(actionView);
 
         // Assert
         assertThat(snapshot.involvedEntities(), contains(targetEntity));

@@ -23,13 +23,9 @@ public class ActionStat {
 
     /**
      * The number of actions for the management unit and action group tracked by
-     * this {@link ActionStat}. Also count the number of "new" actions for this
-     * management unit and action group, i.e. of the total "actionCount", which
-     * have been recommended for the first time in the most recent market cycle.
+     * this {@link ActionStat}.
      */
     private int actionCount = 0;
-
-    private int newActionCount = 0;
 
     private double savings = 0;
 
@@ -53,15 +49,11 @@ public class ActionStat {
      * @param involvedEntities The entities to count towards this {@link ActionStat}. This will be
      *    a subset of the entities involved in the action. We pass it separately because not all
      *    involved entities matter for a particular management unit and action group. e.g. if a
-     * @param isActionNew true iff this action was not recommended in the prior recommendation set
+     *    VM in cluster-scope has a storage move, we count the VM, but not the storages.
      */
     public void recordAction(@Nonnull final ActionDTO.Action recommendation,
-                             @Nonnull final Collection<ActionEntity> involvedEntities,
-                             final boolean isActionNew) {
+                             @Nonnull final Collection<ActionEntity> involvedEntities) {
         this.actionCount++;
-        if (isActionNew) {
-            this.newActionCount++;
-        }
         if (recommendation.getSavingsPerHour().getAmount() >= 0) {
             this.savings += recommendation.getSavingsPerHour().getAmount();
         } else {
@@ -82,6 +74,5 @@ public class ActionStat {
         record.setTotalEntityCount(involvedEntities.size());
         record.setTotalSavings(BigDecimal.valueOf(savings));
         record.setTotalInvestment(BigDecimal.valueOf(investment));
-        record.setNewActionCount(newActionCount);
     }
 }

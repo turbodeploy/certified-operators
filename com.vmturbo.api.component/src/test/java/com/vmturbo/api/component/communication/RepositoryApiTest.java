@@ -160,31 +160,6 @@ public class RepositoryApiTest {
         assertThat(req.getReturnType(), is(Type.API));
     }
 
-    @Test
-    public void testGetEntityPlanTargetsProjected() {
-        final ApiPartialEntity ret = entity(7L);
-
-        doReturn(Collections.singletonList(PartialEntityBatch.newBuilder()
-            .addEntities(PartialEntity.newBuilder()
-                .setApi(ret))
-            .build())).when(repoBackend).retrieveTopologyEntities(any());
-        assertThat(repositoryApi.entityRequest(7L)
-            // Non-realtime context, but not explicitly specifying that we want to look in the
-            // projected topology.
-            .contextId(realtimeContextId + 1)
-            .getEntity().get(), is(ret));
-
-        final ArgumentCaptor<RetrieveTopologyEntitiesRequest> captor =
-            ArgumentCaptor.forClass(RetrieveTopologyEntitiesRequest.class);
-        verify(repoBackend).retrieveTopologyEntities(captor.capture());
-        RetrieveTopologyEntitiesRequest req = captor.getValue();
-        assertThat(req.getEntityOidsList(), contains(7L));
-        assertThat(req.getTopologyContextId(), is(realtimeContextId + 1));
-        // Should still look in the projected topology!
-        assertThat(req.getTopologyType(), is(TopologyType.PROJECTED));
-        assertThat(req.getReturnType(), is(Type.API));
-    }
-
 
     @Test
     public void testGetFullEntity() {
