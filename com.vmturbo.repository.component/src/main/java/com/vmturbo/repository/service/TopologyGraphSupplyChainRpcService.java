@@ -331,6 +331,9 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
                 UIEntityType.fromString(supplyChainNode.getEntityType()) == UIEntityType.AVAILABILITY_ZONE)
             .flatMap(supplyChainNode -> RepositoryDTOUtil.getAllMemberOids(supplyChainNode).stream())
             .collect(Collectors.toSet());
+        if (zoneIds.isEmpty()) {
+            return;
+        }
 
         if (UIEntityType.REGION.equals(startingVertexEntityType)) {
             // if starting from region, we can only get all related zones, we need to
