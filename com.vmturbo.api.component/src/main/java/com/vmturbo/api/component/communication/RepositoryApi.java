@@ -54,7 +54,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
  */
 public class RepositoryApi {
 
-    private final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
     private final SeverityPopulator severityPopulator;
 
@@ -465,10 +465,23 @@ public class RepositoryApi {
                         return Collections.emptyIterator();
                     }
 
+                    final long topoContextId = contextId == null ? realtimeContextId : contextId;
+
+                    final TopologyType topologyType;
+                    if (projectedTopology) {
+                        topologyType = TopologyType.PROJECTED;
+                    } else if (topoContextId != realtimeContextId) {
+                        // In plans we don't store source entities, so requesting them will return
+                        // nothing. Look for everything in the projected topology.
+                        topologyType = TopologyType.PROJECTED;
+                    } else {
+                        topologyType = TopologyType.SOURCE;
+                    }
+
                     final RetrieveTopologyEntitiesRequest request = RetrieveTopologyEntitiesRequest.newBuilder()
                         .addAllEntityOids(targetId)
-                        .setTopologyContextId(contextId == null ? realtimeContextId : contextId)
-                        .setTopologyType(projectedTopology ? TopologyType.PROJECTED : TopologyType.SOURCE)
+                        .setTopologyContextId(topoContextId)
+                        .setTopologyType(topologyType)
                         .addAllEntityType(restrictedTypes)
                         .setReturnType(type)
                         .build();
