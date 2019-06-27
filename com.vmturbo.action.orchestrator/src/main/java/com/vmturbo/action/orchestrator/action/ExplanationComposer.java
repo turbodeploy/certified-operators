@@ -20,6 +20,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.BuyRIExplanation
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Congestion;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Evacuation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
@@ -40,8 +41,10 @@ public class ExplanationComposer {
 
     public static final String MOVE_COMPLIANCE_EXPLANATION_FORMAT =
             "{0} can not satisfy the request for resource(s) ";
-    public static final String MOVE_EVACUATION_EXPLANATION_FORMAT =
+    public static final String MOVE_EVACUATION_SUSPENSION_EXPLANATION_FORMAT =
             "{0} can be suspended to improve efficiency";
+    public static final String MOVE_EVACUATION_AVAILABILITY_EXPLANATION_FORMAT =
+            "{0} is not available";
     public static final String MOVE_INITIAL_PLACEMENT_EXPLANATION =
         "Place an unplaced entity on a supplier";
     public static final String MOVE_PERFORMANCE_EXPLANATION =
@@ -188,7 +191,7 @@ public class ExplanationComposer {
             case CONGESTION:
                 return buildCongestionExplanation(changeExp.getCongestion(), keepItShort);
             case EVACUATION:
-                return buildEvacuationExplanation(changeExp.getEvacuation().getSuspendedEntity(), keepItShort);
+                return buildEvacuationExplanation(changeExp.getEvacuation(), keepItShort);
             case PERFORMANCE:
                 return buildPerformanceExplanation();
             case EFFICIENCY:
@@ -261,14 +264,18 @@ public class ExplanationComposer {
      * Build move explanation for evacuation, which should be along the lines of:
      *
      *     "{entity name} can be suspended to improve efficiency"
+     *     or
+     *     "{entity name} is not available"
      *
-     * @param entityOID the suspended entity oid
+     * @param evacuation The evacuation change provider explanation
      * @return explanation
      */
-    public static String buildEvacuationExplanation(long entityOID, boolean keepItShort) {
-        return MessageFormat.format(MOVE_EVACUATION_EXPLANATION_FORMAT, keepItShort ?
-            "Current supplier" :
-            ActionDTOUtil.createTranslationBlock(entityOID, "displayName", "Current supplier"));
+    public static String buildEvacuationExplanation(Evacuation evacuation, boolean keepItShort) {
+        return MessageFormat.format(
+            evacuation.getIsAvailable() ? MOVE_EVACUATION_SUSPENSION_EXPLANATION_FORMAT :
+                MOVE_EVACUATION_AVAILABILITY_EXPLANATION_FORMAT,
+            keepItShort ? "Current supplier" :
+                ActionDTOUtil.createTranslationBlock(evacuation.getSuspendedEntity(), "displayName", "Current supplier"));
     }
 
     /**

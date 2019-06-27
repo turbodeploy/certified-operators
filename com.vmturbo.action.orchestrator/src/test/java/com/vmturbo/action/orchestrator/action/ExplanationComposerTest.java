@@ -16,6 +16,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.Builder;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.BuyRIExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Evacuation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Performance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
@@ -56,7 +57,7 @@ public class ExplanationComposerTest {
                                           NETWORK_KEY_PREFIX + "testNetwork2");
 
     @Test
-    public void testMoveExplanation() {
+    public void testMoveComplianceExplanation() {
         ActionDTO.Action action = ActionDTO.Action.newBuilder()
                 .setId(0).setInfo(ActionInfo.newBuilder()
                         .setMove(Move.newBuilder()
@@ -77,6 +78,67 @@ public class ExplanationComposerTest {
         assertEquals("(^_^)~{entity:1:displayName:Physical Machine} can not satisfy the request for resource(s) Mem Cpu",
             ExplanationComposer.composeExplanation(action));
         assertEquals("Current supplier can not satisfy the request for resource(s) Mem CPU",
+            ExplanationComposer.shortExplanation(action));
+    }
+
+    @Test
+    public void testMoveEvacuationSuspensionExplanation() {
+        ActionDTO.Action action = ActionDTO.Action.newBuilder()
+            .setId(0).setDeprecatedImportance(0).setInfo(ActionInfo.newBuilder()
+                .setMove(Move.newBuilder()
+                    .setTarget(ActionEntity.newBuilder()
+                        .setId(1).setType(EntityType.VIRTUAL_MACHINE.getNumber()))))
+            .setExplanation(Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                    .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                        .setEvacuation(Evacuation.newBuilder()
+                            .setSuspendedEntity(2)))))
+            .build();
+
+        assertEquals("(^_^)~{entity:2:displayName:Current supplier} can be suspended to improve efficiency",
+            ExplanationComposer.composeExplanation(action));
+        assertEquals("Current supplier can be suspended to improve efficiency",
+            ExplanationComposer.shortExplanation(action));
+    }
+
+    @Test
+    public void testMoveEvacuationAvailabilityExplanation() {
+        ActionDTO.Action action = ActionDTO.Action.newBuilder()
+            .setId(0).setDeprecatedImportance(0).setInfo(ActionInfo.newBuilder()
+                .setMove(Move.newBuilder()
+                    .setTarget(ActionEntity.newBuilder()
+                        .setId(1).setType(EntityType.VIRTUAL_MACHINE.getNumber()))))
+            .setExplanation(Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                    .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                        .setEvacuation(Evacuation.newBuilder()
+                            .setSuspendedEntity(2)
+                            .setIsAvailable(false)))))
+            .build();
+
+        assertEquals("(^_^)~{entity:2:displayName:Current supplier} is not available",
+            ExplanationComposer.composeExplanation(action));
+        assertEquals("Current supplier is not available",
+            ExplanationComposer.shortExplanation(action));
+    }
+
+    @Test
+    public void testMoveInitialPlacementExplanation() {
+        ActionDTO.Action action = ActionDTO.Action.newBuilder()
+            .setId(0).setDeprecatedImportance(0).setInfo(ActionInfo.newBuilder()
+                .setMove(Move.newBuilder()
+                    .setTarget(ActionEntity.newBuilder()
+                        .setId(1).setType(EntityType.VIRTUAL_MACHINE.getNumber()))))
+            .setExplanation(Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                    .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                        .setInitialPlacement(
+                            ChangeProviderExplanation.InitialPlacement.getDefaultInstance()))))
+            .build();
+
+        assertEquals("Improve overall performance",
+            ExplanationComposer.composeExplanation(action));
+        assertEquals("Improve overall performance",
             ExplanationComposer.shortExplanation(action));
     }
 

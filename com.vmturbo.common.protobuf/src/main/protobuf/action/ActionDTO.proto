@@ -79,6 +79,9 @@ message Explanation {
         message Evacuation {
             // A trader which was suspended so buyers of it should move out.
             required int64 suspended_entity = 1;
+
+            // False if original supplier is in MAINTENANCE or FAILOVER state.
+            optional bool is_available = 2 [default = true];
         }
 
         // A move explanation suggesting initial placement of buyer.

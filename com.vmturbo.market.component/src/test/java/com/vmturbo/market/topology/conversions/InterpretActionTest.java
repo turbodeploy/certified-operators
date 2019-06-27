@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -32,10 +33,13 @@ import com.google.common.collect.Maps;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -180,11 +184,17 @@ public class InterpretActionTest {
     }
 
     private ProjectedTopologyEntity entity(final long id, final int type, final EnvironmentType envType) {
+        return entity(id, type, envType, EntityState.POWERED_ON);
+    }
+
+    private ProjectedTopologyEntity entity(final long id, final int type,
+                                           final EnvironmentType envType, final EntityState entityState) {
         return ProjectedTopologyEntity.newBuilder()
             .setEntity(TopologyEntityDTO.newBuilder()
                 .setOid(id)
                 .setEntityType(type)
-                .setEnvironmentType(envType))
+                .setEnvironmentType(envType)
+                .setEntityState(entityState))
             .build();
     }
 
@@ -194,22 +204,11 @@ public class InterpretActionTest {
             .build();
     }
 
-                                           @Test
+    @Test
     public void testInterpretMoveAction() throws IOException {
-        long srcId = 1234;
-        long destId = 5678;
-        int srcType = 0;
-        int destType = 1;
-        int resourceType = 2;
         TopologyDTO.TopologyEntityDTO entityDto =
                 TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
         long resourceId = entityDto.getCommoditiesBoughtFromProviders(0).getVolumeId();
-
-        Map<Long, ProjectedTopologyEntity> projectedTopology =
-            ImmutableMap.of(srcId, entity(srcId, srcType, EnvironmentType.ON_PREM),
-                            destId, entity(destId, destType, EnvironmentType.ON_PREM),
-                            entityDto.getOid(), entity(entityDto.getOid(), entityDto.getEntityType(), EnvironmentType.ON_PREM),
-                            resourceId, entity(resourceId, resourceType, EnvironmentType.ON_PREM));
 
         final TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
@@ -220,6 +219,21 @@ public class InterpretActionTest {
             converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto));
         final TraderTO vmTraderTO = TopologyConverterToMarketTest.getVmTrader(traderTOs);
         ShoppingListTO shoppingList = vmTraderTO.getShoppingListsList().get(0);
+        ShoppingListTO shoppingList1 = vmTraderTO.getShoppingListsList().get(1);
+
+        long srcId = 1234;
+        long srcId1 = shoppingList1.getSupplier();
+        long destId = 5678;
+        int srcType = 0;
+        int destType = 1;
+        int resourceType = 2;
+
+        Map<Long, ProjectedTopologyEntity> projectedTopology = ImmutableMap.of(
+            srcId, entity(srcId, srcType, EnvironmentType.ON_PREM),
+            srcId1, entity(srcId1, srcType, EnvironmentType.ON_PREM, EntityState.MAINTENANCE),
+            destId, entity(destId, destType, EnvironmentType.ON_PREM),
+            entityDto.getOid(), entity(entityDto.getOid(), entityDto.getEntityType(), EnvironmentType.ON_PREM),
+            resourceId, entity(resourceId, resourceType, EnvironmentType.ON_PREM));
 
         ActionInfo actionInfo = converter.interpretAction(
                 ActionTO.newBuilder()
@@ -245,6 +259,22 @@ public class InterpretActionTest {
                                                         .getDefaultInstance()))))
                         .build(), projectedTopology, null, null, null)
                 .get().getInfo();
+        // Created a MoveTO whose source is in Maintenance state and has InitialPlacement explanation.
+        // This ActionTO will be interpreted to an Action with Evacuation explanation and \
+        // a not available source.
+        Action actionWithMaintenanceSource = converter.interpretAction(
+            ActionTO.newBuilder()
+                .setImportance(0.1)
+                .setIsNotExecutable(false)
+                .setMove(MoveTO.newBuilder()
+                    .setShoppingListToMove(shoppingList1.getOid())
+                    .setDestination(destId)
+                    .setMoveExplanation(MoveExplanation.newBuilder().setInitialPlacement(
+                        InitialPlacement.getDefaultInstance())).build()).build(),
+            projectedTopology, null, null, null).get();
+        List<ChangeProviderExplanation> explanations =
+            actionWithMaintenanceSource.getExplanation().getMove().getChangeProviderExplanationList();
+        ActionInfo actionInfoWithMaintenanceSource = actionWithMaintenanceSource.getInfo();
 
         assertEquals(ActionTypeCase.MOVE, actionInfo.getActionTypeCase());
         assertEquals(1, actionInfo.getMove().getChangesList().size());
@@ -260,6 +290,16 @@ public class InterpretActionTest {
         assertFalse(actionInfoWithOutSource.getMove().getChanges(0).hasSource());
         assertEquals(destId, actionInfo.getMove().getChanges(0).getDestination().getId());
         assertEquals(destType, actionInfo.getMove().getChanges(0).getDestination().getType());
+
+        assertEquals(1, explanations.size());
+        assertTrue(explanations.get(0).hasEvacuation());
+        assertEquals(srcId1, explanations.get(0).getEvacuation().getSuspendedEntity());
+        assertFalse(explanations.get(0).getEvacuation().getIsAvailable());
+        assertEquals(ActionTypeCase.MOVE, actionInfoWithMaintenanceSource.getActionTypeCase());
+        assertEquals(1, actionInfoWithMaintenanceSource.getMove().getChangesList().size());
+        ChangeProvider changeProvider = actionWithMaintenanceSource.getInfo().getMove().getChanges(0);
+        assertEquals(srcId1, changeProvider.getSource().getId());
+        assertEquals(destId, changeProvider.getDestination().getId());
     }
 
     @Test

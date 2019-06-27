@@ -2,6 +2,7 @@ package com.vmturbo.market.topology.conversions;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -42,6 +43,7 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -79,6 +81,8 @@ public class ActionInterpreter {
     private final Map<Long, EconomyDTOs.TraderTO> oidToProjectedTraderTOMap;
     private final CloudEntityResizeTracker cert;
     private final Map<Long, EntityReservedInstanceCoverage> projectedRiCoverage;
+    private static final Set<EntityState> evacuationEntityState =
+        EnumSet.of(EntityState.MAINTENANCE, EntityState.FAILOVER);
 
     ActionInterpreter(@Nonnull final CommodityConverter commodityConverter,
                       @Nonnull final Map<Long, ShoppingListInfo> shoppingListOidToInfos,
@@ -125,7 +129,7 @@ public class ActionInterpreter {
                     // Assign a unique ID to each generated action.
                     .setId(IdentityGenerator.next())
                     .setDeprecatedImportance(actionTO.getImportance())
-                    .setExplanation(interpretExplanation(actionTO, savings))
+                    .setExplanation(interpretExplanation(actionTO, savings, projectedTopology))
                     .setExecutable(!actionTO.getIsNotExecutable());
             savings.ifPresent(action::setSavingsPerHour);
 
@@ -580,6 +584,13 @@ public class ActionInterpreter {
         TopologyEntityDTO destTier = null;
         TopologyEntityDTO target = originalTopology.get(targetOid);
         Long moveSource = move.hasSource() ? move.getSource() : null;
+        // Update moveSource if the original supplier is in MAINTENANCE or FAILOVER state.
+        final ShoppingListInfo shoppingListInfo = shoppingListOidToInfos.get(move.getShoppingListToMove());
+        if (!move.hasSource() &&
+            projectedTopology.containsKey(shoppingListInfo.getSellerId()) &&
+            evacuationEntityState.contains(
+                projectedTopology.get(shoppingListInfo.getSellerId()).getEntity().getEntityState()))
+            moveSource = shoppingListInfo.getSellerId();
         if (destMarketTier != null ) {
             // TODO: We are considering the destination AZ as the first AZ of the destination
             // region. In case of zonal RIs, we need to get the zone of the RI.
@@ -658,12 +669,13 @@ public class ActionInterpreter {
         return changeProviderBuilder.build();
     }
 
-    private Explanation interpretExplanation(@Nonnull ActionTO actionTO,
-                                             @Nonnull Optional<CurrencyAmount> savings) {
+    private Explanation interpretExplanation(
+            @Nonnull ActionTO actionTO, @Nonnull Optional<CurrencyAmount> savings,
+            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         Explanation.Builder expBuilder = Explanation.newBuilder();
         switch (actionTO.getActionTypeCase()) {
             case MOVE:
-                expBuilder.setMove(interpretMoveExplanation(actionTO.getMove(), savings));
+                expBuilder.setMove(interpretMoveExplanation(actionTO.getMove(), savings, projectedTopology));
                 break;
             case RECONFIGURE:
                 expBuilder.setReconfigure(
@@ -691,7 +703,8 @@ public class ActionInterpreter {
                 break;
             case COMPOUND_MOVE:
                 // TODO(COMPOUND): different moves in a compound move may have different explanations
-                expBuilder.setMove(interpretCompoundMoveExplanation(actionTO.getCompoundMove().getMovesList()));
+                expBuilder.setMove(interpretCompoundMoveExplanation(
+                    actionTO.getCompoundMove().getMovesList(), projectedTopology));
                 break;
             default:
                 throw new IllegalArgumentException("Market returned invalid action type "
@@ -700,12 +713,13 @@ public class ActionInterpreter {
         return expBuilder.build();
     }
 
-    private MoveExplanation interpretMoveExplanation(@Nonnull MoveTO moveTO,
-                                                     @Nonnull Optional<CurrencyAmount> savings) {
+    private MoveExplanation interpretMoveExplanation(
+            @Nonnull MoveTO moveTO, @Nonnull Optional<CurrencyAmount> savings,
+            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         MoveExplanation.Builder moveExpBuilder = MoveExplanation.newBuilder();
         // For simple moves, set the sole change provider explanation to be the primary one
         ChangeProviderExplanation.Builder changeProviderExplanation =
-            changeExplanation(moveTO, savings)
+            changeExplanation(moveTO, savings, projectedTopology)
                 .setIsPrimaryChangeProviderExplanation(true);
         moveExpBuilder.addChangeProviderExplanation(changeProviderExplanation);
         return moveExpBuilder.build();
@@ -776,21 +790,25 @@ public class ActionInterpreter {
                 .build();
     }
 
-    private MoveExplanation interpretCompoundMoveExplanation(@Nonnull List<MoveTO> moveTOs) {
+    private MoveExplanation interpretCompoundMoveExplanation(
+            @Nonnull List<MoveTO> moveTOs,
+            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         MoveExplanation.Builder moveExpBuilder = MoveExplanation.newBuilder();
         for (MoveTO moveTO : moveTOs) {
             TraderTO destinationTrader = oidToProjectedTraderTOMap.get(moveTO.getDestination());
             boolean isPrimaryChangeExplanation = destinationTrader != null
                     && ActionDTOUtil.isPrimaryEntityType(destinationTrader.getType());
             ChangeProviderExplanation.Builder changeProviderExplanation =
-                changeExplanation(moveTO, Optional.empty())
+                changeExplanation(moveTO, Optional.empty(), projectedTopology)
                     .setIsPrimaryChangeProviderExplanation(isPrimaryChangeExplanation);
             moveExpBuilder.addChangeProviderExplanation(changeProviderExplanation);
         }
         return moveExpBuilder.build();
     }
 
-    private ChangeProviderExplanation.Builder changeExplanation(MoveTO moveTO, Optional<CurrencyAmount> savings) {
+    private ChangeProviderExplanation.Builder changeExplanation(
+            MoveTO moveTO, Optional<CurrencyAmount> savings,
+            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         ActionDTOs.MoveExplanation moveExplanation = moveTO.getMoveExplanation();
         switch (moveExplanation.getExplanationTypeCase()) {
             case COMPLIANCE:
@@ -825,7 +843,20 @@ public class ActionInterpreter {
                                 .setSuspendedEntity(moveExplanation.getEvacuation().getSuspendedTrader())
                                 .build());
             case INITIALPLACEMENT:
-                return ChangeProviderExplanation.newBuilder()
+                final ShoppingListInfo shoppingListInfo =
+                    shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
+                // Create Evacuation instead of InitialPlacement
+                // if the original supplier is in MAINTENANCE or FAILOVER state.
+                if (projectedTopology.containsKey(shoppingListInfo.getSellerId()) &&
+                    evacuationEntityState.contains(
+                        projectedTopology.get(shoppingListInfo.getSellerId()).getEntity().getEntityState()))
+                    return ChangeProviderExplanation.newBuilder()
+                        .setEvacuation(ChangeProviderExplanation.Evacuation.newBuilder()
+                            .setSuspendedEntity(shoppingListInfo.getSellerId())
+                            .setIsAvailable(false)
+                            .build());
+                else
+                    return ChangeProviderExplanation.newBuilder()
                         .setInitialPlacement(ChangeProviderExplanation.InitialPlacement.getDefaultInstance());
             case PERFORMANCE:
                 // For cloud entities we explain create either an efficiency or congestion change
