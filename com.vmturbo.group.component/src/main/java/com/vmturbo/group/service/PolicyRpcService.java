@@ -1,11 +1,17 @@
 package com.vmturbo.group.service;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -15,15 +21,21 @@ import io.grpc.stub.StreamObserver;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyCreateResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyDeleteResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyEditResponse;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceImplBase;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutablePolicyUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.PolicyNotFoundException;
+import com.vmturbo.group.group.GroupStore;
 import com.vmturbo.group.policy.PolicyStore;
 
 public class PolicyRpcService extends PolicyServiceImplBase {
@@ -34,12 +46,17 @@ public class PolicyRpcService extends PolicyServiceImplBase {
 
     private final GroupRpcService groupService;
 
+    private final GroupStore groupStore;
+
     private final UserSessionContext userSessionContext;
 
-    public PolicyRpcService(final PolicyStore policyStoreArg, final GroupRpcService groupService,
+    public PolicyRpcService(final PolicyStore policyStoreArg,
+                            final GroupRpcService groupService,
+                            final GroupStore groupStore,
                             UserSessionContext userSessionContext) {
         policyStore = Objects.requireNonNull(policyStoreArg);
         this.groupService = groupService;
+        this.groupStore = groupStore;
         this.userSessionContext = userSessionContext;
     }
 
@@ -96,6 +113,15 @@ public class PolicyRpcService extends PolicyServiceImplBase {
         // check access on the policy contents before proceeding
         checkPolicyAccess(Policy.newBuilder().setPolicyInfo(request.getPolicyInfo()).build());
 
+        // make sure we're not merging clusters that are already in a merge policy
+        try {
+            checkForInvalidClusterMergePolicy(request.getPolicyInfo(), Optional.empty());
+        } catch (IllegalArgumentException e) {
+            responseObserver.onError(
+                Status.INVALID_ARGUMENT.withDescription(e.getMessage()).asException());
+            return;
+        }
+
         final PolicyDTO.Policy policy;
         try {
             policy = policyStore.newUserPolicy(request.getPolicyInfo());
@@ -131,6 +157,16 @@ public class PolicyRpcService extends PolicyServiceImplBase {
 
             // verify the existing policy is accessible too
             policyStore.get(request.getPolicyId()).ifPresent(this::checkPolicyAccess);
+        }
+
+        // make sure we're not merging any cluster that's already merged elsewhere
+        try {
+            checkForInvalidClusterMergePolicy(request.getNewPolicyInfo(),
+                Optional.of(request.getPolicyId()));
+        } catch (IllegalArgumentException e) {
+            responseObserver.onError(
+                Status.INVALID_ARGUMENT.withDescription(e.getMessage()).asException());
+            return;
         }
 
         final long id = request.getPolicyId();
@@ -175,6 +211,60 @@ public class PolicyRpcService extends PolicyServiceImplBase {
                         Status.INVALID_ARGUMENT.withDescription(e.getMessage()).asException());
             }
         }
+    }
+
+    void checkForInvalidClusterMergePolicy(@Nonnull final PolicyInfo policyInfo,
+                                           @Nonnull Optional<Long> ownPolicyId) {
+        if (policyInfo.getPolicyDetailCase() != PolicyDetailCase.MERGE
+            || policyInfo.getMerge().getMergeType() != MergeType.CLUSTER) {
+            // not a cluster merge policy, nothing to check
+            return;
+        }
+
+        // ids of clusters being merged
+        Set<Long> clustersToMerge = new HashSet<>(policyInfo.getMerge().getMergeGroupIdsList());
+
+        // discovered conflicts: (clusterId, policyName)
+        Set<Pair<Long, String>> conflicts = new HashSet<>();
+
+        policyStore.getAll()
+            .forEach(policy -> {
+                if ( // ignore own policy if we're editing it
+                    ownPolicyId.map(id -> id != policy.getId()).orElse(true)
+                        // and only consider merge policies
+                        && policy.hasPolicyInfo() && policy.getPolicyInfo().hasMerge()) {
+                    final MergePolicy merge = policy.getPolicyInfo().getMerge();
+                    // only cluster merge policies
+                    if (merge.hasMergeType() && merge.getMergeType() == MergeType.CLUSTER) {
+                        merge.getMergeGroupIdsList().stream()
+                            .filter(clustersToMerge::contains)
+                            // found a conflict - record it
+                            .map(clusterUuid ->
+                                Pair.of(clusterUuid, policy.getPolicyInfo().getName()))
+                            .forEach(conflicts::add);
+                    }
+                }
+            });
+        if (!conflicts.isEmpty()) {
+            // we have conflicts - create a string describing each in terms of cluster name
+            // and conflicting policy name
+            final String details = conflicts.stream()
+                .map(p -> String.format("cluster %s is in policy %s",
+                    getClusterName(p.getLeft(), "[unknown]"),
+                    p.getRight()))
+                .collect(Collectors.joining("; "));
+            final String msg = String.format(
+                "A cluster may not participate in multiple merge policies: %s", details);
+            // and abort the operation
+            throw new IllegalArgumentException(msg);
+        }
+    }
+
+    private String getClusterName(long clusterId, String defaultName) {
+        Optional<Group> clusterGroup = groupStore.get(clusterId);
+        return clusterGroup.isPresent() && clusterGroup.get().hasCluster()
+            ? clusterGroup.get().getCluster().getDisplayName()
+            : defaultName;
     }
 
     private void checkPolicyAccess(Policy policy) {

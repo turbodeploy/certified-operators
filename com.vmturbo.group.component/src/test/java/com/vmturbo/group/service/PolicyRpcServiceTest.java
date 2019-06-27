@@ -5,18 +5,22 @@ import static org.junit.Assert.assertEquals;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Matchers;
@@ -32,17 +36,23 @@ import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyDeleteRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyEditResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.AtMostNPolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutablePolicyUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.PolicyNotFoundException;
+import com.vmturbo.group.group.GroupStore;
 import com.vmturbo.group.policy.PolicyStore;
 
 @SuppressWarnings("unchecked")
@@ -58,9 +68,12 @@ public class PolicyRpcServiceTest {
 
     private GroupRpcService groupRpcService = Mockito.mock(GroupRpcService.class);
 
+    private GroupStore groupStore = Mockito.mock(GroupStore.class);
+
     @Before
     public void setUp() throws Exception {
-        policyRpcService = new PolicyRpcService(policyStore, groupRpcService, userSessionContext);
+        policyRpcService = new PolicyRpcService(
+            policyStore, groupRpcService, groupStore, userSessionContext);
     }
 
     @Test
@@ -668,5 +681,149 @@ public class PolicyRpcServiceTest {
                 (StreamObserver<PolicyDTO.PolicyCreateResponse>)Mockito.mock(StreamObserver.class);
 
         policyRpcService.createPolicy(createReq, mockObserver);
+    }
+
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
+
+    // set create some clusters and policies for cluster merge policy testing
+    final Group clusterA = clusterGroup("clusterA", 1L);
+    final Group clusterB = clusterGroup("clusterB", 2L);
+    final Group clusterC = clusterGroup("clusterC", 3L);
+    final Group clusterD = clusterGroup("clusterD", 4L);
+    final Policy mergeAB = clusterMergePolicy(10L, "mergeAB", clusterA, clusterB);
+    final Policy mergeCD = clusterMergePolicy(20L, "mergeCD", clusterC, clusterD);
+
+    private void setupClusterTestMocks() {
+        when(groupStore.get(1L))
+            .thenReturn(Optional.of(clusterA));
+        when(groupStore.get(2L))
+            .thenReturn(Optional.of(clusterB));
+        when(groupStore.get(3L))
+            .thenReturn(Optional.of(clusterC));
+        when(groupStore.get(4L))
+            .thenReturn(Optional.of(clusterD));
+    }
+
+    /**
+     * Validate an attempt to create a new cluster merge policy in which one of the clusters to be
+     * merged already appears in a cluster merge policy. This should fail with an
+     * {@link IllegalArgumentException}
+     */
+    @Test
+    public void testDisallowMergePolicyWithAlreadyUsedClusters() {
+        expectedException.expect(IllegalArgumentException.class);
+        setupClusterTestMocks();
+        when(policyStore.getAll()).thenReturn(Collections.singletonList(mergeAB));
+
+        // attempting to merge A and C
+        policyRpcService.checkForInvalidClusterMergePolicy(
+            clusterMergePolicy(20L,"mergeAC", clusterA, clusterC).getPolicyInfo(),
+            Optional.empty()
+        );
+    }
+
+    /**
+     * Validate an attempt to create a new cluster merge policy in which none of the clusters to
+     * be merged appears in an existing cluster merge policy. This should succeed without
+     * throwing an exception.
+     */
+    @Test
+    public void allowMergePolicyWithUnusedClusters() {
+
+        setupClusterTestMocks();
+        when(policyStore.getAll()).thenReturn(Collections.singletonList(mergeAB));
+
+        // attempting to merge A and C
+        policyRpcService.checkForInvalidClusterMergePolicy(
+            clusterMergePolicy(20L,"mergeCD", clusterC, clusterD).getPolicyInfo(),
+            Optional.empty()
+        );
+    }
+
+    /**
+     * Validate an attempt to update a cluster merge policy to include a cluster that already
+     * appears in a different cluster merge policy. This should throw
+     * {@link IllegalArgumentException}.
+     */
+    @Test
+    public void disallowMergePolicyEditWithAlreadyUsedClusters() {
+        expectedException.expect(IllegalArgumentException.class);
+        setupClusterTestMocks();
+        when(policyStore.getAll()).thenReturn(Arrays.asList(mergeAB, mergeCD));
+
+        // attempting to add C to AB
+        policyRpcService.checkForInvalidClusterMergePolicy(
+            clusterMergePolicy(mergeAB.getId(),"mergeABC", clusterA, clusterB, clusterC)
+                .getPolicyInfo(),
+            Optional.of(mergeAB.getId()));
+    }
+
+    /**
+     * Validate an attempt to update a cluster merge policy to include additional clusters that
+     * do not appear in other cluster merge policies. The existing clusters are retained, so the
+     * point here is that those clusters should not disqualify this operation; only overlap with
+     * a <em>different</em> policy than the one being edited should cause problems. This test
+     * should succeed without raising an exception.
+     */
+    @Test
+    public void allowMergePolicyEditWithOwnUsedClusters() {
+        setupClusterTestMocks();
+        when(policyStore.getAll()).thenReturn(Collections.singletonList(mergeAB));
+
+        // attempting to add C to AB
+        policyRpcService.checkForInvalidClusterMergePolicy(
+            clusterMergePolicy(mergeAB.getId(),"mergeABC", clusterA, clusterB, clusterC)
+                .getPolicyInfo(),
+            Optional.of(mergeAB.getId()));
+    }
+
+    /**
+     * Helper class to set up a cluster merge policy
+     * @param id id for the policy
+     * @param name name for the policy
+     * @param clusters groups corresponding to clusters to be included
+     * @return
+     */
+    private Policy clusterMergePolicy(Long id, String name, Group... clusters) {
+        return Policy.newBuilder()
+            .setId(id)
+            .setPolicyInfo(clusterMergeInfo(name, clusters))
+            .build();
+    }
+
+    /**
+     * Helper class to create the policy info for a new cluster merge policy
+     * @param name  policy name
+     * @param clusters groups corresponding to clusters to be included
+     * @return
+     */
+    private PolicyInfo clusterMergeInfo(String name, Group... clusters) {
+        return PolicyInfo.newBuilder()
+            .setName(name)
+            .setMerge(MergePolicy.newBuilder()
+                .setMergeType(MergeType.CLUSTER)
+                .addAllMergeGroupIds(Stream.of(clusters)
+                    .map(c -> c.getGroup().getStaticGroupMembers().getStaticMemberOids(0))
+                    .collect(Collectors.toList()))
+                .build())
+            .build();
+    }
+
+    /**
+     * Helper class to create a group for a cluster
+     * @param name name for the cluster
+     * @param clusterUuids ids of clusters to be included
+     * @return
+     */
+    private Group clusterGroup(String name, Long... clusterUuids) {
+        return Group.newBuilder()
+            .setGroup(GroupInfo.newBuilder()
+                .setDisplayName(name)
+                .setStaticGroupMembers(StaticGroupMembers.newBuilder()
+                    .addAllStaticMemberOids(Arrays.asList(clusterUuids))
+                    .build())
+                .build())
+            .build();
     }
 }

@@ -17,6 +17,7 @@ import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingPolicyService
 import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingServiceController;
 import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.group.GroupConfig;
+import com.vmturbo.group.group.GroupStore;
 import com.vmturbo.group.policy.PolicyConfig;
 import com.vmturbo.group.setting.SettingConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
@@ -57,6 +58,9 @@ public class RpcConfig {
     @Autowired
     private UserSessionConfig userSessionConfig;
 
+    @Autowired
+    private GroupStore groupStore;
+
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
@@ -66,7 +70,7 @@ public class RpcConfig {
     @Bean
     public PolicyRpcService policyService() {
         return new PolicyRpcService(policyConfig.policyStore(), groupService(),
-                userSessionConfig.userSessionContext());
+            groupStore, userSessionConfig.userSessionContext());
     }
 
     @Bean
