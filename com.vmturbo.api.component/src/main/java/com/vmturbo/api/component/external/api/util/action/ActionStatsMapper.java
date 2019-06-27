@@ -285,7 +285,7 @@ class ActionStatsMapper {
 
         statApiDTO.setFilters(commonFilters.getFilters());
         statApiDTO.setValues(statValue);
-        statApiDTO.setValue(statValue.getAvg());
+        statApiDTO.setValue(statValue.getTotal());
         return statApiDTO;
     }
 

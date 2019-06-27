@@ -9,6 +9,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -29,7 +30,7 @@ import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.db.tables.ActionSnapshotLatest;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotLatestRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
-import com.vmturbo.action.orchestrator.stats.SingleActionSnapshotFactory.SingleActionSnapshot;
+import com.vmturbo.action.orchestrator.stats.StatsActionViewFactory.StatsActionView;
 import com.vmturbo.action.orchestrator.stats.aggregator.ActionAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.aggregator.ActionAggregatorFactory.ActionAggregator;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup;
@@ -67,7 +68,7 @@ public class LiveActionsStatistician {
 
     private final MgmtUnitSubgroupStore mgmtUnitSubgroupStore;
 
-    private final SingleActionSnapshotFactory snapshotFactory;
+    private final StatsActionViewFactory snapshotFactory;
 
     private final Clock clock;
 
@@ -83,7 +84,7 @@ public class LiveActionsStatistician {
             final int batchSize,
             @Nonnull final ActionGroupStore actionGroupStore,
             @Nonnull final MgmtUnitSubgroupStore mgmtUnitSubgroupStore,
-            @Nonnull final SingleActionSnapshotFactory snapshotFactory,
+            @Nonnull final StatsActionViewFactory snapshotFactory,
             @Nonnull final List<ActionAggregatorFactory<? extends ActionAggregator>> aggregatorFactories,
             @Nonnull final Clock clock,
             @Nonnull final ActionTranslator actionTranslator,
@@ -113,23 +114,27 @@ public class LiveActionsStatistician {
      *
      * @param actionStream A stream of actions representing a snapshot of actions in a
      *        {@link LiveActionStore} at a particular point in time.
+     * @param newActionIds a set of IDs of the actions that are newly recommended, i.e. not
+     *                     recommended previously
      */
     public void recordActionStats(@Nonnull final TopologyInfo topologyInfo,
-                                  @Nonnull final Stream<ActionView> actionStream) {
+                                  @Nonnull final Stream<ActionView> actionStream,
+                                  @Nonnull final Set<Long> newActionIds) {
         if (topologyInfo.getTopologyType() != TopologyType.REALTIME) {
             throw new IllegalArgumentException("Attempting to insert non-realtime topology info " +
                 "stats into the actions statistician: " + topologyInfo);
         }
 
         try {
-            internalRecordActionStats(topologyInfo, actionStream);
+            internalRecordActionStats(topologyInfo, actionStream, newActionIds);
         } catch (RuntimeException e) {
             logger.error("Failed to record action stats due to error!", e);
         }
     }
 
     private void internalRecordActionStats(final TopologyInfo sourceTopologyInfo,
-                                @Nonnull final Stream<ActionView> actionStream) {
+                                           @Nonnull final Stream<ActionView> actionStream,
+                                           @Nonnull final Set<Long> newActionIds) {
         final LocalDateTime topologyCreationTime = LocalDateTime.ofInstant(
             Instant.ofEpochMilli(sourceTopologyInfo.getCreationTime()),
             clock.getZone());
@@ -150,7 +155,7 @@ public class LiveActionsStatistician {
             actionTranslator.translate(actionStream)
                     .map(actionView -> {
                         try {
-                            return snapshotFactory.newSnapshot(actionView);
+                            return snapshotFactory.newStatsActionView(actionView);
                         } catch (UnsupportedActionException e) {
                             logger.error("Attempting to record stats for unsupported action: " +
                                     e.getLocalizedMessage());
@@ -191,10 +196,10 @@ public class LiveActionsStatistician {
             snapshot.actions().forEach(action -> {
                 startedAggregators.forEach(startedAggregator -> {
                     try {
-                        startedAggregator.processAction(action);
+                        startedAggregator.processAction(action, newActionIds);
                     } catch (RuntimeException e) {
                         logger.debug("Aggregator {} got exception when processing action." +
-                                " Message: {}", e.getLocalizedMessage());
+                                " Message: {}", startedAggregator, e.getLocalizedMessage());
                         aggregatorErrorCounts.compute(startedAggregator,
                             (k, existingCount) -> existingCount == null ? 1 : existingCount + 1);
                     }
@@ -316,13 +321,13 @@ public class LiveActionsStatistician {
     }
 
     /**
-     * A snapshot of all actions passed to {@link LiveActionsStatistician#recordActionStats(TopologyInfo, Stream)}.
+     * A snapshot of all actions passed to {@link LiveActionsStatistician#recordActionStats}.
      */
     @Value.Immutable
     interface LiveActionsSnapshot {
         LocalDateTime topologyCreationTime();
 
-        List<SingleActionSnapshot> actions();
+        List<StatsActionView> actions();
 
         long topologyId();
 

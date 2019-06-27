@@ -103,24 +103,27 @@ public class HourActionStatTable implements ActionStatTable {
         @Nonnull
         protected Map<Integer, RolledUpActionGroupStat> rollupRecords(
                     final int numSnapshotsInRange,
-                    @Nonnull final Map<Integer, List<StatWithSnapshotCnt<ActionStatsByHourRecord>>> recordsByActionGroupId) {
+                    @Nonnull final Map<Integer, List<StatWithSnapshotCnt<ActionStatsByHourRecord>>>
+                        recordsByActionGroupId) {
             final Map<Integer, RolledUpActionGroupStat> rolledUpStats = new HashMap<>();
-            recordsByActionGroupId.forEach((actionGroupId, recordsForGroup) -> {
-                statCalculator.rollupHourRecords(numSnapshotsInRange, recordsForGroup).ifPresent(rolledUpGroupStat -> {
-                    rolledUpStats.put(actionGroupId, rolledUpGroupStat);
-                });
-            });
+            recordsByActionGroupId.forEach((actionGroupId, recordsForGroup) ->
+                statCalculator.rollupHourRecords(numSnapshotsInRange, recordsForGroup)
+                    .ifPresent(rolledUpGroupStat ->
+                        rolledUpStats.put(actionGroupId, rolledUpGroupStat)));
             return rolledUpStats;
         }
 
         @Override
-        protected int numSnapshotsInSnapshotRecord(@Nonnull final ActionSnapshotHourRecord actionSnapshotHourRecord) {
+        protected int numSnapshotsInSnapshotRecord(@Nonnull final ActionSnapshotHourRecord
+                                                               actionSnapshotHourRecord) {
             return actionSnapshotHourRecord.getNumActionSnapshots();
         }
 
         @Override
         protected RolledUpActionGroupStat recordToGroupStat(final ActionStatsByHourRecord record) {
             return ImmutableRolledUpActionGroupStat.builder()
+                .priorActionCount(record.getPriorActionCount())
+                .newActionCount(record.getNewActionCount())
                 .avgActionCount(record.getAvgActionCount().doubleValue())
                 .minActionCount(record.getMinActionCount())
                 .maxActionCount(record.getMaxActionCount())
@@ -162,6 +165,8 @@ public class HourActionStatTable implements ActionStatTable {
             record.setActionGroupId(actionGroupId);
             record.setMgmtUnitSubgroupId(mgmtUnitSubgroupId);
 
+            record.setPriorActionCount(rolledUpActionGroupStats.priorActionCount());
+            record.setNewActionCount(rolledUpActionGroupStats.newActionCount());
             record.setAvgActionCount(BigDecimal.valueOf(rolledUpActionGroupStats.avgActionCount()));
             record.setMaxActionCount(rolledUpActionGroupStats.maxActionCount());
             record.setMinActionCount(rolledUpActionGroupStats.minActionCount());

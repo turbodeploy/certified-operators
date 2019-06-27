@@ -124,6 +124,8 @@ public class DayActionStatTable implements ActionStatTable {
         @Override
         protected RolledUpActionGroupStat recordToGroupStat(final ActionStatsByDayRecord record) {
             return ImmutableRolledUpActionGroupStat.builder()
+                .priorActionCount(record.getPriorActionCount())
+                .newActionCount(record.getNewActionCount())
                 .avgActionCount(record.getAvgActionCount().doubleValue())
                 .minActionCount(record.getMinActionCount())
                 .maxActionCount(record.getMaxActionCount())
@@ -165,6 +167,8 @@ public class DayActionStatTable implements ActionStatTable {
             record.setActionGroupId(actionGroupId);
             record.setMgmtUnitSubgroupId(mgmtUnitSubgroupId);
 
+            record.setPriorActionCount(rolledUpActionGroupStats.priorActionCount());
+            record.setNewActionCount(rolledUpActionGroupStats.newActionCount());
             record.setAvgActionCount(BigDecimal.valueOf(rolledUpActionGroupStats.avgActionCount()));
             record.setMaxActionCount(rolledUpActionGroupStats.maxActionCount());
             record.setMinActionCount(rolledUpActionGroupStats.minActionCount());

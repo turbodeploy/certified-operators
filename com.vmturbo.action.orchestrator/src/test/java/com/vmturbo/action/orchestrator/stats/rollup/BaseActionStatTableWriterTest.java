@@ -96,6 +96,8 @@ public class BaseActionStatTableWriterTest {
         rollupTestUtils.insertActionGroup(ACTION_GROUP);
 
         final RolledUpActionGroupStat groupStat = ImmutableRolledUpActionGroupStat.builder()
+            .priorActionCount(10)
+            .newActionCount(5)
             .avgEntityCount(1)
             .avgActionCount(1)
             .avgInvestment(1.0)

@@ -251,6 +251,8 @@ public interface ActionStatTable {
     @Value.Immutable
     interface RolledUpActionGroupStat {
 
+        int       priorActionCount();
+        int       newActionCount();
         double    avgActionCount();
         int       minActionCount();
         int       maxActionCount();

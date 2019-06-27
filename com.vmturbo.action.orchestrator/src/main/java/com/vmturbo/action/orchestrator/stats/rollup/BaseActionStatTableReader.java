@@ -139,7 +139,6 @@ public abstract class BaseActionStatTableReader<STAT_RECORD extends Record,
                     matchedActionGroups.specificActionGroupsById().keySet()));
             }
 
-
             dslContext.selectFrom(tableInfo.statTable())
                 .where(conditions)
                 .fetch()
