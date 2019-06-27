@@ -245,10 +245,12 @@ public interface StatsQueryFactory {
                         commodityTest.and(
                             str(dField(table, PROPERTY_TYPE)).eq(commodityRequest.getCommodityName()));
                 }
-                if (commodityRequest.hasRelatedEntityType()
-                        && commodityRequest.getRelatedEntityType() != null) {
-                    entityTypeCond(commodityRequest.getRelatedEntityType(), table)
-                        .ifPresent(commodityTest::and);
+                if (commodityRequest.hasRelatedEntityType()) {
+                    Optional<Condition> entityTypeCond =
+                        entityTypeCond(commodityRequest.getRelatedEntityType(), table);
+                    if (entityTypeCond.isPresent()) {
+                        commodityTest = commodityTest.and(entityTypeCond.get());
+                    }
                 }
                 // add an 'and' for each property value filter specified
                 for (PropertyValueFilter propertyValueFilter : commodityRequest.getPropertyValueFilterList()) {
