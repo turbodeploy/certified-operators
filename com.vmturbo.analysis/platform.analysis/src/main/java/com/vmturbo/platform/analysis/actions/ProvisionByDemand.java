@@ -2,6 +2,7 @@ package com.vmturbo.platform.analysis.actions;
 
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -9,6 +10,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -34,6 +37,7 @@ import com.vmturbo.platform.analysis.economy.TraderState;
 public class ProvisionByDemand extends ActionImpl {
 
     // Fields
+    private static final Logger logger = LogManager.getLogger();
     private final @NonNull Economy economy_;
     private final @NonNull ShoppingList modelBuyer_; // TODO: also add source market? Desired state?
     private final @NonNull Trader modelSeller_;
@@ -42,7 +46,8 @@ public class ProvisionByDemand extends ActionImpl {
     // a map from commodity base type to its new capacity which will satisfy the demand
     private @NonNull Map<@NonNull Integer, @NonNull Double> commodityNewCapacityMap_ =
                     new HashMap<>();
-
+    // a list of actions triggered by taking provisionByDemand action
+    private List<@NonNull Action> subsequentActions_ = new ArrayList<>();
     // Constructors
 
     /**
@@ -90,6 +95,15 @@ public class ProvisionByDemand extends ActionImpl {
     @Pure
     public @Nullable Trader getProvisionedSeller(@ReadOnly ProvisionByDemand this) {
         return provisionedSeller_;
+    }
+
+    /**
+     * Returns the actions that was triggered after taking {@code this} action
+     * @return a list of actions followed by {@code this}
+     */
+    @Pure
+    public @NonNull List<Action> getSubsequentActions() {
+       return subsequentActions_;
     }
 
     /**
@@ -221,6 +235,31 @@ public class ProvisionByDemand extends ActionImpl {
                 provCommSold.setCapacity(modelCommSold.getCapacity());
             }
         }
+
+        // Generate Capacity Resize actions on resizeThroughSupplier traders whose Provider is
+        // cloning.
+        try {
+            modelSeller_.getCustomers().stream()
+                .map(ShoppingList::getBuyer)
+            .filter(trader -> trader.getSettings().isResizeThroughSupplier())
+            .forEach(trader -> {
+                    economy_.getMarketsAsBuyer(trader).keySet().stream()
+                        .filter(shoppingList -> shoppingList.getSupplier() == modelSeller_)
+                        .forEach(sl -> {
+                            // Generate the resize actions for matching commodities between
+                            // the model seller and the resizeThroughSupplier trader.
+                            getSubsequentActions().addAll(Utility.resizeCommoditiesOfTrader(
+                                                                                    getEconomy(),
+                                                                                    modelSeller_,
+                                                                                    sl));
+                });
+            });
+        } catch (Exception e) {
+            logger.error("Error in ProvisionByDemand for resizeThroughSupplier Trader Capacity "
+                            + "Resize when provisioning "
+                                + modelSeller_.getDebugInfoNeverUseInCode(), e);
+        }
+
         Utility.adjustOverhead(getModelSeller(), getProvisionedSeller(), getEconomy());
         // if the trader being cloned is a provider for a guaranteedBuyer, then the clone should
         // be a provider for that guaranteedBuyer as well
@@ -247,6 +286,15 @@ public class ProvisionByDemand extends ActionImpl {
         GuaranteedBuyerHelper.removeShoppingListForGuaranteedBuyers(getEconomy(),
                 provisionedSeller_);
         getEconomy().removeTrader(provisionedSeller_);
+        getSubsequentActions().forEach(a -> {
+            if (a instanceof ProvisionBySupply) {
+                getEconomy().removeTrader(((ProvisionBySupply)a).getProvisionedSeller());
+            } else if (a instanceof ProvisionByDemand) {
+                getEconomy().removeTrader(((ProvisionByDemand)a).getProvisionedSeller());
+            } else if (a instanceof Resize && a.isExtractAction()) {
+                a.rollback();
+            }
+        });
         provisionedSeller_ = null;
         commodityNewCapacityMap_.clear();
         return this;

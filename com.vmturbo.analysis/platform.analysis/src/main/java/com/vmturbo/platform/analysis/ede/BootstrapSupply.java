@@ -575,6 +575,7 @@ public class BootstrapSupply {
                                 .addAll(shopTogetherBootstrapForIndividualBuyer(economy, newSeller,
                                         slsThatNeedProvBySupply));
                         provisionedRelatedActions.add(action);
+                        provisionedRelatedActions.addAll(((ProvisionByDemand)action).getSubsequentActions());
                         newSuppliers.put(sl, newSeller);
                         newSuppliersToIgnore.add(newSeller);
                     }
@@ -1025,6 +1026,7 @@ public class BootstrapSupply {
             ((ActionImpl)bootstrapAction).setImportance(Double.POSITIVE_INFINITY);
             provisionedSeller = ((ProvisionByDemand)bootstrapAction).getProvisionedSeller();
             provisionRelatedActionList.add(bootstrapAction);
+            provisionRelatedActionList.addAll(((ProvisionByDemand)bootstrapAction).getSubsequentActions());
             if (logger.isTraceEnabled() || isDebugBuyer) {
                 logger.info(provisionedSeller.getDebugInfoNeverUseInCode() + " was provisioned to"
                             + " accommodate " + buyerDebugInfo + ".");
