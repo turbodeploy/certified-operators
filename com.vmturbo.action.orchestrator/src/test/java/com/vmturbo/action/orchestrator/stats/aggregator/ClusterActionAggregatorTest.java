@@ -26,13 +26,14 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import io.grpc.Status;
 
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
-import com.vmturbo.action.orchestrator.stats.ImmutableSingleActionSnapshot;
+import com.vmturbo.action.orchestrator.stats.ImmutableStatsActionView;
 import com.vmturbo.action.orchestrator.stats.ManagementUnitType;
-import com.vmturbo.action.orchestrator.stats.SingleActionSnapshotFactory.SingleActionSnapshot;
+import com.vmturbo.action.orchestrator.stats.StatsActionViewFactory.StatsActionView;
 import com.vmturbo.action.orchestrator.stats.aggregator.ClusterActionAggregator.ClusterActionAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup.ActionGroupKey;
@@ -221,11 +222,12 @@ public class ClusterActionAggregatorTest {
         verify(groupServiceMole).getGroups(expectedRequest);
 
         // Process an action snapshot involving both PMs in cluster 1.
-        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_1_PM_1, CLUSTER_1_PM_2));
+        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_1_PM_1, CLUSTER_1_PM_2),
+            ImmutableSet.of());
 
         // Process two action snapshots involving the PM in cluster 2.
-        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_2_PM));
-        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_2_PM));
+        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_2_PM), ImmutableSet.of());
+        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_2_PM), ImmutableSet.of());
 
         final Map<Integer, ActionStatsLatestRecord> recordsByMgtmtUnitSubgroup =
             clusterActionAggregator.createRecords(ImmutableMap.of(
@@ -333,11 +335,12 @@ public class ClusterActionAggregatorTest {
         verify(groupServiceMole).getGroups(expectedRequest);
 
         // Process an action snapshot involving both PMs in cluster 1.
-        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_1_PM_1, CLUSTER_1_PM_2));
+        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_1_PM_1, CLUSTER_1_PM_2),
+            ImmutableSet.of());
 
         // Process two action snapshots involving the PM in cluster 2.
-        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_2_PM));
-        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_2_PM));
+        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_2_PM), ImmutableSet.of());
+        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_2_PM), ImmutableSet.of());
 
         final Map<Integer, ActionStatsLatestRecord> recordsByMgtmtUnitSubgroup =
             clusterActionAggregator.createRecords(ImmutableMap.of(
@@ -389,7 +392,7 @@ public class ClusterActionAggregatorTest {
         clusterActionAggregator.processAction(fakeSnapshot(ActionEntity.newBuilder()
                 .setId(127737)
                 .setType(EntityType.PHYSICAL_MACHINE_VALUE)
-                .build()));
+                .build()), ImmutableSet.of());
 
         assertThat(clusterActionAggregator.createRecords(
                 Collections.emptyMap(), Collections.emptyMap()).count(), is(0L));
@@ -454,15 +457,15 @@ public class ClusterActionAggregatorTest {
 
         // Process action snapshots involving a VM in cluster 1, as well as a random VM not
         // in the cluster.
-        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_1_VM_1));
-        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_1_VM_2));
+        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_1_VM_1), ImmutableSet.of());
+        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_1_VM_2), ImmutableSet.of());
         clusterActionAggregator.processAction(fakeSnapshot(ActionEntity.newBuilder()
                 .setId(1823)
                 .setType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .build()));
+                .build()), ImmutableSet.of());
 
         // Process an action snapshot involving the VM in cluster 2.
-        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_2_VM));
+        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_2_VM), ImmutableSet.of());
 
         final Map<Integer, ActionStatsLatestRecord> recordsByMgtmtUnitSubgroup =
             clusterActionAggregator.createRecords(ImmutableMap.of(
@@ -482,8 +485,8 @@ public class ClusterActionAggregatorTest {
         assertThat(cluster2Record.getTotalActionCount(), is(1));
     }
 
-    private SingleActionSnapshot fakeSnapshot(@Nonnull final ActionEntity... involvedEntities) {
-        final ImmutableSingleActionSnapshot.Builder actionSnapshotBuilder = ImmutableSingleActionSnapshot.builder()
+    private StatsActionView fakeSnapshot(@Nonnull final ActionEntity... involvedEntities) {
+        final ImmutableStatsActionView.Builder actionSnapshotBuilder = ImmutableStatsActionView.builder()
                 .actionGroupKey(ACTION_GROUP_KEY)
                 .recommendation(SAVINGS_ACTION);
         actionSnapshotBuilder.addInvolvedEntities(involvedEntities);
