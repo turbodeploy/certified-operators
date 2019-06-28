@@ -218,10 +218,22 @@ message NestedGroupInfo {
 // Other property filter types, e.g., numeric filters, list filters, and object
 // filters are not used.
 message GroupPropertyFilterList {
+    // This message type is included for backward compatibility with 7.16 and
+    // earlier versions.  It should not be used.
+    message GroupPropertyFilter {
+        oneof property_type {
+            .search.PropertyFilter.StringFilter __deprecated__name_filter = 1 [deprecated=true];
+        }
+    }
+
+    // This field is included for backward compatibility with 7.16 and
+    // earlier versions.  It should not be used.
+    repeated GroupPropertyFilter __deprecated__property_filters_old = 1 [deprecated=true];
+
     // Property filters to match group against. Currently (2019/4/29) used only for:
     // (a) display name (property of type string) regex matching and
     // (b) tags (property of type multimap).
-    repeated .search.PropertyFilter property_filters = 1;
+    repeated .search.PropertyFilter property_filters = 2;
 }
 
 
