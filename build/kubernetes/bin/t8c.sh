@@ -142,7 +142,7 @@ sed -i "s/${dns_strict}/${dns_not_strick_group}/g" ${inventoryPath}/group_vars/a
 sed -i "s/${helm_enabled}/${helm_enabled_group}/g" ${inventoryPath}/group_vars/k8s-cluster/addons.yml
 
 # Run ansible kubespray install
-/usr/bin/ansible-playbook -i inventory/turbocluster/hosts.yml -b --become-user=root cluster.yml
+/usr/bin/ansible-playbook --flush-cache -i inventory/turbocluster/hosts.yml -b --become-user=root cluster.yml
 # Check on ansible status and exit out if there are any failures.
 ansibleStatus=$?
 # Reset the kubespray yaml back to the original source
