@@ -22,6 +22,7 @@ import javax.servlet.Servlet;
 import javax.servlet.ServletContext;
 import javax.servlet.ServletRegistration;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jetty.servlet.ServletContextHandler;
@@ -101,6 +102,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
     public static final String PROP_COMPONENT_TYPE = "component_type";
     public static final String PROP_INSTANCE_ID = "instance_id";
+    public static final String PROP_INSTANCE_IP = "instance_ip";
     public static final String PROP_STANDALONE = "standalone";
     public static final String PROP_serverHttpPort = "serverHttpPort";
 
@@ -129,6 +131,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
     private static String componentType;
     private static String instanceId;
+    private static String instanceIp;
     private static Boolean enableConsulRegistration;
     private static Boolean standalone;
     private static long clusterMgrConnectionRetryDelayMs;
@@ -214,8 +217,10 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
     @Override
     public String getComponentName() {
-        // we are using the component type as the 'name' until we have more than one instance of a
-        // given component type
+        // return the component type as the 'name' only if the instanceId is not set
+        if (StringUtils.isNotBlank(instanceId)) {
+            return instanceId;
+        }
         return componentType;
     }
 
@@ -327,6 +332,14 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                 logger.error("Jetty server failed to stop cleanly.", e);
             }
         });
+        // Remove the instance IP address from a component that is being stopped
+        // TODO: need to implement complete deregistration under OM-48049
+        if (!standalone) {
+            // get a pointer to the ClusterMgr client api
+            ClusterMgrRestClient clusterMgrClient = getClusterMgrClient();
+
+            clusterMgrClient.setPropertyForComponentInstance(componentType, instanceId, PROP_INSTANCE_IP, "");
+        }
         setStatus(ExecutionStatus.TERMINATED);
     }
 
@@ -594,6 +607,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         // fetch the component information from the environment
         componentType = EnvironmentUtils.requireEnvProperty(PROP_COMPONENT_TYPE);
         instanceId = EnvironmentUtils.requireEnvProperty(PROP_INSTANCE_ID);
+        instanceIp = EnvironmentUtils.getOptionalEnvProperty(PROP_INSTANCE_IP)
+                .orElse("");
         standalone = EnvironmentUtils.getOptionalEnvProperty(PROP_STANDALONE)
                 .map(Boolean::parseBoolean)
                 .orElse(false);
@@ -612,7 +627,6 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             // call ClusterMgr to fetch the configuration for this component type - blocking call
             fetchClusterConfigurationProperties(clusterMgrClient);
         }
-
 
         logger.info("Starting web server with spring context");
         final String serverPort = EnvironmentUtils.requireEnvProperty(PROP_serverHttpPort);
@@ -695,7 +709,6 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         final ComponentPropertiesDTO defaultComponentProperties = new ComponentPropertiesDTO();
         defaultProperties.forEach((defaultKey, defaultValue) ->
             defaultComponentProperties.put(defaultKey.toString(), defaultValue.toString()));
-        defaultComponentProperties.put(PROP_INSTANCE_ID, instanceId);
         int tryCount = 1;
         do {
             try {
@@ -785,15 +798,22 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * Publishes version information of this container into a centralized key-value store.
      */
     private void publishVersionInformation() {
-        enableConsulRegistration = EnvironmentUtils.getOptionalEnvProperty(ConsulDiscoveryManualConfig.ENABLE_CONSUL_REGISTRATION)
-                .map(Boolean::parseBoolean)
-                .orElse(false);
-        final String specVersion = getClass().getPackage().getSpecificationVersion();
-        if (enableConsulRegistration && specVersion != null) {
-            logger.debug("Component version {} found", specVersion);
-            baseVmtComponentConfig.keyValueStore().put(KEY_COMPONENT_VERSION, specVersion);
-        } else if (specVersion == null) {
-            logger.error("Could not get Specification-Version for component class {}", getClass());
+        if (!standalone) {
+            // get a pointer to the ClusterMgr client api
+            ClusterMgrRestClient clusterMgrClient = getClusterMgrClient();
+
+            // get the component version
+            final String specVersion = getClass().getPackage().getSpecificationVersion();
+            if (specVersion != null) {
+                logger.debug("Component version {} found", specVersion);
+                clusterMgrClient.setPropertyForComponentInstance(componentType, instanceId, KEY_COMPONENT_VERSION, specVersion);
+            } else if (specVersion == null) {
+                logger.error("Could not get Specification-Version for component class {}", getClass());
+            }
+            // and the component IP address
+            if (StringUtils.isNotBlank(instanceId) && StringUtils.isNotBlank(instanceIp)) {
+                clusterMgrClient.setPropertyForComponentInstance(componentType, instanceId, PROP_INSTANCE_IP, instanceIp);
+            }
         }
     }
 
