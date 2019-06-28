@@ -1,7 +1,8 @@
 package com.vmturbo.auth.component;
 
-import com.vmturbo.api.handler.GlobalExceptionHandler;
+
 import com.vmturbo.auth.api.SpringSecurityConfig;
+import com.vmturbo.auth.component.handler.GlobalExceptionHandler;
 import com.vmturbo.auth.component.services.AuthUsersController;
 import com.vmturbo.auth.component.spring.SpringAuthFilter;
 import com.vmturbo.auth.component.store.AuthProvider;
@@ -130,6 +131,11 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
     @Bean
     public AuthUsersController authUsersController() {
         return new AuthUsersController(targetStore());
+    }
+
+    @Bean
+    public GlobalExceptionHandler globalExceptionHandler() {
+        return new GlobalExceptionHandler();
     }
 
 }
