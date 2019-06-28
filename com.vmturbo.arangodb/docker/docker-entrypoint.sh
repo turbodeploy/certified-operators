@@ -71,28 +71,6 @@ if [ "$1" = 'arangod' ]; then
 	    cp $DEFAULT_ARANGO_CONF $ARANGO_CONF 2>&1 | $LOGGER_COMMAND
 	fi
 
-    # Test arangoDB version for a mismatch (search for old 3.3.22 version from previous image)
-	echo "Testing if a database upgrade is needed." | $LOGGER_COMMAND
-    if [[ `grep  '30322' -r  /var/lib/arangodb3/databases/**/VERSION 2>/dev/null | wc -l` -gt 0 ]] ; then
-        echo "Database upgrade needed!" | $LOGGER_COMMAND
-        UPGRADE_FLAGS="--database.auto-upgrade true"
-        # Replace config file on upgrade
-        echo "Copying default arangodb config file from $DEFAULT_ARANGO_CONF to $ARANGO_CONF as part of the upgrade" | $LOGGER_COMMAND
-        cp $DEFAULT_ARANGO_CONF $ARANGO_CONF 2>&1 | $LOGGER_COMMAND
-    fi
-
-    # Test if an existing mmfiles database needs to be replaced with rocksDB
-    if [[ `grep 'mmfiles'  /var/lib/arangodb3/ENGINE 2>/dev/null | wc -l` -gt 0 ]] ; then
-        echo "Database using mmfiles needs to be replaced with rocksDB. Data will be lost!" | $LOGGER_COMMAND
-        echo "This is a necessary, one-time conversion to ensure application stability." | $LOGGER_COMMAND
-        rm -rf /var/lib/arangodb3/journals
-        rm -rf /var/lib/arangodb3/databases
-        rm -rf /var/lib/arangodb3/ENGINE
-        # Replace config file on upgrade
-        echo "Copying default arangodb config file from $DEFAULT_ARANGO_CONF to $ARANGO_CONF as part of the upgrade" | $LOGGER_COMMAND
-        cp $DEFAULT_ARANGO_CONF $ARANGO_CONF 2>&1 | $LOGGER_COMMAND
-    fi
-
 	# if we really want to start arangod and not bash or any other thing
 	# prepend --authentication as the FIRST argument
 	# (so it is overridable via command line as well)
