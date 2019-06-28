@@ -339,12 +339,31 @@ public class ReportDBDataWriterTest {
     @Test
     public void testInsertRightSizeActions() throws DbException {
         final Group group = getGroup(DISPLAY_NAME, NAME);
-        final EntitiesTableGeneratedId results = reportDBDataWriter.insertGroupIntoEntitiesTable(ImmutableList.of(group), MetaGroup.VMs);
+        final EntitiesTableGeneratedId results = reportDBDataWriter
+            .insertGroupIntoEntitiesTable(ImmutableList.of(group), MetaGroup.VMs);
+        reportDBDataWriter.cleanUpRightSizeActions();
         reportDBDataWriter.insertRightSizeActions(Collections.singletonList(TestHelper
             .resizeActionSpec(results.getDefaultGroupPK())));
         Result<EntityAttrsRecord> resultGroup = dslContext.selectFrom(ENTITY_ATTRS)
             .where(ENTITY_ATTRS.NAME.eq(RIGHTSIZING_INFO)).fetch();
         assertEquals(1, resultGroup.size());
+    }
+
+    @Test
+    public void testCleanUpRightSizeActions() throws DbException {
+        final Group group = getGroup(DISPLAY_NAME, NAME);
+        final EntitiesTableGeneratedId results = reportDBDataWriter
+            .insertGroupIntoEntitiesTable(ImmutableList.of(group), MetaGroup.VMs);
+        reportDBDataWriter.cleanUpRightSizeActions();
+        reportDBDataWriter.insertRightSizeActions(Collections.singletonList(TestHelper
+            .resizeActionSpec(results.getDefaultGroupPK())));
+        Result<EntityAttrsRecord> resultGroup = dslContext.selectFrom(ENTITY_ATTRS)
+            .where(ENTITY_ATTRS.NAME.eq(RIGHTSIZING_INFO)).fetch();
+        assertEquals(1, resultGroup.size());
+        reportDBDataWriter.cleanUpRightSizeActions();
+        Result<EntityAttrsRecord> newResultGroup = dslContext.selectFrom(ENTITY_ATTRS)
+            .where(ENTITY_ATTRS.NAME.eq(RIGHTSIZING_INFO)).fetch();
+        assertEquals(0, newResultGroup.size());
     }
 
     /**

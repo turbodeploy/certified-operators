@@ -324,13 +324,6 @@ public class ReportDBDataWriter {
      */
     public void insertRightSizeActions(final List<ActionSpec> actionsList) throws DbException {
         try {
-            dsl.transaction(transaction -> {
-                final DSLContext transactionContext = using(transaction);
-                transactionContext
-                    .deleteFrom(ENTITY_ATTRS)
-                    .where(ENTITY_ATTRS.NAME.eq(RIGHTSIZING_INFO))
-                    .execute();
-            });
             Lists.partition(actionsList, CHUNK_SIZE).forEach(chunk -> {
                 dsl.transaction(transaction -> {
                     final DSLContext transactionContext = using(transaction);
@@ -364,6 +357,25 @@ public class ReportDBDataWriter {
             logger.warn("runtime exception", e2);
         }
 
+    }
+
+    /**
+     * Clean up all the right size actions in entity_attrs tables.
+     */
+    public void cleanUpRightSizeActions() throws DbException {
+        try {
+            dsl.transaction(transaction -> {
+                final DSLContext transactionContext = using(transaction);
+                transactionContext
+                    .deleteFrom(ENTITY_ATTRS)
+                    .where(ENTITY_ATTRS.NAME.eq(RIGHTSIZING_INFO))
+                    .execute();
+            });
+        } catch (DataAccessException e) {
+            throw new DbException("Error inserting right size actions to entity_attrs table." + e);
+        } catch (RuntimeException e2) {
+            logger.warn("runtime exception", e2);
+        }
     }
 
     /**
