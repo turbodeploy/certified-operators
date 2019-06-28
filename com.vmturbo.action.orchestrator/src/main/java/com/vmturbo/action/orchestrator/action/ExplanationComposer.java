@@ -32,6 +32,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CommodityMetadata;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
 /**
  * A utility with static methods that assist in composing explanations for actions.
@@ -497,15 +499,24 @@ public class ExplanationComposer {
         entries.forEach(entry -> {
             sb.append(UICommodityType.fromType(entry.getCommodityBaseType()).apiStr());
             if (!keepItShort) {
+                String unit =
+                    CommodityMetadata.COMMODITY_UNITS.get(UICommodityType.fromType(entry.getCommodityBaseType()).sdkType());
+
                 sb.append(" ")
                     .append(" whose requested amount is ")
                     .append(entry.getRequestedAmount())
+                    .append(" ")
+                    .append(unit)
                     .append(" but max available is ")
-                    .append(entry.getMaxAmountAvailable()).append(" ");
+                    .append(entry.getMaxAmountAvailable())
+                    .append(" ")
+                    .append(unit)
+                    .append(" ");
             }
         });
         return sb.toString();
     }
+
 
     /**
      * Build provision explanation for addressing high utilization, e.g. "{commodity type} congestion"
