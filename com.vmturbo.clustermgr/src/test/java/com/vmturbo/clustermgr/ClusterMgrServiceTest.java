@@ -1,9 +1,7 @@
 package com.vmturbo.clustermgr;
 
-
 import static com.vmturbo.clustermgr.ClusterMgrService.HOME_TURBONOMIC_DATA_TURBO_FILE_ZIP;
 import static com.vmturbo.clustermgr.ClusterMgrService.UPLOAD_VMTURBO_COM_URL;
-import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -48,12 +46,9 @@ import org.springframework.test.context.web.WebAppConfiguration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Optional;
-import com.orbitz.consul.model.catalog.CatalogService;
 import com.orbitz.consul.model.kv.Value;
 
 import com.vmturbo.api.dto.admin.HttpProxyDTO;
-
-;
 
 /**
  * test for ClusterMgr Service
@@ -66,8 +61,6 @@ public class ClusterMgrServiceTest {
 
     // parms: componentType, propertyName
     private static final String COMPONENT_DEFAULT_PROPERTY_KEY = "vmturbo/components/%s/defaults/%s";
-    // parms: componentType, instanceId
-    private static final String COMPONENT_INSTANCE_NODE_NAME_KEY = "vmturbo/components/%s/instances/%s/node";
     // parms: componentType, instanceId, propertyName
     private static final String COMPONENT_INSTANCE_PROPERTY_KEY = "vmturbo/components/%s/instances/%s/properties/%s";
     @Autowired
@@ -75,24 +68,17 @@ public class ClusterMgrServiceTest {
     @Autowired
     private ClusterMgrService clusterMgrService;
     private List<Value> mockValues = getMockConsulValues(
-        "vmturbo/components/c1/", null,
-        "vmturbo/components/c1/instances/c1_1/", null,
-        "vmturbo/components/c1/instances/c1_1/properties/", null,
-        "vmturbo/components/c1/instances/c1_1/node", "node1",
+        "vmturbo/components/c1/defaults/p1", null,
+        "vmturbo/components/c1/instances/c1_1/properties/p1", null,
         "vmturbo/components/c1/instances/c1_1/properties/prop1", "val1",
         "vmturbo/components/c1/instances/c1_1/properties/prop2", "val2",
-        "vmturbo/components/c1/", null,
-        "vmturbo/components/c1/instances/c1_2/", null,
-        "vmturbo/components/c1/instances/c1_2/properties/", null,
-        "vmturbo/components/c1/instances/c1_2/node", "node2",
         "vmturbo/components/c1/instances/c1_2/properties/prop1", "val2",
-        "vmturbo/components/c2/", null,
-        "vmturbo/components/c2/instances/c2_1/", null,
-        "vmturbo/components/c2/instances/c2_1/properties/", null,
-        "vmturbo/components/c2/instances/c2_1/node", "node3",
+        "vmturbo/components/c2/instances/c2_1/properties/prop1", null,
+        "vmturbo/components/c2/instances/c2_1/properties/prop2", null,
         "vmturbo/components/c2/instances/c2_1/properties/prop3", "val3",
-        "c1_1/component.version", "1.0.0",
-        "c2_1/component.version", "1.1.0"
+        "vmturbo/components/c1/instances/c1_1/properties/component.version", "1.0.0",
+        "vmturbo/components/c1/instances/c1_2/properties/component.version", "1.2.0",
+        "vmturbo/components/c2/instances/c2_1/properties/component.version", "1.1.0"
     );
 
     @Before
@@ -101,15 +87,6 @@ public class ClusterMgrServiceTest {
         Mockito.reset(consulServiceMock);
         // note that we're returning ALL the values regardless of the query string; The code will reject the extra values
         when(consulServiceMock.getValues(anyString())).thenReturn(mockValues);
-        when(consulServiceMock.getValueAsString("vmturbo/components/c1/instances/c1_1/node", "default")).thenReturn("node1");
-        when(consulServiceMock.getValueAsString("vmturbo/components/c1/instances/c1_2/node", "default")).thenReturn("node2");
-        when(consulServiceMock.getValueAsString("vmturbo/components/c2/instances/c2_1/node", "default")).thenReturn("node3");
-        when(consulServiceMock.getValueAsString("vmturbo/components/c1/instances/c1_1/node", "default")).thenReturn("node1");
-        when(consulServiceMock.getValueAsString("vmturbo/components/c1/instances/c1_2/node", "default")).thenReturn("node2");
-        when(consulServiceMock.getValueAsString("vmturbo/components/c2/instances/c2_1/node", "default")).thenReturn("node3");
-        when(consulServiceMock.getValueAsString("c1_1/component.version")).thenReturn(Optional.of("1.0.0"));
-        when(consulServiceMock.getValueAsString("c1_2/component.version")).thenReturn(Optional.of("1.2.0"));
-        when(consulServiceMock.getValueAsString("c2_1/component.version")).thenReturn(Optional.of("1.1.0"));
     }
 
     @Test
@@ -123,21 +100,9 @@ public class ClusterMgrServiceTest {
     }
 
     @Test
-    public void getClusterConfigurationTest() throws Exception {
-        // Arrange
-        // Act
-        ClusterConfiguration testResult = clusterMgrService.getClusterConfiguration();
-        // Assert
-        String[] expectedProperties = {"prop1", "prop2"};
-        assertThat(testResult.getInstances().get("c1_1").getProperties().keySet(), containsInAnyOrder(expectedProperties));
-        assertThat(testResult.getInstances().get("c1_1").getProperties().get("prop1"), is("val1"));
-    }
-
-
-    @Test
     public void testGetComponentInstanceIds() throws Exception {
         // Arrange
-        String[] expected = {"c1_1", "c1_2"};
+        String[] expected = {"vmturbo", "c1_1", "c1_2"};
         // Act
         Set<String> instanceIds = clusterMgrService.getComponentInstanceIds("c1");
         // Assert
@@ -150,7 +115,7 @@ public class ClusterMgrServiceTest {
         // Act
         ComponentProperties propMap = clusterMgrService.getComponentInstanceProperties("c1", "c1_1");
         // Assert
-        assertThat(propMap.size(), is(2));
+        assertThat(propMap.size(), is(4));
         assertThat(propMap.get("prop1"), is("val1"));
         assertThat(propMap.get("prop2"), is("val2"));
     }
@@ -174,9 +139,6 @@ public class ClusterMgrServiceTest {
         newProperties.put("p2", "v2");
         String componentTypeKeyStem = "vmturbo/components/c1/";
         String defaultPropertiesKeyStem = componentTypeKeyStem + "defaults/";
-        String componentInstanceKeyStem = componentTypeKeyStem + "instances/c1-1/";
-        List<CatalogService> mockServiceList = new ArrayList<>();
-        when(consulServiceMock.getService("c1")).thenReturn(mockServiceList);
         // Act
         clusterMgrService.putDefaultPropertiesForComponentType("c1", newProperties);
         // Assert
@@ -192,15 +154,9 @@ public class ClusterMgrServiceTest {
         // ensure that the type exists
         verify(consulServiceMock, times(1)).putValue(componentTypeKeyStem);
 
-        // create the new instance
-        verify(consulServiceMock, times(1)).keyExist(componentInstanceKeyStem);
-        verify(consulServiceMock, times(1)).putValue(componentInstanceKeyStem);
-        verify(consulServiceMock, times(1)).getKeys(defaultPropertiesKeyStem);
-
         // fetch the values
         verify(consulServiceMock).getKeys(defaultPropertiesKeyStem);
         verify(consulServiceMock, times(1)).getValues(defaultPropertiesKeyStem);
-        verify(consulServiceMock, times(1)).getService("c1");
         verifyNoMoreInteractions(consulServiceMock);
     }
 
@@ -242,46 +198,7 @@ public class ClusterMgrServiceTest {
         // Assert
         verify(consulServiceMock, times(1)).putValue(expectedKey, newValue);
         verify(consulServiceMock, times(1)).getValueAsString(expectedKey);
-        verify(consulServiceMock, times(1)).getServiceById(componentType, instanceId);
         verifyNoMoreInteractions(consulServiceMock);
-    }
-
-    @Test
-    public void testGetNodeForComponentInstance() throws Exception {
-        // Arrange
-        // Act
-        String result = clusterMgrService.getNodeForComponentInstance("c1", "c1_1");
-        // Assert
-        assertThat(result, is("node1"));
-    }
-
-    @Test
-    public void testSetNodeForComponentInstance() throws Exception {
-        // Arrange
-        String expected = "vmturbo/components/c1/instances/c1_1/node";
-        when(consulServiceMock.getValueAsString(expected)).thenReturn(Optional.of("test-node"));
-        // Act
-        clusterMgrService.setNodeForComponentInstance("c1", "c1_1", "test-node");
-        // Assert
-        verify(consulServiceMock, times(1)).putValue(expected, "test-node");
-    }
-
-    @Test
-    public void testSetClusterConfiguration() throws Exception {
-        // Arrange
-        InputStream clusterConfigJson = getClass().getClassLoader().getResourceAsStream("clusterConfigurationTest.json");
-        ClusterConfiguration testClusterConfiguration = new ObjectMapper().readValue(clusterConfigJson, ClusterConfiguration.class);
-        // Act
-        clusterMgrService.setClusterConfiguration(testClusterConfiguration);
-        // Assert
-        verify(consulServiceMock).deleteKey("vmturbo/");
-        verify(consulServiceMock).putValue(getDefaultPropertyKey("c1", "prop1"), "val1");
-        verify(consulServiceMock).putValue(getInstanceNodeKey("c1", "c1_1"), "node1");
-        verify(consulServiceMock).putValue(getInstanceNodeKey("c2", "c2_1"), "node2");
-        verify(consulServiceMock).putValue(getInstancePropertyKey("c1", "c1_1", "prop1"), "val1");
-        verify(consulServiceMock).putValue(getInstancePropertyKey("c1", "c1_1", "prop2"), "val2");
-        verify(consulServiceMock).putValue(getInstancePropertyKey("c2", "c2_1", "prop3"), "val3");
-        // etc
     }
 
     private List<Value> getMockConsulValues(String... keyValuePairs) {
@@ -304,17 +221,6 @@ public class ClusterMgrServiceTest {
             when(v.getValueAsString()).thenReturn(Optional.absent());
         }
         return v;
-    }
-
-    /**
-     * Construct a key stem for values on a given node.
-     *
-     * @param componentType the type for this component
-     * @param componentId   the instance id of this component
-     */
-    @Nonnull
-    private String getInstanceNodeKey(String componentType, String componentId) {
-        return String.format(COMPONENT_INSTANCE_NODE_NAME_KEY, componentType, componentId);
     }
 
     /**
@@ -396,25 +302,6 @@ public class ClusterMgrServiceTest {
         verify(zipOutputStream, times(1)).write(new byte[]{anyByte()}, anyInt(), anyInt());
         verify(zipOutputStream).closeEntry();
     }
-
-    @Test
-    public void testAppendFailedServiceNameSkipMediation() {
-        final StringBuilder errorMessages = new StringBuilder();
-        final CatalogService service = mock(CatalogService.class);
-        when(service.getServiceName()).thenReturn("mediation-1");
-        clusterMgrService.appendFailedServiceName(service, java.util.Optional.of(errorMessages));
-        assertTrue(errorMessages.toString().isEmpty());
-    }
-
-    @Test
-    public void testAppendFailedServiceName() {
-        final StringBuilder errorMessages = new StringBuilder();
-        final CatalogService service = mock(CatalogService.class);
-        when(service.getServiceName()).thenReturn("ClusterMgr");
-        clusterMgrService.appendFailedServiceName(service, java.util.Optional.of(errorMessages));
-        assertEquals("ClusterMgr\n", errorMessages.toString());
-    }
-
 
     private class MatchesZipEntiry extends ArgumentMatcher<ZipEntry> {
 
