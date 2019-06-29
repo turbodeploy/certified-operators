@@ -48,6 +48,10 @@ env:
     valueFrom:
       fieldRef:
         fieldPath: metadata.name
+  - name: instance_ip
+    valueFrom:
+      fieldRef:
+        fieldPath: status.podIP
 
 resources:
   limits:

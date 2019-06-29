@@ -31,7 +31,13 @@ env:
   - name: consul_host
     value: consul
   - name: instance_id
-    value: reporting-1
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
+  - name: instance_ip
+    valueFrom:
+      fieldRef:
+        fieldPath: status.podIP
   - name: kafkaServers
     value: kafka:9092
   - name: report.files.output.dir
