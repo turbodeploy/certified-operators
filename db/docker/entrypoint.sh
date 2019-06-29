@@ -56,7 +56,7 @@ fi
 # The mysql conf is copied to the $MYSQL_CONF location during DB initilization.
 # But if it is missing(maybe due to upgrade or the file was deleted), then copy it from
 # the default location.
-if [ -f $DEFAULT_MYSQL_CONF ]; then
+if [ ! -f $MYSQL_CONF ]; then
     copy_mysql_default_conf_file
 fi
 /change_buffer_pool_size.sh $MYSQL_CONF  2>&1 | logger --tag mariadb -u /tmp/log.sock
