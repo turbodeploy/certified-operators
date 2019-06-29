@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -38,6 +37,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -48,10 +48,12 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.http.MediaType;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Optional;
 import com.google.common.base.Splitter;
 import com.google.common.collect.Lists;
 import com.google.common.net.InetAddresses;
 import com.google.common.net.InternetDomainName;
+import com.orbitz.consul.model.catalog.CatalogService;
 import com.orbitz.consul.model.health.HealthCheck;
 import com.orbitz.consul.model.kv.Value;
 
@@ -386,7 +388,72 @@ public class ClusterMgrService {
             String propertyValue) {
         String instancePropertiesKey = getComponentInstancePropertyKey(componentType, instanceId, propertyName);
         setComponentKeyValue(instancePropertiesKey, propertyValue);
+        notifyInstanceConfigurationChanged(componentType, instanceId);
         return getComponentKeyValue(instancePropertiesKey);
+    }
+
+    /**
+     * Notify all components of the given type, if currently active, that the configuration properties have been changed.
+     *
+     * This method sends an HTTP request to each destination component instance, {@code SERVICE_REFRESH_REQUEST},
+     * which triggers a Spring Boot Actuator endpoint to refresh the Spring configuration.
+     *
+     * @param componentType type of the components to be notified.
+     */
+    private void notifyInstanceConfigurationChanged(String componentType) {
+        log.debug("notifying all components of type " + componentType + " that the defaults changed");
+        List<CatalogService> currentInstances = consulService.getService(componentType);
+        for (CatalogService currentInstance : currentInstances) {
+            sendRestartContextRequest(currentInstance);
+        }
+    }
+
+    /**
+     * Notify the given component instance, if currently active, that the configuration properties have been changed.
+     *
+     * This method sends an HTTP request to the destination component instance, {@code SERVICE_REFRESH_REQUEST},
+     * which triggers a Spring Boot Actuator endpoint to refresh the Spring configuration.
+     *
+     * @param componentType type of the component to be notified.
+     * @param instanceId unique id of the component instance to be notified.
+     */
+    private void notifyInstanceConfigurationChanged(String componentType, String instanceId) {
+        log.debug("notifying " + componentType + " id " + instanceId + " that property changed");
+        CatalogService currentInstance = consulService.getServiceById(componentType, instanceId);
+        if (currentInstance != null) {
+            sendRestartContextRequest(currentInstance);
+        } else {
+            log.debug("the component instance " + componentType + ":" + instanceId
+                    + " is not currently running - no change notification sent");
+        }
+    }
+
+    /**
+     * Tell the target VMT Component instance to utilize the spring-cloud-actuator "/restart" endpoint to
+     * completely rebuild the Spring Context in the target environment, with the updated Configuration.
+     *
+     * @param targetInstance the {@link CatalogService} instance for the VMT Component to restart
+     */
+    private void sendRestartContextRequest(CatalogService targetInstance) {
+        String acceptTypes = MediaType.toString(Arrays.asList(
+                MediaType.APPLICATION_JSON,
+                MediaType.TEXT_PLAIN));
+        URI requestUri = getComponentInstanceUri(targetInstance, SERVICE_RESTART_REQUEST);
+        HttpPost request = new HttpPost(requestUri);
+        request.addHeader("Accept", acceptTypes);
+        log.info("Send restart request to: {}", requestUri);
+        sendRequestToComponent(targetInstance, request, (componentInfo, responseEntity) -> {
+            // the response will be the list of changed items - show it if debugging is turned on
+            if (log.isDebugEnabled()) {
+                log.debug("post refresh notification completed");
+                try {
+                    log.debug(responseEntity.getContent().toString());
+                } catch (IOException e) {
+                    // just print the error and go on - this is for information only
+                    log.error("error retrieving the response value from the /service/refresh requrest");
+                }
+            }
+        }, java.util.Optional.empty());
     }
 
     /**
@@ -416,7 +483,7 @@ public class ClusterMgrService {
             String key = v.getKey();
             String remainder = StringUtils.removeStart(key, keyPrefix);
             List<String> parts = PATH_SEP_LIST_SPLITTER.splitToList(remainder);
-            if (parts.size() > 0) {
+            if (parts.size() == 1) {
                 answer.add(parts.get(0));
             }
         }
@@ -574,22 +641,26 @@ public class ClusterMgrService {
                 MediaType.valueOf("application/zip"),
                 MediaType.APPLICATION_OCTET_STREAM));
         final StringBuilder errorMessagesBuild = new StringBuilder();
-        visitActiveComponents("/diagnostics", acceptTypes, (componentId, entity) -> {
-            log.info(componentId + " --- Begin diagnostic collection");
+        visitActiveComponents("/diagnostics", acceptTypes, (componentInfo, entity) -> {
+            String componentName = componentInfo.getServiceId();
+            log.info(componentInfo.toString() + " --- Begin diagnostic collection");
             try (InputStream componentDiagnosticStream = entity.getContent()) {
                 // create a new .zip file entry on the zip output stream
-                String zipFileName = componentId + "-diags.zip";
-                log.debug(componentId + " --- adding zip file named: " + zipFileName);
+                String zipFileName = componentName + "-diags.zip";
+                log.debug(componentInfo.toString() + " --- adding zip file named: " + zipFileName);
                 diagnosticZip.putNextEntry(new ZipEntry(zipFileName));
                 // copy the target .zip diagnostic file onto the .zip output stream
                 IOUtils.copy(componentDiagnosticStream, diagnosticZip);
             } catch (IOException e) {
                 // log the error and continue to the next service in the list of services
-                log.error(componentId + " --- Error reading diagnostic stream", e);
-                final String instanceName = componentId;
-                errorMessagesBuild.append(instanceName + NEXT_LINE);
+                log.error(componentInfo.toString() + " --- Error reading diagnostic stream", e);
+                final String serviceName = componentInfo.getServiceName();
+                // Currently only count error in service (not mediation)
+                if (IS_SERVICE_PREDICATE.test(serviceName)) {
+                    errorMessagesBuild.append(serviceName + NEXT_LINE);
+                }
             } finally {
-                log.debug(componentId + " --- closing zip entry");
+                log.debug(componentInfo.toString() + " --- closing zip entry");
                 try {
                     diagnosticZip.closeEntry();
                 } catch (IOException e) {
@@ -627,7 +698,7 @@ public class ClusterMgrService {
         // Handle the rsyslog
         // It is not part of the consul-managed set of components.
         String componentName = "rsyslog";
-        URI requestUri = getComponentInstanceUri(componentName, "/diagnostics");
+        URI requestUri = getComponentInstanceUri(componentName, 8080, "/diagnostics");
         HttpGet request = new HttpGet(requestUri);
         request.addHeader("Accept", acceptResponseTypes);
         try (CloseableHttpClient httpclient =  HttpClientBuilder.create().
@@ -707,7 +778,7 @@ public class ClusterMgrService {
         // Handle the rsyslog
         // It is not part of the consul-managed set of components.
         String componentName = "rsyslog";
-        URI requestUri = getComponentInstanceUri(componentName, "/proactive");
+        URI requestUri = getComponentInstanceUri(componentName, 8080, "/proactive");
         HttpGet request = new HttpGet(requestUri);
         request.addHeader("Accept", acceptResponseTypes);
         try (CloseableHttpClient httpclient = HttpClients.createDefault()) {
@@ -746,18 +817,15 @@ public class ClusterMgrService {
                                        String acceptResponseTypes,
                                        ResponseEntityProcessor responseEntityProcessor,
                                        @Nonnull final StringBuilder errorMessageBuilder) {
-        for (String componentType : getKnownComponents()) {
-            log.debug("getting " + requestPath + " for component type: " + componentType);
-            Set<String> instanceIds = getComponentInstanceIds(componentType);
-            for (String instanceId : instanceIds) {
-                String instanceIp = getComponentInstanceProperty(componentType, instanceId, BaseVmtComponent.PROP_INSTANCE_IP);
-                if (StringUtils.isNotBlank(instanceIp)) {
-                    URI requestUri = getComponentInstanceUri(instanceIp, requestPath);
-                    HttpGet request = new HttpGet(requestUri);
-                    request.addHeader("Accept", acceptResponseTypes);
-                    sendRequestToComponent(instanceId, request, responseEntityProcessor,
-                            java.util.Optional.of(errorMessageBuilder));
-                }
+        for (String componentName : getKnownComponents()) {
+            log.debug("getting " + requestPath + " for component type: " + componentName);
+            for (CatalogService componentInfo : consulService.getService(componentName)) {
+                URI requestUri = getComponentInstanceUri(componentInfo, requestPath);
+                HttpGet request = new HttpGet(requestUri);
+                request.addHeader("Accept", acceptResponseTypes);
+                sendRequestToComponent(componentInfo, request, responseEntityProcessor,
+                    java.util.Optional.of(errorMessageBuilder));
+
             }
         }
     }
@@ -768,11 +836,11 @@ public class ClusterMgrService {
      * Note: we treat an http request as a non-fatal error; most likely cause is the target
      * component is not currently running.
      *
-     * @param componentName the VMT Component service to send the request to
+     * @param componentInfo the VMT Component service to send the request to
      * @param request the HttpUriRequest to execute
      * @param responseEntityProcessor the processor for the response.getEntity() after the http request completes.
      */
-    private void sendRequestToComponent(String componentName, HttpUriRequest request,
+    private void sendRequestToComponent(CatalogService componentInfo, HttpUriRequest request,
                                         ResponseEntityProcessor responseEntityProcessor,
                                         @Nonnull final java.util.Optional<StringBuilder> errorMessagBuilder) {
         // open an HttpClient link
@@ -780,47 +848,69 @@ public class ClusterMgrService {
             setDefaultRequestConfig(requestConfig).build()) {
             // execute the request
             try (CloseableHttpResponse response = httpclient.execute(request)) {
-                log.debug(componentName + " --- response status: " + response.getStatusLine());
+                log.debug(componentInfo.toString() + " --- response status: " + response.getStatusLine());
                 // process the response entity
                 HttpEntity entity = response.getEntity();
                 if (entity != null) {
-                    responseEntityProcessor.process(componentName, entity);
+                    responseEntityProcessor.process(componentInfo, entity);
                 } else {
-                    appendFailedServiceName(componentName, errorMessagBuilder);
+                    appendFailedServiceName(componentInfo, errorMessagBuilder);
                     // log the error and continue to the next service in the list of services
-                    log.error(componentName + " --- missing response entity");
+                    log.error(componentInfo.toString() + " --- missing response entity");
                 }
             }
         } catch (IOException e) {
-            appendFailedServiceName(componentName, errorMessagBuilder);
+            appendFailedServiceName(componentInfo, errorMessagBuilder);
             // log the error and continue to the next service
             log.error("{} --- Error executing http request {}: {}",
-                    componentName,
+                    componentInfo.toString(),
                     request.getURI().toString(),
                     e.getMessage());
         }
     }
 
     @VisibleForTesting
-    void appendFailedServiceName(@Nonnull final String componentName,
+    void appendFailedServiceName(@Nonnull final CatalogService componentInfo,
                                  @Nonnull final java.util.Optional<StringBuilder> errorMessageBuilder) {
-        errorMessageBuilder.ifPresent(builder -> builder.append(componentName + NEXT_LINE));
+        final String componentName = componentInfo.getServiceName();
+        if (IS_SERVICE_PREDICATE.test(componentName)) {
+            errorMessageBuilder.ifPresent(builder -> builder.append(componentName + NEXT_LINE));
+        }
+    }
+
+    private URI getComponentInstanceUri(CatalogService componentInfo, String requestPath) {
+        // create a request from the given path and the target component instance properties
+        URI requestUri;
+        try {
+            requestUri = new URIBuilder()
+                    .setHost(componentInfo.getServiceAddress())
+                    .setPort(componentInfo.getServicePort())
+                    .setScheme("http")
+                    .setPath(requestPath)
+                    .build();
+            log.debug(" --- : " + requestUri);
+        } catch (URISyntaxException e) {
+            // log the error and continue to the next service in the list of services
+            throw new RuntimeException(componentInfo.getServiceId() + " --- Error creating diagnostic URI to query component", e);
+        }
+        return requestUri;
     }
 
     /**
      * Returns the component instance URI.
      *
-     * @param componentInstance The dnsname or address of the component.
+     * @param address The address.
+     * @param port The port.
      * @param requestPath The request path.
      * @return The URI.
      */
-    private URI getComponentInstanceUri(String componentInstance, String requestPath) {
+    private URI getComponentInstanceUri(String address, int port, String requestPath) {
         // create a request from the given path and the target component instance properties
         URI requestUri;
         try {
             requestUri = new URIBuilder()
-                    .setHost(componentInstance)
-                    .setPort(8080)
+                    .setHost(address)
+                    .setPort(port)
                     .setScheme("http")
                     .setPath(requestPath)
                     .build();
@@ -848,10 +938,12 @@ public class ClusterMgrService {
             ComponentProperties defaultProperties = getComponentDefaultProperties(componentType);
             answer.addComponentType(componentType, defaultProperties);
             Set<String> instanceIds = getComponentInstanceIds(componentType);
+            // Component version is stored in Consul by component.  Assume version of all instancese of a component is the same.
+            // TODO If version is stored by instance in the future, change the logic below to fetch version by instance.
             for (String instanceId : instanceIds) {
                 String nodeId = getNodeForComponentInstance(componentType, instanceId);
                 String instancePropertiesKey = getComponentInstancePropertiesKey(componentType, instanceId);
-                Optional<String> componentVersion = Optional.ofNullable(getComponentInstanceProperty(componentType, instanceId, BaseVmtComponent.KEY_COMPONENT_VERSION));
+                Optional<String> componentVersion = consulService.getValueAsString(instanceId + "/component.version");
                 String version = componentVersion.isPresent() ? componentVersion.get() : "<unknown>";
                 ComponentProperties instanceProperties = getComponentPropertiesWithPrefix(instancePropertiesKey);
                 answer.addComponentInstance(instanceId, componentType, version, nodeId, instanceProperties);
@@ -969,9 +1061,19 @@ public class ClusterMgrService {
         // ensure that the component type exists; if already exists, this is a no-op
         addComponentType(componentType);
 
+        // ensure at least one instance for this Component type if doesn't exists
+        if (newComponentDefaultProperties.containsKey(BaseVmtComponent.PROP_INSTANCE_ID)) {
+            addComponentInstance(componentType, newComponentDefaultProperties.get(BaseVmtComponent.PROP_INSTANCE_ID));
+        } else {
+            addComponentInstance(componentType, componentType + "-1");
+        }
+
         // store those as the new component defaults
         final String componentDefaultsKeyPrefix = getComponentDefaultsKey(componentType);
         setAllValues(componentDefaultsKeyPrefix, combinedDefaultProperties);
+
+        // broadcast to components that the configuration has changed
+        notifyInstanceConfigurationChanged(componentType);
 
         // return the updated component default properties
         return getComponentDefaultProperties(componentType);
@@ -1012,6 +1114,7 @@ public class ClusterMgrService {
     public ComponentProperties putComponentInstanceProperties(String componentType, String componentInstanceId, ComponentProperties updatedProperties) {
         log.debug("updating default properties for: " + componentType);
         setComponentInstanceProperties(componentType, componentInstanceId, updatedProperties);
+        notifyInstanceConfigurationChanged(componentType, componentInstanceId);
         return getComponentInstanceProperties(componentType, componentInstanceId);
 
     }
@@ -1333,6 +1436,6 @@ public class ClusterMgrService {
     }
 
     private interface ResponseEntityProcessor {
-        void process(String componentId, HttpEntity entity);
+        void process(CatalogService componentInfo, HttpEntity entity);
     }
 }
