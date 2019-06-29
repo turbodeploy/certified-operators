@@ -129,6 +129,12 @@
         ]
     },
 
+    "VirtualMachineCluster" : {
+        "criteria" : [
+          {"inputType": "*", "elements": "VirtualMachineCluster:displayName", "filterCategory": "property", "filterType": "virtualMachineClustersByName"}
+        ]
+    },
+
     "DiskArray" : {
         "criteria" : [
           {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "diskarrayByName"}

@@ -8,7 +8,6 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -37,7 +36,6 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.MembersCase;
@@ -150,28 +148,26 @@ class DiscoveredGroupInterpreter {
             return Optional.empty();
         }
 
-        // We only support clusters of storages and physical machines.
-        if (!(sdkDTO.getEntityType().equals(EntityType.PHYSICAL_MACHINE) ||
-                sdkDTO.getEntityType().equals(EntityType.STORAGE))) {
+        // We only support clusters of storages, physical machines and virtual machines.
+        final Optional<ClusterInfo.Type> clusterType = getClusterType(sdkDTO);
+        if (!clusterType.isPresent()) {
             logger.warn("Unexpected cluster entity type: {}", sdkDTO.getEntityType());
             return Optional.empty();
         }
 
-        final ClusterInfo.Builder builder = ClusterInfo.newBuilder();
-        builder.setClusterType(sdkDTO.getEntityType().equals(EntityType.PHYSICAL_MACHINE)
-                ? Type.COMPUTE : Type.STORAGE);
-        builder.setName(GroupProtoUtil.extractId(sdkDTO));
-        builder.setDisplayName(GroupProtoUtil.extractDisplayName(sdkDTO));
-
+        // We allow empty clusters.
         final Optional<StaticGroupMembers> parsedMembersOpt =
                 parseMemberList(sdkDTO, context);
-        if (parsedMembersOpt.isPresent()) {
-            // There may not be any members, but we allow empty clusters.
-            builder.setMembers(parsedMembersOpt.get());
-        } else {
+        if (!parsedMembersOpt.isPresent()) {
             logger.warn("Unable to parse cluster member list: {}", sdkDTO.getMemberList());
             return Optional.empty();
         }
+
+        final ClusterInfo.Builder builder = ClusterInfo.newBuilder();
+        builder.setClusterType(clusterType.get())
+               .setName(GroupProtoUtil.extractId(sdkDTO))
+               .setDisplayName(GroupProtoUtil.extractDisplayName(sdkDTO))
+               .setMembers(parsedMembersOpt.get());
 
         final Tags.Builder tagsBuilder = Tags.newBuilder();
         SdkToTopologyEntityConverter.extractTags(sdkDTO.getEntityPropertiesList()).entrySet()
@@ -477,6 +473,19 @@ class DiscoveredGroupInterpreter {
             sdkDTO.getConstraintInfo().getConstraintType().equals(ConstraintType.CLUSTER);
     }
 
+    private Optional<ClusterInfo.Type> getClusterType(@Nonnull final CommonDTO.GroupDTO sdkDTO) {
+        // We only support clusters of storages, physical machines and virtual machines.
+        switch (sdkDTO.getEntityType()) {
+            case PHYSICAL_MACHINE:
+                return Optional.of(Type.COMPUTE);
+            case STORAGE:
+                return Optional.of(Type.STORAGE);
+            case VIRTUAL_MACHINE:
+                return Optional.of(Type.COMPUTE_VIRTUAL_MACHINE);
+            default:
+                return Optional.empty();
+        }
+    }
 
     /**
      * The {@link PropertyFilterConverter} is a utility interface to allow mocking of the

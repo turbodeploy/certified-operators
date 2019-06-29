@@ -177,6 +177,10 @@ public class EntitiesService implements IEntitiesService {
                     UIEntityType.CHASSIS.apiStr(), 2,
                     ConstraintType.CLUSTER.toString(), 3);
 
+    /**
+     * The breadcrumb entities we are interested in when traversing entities that
+     * belong to a cluster.
+     */
     private static final Set<String> BREADCRUMB_ENTITIES_TO_FETCH =
             new HashSet<>(Arrays.asList(
                     UIEntityType.REGION.apiStr(),
@@ -448,6 +452,26 @@ public class EntitiesService implements IEntitiesService {
         return statsService.getStatsByEntityQuery(uuid, inputDto);
     }
 
+    /**
+     * Get a list of breadcrumb trail for an entity.
+     * Scan the supply chain of this entity and determine if it belongs to a cluster. If so, insert
+     * the cluster entity into the list of breadcrumbs.
+     *
+     * Steps:
+     * 1. If the input entity is below the host in the supply chain (e.g DC/Chassis/Storage etc..),
+     *    there is no cluster to fetch. So just return the entity.
+     * 2. If the input entity is a Storage Device, check if it belongs to a Storage Cluster.
+     * 3. If the input entity is equal to or above virtual machine, check if it belongs to a
+     *    virtual machine cluster (e.g., containers belong to k8s cluster).
+     * 4. Otherwise, check if the input entity belongs to a physical machine cluster.
+     *
+     * Note: If the entity belongs to both virtual machine cluster and physical machine cluster,
+     *       only virtual machine cluster will be inserted into the list of breadcrumbs.
+     *
+     * @param uuid the uuid of the input entity
+     * @return A list of sorted breadcrumbs entities
+     * @throws Exception
+     */
     @Override
     public List<BaseApiDTO> getGroupsByUuid(String uuid,
                                             Boolean path) throws Exception {
@@ -456,84 +480,200 @@ public class EntitiesService implements IEntitiesService {
             throw ApiUtils.notImplementedInXL();
         }
 
-        // Steps:
-        // Get the supply chain for this entity.
-        // If this entity is above the host in the supply-chain, then get the host it is connected to.
-        // From the hostId, get the Cluster that the host belongs to.
-        // If entity is Storage Device, check if it belongs to a Storage Cluster.
-        // For entities below the host(e.g DC/Chassis/Storage etc..), there is no cluster
-        // to fetch. So just return the entity.
-
+        // Get the input entity
         long entityOid = Long.valueOf(uuid);
         Optional<ServiceEntityApiDTO> entityApiDTO =
                 repositoryApi.entityRequest(entityOid).getSE();
-
 
         if (!entityApiDTO.isPresent()) {
             logger.warn("No entity dto found for entity with oid: {}", entityOid);
             return Collections.emptyList();
         }
 
-        long oidToQuery = 1;
-        List<BaseApiDTO> result = new ArrayList<>();
-        result.add(entityApiDTO.get());
+        // The input entity cannot be a part of any cluster.
+        if (NON_CLUSTER_ENTITY_TYPES.contains(entityApiDTO.get().getClassName())) {
+            return Lists.newArrayList(entityApiDTO.get());
+        }
 
-        // Skip supply-chain call for entities which are not consumers(direct/in-direct) of host(PM).
+        // The input entity is a storage device.
+        // Skip supply-chain call for storage as it is not a consumer(direct/in-direct) of any
+        // physical machine or virtual machine.
         if (entityApiDTO.get().getClassName().equals(UIEntityType.STORAGE.apiStr())) {
-            oidToQuery = entityOid;
-        } else if (!NON_CLUSTER_ENTITY_TYPES.contains(entityApiDTO.get().getClassName())) {
+            List<BaseApiDTO> result = Lists.newArrayList();
+            getClusterApiDTO(entityOid).ifPresent(result::add);
+            result.add(entityApiDTO.get());
+            sortBreadCrumbResult(result);
+            return result;
+        }
 
-            // We are only interested in entities of type : in BREADCRUMB_ENTITIES_TO_FETCH
-            // type of the input entity.
-            Set<String> entityTypesToFetch = new HashSet<>(BREADCRUMB_ENTITIES_TO_FETCH);
-            entityTypesToFetch.add(entityApiDTO.get().getClassName());
+        // We are only interested in entities of type defined in BREADCRUMB_ENTITIES_TO_FETCH.
+        Set<String> entityTypesToFetch = new HashSet<>(BREADCRUMB_ENTITIES_TO_FETCH);
 
-            final SupplychainApiDTO supplyChain = supplyChainFetcher.newApiDtoFetcher()
-                    .topologyContextId(realtimeTopologyContextId)
-                    .addSeedUuids(Lists.newArrayList(uuid))
-                    .entityTypes(entityTypesToFetch.stream().collect(Collectors.toList()))
-                    .includeHealthSummary(false)
-                    .entityDetailType(EntityDetailType.entity)
-                    .fetch();
+        // We need to find out if the input entity belongs to any virtual machine cluster.
+        // We only fetch virtual machine entities from the supply chain if the input entity
+        // is equal to or above the virtual machine in the supply chain. This will not introduce
+        // much overhead, as the seed for supply chain generation in this case starts from
+        // virtual machine and above.
+        if (!BREADCRUMB_ENTITIES_TO_FETCH.contains(entityApiDTO.get().getClassName()) &&
+            !entityApiDTO.get().getClassName().equals(UIEntityType.VIRTUAL_DATACENTER.apiStr())) {
+            entityTypesToFetch.add(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        }
+        // Add the input entity type itself.
+        entityTypesToFetch.add(entityApiDTO.get().getClassName());
 
-            final Map<Long, ServiceEntityApiDTO> serviceEntityMap =
-                    supplyChain.getSeMap().entrySet().stream()
-                            .map(Entry::getValue)
-                            .flatMap(supplyChainEntryDTO -> supplyChainEntryDTO.getInstances().values().stream())
-                            .collect(Collectors.toMap(apiDTO -> Long.valueOf(apiDTO.getUuid()), Function.identity()));
-
-            // Remove PM(Host) entity type from the result if the entity being searched for is not PM.
-            result = serviceEntityMap.values()
-                    .stream()
+        // Fetch the supply chain with entities of interest.
+        final SupplychainApiDTO supplyChain = supplyChainFetcher.newApiDtoFetcher()
+                .topologyContextId(realtimeTopologyContextId)
+                .addSeedUuids(Lists.newArrayList(uuid))
+                .entityTypes(Lists.newArrayList(entityTypesToFetch))
+                .includeHealthSummary(false)
+                .entityDetailType(EntityDetailType.entity)
+                .fetch();
+        // Create an unmodifiable serviceEntityMap
+        final Map<Long, ServiceEntityApiDTO> serviceEntityMap =
+                supplyChain.getSeMap().values().stream()
+                    .flatMap(supplyChainEntryDTO ->
+                             supplyChainEntryDTO.getInstances().values().stream())
+                    // Drop VDC entities unless it is the same as the input entity.
+                    // We do this now because VDC entity is not needed to get a cluster.
                     .filter(serviceEntityApiDTO ->
-                            !UIEntityType.PHYSICAL_MACHINE.apiStr().equals(serviceEntityApiDTO.getClassName())
-                                    || entityApiDTO.get().getClassName().equals(UIEntityType.PHYSICAL_MACHINE.apiStr()))
-                    .collect(Collectors.toList());
+                            !UIEntityType.VIRTUAL_DATACENTER.apiStr().equals(serviceEntityApiDTO.getClassName())
+                            || uuid.equals(serviceEntityApiDTO.getUuid()))
+                    .collect(Collectors.toMap(apiDTO ->
+                            Long.valueOf(apiDTO.getUuid()), Function.identity()));
 
-            // Find the oid of the Host the entity is connected to.
-            for (Entry<Long, ServiceEntityApiDTO> entry : serviceEntityMap.entrySet()) {
-                ServiceEntityApiDTO serviceEntityApiDTO = entry.getValue();
-                if (serviceEntityApiDTO.getClassName().equals(UIEntityType.PHYSICAL_MACHINE.apiStr())) {
-                    oidToQuery = Long.valueOf(serviceEntityApiDTO.getUuid());
-                }
-            }
+        // Check if the input entity belongs to a Virtual Machine Cluster.
+        List<BaseApiDTO> result = getVirtualMachineClusterBreadCrumbs(entityApiDTO.get(),
+                serviceEntityMap);
+        if (!result.isEmpty()) {
+            return result;
         }
 
-        // fetch the hostId/storageId -> ClusterName from Group component.
-        if (oidToQuery != 0) {
-            GetClusterForEntityResponse response =
-                    groupServiceClient.getClusterForEntity(GetClusterForEntityRequest.newBuilder()
-                            .setEntityId(oidToQuery)
-                            .build());
-            if (response.hasCluster()) {
-                final ServiceEntityApiDTO serviceEntityApiDTO = new ServiceEntityApiDTO();
-                serviceEntityApiDTO.setDisplayName(GroupProtoUtil.getGroupDisplayName(response.getCluster()));
-                serviceEntityApiDTO.setUuid(Long.toString(response.getCluster().getId()));
-                serviceEntityApiDTO.setClassName(ConstraintType.CLUSTER.name());
-                // Insert the clusterRecord before the Entity record.
-                result.add(serviceEntityApiDTO);
+        // If not, then check if it belongs to a Physical Machine Cluster
+        return getClusterBreadCrumbs(entityApiDTO.get(), serviceEntityMap);
+    }
+
+    /**
+     * Get the list of breadcrumbs entities if the input entity belongs to a physical machine
+     * cluster.
+     *
+     * @param entityApiDTO the input entity
+     * @param serviceEntityMap a map of entities that are on the supply chain of the input entity
+     *
+     * @return A list of breadcrumbs entities including the physical machine cluster that
+     * the input entity belongs to.
+     */
+    private List<BaseApiDTO> getClusterBreadCrumbs(ServiceEntityApiDTO entityApiDTO,
+            @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityMap) {
+        List<BaseApiDTO> result = serviceEntityMap.values()
+                .stream()
+                // Remove VM entity from the result unless the input entity is the same VM.
+                .filter(serviceEntityApiDTO ->
+                        !UIEntityType.VIRTUAL_MACHINE.apiStr().equals(serviceEntityApiDTO.getClassName())
+                        || entityApiDTO.getUuid().equals(serviceEntityApiDTO.getUuid()))
+                // Remove PM(Host) entity from the result unless the input entity is the same PM.
+                .filter(serviceEntityApiDTO ->
+                        !UIEntityType.PHYSICAL_MACHINE.apiStr().equals(serviceEntityApiDTO.getClassName())
+                        || entityApiDTO.getUuid().equals(serviceEntityApiDTO.getUuid()))
+                .collect(Collectors.toList());
+        // Find the oid of the Host the entity is connected to.
+        for (Entry<Long, ServiceEntityApiDTO> entry : serviceEntityMap.entrySet()) {
+            ServiceEntityApiDTO serviceEntityApiDTO = entry.getValue();
+            if (serviceEntityApiDTO.getClassName().equals(UIEntityType.PHYSICAL_MACHINE.apiStr())) {
+                long oidToQuery = Long.valueOf(serviceEntityApiDTO.getUuid());
+                getClusterApiDTO(oidToQuery).ifPresent(result::add);
+                // We found the cluster that the PM belongs to, break out of the loop.
+                break;
             }
         }
+        sortBreadCrumbResult(result);
+        return result;
+    }
+
+    /**
+     * Get the list of breadcrumbs entities if the input entity belongs to a virtual machine
+     * cluster.
+     *
+     * @param entityApiDTO the input entity
+     * @param serviceEntityMap a map of entities that are on the supply chain of the input entity
+     *
+     * @return An empty list if the input entity does not belong to any virtual machine cluster.
+     * Otherwise, return a list of breadcrumbs entities including the virtual machine cluster that
+     * the input entity belongs to.
+     */
+    private List<BaseApiDTO> getVirtualMachineClusterBreadCrumbs(ServiceEntityApiDTO entityApiDTO,
+            @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityMap) {
+        List<BaseApiDTO> result = Lists.newArrayList();
+        if (BREADCRUMB_ENTITIES_TO_FETCH.contains(entityApiDTO.getClassName()) ||
+                entityApiDTO.getClassName().equals(UIEntityType.VIRTUAL_DATACENTER.apiStr())) {
+            // The input entity is below virtual machine.
+            // Return an empty list.
+            return result;
+        }
+        // Find the oid of the Virtual Machine to which the input entity is connected
+        // either directly or indirectly, then call the group service to find the Virtual
+        // Machine cluster that the Virtual Machine belongs to.
+        serviceEntityMap.entrySet()
+                .stream()
+                .filter(entry ->
+                        entry.getValue().getClassName().equals(UIEntityType.VIRTUAL_MACHINE.apiStr()))
+                .findFirst()
+                .ifPresent(entry ->
+                        getClusterApiDTO(entry.getKey())
+                                .ifPresent(result::add));
+        if (result.isEmpty()) {
+            // This entity does not belong to any virtual machine cluster.
+            // Return an empty list.
+            return result;
+        }
+        // This entity belongs to a virtual machine cluster.
+        // Complete the list of breadcrumbs.
+        result.addAll(serviceEntityMap.values()
+                .stream()
+                // Drop the physical machine entity.
+                .filter(e -> !UIEntityType.PHYSICAL_MACHINE.apiStr().equals(e.getClassName()))
+                // Drop the virtual machine entity if input entity is not a virtual machine.
+                // Only keep the virtual machine entity when the input entity itself is a virtual
+                // machine.
+                // For example, we may generate the following breadcrumbs:
+                // 1. The input entity is a kubernetes container
+                //    [DataCenter]/[VM Cluster]/[Container]
+                // 2. The input entity is a kubernetes node (i.e., a VM)
+                //    [DataCenter]/[VM Cluster]/[VM]
+                .filter(e -> !UIEntityType.VIRTUAL_MACHINE.apiStr().equals(e.getClassName())
+                        || entityApiDTO.getClassName().equals(UIEntityType.VIRTUAL_MACHINE.apiStr()))
+                .collect(Collectors.toList()));
+        // Sort the order.
+        sortBreadCrumbResult(result);
+        return result;
+    }
+
+    /**
+     * Call the group service to query the cluster that the object belongs to.
+     * @param oidToQuery the oid of the entity
+     * @return The group DTO with a cluster constraint.
+     */
+    private Optional<ServiceEntityApiDTO> getClusterApiDTO(long oidToQuery) {
+        GetClusterForEntityResponse response =
+                groupServiceClient.getClusterForEntity(GetClusterForEntityRequest.newBuilder()
+                        .setEntityId(oidToQuery)
+                        .build());
+        if (response.hasCluster()) {
+            final ServiceEntityApiDTO serviceEntityApiDTO = new ServiceEntityApiDTO();
+            serviceEntityApiDTO.setDisplayName(GroupProtoUtil.getGroupDisplayName(response.getCluster()));
+            serviceEntityApiDTO.setUuid(Long.toString(response.getCluster().getId()));
+            serviceEntityApiDTO.setClassName(ConstraintType.CLUSTER.name());
+            // Insert the clusterRecord before the Entity record.
+            return Optional.of(serviceEntityApiDTO);
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Sort the list of breadcrumbs entities based on predefined order.
+     * @param result the list to sort
+     */
+    private void sortBreadCrumbResult(List<BaseApiDTO> result) {
         // the UI breadcrumb path is of the form:
         // DataCenterName|ChassisName/ClusterName/EntityName
         // For Cloud, we use Region in-place of Cluster and the path is of the form:
@@ -543,7 +683,6 @@ public class EntitiesService implements IEntitiesService {
                 BREADCRUMB_ENTITY_PRECEDENCE_MAP.getOrDefault(dto1.getClassName(), Integer.MAX_VALUE)
                         .compareTo(BREADCRUMB_ENTITY_PRECEDENCE_MAP.getOrDefault(dto2.getClassName(),
                                 Integer.MAX_VALUE)));
-        return result;
     }
 
     @Override

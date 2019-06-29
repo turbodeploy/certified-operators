@@ -356,8 +356,8 @@ public class DiscoveredGroupInterpreterTest {
         final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(mock(EntityStore.class),
                 mock(PropertyFilterConverter.class));
         final GroupDTO invalidEntityCluster = CLUSTER_DTO.toBuilder()
-            // Clusters must be PM or Storage
-            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            // Clusters must be VM, PM or Storage
+            .setEntityType(EntityType.CONTAINER_POD)
             .build();
         final GroupInterpretationContext context =
             new GroupInterpretationContext(TARGET_ID, Collections.singletonList(invalidEntityCluster));

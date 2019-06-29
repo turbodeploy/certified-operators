@@ -839,6 +839,38 @@ public class GroupMapperTest {
     }
 
     @Test
+    public void testMapComputeVirtualMachineCluster() {
+        final Group computeVirtualMachineCluster = Group.newBuilder()
+                .setId(7L)
+                .setType(Group.Type.CLUSTER)
+                .setCluster(ClusterInfo.newBuilder()
+                        .setName("red silence")
+                        .setClusterType(Type.COMPUTE_VIRTUAL_MACHINE)
+                        .setMembers(StaticGroupMembers.newBuilder()
+                                .addStaticMemberOids(10L)))
+                .build();
+
+        when(groupExpander.getMembersForGroup(computeVirtualMachineCluster))
+                .thenReturn(ImmutableGroupAndMembers.builder()
+                        .group(computeVirtualMachineCluster)
+                        .members(GroupProtoUtil.getClusterMembers(computeVirtualMachineCluster))
+                        .entities(GroupProtoUtil.getClusterMembers(computeVirtualMachineCluster))
+                        .build());
+
+        final GroupApiDTO dto = groupMapper.toGroupApiDto(computeVirtualMachineCluster);
+        assertEquals("7", dto.getUuid());
+        assertEquals(StringConstants.VIRTUAL_MACHINE_CLUSTER, dto.getClassName());
+        assertEquals(true, dto.getIsStatic());
+        assertEquals(1, dto.getMembersCount().intValue());
+        assertEquals(1, dto.getEntitiesCount().intValue());
+        assertEquals(1, dto.getMemberUuidList().size());
+        assertEquals("10", dto.getMemberUuidList().get(0));
+        assertEquals("red silence", dto.getDisplayName());
+        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), dto.getGroupType());
+        assertEquals(EnvironmentType.ONPREM, dto.getEnvironmentType());
+    }
+
+    @Test
     public void testMapStorageCluster() {
         final Group storageCluster = Group.newBuilder()
                 .setId(7L)

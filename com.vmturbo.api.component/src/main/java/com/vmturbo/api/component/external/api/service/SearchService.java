@@ -4,6 +4,7 @@ import static com.vmturbo.api.component.external.api.mapper.GroupMapper.ACCOUNT_
 import static com.vmturbo.api.component.external.api.mapper.GroupMapper.STATE;
 import static com.vmturbo.components.common.utils.StringConstants.CLUSTER;
 import static com.vmturbo.components.common.utils.StringConstants.STORAGE_CLUSTER;
+import static com.vmturbo.components.common.utils.StringConstants.VIRTUAL_MACHINE_CLUSTER;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -292,6 +293,10 @@ public class SearchService implements ISearchService {
                 final Collection<GroupApiDTO> groups =
                     groupsService.getClusters(ClusterInfo.Type.STORAGE, scopes, Collections.emptyList());
                 return paginationRequest.allResultsResponse(Lists.newArrayList(groups));
+            } else if (types.contains(VIRTUAL_MACHINE_CLUSTER)) {
+                final Collection<GroupApiDTO> groups =
+                    groupsService.getClusters(ClusterInfo.Type.COMPUTE_VIRTUAL_MACHINE, scopes, Collections.emptyList());
+                return paginationRequest.allResultsResponse(Lists.newArrayList(groups));
             } else if (types.contains(MarketMapper.MARKET)) {
                 final Collection<MarketApiDTO> markets = marketsService.getMarkets(scopes);
                 return paginationRequest.allResultsResponse(Lists.newArrayList(markets));
@@ -398,13 +403,17 @@ public class SearchService implements ISearchService {
             // this is a search for a group
             result = groupsService.getGroupsByFilter(inputDTO.getCriteriaList());
         } else if (CLUSTER.equals(inputDTO.getClassName())) {
-            // this is a search for a compute Cluster
+            // this is a search for a compute Cluster of physical machines
             result = groupsService.getClusters(ClusterInfo.Type.COMPUTE, inputDTO.getScope(),
                 inputDTO.getCriteriaList());
         } else if (STORAGE_CLUSTER.equals(inputDTO.getClassName())) {
             // this is a search for a storage Cluster
             result = groupsService.getClusters(ClusterInfo.Type.STORAGE, inputDTO.getScope(),
                 inputDTO.getCriteriaList());
+        } else if (VIRTUAL_MACHINE_CLUSTER.equals(inputDTO.getClassName())) {
+            // this is a search for a computer Cluster of virtual machines
+            result = groupsService.getClusters(ClusterInfo.Type.COMPUTE_VIRTUAL_MACHINE,
+                    inputDTO.getScope(), inputDTO.getCriteriaList());
         } else {
             return searchEntitiesByParameters(inputDTO, query, paginationRequest);
         }

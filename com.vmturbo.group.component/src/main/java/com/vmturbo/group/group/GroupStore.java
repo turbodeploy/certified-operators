@@ -710,7 +710,7 @@ public class GroupStore implements Diagnosable {
                     final GroupInfo.Builder group =
                             GroupInfo.parseFrom(grouping.getGroupData()).toBuilder();
                     if (!StringUtils.equals(group.getName(), grouping.getName())) {
-                        logger.error("Inconsistent group name - column: {}, blob: {}. " +
+                        logger.warn("Inconsistent group name - column: {}, blob: {}. " +
                             "Keeping column value.", grouping.getName(), group.getName());
                         group.setName(grouping.getName());
                     }
@@ -720,31 +720,29 @@ public class GroupStore implements Diagnosable {
                             logger.warn("Group record has invalid entity type {}. " +
                                 "This should only happen during migration.", entityTypeCol);
                         } else {
-                            logger.error("Inconsistent group entity types - column: {}, blob: {}." +
+                            logger.warn("Inconsistent group entity types - column: {}, blob: {}." +
                                 " Keeping blob value.", entityTypeCol, group.getEntityType());
                         }
                     }
                     groupBuilder.setGroup(group);
                     break;
                 case CLUSTER:
-                    final ClusterInfo.Builder cluster =
-                            ClusterInfo.parseFrom(grouping.getGroupData()).toBuilder();
-                    if (!StringUtils.equals(cluster.getName(), grouping.getName())) {
-                        logger.error("Inconsistent cluster name - column: {}, blob: {}. " +
-                            "Keeping column value.", grouping.getName(), cluster.getName());
-                        cluster.setName(grouping.getName());
-                    }
-
-                    final int entityType = cluster.getClusterType() == ClusterInfo.Type.COMPUTE ?
-                            EntityType.PHYSICAL_MACHINE_VALUE : EntityType.STORAGE_VALUE;
+                    final ClusterInfo clusterInfo = ClusterInfo.parseFrom(grouping.getGroupData());
+                    final int entityType = GroupProtoUtil.getClusterEntityType(clusterInfo).getNumber();
                     if (entityType != entityTypeCol) {
                         if (entityTypeCol == -1) {
                             logger.warn("Cluster record has invalid entity type {}. " +
                                 "This should only happen during migration.", entityTypeCol);
                         } else {
-                            logger.error("Inconsistent cluster entity types - column: {}, blob: {}." +
+                            logger.warn("Inconsistent cluster entity types - column: {}, blob: {}." +
                                 " Keeping blob value.", entityTypeCol, entityType);
                         }
+                    }
+                    final ClusterInfo.Builder cluster = clusterInfo.toBuilder();
+                    if (!StringUtils.equals(cluster.getName(), grouping.getName())) {
+                        logger.warn("Inconsistent cluster name - column: {}, blob: {}. " +
+                                "Keeping column value.", grouping.getName(), cluster.getName());
+                        cluster.setName(grouping.getName());
                     }
                     groupBuilder.setCluster(cluster);
                     break;
@@ -754,7 +752,7 @@ public class GroupStore implements Diagnosable {
                     final TempGroupInfo.Builder tempGroup =
                             TempGroupInfo.parseFrom(grouping.getGroupData()).toBuilder();
                     if (!StringUtils.equals(tempGroup.getName(), grouping.getName())) {
-                        logger.error("Inconsistent temp group name - column: {}, blob: {}. " +
+                        logger.warn("Inconsistent temp group name - column: {}, blob: {}. " +
                             "Keeping column value.", grouping.getName(), tempGroup.getName());
                         tempGroup.setName(grouping.getName());
                     }
@@ -764,7 +762,7 @@ public class GroupStore implements Diagnosable {
                             logger.warn("Temp group record has invalid entity type {}. " +
                                 "This should only happen during migration.", entityTypeCol);
                         } else {
-                            logger.error("Inconsistent temp groupentity types - column: {}, blob: {}." +
+                            logger.warn("Inconsistent temp group entity types - column: {}, blob: {}." +
                                 " Keeping blob value.", entityTypeCol, tempGroup.getEntityType());
                         }
                     }
@@ -777,7 +775,7 @@ public class GroupStore implements Diagnosable {
                     final NestedGroupInfo.Builder nestedGroup =
                         NestedGroupInfo.parseFrom(grouping.getGroupData()).toBuilder();
                     if (!StringUtils.equals(nestedGroup.getName(), grouping.getName())) {
-                        logger.error("Inconsistent group name - column: {}, blob: {}. " +
+                        logger.warn("Inconsistent group name - column: {}, blob: {}. " +
                             "Keeping column value.", grouping.getName(), nestedGroup.getName());
                         nestedGroup.setName(grouping.getName());
                     }

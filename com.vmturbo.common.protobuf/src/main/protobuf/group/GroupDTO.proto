@@ -158,6 +158,8 @@ message ClusterInfo {
         COMPUTE = 1;
         // A storage cluster is comprised of storages.
         STORAGE = 2;
+        // A compute virtual machine cluster is comprised of virtual machines.
+        COMPUTE_VIRTUAL_MACHINE = 3;
     }
 
     // The name of the cluster.

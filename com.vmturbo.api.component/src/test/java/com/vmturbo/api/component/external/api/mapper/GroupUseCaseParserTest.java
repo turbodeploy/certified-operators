@@ -36,7 +36,7 @@ public class GroupUseCaseParserTest {
         Arrays.stream(new String[] {
                 "VirtualMachine", "PhysicalMachine", "VirtualDataCenter", "Storage", "Application",
                 "ApplicationServer", "Database", "VirtualApplication", "Cluster", "Group",
-                "StorageCluster", "DiskArray", "StorageController", "Switch"})
+                "StorageCluster", "VirtualMachineCluster", "DiskArray", "StorageController", "Switch"})
                 .forEach(className -> assertTrue(useCases.containsKey(className)));
     }
 
@@ -47,7 +47,8 @@ public class GroupUseCaseParserTest {
     @Test
     public void testFirstIsByName() {
         Map<String, GroupUseCase> useCases = groupUseCaseParser.getUseCases();
-        final Set<String> groupTypes = ImmutableSet.of("Group", "Cluster", "StorageCluster");
+        final Set<String> groupTypes = ImmutableSet.of("Group", "Cluster", "StorageCluster",
+                "VirtualMachineCluster");
         groupTypes.forEach(type -> {
             Assert.assertEquals(type + GroupMapper.ELEMENTS_DELIMITER + "displayName",
                             useCases.get(type).getCriteria().get(0).getElements());

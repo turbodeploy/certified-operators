@@ -23,7 +23,6 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
@@ -110,6 +109,8 @@ public class GroupProtoUtil {
                         return EntityType.PHYSICAL_MACHINE_VALUE;
                     case STORAGE:
                         return EntityType.STORAGE_VALUE;
+                    case COMPUTE_VIRTUAL_MACHINE:
+                        return EntityType.VIRTUAL_MACHINE_VALUE;
                     default:
                         throw new IllegalArgumentException("Unknown cluster type: " +
                             group.getCluster().getClusterType());
@@ -123,6 +124,8 @@ public class GroupProtoUtil {
                             return EntityType.PHYSICAL_MACHINE_VALUE;
                         case STORAGE:
                             return EntityType.STORAGE_VALUE;
+                        case COMPUTE_VIRTUAL_MACHINE:
+                            return EntityType.VIRTUAL_MACHINE_VALUE;
                         default:
                             throw new IllegalArgumentException("Unknown nested cluster type: " +
                                 group.getNestedGroup().getCluster());
@@ -329,8 +332,14 @@ public class GroupProtoUtil {
      */
     @Nonnull
     public static EntityType getClusterEntityType(@Nonnull final ClusterInfo clusterInfo) {
-        return clusterInfo.getClusterType() == ClusterInfo.Type.COMPUTE ?
-                EntityDTO.EntityType.PHYSICAL_MACHINE : EntityDTO.EntityType.STORAGE;
+        switch (clusterInfo.getClusterType()) {
+            case STORAGE:
+                return EntityType.STORAGE;
+            case COMPUTE_VIRTUAL_MACHINE:
+                return EntityType.VIRTUAL_MACHINE;
+            default:
+                return EntityType.PHYSICAL_MACHINE;
+        }
     }
 
     /**

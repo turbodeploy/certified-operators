@@ -144,7 +144,8 @@ public class GroupsService implements IGroupsService {
             "GROUP-VirtualMachine", "GROUP-PhysicalMachineByCluster", "Market");
 
     public static Set<String> NESTED_GROUP_TYPES =
-        ImmutableSet.of(StringConstants.CLUSTER, StringConstants.STORAGE_CLUSTER);
+        ImmutableSet.of(StringConstants.CLUSTER, StringConstants.STORAGE_CLUSTER,
+                StringConstants.VIRTUAL_MACHINE_CLUSTER);
 
     private static final String USER_GROUPS = "GROUP-MyGroups";
 

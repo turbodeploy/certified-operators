@@ -160,6 +160,7 @@ public class StringConstants {
     public static final String VPOD = "VPod";
 
     public static final String CLUSTER = "Cluster";
+    public static final String VIRTUAL_MACHINE_CLUSTER = "VirtualMachineCluster";
     public static final String STORAGE_CLUSTER = "StorageCluster";
     public static final String VIRTUAL_MACHINE = "VirtualMachine";
     public static final String PHYSICAL_MACHINE = "PhysicalMachine";

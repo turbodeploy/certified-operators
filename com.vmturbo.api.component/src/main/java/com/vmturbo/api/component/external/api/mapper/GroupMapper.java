@@ -92,7 +92,8 @@ public class GroupMapper {
      * which indicate that the {@link BaseApiDTO} in question is a group.
      */
     public static final Set<String> GROUP_CLASSES = ImmutableSet.of(StringConstants.GROUP,
-        StringConstants.CLUSTER, StringConstants.STORAGE_CLUSTER);
+        StringConstants.CLUSTER, StringConstants.STORAGE_CLUSTER,
+            StringConstants.VIRTUAL_MACHINE_CLUSTER);
 
     public static final String GROUPS_FILTER_TYPE = "groupsByName";
 
@@ -102,8 +103,11 @@ public class GroupMapper {
 
     public static final String STORAGE_CLUSTERS_FILTER_TYPE = "storageClustersByName";
 
+    public static final String VIRTUALMACHINE_CLUSTERS_FILTER_TYPE = "virtualMachineClustersByName";
+
     public static final Set<String> GROUP_NAME_FILTER_TYPES = ImmutableSet.of(
-        GROUPS_FILTER_TYPE, CLUSTERS_FILTER_TYPE, STORAGE_CLUSTERS_FILTER_TYPE);
+            GROUPS_FILTER_TYPE, CLUSTERS_FILTER_TYPE,
+            STORAGE_CLUSTERS_FILTER_TYPE, VIRTUALMACHINE_CLUSTERS_FILTER_TYPE);
 
     public static final Set<String> GROUP_TAG_FILTER_TYPES =
         Collections.singleton(CLUSTERS_BY_TAGS_FILTER_TYPE);
@@ -371,6 +375,8 @@ public class GroupMapper {
             nestedGroupBuilder.setCluster(Type.COMPUTE);
         } else if (StringUtils.equals(groupDto.getGroupType(), StringConstants.STORAGE_CLUSTER)) {
             nestedGroupBuilder.setCluster(Type.STORAGE);
+        } else if (StringUtils.equals(groupDto.getGroupType(), StringConstants.VIRTUAL_MACHINE_CLUSTER)) {
+            nestedGroupBuilder.setCluster(Type.COMPUTE_VIRTUAL_MACHINE);
         } else {
             throw new InvalidOperationException("Nested groups of type: " +
                 groupDto.getGroupType() + " not supported.");
@@ -419,6 +425,8 @@ public class GroupMapper {
             outputDTO.setClassName(StringConstants.CLUSTER);
         } else if (clusterInfo.getClusterType() == ClusterInfo.Type.STORAGE) {
             outputDTO.setClassName(StringConstants.STORAGE_CLUSTER);
+        } else if (clusterInfo.getClusterType() == Type.COMPUTE_VIRTUAL_MACHINE) {
+            outputDTO.setClassName(StringConstants.VIRTUAL_MACHINE_CLUSTER);
         } else {
             logger.error("Unexpected cluster type: {}. Defaulting to \"CLUSTER\" (compute)",
                 clusterInfo.getClusterType());
@@ -441,6 +449,8 @@ public class GroupMapper {
                     outputDTO.setGroupType(StringConstants.CLUSTER);
                 } else if (nestedGroup.getNestedGroup().getCluster() == ClusterInfo.Type.STORAGE) {
                     outputDTO.setGroupType(StringConstants.STORAGE_CLUSTER);
+                } else if (nestedGroup.getNestedGroup().getCluster() == Type.COMPUTE_VIRTUAL_MACHINE) {
+                    outputDTO.setGroupType(StringConstants.VIRTUAL_MACHINE_CLUSTER);
                 }
                 break;
             default:
@@ -660,6 +670,9 @@ public class GroupMapper {
                                 filter.getFilterType().equals(CLUSTERS_BY_TAGS_FILTER_TYPE);
                         case STORAGE:
                             return filter.getFilterType().equals(STORAGE_CLUSTERS_FILTER_TYPE);
+                        case COMPUTE_VIRTUAL_MACHINE:
+                            return
+                                filter.getFilterType().equals(VIRTUALMACHINE_CLUSTERS_FILTER_TYPE);
                         default:
                             return false;
                     }
@@ -707,6 +720,9 @@ public class GroupMapper {
                             break;
                         case STORAGE:
                             filterApiDTO.setFilterType(STORAGE_CLUSTERS_FILTER_TYPE);
+                            break;
+                        case COMPUTE_VIRTUAL_MACHINE:
+                            filterApiDTO.setFilterType(VIRTUALMACHINE_CLUSTERS_FILTER_TYPE);
                             break;
                         default:
                             // Error.
