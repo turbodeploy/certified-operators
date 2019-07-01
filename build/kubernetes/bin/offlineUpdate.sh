@@ -15,13 +15,13 @@ sudo rm -rf /opt/turbonomic/.kube > /dev/null 2>&1
 
 cp /opt/kubespray/roles/download/tasks/download_container.yml /opt/kubespray/roles/download/tasks/download_container.yml.online
 sed -i '/- facts/a\
-  ignore_errors: yes' /opt/kubespray/roles/download/tasks/download_container.yml
+    ignore_errors: yes' /opt/kubespray/roles/download/tasks/download_container.yml
 sed -i '/run_once: yes/a\
-  ignore_errors: yes' /opt/kubespray/roles/download/tasks/download_container.yml
+    ignore_errors: yes' /opt/kubespray/roles/download/tasks/download_container.yml
 sed -i '/- pull_required/a\
-  ignore_errors: yes' /opt/kubespray/roles/download/tasks/download_container.yml
+    ignore_errors: yes' /opt/kubespray/roles/download/tasks/download_container.yml
 sed -i '/- group_names/a\
-  ignore_errors: yes' /opt/kubespray/roles/download/tasks/download_container.yml
+    ignore_errors: yes' /opt/kubespray/roles/download/tasks/download_container.yml
 sed -i 's/retries: 4/retries: 1/g' /opt/kubespray/roles/download/tasks/download_container.yml
 
 cp /opt/kubespray/roles/kubernetes/preinstall/tasks/0070-system-packages.yml /opt/kubespray/roles/kubernetes/preinstall/tasks/0070-system-packages.yml.online
