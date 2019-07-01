@@ -52,6 +52,8 @@ import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceB
  */
 public class ReportsService implements IReportsService {
 
+    private static final ReportOutputFormat DEFAULT_REPORT_FORMAT = ReportOutputFormat.PDF;
+
     private final Logger logger = LogManager.getLogger(getClass());
 
     private final ReportingServiceBlockingStub reportingService;
@@ -186,7 +188,10 @@ public class ReportsService implements IReportsService {
         final ReportTemplateId templateId = getReportTemplateId(templateApiId);
         final GenerateReportRequest.Builder builder =
                 GenerateReportRequest.newBuilder().setTemplate(templateId);
-        builder.setFormat(reportApiRequest.getFormat().getLiteral());
+        final ReportOutputFormat reportFormat = reportApiRequest.getFormat() == null
+            ? DEFAULT_REPORT_FORMAT
+            : reportApiRequest.getFormat();
+        builder.setFormat(reportFormat.getLiteral());
         if (!StringUtils.isBlank(reportApiRequest.getEmailAddress())) {
             builder.addAllSubscribersEmails(splitToEmails(reportApiRequest.getEmailAddress()));
         }
