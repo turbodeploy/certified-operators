@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -19,9 +20,11 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
@@ -29,7 +32,11 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
+import io.grpc.Status;
+
 import com.vmturbo.api.component.ApiTestUtils;
+import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -68,6 +75,7 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditi
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -97,8 +105,10 @@ public class GroupMapperTest {
 
     private TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
 
+    private RepositoryApi repositoryApi = mock(RepositoryApi.class);
+
     private GroupMapper groupMapper = new GroupMapper(groupUseCaseParser, supplyChainFetcherFactory,
-        groupExpander, topologyProcessor);
+        groupExpander, topologyProcessor, repositoryApi);
 
     private static String AND = "AND";
     private static String FOO = "foo";
@@ -120,6 +130,12 @@ public class GroupMapperTest {
     private static SearchFilter PRODUCES_VMS = SearchProtoUtil.searchFilterTraversal(SearchProtoUtil.traverseToType(TraversalDirection.PRODUCES, VM_TYPE));
     private static SearchFilter PRODUCES_ONE_HOP = SearchProtoUtil.searchFilterTraversal(SearchProtoUtil.numberOfHops(TraversalDirection.PRODUCES, 1));
     private static SearchFilter PRODUCES_ST = SearchProtoUtil.searchFilterTraversal(SearchProtoUtil.traverseToType(TraversalDirection.PRODUCES, DS_TYPE));
+
+    @Before
+    public void setup() {
+        SearchRequest req = ApiTestUtils.mockSearchCountReq(0);
+        when(repositoryApi.newSearchRequest(any())).thenReturn(req);
+    }
 
     /**
      * Test static group converting GroupApiDTO to GroupInfo
@@ -1012,6 +1028,95 @@ public class GroupMapperTest {
         assertThat(mappedDto.getGroupType(), is(VM_TYPE));
         assertThat(mappedDto.getEnvironmentType(), is(EnvironmentType.CLOUD));
         assertThat(mappedDto.getClassName(), is("Group"));
+    }
+
+    @Test
+    public void testMapGroupActiveEntities() {
+        final Group group = Group.newBuilder()
+            .setType(Group.Type.GROUP)
+            .setId(8L)
+            .setGroup(GroupInfo.newBuilder()
+                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+            .build();
+
+        when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
+            .group(group)
+            .entities(Collections.singleton(1L))
+            .members(Collections.singleton(1L))
+            .build());
+
+        final int count = 10;
+        final SearchRequest countReq = ApiTestUtils.mockSearchCountReq(count);
+        when(repositoryApi.newSearchRequest(any())).thenReturn(countReq);
+
+        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(group, EnvironmentType.ONPREM);
+        assertThat(mappedDto.getUuid(), is("8"));
+        assertThat(mappedDto.getActiveEntitiesCount(), is(count));
+
+        final ArgumentCaptor<SearchParameters> captor = ArgumentCaptor.forClass(SearchParameters.class);
+        verify(repositoryApi).newSearchRequest(captor.capture());
+        final SearchParameters params = captor.getValue();
+        assertThat(params.getStartingFilter(), is(SearchProtoUtil.idFilter(Collections.singleton(1L))));
+        assertThat(params.getSearchFilterList(), containsInAnyOrder(SearchProtoUtil.searchFilterProperty(
+            SearchProtoUtil.stateFilter(UIEntityState.ACTIVE))));
+    }
+
+    @Test
+    public void testMapGroupActiveEntitiesGlobalTempGroup() {
+        final Group group = Group.newBuilder()
+            .setType(Group.Type.TEMP_GROUP)
+            .setId(8L)
+            .setTempGroup(TempGroupInfo.newBuilder()
+                .setIsGlobalScopeGroup(true)
+                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+            .build();
+
+        when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
+            .group(group)
+            .entities(Collections.singleton(1L))
+            .members(Collections.singleton(1L))
+            .build());
+
+        final int count = 10;
+        final SearchRequest countReq = ApiTestUtils.mockSearchCountReq(count);
+        when(repositoryApi.newSearchRequest(any())).thenReturn(countReq);
+
+        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(group, EnvironmentType.ONPREM);
+        assertThat(mappedDto.getUuid(), is("8"));
+        assertThat(mappedDto.getActiveEntitiesCount(), is(count));
+
+        final ArgumentCaptor<SearchParameters> captor = ArgumentCaptor.forClass(SearchParameters.class);
+        verify(repositoryApi).newSearchRequest(captor.capture());
+        final SearchParameters params = captor.getValue();
+        assertThat(params.getStartingFilter(), is(SearchProtoUtil.entityTypeFilter(UIEntityType.VIRTUAL_MACHINE)));
+        assertThat(params.getSearchFilterList(), containsInAnyOrder(SearchProtoUtil.searchFilterProperty(
+            SearchProtoUtil.stateFilter(UIEntityState.ACTIVE))));
+    }
+
+    @Test
+    public void testMapGroupActiveEntitiesException() {
+        final Group group = Group.newBuilder()
+            .setType(Group.Type.GROUP)
+            .setId(8L)
+            .setGroup(GroupInfo.newBuilder()
+                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+            .build();
+
+        when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
+            .group(group)
+            .entities(Collections.singleton(1L))
+            .members(Collections.singleton(1L))
+            .build());
+
+        final SearchRequest countReq = ApiTestUtils.mockSearchCountReq(0);
+        when(countReq.count()).thenThrow(Status.INTERNAL.asRuntimeException());
+
+        when(repositoryApi.newSearchRequest(any())).thenReturn(countReq);
+
+        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(group, EnvironmentType.ONPREM);
+        assertThat(mappedDto.getUuid(), is("8"));
+        // The fallback is the number of entities.
+        assertThat(mappedDto.getActiveEntitiesCount(), is(1));
     }
 
     @Test

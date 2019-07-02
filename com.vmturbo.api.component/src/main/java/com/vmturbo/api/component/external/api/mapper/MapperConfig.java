@@ -99,9 +99,10 @@ public class MapperConfig {
     @Bean
     public GroupMapper groupMapper() {
         return new GroupMapper(groupUseCaseParser(),
-                    communicationConfig.supplyChainFetcher(),
-                    communicationConfig.groupExpander(),
-                    communicationConfig.topologyProcessor());
+            communicationConfig.supplyChainFetcher(),
+            communicationConfig.groupExpander(),
+            communicationConfig.topologyProcessor(),
+            communicationConfig.repositoryApi());
     }
 
     @Bean

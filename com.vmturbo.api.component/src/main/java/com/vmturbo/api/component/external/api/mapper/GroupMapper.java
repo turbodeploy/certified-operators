@@ -26,8 +26,10 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import io.grpc.StatusRuntimeException;
 import jdk.nashorn.internal.ir.annotations.Immutable;
 
+import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
@@ -71,6 +73,7 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditi
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditionOrBuilder;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -232,6 +235,8 @@ public class GroupMapper {
 
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
 
+    private final RepositoryApi repositoryApi;
+
     private final GroupExpander groupExpander;
 
     private final TopologyProcessor topologyProcessor;
@@ -239,11 +244,13 @@ public class GroupMapper {
     public GroupMapper(@Nonnull final GroupUseCaseParser groupUseCaseParser,
                        @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                        @Nonnull final GroupExpander groupExpander,
-                       @Nonnull final TopologyProcessor topologyProcessor) {
+                       @Nonnull final TopologyProcessor topologyProcessor,
+                       @Nonnull final RepositoryApi repositoryApi) {
         this.groupUseCaseParser = Objects.requireNonNull(groupUseCaseParser);
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
         this.groupExpander = Objects.requireNonNull(groupExpander);
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
+        this.repositoryApi = Objects.requireNonNull(repositoryApi);
     }
 
     /**
@@ -512,13 +519,41 @@ public class GroupMapper {
         outputDTO.setMemberUuidList(groupAndMembers.members().stream()
             .map(oid -> Long.toString(oid))
             .collect(Collectors.toList()));
-        outputDTO.setEntitiesCount(groupAndMembers.entities().size());
-        // TODO (roman, Jul 9 2018) OM-36862: Support getting the active entities count for
-        // a group because the UI needs that information in some screens.
-        outputDTO.setActiveEntitiesCount(groupAndMembers.entities().size());
         outputDTO.setEnvironmentType(getEnvironmentTypeForTempGroup(environmentType));
+        outputDTO.setEntitiesCount(groupAndMembers.entities().size());
+        outputDTO.setActiveEntitiesCount(getActiveEntitiesCount(groupAndMembers));
 
         return outputDTO;
+    }
+
+    private int getActiveEntitiesCount(@Nonnull final GroupAndMembers groupAndMembers) {
+        // Set the active entities count.
+        final Group group = groupAndMembers.group();
+        try {
+            // We need to find the number of active entities in the group. The best way to do that
+            // is to do a search, and return only the counts. This minimizes the amount of
+            // traffic across the network - although for large groups this is still a lot!
+            final PropertyFilter startingFilter;
+            if (group.getType() == Group.Type.TEMP_GROUP && group.getTempGroup().getIsGlobalScopeGroup()) {
+                // In a global temp group we can just set the environment type.
+                startingFilter = SearchProtoUtil.entityTypeFilter(GroupProtoUtil.getEntityType(group));
+            } else {
+                // In any other group we need to send the entity IDs to the search service as the
+                // starting filter.
+                startingFilter = SearchProtoUtil.idFilter(groupAndMembers.entities());
+            }
+            return (int) repositoryApi.newSearchRequest(
+                SearchProtoUtil.makeSearchParameters(startingFilter)
+                    .addSearchFilter(SearchProtoUtil.searchFilterProperty(
+                        SearchProtoUtil.stateFilter(UIEntityState.ACTIVE)))
+                    .build())
+                .count();
+        } catch (StatusRuntimeException e) {
+            logger.error("Search for active entities in group {} failed. Error: {}",
+                group.getId(), e.getMessage());
+            // As a fallback, assume every entity is active.
+            return groupAndMembers.entities().size();
+        }
     }
 
     /**

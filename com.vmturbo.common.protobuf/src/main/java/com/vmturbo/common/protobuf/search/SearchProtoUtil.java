@@ -3,6 +3,7 @@ package com.vmturbo.common.protobuf.search;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -17,6 +18,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 
 public class SearchProtoUtil {
@@ -250,6 +252,12 @@ public class SearchProtoUtil {
             entityType, ComparisonOperator.EQ);
     }
 
+    @Nonnull
+    public static PropertyFilter stateFilter(@Nonnull final UIEntityState state) {
+        return numericPropertyFilter(SearchableProperties.ENTITY_STATE,
+            state.toEntityState().getNumber(), ComparisonOperator.EQ);
+    }
+
     public static PropertyFilter stateFilter(@Nonnull final String state) {
         return stringPropertyFilterExact(SearchableProperties.ENTITY_STATE,
             Arrays.asList(state.split("\\|")),
@@ -333,6 +341,12 @@ public class SearchProtoUtil {
      */
     public static PropertyFilter idFilter(long oid) {
         return stringPropertyFilterExact(SearchableProperties.OID, Collections.singleton(Long.toString(oid)));
+    }
+
+    public static PropertyFilter idFilter(Collection<Long> oids) {
+        return stringPropertyFilterExact(SearchableProperties.OID, oids.stream()
+            .map(oid -> Long.toString(oid))
+            .collect(Collectors.toSet()));
     }
 
     /**
