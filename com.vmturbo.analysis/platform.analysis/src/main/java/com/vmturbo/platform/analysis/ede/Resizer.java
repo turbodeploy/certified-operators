@@ -107,9 +107,10 @@ public class Resizer {
                                calculateDesiredCapacity(commoditySold, newRevenue, seller, economy);
                             Pair<CommoditySold, Trader> p = findSellerCommodityAndSupplier(economy,
                                 seller, soldIndex);
+                            CommoditySold rawMaterial = (p != null) ? p.getFirst() : null;
                             double newEffectiveCapacity = calculateEffectiveCapacity(seller,
                                 resizedCommodity, desiredCapacity, commoditySold,
-                                p.getFirst(), rateOfResize);
+                                    rawMaterial, rateOfResize);
                             if (consistentResizing || Double.compare(newEffectiveCapacity,
                                         commoditySold.getEffectiveCapacity()) != 0) {
                                 double newCapacity = newEffectiveCapacity /
