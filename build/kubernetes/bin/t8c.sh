@@ -348,7 +348,7 @@ then
 
   # Setup mariadb before brining up XL components
   #./mariadb_storage_setup.sh
-  ./configure_mariadb.sh
+  /opt/local/bin/configure_mariadb.sh
   kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/service_account.yaml -n turbonomic
   kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/role.yaml -n turbonomic
   kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/role_binding.yaml -n turbonomic

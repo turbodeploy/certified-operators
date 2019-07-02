@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-source libs.sh
+source /opt/local/bin/libs.sh
 
 SRC_MY_CNF="/opt/turbonomic/kubernetes/etc/my.cnf"
 MY_CNF="/etc/my.cnf.d/server.cnf"
@@ -55,6 +55,7 @@ fi
 configure_buffer_pool $MY_CNF
 
 log_msg "Starting mariadb service"
+sudo systemctl enable mariadb.service
 sudo systemctl start mariadb.service
 if [ "$?" -ne 0 ];
 then
