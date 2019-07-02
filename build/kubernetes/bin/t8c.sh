@@ -345,6 +345,10 @@ then
     sed -i "/tag:/a\
 \    externalIP: ${node}\n" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
   fi
+
+  # Setup mariadb before brining up XL components
+  #./mariadb_storage_setup.sh
+  ./configure_mariadb.sh
   kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/service_account.yaml -n turbonomic
   kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/role.yaml -n turbonomic
   kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/role_binding.yaml -n turbonomic

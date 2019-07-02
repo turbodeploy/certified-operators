@@ -18,6 +18,7 @@ spec:
     repository: turbonomic
     tag: 7.20.0
     externalIP: 10.0.2.15
+    externalDbIP: 10.0.2.15
   vcenter:
     enabled: true
   appdynamics:

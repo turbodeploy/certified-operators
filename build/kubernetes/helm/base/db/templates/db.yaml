@@ -1,5 +1,5 @@
 {{ if .Values.global }}
-  {{ if (not .Values.global.externalDBName) }}
+  {{ if and (not .Values.global.externalDBName) (not .Values.global.externalDbIP)}}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -98,15 +98,33 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
+  ports:
+  - name: mysql-db
+    port: 3306
 {{- if .Values.global }}
   {{- if .Values.global.externalDBName }}
   type: ExternalName
   externalName: {{ .Values.global.externalDBName }}
   {{- end -}}
-{{- end }}
-  ports:
-  - name: mysql-db
-    port: 3306
+  {{- if and (not .Values.global.externalDBName) (not .Values.global.externalDbIP)}}
   selector:
     app.kubernetes.io/name: {{ .Chart.Name }}
     app.kubernetes.io/instance: {{ .Release.Name }}
+  {{- end -}}
+
+ {{- if and (.Values.global.externalDbIP) (not .Values.global.externalDBName)}}
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: {{ .Chart.Name }}
+subsets:
+ -
+  addresses:
+  -
+   ip: {{ .Values.global.externalDbIP | quote }}
+  ports:
+    - port: 3306
+      name: "mysql-db"
+  {{- end -}}
+{{- end }}
