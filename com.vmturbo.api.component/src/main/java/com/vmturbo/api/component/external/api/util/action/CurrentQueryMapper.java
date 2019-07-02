@@ -265,7 +265,7 @@ class CurrentQueryMapper {
                     } else {
                         // Take only the entities in the scope.
                         scopeBuilder.setEntityList(entityScopeFactory.createEntityScope(
-                            Sets.newHashSet(userScope.getScopeGroupIds()),
+                            Sets.newHashSet(userScope.accessibleOids()),
                             relatedEntityTypes,
                             query.getEnvironmentType(),
                             userScope));

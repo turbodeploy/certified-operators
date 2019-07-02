@@ -18,6 +18,7 @@ import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
+import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionsServiceController;
 import com.vmturbo.common.protobuf.action.ActionsDebugREST.ActionsDebugServiceController;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOREST.EntitySeverityServiceController;
@@ -26,7 +27,8 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTOREST.EntitySeveritySe
 @Import({ActionOrchestratorGlobalConfig.class,
     ActionStoreConfig.class,
     ActionExecutionConfig.class,
-    ActionStatsConfig.class})
+    ActionStatsConfig.class,
+    UserSessionConfig.class})
 public class RpcConfig {
 
     @Autowired
@@ -48,7 +50,10 @@ public class RpcConfig {
     private ActionStatsConfig actionStatsConfig;
 
     @Autowired
-    WorkflowConfig workflowConfig;
+    private WorkflowConfig workflowConfig;
+
+    @Autowired
+    private UserSessionConfig userSessionConfig;
 
     @Value("${actionPaginationDefaultLimit}")
     private int actionPaginationDefaultLimit;
@@ -67,7 +72,8 @@ public class RpcConfig {
             actionPaginatorFactory(),
             workflowConfig.workflowStore(),
             actionStatsConfig.historicalActionStatReader(),
-            actionStatsConfig.currentActionStatReader());
+            actionStatsConfig.currentActionStatReader(),
+            userSessionConfig.userSessionContext());
     }
 
     @Bean

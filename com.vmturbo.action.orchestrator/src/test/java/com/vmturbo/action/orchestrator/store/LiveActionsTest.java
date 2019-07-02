@@ -5,7 +5,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -20,12 +20,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.junit.Test;
-
 import com.google.common.collect.Sets;
+
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
@@ -34,18 +37,23 @@ import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.LiveActions.QueryFilterFactory;
 import com.vmturbo.action.orchestrator.store.query.QueryFilter;
+import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
-import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.components.common.identity.ArrayOidSet;
 
 public class LiveActionsTest {
+
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
     private ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
 
@@ -55,8 +63,10 @@ public class LiveActionsTest {
 
     private final QueryFilterFactory queryFilterFactory = mock(QueryFilterFactory.class);
 
+    private UserSessionContext userSessionContext = mock(UserSessionContext.class);
+
     private LiveActions liveActions =
-        new LiveActions(actionHistoryDao, clock, queryFilterFactory);
+        new LiveActions(actionHistoryDao, clock, queryFilterFactory, userSessionContext);
 
     @Test
     public void testReplaceMarketActions() {
@@ -139,6 +149,29 @@ public class LiveActionsTest {
     }
 
     @Test
+    public void testGetWithScopedUser() {
+        final Action move12Action = ActionOrchestratorTestUtils.actionFromRecommendation(
+                ActionOrchestratorTestUtils.createMoveRecommendation(1, 0, 1, 0, 2, 0),
+                1);
+        final Action move13Action = ActionOrchestratorTestUtils.actionFromRecommendation(
+                ActionOrchestratorTestUtils.createMoveRecommendation(2, 0, 1, 0, 3, 0),
+                1);
+
+        liveActions.replaceMarketActions(Stream.of(move12Action));
+        liveActions.replaceRiActions(Stream.of(move13Action));
+
+        // verify that a user with access to entities 0,1 and 2 can fetch move12 but not move13
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(userSessionContext.getUserAccessScope()).thenReturn(new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(0L, 1L, 2L)), null));
+        assertThat(liveActions.get(move12Action.getId()).get(), is(move12Action));
+
+        // a request for move13 by this user will trigger an access exception
+        expectedException.expect(UserAccessScopeException.class);
+        assertThat(liveActions.get(move13Action.getId()).get(), is(move13Action));
+    }
+
+    @Test
     public void testMultiGet() {
         final Action action1 = ActionOrchestratorTestUtils.createMoveAction(1, 2);
         final Action action2 = ActionOrchestratorTestUtils.createMoveAction(2, 2);
@@ -151,6 +184,33 @@ public class LiveActionsTest {
         // Shouldn't return the other one from market.
         assertThat(liveActions.get(Sets.newHashSet(action1.getId(), action3.getId())).collect(Collectors.toList()),
             containsInAnyOrder(action1, action3));
+    }
+
+    @Test
+    public void testMultiGetWithScopedUser() {
+        final Action move12Action = ActionOrchestratorTestUtils.actionFromRecommendation(
+                ActionOrchestratorTestUtils.createMoveRecommendation(1, 0, 1, 0, 2, 0),
+                1);
+        final Action move13Action = ActionOrchestratorTestUtils.actionFromRecommendation(
+                ActionOrchestratorTestUtils.createMoveRecommendation(2, 0, 1, 0, 3, 0),
+                1);
+
+        liveActions.replaceMarketActions(Stream.of(move12Action));
+        liveActions.replaceRiActions(Stream.of(move13Action));
+
+        // verify that a user with access to entities 0,1,2 and 3 can see both actions
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(userSessionContext.getUserAccessScope()).thenReturn(new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(0L, 1L, 2L, 3L)), null));
+
+        assertThat(liveActions.get(Sets.newHashSet(move12Action.getId(), move13Action.getId())).collect(Collectors.toList()),
+                containsInAnyOrder(move12Action, move13Action));
+
+        // a user w/access to only 0,1 and 2 will get an exception when trying to access both actions
+        when(userSessionContext.getUserAccessScope()).thenReturn(new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(0L, 1L, 2L)), null));
+        expectedException.expect(UserAccessScopeException.class);
+        liveActions.get(Sets.newHashSet(move12Action.getId(), move13Action.getId()));
     }
 
     @Test
@@ -311,6 +371,41 @@ public class LiveActionsTest {
     }
 
     @Test
+    public void testGetByFilterNoDatesWithScopedUser() {
+        final Action move12Action = ActionOrchestratorTestUtils.actionFromRecommendation(
+                ActionOrchestratorTestUtils.createMoveRecommendation(1, 0, 1, 0, 2, 0),
+                1);
+        final Action move13Action = ActionOrchestratorTestUtils.actionFromRecommendation(
+                ActionOrchestratorTestUtils.createMoveRecommendation(2, 0, 1, 0, 3, 0),
+                1);
+
+        liveActions.replaceMarketActions(Stream.of(move12Action));
+        liveActions.replaceRiActions(Stream.of(move13Action));
+
+        final QueryFilter queryFilter = mock(QueryFilter.class);
+        when(queryFilter.test(any())).thenReturn(true);
+        // Target all entities.
+        final ActionQueryFilter actionQueryFilter = ActionQueryFilter.newBuilder()
+                .setEnvironmentType(EnvironmentType.ON_PREM)
+                .build();
+        when(queryFilterFactory.newQueryFilter(actionQueryFilter, LiveActionStore.VISIBILITY_PREDICATE)).thenReturn(queryFilter);
+
+        // verify that a user with access to entities 0,1,2 and 3 can see both actions
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(userSessionContext.getUserAccessScope()).thenReturn(new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(0L, 1L, 2L, 3L)), null));
+
+        // a user w/access to only 0,1 and 2 will only get move12 but not move13
+        when(userSessionContext.getUserAccessScope()).thenReturn(new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(0L, 1L, 2L)), null));
+        Set<ActionView> results = liveActions.get(actionQueryFilter).collect(Collectors.toSet());
+        assertTrue(results.contains(move12Action));
+        assertFalse(results.contains(move13Action));
+
+
+    }
+
+    @Test
     public void testGetByEntity() throws UnsupportedActionException {
         final Action action1 = ActionOrchestratorTestUtils.createMoveAction(100, 2);
         final Action action2 = ActionOrchestratorTestUtils.createMoveAction(200, 2);
@@ -333,6 +428,34 @@ public class LiveActionsTest {
     }
 
     @Test
+    public void testGetByEntityWithScopedUser() {
+        final Action move12Action = ActionOrchestratorTestUtils.actionFromRecommendation(
+                ActionOrchestratorTestUtils.createMoveRecommendation(1, 0, 1, 0, 2, 0),
+                1);
+        final Action move13Action = ActionOrchestratorTestUtils.actionFromRecommendation(
+                ActionOrchestratorTestUtils.createMoveRecommendation(2, 0, 1, 0, 3, 0),
+                1);
+
+        liveActions.replaceMarketActions(Stream.of(move12Action));
+        liveActions.replaceRiActions(Stream.of(move13Action));
+
+        // verify that a user with access to entities 0,1,2 and 3 can see both actions
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(userSessionContext.getUserAccessScope()).thenReturn(new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(0L, 1L, 2L, 3L)), null));
+
+        assertThat(liveActions.getByEntity(Arrays.asList(0L, 1L)).collect(Collectors.toSet()),
+                containsInAnyOrder(move12Action, move13Action));
+
+        // a user w/access to only 0,1 and 2 will only get move12 but not move13
+        when(userSessionContext.getUserAccessScope()).thenReturn(new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(0L, 1L, 2L)), null));
+        Set<ActionView> results = liveActions.getByEntity(Arrays.asList(0L, 1L)).collect(Collectors.toSet());
+        assertTrue(results.contains(move12Action));
+        assertFalse(results.contains(move13Action));
+    }
+
+    @Test
     public void isEmpty() {
         assertTrue(liveActions.isEmpty());
     }
@@ -348,6 +471,28 @@ public class LiveActionsTest {
         assertThat(liveActions.getAction(action1.getId()).get(), is(action1));
         assertThat(liveActions.getAction(action2.getId()).get(), is(action2));
         assertFalse(liveActions.getAction(action1.getId() + 100).isPresent());
+    }
+
+    @Test
+    public void getActionWithScopedUser() {
+        final Action move12Action = ActionOrchestratorTestUtils.actionFromRecommendation(
+                ActionOrchestratorTestUtils.createMoveRecommendation(1, 0, 1, 0, 2, 0),
+                1);
+        final Action move13Action = ActionOrchestratorTestUtils.actionFromRecommendation(
+                ActionOrchestratorTestUtils.createMoveRecommendation(2, 0, 1, 0, 3, 0),
+                1);
+
+        liveActions.replaceMarketActions(Stream.of(move12Action, move13Action));
+
+        // verify that a user with access to entities 0,1 and 2 can fetch move12 but not move13
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(userSessionContext.getUserAccessScope()).thenReturn(new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(0L, 1L, 2L)), null));
+        assertThat(liveActions.getAction(move12Action.getId()).get(), is(move12Action));
+
+        // the request for move13 will trigger an access exception
+        expectedException.expect(UserAccessScopeException.class);
+        assertThat(liveActions.getAction(move13Action.getId()).get(), is(move13Action));
     }
 
     @Test

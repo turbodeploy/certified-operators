@@ -17,10 +17,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
+
+import org.junit.Test;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
@@ -53,6 +53,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -219,8 +220,8 @@ public class CurrentQueryMapperTest {
         final EntityAccessScope entityAccessScope = mock(EntityAccessScope.class);
         when(userSessionContext.getUserAccessScope()).thenReturn(entityAccessScope);
         when(entityAccessScope.containsAll()).thenReturn(false);
-        final List<Long> scopeGroupIds = Arrays.asList(123L, 345L);
-        when(entityAccessScope.getScopeGroupIds()).thenReturn(scopeGroupIds);
+        final List<Long> accessibleOids = Arrays.asList(123L, 345L);
+        when(entityAccessScope.accessibleOids()).thenReturn(new ArrayOidSet(accessibleOids));
 
         final EntityScopeFactory entityScopeFactory = mock(EntityScopeFactory.class);
         final ScopeFilterExtractor scopeFilterExtractor =
@@ -243,7 +244,7 @@ public class CurrentQueryMapperTest {
         final Map<ApiId, ScopeFilter> result = scopeFilterExtractor.extractScopeFilters(query);
 
         verify(entityScopeFactory).createEntityScope(
-            Sets.newHashSet(scopeGroupIds),
+            Sets.newHashSet(accessibleOids),
             relatedEntityTypes,
             Optional.of(EnvironmentType.ON_PREM),
             entityAccessScope);

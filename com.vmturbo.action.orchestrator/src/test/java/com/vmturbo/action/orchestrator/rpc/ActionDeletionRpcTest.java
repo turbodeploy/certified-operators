@@ -24,6 +24,7 @@ import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionException;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
@@ -47,6 +48,8 @@ public class ActionDeletionRpcTest {
 
     private final Clock clock = new MutableFixedClock(1_000_000);
 
+    private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
+
     private ActionsRpcService actionsRpcService =
         new ActionsRpcService(clock, actionStorehouse,
             mock(ActionExecutor.class),
@@ -55,7 +58,8 @@ public class ActionDeletionRpcTest {
             paginatorFactory,
             workflowStore,
             statReader,
-            liveStatReader);
+            liveStatReader,
+            userSessionContext);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();

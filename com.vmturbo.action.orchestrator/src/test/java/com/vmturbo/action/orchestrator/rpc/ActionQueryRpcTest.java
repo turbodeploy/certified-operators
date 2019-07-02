@@ -30,14 +30,14 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableMap;
 
 import io.grpc.Status.Code;
 
@@ -60,6 +60,7 @@ import com.vmturbo.action.orchestrator.store.PlanActionStore;
 import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -126,17 +127,20 @@ public class ActionQueryRpcTest {
     private final long actionPlanId = 2;
     private final long topologyContextId = 3;
 
+    private final UserSessionContext userSessionContext = Mockito.mock(UserSessionContext.class);
+
     private final Clock clock = new MutableFixedClock(1_000_000);
 
     private ActionsRpcService actionsRpcService = new ActionsRpcService(clock,
             actionStorehouse, actionExecutor, actionTargetSelector,
-            actionTranslator, paginatorFactory,
-            workflowStore, historicalStatReader, liveStatReader);
+            actionTranslator, paginatorFactory, workflowStore,
+            historicalStatReader, liveStatReader, userSessionContext);
 
     private ActionsRpcService actionsRpcServiceWithFailedTranslator = new ActionsRpcService(clock,
             actionStorehouse, actionExecutor, actionTargetSelector,
             actionTranslatorWithFailedTranslation, paginatorFactory,
-            workflowStore, historicalStatReader, liveStatReader);
+            workflowStore, historicalStatReader, liveStatReader,
+            userSessionContext);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();

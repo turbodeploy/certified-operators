@@ -12,6 +12,10 @@ import javax.annotation.Nonnull;
  * infrastructure is included or not.
  */
 public class AccessScopeCacheKey {
+    // TODO: optimize this a bit by just storing the hash for the scope group oids instead of an
+    // entire copy of the set. This would require some refactoring though, since this object is
+    // also being relied on to pass the scope group oids around (which also muddies the intent
+    // of the class in the first place)
     private final Set<Long> scopeGroupOids;
     /**
      * flag indicating whether this scope would include infrastructure entities or not. Infrastructure

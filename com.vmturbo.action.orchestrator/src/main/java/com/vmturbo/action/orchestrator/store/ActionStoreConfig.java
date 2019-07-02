@@ -17,6 +17,7 @@ import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
+import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
@@ -31,7 +32,8 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
     GroupClientConfig.class,
     RepositoryClientConfig.class,
     ActionStatsConfig.class,
-    ActionTranslationConfig.class})
+    ActionTranslationConfig.class,
+    UserSessionConfig.class})
 public class ActionStoreConfig {
 
     @Autowired
@@ -57,6 +59,9 @@ public class ActionStoreConfig {
 
     @Autowired
     private WorkflowConfig workflowConfig;
+
+    @Autowired
+    private UserSessionConfig userSessionConfig;
 
     @Value("${entityTypeRetryIntervalMillis}")
     private long entityTypeRetryIntervalMillis;
@@ -99,7 +104,8 @@ public class ActionStoreConfig {
             entitySettingsCache(),
             actionStatsConfig.actionsStatistician(),
             actionTranslationConfig.actionTranslator(),
-            actionOrchestratorGlobalConfig.actionOrchestratorClock());
+            actionOrchestratorGlobalConfig.actionOrchestratorClock(),
+            userSessionConfig.userSessionContext());
     }
 
     @Bean

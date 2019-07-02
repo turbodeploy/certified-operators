@@ -15,15 +15,15 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.exception.DataAccessException;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.protobuf.util.JsonFormat;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -52,7 +52,9 @@ import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLogEntry;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
+import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -144,6 +146,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
     private final Clock clock;
 
+    private final UserSessionContext userSessionContext;
+
     /**
      * Create a new ActionsRpcService.
      *
@@ -162,7 +166,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                              @Nonnull final ActionPaginatorFactory paginatorFactory,
                              @Nonnull final WorkflowStore workflowStore,
                              @Nonnull final HistoricalActionStatReader historicalActionStatReader,
-                             @Nonnull final CurrentActionStatReader currentActionStatReader) {
+                             @Nonnull final CurrentActionStatReader currentActionStatReader,
+                             @Nonnull final UserSessionContext userSessionContext) {
         this.clock = clock;
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.actionExecutor = Objects.requireNonNull(actionExecutor);
@@ -172,6 +177,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         this.workflowStore = Objects.requireNonNull(workflowStore);
         this.historicalActionStatReader = Objects.requireNonNull(historicalActionStatReader);
         this.currentActionStatReader = Objects.requireNonNull(currentActionStatReader);
+        this.userSessionContext = Objects.requireNonNull(userSessionContext);
     }
 
     /**
@@ -204,6 +210,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         final String userNameAndUuid = AuditLogUtils.getUserNameAndUuidFromGrpcSecurityContext();
         AcceptActionResponse response = store.getAction(request.getActionId())
                 .map(action -> {
+
                     AcceptActionResponse attemptResponse = attemptAcceptAndExecute(action,
                             userNameAndUuid);
                     if (!action.isReady()) {
@@ -259,12 +266,15 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                 final Optional<ActionStore> store = actionStorehouse.getStore(request.getTopologyContextId());
                 if (store.isPresent()) {
                     Tracing.log(() -> "Getting filtered actions. Request: " + JsonFormat.printer().print(request));
+
+                    ActionStore actionStore = store.get();
+
                     // We do translation after pagination because translation failures may
                     // succeed on retry. If we do translation before pagination, success after
                     // failure will mix up the pagination limit.
                     final Stream<ActionView> resultViews = request.hasFilter() ?
-                        store.get().getActionViews().get(request.getFilter()) :
-                        store.get().getActionViews().getAll();
+                        actionStore.getActionViews().get(request.getFilter()) :
+                        actionStore.getActionViews().getAll();
 
                     Tracing.log("Got result views.");
 
@@ -409,6 +419,13 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                     .withDescription("Get action counts by entity need provide a action filter and entities.")
                     .asException());
         }
+
+        // verify access to the requested entities
+        if (userSessionContext.isUserScoped()) {
+            UserScopeUtils.checkAccess(userSessionContext,
+                    request.getFilter().getInvolvedEntities().getOidsList());
+        }
+
         final Optional<ActionStore> contextStore =
                 actionStorehouse.getStore(request.getTopologyContextId());
         if (contextStore.isPresent()) {
@@ -531,7 +548,9 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         }
 
         // group by {ActionCategory, numAction|numEntities, costPrice(savings|investment)}
-        actionTranslator.translateToSpecs(actionStore.get().getActionViews().getAll())
+        actionTranslator.translateToSpecs(actionStore.get()
+                    .getActionViews()
+                    .getAll())
                 .forEach(actionSpec -> {
                     ActionCategory category = actionSpec.getCategory();
                     switch (category) {
@@ -572,6 +591,9 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                                          StreamObserver<GetHistoricalActionStatsResponse> responseObserver) {
         final GetHistoricalActionStatsResponse.Builder respBuilder =
             GetHistoricalActionStatsResponse.newBuilder();
+        // TODO: user scoping is not being applied here since the API is currently handling it. We
+        // should probably move it here in the future though, since we are now doing other scope
+        // checks in the Action Orchestrator
         for (GetHistoricalActionStatsRequest.SingleQuery query : request.getQueriesList()) {
             try {
                 final ActionStats actionStats = historicalActionStatReader.readActionStats(query.getQuery());
@@ -594,6 +616,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     @Override
     public void getCurrentActionStats(GetCurrentActionStatsRequest request,
                                    StreamObserver<GetCurrentActionStatsResponse> responseObserver) {
+        // NOTE: user scoping for action stats is handled in the API component.
         final GetCurrentActionStatsResponse.Builder respBuilder =
             GetCurrentActionStatsResponse.newBuilder();
         try {
@@ -794,8 +817,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                                                              ActionStore actionStore) {
         QueryableActionViews actionViews = actionStore.getActionViews();
         return actionTranslator.translate(requestFilter
-            .map(actionViews::get)
-            .orElseGet(actionViews::getAll));
+                .map(actionViews::get)
+                .orElseGet(actionViews::getAll));
     }
 
     private static Map<ActionType, Long> getActionsByType(@Nonnull final Stream<ActionView> actionViewStream) {

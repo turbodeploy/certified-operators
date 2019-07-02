@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.time.Clock;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -56,12 +57,14 @@ import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.jwt.JwtCallCredential;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.authorization.kvstore.AuthStore;
 import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
+import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.auth.test.JwtContextUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
@@ -77,6 +80,8 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.components.common.identity.ArrayOidSet;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
  * Integration tests for secure action execution RPC.
@@ -129,6 +134,8 @@ public class ActionExecutionSecureRpcTest {
 
     private final Clock clock = new MutableFixedClock(1_000_000);
 
+    private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
+
     private final ActionsRpcService actionsRpcService =
         new ActionsRpcService(clock,
             actionStorehouse,
@@ -138,7 +145,8 @@ public class ActionExecutionSecureRpcTest {
             paginatorFactory,
             workflowStore,
             statReader,
-            currentActionStatReader);
+            currentActionStatReader,
+            userSessionContext);
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
     private ActionsServiceBlockingStub actionOrchestratorServiceClientWithInterceptor;
     private ActionStore actionStoreSpy;
@@ -209,7 +217,7 @@ public class ActionExecutionSecureRpcTest {
         // mock action store
         actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
             actionTargetSelector, probeCapabilityCache, entitySettingsCache,
-            actionHistoryDao, actionsStatistician, actionTranslator, clock));
+            actionHistoryDao, actionsStatistician, actionTranslator, clock, userSessionContext));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");
@@ -377,5 +385,41 @@ public class ActionExecutionSecureRpcTest {
         managedChannel.shutdown();
         secureGrpcServerWithNullPublicKeyInInterceptor.shutdown();
 
+    }
+
+    @Test
+    public void testAcceptActionWithScopedUser() {
+        final Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID, 10L, 0, 1, 1, 1 );
+        final ActionPlan plan = actionPlan(recommendation);
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, recommendation);
+        actionStorehouse.storeActions(plan);
+
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+
+        final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
+                .setActionId(ACTION_ID)
+                .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                .build();
+
+        // a user WITH access CAN execute the action
+        EntityAccessScope accessScopeOK = new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(10L, 0L, 1L)), null);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScopeOK);
+
+        AcceptActionResponse response = actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
+        assertFalse(response.hasError());
+
+        // A user WITHOUT access to entity 10L CANNOT execute the action.
+        EntityAccessScope accessScopeFail = new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(0L, 1L, 2L)), null);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScopeFail);
+
+        // verify that a grpc runtime exception is thrown. In the actual runtime env we expect the
+        // JwtServerInterceptor to translate the status code for us, but not applying that for
+        // this test.
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.UNKNOWN).anyDescription());
+        response = actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
+        assertTrue(response.hasError());
     }
 }

@@ -116,7 +116,7 @@ public class PlanActionStore implements ActionStore {
      */
     public static final Predicate<ActionView> VISIBILITY_PREDICATE = actionView -> true;
 
-    private static final String STORE_TYPE_NAME = "Plan";
+    public static final String STORE_TYPE_NAME = "Plan";
 
     private static final Summary DELETE_PLAN_ACTION_PLAN_DURATION_SUMMARY = Summary.build()
         .name("ao_delete_plan_action_plan_duration_seconds")

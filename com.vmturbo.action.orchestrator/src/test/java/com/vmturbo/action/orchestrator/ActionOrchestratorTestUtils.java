@@ -71,6 +71,11 @@ public class ActionOrchestratorTestUtils {
     }
 
     @Nonnull
+    public static Action actionFromRecommendation(final ActionDTO.Action recommendation, final long actionPlanId) {
+        return new Action(recommendation, actionPlanId, actionModeCalculator);
+    }
+
+    @Nonnull
     public static Action createMoveAction(final long actionId, final long actionPlanId) {
         return new Action(createMoveRecommendation(actionId), actionPlanId, actionModeCalculator);
     }

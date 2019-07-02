@@ -53,6 +53,7 @@ import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.LiveActions.RecommendationTracker;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -133,12 +134,14 @@ public class LiveActionStoreTest {
 
     private Clock clock = new MutableFixedClock(1_000_000);
 
+    private UserSessionContext userSessionContext = mock(UserSessionContext.class);
+
     @SuppressWarnings("unchecked")
     @Before
     public void setup() throws TargetResolutionException, UnsupportedActionException {
         actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID, targetSelector,
             probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician,
-            actionTranslator, clock);
+            actionTranslator, clock, userSessionContext);
 
         when(targetSelector.getTargetsForActions(any())).thenAnswer(invocation -> {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
@@ -254,7 +257,7 @@ public class LiveActionStoreTest {
         ActionStore actionStore = new LiveActionStore(
                 new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID,
                 targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
-                actionsStatistician, actionTranslator, clock);
+                actionsStatistician, actionTranslator, clock, userSessionContext);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 

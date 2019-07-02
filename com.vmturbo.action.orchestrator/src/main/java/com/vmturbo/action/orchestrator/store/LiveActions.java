@@ -27,12 +27,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
@@ -40,6 +40,9 @@ import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.query.QueryFilter;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
+import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
@@ -93,20 +96,26 @@ class LiveActions implements QueryableActionViews {
 
     private final QueryFilterFactory queryFilterFactory;
 
+    private final UserSessionContext userSessionContext;
+
     LiveActions(@Nonnull final ActionHistoryDao actionHistoryDao,
-                @Nonnull final Clock clock) {
+                @Nonnull final Clock clock,
+                @Nonnull final UserSessionContext userSessionContext) {
         this(actionHistoryDao,
             clock,
-            QueryFilter::new);
+            QueryFilter::new,
+            userSessionContext);
     }
 
     @VisibleForTesting
     LiveActions(@Nonnull final ActionHistoryDao actionHistoryDao,
                 @Nonnull final Clock clock,
-                QueryFilterFactory queryFilterFactory) {
+                @Nonnull QueryFilterFactory queryFilterFactory,
+                @Nonnull final UserSessionContext userSessionContext) {
         this.actionHistoryDao = Objects.requireNonNull(actionHistoryDao);
         this.clock = Objects.requireNonNull(clock);
         this.queryFilterFactory = Objects.requireNonNull(queryFilterFactory);
+        this.userSessionContext = Objects.requireNonNull(userSessionContext);
     }
 
     /**
@@ -273,9 +282,10 @@ class LiveActions implements QueryableActionViews {
         try {
             Action result = marketActions.get(actionId);
             if (result == null) {
-                return Optional.ofNullable(riActions.get(actionId));
+                result = riActions.get(actionId);
             }
-            return Optional.of(result);
+            checkActionAccess(result);
+            return Optional.ofNullable(result);
         } finally {
             actionsLock.readLock().unlock();
         }
@@ -288,9 +298,19 @@ class LiveActions implements QueryableActionViews {
     public Stream<ActionView> get(@Nonnull final ActionQueryFilter actionQueryFilter) {
         final Stream<ActionView> currentActions;
 
-        final Optional<Set<Long>> entitiesRestriction = actionQueryFilter.hasInvolvedEntities() ?
-            Optional.of(Sets.newHashSet(actionQueryFilter.getInvolvedEntities().getOidsList())) :
-            Optional.empty();
+        // if the user has an access scope restriction, then we'll apply it here. The logic will be:
+        // 1) if the request is for a specific set of entities, process it -- the request will
+        //    get rejected if any requested entities are out of scope in the "getByEntity" method.
+        // 2) if the request is for the whole market, and the user is scoped -- set the entities
+        //    restriction to the set of accessible oids for the user. (NOTE: this can be a very
+        //    large set!!)
+        // 3) otherwise, the request is for the whole market and the user is NOT scoped -- fetch
+        //    all entities without restriction.
+        final Optional<Set<Long>> entitiesRestriction = actionQueryFilter.hasInvolvedEntities()
+                ? Optional.of(Sets.newHashSet(actionQueryFilter.getInvolvedEntities().getOidsList()))
+                : userSessionContext.isUserScoped()
+                    ? Optional.of(userSessionContext.getUserAccessScope().accessibleOids().toSet())
+                    : Optional.empty();
 
         // The getAll() and getByEntity() methods re-acquire the lock, but we do it here just
         // to be defensive.
@@ -309,12 +329,21 @@ class LiveActions implements QueryableActionViews {
             final LocalDateTime endDate = getLocalDateTime(actionQueryFilter.getEndDate());
             final List<ActionView> succeededOrFailedActionList =
                 actionHistoryDao.getActionHistoryByDate(startDate, endDate);
+            boolean strictMatching = userSessionContext.isUserScoped(); // check this once for efficiency.
             Stream<ActionView> historical = succeededOrFailedActionList.stream()
                 .filter(view -> entitiesRestriction
                     .map(involvedEntities -> {
                         try {
-                            return ActionDTOUtil.getInvolvedEntityIds(view.getRecommendation()).stream()
-                                .anyMatch(involvedEntities::contains);
+                            // if the entity restriction is "strict" then only include actions where
+                            // ALL involved entities are in the set. Otherwise, include actions with
+                            // ANY involved entities are in the set.
+                            if (strictMatching) {
+                                return involvedEntities.containsAll(
+                                        ActionDTOUtil.getInvolvedEntityIds(view.getRecommendation()));
+                            } else {
+                                return ActionDTOUtil.getInvolvedEntityIds(view.getRecommendation()).stream()
+                                        .anyMatch(involvedEntities::contains);
+                            }
                         } catch (UnsupportedActionException e) {
                             return false;
                         }
@@ -344,6 +373,11 @@ class LiveActions implements QueryableActionViews {
      */
     @Override
     public Stream<ActionView> getByEntity(@Nonnull final Collection<Long> involvedEntities) {
+        // if the user is scoped, verify that the user has access to all of the requested entities.
+        if (userSessionContext.isUserScoped()) {
+            UserScopeUtils.checkAccess(userSessionContext, involvedEntities);
+        }
+
         // We need to copy the matching action views into an intermediate list
         // while holding the lock.
         final List<ActionView> results = new ArrayList<>();
@@ -354,7 +388,13 @@ class LiveActions implements QueryableActionViews {
                 .flatMap(Collection::stream)
                 // De-dupe the target action ids.
                 .distinct()
-                .map(this::get)
+                .map(actionId -> {
+                    try { // filter out inaccessible actions
+                        return get(actionId);
+                    } catch (UserAccessScopeException uase) {
+                        return Optional.<ActionView>empty();
+                    }
+                })
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .forEach(results::add);
@@ -369,6 +409,12 @@ class LiveActions implements QueryableActionViews {
      */
     @Override
     public Stream<ActionView> getAll() {
+        // if the user is scoped, get the subset of actions for the entities they have access to.
+        if (userSessionContext.isUserScoped()) {
+            return getByEntity(userSessionContext.getUserAccessScope().accessibleOids().toSet());
+        }
+        // otherwise, the user is not scoped and we can pull them all right out of the map.
+
         // We need to make a copy, because we can't stream while holding the lock.
         final Map<Long, ActionView> copy = Collections.unmodifiableMap(copy());
         return copy.values().stream();
@@ -396,9 +442,10 @@ class LiveActions implements QueryableActionViews {
         try {
             Action result = marketActions.get(actionId);
             if (result == null) {
-                return Optional.ofNullable(riActions.get(actionId));
+                result = riActions.get(actionId);
             }
-            return Optional.of(result);
+            checkActionAccess(result);
+            return Optional.ofNullable(result);
         } finally {
             actionsLock.readLock().unlock();
         }
@@ -439,6 +486,32 @@ class LiveActions implements QueryableActionViews {
             actionsLock.readLock().unlock();
         }
     }
+
+    /**
+     * Check the current user's access to the action. The default case is that access is allowed,
+     * but if the user is scoped, then we'll check to make sure that all involved entities are in
+     * the user's accessible entity set.
+     *
+     * @param action The action to check access on.
+     */
+    private void checkActionAccess(ActionView action) {
+        if (action == null) {
+            return;
+        }
+
+        if (userSessionContext.isUserScoped()) {
+            try {
+                if (!userSessionContext.getUserAccessScope()
+                        .contains(ActionDTOUtil.getInvolvedEntityIds(action.getRecommendation()))) {
+                    throw new UserAccessScopeException("User does not have access to all entities involved in action.");
+                }
+            } catch (UnsupportedActionException uae) {
+                logger.error("Unsupported action {}", uae);
+            }
+        }
+    }
+
+
 
     private static class Metrics {
         private static final DataMetricSummary ACTION_COUNTS_SUMMARY = DataMetricSummary.builder()

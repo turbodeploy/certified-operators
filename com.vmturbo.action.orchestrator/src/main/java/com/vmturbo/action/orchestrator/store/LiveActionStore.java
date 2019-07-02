@@ -18,12 +18,12 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.collect.Collections2;
+import com.google.common.collect.Sets;
+
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.Collections2;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
@@ -38,6 +38,7 @@ import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.
 import com.vmturbo.action.orchestrator.store.LiveActions.RecommendationTracker;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -79,7 +80,7 @@ public class LiveActionStore implements ActionStore {
 
     private final EntitiesAndSettingsSnapshotFactory entitySettingsCache;
 
-    private static final String STORE_TYPE_NAME = "Live";
+    public static final String STORE_TYPE_NAME = "Live";
 
     private final ActionTargetSelector actionTargetSelector;
 
@@ -88,6 +89,8 @@ public class LiveActionStore implements ActionStore {
     private final LiveActionsStatistician actionsStatistician;
 
     private final ActionTranslator actionTranslator;
+
+    private final UserSessionContext userSessionContext;
 
     /**
      * A mutable (real-time) action is considered visible (from outside the Action Orchestrator's perspective)
@@ -113,16 +116,18 @@ public class LiveActionStore implements ActionStore {
                            @Nonnull final ActionHistoryDao actionHistoryDao,
                            @Nonnull final LiveActionsStatistician liveActionsStatistician,
                            @Nonnull final ActionTranslator actionTranslator,
-                           @Nonnull final Clock clock) {
+                           @Nonnull final Clock clock,
+                           @Nonnull final UserSessionContext userSessionContext) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.topologyContextId = topologyContextId;
         this.severityCache = new EntitySeverityCache();
         this.actionTargetSelector = actionTargetSelector;
         this.probeCapabilityCache = probeCapabilityCache;
         this.entitySettingsCache = entitySettingsCache;
-        this.actions = new LiveActions(actionHistoryDao, clock);
+        this.actions = new LiveActions(actionHistoryDao, clock, userSessionContext);
         this.actionsStatistician = Objects.requireNonNull(liveActionsStatistician);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
+        this.userSessionContext = Objects.requireNonNull(userSessionContext);
     }
 
     /**

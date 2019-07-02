@@ -574,8 +574,8 @@ public class GroupRpcService extends GroupServiceImplBase {
             List<Long> members = getNormalGroupMembers(group, request.getExpandNestedGroups());
             // verify the user has access to all of the group members before returning any of them.
             if (request.getEnforceUserScope() && userSessionContext.isUserScoped()) {
-                if (group.getType() == Type.NESTED_GROUP) {
-                    // Need to get the expanded members.
+                if ((!request.getExpandNestedGroups()) && group.getType() == Type.NESTED_GROUP) {
+                    // Need to use the expanded members for checking access, if we didn't already fetch them
                     UserScopeUtils.checkAccess(userSessionContext, getNormalGroupMembers(group, true));
                 } else {
                     UserScopeUtils.checkAccess(userSessionContext, members);

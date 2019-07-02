@@ -139,28 +139,20 @@ public class GroupExpander {
             return groupMembersResp.getMembers().getIdsList();
         });
 
-        // Fill in the expanded entities.
+        // now get the entities in the group. If this is a group-of-groups, the "members" in the group
+        // will be the group id's, while the "entities" in the group will be all the service entities
+        // contained within those nested groups. If this is NOT a group-of-groups, the "members" and
+        // "entities" will be the same -- the set of service entities contained in the group.
         final Collection<Long> entities;
-        if (!members.isEmpty()) {
-            if (group.getType() == Type.NESTED_GROUP) {
-                // If expanding a nested group, we want the "leaf" entities.
-                // Right now we only support one level of nesting, so it's a pretty
-                // straightforward call.
-                Set<Long> entitiesSet = new HashSet<>();
-                groupServiceGrpc.getGroups(GetGroupsRequest.newBuilder()
-                    .addAllId(members)
-                    .build()).forEachRemaining(groupInNestedGroup -> {
-                    if (groupInNestedGroup.getType() == Type.CLUSTER) {
-                        entitiesSet.addAll(GroupProtoUtil.getClusterMembers(groupInNestedGroup));
-                    } else {
-                        throw new IllegalArgumentException("Unhandled nested group type: " +
-                            groupInNestedGroup.getType());
-                    }
-                });
-                entities = entitiesSet;
-            } else {
-                entities = members;
-            }
+        // If the group is nested, make a 2nd call with the "expand nested groups" flag to fetch
+        // the leaf entities in the nested groups.
+        if (group.getType() == Type.NESTED_GROUP) {
+            entities = groupServiceGrpc.getMembers(GetMembersRequest.newBuilder()
+                            .setId(group.getId())
+                            .setExpectPresent(true)
+                            .setExpandNestedGroups(true)
+                            .build())
+                        .getMembers().getIdsList();
         } else {
             entities = members;
         }

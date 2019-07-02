@@ -422,15 +422,8 @@ public class MarketsService implements IMarketsService {
         handleInvalidCases(inputDto.getStartTime(), inputDto.getEndTime());
         adjustEndTime(inputDto);
         final ApiId apiId = uuidMapper.fromUuid(uuid);
-        // for realtime markets, if the user is restricted by a scope, then add an oid filter to the
-        // request. For plans, there is no filtering.
-        EntityAccessScope userScope = userSessionContext.getUserAccessScope();
-        Optional<Set<Long>> includedOids = (!apiId.isRealtimeMarket() || userScope.containsAll())
-                ? Optional.empty()
-                : Optional.of(userScope.getScopeGroupMembers().toSet());
-
         final ActionQueryFilter filter =
-                actionSpecMapper.createActionFilter(inputDto, includedOids);
+                actionSpecMapper.createActionFilter(inputDto, Optional.empty());
         final FilteredActionResponse response = actionRpcService.getAllActions(
                 FilteredActionRequest.newBuilder()
                         .setTopologyContextId(apiId.oid())

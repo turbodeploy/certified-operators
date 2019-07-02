@@ -12,6 +12,7 @@ import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 
 /**
  * A factory for creating {@link ActionStore}s.
@@ -45,6 +46,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
 
     private final Clock clock;
 
+    private final UserSessionContext userSessionContext;
+
     /**
      * Create a new ActionStoreFactory.
      */
@@ -57,7 +60,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
                               @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
                               @Nonnull final LiveActionsStatistician actionsStatistician,
                               @Nonnull final ActionTranslator actionTranslator,
-                              @Nonnull final Clock clock) {
+                              @Nonnull final Clock clock,
+                              @Nonnull final UserSessionContext userSessionContext) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.databaseDslContext = Objects.requireNonNull(databaseDslContext);
@@ -68,6 +72,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.probeCapabilityCache = Objects.requireNonNull(probeCapabilityCache);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.clock = Objects.requireNonNull(clock);
+        this.userSessionContext = Objects.requireNonNull(userSessionContext);
     }
 
     /**
@@ -80,9 +85,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
     public ActionStore newStore(final long topologyContextId) {
         if (topologyContextId == realtimeTopologyContextId) {
             return new LiveActionStore(actionFactory, topologyContextId,
-                actionTargetSelector, probeCapabilityCache,
-                entitySettingsCache, actionHistoryDao,
-                actionsStatistician, actionTranslator, clock);
+                actionTargetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
+                actionsStatistician, actionTranslator, clock, userSessionContext);
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId);
         }
