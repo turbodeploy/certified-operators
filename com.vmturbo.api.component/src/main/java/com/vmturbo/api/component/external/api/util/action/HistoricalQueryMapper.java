@@ -19,6 +19,7 @@ import com.google.common.base.Preconditions;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.utils.DateTimeUtil;
@@ -136,6 +137,21 @@ class HistoricalQueryMapper {
                     MgmtUnitSubgroupFilter.newBuilder();
                 if (scope.isRealtimeMarket()) {
                     mgmtSubgroupFilterBldr.setMarket(true);
+                } else if (scope.isGlobalTempGroup()) {
+                    // If it's a global-scope temporary group, we treat it as a case of the market.
+                    mgmtSubgroupFilterBldr.setMarket(true);
+                    // If the query doesn't specify explicit related entity types, use the type
+                    // of the group as the entity type.
+                    //
+                    // If the query DOES specify explicit related entity types, ignore the group
+                    // entity types. i.e. saying "get me stats for all PMs related to all VMs in
+                    // the system" is pretty much the same - or close enough - to "get me stats for
+                    // all PMs in the system".
+                    if (query.getRelatedEntityTypes().isEmpty()) {
+                        // The .get() is safe because we know it's a group (or else we wouldn't be
+                        // in this block.
+                        mgmtSubgroupFilterBldr.addEntityType(scope.getGroupEntityType().get().typeNumber());
+                    }
                 } else {
                     mgmtSubgroupFilterBldr.setMgmtUnitId(scope.oid());
                 }

@@ -4,6 +4,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -16,6 +17,7 @@ import org.junit.Test;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.enums.ActionMode;
@@ -27,7 +29,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.GroupBy;
+import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.MgmtUnitSubgroupFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -42,6 +46,7 @@ public class HistoricalQueryMapperTest {
         final ApiId apiId = mock(ApiId.class);
         when(apiId.isRealtimeMarket()).thenReturn(false);
         when(apiId.oid()).thenReturn(mgmtUnitId);
+        when(apiId.getCachedGroupInfo()).thenReturn(Optional.empty());
 
         final ActionApiInputDTO inputDto = new ActionApiInputDTO();
         inputDto.setStartTime(DateTimeUtil.toString(startTime));
@@ -104,6 +109,46 @@ public class HistoricalQueryMapperTest {
             is(EnvironmentTypeEnum.EnvironmentType.CLOUD));
 
         assertThat(grpcQuery.getGroupBy(), is(GroupBy.ACTION_CATEGORY));
+    }
+
+    @Test
+    public void testExtractRealtimeMktFilter() {
+        final ApiId mktScope = mock(ApiId.class);
+        when(mktScope.isRealtimeMarket()).thenReturn(true);
+        ActionStatsQuery query = ImmutableActionStatsQuery.builder()
+            .addScopes(mktScope)
+            .entityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+            .actionInput(new ActionApiInputDTO())
+            .build();
+        final Map<ApiId, MgmtUnitSubgroupFilter> filters = new HistoricalQueryMapper(mock(ActionSpecMapper.class))
+            .extractMgmtUnitSubgroupFilter(query);
+        assertTrue(filters.get(mktScope).getMarket());
+        assertThat(filters.get(mktScope).getEntityTypeList(),
+            containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE.typeNumber()));
+    }
+
+    @Test
+    public void testExtractRealtimeGlobalGroupFilter() {
+        final CachedGroupInfo globalVmGroup = mock(CachedGroupInfo.class);
+        when(globalVmGroup.getEntityType()).thenReturn(UIEntityType.VIRTUAL_MACHINE);
+        when(globalVmGroup.isGlobalTempGroup()).thenReturn(true);
+
+        final ApiId mktScope = mock(ApiId.class);
+        when(mktScope.isRealtimeMarket()).thenReturn(false);
+        when(mktScope.isGlobalTempGroup()).thenReturn(true);
+        when(mktScope.getGroupEntityType()).thenReturn(Optional.of(UIEntityType.VIRTUAL_MACHINE));
+
+        ActionStatsQuery query = ImmutableActionStatsQuery.builder()
+            .addScopes(mktScope)
+            .actionInput(new ActionApiInputDTO())
+            .build();
+        final Map<ApiId, MgmtUnitSubgroupFilter> filters = new HistoricalQueryMapper(mock(ActionSpecMapper.class))
+            .extractMgmtUnitSubgroupFilter(query);
+        assertTrue(filters.get(mktScope).getMarket());
+
+        // By default, the entity type of the global group is used.
+        assertThat(filters.get(mktScope).getEntityTypeList(),
+            containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE.typeNumber()));
     }
 
 }

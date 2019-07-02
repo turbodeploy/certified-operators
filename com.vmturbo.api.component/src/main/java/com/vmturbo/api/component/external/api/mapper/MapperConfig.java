@@ -151,6 +151,7 @@ public class MapperConfig {
     @Bean
     public UuidMapper uuidMapper() {
         return new UuidMapper(communicationConfig.getRealtimeTopologyContextId(),
+            communicationConfig.repositoryApi(),
             communicationConfig.planRpcService(),
             communicationConfig.groupRpcService());
     }
