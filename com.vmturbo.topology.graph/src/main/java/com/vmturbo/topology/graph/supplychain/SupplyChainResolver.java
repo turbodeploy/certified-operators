@@ -45,7 +45,8 @@ public class SupplyChainResolver<E extends TopologyGraphEntity<E>> {
     private static final Set<Set<Integer>> MANDATORY_EDGE_TYPES =
         ImmutableSet.of(
             ImmutableSet.of(EntityType.VIRTUAL_DATACENTER_VALUE, EntityType.VIRTUAL_DATACENTER_VALUE),
-            ImmutableSet.of(EntityType.STORAGE_VALUE, EntityType.LOGICAL_POOL_VALUE)
+            ImmutableSet.of(EntityType.STORAGE_VALUE, EntityType.LOGICAL_POOL_VALUE),
+            ImmutableSet.of(EntityType.LOGICAL_POOL_VALUE, EntityType.DISK_ARRAY_VALUE)
         );
 
     private static class Context<E extends TopologyGraphEntity<E>> {
