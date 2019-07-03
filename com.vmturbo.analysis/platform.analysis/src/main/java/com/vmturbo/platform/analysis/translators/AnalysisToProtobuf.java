@@ -10,6 +10,9 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,7 +20,8 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.collect.BiMap;
-
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
@@ -272,11 +276,13 @@ public final class AnalysisToProtobuf {
      * provisioned traders
      * @param shoppingListOid The ShoppingList to oid mapping which includes both original and newly
      * provisioned ShoppingLists
+     * @param preferentialTraders traders in economy's preferential shopping list.
      * @return The resulting {@link TraderTO}.
      */
     public static @NonNull TraderTO traderTO(@NonNull UnmodifiableEconomy economy, @NonNull Trader trader,
                                              @NonNull BiMap<@NonNull Trader, @NonNull Long> traderToOidMap,
-                                             @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOid) {
+                                             @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOid,
+                                             @Nonnull Set<Trader> preferentialTraders) {
         TraderTO.Builder builder = TraderTO.newBuilder()
             .setOid(traderToOidMap.get(trader))
             .setType(trader.getType())
@@ -285,10 +291,8 @@ public final class AnalysisToProtobuf {
             .addAllCliques(trader.getCliques())
             .setSettings(traderSettingsTO(trader.getSettings()))
             .setNumOfProduces((int)trader.getUniqueCustomers().stream()
-                                        .filter(t -> t.getState().isActive() && !economy
-                                                        .getMarketsAsBuyer(t).keySet()
-                                                        .stream().anyMatch(sl -> economy
-                                                                        .getPreferentialShoppingLists().contains(sl)))
+                                        .filter(t -> t.getState().isActive()
+                                            && !preferentialTraders.contains(t))
                                         .count())
             .setUnplacedExplanation(trader.getUnplacedExplanation());
 
@@ -661,6 +665,9 @@ public final class AnalysisToProtobuf {
             traderIndex++;
         }
 
+        Set<Trader> preferentialTraders = economy.getPreferentialShoppingLists().stream()
+            .map(sl -> sl.getBuyer())
+            .collect(Collectors.toSet());
         List<TraderTO> traderTOList = new ArrayList<>();
         if (sendBack) {
             for (@NonNull @ReadOnly Trader trader : economy.getTraders()) {
@@ -668,7 +675,7 @@ public final class AnalysisToProtobuf {
                     // in case of a cloned trader, if it is suspended(INACTIVE state), skip
                     // creating a traderTO for it
                     traderTOList.add(AnalysisToProtobuf.traderTO(economy, trader, traderToOidMap,
-                                    shoppingListOid));
+                                    shoppingListOid, preferentialTraders));
                 }
             }
         }

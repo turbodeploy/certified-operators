@@ -110,9 +110,10 @@ public class Resizer {
                                calculateDesiredCapacity(commoditySold, newRevenue, seller, economy);
                             Pair<CommoditySold, Trader> p = findSellerCommodityAndSupplier(economy,
                                 seller, soldIndex);
+                            CommoditySold rawMaterial = (p != null) ? p.getFirst() : null;
                             double newEffectiveCapacity = calculateEffectiveCapacity(seller,
                                 resizedCommodity, desiredCapacity, commoditySold,
-                                p.getFirst(), rateOfResize);
+                                    rawMaterial, rateOfResize);
                             if (consistentResizing || Double.compare(newEffectiveCapacity,
                                         commoditySold.getEffectiveCapacity()) != 0) {
                                 double newCapacity = newEffectiveCapacity /
@@ -566,8 +567,12 @@ public class Resizer {
                     double newQuantityBought = commSoldBySupplier.getQuantity() -
                                                         (oldQuantityBought - decrementedQuantity);
                     if (!supplier.isTemplateProvider()) {
-                        checkArgument(newQuantityBought >= 0, "Expected new quantity bought %s to >= 0",
-                                      newQuantityBought);
+                        if (newQuantityBought < 0) {
+                            logger.warn("Expected new quantity bought {} to >= 0. Buyer is {}. " +
+                                "Supplier is {}.", newQuantityBought, seller.getDebugInfoNeverUseInCode(),
+                                supplier.getDebugInfoNeverUseInCode());
+                            continue;
+                        }
                         commSoldBySupplier.setQuantity(newQuantityBought);
                     }
                     shoppingList.getQuantities()[boughtIndex] = decrementedQuantity;

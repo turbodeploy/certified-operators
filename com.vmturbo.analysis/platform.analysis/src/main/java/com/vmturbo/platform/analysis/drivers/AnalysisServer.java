@@ -2,6 +2,7 @@ package com.vmturbo.platform.analysis.drivers;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -20,10 +21,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.communication.ITransport.EventHandler;
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
@@ -168,6 +172,7 @@ public class AnalysisServer implements AutoCloseable {
         instInfo.getLastComplete().setTopologyId(message.getTopologyId());
         instInfo.setMarketName(message.getMarketName());
         instInfo.setRealTime(discovered.getRealTime());
+        instInfo.setBalanceDeploy(discovered.getBalanceDeploy());
         instInfo.setMarketData(message.getMarketData());
         Topology currentPartial = instInfo.getCurrentPartial();
         currentPartial.setTopologyId(message.getTopologyId());
@@ -351,7 +356,8 @@ public class AnalysisServer implements AutoCloseable {
      * @param lastComplete the most recent complete topology
      * @return actionDTOs, projected traderDTOs and priceIndex
      */
-    private AnalysisResults generateAnalysisResult(AnalysisInstanceInfo instInfo,
+    @VisibleForTesting
+    AnalysisResults generateAnalysisResult(AnalysisInstanceInfo instInfo,
                     Topology lastComplete) {
         List<Action> actions;
         AnalysisResults results;
@@ -379,11 +385,30 @@ public class AnalysisServer implements AutoCloseable {
                             instInfo.isProvisionEnabled(), instInfo.isSuspensionEnabled(),
                             instInfo.isResizeEnabled(), true, mktData, instInfo.isRealTime(),
                             instInfo.getSuspensionsThrottlingConfig());
+            if (instInfo.isBalanceDeploy()) {
+                Set<Trader> placedVMSet = economy.getPlacementEntities().stream()
+                    .filter(vm -> economy.getMarketsAsBuyer(vm).keySet().stream()
+                        .allMatch(sl -> sl.getSupplier() != null)).collect(Collectors.toSet());
+                if (!placedVMSet.isEmpty()) {
+                    Collections.reverse(actions);
+                    actions.stream().filter(action -> ((ActionImpl)action).isActionTaken())
+                        .forEach(action -> action.rollback());
+                    economy.getTraders().stream()
+                        .filter(trader -> !placedVMSet.contains(trader))
+                            .forEach(trader -> {
+                                economy.getMarketsAsBuyer(trader).keySet()
+                                                .forEach(sl -> sl.setMovable(false));
+                            });
+                    actions = ede.generateActions(economy, instInfo.isClassifyActions(),
+                                    instInfo.isProvisionEnabled(), instInfo.isSuspensionEnabled(),
+                                    instInfo.isResizeEnabled(), true, mktData, instInfo.isRealTime(),
+                                    instInfo.getSuspensionsThrottlingConfig());
+                }
+            }
             long stop = System.nanoTime();
             results = AnalysisToProtobuf.analysisResults(actions, lastComplete.getTraderOids(),
                             lastComplete.getShoppingListOids(), stop - start, lastComplete,
                             startPriceStatement, true);
-
             if (instInfo.isRealTime() && instInfo.isProvisionEnabled()) {
                 // Clear Unquoted Commodities list for Provision round in order to Provision
                 // enough supply as expected.
@@ -417,15 +442,21 @@ public class AnalysisServer implements AutoCloseable {
                 }
                 builder.addAllNewShoppingListToBuyerEntry(AnalysisToProtobuf
                                                     .createNewShoppingListToBuyerMap(lastComplete));
+
                 // Recreate TraderTO in order to send back the updated TraderTO after actions from
                 // this provision round may have updated the trader.
+		Set<Trader> preferentialTraders = economy.getPreferentialShoppingLists().stream()
+		    .map(sl -> sl.getBuyer())
+		    .collect(Collectors.toSet());
+
                 for (Trader trader : secondRoundActions.stream().map(Action::getActionTarget)
                                                                 .collect(Collectors.toSet())) {
                     if (!trader.isClone()) {
                         builder.setProjectedTopoEntityTO(trader.getEconomyIndex(),
                                         AnalysisToProtobuf.traderTO(economy, trader,
                                                             lastComplete.getTraderOids(),
-                                                            lastComplete.getShoppingListOids()));
+								    lastComplete.getShoppingListOids(),
+								    preferentialTraders));
                     }
                 }
                 results = builder.build();

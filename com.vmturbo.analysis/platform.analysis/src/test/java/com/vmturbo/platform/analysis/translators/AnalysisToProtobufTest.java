@@ -5,6 +5,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Set;
 
@@ -14,6 +15,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+import com.google.common.collect.Sets;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
@@ -31,6 +34,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.economy.TraderWithSettingsTest;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActivateTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.CompoundMoveTO;
@@ -45,6 +49,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.Topology;
 
@@ -131,12 +136,6 @@ public class AnalysisToProtobufTest {
     @Test
     @Ignore
     public final void testTraderStateTO() {
-        fail("Not yet implemented"); // TODO
-    }
-
-    @Test
-    @Ignore
-    public final void testTraderTO() {
         fail("Not yet implemented"); // TODO
     }
 
@@ -419,9 +418,30 @@ public class AnalysisToProtobufTest {
     // Methods for converting CommunicationDTOs.
 
     @Test
-    @Ignore
-    public final void testAnalysisResults() {
-        fail("Not yet implemented"); // TODO
+    public final void test_TraderTO_numProduces() {
+        Economy economy = new Economy();
+
+        Trader vm1 = TestUtils.createVM(economy, "VM1");
+        Trader vm2 = TestUtils.createVM(economy, "VM2");
+        Trader vm3 = TestUtils.createVM(economy, "VM3");
+        Trader pm = TestUtils.createPM(economy, new ArrayList<Long>(), 10000, 10000, false);
+        pm.setDebugInfoNeverUseInCode("pm1");
+        TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{50, 0}, pm);
+        TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{50, 0}, pm);
+        TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm3, new double[]{50, 0}, pm);
+
+        BiMap<Trader, Long> traderToOidMap = HashBiMap.create();
+        traderToOidMap.put(vm1, 1L);
+        traderToOidMap.put(vm2, 2L);
+        traderToOidMap.put(pm, 3L);
+
+        economy.populateMarketsWithSellers();
+        Set<Trader> prefTrader = Sets.newHashSet(vm1);
+        TraderTO traderTO = AnalysisToProtobuf.traderTO(economy, pm, traderToOidMap, HashBiMap.create(), prefTrader);
+        assertEquals(2, traderTO.getNumOfProduces());
     }
 
 } // end AnalysisToProtobufTest class

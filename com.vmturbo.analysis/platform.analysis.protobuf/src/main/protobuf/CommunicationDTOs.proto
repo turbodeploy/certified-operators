@@ -35,6 +35,9 @@ message StartDiscoveredTopology {
     // The flag to indicate if this analysis run is for realtime
     required bool realTime = 4;
 
+    // The flag to indicate if this analysis run is for deploy market that should be balanced
+    // prior to finding placement.
+    optional bool balanceDeploy = 5 [default = false];
 }
 
 // The message to force a running plan to stop

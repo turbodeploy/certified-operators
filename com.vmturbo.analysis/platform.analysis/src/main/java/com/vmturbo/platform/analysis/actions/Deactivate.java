@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.google.common.hash.Hashing;
@@ -44,7 +45,7 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
      * @param sourceMarket The market that benefits from deactivating target.
      *                     The sourceMarket can be NULL when the target doesn't sell in any market
      */
-    public Deactivate(@NonNull Economy economy, @NonNull Trader target, Market sourceMarket) {
+    public Deactivate(@NonNull Economy economy, @NonNull Trader target, @Nullable Market sourceMarket) {
         super(target,sourceMarket);
         economy_ = economy;
 
@@ -137,9 +138,12 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
                     @NonNull Function<@NonNull Trader, @NonNull String> name,
                     @NonNull IntFunction<@NonNull String> commodityType,
                     @NonNull IntFunction<@NonNull String> traderType) {
-        return new StringBuilder()
-                        .append("Because of insufficient demand for ")
-                        .append(getSourceMarket().getBasket()).append(".").toString(); // TODO: print basket in human-readable form.
+        if (getSourceMarket() != null) {
+            return new StringBuilder().append("Because of insufficient demand for ")
+                            .append(getSourceMarket().getBasket()).append(".").toString(); // TODO: print basket in human-readable form.
+        } else {
+            return new StringBuilder().append("Because trader has no customers.").toString();
+        }
     }
 
     /**

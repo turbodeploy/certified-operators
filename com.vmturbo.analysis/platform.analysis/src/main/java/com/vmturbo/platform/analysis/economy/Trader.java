@@ -67,6 +67,8 @@ public abstract class Trader implements Serializable {
     // Identifies the scaling group that this trader belongs to
     private final static String NO_SCALING_GROUP = "";
     private String scalingGroupId_ = NO_SCALING_GROUP;
+    // Trader coming in to analysis in deploy market as new entity for placement.
+    private boolean isPlacementEntity_ = false;
 
     // Constructors
     /**
@@ -514,5 +516,20 @@ public abstract class Trader implements Serializable {
      */
     public boolean isInScalingGroup() {
         return !NO_SCALING_GROUP.equals(scalingGroupId_);
+    }
+
+    /**
+     * @return whether Trader is in deploy market as new entity for placement.
+     */
+    public boolean isPlacementEntity() {
+        return isPlacementEntity_;
+    }
+
+    /**
+     * Set whether Trader is in deploy market as new entity for placement.
+     * @param isPlacementEntity
+     */
+    public void setPlacementEntity(boolean isPlacementEntity) {
+        this.isPlacementEntity_ = isPlacementEntity;
     }
 } // end interface Trader
