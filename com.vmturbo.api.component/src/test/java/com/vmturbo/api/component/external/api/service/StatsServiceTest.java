@@ -67,6 +67,7 @@ import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
+import com.vmturbo.api.component.external.api.util.TargetExpander;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
@@ -192,6 +193,8 @@ public class StatsServiceTest {
 
     private GroupExpander groupExpander = Mockito.mock(GroupExpander.class);
 
+    private TargetExpander targetExpander = Mockito.mock(TargetExpander.class);
+
     private StatsMapper statsMapper = Mockito.mock(StatsMapper.class);
 
     private final SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder supplychainApiDTOFetcherBuilder =
@@ -266,7 +269,8 @@ public class StatsServiceTest {
 
         statsService = spy(new StatsService(statsServiceRpc, planRpcService, repositoryApi,
             repositoryRpcService, supplyChainFetcherFactory, statsMapper,
-            groupExpander, mockClock, targetsService, groupService, Duration.ofMillis(LIVE_STATS_RETRIEVAL_WINDOW_MS),
+            groupExpander, targetExpander, mockClock, targetsService, groupService,
+            Duration.ofMillis(LIVE_STATS_RETRIEVAL_WINDOW_MS),
             costService, magicScopeGateway, userSessionContext, riService,
             serviceEntityMapper, REALTIME_CONTEXT_ID));
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
@@ -291,6 +295,40 @@ public class StatsServiceTest {
         final Set<Long> expandedOidList = Sets.newHashSet(apiId1.oid());
         when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
         when(groupExpander.expandUuid(anyObject())).thenReturn(expandedOidList);
+
+        final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.getDefaultInstance();
+        when(statsMapper.toAveragedEntityStatsRequest(expandedOidList, inputDto, Optional.empty()))
+                .thenReturn(request);
+
+        when(statsHistoryServiceSpy.getAveragedEntityStats(request))
+            .thenReturn(Collections.singletonList(STAT_SNAPSHOT));
+
+        final StatSnapshotApiDTO apiDto = new StatSnapshotApiDTO();
+        apiDto.setStatistics(Collections.emptyList());
+        when(statsMapper.toStatSnapshotApiDTO(any())).thenReturn(apiDto);
+
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(MinimalEntity.getDefaultInstance());
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(req);
+
+        final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(oid1, inputDto);
+
+        verify(statsMapper).toAveragedEntityStatsRequest(expandedOidList, inputDto, Optional.empty());
+        verify(statsHistoryServiceSpy).getAveragedEntityStats(request);
+        verify(statsMapper, times(1)).toStatSnapshotApiDTO(any());
+        // Should have called targets service to get a list of targets.
+        verify(targetsService).getTargets(null);
+
+        assertTrue(resp.contains(apiDto));
+    }
+
+    @Test
+    public void testGetStatsByEntityQueryWithTarget() throws Exception {
+        final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
+        final Set<Long> expandedOidList = Sets.newHashSet(apiId1.oid());
+        when(groupExpander.getGroup(anyObject())).thenReturn(Optional.empty());
+        TargetInfo mockTargetInfo = Mockito.mock(TargetInfo.class);
+        when(targetExpander.getTarget(eq(oid1))).thenReturn(Optional.of(mockTargetInfo));
+        when(targetExpander.getTargetEntityIds(eq(mockTargetInfo))).thenReturn(expandedOidList);
 
         final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.getDefaultInstance();
         when(statsMapper.toAveragedEntityStatsRequest(expandedOidList, inputDto, Optional.empty()))
@@ -817,6 +855,7 @@ public class StatsServiceTest {
         String planIdString = "111";
         long planId = 111L;
         when(groupExpander.getGroup(planIdString)).thenReturn(Optional.empty());
+        when(targetExpander.getTarget(planIdString)).thenReturn(Optional.empty());
         when(planServiceSpy.getPlan(PlanId.newBuilder().setPlanId(planId).build()))
                 .thenReturn(OptionalPlanInstance.newBuilder()
                         .setPlanInstance(PlanInstance.newBuilder()
@@ -999,6 +1038,7 @@ public class StatsServiceTest {
             Long.toString(LIVE_STATS_RETRIEVAL_WINDOW_MS + 1500), "a");
 
         when(groupExpander.getGroup(anyObject())).thenReturn(Optional.empty());
+        when(targetExpander.getTarget(anyObject())).thenReturn(Optional.empty());
         // just a simple SE, not group or cluster; expanded list is just the input OID
         final Set<Long> expandedOid = Collections.singleton(1L);
         when(groupExpander.expandUuid(oid1)).thenReturn(expandedOid);
@@ -1057,6 +1097,8 @@ public class StatsServiceTest {
                 "162000", "a");
 
         when(groupExpander.getGroup(anyObject())).thenReturn(Optional.empty());
+        when(targetExpander.getTarget(anyObject())).thenReturn(Optional.empty());
+
         // just a simple SE, not group or cluster; expanded list is just the input OID
         final Set<Long> expandedUuids = Collections.singleton(1L);
         when(groupExpander.expandUuid(oid1)).thenReturn(expandedUuids);
@@ -1406,6 +1448,8 @@ public class StatsServiceTest {
             .setEntityType(UIEntityType.DATACENTER.typeNumber())
             .build();
         when(groupExpander.getGroup(eq(dcId))).thenReturn(Optional.empty());
+
+        when(targetExpander.getTarget(eq(dcId))).thenReturn(Optional.empty());
 
         final SearchRequest seReq = ApiTestUtils.mockSearchMinReq(Lists.newArrayList(dcDto));
         when(repositoryApi.newSearchRequest(any(SearchParameters.class)))

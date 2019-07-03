@@ -50,6 +50,7 @@ import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.TargetExpander;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
@@ -121,6 +122,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.api.TargetInfo;
 
 
 /**
@@ -184,6 +186,8 @@ public class StatsService implements IStatsService {
 
     private final GroupExpander groupExpander;
 
+    private final TargetExpander targetExpander;
+
     private final StatsMapper statsMapper;
 
     private final GroupServiceBlockingStub groupServiceRpc;
@@ -204,7 +208,7 @@ public class StatsService implements IStatsService {
 
     // CLUSTER_STATS is a collection of the cluster-headroom stats calculated from nightly plans.
     // TODO: we should share the enum instead of keeping a separate copy.
-    public static final Set<String> CLUSTER_STATS =
+    private static final Set<String> CLUSTER_STATS =
             ImmutableSet.of(StringConstants.CPU_HEADROOM,
                     StringConstants.MEM_HEADROOM,
                     StringConstants.STORAGE_HEADROOM,
@@ -284,6 +288,7 @@ public class StatsService implements IStatsService {
                  @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                  @Nonnull final StatsMapper statsMapper,
                  @Nonnull final GroupExpander groupExpander,
+                 @Nonnull final TargetExpander targetExpander,
                  @Nonnull final Clock clock,
                  @Nonnull final TargetsService targetsService,
                  @Nonnull final GroupServiceBlockingStub groupServiceRpc,
@@ -299,6 +304,7 @@ public class StatsService implements IStatsService {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.repositoryRpcService = Objects.requireNonNull(repositoryRpcService);
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
+        this.targetExpander = targetExpander;
         this.clock = Objects.requireNonNull(clock);
         this.groupExpander = groupExpander;
         this.targetsService = Objects.requireNonNull(targetsService);
@@ -469,6 +475,7 @@ public class StatsService implements IStatsService {
         } else {
             final boolean fullMarketRequest = UuidMapper.isRealtimeMarket(uuid);
             final Optional<Group> groupOptional = groupExpander.getGroup(uuid);
+            final Optional<TargetInfo> targetOptional = targetExpander.getTarget(uuid);
 
             // track if this is a plan or not.
             final boolean isPlanRequest;
@@ -487,8 +494,14 @@ public class StatsService implements IStatsService {
                 isPlanRequest = false;
             } else {
                 // this request should be for either a group or a specific entity
-                final Set<Long> expandedOidsList = groupOptional.isPresent() ?
-                        groupExpander.expandUuid(uuid) : Sets.newHashSet(Long.valueOf(uuid));
+                final Set<Long> expandedOidsList;
+                if (groupOptional.isPresent()) {
+                    expandedOidsList = groupExpander.expandUuid(uuid);
+                } else if (targetOptional.isPresent()) {
+                    expandedOidsList= targetExpander.getTargetEntityIds(targetOptional.get());
+                } else {
+                    expandedOidsList = Sets.newHashSet(Long.valueOf(uuid));
+                }
                 // expand any ServiceEntities that should be replaced by related ServiceEntities,
                 // e.g. DataCenter is replaced by the PhysicalMachines in the DataCenter
                 // and perform supply chain traversal to fetch connected entities

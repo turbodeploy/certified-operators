@@ -23,6 +23,7 @@ import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
+import com.vmturbo.api.component.external.api.util.TargetExpander;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
@@ -40,6 +41,7 @@ import com.vmturbo.kvstore.SAMLConfigurationStoreConfig;
 import com.vmturbo.notification.api.impl.NotificationClientConfig;
 import com.vmturbo.reporting.api.ReportingClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
 
 /**
@@ -52,6 +54,7 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         MapperConfig.class,
         CommunicationConfig.class,
         RepositoryClientConfig.class,
+        TopologyProcessorClientConfig.class,
         ReportingClientConfig.class,
         PublicKeyStoreConfig.class,
         SAMLConfigurationStoreConfig.class,
@@ -127,6 +130,9 @@ public class ServiceConfig {
 
     @Autowired
     private PublicKeyStoreConfig publicKeyStoreConfig;
+
+    @Autowired
+    private TopologyProcessorClientConfig topologyProcessorClientConfig;
 
     @Autowired
     private SAMLConfigurationStoreConfig samlConfigurationStoreConfig;
@@ -421,6 +427,7 @@ public class ServiceConfig {
                 communicationConfig.supplyChainFetcher(),
                 mapperConfig.statsMapper(),
                 communicationConfig.groupExpander(),
+                targetExpander(),
                 Clock.systemUTC(),
                 targetService(),
                 communicationConfig.groupRpcService(),
@@ -534,6 +541,12 @@ public class ServiceConfig {
             communicationConfig.groupExpander(),
             communicationConfig.supplyChainFetcher(),
             userSessionContext(),
+            communicationConfig.repositoryApi());
+    }
+
+    @Bean
+    public TargetExpander targetExpander() {
+        return new TargetExpander(communicationConfig.topologyProcessor(),
             communicationConfig.repositoryApi());
     }
 
