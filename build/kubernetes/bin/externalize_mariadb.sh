@@ -6,9 +6,14 @@
 set -eou pipefail
 CODE_DIR="/opt/local/bin"
 MY_CNF="/etc/my.cnf.d/server.cnf"
-MYSQL_DATA_DIR="/var/lib/mysql/mysql"
+MYSQL_MOUNT_DIR="/var/lib/mysql"
+MYSQL_DATA_DIR="$MYSQL_MOUNT_DIR/mysql"
 MYSQL_VAR_RUN="/var/run/mysqld"
 TMP_GLUSTER_MOUNT_LOC="/mnt/mariadb-gluster"
+# Cookie file to indicate that there was a migration which was
+# interrupted and the script can be safely retried if the cookie
+# file exists.
+DB_COPY_COOKIE_FILE="$MYSQL_MOUNT_DIR/db_data_migration.cookie"
 
 source $CODE_DIR/libs.sh
 
@@ -32,20 +37,35 @@ then
 fi
 
 
-if [[ ! -z "$(sudo ls -A $MYSQL_DATA_DIR)" ]]; then
+if [[ ! -z "$(sudo ls -A $MYSQL_DATA_DIR 2>/dev/null)" ]] && [[ ! -f $DB_COPY_COOKIE_FILE ]]; then
     log_msg "Error: Mariadb data directory already exists and is not empty. Aborting."
     exit 1
 fi
 
+# For safety, stop mariadb service before starting the migration.
+[[ $(sudo systemctl -q list-unit-files mariadb.service) ]] && sudo systemctl stop mariadb
+
 # Get the gluster volume where the existing db data is stored.
-gluster_db_volume=$(kubectl get pvc | grep db-data | awk '{print $3}')
-gluster_volume_path=$(mount | grep $gluster_db_volume | awk  '{print $1}')
+# If the db container is scaled down, we can't get the volume info(incase,
+# script is re-execute due to an error or ssh timeout etc.). So we store the
+# db gluster volumen info in a temp file the 1st time this script is executed
+# and for subsequent runs, we will get this info from the file.
+# we append the current date
+gluster_db_volume=$(kubectl get pvc | egrep 'db-data|mysql-data' | awk '{print $3}')
+gluster_db_volume_info_file="/tmp/gluster_db_volume.info"
+if [[ ! -f $gluster_db_volume_info_file ]]; then
+    gluster_volume_path=$(mount | grep $gluster_db_volume | awk  '{print $1}')
+    echo $gluster_volume_path > $gluster_db_volume_info_file
+else
+    gluster_volume_path=$(cat $gluster_db_volume_info_file)
+fi
 
 # Shutdown all XL pods including the DB pod so that no DB transactions are on-going.
 for pod in $(kubectl get deployments -n turbonomic | awk '{print $1}' | egrep -v 'NAME|t8c-operator' )
 do
     kubectl scale deployment $pod --replicas=0
 done
+echo
 log_msg "Waiting for the pods to terminate..."
 sleep 60
 
@@ -79,11 +99,9 @@ if ! sudo grep $MYSQL_DATA_DIR $MY_CNF ; then
 fi
 
 sudo chmod 700 $MY_CNF
-pushd .
-cd $TMP_GLUSTER_MOUNT_LOC
+sudo touch $DB_COPY_COOKIE_FILE
 log_msg "Copying DB data from gluster volume to local disk on the VM."
-sudo cp -a . $MYSQL_DATA_DIR/
-popd
+sudo rsync -avzP $TMP_GLUSTER_MOUNT_LOC/ $MYSQL_DATA_DIR/
 sudo chown -R mysql:mysql $MYSQL_DATA_DIR
 
 mariadb_tmp_dir=$(sudo grep tmpdir $MY_CNF  | awk '{print $NF}')
@@ -97,4 +115,6 @@ log_msg "Starting MariaDB server."
 sudo systemctl restart  mariadb
 
 log_msg "Successfully migrated mariadb."
+sudo rm -f $DB_COPY_COOKIE_FILE
+rm -f $gluster_db_volume_info_file
 
