@@ -523,9 +523,16 @@ public class Ledger {
                                                                                 / 2)
                                                                 : incomeStatementExpenses[0];
 
-                                commSoldIS.setExpenses(commSoldIS.getExpenses() + historicalExpenses);
-                                commSoldIS.setMaxDesiredExpenses(commSoldIS.getMaxDesiredExpenses() + incomeStatementExpenses[1]);
-                                commSoldIS.setMinDesiredExpenses(commSoldIS.getMinDesiredExpenses() + incomeStatementExpenses[2]);
+                                commSoldIS.setExpenses(relevantShoppingListProcessed
+                                    ? (commSoldIS.getExpenses() + historicalExpenses)
+                                        : historicalExpenses);
+                                commSoldIS.setMaxDesiredExpenses(relevantShoppingListProcessed
+                                    ? (commSoldIS.getMaxDesiredExpenses() + incomeStatementExpenses[1])
+                                        : incomeStatementExpenses[1]);
+                                commSoldIS.setMinDesiredExpenses(relevantShoppingListProcessed
+                                    ? (commSoldIS.getMinDesiredExpenses() + incomeStatementExpenses[2])
+                                        : incomeStatementExpenses[2]);
+                                relevantShoppingListProcessed = true;
                             }
                         } else if (!commBoughtExists) {
                             // Only set expenses to 1, if all the commodities in typeOfCommsBought
@@ -553,9 +560,6 @@ public class Ledger {
                         continue;
                     }
 
-                    // Set relevantShoppingList as it contains a valid bought index in current shopping list.
-                    relevantShoppingListProcessed = true;
-
                     // find the right provider comm and use it to compute the expenses
                     CommoditySold commSoldBySeller = supplier.getCommoditySold(basketBought
                             .get(boughtIndex));
@@ -577,9 +581,17 @@ public class Ledger {
                                                                         + incomeStatementExpenses[2])
                                                                         / 2)
                                                         : incomeStatementExpenses[0];
-                        commSoldIS.setExpenses(commSoldIS.getExpenses() + historicalExpenses);
-                        commSoldIS.setMaxDesiredExpenses(commSoldIS.getMaxDesiredExpenses() + incomeStatementExpenses[1]);
-                        commSoldIS.setMinDesiredExpenses(commSoldIS.getMinDesiredExpenses() + incomeStatementExpenses[2]);
+                        commSoldIS.setExpenses(relevantShoppingListProcessed
+                            ? (commSoldIS.getExpenses() + historicalExpenses)
+                                : historicalExpenses);
+                        commSoldIS.setMaxDesiredExpenses(relevantShoppingListProcessed
+                            ? (commSoldIS.getMaxDesiredExpenses() + incomeStatementExpenses[1])
+                                : incomeStatementExpenses[1]);
+                        commSoldIS.setMinDesiredExpenses(relevantShoppingListProcessed
+                            ? (commSoldIS.getMinDesiredExpenses() + incomeStatementExpenses[2])
+                                : incomeStatementExpenses[2]);
+                        // Set relevantShoppingList as it contains a valid bought index in current shopping list.
+                        relevantShoppingListProcessed = true;
 
                         if (logger.isTraceEnabled() || isDebugTrader) {
                             logger.info("Using relevant shopping list " + shoppingList.getDebugInfoNeverUseInCode()
