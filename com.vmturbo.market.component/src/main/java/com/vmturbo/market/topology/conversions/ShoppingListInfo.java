@@ -63,7 +63,7 @@ public class ShoppingListInfo {
         return buyerId;
     }
 
-    public long getSellerId() {
+    public Long getSellerId() {
         return sellerId;
     }
 

@@ -587,6 +587,7 @@ public class ActionInterpreter {
         // Update moveSource if the original supplier is in MAINTENANCE or FAILOVER state.
         final ShoppingListInfo shoppingListInfo = shoppingListOidToInfos.get(move.getShoppingListToMove());
         if (!move.hasSource() &&
+            shoppingListInfo.getSellerId() != null &&
             projectedTopology.containsKey(shoppingListInfo.getSellerId()) &&
             evacuationEntityState.contains(
                 projectedTopology.get(shoppingListInfo.getSellerId()).getEntity().getEntityState()))
@@ -847,7 +848,8 @@ public class ActionInterpreter {
                     shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
                 // Create Evacuation instead of InitialPlacement
                 // if the original supplier is in MAINTENANCE or FAILOVER state.
-                if (projectedTopology.containsKey(shoppingListInfo.getSellerId()) &&
+                if (shoppingListInfo.getSellerId() != null &&
+                    projectedTopology.containsKey(shoppingListInfo.getSellerId()) &&
                     evacuationEntityState.contains(
                         projectedTopology.get(shoppingListInfo.getSellerId()).getEntity().getEntityState()))
                     return ChangeProviderExplanation.newBuilder()
