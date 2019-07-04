@@ -31,9 +31,7 @@ env:
   - name: consul_host
     value: consul
   - name: instance_id
-    valueFrom:
-      fieldRef:
-        fieldPath: metadata.name
+    value: topology-processor-1
   - name: instance_ip
     valueFrom:
       fieldRef:
