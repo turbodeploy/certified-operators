@@ -50,7 +50,7 @@ public final class AuditLogUtils {
     private static final Random random = new Random();
     private static TcpSyslogMessageSender messageSender = new TcpSyslogMessageSender();
 
-    // thread pool for scheduled license check updates
+    // thread pool for auditing, so auditing will not block main operation
     private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
     static {
         messageSender.setDefaultAppName("");

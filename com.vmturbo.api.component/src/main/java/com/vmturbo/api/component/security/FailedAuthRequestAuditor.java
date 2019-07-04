@@ -2,6 +2,7 @@ package com.vmturbo.api.component.security;
 
 import java.util.Optional;
 
+import javax.annotation.Nonnull;
 import javax.servlet.http.HttpServletRequest;
 
 import org.apache.logging.log4j.LogManager;
@@ -11,6 +12,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.security.access.event.AuthorizationFailureEvent;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.method.HandlerMethod;
@@ -31,8 +33,7 @@ public class FailedAuthRequestAuditor {
     private static final Logger logger = LogManager.getLogger();
     private ApplicationContext context;
 
-
-    public FailedAuthRequestAuditor(ApplicationContext context) {
+    public FailedAuthRequestAuditor(@Nonnull final ApplicationContext context) {
         this.context = context;
     }
 
@@ -65,23 +66,23 @@ public class FailedAuthRequestAuditor {
      */
     private Optional<String> getMethodName() {
         try {
-            HttpServletRequest request =
-                ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes())
-                    .getRequest();
-            for (HandlerMapping handlerMapping : context.getBeansOfType(HandlerMapping.class)
-                .values()) {
-                HandlerExecutionChain handlerExecutionChain = handlerMapping.getHandler(request);
-                if (handlerExecutionChain != null
-                    && handlerExecutionChain.getHandler() instanceof HandlerMethod
-                    && ((HandlerMethod) handlerExecutionChain.getHandler()).getMethod() != null) {
-                    String methodName = ((HandlerMethod) handlerExecutionChain.getHandler())
-                        .getMethod()
-                        .getName();
-                    return Optional.of(methodName);
+            final RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
+            if (requestAttributes != null && requestAttributes instanceof  ServletRequestAttributes) {
+                final HttpServletRequest request = ((ServletRequestAttributes) requestAttributes).getRequest();
+                for (HandlerMapping handlerMapping : context.getBeansOfType(HandlerMapping.class).values()) {
+                    HandlerExecutionChain handlerExecutionChain = handlerMapping.getHandler(request);
+                    if (handlerExecutionChain != null
+                        && handlerExecutionChain.getHandler() instanceof HandlerMethod
+                        && ((HandlerMethod) handlerExecutionChain.getHandler()).getMethod() != null) {
+                        String methodName = ((HandlerMethod) handlerExecutionChain.getHandler())
+                            .getMethod()
+                            .getName();
+                        return Optional.of(methodName);
+                    }
                 }
             }
         } catch (Exception e) {
-            logger.error(e.getMessage());
+            logger.error("Failed to get invoking method name", e.getMessage());
         }
         return Optional.empty();
     }
