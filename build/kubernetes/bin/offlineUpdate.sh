@@ -38,6 +38,12 @@ ignore_errors: yes' /opt/kubespray/roles/kubernetes/preinstall/defaults/main.yml
 #cp /opt/kubespray/roles/download/tasks/set_docker_image_facts.yml /opt/kubespray/roles/download/tasks/set_docker_image_facts.yml.online
 #sed -i 's/pull_args: >-/pull_args: absent#>-/g' /opt/kubespray/roles/download/tasks/set_docker_image_facts.yml
 
+cp /opt/kubespray/roles/download/tasks/kubeadm_images.yml /opt/kubespray/roles/download/tasks/kubeadm_images.yml.online
+sed -i '/delegate_to:/a\
+          ignore_errors: yes' /opt/kubespray/roles/download/tasks/kubeadm_images.yml
+sed -i '/command:/a\
+          ignore_errors: yes' /opt/kubespray/roles/download/tasks/kubeadm_images.yml
+
 cp /opt/kubespray/roles/network_plugin/calico/tasks/install.yml /opt/kubespray/roles/network_plugin/calico/tasks/install.yml.online
 sed -i '/- upgrade/a\
   ignore_errors: yes' /opt/kubespray/roles/network_plugin/calico/tasks/install.yml
