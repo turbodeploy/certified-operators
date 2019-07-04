@@ -8,8 +8,8 @@ CODE_DIR="/opt/local/bin"
 MY_CNF="/etc/my.cnf.d/server.cnf"
 MYSQL_MOUNT_DIR="/var/lib/mysql"
 MYSQL_DATA_DIR="$MYSQL_MOUNT_DIR/mysql"
-MYSQL_VAR_RUN="/var/run/mysqld"
 TMP_GLUSTER_MOUNT_LOC="/mnt/mariadb-gluster"
+RSYNC_LOG_FILE="/var/log/mariadb_migrate_rsync.log"
 # Cookie file to indicate that there was a migration which was
 # interrupted and the script can be safely retried if the cookie
 # file exists.
@@ -87,31 +87,34 @@ fi
 sudo mkdir -p -m 700 $MYSQL_DATA_DIR
 sudo chown -R mysql:mysql $MYSQL_DATA_DIR
 
-# Create directory for lock file and sockets.
-sudo mkdir -p -m 700 $MYSQL_VAR_RUN
-sudo chown mysql:mysql $MYSQL_VAR_RUN
-
 # Move my.cnf to server.conf
 sudo cp $TMP_GLUSTER_MOUNT_LOC/my.cnf $MY_CNF
 sudo chown -R mysql:mysql $MY_CNF
 if ! sudo grep $MYSQL_DATA_DIR $MY_CNF ; then
     sudo sed -i  's/\/var\/lib\/mysql/\/var\/lib\/mysql\/mysql/g' $MY_CNF
 fi
+sudo sed -i  's/\/var\/run\/mysqld/\/var\/lib\/mysql\/mysql/g' $MY_CNF
 
 sudo chmod 700 $MY_CNF
 sudo touch $DB_COPY_COOKIE_FILE
 log_msg "Copying DB data from gluster volume to local disk on the VM."
-sudo rsync -avzP $TMP_GLUSTER_MOUNT_LOC/ $MYSQL_DATA_DIR/
+sudo rsync -a --info=progress2  --log-file=$RSYNC_LOG_FILE $TMP_GLUSTER_MOUNT_LOC/ $MYSQL_DATA_DIR/
 sudo chown -R mysql:mysql $MYSQL_DATA_DIR
 
 mariadb_tmp_dir=$(sudo grep tmpdir $MY_CNF  | awk '{print $NF}')
 sudo mkdir -p -m 700 $mariadb_tmp_dir
 sudo chown -R mysql:mysql $mariadb_tmp_dir
 
+mariadb_log_dir="/var/log/mysql"
+sudo mkdir -p $mariadb_log_dir
+sudo chown -R mysql:mysql $mariadb_log_dir
+
 configure_buffer_pool $MY_CNF
 [[ -L /share ]] ||  sudo ln -s  /usr/share /share
 
 log_msg "Starting MariaDB server."
+sudo systemctl enable mariadb
+sudo systemctl daemon-reload
 sudo systemctl restart  mariadb
 
 log_msg "Successfully migrated mariadb."

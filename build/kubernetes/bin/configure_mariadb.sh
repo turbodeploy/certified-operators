@@ -31,12 +31,17 @@ if [ ! -d "$mariadb_data_dir" ]; then
     sudo mysql_install_db --defaults-file=$MY_CNF --user=mysql --basedir="/"
 fi
 
+mariadb_log_dir="/var/log/mysql"
+sudo mkdir -p $mariadb_log_dir
+sudo chown -R mysql:mysql $mariadb_log_dir
+
 #Configure innodb buffer pool
 configure_buffer_pool $MY_CNF
 
 log_msg "Starting mariadb service"
 sudo systemctl enable mariadb.service
-sudo systemctl start mariadb.service
+sudo systemctl daemon-reload
+sudo systemctl restart mariadb.service
 if [ "$?" -ne 0 ];
 then
     log_msg "Failed to start Mariadb server. Aborting..."
