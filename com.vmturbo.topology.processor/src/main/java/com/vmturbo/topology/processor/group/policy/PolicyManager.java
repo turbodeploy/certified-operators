@@ -147,7 +147,7 @@ public class PolicyManager {
                 policyApplicator.applyPolicies(policiesToApply, groupResolver, graph);
 
             final long durationMs = System.currentTimeMillis() - startTime;
-            logger.info("Completed application of {} policies in {}ms.", policyTypeCounts, durationMs);
+            logger.info("Completed application of {} policies in {}ms.", policyTypeCounts.size(), durationMs);
 
             if (!results.errors().isEmpty()) {
                 logger.error(results.errors().size() + " policies could not be applied " +

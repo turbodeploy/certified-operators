@@ -22,9 +22,12 @@ import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
  * Tests for {@link ComputeClusterMemberCache}.
  */
 public class ComputeClusterMemberCacheTest {
+
+    private static final String COMPUTE_CLUSTER_NAME = "compute-cluster";
+
     final DiscoveredGroupInfo computeCluster = DiscoveredGroupInfo.newBuilder()
         .setInterpretedCluster(ClusterInfo.newBuilder()
-            .setName("compute-cluster")
+            .setName(COMPUTE_CLUSTER_NAME)
             .setClusterType(Type.COMPUTE)
             .setMembers(StaticGroupMembers.newBuilder()
                 .addStaticMemberOids(HOST_ID)))
@@ -47,22 +50,23 @@ public class ComputeClusterMemberCacheTest {
 
     @Test
     public void testFound() {
-        assertEquals("compute-cluster", cache.clusterNameForHost(host(HOST_ID, TARGET_ID)).get());
+        assertEquals(COMPUTE_CLUSTER_NAME,
+            cache.clusterInfoForHost(host(HOST_ID, TARGET_ID)).get().getName());
     }
 
     @Test
     public void testStorageClusterNotUsed() {
-        assertFalse(cache.clusterNameForHost(host(STORAGE_ID, TARGET_ID)).isPresent());
+        assertFalse(cache.clusterInfoForHost(host(STORAGE_ID, TARGET_ID)).isPresent());
     }
 
     @Test
     public void testNotFoundByTargetId() {
-        assertFalse(cache.clusterNameForHost(host(HOST_ID, TARGET_ID + 1)).isPresent());
+        assertFalse(cache.clusterInfoForHost(host(HOST_ID, TARGET_ID + 1)).isPresent());
     }
 
     @Test
     public void testNotFoundByOid() {
-        assertFalse(cache.clusterNameForHost(host(HOST_ID + 999, TARGET_ID + 1)).isPresent());
+        assertFalse(cache.clusterInfoForHost(host(HOST_ID + 999, TARGET_ID + 1)).isPresent());
     }
 
     @Nonnull

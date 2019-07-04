@@ -11,7 +11,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
@@ -45,34 +44,17 @@ public class ComputeClusterMemberCache {
     }
 
     /**
-     * Determine the name of the compute cluster that a host belongs to.
+     * Determine the Info DTO of the compute cluster that a host belongs to.
      *
      * @param host The host whose compute cluster membership should be looked up.
-     * @return The name of the compute cluster membership that the host belongs to.
+     * @return Info DTO of the compute cluster membership that the host belongs to.
      *         If no compute cluster is found, returns {@link Optional#empty()}
      */
-    public Optional<String> clusterNameForHost(@Nonnull final TopologyStitchingEntity host) {
+    public Optional<ClusterInfo> clusterInfoForHost(@Nonnull final TopologyStitchingEntity host) {
         return Optional.ofNullable(cache.get(host.getTargetId()))
-            .flatMap(clusterMemberses -> clusterMemberses.stream()
+            .flatMap(clusterMembersList -> clusterMembersList.stream()
                 .filter(clusterMembers -> clusterMembers.hasMember(host.getOid()))
-                .map(ClusterMembers::getClusterName)
-                .findFirst());
-    }
-
-    /**
-     * Determine the name of the compute cluster that a host belongs to. Get the name in the format
-     * that the group component expects (it appends the entity type to the actual name).
-     *
-     * @param host The host whose compute cluster membership should be looked up.
-     * @return The name of the compute cluster membership that the host belongs to.
-     *         If no compute cluster is found, returns {@link Optional#empty()}
-     */
-    public Optional<String> groupComponentClusterNameForHost(@Nonnull final TopologyStitchingEntity host) {
-        return Optional.ofNullable(cache.get(host.getTargetId()))
-            .flatMap(clusterMemberses -> clusterMemberses.stream()
-                .filter(clusterMembers -> clusterMembers.hasMember(host.getOid()))
-                .map(clusterMembers -> GroupProtoUtil.discoveredIdFromName(
-                        clusterMembers.getClusterInfo(), host.getTargetId()))
+                .map(ClusterMembers::getClusterInfo)
                 .findFirst());
     }
 
@@ -83,7 +65,7 @@ public class ComputeClusterMemberCache {
         private final Set<Long> memberOids;
         private final ClusterInfo clusterInfo;
 
-        public ClusterMembers(@Nonnull final ClusterInfo clusterInfo) {
+        ClusterMembers(@Nonnull final ClusterInfo clusterInfo) {
             this.clusterInfo = Objects.requireNonNull(clusterInfo);
             this.memberOids = new HashSet<>(clusterInfo.getMembers().getStaticMemberOidsList());
         }
@@ -96,15 +78,6 @@ public class ComputeClusterMemberCache {
          */
         public boolean hasMember(final long memberOid) {
             return memberOids.contains(memberOid);
-        }
-
-        /**
-         * Get the name of the cluster.
-         *
-         * @return The name of the cluster.
-         */
-        public String getClusterName() {
-            return clusterInfo.getName();
         }
 
         /**

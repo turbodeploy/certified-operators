@@ -86,7 +86,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
 
     private final int entitySettingsResponseChunkSize;
 
-    private final static Set<String> IMMUTABLE_ACTION_SETTINGS = ImmutableSet.<String>builder()
+    private static final Set<String> IMMUTABLE_ACTION_SETTINGS = ImmutableSet.<String>builder()
             .add(EntitySettingSpecs.Move.getSettingName()).add(EntitySettingSpecs.StorageMove.getSettingName())
             .add(EntitySettingSpecs.Provision.getSettingName()).add(EntitySettingSpecs.Suspend.getSettingName())
             .add(EntitySettingSpecs.Activate.getSettingName()).add(EntitySettingSpecs.Resize.getSettingName())
@@ -228,7 +228,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
      * to purge the outstanding actions which are in the execution queue.
      */
     private void cancelAutomationActions(SettingPolicy policy) {
-        if (hasAutomationSetting(policy))
+        if (hasAutomationSetting(policy)) {
             try {
                 actionsServiceClient.cancelQueuedActions(
                         CancelQueuedActionsRequest.getDefaultInstance());
@@ -236,6 +236,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
                 // Exception is fine as it is a best-effort call.
                 logger.warn("Failed to cancel outstanding automation actions", e);
             }
+        }
     }
 
     private boolean hasAutomationSetting(final SettingPolicy settingPolicy) {
@@ -365,9 +366,6 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
                     request.getTopologySelection(),
                     request.getSettingFilter());
 
-            final GetEntitySettingsResponse.Builder respBuilder =
-                    GetEntitySettingsResponse.newBuilder();
-
             final Map<Long, String> settingPolicyIdToNameMap = new HashMap<>();
 
             if (request.getSettingFilter().hasIncludeSettingPolicies() &&
@@ -379,6 +377,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
 
                 SettingPolicyFilter.Builder settingPolicyFilter = SettingPolicyFilter.newBuilder()
                         .withType(Type.USER)
+                        .withType(Type.DISCOVERED)
                         .withType(Type.DEFAULT);
 
                 settingPolicyIds.forEach(settingPolicyId -> settingPolicyFilter.withId(settingPolicyId));

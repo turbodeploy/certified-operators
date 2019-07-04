@@ -18,8 +18,10 @@ import javax.annotation.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
@@ -63,6 +65,10 @@ public class DiscoveredSettingPolicyScanner {
     private static final Logger logger = LogManager.getLogger();
 
     public static final double DEFAULT_UTILIZATION_THRESHOLD = 100.0;
+
+    @VisibleForTesting
+    static final String IMPORTED_HA_SETTINGS_NAME =
+                    "Imported HA settings %s on %s";
 
     private final ProbeStore probeStore;
     private final TargetStore targetStore;
@@ -136,7 +142,7 @@ public class DiscoveredSettingPolicyScanner {
         private final ComputeClusterMemberCache clusterMemberCache;
         private final Map<Long, TargetSettingPolicies> targetIdToSettingPoliciesMap;
 
-        public Scanner(@Nonnull final DiscoveredGroupUploader groupUploader) {
+        Scanner(@Nonnull final DiscoveredGroupUploader groupUploader) {
             this.clusterMemberCache =
                 new ComputeClusterMemberCache(groupUploader.getDiscoveredGroupInfoByTarget());
             targetIdToSettingPoliciesMap = new HashMap<>();
@@ -164,11 +170,10 @@ public class DiscoveredSettingPolicyScanner {
                 // Find all hosts with at least one commodity sold requiring a utilization setting.
                 .filter(host -> host.getCommoditiesSold().filter(this::requiresUtilizationSetting).count() > 0)
                 .forEach(host -> {
-                    final Optional<String> clusterName = clusterMemberCache.groupComponentClusterNameForHost(host);
-                    if (clusterName.isPresent()) {
-                        setupSettingPolicy(host, clusterName, host.getCommoditiesSold()
-                            .filter(this::requiresUtilizationSetting)
-                            .collect(Collectors.toList()));
+                    final Optional<ClusterInfo> clusterInfo =
+                                    clusterMemberCache.clusterInfoForHost(host);
+                    if (clusterInfo.isPresent()) {
+                        setupSettingPolicy(host, clusterInfo, commoditiesSoldWithThreshold(host));
                     } else {
                         logger.error("Unable to handle memory or cpu utilization threshold for host {}. " +
                             "Unable to find an associated compute cluster.", host.getOid());
@@ -187,9 +192,14 @@ public class DiscoveredSettingPolicyScanner {
         public void scanVmmHosts(@Nonnull final Stream<TopologyStitchingEntity> vmmHosts) {
             vmmHosts.filter(host ->
                 host.getCommoditiesSold().filter(this::requiresUtilizationSetting).count() > 0)
-                .forEach(host -> setupSettingPolicy(host, Optional.empty(), host.getCommoditiesSold()
-                    .filter(this::requiresUtilizationSetting)
-                    .collect(Collectors.toList())));
+                .forEach(host -> setupSettingPolicy(
+                    host, Optional.empty(), commoditiesSoldWithThreshold(host)));
+        }
+
+        private List<Builder> commoditiesSoldWithThreshold(TopologyStitchingEntity host) {
+            return host.getCommoditiesSold()
+                            .filter(this::requiresUtilizationSetting)
+                            .collect(Collectors.toList());
         }
 
         /**
@@ -199,13 +209,13 @@ public class DiscoveredSettingPolicyScanner {
          * {@link DiscoveredSettingPolicyInfo}.
          *
          * @param host The host for which the setting policy should be setup to include.
-         * @param clusterName The name of the compute cluster containing the host. If none is provided,
+         * @param clusterInfo The details of the compute cluster containing the host. If none is provided,
          *                    a new group will be created containing the host.
          * @param commoditiesWithThresholds The commodities from the host containing mem/cpu utilization
          *                                  threhsolds.
          */
         private void setupSettingPolicy(@Nonnull final TopologyStitchingEntity host,
-                                        @Nonnull final Optional<String> clusterName,
+                                        @Nonnull final Optional<ClusterInfo> clusterInfo,
                                         @Nonnull final List<CommodityDTO.Builder> commoditiesWithThresholds) {
             // Create the setting policy.
             // Note that we differ from legacy here in that we always create the setting regardless of
@@ -216,7 +226,7 @@ public class DiscoveredSettingPolicyScanner {
                     new TargetSettingPolicies());
             final DiscoveredSettingPolicyCreator settingPolicyBuilder =
                 targetSettingPolicies.builderFor(commoditiesWithThresholds);
-            settingPolicyBuilder.applyToHost(host.getOid(), clusterName);
+            settingPolicyBuilder.applyToHost(host.getOid(), clusterInfo);
         }
 
         /**
@@ -310,7 +320,7 @@ public class DiscoveredSettingPolicyScanner {
          * @param memUtilizationThresholdPercentage The memory utilization percentage.
          * @param cpuUtilizationThresholdPercentage The CPU utilization percentage.
          */
-        public UtilizationThresholdValues(@Nonnull final Optional<Double> memUtilizationThresholdPercentage,
+        UtilizationThresholdValues(@Nonnull final Optional<Double> memUtilizationThresholdPercentage,
                                           @Nonnull final Optional<Double> cpuUtilizationThresholdPercentage) {
             // At least one of mem or CPU utilization threshold must be non-null.
             Preconditions.checkArgument(memUtilizationThresholdPercentage.isPresent() ||
@@ -397,8 +407,9 @@ public class DiscoveredSettingPolicyScanner {
         private final UtilizationThresholdValues utilizationThresholdValues;
         private final List<Long> hostOids = new ArrayList<>();
         private final Set<String> clusterNames = new HashSet<>();
+        private final Set<String> clusterDisplayNames = new HashSet<>();
 
-        public DiscoveredSettingPolicyCreator(@Nonnull final UtilizationThresholdValues utilizationThresholdValues) {
+        DiscoveredSettingPolicyCreator(@Nonnull final UtilizationThresholdValues utilizationThresholdValues) {
             this.utilizationThresholdValues = Objects.requireNonNull(utilizationThresholdValues);
         }
 
@@ -411,11 +422,12 @@ public class DiscoveredSettingPolicyScanner {
          * {@link #addGroupsAndSettingPolicies(List, List, String)}.
          *
          * @param hostOid The oid of the host.
-         * @param clusterName The optional cluster containing this host.
+         * @param clusterInfo The optional cluster containing this host.
          */
-        public void applyToHost(final long hostOid, @Nonnull final Optional<String> clusterName) {
-            if (clusterName.isPresent()) {
-                clusterNames.add(clusterName.get());
+        public void applyToHost(final long hostOid, @Nonnull final Optional<ClusterInfo> clusterInfo) {
+            if (clusterInfo.isPresent()) {
+                clusterNames.add(clusterInfo.get().getName());
+                clusterDisplayNames.add(clusterInfo.get().getDisplayName());
             } else {
                 hostOids.add(hostOid);
             }
@@ -431,6 +443,7 @@ public class DiscoveredSettingPolicyScanner {
          * @param settingPolicies The list of setting policies that this {@link DiscoveredSettingPolicyCreator}
          *                        will add a setting policy to. This setting policy is always added,
          *                        not conditionally added.
+         * @param targetName the name of the target
          */
         public void addGroupsAndSettingPolicies(@Nonnull final List<InterpretedGroup> groups,
                                                 @Nonnull final List<DiscoveredSettingPolicyInfo> settingPolicies,
@@ -439,12 +452,14 @@ public class DiscoveredSettingPolicyScanner {
                 .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE);
 
             if (!hostOids.isEmpty()) {
-                final String groupName = composeGroupName(targetName);
+                // Handle cases when no clusters are defined, just a group of host oids (e.g. VMM)
+                final String groupName = composeName(targetName) + "-group";
+                final String groupDisplayName = composeDisplayName(targetName);
                 // Associate the policy with the group.
                 settingBuilder.addDiscoveredGroupNames(groupName);
 
                 final CommonDTO.GroupDTO groupDTO = CommonDTO.GroupDTO.newBuilder()
-                    .setDisplayName(groupName)
+                    .setDisplayName(groupDisplayName)
                     .setGroupName(groupName)
                     .setEntityType(EntityType.PHYSICAL_MACHINE)
                     .setMemberList(MembersList.newBuilder()
@@ -456,15 +471,21 @@ public class DiscoveredSettingPolicyScanner {
                 final GroupInfo.Builder groupInfo = GroupInfo.newBuilder()
                     .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                     .setName(groupName)
+                    .setDisplayName(groupDisplayName)
                     .setStaticGroupMembers(StaticGroupMembers.newBuilder()
                     .addAllStaticMemberOids(hostOids));
 
                 groups.add(new InterpretedGroup(groupDTO, Optional.of(groupInfo), Optional.empty()));
+                // used as a unique id of the policy
+                long lowestHostOid = hostOids.stream().min(Long::compare).get();
+                settingBuilder.setName(String.format(IMPORTED_HA_SETTINGS_NAME,
+                    lowestHostOid, targetName));
+            } else {
+                // Clusters are defined on the target (e.g. VC probe)
+                settingBuilder.addAllDiscoveredGroupNames(clusterNames);
+                settingBuilder.setName(String.format(IMPORTED_HA_SETTINGS_NAME,
+                    "for " + clusterDisplayNames, targetName));
             }
-
-            // Create a setting policy with settings for the utilization thresholds
-            settingBuilder.addAllDiscoveredGroupNames(clusterNames);
-            settingBuilder.setName(composeName(targetName));
             utilizationThresholdValues.getMemUtilizationSetting().ifPresent(settingBuilder::addSettings);
             utilizationThresholdValues.getCpuUtilizationSetting().ifPresent(settingBuilder::addSettings);
 
@@ -472,28 +493,29 @@ public class DiscoveredSettingPolicyScanner {
         }
 
         /**
-         * Returns a name in the form of "memUtilization-0.5-cpuUtilization-0.2/targetName"
+         * Returns a name in the form of "mem-90.0-cpu-80.0/targetName".
          *
+         * @param targetName the name of the target
          * @return the name.
          */
         private String composeName(@Nonnull final String targetName) {
             String name = utilizationThresholdValues.getMemUtilizationThresholdPercentage()
-                .map(value -> "memUtilization-" + value).orElse("");
+                .map(value -> "mem-" + value).orElse("");
             name += (name.isEmpty() ? "" : "-") +
                 utilizationThresholdValues.getCpuUtilizationThresholdPercentage()
-                .map(value -> "cpuUtilization-" + value).orElse("");
+                .map(value -> "cpu-" + value).orElse("");
             name += "/" + targetName;
 
             return name;
         }
 
-        /**
-         * Returns the name of the group associated with the setting policy.
-         *
-         * @return the name of the group associated with the setting policy.
-         */
-        private String composeGroupName(@Nonnull final String targetName) {
-            return composeName(targetName) + "-group";
+        private String composeDisplayName(@Nonnull final String targetName) {
+            String displayName = utilizationThresholdValues.getMemUtilizationThresholdPercentage()
+                    .map(value -> "Mem threshold " + value).orElse("");
+            displayName += (displayName.isEmpty() ? "" : " and ");
+            displayName += utilizationThresholdValues.getCpuUtilizationThresholdPercentage()
+                    .map(value -> "CPU threshold " + value).orElse("");
+            return "PMs with " + displayName + " on " + targetName;
         }
     }
 }
