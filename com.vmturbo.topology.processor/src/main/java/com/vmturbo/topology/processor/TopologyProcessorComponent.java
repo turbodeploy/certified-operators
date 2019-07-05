@@ -164,7 +164,6 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
         return Arrays.asList(analysisConfig.analysisService(),
             actionsConfig.actionExecutionService(),
             schedulerConfig.scheduleRpcService(),
-            entityConfig.entityInfoRpcService(),
             topologyProcessorRpcConfig.topologyRpcService(),
             topologyProcessorRpcConfig.stitchingJournalRpcService(),
             identityProviderConfig.identityRpcService(),
