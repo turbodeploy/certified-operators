@@ -358,7 +358,7 @@ public class MarketStatsAccumulator {
                     dbTable);
             // set the values specific to used component of commodity and write
             historydbIO.setCommodityValues(PROPERTY_SUBTYPE_USED, commoditySoldDTO.getUsed(),
-                    insertStmt, dbTable);
+                    commoditySoldDTO.getPeak(), insertStmt, dbTable);
             // mark the end of this row of values
             markRowComplete();
 
@@ -518,7 +518,7 @@ public class MarketStatsAccumulator {
         historydbIO.initializeCommodityInsert(mixedCaseCommodityName, topologyInfo.getCreationTime(),
             entityId, RelationType.METRICS, null, null, null, null, insertStmt, dbTable);
         // set the values specific to used component of commodity and write
-        historydbIO.setCommodityValues(mixedCaseCommodityName, valueToPersist, insertStmt, dbTable);
+        historydbIO.setCommodityValues(mixedCaseCommodityName, valueToPersist, 0, insertStmt, dbTable);
         // mark the row complete
         markRowComplete();
     }
@@ -578,6 +578,7 @@ public class MarketStatsAccumulator {
 
             // set the values specific to each row and persist each
             double used = commodityBoughtDTO.getUsed();
+            double peak = commodityBoughtDTO.getPeak();
 
             // for commodity bought with associated volume, use the volume display name as key
             // otherwise, use normal key from this bought commodity
@@ -592,7 +593,7 @@ public class MarketStatsAccumulator {
                     buyerId, RelationType.COMMODITIESBOUGHT, providerId, capacity, null,
                     key, insertStmt, dbTable);
             historydbIO.setCommodityValues(PROPERTY_SUBTYPE_USED,
-                    used, insertStmt, dbTable);
+                    used, peak, insertStmt, dbTable);
             // mark the end of this row to be inserted
             markRowComplete();
 

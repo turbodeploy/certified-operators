@@ -511,21 +511,25 @@ public class HistorydbIO extends BasedbIO {
     /**
      * Set the values for the subtype of this property.
      * <p>
-     * Since this is "latest", a single point in time, then all of avg, min, max are the same.
+     * For commodities that have peak values set, it is sent as parameter
+     * For attributes that are saved like priceIndex, produces, there is
+     * no peak value 0 is sent
      *
      * @param propertySubtype the subtype of the property, e.g. "used" or "utilization"
-     * @param value           the value of the commodity
+     * @param used           the used (average) value of the commodity
+     * @param peak           the peak value of the commodity
      * @param insertStmt      the SQL statement to insert the commodity row
      * @param table           the xxx_stats_latest table where this data will be written
      */
-    public void setCommodityValues(@Nonnull String propertySubtype, double value,
+    public void setCommodityValues(@Nonnull String propertySubtype, double used, double peak,
                                    @Nonnull InsertSetMoreStep insertStmt, @Nonnull Table<?> table) {
 
-        value = clipValue(value);
+        used = clipValue(used);
+        peak = clipValue(peak);
         insertStmt.set(str(dField(table, PROPERTY_SUBTYPE)), propertySubtype);
-        insertStmt.set(doubl(dField(table, AVG_VALUE)), value);
-        insertStmt.set(doubl(dField(table, MIN_VALUE)), value);
-        insertStmt.set(doubl(dField(table, MAX_VALUE)), value);
+        insertStmt.set(doubl(dField(table, AVG_VALUE)), used);
+        insertStmt.set(doubl(dField(table, MIN_VALUE)), used);
+        insertStmt.set(doubl(dField(table, MAX_VALUE)), Math.max(used, peak));
     }
 
     /**

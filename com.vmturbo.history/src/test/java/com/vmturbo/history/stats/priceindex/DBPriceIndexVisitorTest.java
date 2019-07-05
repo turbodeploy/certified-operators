@@ -76,7 +76,7 @@ public class DBPriceIndexVisitorTest {
             entityId, RelationType.METRICS,
             null, null, null, null, insert,
             VM_TABLE);
-        verify(historydbIO).setCommodityValues(StringConstants.PRICE_INDEX, priceIdx,
+        verify(historydbIO).setCommodityValues(StringConstants.PRICE_INDEX, priceIdx, 0,
             insert, VM_TABLE);
         verify(historydbIO).execute(Style.FORCED, Collections.singletonList(insert));
 
@@ -105,7 +105,7 @@ public class DBPriceIndexVisitorTest {
             entityId, RelationType.METRICS,
             null, null, null, null, insert,
             VM_TABLE);
-        verify(historydbIO).setCommodityValues(StringConstants.PRICE_INDEX, priceIdx,
+        verify(historydbIO).setCommodityValues(StringConstants.PRICE_INDEX, priceIdx, 0,
             insert, VM_TABLE);
         // Chunk size is 2, and we only add one record. So it should only get inserted after
         // onComplete.

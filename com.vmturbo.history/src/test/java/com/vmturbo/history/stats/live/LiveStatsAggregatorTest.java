@@ -112,10 +112,10 @@ public class LiveStatsAggregatorTest {
         Mockito.verify(stmt, Mockito.times(10)).newRecord();
         // 3 PMs produce 1 entity each
         Mockito.verify(historydbIO, Mockito.times(3)).setCommodityValues(Mockito.eq("Produces"),
-            Mockito.eq(1.0), Mockito.eq(stmt), Mockito.any());
+            Mockito.eq(1.0), Mockito.eq(0.0), Mockito.eq(stmt), Mockito.any());
         // 2 VMs produce 0 entities
         Mockito.verify(historydbIO, Mockito.times(2)).setCommodityValues(Mockito.eq("Produces"),
-            Mockito.eq(0.0), Mockito.eq(stmt), Mockito.any());
+            Mockito.eq(0.0), Mockito.eq(0.0), Mockito.eq(stmt), Mockito.any());
     }
 
     /**

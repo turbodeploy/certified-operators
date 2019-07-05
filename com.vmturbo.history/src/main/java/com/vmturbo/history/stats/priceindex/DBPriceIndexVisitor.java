@@ -93,8 +93,8 @@ public class DBPriceIndexVisitor implements TopologyPriceIndexVisitor {
                     oid, RelationType.METRICS, null, null, null,
                     null, insertStmt, dbTable);
                 // set the values specific to used component of commodity and write
-                historydbIO.setCommodityValues(StringConstants.PRICE_INDEX, priceIndex,
-                    insertStmt, dbTable);
+                historydbIO.setCommodityValues(StringConstants.PRICE_INDEX, priceIndex, 0,
+                                insertStmt, dbTable);
                 commodityInsertStatements.add(insertStmt);
                 if (commodityInsertStatements.size() >= writeTopologyChunkSize) {
                     // execute a batch of updates - FORCED implies repeat until successful
@@ -110,6 +110,7 @@ public class DBPriceIndexVisitor implements TopologyPriceIndexVisitor {
     /**
      * {@inheritDoc}
      */
+    @Override
     public void onComplete() throws VmtDbException {
         // now execute the remaining batch of updates, if any
         if (!commodityInsertStatements.isEmpty()) {
