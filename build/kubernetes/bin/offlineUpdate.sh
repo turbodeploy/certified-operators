@@ -40,9 +40,9 @@ ignore_errors: yes' /opt/kubespray/roles/kubernetes/preinstall/defaults/main.yml
 
 cp /opt/kubespray/roles/download/tasks/kubeadm_images.yml /opt/kubespray/roles/download/tasks/kubeadm_images.yml.online
 sed -i '/delegate_to:/a\
-          ignore_errors: yes' /opt/kubespray/roles/download/tasks/kubeadm_images.yml
+  ignore_errors: yes' /opt/kubespray/roles/download/tasks/kubeadm_images.yml
 sed -i '/command:/a\
-          ignore_errors: yes' /opt/kubespray/roles/download/tasks/kubeadm_images.yml
+  ignore_errors: yes' /opt/kubespray/roles/download/tasks/kubeadm_images.yml
 
 cp /opt/kubespray/roles/network_plugin/calico/tasks/install.yml /opt/kubespray/roles/network_plugin/calico/tasks/install.yml.online
 sed -i '/- upgrade/a\
