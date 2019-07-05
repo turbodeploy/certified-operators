@@ -26,10 +26,9 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass;
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetHostInfoRequest;
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetHostInfoResponse;
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.HostInfo;
+import com.vmturbo.common.protobuf.topology.EntityInfo.GetHostInfoRequest;
+import com.vmturbo.common.protobuf.topology.EntityInfo.GetHostInfoResponse;
+import com.vmturbo.common.protobuf.topology.EntityInfo.HostInfo;
 import com.vmturbo.common.protobuf.topology.EntityServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -46,7 +45,7 @@ public class EntityRpcServiceTest {
     private TargetStore targetStore = Mockito.mock(TargetStore.class);
     private EntityStore entityStore = Mockito.mock(EntityStore.class);
     private final EntityRpcService entityRpcServiceBackend =
-            new EntityRpcService(entityStore, targetStore);
+        new EntityRpcService(entityStore, targetStore);
 
     @Rule
     public GrpcTestServer server = GrpcTestServer.newServer(entityRpcServiceBackend);
@@ -77,53 +76,6 @@ public class EntityRpcServiceTest {
         addEntity(2, EntityType.PHYSICAL_MACHINE, ImmutableMap.of(1L, 1L));
     }
 
-    /**
-     * Test getting multiple entities, all of which should be present.
-     *
-     * @throws Exception If anything goes wrong.
-     */
-    @Test
-    public void testGetMultiple() throws Exception {
-        EntityInfoOuterClass.GetEntitiesInfoRequest.Builder requestBuilder =
-                EntityInfoOuterClass.GetEntitiesInfoRequest.newBuilder();
-        requestBuilder.addEntityIds(1);
-        requestBuilder.addEntityIds(2);
-        EntityInfoOuterClass.GetEntitiesInfoRequest request = requestBuilder.build();
-        Iterator<EntityInfoOuterClass.EntityInfo> response = entityServiceClient.getEntitiesInfo(request);
-
-        final List<EntityInfoOuterClass.EntityInfo> entities = Lists.newArrayList(response);
-        assertEquals(2, entities.size());
-        final Map<Long, EntityInfoOuterClass.EntityInfo> entityMap = entities.stream()
-                .collect(Collectors.toMap(EntityInfoOuterClass.EntityInfo::getEntityId, Function.identity()));
-        Assert.assertTrue(entityMap.containsKey(1L));
-        Assert.assertTrue(entityMap.containsKey(2L));
-
-        for (final EntityInfoOuterClass.EntityInfo entityInfo : entities) {
-            assertEquals(1, entityInfo.getTargetIdToProbeIdMap().get(1L).longValue());
-        }
-    }
-
-    /**
-     * Test getting multiple entities, some of which are not found.
-     *
-     * @throws Exception If anything goes wrong.
-     */
-    @Test
-    public void testGetSomeMissing() throws Exception {
-        EntityInfoOuterClass.GetEntitiesInfoRequest.Builder requestBuilder =
-                EntityInfoOuterClass.GetEntitiesInfoRequest.newBuilder();
-        requestBuilder.addEntityIds(1);
-        requestBuilder.addEntityIds(3);
-        EntityInfoOuterClass.GetEntitiesInfoRequest request = requestBuilder.build();
-
-        Iterator<EntityInfoOuterClass.EntityInfo> response = entityServiceClient.getEntitiesInfo(request);
-        final List<EntityInfoOuterClass.EntityInfo> entities = Lists.newArrayList(response);
-        assertEquals(1, entities.size());
-        final Map<Long, EntityInfoOuterClass.EntityInfo> entityMap = entities.stream()
-                .collect(Collectors.toMap(EntityInfoOuterClass.EntityInfo::getEntityId, Function.identity()));
-        Assert.assertTrue(entityMap.containsKey(1L));
-        Assert.assertFalse(entityMap.containsKey(3L));
-    }
 
     @Test
     public void testGetHostsInfo() throws Exception {
@@ -136,9 +88,9 @@ public class EntityRpcServiceTest {
         final Iterable<GetHostInfoResponse> responses = () -> entityServiceClient.getHostsInfo(hostInfoRequest);
         final Map<Long, Optional<HostInfo>> hostInfo = StreamSupport.stream(responses.spliterator(), false)
             .collect(Collectors.toMap(
-                    GetHostInfoResponse::getVirtualMachineId,
-                    response -> response.hasHostInfo() ? Optional.of(response.getHostInfo()) : Optional.empty()
-                ));
+                GetHostInfoResponse::getVirtualMachineId,
+                response -> response.hasHostInfo() ? Optional.of(response.getHostInfo()) : Optional.empty()
+            ));
 
         assertHostWithIdAndProperties(hostInfo.get(4L), 14, fastHostProperties);
     }
