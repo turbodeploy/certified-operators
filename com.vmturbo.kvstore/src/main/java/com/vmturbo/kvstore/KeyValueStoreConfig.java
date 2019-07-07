@@ -17,7 +17,11 @@ public class KeyValueStoreConfig {
     @Value("${consul_port}")
     private String consulPort;
 
-    @Value("${instance_id}")
+    // temporary fix to base the upgrade kv store root on the component_type, since
+    // instance_id will change from invocation to invocation, especially version to version
+    // TODO: migrate kv store root for existing customers to something more reasonable and remove
+    // the "-1"
+    @Value("${component_type}-1")
     private String applicationName;
 
     @Value("${kvStoreRetryIntervalMillis}")
