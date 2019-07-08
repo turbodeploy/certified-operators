@@ -29,6 +29,7 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.search.Search.CountEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.EntityCountResponse;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
@@ -36,6 +37,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsResponse;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceImplBase;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
@@ -342,20 +344,43 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
 
     protected Stream<RepoGraphEntity> internalSearch(@Nonnull final List<Long> entityOidList,
                                                    @Nonnull final List<SearchParameters> params) {
+        final List<SearchParameters> finalParams;
+        // If we got an explicit entity OID list, treat it as a new "starting" filter.
+        // If there were no existing search params, we can just create a new parameter.
+        // If there WERE existing search params, we need to merge this new filter into each
+        // of the input params.
+        //
+        // TODO (roman, July 3 2019): Remove the separate list of OID inputs. Convert all callers
+        // to provide a list of IDs as the starting filter.
+        if (!entityOidList.isEmpty()) {
+            final PropertyFilter newStartFilter = SearchProtoUtil.idFilter(entityOidList);
+            if (params.isEmpty()) {
+                finalParams = Collections.singletonList(SearchProtoUtil.makeSearchParameters(newStartFilter).build());
+            } else {
+                finalParams = params.stream()
+                    .map(oldParam -> {
+                        final SearchParameters.Builder bldr = oldParam.toBuilder();
+                        // Add the previous starting filter as the first search filter. This preserves
+                        // the order of filters relative to each other.
+                        bldr.addSearchFilter(0, SearchProtoUtil.searchFilterProperty(bldr.getStartingFilter()));
+                        bldr.setStartingFilter(newStartFilter);
+                        return bldr.build();
+                    })
+                    .collect(Collectors.toList());
+            }
+        } else {
+            // If there are no explicitly provided starting OIDs, use the provided search params
+            // normally. This is the main execution path.
+            finalParams = params;
+        }
+
         return liveTopologyStore.getSourceTopology()
             .map(realtimeTopology -> {
-                final Set<Long> entityOidSet = Sets.newHashSet(entityOidList);
                 final Stream<RepoGraphEntity> results;
-                if (params.isEmpty()) {
-                    if (entityOidList.isEmpty()) {
-                        results = realtimeTopology.entityGraph().entities();
-                    } else {
-                        results = realtimeTopology.entityGraph()
-                            .getEntities(entityOidSet);
-                    }
+                if (finalParams.isEmpty()) {
+                    results = realtimeTopology.entityGraph().entities();
                 } else {
-                    results = searchResolver.search(params, realtimeTopology.entityGraph())
-                        .filter(entity -> entityOidSet.isEmpty() || entityOidSet.contains(entity.getOid()));
+                    results = searchResolver.search(finalParams, realtimeTopology.entityGraph());
                 }
 
                 // if the user is scoped, add a filter to the results.
