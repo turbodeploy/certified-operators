@@ -4,7 +4,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.SortedMap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
@@ -18,6 +17,7 @@ import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.web.context.ConfigurableWebApplicationContext;
@@ -32,21 +32,18 @@ import io.grpc.ServerInterceptor;
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.auth.component.licensing.LicensingConfig;
-import com.vmturbo.auth.component.migration.MigrationsConfig;
 import com.vmturbo.auth.component.spring.SpringAuthFilter;
 import com.vmturbo.auth.component.userscope.UserScopeServiceConfig;
 import com.vmturbo.auth.component.widgetset.WidgetsetConfig;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
-import com.vmturbo.components.common.migration.Migration;
 
 /**
  * The main auth component.
  */
 @Configuration("theComponent")
 @Import({AuthRESTSecurityConfig.class, AuthDBConfig.class, SpringSecurityConfig.class,
-        WidgetsetConfig.class, LicensingConfig.class, UserScopeServiceConfig.class,
-        MigrationsConfig.class})
+        WidgetsetConfig.class, LicensingConfig.class, UserScopeServiceConfig.class})
 public class AuthComponent extends BaseVmtComponent {
     public static final String PATH_SPEC = "/*";
     /**
@@ -77,9 +74,6 @@ public class AuthComponent extends BaseVmtComponent {
      */
     @Autowired
     private SpringSecurityConfig securityConfig;
-
-    @Autowired
-    private MigrationsConfig migrationsConfig;
 
     @PostConstruct
     private void setup() {
@@ -119,12 +113,6 @@ public class AuthComponent extends BaseVmtComponent {
             licensingConfig.licenseManager(),
             licensingConfig.licenseCheckService(),
             userScopeServiceConfig.userScopeService());
-    }
-
-    @Nonnull
-    @Override
-    protected SortedMap<String, Migration> getMigrations() {
-        return migrationsConfig.migrationsList().getMigrationsList();
     }
 
     /**

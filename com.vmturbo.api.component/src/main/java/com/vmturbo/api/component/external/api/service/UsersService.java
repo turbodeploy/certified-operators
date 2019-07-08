@@ -548,7 +548,9 @@ public class UsersService implements IUsersService {
         gad.setDisplayName(dto.getDisplayName());
         // get the set of group oids in scope
         gad.setScope(UserMapper.groupOidsToGroupApiDTOs(dto.getScopeGroups(), groupApiDTOMap));
-        gad.setUuid(String.valueOf(dto.getOid()));
+        // use displayName as uuid of AD group (since it should be unique for one domain), and UI
+        // is expecting this uuid to perform DELETE or other operations on this group
+        gad.setUuid(dto.getDisplayName());
         return gad;
     }
 
@@ -768,23 +770,23 @@ public class UsersService implements IUsersService {
     /**
      * Deletes the group.
      *
-     * @param groupId The group id.
+     * @param groupName The group name.
      * @return {@code true} iff the group existed before this call.
      */
     @Override
-    public Boolean deleteActiveDirectoryGroup(final String groupId) {
+    public Boolean deleteActiveDirectoryGroup(final String groupName) {
         try {
-            UriComponentsBuilder builder = baseRequest().path("/users/ad/groups/" + groupId);
+            UriComponentsBuilder builder = baseRequest().path("/users/ad/groups/" + groupName);
             final String request = builder.build().toUriString();
             HttpEntity<Boolean> entity = new HttpEntity<>(composeHttpHeaders());
-            final String details = String.format("Delete external group: %s", groupId);
+            final String details = String.format("Delete external group: %s", groupName);
             AuditLog.newEntry(AuditAction.DELETE_GROUP,
                 details, true)
                 .targetName("EXTERNAL GROUP")
                 .audit();
             return restTemplate_.exchange(request, HttpMethod.DELETE, entity, Boolean.class).getBody();
         } catch (RuntimeException e) {
-            final String details = String.format("Failed to delete external group: %s", groupId);
+            final String details = String.format("Failed to delete external group: %s", groupName);
             AuditLog.newEntry(AuditAction.DELETE_GROUP,
                 details, false)
                 .targetName("EXTERNAL GROUP")

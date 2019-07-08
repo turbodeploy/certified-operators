@@ -539,7 +539,6 @@ public class KVBackedILocalAuthStoreTest {
         Assert.assertEquals("group1", g.getDisplayName());
         Assert.assertEquals("DedicatedCustomer", g.getType());
         Assert.assertEquals("administrator", g.getRoleName());
-        Assert.assertNotNull(g.getOid());
     }
 
     @Test(expected = SecurityException.class)
@@ -561,7 +560,7 @@ public class KVBackedILocalAuthStoreTest {
         SecurityGroupDTO securityGroupDTO = new SecurityGroupDTO("group1",
             "DedicatedCustomer",
             "administrator");
-        SecurityGroupDTO group = store.createSecurityGroup(securityGroupDTO);
+        store.createSecurityGroup(securityGroupDTO);
 
         // update existing group
         SecurityGroupDTO newSecurityGroupDTO = new SecurityGroupDTO("group1",
@@ -576,8 +575,6 @@ public class KVBackedILocalAuthStoreTest {
         Assert.assertEquals("SharedCustomer", g.getType());
         Assert.assertEquals("observer", g.getRoleName());
         Assert.assertEquals(Sets.newHashSet(11L), Sets.newHashSet(g.getScopeGroups()));
-        // check that oid is preserved after updating the security group
-        Assert.assertEquals(group.getOid(), g.getOid());
     }
 
     @Test(expected = SecurityException.class)

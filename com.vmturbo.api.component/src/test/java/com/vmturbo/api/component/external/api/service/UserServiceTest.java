@@ -131,10 +131,8 @@ public class UserServiceTest {
             .path("/users/ad/groups")
             .build().toUriString();
 
-        final Long securityGroupOid = 1234L;
         ResponseEntity<List> response = new ResponseEntity<>(ImmutableList.of(
-            new SecurityGroupDTO(adGroupName, adGroupType, adGroupRoleName,
-                Collections.emptyList(), securityGroupOid)), HttpStatus.OK);
+            new SecurityGroupDTO(adGroupName, adGroupType, adGroupRoleName)), HttpStatus.OK);
         Mockito.when(restTemplate.exchange(authRequest, HttpMethod.GET, entity, List.class)).thenReturn(response);
 
         // GET and verify results
@@ -142,7 +140,7 @@ public class UserServiceTest {
         assertEquals(1, adGroups.size());
 
         // check uuid and other fields are set
-        assertEquals(String.valueOf(securityGroupOid), adGroups.get(0).getUuid());
+        assertEquals(adGroupName, adGroups.get(0).getUuid());
         assertEquals(adGroupName, adGroups.get(0).getDisplayName());
         assertEquals(adGroupType, adGroups.get(0).getType());
         assertEquals(adGroupRoleName, adGroups.get(0).getRoleName());
