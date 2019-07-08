@@ -402,6 +402,9 @@ public class AuthUsersController {
     /**
      * Replaces values in an existing Active Directory group.
      *
+     * Todo: we should update this to 'PUT "/ad/groups/{groupOid}" -d {adGroupInputDTO}', this
+     * would require client side changes (both API component and UI side).
+     *
      * @return new ActiveDirectoryGroupApiDTO
      */
     @ApiOperation(value = "Change an existing Active Directory group")
@@ -417,17 +420,17 @@ public class AuthUsersController {
 
     /**
      * delete an existing Active Directory group
-     * DELETE /users/ad/groups/{groupName}
+     * DELETE /users/ad/groups/{groupOid}
      *
      * @return true if succeeded, false if failure
      */
     @ApiOperation(value = "Delete an existing Active Directory group")
-    @RequestMapping(value = "ad/groups/{groupName}", method = RequestMethod.DELETE,
+    @RequestMapping(value = "ad/groups/{groupOid}", method = RequestMethod.DELETE,
                     produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
     public Boolean deleteSSOGroup(
-            @ApiParam(value = "The name of Active Directory group", required = true)
-            @PathVariable("groupName") String groupName) throws Exception {
-        return targetStore_.deleteSecurityGroup(groupName);
+            @ApiParam(value = "The oid of Active Directory group", required = true)
+            @PathVariable("groupOid") String groupOid) throws Exception {
+        return targetStore_.deleteSecurityGroup(groupOid);
     }
 }
