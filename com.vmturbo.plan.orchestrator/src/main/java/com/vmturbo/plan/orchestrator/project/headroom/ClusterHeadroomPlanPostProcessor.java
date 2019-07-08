@@ -131,7 +131,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * List of commodities used for Storage headroom calculation.
      */
     private static final Set<Integer> STORAGE_HEADROOM_COMMODITIES =
-                    ImmutableSet.of(CommodityType.STORAGE_VALUE, CommodityType.STORAGE_PROVISIONED_VALUE);
+            ImmutableSet.of(CommodityType.STORAGE_AMOUNT_VALUE, CommodityType.STORAGE_PROVISIONED_VALUE);
 
     /**
      * String representation of headroom entities.
@@ -347,7 +347,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
 
         // Set STORAGE_HEADROOM_COMMODITIES
         commBoughtMap.get(STORAGE_HEADROOM_COMMODITIES)
-            .put(CommodityType.STORAGE_VALUE,
+            .put(CommodityType.STORAGE_AMOUNT_VALUE,
                 Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.DISK_SIZE)) *
                 Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.DISK_CONSUMED_FACTOR)));
         commBoughtMap.get(STORAGE_HEADROOM_COMMODITIES)

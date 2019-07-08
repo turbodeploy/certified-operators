@@ -133,7 +133,7 @@ public class ClusterHeadroomPostProcessorTest {
                                         ImmutableList.of(CommoditySoldDTO.newBuilder()
                                             .setActive(true)
                                             .setCommodityType(com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder()
-                                                            .setType(CommodityType.STORAGE_VALUE))
+                                                            .setType(CommodityType.STORAGE_AMOUNT_VALUE))
                                             .setCapacity(600)
                                             .setUsed(100)
                                             .build())))
