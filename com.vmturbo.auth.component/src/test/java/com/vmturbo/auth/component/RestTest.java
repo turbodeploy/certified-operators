@@ -643,8 +643,7 @@ public class RestTest {
                 .andReturn().getResponse().getContentAsString();
         SecurityContextHolder.getContext().setAuthentication(null);
         // clean security groups so it doesn't affect other tests
-        authStore.deleteSecurityGroup(String.valueOf(
-            GSON.fromJson(result, SecurityGroupDTO.class).getOid()));
+        authStore.deleteSecurityGroup("group");
     }
 
 
@@ -653,11 +652,11 @@ public class RestTest {
     public void testAuthorizeUserWithInvalidExternalGroup() throws Exception {
         // The logon is here to work around the issue with the WebSecurity setup.
         logon("ADMINISTRATOR");
-        mockMvc.perform(postAddSSO())
+        String result = mockMvc.perform(postAddSSO())
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
-        String result = mockMvc.perform(postAddSSOGroup())
+        result = mockMvc.perform(postAddSSOGroup())
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         try {
@@ -669,8 +668,7 @@ public class RestTest {
         } finally {
             SecurityContextHolder.getContext().setAuthentication(null);
             // clean security groups so it doesn't affect other tests
-            authStore.deleteSecurityGroup(String.valueOf(
-                GSON.fromJson(result, SecurityGroupDTO.class).getOid()));
+            authStore.deleteSecurityGroup("group");
         }
     }
 

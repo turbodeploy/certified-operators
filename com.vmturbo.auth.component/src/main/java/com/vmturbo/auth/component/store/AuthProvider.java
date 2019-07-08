@@ -88,7 +88,7 @@ public class AuthProvider {
      */
     private static final String PREFIX_AD = "ad/info";
 
-    public static final String PREFIX_GROUP = "groups/";
+    private static final String PREFIX_GROUP = "groups/";
 
     /**
      * The key location property
@@ -325,7 +325,7 @@ public class AuthProvider {
      * @param externalGroup The user name.
      * @return The key for the External Group object in JSON form.
      */
-    public static String composeExternalGroupInfoKey(final @Nonnull String externalGroup) {
+    private String composeExternalGroupInfoKey(final @Nonnull String externalGroup) {
         return PREFIX_GROUP + externalGroup.toUpperCase();
     }
 
@@ -1245,8 +1245,7 @@ public class AuthProvider {
             SecurityGroupDTO g = new SecurityGroupDTO(adGroupName,
                 adGroupInputDto.getType(),
                 adGroupInputDto.getRoleName(),
-                adGroupInputDto.getScopeGroups(),
-                IdentityGenerator.next());
+                adGroupInputDto.getScopeGroups());
             putKVValue(composeExternalGroupInfoKey(adGroupName), GSON.toJson(g));
             return g;
         } catch (Exception e) {
@@ -1270,14 +1269,11 @@ public class AuthProvider {
         }
 
         try {
-            final SecurityGroupDTO existingGroup = GSON.fromJson(json.get(), SecurityGroupDTO.class);
             // recreate this object with type, role name and scope groups from the input param
             SecurityGroupDTO g = new SecurityGroupDTO(adGroupName,
                 adGroupInputDto.getType(),
                 adGroupInputDto.getRoleName(),
-                adGroupInputDto.getScopeGroups(),
-                // preserve the oid
-                existingGroup.getOid());
+                adGroupInputDto.getScopeGroups());
             putKVValue(composeExternalGroupInfoKey(adGroupName), GSON.toJson(g));
             return g;
         } catch (Exception e) {
@@ -1288,40 +1284,22 @@ public class AuthProvider {
     /**
      * Deletes the group.
      *
-     * @param groupOid The oid of the group to delete.
+     * @param groupName The group name.
      * @return {@code true} iff the group existed before this call.
      */
     @PreAuthorize("hasRole('ADMINISTRATOR')")
-    public @Nonnull Boolean deleteSecurityGroup(final @Nonnull String groupOid) {
-        Map<String, String> ssoGroups;
-        synchronized (storeLock_) {
-            ssoGroups = keyValueStore_.getByPrefix(PREFIX_GROUP);
-        }
-
-        // find the security group with given oid from consul, currently displayName is used as key
-        // path in the k/v store, which is the same pattern we are using for users. it's cheap to
-        // go though all groups entries in consul since there will only be a few.
-        // Todo: we should consider changing it to use oid as key path, so we don't need to search
-        // for this group, but we also need to change updateSecurityGroup since its input is a
-        // SecurityGroupDTO WITHOUT oid... we also need to change UI side to pass uuid.
-        // Also we need to migrate the old entries based on name to new entries based on oid.
-        Optional<SecurityGroupDTO> groupDTO = ssoGroups.values().stream()
-            .map(jsonData -> GSON.fromJson(jsonData, SecurityGroupDTO.class))
-            .filter(group -> groupOid.equals(String.valueOf(group.getOid())))
-            .findFirst();
-
-        if (!groupDTO.isPresent()) {
-            throw new SecurityException("Error deleting external group: " + groupOid);
+    public @Nonnull Boolean deleteSecurityGroup(final @Nonnull String groupName) {
+        Optional<String> json = getKVValue(composeExternalGroupInfoKey(groupName));
+        if (!json.isPresent()) {
+            throw new SecurityException("Error retrieving external group.");
         }
 
         try {
-            final String groupName = groupDTO.get().getDisplayName();
             removeKVKey(composeExternalGroupInfoKey(groupName));
             ssoUtil.deleteSecurityGroup(groupName);
             return true;
         } catch (Exception e) {
-            throw new SecurityException("Error deleting external group: " +
-                groupDTO.get().getDisplayName());
+            throw new SecurityException("Error retrieving external group");
         }
     }
 
