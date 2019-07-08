@@ -37,6 +37,11 @@ public class SecurityGroupDTO {
     private @Nullable List<Long> scopeGroups;
 
     /**
+     * The oid assigned to this security group.
+     */
+    private Long oid;
+
+    /**
      * Constructs the ActiveDirectoryGroupDTO.
      * We need this constructor for the the JSON deserialization.
      * We do not wish this constructor to be publicly accessible.
@@ -66,10 +71,26 @@ public class SecurityGroupDTO {
      */
     public SecurityGroupDTO(final @Nonnull String displayName, final @Nonnull String type,
                             final @Nonnull String roleName, final @Nullable List<Long> scopeGroups) {
+        this(displayName, type, roleName, scopeGroups, null);
+    }
+
+    /**
+     * Constructs the ActiveDirectoryGroupDTO with scope and oid
+     *
+     * @param displayName The display name.
+     * @param type        The type.
+     * @param roleName    The role name.
+     * @param scopeGroups The list of scope groups for this group
+     * @param oid         The oid of the security group
+     */
+    public SecurityGroupDTO(final @Nonnull String displayName, final @Nonnull String type,
+                            final @Nonnull String roleName, final @Nullable List<Long> scopeGroups,
+                            final @Nullable Long oid) {
         this.displayName = displayName;
         this.type = type;
         this.roleName = roleName;
         this.scopeGroups = scopeGroups;
+        this.oid = oid;
     }
 
     /**
@@ -106,4 +127,12 @@ public class SecurityGroupDTO {
      */
     public List<Long> getScopeGroups() { return scopeGroups; }
 
+    /**
+     * Get the oid for this AD group.
+     *
+     * @return oid of the AD group
+     */
+    public Long getOid() {
+        return oid;
+    }
 }
