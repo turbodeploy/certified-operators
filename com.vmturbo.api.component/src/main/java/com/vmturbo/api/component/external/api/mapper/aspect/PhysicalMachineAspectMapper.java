@@ -5,6 +5,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
@@ -24,9 +25,10 @@ public class PhysicalMachineAspectMapper implements IAspectMapper {
         this.repositoryApi = repositoryApi;
     }
 
+    @Nullable
     @Override
     public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
-        final PMEntityAspectApiDTO aspect = new PMEntityAspectApiDTO();
+        PMEntityAspectApiDTO aspect = null;
         // the 'processorPools' aspect is set from the displayName of any ProcessorPool entities
         // that are "connected" to the given PM
         final Set<Long> processorPoolOids = entity.getConnectedEntityListList().stream()
@@ -35,6 +37,7 @@ public class PhysicalMachineAspectMapper implements IAspectMapper {
             .map(ConnectedEntity::getConnectedEntityId)
             .collect(Collectors.toSet());
         if (!processorPoolOids.isEmpty()) {
+            aspect = new PMEntityAspectApiDTO();
             final List<String> processorPoolDisplayNames = repositoryApi.entitiesRequest(processorPoolOids)
                 .getMinimalEntities()
                 .map(MinimalEntity::getDisplayName)
