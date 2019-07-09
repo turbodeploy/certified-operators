@@ -57,6 +57,7 @@ public class ActionDescriptionBuilder {
     private static final String DOWN = "down";
     private static final String OF = " of ";
     private static final String DEFAULT_ERROR_MSG = "Unsupported action type ";
+    private static final String ENTITY_NOT_FOUND_WARN_MSG = "Entity {0} doesn't exist in the entities snapshot";
 
     private static final Set<String> TIER_VALUES = ImmutableSet.of(
         UIEntityType.COMPUTE_TIER.apiStr(), UIEntityType.DATABASE_SERVER_TIER.apiStr(),
@@ -89,34 +90,17 @@ public class ActionDescriptionBuilder {
             case RECONFIGURE:
                 return getReconfigureActionDescription(entitiesSnapshot, recommendation);
             case PROVISION:
-                return MessageFormat.format(ACTION_DESCRIPTION_PROVISION,
-                    beautifyEntityTypeAndName(entitiesSnapshot.getEntityFromOid(
-                        info.getProvision().getEntityToClone().getId()).get()));
+                return getProvisionActionDescription(entitiesSnapshot, recommendation);
             case RESIZE:
                 return getResizeActionDescription(entitiesSnapshot, recommendation);
             case ACTIVATE:
-                return MessageFormat.format(
-                    ACTION_DESCRIPTION_ACTIVATE,
-                    beautifyEntityTypeAndName(entitiesSnapshot.getEntityFromOid(
-                        info.getActivate().getTarget().getId()).get()));
+                return getActivateActionDescription(entitiesSnapshot, recommendation);
             case DEACTIVATE:
-                return MessageFormat.format(ACTION_DESCRIPTION_DEACTIVATE,
-                    beautifyString(ActionDTO.ActionType.SUSPEND.name()),
-                    beautifyEntityTypeAndName(entitiesSnapshot.getEntityFromOid(
-                        info.getDeactivate().getTarget().getId()).get()));
+                return getDeactivateActionDescription(entitiesSnapshot, recommendation);
             case DELETE:
-                // TODO need to give savings in terms of cost instead of file size for Cloud entities
-                String deleteFilePath = info.getDelete().getFilePath();
-                return MessageFormat.format(ACTION_DESCRIPTION_DELETE,
-                    deleteFilePath.substring(deleteFilePath.lastIndexOf('/') + 1),
-                    beautifyEntityTypeAndName(entitiesSnapshot.getEntityFromOid(
-                        info.getDelete().getTarget().getId()).get()),
-                    FileUtils.byteCountToDisplaySize(
-                        recommendation.getExplanation().getDelete().getSizeKb()
-                            * FileUtils.ONE_KB));
+                return getDeleteActionDescription(entitiesSnapshot, recommendation);
             case BUYRI:
                 return getRIBuyActionDescription(entitiesSnapshot, recommendation);
-
             default:
                 throw new IllegalArgumentException(DEFAULT_ERROR_MSG +
                     info.getActionTypeCase().name());
@@ -135,6 +119,10 @@ public class ActionDescriptionBuilder {
                                               @Nonnull final ActionDTO.Action recommendation) {
         Resize resize = recommendation.getInfo().getResize();
         Long entityId = resize.getTarget().getId();
+        if (!entitiesSnapshot.getEntityFromOid(entityId).isPresent()) {
+            logger.debug(MessageFormat.format(ENTITY_NOT_FOUND_WARN_MSG, entityId));
+            return "";
+        }
         // Check if we need to describe the action as a "remove limit" instead of regular resize.
         if (resize.getCommodityAttribute() == CommodityAttribute.LIMIT) {
             return MessageFormat.format(ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT,
@@ -166,9 +154,18 @@ public class ActionDescriptionBuilder {
                                                    @Nonnull final ActionDTO.Action recommendation) {
         final Reconfigure reconfigure = recommendation.getInfo().getReconfigure();
         final Long entityId = reconfigure.getTarget().getId();
+        if (!entitiesSnapshot.getEntityFromOid(entityId).isPresent()) {
+            logger.debug(MessageFormat.format(ENTITY_NOT_FOUND_WARN_MSG, entityId));
+            return "";
+        }
         if (reconfigure.hasSource()) {
-            ActionPartialEntity currentEntityDTO = entitiesSnapshot.getEntityFromOid(
-                reconfigure.getSource().getId()).get();
+            long sourceId = reconfigure.getSource().getId();
+            Optional<ActionPartialEntity> currentEntityDTO = entitiesSnapshot.getEntityFromOid(
+                sourceId);
+            if (!currentEntityDTO.isPresent()) {
+                logger.debug(MessageFormat.format(ENTITY_NOT_FOUND_WARN_MSG, sourceId));
+                return "";
+            }
             return MessageFormat.format(
                 ACTION_DESCRIPTION_RECONFIGURE_WITH_SOURCE,
                 beautifyEntityTypeAndName(entitiesSnapshot.getEntityFromOid(entityId).get()),
@@ -176,7 +173,7 @@ public class ActionDescriptionBuilder {
                     .getReconfigureCommodityList().stream()
                     .map(ReasonCommodity::getCommodityType)
                     .collect(Collectors.toList())),
-                beautifyEntityTypeAndName(currentEntityDTO));
+                beautifyEntityTypeAndName(currentEntityDTO.get()));
         } else {
             return MessageFormat.format(
                 ACTION_DESCRIPTION_RECONFIGURE,
@@ -202,21 +199,32 @@ public class ActionDescriptionBuilder {
             .getPrimaryChangeProvider(move);
 
         final boolean hasSource = !initialPlacement && primaryChange.hasSource();
+        final long destinationEntityId = primaryChange.getDestination().getId();
+        final long targetEntityId = move.getTarget().getId();
 
+        if( !entitiesSnapshot.getEntityFromOid(targetEntityId).isPresent()) {
+            logger.debug(MessageFormat.format(ENTITY_NOT_FOUND_WARN_MSG, targetEntityId));
+            return "";
+        }
+        if( !entitiesSnapshot.getEntityFromOid(destinationEntityId).isPresent()) {
+            logger.debug(MessageFormat.format(ENTITY_NOT_FOUND_WARN_MSG, destinationEntityId));
+            return "";
+        }
         // All moves should have a target entity and a destination.
         ActionPartialEntity targetEntityDTO = entitiesSnapshot.getEntityFromOid(
-            move.getTarget().getId()).get();
+            targetEntityId).get();
 
         ActionPartialEntity newEntityDTO = entitiesSnapshot.getEntityFromOid(
-            primaryChange.getDestination().getId()).get();
+            destinationEntityId).get();
 
         if (!hasSource) {
             return MessageFormat.format(ACTION_DESCRIPTION_MOVE_WITHOUT_SOURCE,
                 beautifyEntityTypeAndName(targetEntityDTO),
                 beautifyEntityTypeAndName(newEntityDTO));
         } else {
+            long sourceEntityId = primaryChange.getSource().getId();
             ActionPartialEntity currentEntityDTO = entitiesSnapshot.getEntityFromOid(
-                primaryChange.getSource().getId()).get();
+                sourceEntityId).get();
             String sourceType = EntityType.forNumber(
                 currentEntityDTO.getEntityType()).getDescriptorForType().getFullName();
             String destinationType = EntityType.forNumber(
@@ -226,7 +234,7 @@ public class ActionDescriptionBuilder {
             String resource = "";
             if (primaryChange.hasResource()) {
                 Optional<ActionPartialEntity> resourceEntity = entitiesSnapshot.getEntityFromOid(
-                    primaryChange.getResource().getId());
+                    sourceEntityId);
                 if (resourceEntity.isPresent()) {
                     resource = beautifyEntityTypeAndName(resourceEntity.get()) + OF;
                 }
@@ -250,17 +258,118 @@ public class ActionDescriptionBuilder {
                                              @Nonnull final ActionDTO.Action recommendation)  {
         BuyRI buyRI = recommendation.getInfo().getBuyRi();
         String count = String.valueOf(buyRI.getCount());
-        ActionPartialEntity computeTier = entitiesSnapshot.getEntityFromOid(buyRI.getComputeTier().getId()).get();
+        long computeTierId =  buyRI.getComputeTier().getId();
+        if (!entitiesSnapshot.getEntityFromOid(computeTierId).isPresent()) {
+            logger.debug(MessageFormat.format(ENTITY_NOT_FOUND_WARN_MSG, computeTierId));
+            return "";
+        }
+        ActionPartialEntity computeTier = entitiesSnapshot.getEntityFromOid(computeTierId).get();
         final String computeTierName = (computeTier != null) ? computeTier.getDisplayName() : "";
 
-        ActionPartialEntity masterAccount = entitiesSnapshot.getEntityFromOid(buyRI.getMasterAccount().getId()).get();
+        long masterAccountId =  buyRI.getMasterAccount().getId();
+        if (!entitiesSnapshot.getEntityFromOid(masterAccountId).isPresent()) {
+            logger.debug(MessageFormat.format(ENTITY_NOT_FOUND_WARN_MSG, masterAccountId));
+            return "";
+        }
+        ActionPartialEntity masterAccount = entitiesSnapshot.getEntityFromOid(masterAccountId).get();
         final String masterAccountName = (masterAccount != null) ? masterAccount.getDisplayName() : "";
 
-        ActionPartialEntity region = entitiesSnapshot.getEntityFromOid(buyRI.getRegionId().getId()).get();
+        long regionId = buyRI.getRegionId().getId();
+        if (!entitiesSnapshot.getEntityFromOid(regionId).isPresent()) {
+            logger.debug(MessageFormat.format(ENTITY_NOT_FOUND_WARN_MSG, regionId));
+            return "";
+        }
+        ActionPartialEntity region = entitiesSnapshot.getEntityFromOid(regionId).get();
         final String regionName = (region != null) ? region.getDisplayName() : "";
 
         return MessageFormat.format(ACTION_DESCRIPTION_BUYRI, count, computeTierName,
             masterAccountName, regionName);
+    }
+
+    /**
+     * Builds the Provision action description. This is intended to be called by
+     * {@link ActionDescriptionBuilder#buildActionDescription(EntitiesAndSettingsSnapshot, ActionDTO.Action)}
+     *
+     * @param entitiesSnapshot {@link EntitiesAndSettingsSnapshot} object that contains entities
+     * information.
+     * @return The Provision action description.
+     */
+    private static String getProvisionActionDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
+                                                    @Nonnull final ActionDTO.Action recommendation)  {
+        long entityId = recommendation.getInfo().getProvision().getEntityToClone().getId();
+        if (!entitiesSnapshot.getEntityFromOid(entityId).isPresent()) {
+            logger.debug(MessageFormat.format(ENTITY_NOT_FOUND_WARN_MSG, entityId));
+            return "";
+        }
+        return MessageFormat.format(ACTION_DESCRIPTION_PROVISION,
+            beautifyEntityTypeAndName(entitiesSnapshot.getEntityFromOid(entityId).get()));
+    }
+
+    /**
+     * Builds the Delete action description. This is intended to be called by
+     * {@link ActionDescriptionBuilder#buildActionDescription(EntitiesAndSettingsSnapshot, ActionDTO.Action)}
+     *
+     * @param entitiesSnapshot {@link EntitiesAndSettingsSnapshot} object that contains entities
+     * information.
+     * @return The Delete action description.
+     */
+    private static String getDeleteActionDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
+                                                        @Nonnull final ActionDTO.Action recommendation)  {
+        // TODO need to give savings in terms of cost instead of file size for Cloud entities
+        String deleteFilePath = recommendation.getInfo().getDelete().getFilePath();
+        long entityId = recommendation.getInfo().getDelete().getTarget().getId();
+        if (!entitiesSnapshot.getEntityFromOid(entityId).isPresent()) {
+            logger.debug(MessageFormat.format(ENTITY_NOT_FOUND_WARN_MSG, entityId));
+            return "";
+        }
+        return MessageFormat.format(ACTION_DESCRIPTION_DELETE,
+            deleteFilePath.substring(deleteFilePath.lastIndexOf('/') + 1),
+            beautifyEntityTypeAndName(entitiesSnapshot.getEntityFromOid(
+                recommendation.getInfo().getDelete().getTarget().getId()).get()),
+            FileUtils.byteCountToDisplaySize(
+                recommendation.getExplanation().getDelete().getSizeKb()
+                    * FileUtils.ONE_KB));
+    }
+
+    /**
+     * Builds the Activate action description. This is intended to be called by
+     * {@link ActionDescriptionBuilder#buildActionDescription(EntitiesAndSettingsSnapshot, ActionDTO.Action)}
+     *
+     * @param entitiesSnapshot {@link EntitiesAndSettingsSnapshot} object that contains entities
+     * information.
+     * @return The Activate action description.
+     */
+    private static String getActivateActionDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
+                                                     @Nonnull final ActionDTO.Action recommendation) {
+        long entityId = recommendation.getInfo().getActivate().getTarget().getId();
+        if (!entitiesSnapshot.getEntityFromOid(entityId).isPresent()) {
+            logger.debug(MessageFormat.format(ENTITY_NOT_FOUND_WARN_MSG, entityId));
+            return "";
+        }
+        return MessageFormat.format(
+            ACTION_DESCRIPTION_ACTIVATE,
+            beautifyEntityTypeAndName(entitiesSnapshot.getEntityFromOid(entityId).get()));
+    }
+
+    /**
+     * Builds the Deactivate action description. This is intended to be called by
+     * {@link ActionDescriptionBuilder#buildActionDescription(EntitiesAndSettingsSnapshot, ActionDTO.Action)}
+     *
+     * @param entitiesSnapshot {@link EntitiesAndSettingsSnapshot} object that contains entities
+     * information.
+     * @return The Deactivate action description.
+     */
+    private static String getDeactivateActionDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
+                                                       @Nonnull final ActionDTO.Action recommendation) {
+        long entityId = recommendation.getInfo().getDeactivate().getTarget().getId();
+        if (!entitiesSnapshot.getEntityFromOid(entityId).isPresent()) {
+            logger.debug(MessageFormat.format(ENTITY_NOT_FOUND_WARN_MSG, entityId));
+            return "";
+        }
+        return MessageFormat.format(ACTION_DESCRIPTION_DEACTIVATE,
+            beautifyString(ActionDTO.ActionType.SUSPEND.name()),
+            beautifyEntityTypeAndName(entitiesSnapshot.getEntityFromOid(
+                entityId).get()));
     }
 
     /**

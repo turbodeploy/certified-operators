@@ -35,7 +35,8 @@ public class ActionFactory implements IActionFactory {
     @Nonnull
     public Action newAction(@Nonnull final ActionDTO.Action recommendation,
                             @Nonnull final LocalDateTime recommendationTime,
-                            final long actionPlanId) {
-        return new Action(recommendation, recommendationTime, actionPlanId, actionModeCalculator);
+                            final long actionPlanId, String description) {
+        return new Action(recommendation, recommendationTime, actionPlanId,
+            actionModeCalculator, description);
     }
 }

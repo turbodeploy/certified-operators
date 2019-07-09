@@ -4,24 +4,29 @@ import static com.vmturbo.action.orchestrator.db.tables.ActionPlan.ACTION_PLAN;
 import static com.vmturbo.action.orchestrator.db.tables.MarketAction.MARKET_ACTION;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.immutables.value.Value;
 import org.jooq.DSLContext;
-import org.jooq.InsertValuesStep4;
+import org.jooq.InsertValuesStep5;
 import org.jooq.impl.DSL;
 
 import com.google.common.collect.Iterators;
@@ -30,19 +35,22 @@ import com.google.common.collect.Maps;
 import io.prometheus.client.Summary;
 
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionDescriptionBuilder;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
+import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.db.tables.pojos.MarketAction;
 import com.vmturbo.action.orchestrator.db.tables.records.MarketActionRecord;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
-import com.vmturbo.action.orchestrator.store.query.QueryFilter;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 
 /**
  * {@inheritDoc}
@@ -123,6 +131,10 @@ public class PlanActionStore implements ActionStore {
         .help("Duration in seconds it takes to delete a plan action plan from persistent storage.")
         .register();
 
+    private final EntitiesAndSettingsSnapshotFactory entitySettingsCache;
+
+    private final ActionTranslator actionTranslator;
+
     /**
      * Create a new {@link PlanActionStore}.
      *
@@ -131,13 +143,17 @@ public class PlanActionStore implements ActionStore {
      */
     public PlanActionStore(@Nonnull final IActionFactory actionFactory,
                            @Nonnull final DSLContext dsl,
-                           final long topologyContextId) {
+                           final long topologyContextId,
+                           @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
+                           @Nonnull final ActionTranslator actionTranslator) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.dsl = dsl;
         this.actionPlanIdByActionPlanType = Maps.newHashMap();
         this.recommendationTimeByActionPlanId = Maps.newHashMap();
         this.topologyContextId = topologyContextId;
         this.severityCache = new EntitySeverityCache();
+        this.entitySettingsCache = entitySettingsCache;
+        this.actionTranslator = Objects.requireNonNull(actionTranslator);
     }
 
     /**
@@ -164,7 +180,7 @@ public class PlanActionStore implements ActionStore {
     @Override
     public int size() {
         return dsl.fetchCount(dsl.selectFrom(MARKET_ACTION)
-                .where(MARKET_ACTION.TOPOLOGY_CONTEXT_ID.eq(topologyContextId)));
+            .where(MARKET_ACTION.TOPOLOGY_CONTEXT_ID.eq(topologyContextId)));
     }
 
     /**
@@ -195,9 +211,9 @@ public class PlanActionStore implements ActionStore {
     @Override
     public Optional<Action> getAction(long actionId) {
         return loadAction(actionId)
-                .map(action -> actionFactory.newAction(action.getRecommendation(),
-                        recommendationTimeByActionPlanId.get(action.getActionPlanId()),
-                        action.getActionPlanId()));
+            .map(action -> actionFactory.newAction(action.getRecommendation(),
+                recommendationTimeByActionPlanId.get(action.getActionPlanId()),
+                action.getActionPlanId(), action.getDescription()));
     }
 
     /**
@@ -218,11 +234,12 @@ public class PlanActionStore implements ActionStore {
     @Nonnull
     @Override
     public Map<Long, Action> getActions() {
-        return loadActions().stream().map(action ->
+        Map<Long, Action> actions = loadActions().stream().map(action ->
             actionFactory.newAction(action.getRecommendation(),
                 recommendationTimeByActionPlanId.get(action.getActionPlanId()),
-                action.getActionPlanId()))
+                action.getActionPlanId(), action.getDescription()))
             .collect(Collectors.toMap(Action::getId, Function.identity()));
+        return actions;
     }
 
     @Nonnull
@@ -233,8 +250,8 @@ public class PlanActionStore implements ActionStore {
                 Entry::getKey,
                 e -> loadActions(e.getValue()).stream().map(
                     action -> actionFactory.newAction(action.getRecommendation(),
-                    recommendationTimeByActionPlanId.get(action.getActionPlanId()),
-                    action.getActionPlanId())).collect(Collectors.toList())));
+                        recommendationTimeByActionPlanId.get(action.getActionPlanId()),
+                        action.getActionPlanId(), action.getDescription())).collect(Collectors.toList())));
     }
 
     /**
@@ -247,10 +264,10 @@ public class PlanActionStore implements ActionStore {
             ActionPlanType actionPlanType = e.getKey();
             List<Action> actions = e.getValue();
             com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData =
-                    actionPlanData(actionPlanType, actions);
+                actionPlanData(actionPlanType, actions);
             if (replaceAllActions(actions.stream()
-                    .map(Action::getRecommendation)
-                    .collect(Collectors.toList()), planData)) {
+                .map(Action::getRecommendation)
+                .collect(Collectors.toList()), planData)) {
                 logger.info("Successfully overwrote {} actions in the store with {} new actions.",
                     actionPlanType, actions.size());
             } else {
@@ -320,12 +337,14 @@ public class PlanActionStore implements ActionStore {
     private boolean replaceAllActions(@Nonnull final List<ActionDTO.Action> actions,
                                       @Nonnull final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData) {
         try {
+            final List<ActionAndDescription> translatedActionsToAdd = translatePlanActions(actions, planData);
             dsl.transaction(configuration -> {
                 DSLContext transactionDsl = DSL.using(configuration);
                 // Delete existing action plan if it exists for the incoming action plan type
                 ActionPlanType incomingActionPlanType = ActionPlanType.forNumber(planData.getActionPlanType());
                 deleteActionPlanIfExists(transactionDsl, incomingActionPlanType);
-                if (!actions.isEmpty()) {
+
+                if (!translatedActionsToAdd.isEmpty()) {
                     // Store the action plan
                     transactionDsl
                         .newRecord(ACTION_PLAN, planData)
@@ -333,27 +352,30 @@ public class PlanActionStore implements ActionStore {
 
                     // Store the associated actions for the plan in batches, but keep
                     // the batches in the same transaction.
-                    Iterators.partition(actions.iterator(), BATCH_SIZE).forEachRemaining(actionBatch -> {
+                    Iterators.partition(translatedActionsToAdd.iterator(), BATCH_SIZE).forEachRemaining(actionBatch -> {
                         // If we expand the Market Action table we need to modify this insert
                         // statement and the subsequent "values" bindings.
-                        InsertValuesStep4<MarketActionRecord, Long, Long, Long, ActionDTO.Action> step =
-                                transactionDsl.insertInto(MARKET_ACTION,
-                                        MARKET_ACTION.ID,
-                                        MARKET_ACTION.ACTION_PLAN_ID,
-                                        MARKET_ACTION.TOPOLOGY_CONTEXT_ID,
-                                        MARKET_ACTION.RECOMMENDATION);
-                        for (ActionDTO.Action action : actionBatch) {
-                            step = step.values(action.getId(),
-                                    planData.getId(),
-                                    planData.getTopologyContextId(),
-                                    action);
+                        InsertValuesStep5<MarketActionRecord, Long, Long, Long, ActionDTO.Action,String> step =
+                            transactionDsl.insertInto(MARKET_ACTION,
+                                MARKET_ACTION.ID,
+                                MARKET_ACTION.ACTION_PLAN_ID,
+                                MARKET_ACTION.TOPOLOGY_CONTEXT_ID,
+                                MARKET_ACTION.RECOMMENDATION,
+                                MARKET_ACTION.DESCRIPTION);
+
+                        for (ActionAndDescription actionAndDescription : actionBatch) {
+                            step = step.values(actionAndDescription.translatedAction().getId(),
+                                planData.getId(),
+                                planData.getTopologyContextId(),
+                                actionAndDescription.translatedAction(),
+                                actionAndDescription.description());
                         }
                         step.execute();
                     });
                     // Update internal state tracking only on success of database operations.
                     updateInternalState(incomingActionPlanType, planData.getId(), planData.getCreateTime());
                     logger.info("Successfully stored action plan id {} of type {} with {} actions",
-                        planData.getId(), planData.getActionPlanType(), actions.size());
+                        planData.getId(), planData.getActionPlanType(), translatedActionsToAdd.size());
                 }
             });
             return true;
@@ -361,6 +383,60 @@ public class PlanActionStore implements ActionStore {
             logger.error("Replace all actions transaction failed with error: ", e);
             return false;
         }
+    }
+
+    /**
+     * Translates and adds description for each of the given list of plan actions.
+     *
+     * @param actions The {@link ActionPlan} whose actions should be stored.
+     * @param planData Data for the plan whose actions are being populated.
+     * @return A list of translated actions and their descriptions.
+     */
+    private List<ActionAndDescription> translatePlanActions(@Nonnull final List<ActionDTO.Action> actions,
+                                       @Nonnull final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData) {
+        final Stream<Action> translatedActions = actionTranslator.translate(actions.stream()
+            .map(recommendedAction -> {
+                final Action action;
+                action = actionFactory.newAction(recommendedAction, planData.getId());
+                return action;
+            })
+            .filter(Objects::nonNull));
+
+        final Set<Long> entitiesToRetrieve = new HashSet<>();
+        final Set<ActionTypeCase> unsupportedActionTypes = new HashSet<>();
+        final List<Action> translatedActionsToAdd = new ArrayList<>();
+
+        translatedActions.forEach(action -> {
+            try {
+                // Ignoring actions with failed translation
+                if (action.getActionTranslation().getTranslationStatus() != TranslationStatus.TRANSLATION_FAILED) {
+                    translatedActionsToAdd.add(action);
+                    entitiesToRetrieve.addAll(ActionDTOUtil.getInvolvedEntityIds(
+                        action.getActionTranslation().getTranslationResultOrOriginal()));
+                }
+            } catch (UnsupportedActionException e) {
+                unsupportedActionTypes.add(e.getActionType());
+            }
+        });
+
+        if (!unsupportedActionTypes.isEmpty()) {
+            logger.error("Action plan contained unsupported action types: {}", unsupportedActionTypes);
+        }
+
+        // snapshot object will contain the entities information that is required to
+        // form the actions descriptions
+        final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
+            entitiesToRetrieve, planData.getTopologyContextId(), planData.getTopologyId());
+
+        // Forming the actions descriptions
+        return translatedActionsToAdd.stream().map(action -> {
+                final ActionDTO.Action recommendation = action.getActionTranslation().getTranslationResultOrOriginal();
+                return ImmutableActionAndDescription.builder()
+                    .translatedAction(recommendation)
+                    .description(ActionDescriptionBuilder.buildActionDescription(snapshot, recommendation))
+                    .build();
+            })
+            .collect(Collectors.toList());
     }
 
     /**
@@ -382,9 +458,9 @@ public class PlanActionStore implements ActionStore {
      */
     private List<MarketAction> loadActions(long actionPlanId) {
         return dsl.selectFrom(MARKET_ACTION)
-                .where(MARKET_ACTION.ACTION_PLAN_ID.eq(actionPlanId))
-                .fetch()
-                .into(MarketAction.class);
+            .where(MARKET_ACTION.ACTION_PLAN_ID.eq(actionPlanId))
+            .fetch()
+            .into(MarketAction.class);
     }
 
     /**
@@ -425,7 +501,7 @@ public class PlanActionStore implements ActionStore {
                 " with information from an action plan with topologyContextId " + actionPlan.getTopologyContextId());
         }
         updateInternalState(ActionPlanType.forNumber(actionPlan.getActionPlanType()),
-                actionPlan.getId(), actionPlan.getCreateTime());
+            actionPlan.getId(), actionPlan.getCreateTime());
     }
 
     /**
@@ -437,7 +513,7 @@ public class PlanActionStore implements ActionStore {
      * @param recommendationTime the recommendation time
      */
     private void updateInternalState(ActionPlanType actionPlanType, long actionPlanId,
-                                           LocalDateTime recommendationTime) {
+                                     LocalDateTime recommendationTime) {
         actionPlanIdByActionPlanType.put(actionPlanType, actionPlanId);
         recommendationTimeByActionPlanId.put(actionPlanId, recommendationTime);
     }
@@ -466,13 +542,19 @@ public class PlanActionStore implements ActionStore {
         private final DSLContext dsl;
         private final IActionFactory actionFactory;
         private final ActionModeCalculator actionModeCalculator;
+        private final EntitiesAndSettingsSnapshotFactory entitySettingsCache;
+        private final ActionTranslator actionTranslator;
 
         public StoreLoader(@Nonnull final DSLContext dsl,
                            @Nonnull final IActionFactory actionFactory,
-                           @Nonnull final ActionModeCalculator actionModeCalculator) {
+                           @Nonnull final ActionModeCalculator actionModeCalculator,
+                           @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
+                           @Nonnull final ActionTranslator actionTranslator) {
             this.dsl = Objects.requireNonNull(dsl);
             this.actionFactory = Objects.requireNonNull(actionFactory);
             this.actionModeCalculator = Objects.requireNonNull(actionModeCalculator);
+            this.entitySettingsCache = entitySettingsCache;
+            this.actionTranslator = actionTranslator;
         }
 
         /**
@@ -489,7 +571,7 @@ public class PlanActionStore implements ActionStore {
                         final PlanActionStore store = planActionStoresByTopologyContextId
                             .computeIfAbsent(actionPlan.getTopologyContextId(),
                                 k -> new PlanActionStore(actionFactory, dsl,
-                                    actionPlan.getTopologyContextId()));
+                                    actionPlan.getTopologyContextId(), entitySettingsCache, actionTranslator));
                         store.setupPlanInformation(actionPlan);
                     });
                 return planActionStoresByTopologyContextId.values().stream().collect(Collectors.toList());
@@ -530,7 +612,7 @@ public class PlanActionStore implements ActionStore {
      * @return A POJO ActionPlan.
      */
     private com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan actionPlanData(
-            @Nonnull ActionPlanType actionPlanType, @Nonnull final List<Action> actions) {
+        @Nonnull ActionPlanType actionPlanType, @Nonnull final List<Action> actions) {
         long actionPlanId = -1;
         LocalDateTime recommendationTime = null;
         if (!actions.isEmpty()) {
@@ -539,11 +621,20 @@ public class PlanActionStore implements ActionStore {
             recommendationTime = action.getRecommendationTime();
         }
         return new com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan(
-                actionPlanId,
-                -1L,
-                topologyContextId,
-                recommendationTime,
-                (short)actionPlanType.getNumber()
+            actionPlanId,
+            -1L,
+            topologyContextId,
+            recommendationTime,
+            (short)actionPlanType.getNumber()
         );
+    }
+
+    /**
+     * An Immutable interface that holds both the translated action and its description
+     */
+    @Value.Immutable
+    public interface ActionAndDescription {
+        ActionDTO.Action translatedAction();
+        String description();
     }
 }

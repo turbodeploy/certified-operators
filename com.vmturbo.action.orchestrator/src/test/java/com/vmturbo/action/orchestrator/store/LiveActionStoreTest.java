@@ -108,8 +108,8 @@ public class LiveActionStoreTest {
         @Nonnull
         @Override
         public Action newAction(@Nonnull ActionDTO.Action recommendation, @Nonnull LocalDateTime recommendationTime,
-                                long actionPlanId) {
-            return spy(new Action(recommendation, recommendationTime, actionPlanId, actionModeCalculator));
+                                long actionPlanId, String description) {
+            return spy(new Action(recommendation, recommendationTime, actionPlanId, actionModeCalculator, description));
         }
     }
 

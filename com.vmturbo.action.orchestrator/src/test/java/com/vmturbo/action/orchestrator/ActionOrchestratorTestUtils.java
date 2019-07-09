@@ -36,8 +36,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -138,7 +136,6 @@ public class ActionOrchestratorTestUtils {
                                     @Nonnull final Action got) {
         Assert.assertEquals(expected.getId(), got.getId());
         Assert.assertEquals(expected.getRecommendation(), got.getRecommendation());
-        Assert.assertEquals(expected.getRecommendationTime(), got.getRecommendationTime());
         Assert.assertEquals(expected.getState(), got.getState());
         Assert.assertEquals(expected.getActionPlanId(), got.getActionPlanId());
         if (expected.getCurrentExecutableStep().isPresent()) {

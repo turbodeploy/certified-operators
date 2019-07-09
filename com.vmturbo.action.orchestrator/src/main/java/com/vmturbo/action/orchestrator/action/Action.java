@@ -223,7 +223,9 @@ public class Action implements ActionView {
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
                   @Nonnull final LocalDateTime recommendationTime,
-                  final long actionPlanId, @Nonnull final ActionModeCalculator actionModeCalculator) {
+                  final long actionPlanId,
+                  @Nonnull final ActionModeCalculator actionModeCalculator,
+                  @Nullable final String description) {
         this.recommendation = recommendation;
         this.actionTranslation = new ActionTranslation(this.recommendation);
         this.actionPlanId = actionPlanId;
@@ -234,11 +236,14 @@ public class Action implements ActionView {
         this.actionCategory = ActionCategoryExtractor.assignActionCategory(
                 recommendation.getExplanation());
         this.actionModeCalculator = actionModeCalculator;
+        this.description = description;
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
                   final long actionPlanId, @Nonnull final ActionModeCalculator actionModeCalculator) {
-        this(recommendation, LocalDateTime.now(), actionPlanId, actionModeCalculator);
+        // This constructor is used by LiveActionStore, so passing null to 'description' argument
+        // is not hurtful since the description will be formed on a later stage.
+        this(recommendation, LocalDateTime.now(), actionPlanId, actionModeCalculator, null);
     }
 
     /**

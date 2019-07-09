@@ -3,9 +3,9 @@ package com.vmturbo.action.orchestrator.store;
 import java.time.LocalDateTime;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.action.orchestrator.action.Action;
-import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 
 /**
@@ -31,9 +31,12 @@ public interface IActionFactory {
      * @param recommendation The market recommendation for the action in the environment.
      * @param recommendationTime The time at which the action was recommended.
      * @param actionPlanId The ID of the ActionPlan the recommendation was a part of.
+     * @param description The description of the recommendation.
      * @return A new {@link Action} instance.
      */
     @Nonnull
     Action newAction(@Nonnull final ActionDTO.Action recommendation,
-                     @Nonnull final LocalDateTime recommendationTime, final long actionPlanId);
+                     @Nonnull final LocalDateTime recommendationTime,
+                     final long actionPlanId,
+                     final String description);
 }

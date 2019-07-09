@@ -88,7 +88,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
                 actionTargetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
                 actionsStatistician, actionTranslator, clock, userSessionContext);
         } else {
-            return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId);
+            return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId,
+                entitySettingsCache, actionTranslator);
         }
     }
 

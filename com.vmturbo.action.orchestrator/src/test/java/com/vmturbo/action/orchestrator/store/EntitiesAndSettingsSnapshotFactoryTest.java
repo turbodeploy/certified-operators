@@ -75,7 +75,7 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
 
     @Before
     public void setup() {
-        entitySettingsCache = new EntitiesAndSettingsSnapshotFactory(grpcTestServer.getChannel(), repoTestServer.getChannel());
+        entitySettingsCache = new EntitiesAndSettingsSnapshotFactory(grpcTestServer.getChannel(), repoTestServer.getChannel(),2000,5,777777);
 
         when(restTemplate.exchange(anyString(), eq(HttpMethod.POST), eq(httpEntity), eq(type)))
                 .thenReturn(ResponseEntity.ok(Collections.emptyList()));

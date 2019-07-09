@@ -69,6 +69,12 @@ public class ActionStoreConfig {
     @Value("${entityTypeMaxRetries}")
     private long entityTypeMaxRetries;
 
+    @Value("${entityRetrievalRetryIntervalMillis:2000}")
+    private int entityRetrievalRetryIntervalMillis;
+
+    @Value("${entityRetrievalMaxRetries:900}")
+    private int entityRetrievalMaxRetries;
+
     @Bean
     public IActionFactory actionFactory() {
         return new ActionFactory(actionModeCalculator());
@@ -76,7 +82,12 @@ public class ActionStoreConfig {
 
     @Bean
     public EntitiesAndSettingsSnapshotFactory entitySettingsCache() {
-        return new EntitiesAndSettingsSnapshotFactory(groupClientConfig.groupChannel(), repositoryClientConfig.repositoryChannel());
+        return new EntitiesAndSettingsSnapshotFactory(
+            groupClientConfig.groupChannel(),
+            repositoryClientConfig.repositoryChannel(),
+            entityRetrievalRetryIntervalMillis,
+            entityRetrievalMaxRetries,
+            actionOrchestratorGlobalConfig.realtimeTopologyContextId());
     }
 
     @Bean
@@ -112,7 +123,11 @@ public class ActionStoreConfig {
     public IActionStoreLoader actionStoreLoader() {
         // For now, only plan action stores (kept in PersistentImmutableActionStores)
         // need to be re-loaded at startup.
-        return new PlanActionStore.StoreLoader(databaseConfig.dsl(), actionFactory(), actionModeCalculator());
+        return new PlanActionStore.StoreLoader(databaseConfig.dsl(),
+            actionFactory(),
+            actionModeCalculator(),
+            entitySettingsCache(),
+            actionTranslationConfig.actionTranslator());
     }
 
     @Bean

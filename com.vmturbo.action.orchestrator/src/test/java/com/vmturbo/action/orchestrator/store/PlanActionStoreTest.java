@@ -1,13 +1,15 @@
 package com.vmturbo.action.orchestrator.store;
 
-import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.passthroughTranslator;
 import static com.vmturbo.action.orchestrator.db.tables.MarketAction.MARKET_ACTION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
@@ -26,6 +28,7 @@ import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +45,7 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.db.tables.pojos.MarketAction;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -53,6 +57,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionP
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 /**
@@ -78,11 +83,39 @@ public class PlanActionStoreTest {
     private final long firstContextId = 0xFED;
     private final long secondContextId = 0xFEED;
 
+    private static final long hostA = 0xA;
+    private static final long hostB = 0xB;
+
+    /**
+     * Permit spying on actions inserted into the store so that their state can be mocked
+     * out for testing purposes.
+     */
+    private class SpyActionFactory implements IActionFactory {
+        /**
+         * {@inheritDoc}
+         */
+        @Nonnull
+        @Override
+        public Action newAction(@Nonnull final ActionDTO.Action recommendation, long actionPlanId) {
+            return spy(new Action(recommendation, actionPlanId, actionModeCalculator));
+        }
+
+        @Nonnull
+        @Override
+        public Action newAction(@Nonnull ActionDTO.Action recommendation, @Nonnull LocalDateTime recommendationTime,
+                                long actionPlanId, String description) {
+            return spy(new Action(recommendation, recommendationTime, actionPlanId, actionModeCalculator, description));
+        }
+    }
+
     private final LocalDateTime actionRecommendationTime = LocalDateTime.now();
     private final IActionFactory actionFactory = mock(IActionFactory.class);
+    private SpyActionFactory spyActionFactory = spy(new SpyActionFactory());
     private PlanActionStore actionStore;
 
-    private final ActionTranslator actionTranslator = passthroughTranslator();
+    private final EntitiesAndSettingsSnapshotFactory entitiesSnapshotFactory = mock(EntitiesAndSettingsSnapshotFactory.class);
+    private final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
+    private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
 
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
 
@@ -95,17 +128,32 @@ public class PlanActionStoreTest {
         // Clean the database and bring it up to the production configuration before running test
         flyway.clean();
         flyway.migrate();
-        actionStore = new PlanActionStore(actionFactory, dsl, firstContextId);
+        actionStore = new PlanActionStore(spyActionFactory, dsl, firstContextId, entitiesSnapshotFactory, actionTranslator);
 
         // Enforce that all actions created with this factory get the same recommendation time
         // so that actions can be easily compared.
         when(actionFactory.newAction(any(ActionDTO.Action.class),
-                any(LocalDateTime.class), anyLong())).thenAnswer(
+                any(LocalDateTime.class), anyLong(), anyString())).thenAnswer(
             invocation -> {
                 Object[] args = invocation.getArguments();
                 return new Action((ActionDTO.Action) args[0], actionRecommendationTime, (Long) args[2],
-                        actionModeCalculator);
+                        actionModeCalculator,"Move VM from H1 to H2");
             });
+        setEntitiesOIDs();
+    }
+
+    public void setEntitiesOIDs() {
+        when(entitiesSnapshotFactory.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        for (long i=1; i<10;i++) {
+            createMockEntity(i,EntityType.VIRTUAL_MACHINE.getNumber());
+        }
+        createMockEntity(hostA,EntityType.PHYSICAL_MACHINE.getNumber());
+        createMockEntity(hostB,EntityType.PHYSICAL_MACHINE.getNumber());
+    }
+
+    private void createMockEntity(long id, int type) {
+        when(snapshot.getEntityFromOid(eq(id)))
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(id, type));
     }
 
     @After
@@ -155,7 +203,7 @@ public class PlanActionStoreTest {
         assertTrue(actionStore.getActionViews().isEmpty());
     }
 
-        @Test
+    @Test
     public void testGetActionViews() throws Exception {
         final ActionDTO.Action action = ActionOrchestratorTestUtils.createMoveRecommendation(1, 2, 1, 3, 1, 4);
         final ActionPlan actionPlan = marketActionPlan(firstPlanId, firstContextId, Collections.singletonList(action));
@@ -198,7 +246,7 @@ public class PlanActionStoreTest {
         actionStore.populateRecommendedActions(actionPlan);
 
         ActionOrchestratorTestUtils.assertActionsEqual(
-            actionFactory.newAction(action, actionRecommendationTime, firstPlanId),
+            actionFactory.newAction(action, actionRecommendationTime, firstPlanId,""),
             actionStore.getAction(1L).get()
         );
     }
@@ -217,7 +265,7 @@ public class PlanActionStoreTest {
         Map<Long, Action> actionsMap = actionStore.getActions();
         actionList.forEach(action ->
             ActionOrchestratorTestUtils.assertActionsEqual(
-                actionFactory.newAction(action, actionRecommendationTime, firstPlanId),
+                actionFactory.newAction(action, actionRecommendationTime, firstPlanId, ""),
                 actionsMap.get(action.getId())
             )
         );
@@ -227,7 +275,7 @@ public class PlanActionStoreTest {
     public void testOverwriteActionsEmptyStore() throws Exception {
         final List<Action> actionList = actionList(3).stream()
             .map(marketAction -> actionFactory.newAction(marketAction, actionRecommendationTime,
-                    firstPlanId))
+                    firstPlanId, ""))
             .collect(Collectors.toList());
 
         actionStore.overwriteActions(ImmutableMap.of(ActionPlanType.MARKET, actionList));
@@ -250,11 +298,11 @@ public class PlanActionStoreTest {
         final int numOverwriteActions = 2;
         final List<Action> marketOverwriteActions = actionList(numOverwriteActions).stream()
             .map(marketAction -> actionFactory.newAction(marketAction, actionRecommendationTime,
-                firstPlanId))
+                firstPlanId, ""))
             .collect(Collectors.toList());
         final List<Action> buyRIOverwriteActions = actionList(numOverwriteActions).stream()
             .map(buyRIAction -> actionFactory.newAction(buyRIAction, actionRecommendationTime,
-                secondPlanId))
+                secondPlanId, ""))
             .collect(Collectors.toList());
 
         actionStore.overwriteActions(ImmutableMap.of(
@@ -299,7 +347,7 @@ public class PlanActionStoreTest {
     @Test
     public void testStoreLoaderWithNoStores() {
         List<ActionStore> loadedStores =
-            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator).loadActionStores();
+            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator,entitiesSnapshotFactory, actionTranslator).loadActionStores();
 
         assertTrue(loadedStores.isEmpty());
     }
@@ -319,13 +367,13 @@ public class PlanActionStoreTest {
 
         // Setup second planActionStore. This has 9 Buy RI Actions
         final ActionPlan buyRIActionPlan2 = buyRIActionPlan(3L, secondContextId, actionList(9));
-        PlanActionStore actionStore2 = new PlanActionStore(actionFactory, dsl, secondContextId);
+        PlanActionStore actionStore2 = new PlanActionStore(spyActionFactory, dsl, secondContextId,entitiesSnapshotFactory, actionTranslator);
         actionStore2.populateRecommendedActions(buyRIActionPlan2);
         expectedActionStores.put(secondContextId, actionStore2);
 
         // Load the stores from DB
         List<ActionStore> loadedStores =
-            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator).loadActionStores();
+            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator,entitiesSnapshotFactory, actionTranslator).loadActionStores();
         loadedStores.forEach(store -> actualActionStores.put(store.getTopologyContextId(), store));
 
         // Assert that what we load from DB is the same as what we setup initially
@@ -374,15 +422,16 @@ public class PlanActionStoreTest {
     }
 
     private static List<ActionDTO.Action> actionList(final int numActions) {
-        return IntStream.range(0, numActions)
-            .mapToObj(i -> ActionOrchestratorTestUtils.createMoveRecommendation(IdentityGenerator.next()))
+        List<ActionDTO.Action> actions =  IntStream.range(0, numActions)
+            .mapToObj(i -> ActionOrchestratorTestUtils.createMoveRecommendation(IdentityGenerator.next(),i+1,hostA,14,hostB,14))
             .collect(Collectors.toList());
+        return actions;
     }
 
     private static ActionPlan marketActionPlan(final long planId, final long topologyContextId,
                                                @Nonnull final Collection<ActionDTO.Action> actions) {
 
-        return ActionPlan.newBuilder()
+        ActionPlan plan = ActionPlan.newBuilder()
             .setId(planId)
             .setInfo(ActionPlanInfo.newBuilder()
                 .setMarket(MarketActionPlanInfo.newBuilder()
@@ -392,6 +441,7 @@ public class PlanActionStoreTest {
                         .setTopologyType(TopologyType.PLAN))))
             .addAllAction(Objects.requireNonNull(actions))
             .build();
+        return plan;
     }
 
     private static ActionPlan buyRIActionPlan(final long planId, final long topologyContextId,

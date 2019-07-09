@@ -47,9 +47,22 @@ public class EntitiesAndSettingsSnapshotFactory {
 
     private final RepositoryServiceBlockingStub repositoryService;
 
-    EntitiesAndSettingsSnapshotFactory(@Nonnull final Channel groupChannel, @Nonnull final Channel repoChannel) {
+    private final int entityRetrievalRetryIntervalMillis;
+
+    private final int entityRetrievalMaxRetries;
+
+    private final long realtimeTopologyContextId;
+
+    EntitiesAndSettingsSnapshotFactory(@Nonnull final Channel groupChannel,
+                                       @Nonnull final Channel repoChannel,
+                                       @Nonnull final int entityRetrievalRetryIntervalMillis,
+                                       @Nonnull final int entityRetrievalMaxRetries,
+                                       @Nonnull final long realtimeTopologyContextId) {
         this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupChannel);
         this.repositoryService = RepositoryServiceGrpc.newBlockingStub(repoChannel);
+        this.entityRetrievalRetryIntervalMillis = entityRetrievalRetryIntervalMillis;
+        this.entityRetrievalMaxRetries = entityRetrievalMaxRetries;
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     /**
@@ -110,28 +123,67 @@ public class EntitiesAndSettingsSnapshotFactory {
 
     /**
      * Fetch entities from repository for given entities set.
+     *
      * @param entities to fetch from repository.
      * @param topologyContextId of topology.
      * @param topologyId of topology.
-     * @return mapping with oid as key and TopologyEntityDTO as value.
+     * @return mapping with oid as key and {@link ActionPartialEntity} as value.
      */
     private Map<Long, ActionPartialEntity> retrieveOidToEntityMap(Set<Long> entities,
                     long topologyContextId, long topologyId) {
         try {
-            RetrieveTopologyEntitiesRequest getEntitiesrequest = RetrieveTopologyEntitiesRequest.newBuilder()
+            RetrieveTopologyEntitiesRequest.Builder getEntitiesRequestBuilder = RetrieveTopologyEntitiesRequest.newBuilder()
                 .setTopologyContextId(topologyContextId)
                 .setTopologyId(topologyId)
-                .setTopologyType(TopologyType.SOURCE)
                 .addAllEntityOids(entities)
-                .setReturnType(PartialEntity.Type.ACTION)
-                .build();
-            return RepositoryDTOUtil.topologyEntityStream(repositoryService.retrieveTopologyEntities(getEntitiesrequest))
-                .map(PartialEntity::getAction)
-                .collect(Collectors.toMap(ActionPartialEntity::getOid, Function.identity()));
+                .setReturnType(PartialEntity.Type.ACTION);
+            if (topologyContextId == realtimeTopologyContextId) {
+                getEntitiesRequestBuilder.setTopologyType(TopologyType.SOURCE);
+            } else {
+                // This is a plan so we need the TopologyType to be PROJECTED
+                getEntitiesRequestBuilder.setTopologyType(TopologyType.PROJECTED);
+            }
+
+            Map<Long, ActionPartialEntity> entitiesMap = waitUntilRepositoryReturnsData(getEntitiesRequestBuilder.build());
+
+            if (entitiesMap.size() == 0) {
+                logger.error("After retrying for 30m, still the requested topology "+topologyContextId+" doesn't exist in the repository");
+            }
+            return entitiesMap;
         } catch (StatusRuntimeException ex) {
             logger.error("Failed to fetch entities due to exception : " + ex);
             return Collections.emptyMap();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt(); // Set the interrupt status on the thread.
+            logger.error("Failed to wait for repository to return data due to exception : " + e);
+            return Collections.emptyMap();
         }
+    }
+
+    /**
+     * Waits for the repository to return entities data for the given request. The method will wait
+     * until the defined number of retries in MAXIMUM_RETRIES. If the repository still doesn't have
+     * the requested data, an empty map will be returned
+     *
+     * @param request An object of class {@link RetrieveTopologyEntitiesRequest}
+     *                                  that holds the repository request
+     * @return mapping with oid as key and {@link ActionPartialEntity} as value.
+     * @throws InterruptedException
+     */
+    private Map<Long, ActionPartialEntity> waitUntilRepositoryReturnsData(@Nonnull final RetrieveTopologyEntitiesRequest request)
+        throws InterruptedException {
+        Map<Long, ActionPartialEntity> entitiesMap = Collections.emptyMap();
+        for (int currentTry = 0; currentTry < entityRetrievalMaxRetries; ++currentTry) {
+            entitiesMap = RepositoryDTOUtil.topologyEntityStream(repositoryService.retrieveTopologyEntities(request))
+                .map(PartialEntity::getAction)
+                .collect(Collectors.toMap(ActionPartialEntity::getOid, Function.identity()));
+            if (entitiesMap.isEmpty()) {
+                Thread.sleep(entityRetrievalRetryIntervalMillis);
+            } else {
+                break;
+            }
+        }
+        return entitiesMap;
     }
 
     @Nonnull
