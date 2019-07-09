@@ -13,6 +13,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import org.junit.Test;
 
 import com.google.common.collect.Sets;
@@ -346,8 +348,10 @@ public class CombinedStatsBucketsTest {
                         .setProvision(ProvisionExplanation.newBuilder()
                             .setProvisionBySupplyExplanation(
                                 ProvisionBySupplyExplanation.newBuilder()
-                                    .setMostExpensiveCommodity(CommodityDTO.CommodityType.CPU_VALUE)))
-                        .build());
+                                    .setMostExpensiveCommodity(
+                                            ActionOrchestratorTestUtils.createReasonCommodity(
+                                                CommodityDTO.CommodityType.CPU_VALUE, null)))
+                        .build()));
             },
             view -> {},
             Sets.newHashSet(ON_PREM_PM));
@@ -360,8 +364,10 @@ public class CombinedStatsBucketsTest {
                         .setProvision(ProvisionExplanation.newBuilder()
                             .setProvisionBySupplyExplanation(
                                 ProvisionBySupplyExplanation.newBuilder()
-                                    .setMostExpensiveCommodity(CommodityDTO.CommodityType.MEM_VALUE)))
-                        .build());
+                                    .setMostExpensiveCommodity(
+                                            ActionOrchestratorTestUtils.createReasonCommodity(
+                                                CommodityDTO.CommodityType.MEM_VALUE, null)))
+                        .build()));
             },
             view -> {},
             Sets.newHashSet(ON_PREM_PM));
@@ -374,8 +380,10 @@ public class CombinedStatsBucketsTest {
                         .setProvision(ProvisionExplanation.newBuilder()
                             .setProvisionBySupplyExplanation(
                                 ProvisionBySupplyExplanation.newBuilder()
-                                    .setMostExpensiveCommodity(CommodityDTO.CommodityType.MEM_VALUE)))
-                        .build());
+                                    .setMostExpensiveCommodity(
+                                        ActionOrchestratorTestUtils.createReasonCommodity(
+                                                CommodityDTO.CommodityType.MEM_VALUE, null)))
+                        .build()));
             },
             view -> {},
             Sets.newHashSet(ON_PREM_PM));

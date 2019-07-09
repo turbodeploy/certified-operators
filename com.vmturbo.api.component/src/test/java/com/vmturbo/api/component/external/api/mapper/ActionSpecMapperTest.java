@@ -466,7 +466,8 @@ public class ActionSpecMapperTest {
                         .setProvisionedSeller(-1).build()).build();
         Explanation provision = Explanation.newBuilder().setProvision(ProvisionExplanation
                         .newBuilder().setProvisionBySupplyExplanation(ProvisionBySupplyExplanation
-                                        .newBuilder().setMostExpensiveCommodity(21).build())
+                                        .newBuilder().setMostExpensiveCommodity(
+                                                createReasonCommodity(21, null)).build())
                         .build()).build();
 
         final MultiEntityRequest srcReq = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(

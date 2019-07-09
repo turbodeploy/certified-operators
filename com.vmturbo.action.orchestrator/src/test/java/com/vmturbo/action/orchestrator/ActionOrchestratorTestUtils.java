@@ -11,6 +11,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import org.junit.Assert;
 import org.mockito.Mockito;
 
@@ -236,5 +237,14 @@ public class ActionOrchestratorTestUtils {
                      // set some fake type for now
                     .setType(DEFAULT_ENTITY_TYPE)
                     .build();
+    }
+
+    public static Explanation.ReasonCommodity createReasonCommodity(int baseType, String key) {
+        CommodityType.Builder ct = TopologyDTO.CommodityType.newBuilder()
+                .setType(baseType);
+        if (key != null) {
+            ct.setKey(key);
+        }
+        return Explanation.ReasonCommodity.newBuilder().setCommodityType(ct.build()).build();
     }
 }
