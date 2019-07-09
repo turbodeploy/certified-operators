@@ -156,11 +156,11 @@ message ProvisionBySupplyTO {
     // The OID of a trader to clone.
     required int64 model_seller = 1;
 
-	// The OID of a trader that is provisioned, which is negative
+    // The OID of a trader that is provisioned, which is negative
     optional sint64 provisioned_seller = 2;
 
-    // The base type of the most expensive commodity
-    optional int32 most_expensive_commodity = 3;
+    // The commSpec of the most expensive commodity
+    optional CommoditySpecificationTO most_expensive_commodity = 3;
 }
 
 // An action to resize the capacity of a particular commodity sold by a specified trader.

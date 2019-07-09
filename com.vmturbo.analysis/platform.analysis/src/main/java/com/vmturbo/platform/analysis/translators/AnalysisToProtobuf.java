@@ -490,14 +490,12 @@ public final class AnalysisToProtobuf {
                             // the oid into BiMap traderOids_
                             .setProvisionedSeller(topology.addProvisionedTrader(
                                             provSupply.getProvisionedSeller()))
-                            .setMostExpensiveCommodity(
+                            .setMostExpensiveCommodity(commoditySpecificationTO(
                                             provSupply.getReason() == null
                                                             ? findMostExpensiveCommodity(provSupply
                                                                             .getModelSeller(),
                                                                             topology.getEconomy())
-                                                                                            .getBaseType()
-                                                            : provSupply.getReason()
-                                                                            .getBaseType());
+                                                            : provSupply.getReason()));
             // set oid for use in the next round for replaying of actions
             provSupply.setOid(topology.getTraderOids().get(provSupply.getProvisionedSeller()));
             // create shopping list OIDs for the provisioned shopping lists

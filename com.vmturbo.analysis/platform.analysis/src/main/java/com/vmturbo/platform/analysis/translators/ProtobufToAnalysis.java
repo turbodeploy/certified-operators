@@ -427,7 +427,7 @@ public final class ProtobufToAnalysis {
             case PROVISION_BY_SUPPLY:
                 Trader modelSeller = trader.apply(input.getProvisionBySupply().getModelSeller());
                 return new ProvisionBySupply(economy, modelSeller, modelSeller.getBasketSold()
-                                .get(input.getProvisionBySupply().getMostExpensiveCommodity()));
+                                .get(input.getProvisionBySupply().getMostExpensiveCommodity().getBaseType()));
             case RESIZE:
                 return new Resize(economy,trader.apply(input.getResize().getSellingTrader()),
                     commoditySpecification(input.getResize().getSpecification()),

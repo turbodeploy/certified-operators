@@ -269,10 +269,12 @@ public class AnalysisToProtobufTest {
                         .setProvisionBySupply(
                                         ProvisionBySupplyTO.newBuilder().setModelSeller(2l)
                                         .setProvisionedSeller(-2l)
-                                                        .setMostExpensiveCommodity(
-                                                                        ((ProvisionBySupply)provisionBySupply)
-                                                                                        .getReason()
-                                                                                        .getBaseType())
+                                                .setMostExpensiveCommodity(CommoditySpecificationTO.newBuilder()
+                                                                .setBaseType(((ProvisionBySupply)provisionBySupply)
+                                                                        .getReason()
+                                                                        .getBaseType())
+                                                                        .setType(0)
+                                                                .build())
                                         .build()).setImportance((float)(
                                         (ActionImpl)provisionBySupply).getImportance())
                         .setIsNotExecutable(false)
@@ -370,8 +372,10 @@ public class AnalysisToProtobufTest {
         }  else if (input instanceof ProvisionBySupply) {
             ProvisionBySupplyTO output = expect.getProvisionBySupply();
             assertEquals(output.getModelSeller(), actionTO.getProvisionBySupply().getModelSeller());
-            assertEquals(output.getMostExpensiveCommodity(),
-                            actionTO.getProvisionBySupply().getMostExpensiveCommodity());
+            assertEquals(output.getMostExpensiveCommodity().getBaseType(),
+                            actionTO.getProvisionBySupply().getMostExpensiveCommodity().getBaseType());
+            assertEquals(output.getMostExpensiveCommodity().getType(),
+                    actionTO.getProvisionBySupply().getMostExpensiveCommodity().getType());
         } else if (input instanceof Move) {
             final MoveTO output = expect.getMove();
             final MoveTO actionTOMove = actionTO.getMove();
