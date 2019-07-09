@@ -1,13 +1,13 @@
 package com.vmturbo.stitching.poststitching;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.joda.time.Duration;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -81,6 +81,6 @@ public class SetResizeDownAnalysisSettingPostStitchingOperation implements PostS
         }
         final long entityDiscoveredTime = IdentityGenerator.toMilliTime(entity.getOid());
         final long diffMillis = clock.millis() - entityDiscoveredTime;
-        return Duration.millis(diffMillis).getStandardMinutes() >= resizeDownWarmUpIntervalHours * 60;
+        return Duration.ofMillis(diffMillis).toMinutes() >= resizeDownWarmUpIntervalHours * 60;
     }
 }

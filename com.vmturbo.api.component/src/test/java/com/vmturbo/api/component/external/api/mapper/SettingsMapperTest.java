@@ -17,25 +17,25 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TimeZone;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeConstants;
-import org.joda.time.DateTimeZone;
 import org.junit.Rule;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-
 import com.vmturbo.api.component.external.api.mapper.SettingSpecStyleMappingLoader.SettingSpecStyleMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.PlanSettingInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
@@ -668,8 +668,9 @@ public class SettingsMapperTest {
         // Because no day of the week was specified, the day of the week will
         // be set based on the start timestamp.  We need to convert the start time
         // to a day of the week
-        final DateTime startDateTime = new DateTime(startTimestamp);
-        final int weekdayNumber = startDateTime.dayOfWeek().get();
+        final Date startDateTime = new Date(startTimestamp);
+        final int weekdayNumber = startDateTime.toInstant()
+                        .atOffset(ZoneOffset.UTC).toLocalDate().getDayOfWeek().getValue();
 
         final SettingPolicyInfo info = mapper.convertInputPolicy(settingsPolicyApiDTO, entityType);
         assertTrue(info.hasSchedule());
@@ -742,8 +743,9 @@ public class SettingsMapperTest {
 
         // Because no day of the month was specified, the day of the month will
         // be set based on the start timestamp.
-        final DateTime startDateTime = new DateTime(startTimestamp);
-        final int dayOfMonth = startDateTime.getDayOfMonth();
+        final Date startDateTime = new Date(startTimestamp);
+        final int dayOfMonth = startDateTime.toInstant()
+                        .atOffset(ZoneOffset.UTC).toLocalDate().getDayOfMonth();
 
         assertTrue(info.hasSchedule());
         final Schedule schedule = info.getSchedule();
@@ -997,10 +999,11 @@ public class SettingsMapperTest {
         // Because no day of the week was specified, the day of the week will
         // be set based on the start timestamp.  We need to convert the start time
         // to a day of the week
-        final DateTime startDateTime = new DateTime(startTimestamp);
+        final Date startDateTime = new Date(startTimestamp);
         // Also the api and the internal day representations are different
-        final int weekdayNumber = startDateTime.dayOfWeek().get() == Schedule.DayOfWeek.SUNDAY_VALUE ? 1
-                : startDateTime.dayOfWeek().get() + 1;
+        final int weekdayNumber = startDateTime.toInstant()
+                        .atOffset(ZoneOffset.UTC)
+                        .toLocalDate().getDayOfWeek().getValue() % 7 + 1;
 
         final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
         verifyBasicScheduleDTO(scheduleApiDTO);
@@ -1059,8 +1062,9 @@ public class SettingsMapperTest {
 
         // Because no day of the month was specified, the day of the month will
         // be set based on the start timestamp.
-        final DateTime startDateTime = new DateTime(startTimestamp);
-        final int dayOfMonth = startDateTime.getDayOfMonth();
+        final Date startDateTime = new Date(startTimestamp);
+        final int dayOfMonth = startDateTime.toInstant()
+                        .atOffset(ZoneOffset.UTC).toLocalDate().getDayOfMonth();
 
         final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
         verifyBasicScheduleDTO(scheduleApiDTO);
@@ -1382,12 +1386,13 @@ public class SettingsMapperTest {
     @Test
     public void testGetLegacyDayOfWeekForDatestamp() {
         final DefaultSettingPolicyMapper defaultSettingPolicyMapper = setUpPolicyMapperInfoToDtoTest();
-        final List<Integer> weeks = Lists.newArrayList(DateTimeConstants.MONDAY,
-                DateTimeConstants.TUESDAY, DateTimeConstants.WEDNESDAY, DateTimeConstants.THURSDAY,
-                DateTimeConstants.FRIDAY, DateTimeConstants.SATURDAY, DateTimeConstants.SUNDAY);
-        final DateTime dateTime = new DateTime(startTimestamp, DateTimeZone.UTC);
-        List<DateTime> dateTimeList = weeks.stream()
-               .map(dateTime::withDayOfWeek)
+        final List<Integer> weeks = Lists.newArrayList(Calendar.MONDAY,
+                        Calendar.TUESDAY, Calendar.WEDNESDAY,
+                        Calendar.THURSDAY, Calendar.FRIDAY,
+                        Calendar.SATURDAY, Calendar.SUNDAY);
+        final Date dateTime = new Date(startTimestamp);
+        List<Date> dateTimeList = weeks.stream()
+               .map(day -> updateDayOfWeek(dateTime, day))
                .collect(Collectors.toList());
         final List<DayOfWeek> dayOfWeeksApi = Lists.newArrayList(DayOfWeek.Mon, DayOfWeek.Tue,
                 DayOfWeek.Wed, DayOfWeek.Thu, DayOfWeek.Fri, DayOfWeek.Sat, DayOfWeek.Sun);
@@ -1395,5 +1400,12 @@ public class SettingsMapperTest {
                 .map(defaultSettingPolicyMapper::getLegacyDayOfWeekForDatestamp)
                 .collect(Collectors.toList());
         assertEquals(dayOfWeeksApi, convertedDayOfWeeks);
+    }
+
+    private Date updateDayOfWeek(Date date, Integer dayOfWeek) {
+        Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+        cal.setTime(date);
+        cal.set(Calendar.DAY_OF_WEEK, dayOfWeek);
+        return cal.getTime();
     }
 }

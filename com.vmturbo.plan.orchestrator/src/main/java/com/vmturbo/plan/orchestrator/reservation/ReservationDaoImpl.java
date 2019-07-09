@@ -5,12 +5,14 @@ import static com.vmturbo.plan.orchestrator.db.Tables.RESERVATION_TO_TEMPLATE;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -18,7 +20,6 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.joda.time.DateTimeZone;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -310,7 +311,7 @@ public class ReservationDaoImpl implements ReservationDao {
     }
 
     private long convertLocalDateToTimestamp(@Nonnull final LocalDateTime time) {
-        return (time.atZone(DateTimeZone.UTC.toTimeZone().toZoneId())).toInstant().toEpochMilli();
+        return time.atOffset(ZoneOffset.UTC).toInstant().toEpochMilli();
     }
 
     /**
@@ -348,7 +349,7 @@ public class ReservationDaoImpl implements ReservationDao {
     private LocalDateTime convertDateProtoToLocalDate(final long timestamp) {
 
         return LocalDateTime.ofInstant(Instant.ofEpochMilli(timestamp),
-                DateTimeZone.UTC.toTimeZone().toZoneId());
+                TimeZone.getTimeZone("UTC").toZoneId());
     }
 
     /**

@@ -8,9 +8,12 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -18,7 +21,6 @@ import javax.annotation.Nonnull;
 
 import org.flywaydb.core.Flyway;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTime;
 import org.jooq.DSLContext;
 import org.junit.After;
 import org.junit.Before;
@@ -67,23 +69,36 @@ public class ReservationDaoImplTest {
 
     private TemplatesDao templatesDao;
 
-    private DateTime firstStartDateTime =
-            new DateTime(2018, 12, 12, 0, 0);
+    private Date firstStartDateTime;
 
-    private DateTime firstEndDateTime =
-            new DateTime(2018, 12, 15, 0, 0);
+    private Date firstEndDateTime;
 
-    private DateTime secondStartDateTime =
-            new DateTime(2019, 11, 22, 0, 0);
+    private Date secondStartDateTime;
 
-    private DateTime secondEndDateTime =
-            new DateTime(2019, 12, 29, 0, 0);
+    private Date secondEndDateTime;
+
+    {
+        Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+        cal.setTimeInMillis(0);
+
+        cal.set(2018, 12, 12, 0, 0);
+        firstStartDateTime = cal.getTime();
+
+        cal.set(2018, 12, 15, 0, 0);
+        firstEndDateTime = cal.getTime();
+
+        cal.set(2019, 11, 22, 0, 0);
+        secondStartDateTime = cal.getTime();
+
+        cal.set(2019, 12, 29, 0, 0);
+        secondEndDateTime = cal.getTime();
+    }
 
 
     private Reservation testFirstReservation = Reservation.newBuilder()
             .setName("Test-first-reservation")
-                .setStartDate(firstStartDateTime.getMillis())
-            .setExpirationDate(firstEndDateTime.getMillis())
+                .setStartDate(firstStartDateTime.getTime())
+            .setExpirationDate(firstEndDateTime.getTime())
             .setStatus(ReservationStatus.FUTURE)
                 .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                         .addReservationTemplate(ReservationTemplate.newBuilder()
@@ -102,8 +117,8 @@ public class ReservationDaoImplTest {
 
     private Reservation testSecondReservation = Reservation.newBuilder()
             .setName("Test-second-reservation")
-            .setStartDate(secondStartDateTime.getMillis())
-            .setExpirationDate(secondEndDateTime.getMillis())
+            .setStartDate(secondStartDateTime.getTime())
+            .setExpirationDate(secondEndDateTime.getTime())
             .setStatus(ReservationStatus.RESERVED)
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()

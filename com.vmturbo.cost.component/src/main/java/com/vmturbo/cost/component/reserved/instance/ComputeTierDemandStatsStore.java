@@ -2,6 +2,8 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import static com.vmturbo.cost.component.db.Tables.COMPUTE_TIER_TYPE_HOURLY_BY_WEEK;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
@@ -16,8 +18,6 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.jooq.DSLContext;
 import org.jooq.Query;
 import org.jooq.exception.DataAccessException;
@@ -78,7 +78,7 @@ public class ComputeTierDemandStatsStore {
      */
     public boolean containsDataOverWeek() {
         // get next two hour milliseconds.
-        final long nextTwoHourMillis = new DateTime(DateTimeZone.UTC).plusHours(2).getMillis();
+        final long nextTwoHourMillis = Instant.now().plus(2, ChronoUnit.HOURS).toEpochMilli();
         final Calendar calendar = GregorianCalendar.getInstance(TimeZone.getTimeZone("UTC"));
         calendar.setTimeInMillis(nextTwoHourMillis);
         final int hourOfDay = calendar.get(Calendar.HOUR_OF_DAY);

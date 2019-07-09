@@ -7,12 +7,14 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.argThat;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -96,13 +98,15 @@ public class ReservationManagerTest {
                                                     .setUsed(100))))))
             .build();
 
-    final DateTime today = DateTime.now(DateTimeZone.UTC);
-    final DateTime nextMonth = DateTime.now(DateTimeZone.UTC).plusMonths(1);
+    final Date today = new Date();
+    LocalDateTime ldt = today.toInstant().atOffset(ZoneOffset.UTC).toLocalDateTime();
+    final Date nextMonth = Date.from(ldt.plusMonths(1)
+                    .atOffset(ZoneOffset.UTC).toInstant());
     final Reservation futureReservation = Reservation.newBuilder(reservation)
             .setId(234)
             .setStatus(ReservationStatus.FUTURE)
-            .setStartDate(today.getMillis())
-            .setExpirationDate(nextMonth.getMillis())
+            .setStartDate(today.getTime())
+            .setExpirationDate(nextMonth.getTime())
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
                             .setTemplateId(567)

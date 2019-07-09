@@ -1,18 +1,16 @@
 package com.vmturbo.auth.component.licensing;
 
 import java.util.Collection;
-import java.util.Date;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang.StringUtils;
-import org.joda.time.DateTime;
-import org.joda.time.format.ISODateTimeFormat;
 
 import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.api.dto.license.ILicense.CountedEntity;
 import com.vmturbo.api.dto.license.ILicense.ErrorReason;
 import com.vmturbo.api.dto.license.LicenseApiDTO;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.licensing.License;
@@ -207,7 +205,7 @@ public class LicenseDTOUtils {
         summaryBuilder.setIsValid(aggregateLicense.isValid());
 
         // set generation date to now.
-        summaryBuilder.setGenerationDate(new DateTime().toString(ISODateTimeFormat.dateTime()));
+        summaryBuilder.setGenerationDate(DateTimeUtil.getNow());
 
         return summaryBuilder.build();
     }

@@ -10,6 +10,7 @@ import org.junit.Test;
 
 import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.api.dto.license.ILicense.CountedEntity;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.licensing.License;
 import com.vmturbo.licensing.utils.CWOMLicenseEdition;
 import com.vmturbo.licensing.utils.LicenseUtil;
@@ -27,7 +28,7 @@ public class LicenseTestUtils {
         License newLicense = new License();
         newLicense.setEdition("Test");
         newLicense.setEmail(email);
-        newLicense.setExpirationDate(ILicense.formatDateToISO(expirationDate));
+        newLicense.setExpirationDate(DateTimeUtil.formatDate(expirationDate));
         newLicense.addFeatures(features);
         newLicense.setCountedEntity(CountedEntity.VM);
         newLicense.setNumLicensedEntities(workloadCount);

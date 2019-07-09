@@ -1,8 +1,12 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -23,7 +27,6 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.joda.time.DateTime;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -495,7 +498,7 @@ public class SettingsMapper {
     private Schedule convertScheduleApiDTO(ScheduleApiDTO apiSchedule) {
         final Schedule.Builder scheduleBuilder = Schedule.newBuilder();
         final long startTimestamp = DateTimeUtil.parseTime(apiSchedule.getStartTime());
-        final DateTime startDateTime = new DateTime(startTimestamp);
+        final Date startDateTime = new Date(startTimestamp);
         scheduleBuilder.setStartTime(startTimestamp)
                 .setEndTime(DateTimeUtil.parseTime(apiSchedule.getEndTime()));
 
@@ -515,7 +518,9 @@ public class SettingsMapper {
                     final Schedule.Weekly.Builder weeklyBuilder = Schedule.Weekly.newBuilder();
                     final List<DayOfWeek> apiDays = apiSchedule.getRecurrence().getDaysOfWeek();
                     if (apiDays == null || apiDays.isEmpty()) {
-                        final int weekdayNumber = startDateTime.dayOfWeek().get();
+                        final int weekdayNumber = startDateTime.toInstant()
+                                        .atZone(ZoneId.systemDefault())
+                                        .toLocalDate().getDayOfWeek().getValue();
                         weeklyBuilder.addDaysOfWeek(Schedule.DayOfWeek.forNumber(weekdayNumber));
                     } else {
                         weeklyBuilder.addAllDaysOfWeek(apiDays.stream()
@@ -528,7 +533,9 @@ public class SettingsMapper {
                     final Schedule.Monthly.Builder monthlyBuilder = Schedule.Monthly.newBuilder();
                     final List<Integer> daysMonth = apiSchedule.getRecurrence().getDaysOfMonth();
                     if (daysMonth == null || daysMonth.isEmpty()) {
-                        monthlyBuilder.addDaysOfMonth(startDateTime.dayOfMonth().get());
+                        monthlyBuilder.addDaysOfMonth(startDateTime.toInstant()
+                                        .atZone(ZoneId.systemDefault())
+                                        .toLocalDate().getDayOfMonth());
                     } else {
                         monthlyBuilder.addAllDaysOfMonth(daysMonth);
                     }
@@ -864,7 +871,7 @@ public class SettingsMapper {
             final ScheduleApiDTO scheduleApiDTO = new ScheduleApiDTO();
 
             final long startTimestamp = schedule.getStartTime();
-            final DateTime startDateTime = new DateTime(startTimestamp);
+            final Date startDateTime = new Date(startTimestamp);
             final String startTimeString = DateTimeUtil.toString(startTimestamp);
 
             scheduleApiDTO.setStartDate(startTimeString);
@@ -872,7 +879,7 @@ public class SettingsMapper {
 
             switch (schedule.getDurationCase()) {
                 case MINUTES:
-                    final DateTime endDateTime = startDateTime.plusMinutes(schedule.getMinutes());
+                    final Date endDateTime = Date.from(startDateTime.toInstant().plus(schedule.getMinutes(), ChronoUnit.MINUTES));
                     scheduleApiDTO.setEndTime(DateTimeUtil.toString(endDateTime));
                     break;
                 case END_TIME:
@@ -905,8 +912,10 @@ public class SettingsMapper {
                 case MONTHLY:
                     recurrenceApiDTO.setType(RecurrenceType.MONTHLY);
                     if (schedule.getMonthly().getDaysOfMonthList().isEmpty()) {
+                        final int dayOfTheMonth = startDateTime.toInstant()
+                                        .atZone(ZoneId.systemDefault()).toLocalDate().getDayOfMonth();
                         recurrenceApiDTO.setDaysOfMonth(Collections.singletonList(
-                            startDateTime.getDayOfMonth()));
+                                        dayOfTheMonth));
                     } else {
                         recurrenceApiDTO.setDaysOfMonth(schedule.getMonthly().getDaysOfMonthList());
                     }
@@ -932,10 +941,13 @@ public class SettingsMapper {
          * @return the legacy DayOfWeek associated
          */
         @VisibleForTesting
-        DayOfWeek getLegacyDayOfWeekForDatestamp(@Nonnull final DateTime dateTime) {
-            final int dayOfWeekInternational = dateTime.dayOfWeek().get();
+        DayOfWeek getLegacyDayOfWeekForDatestamp(@Nonnull final Date dateTime) {
+            final int dayOfWeekInternational = dateTime.toInstant()
+                        .atOffset(ZoneOffset.UTC)
+                        .toLocalDate().getDayOfWeek().getValue();
             //legacy enum week starts with sunday but DateTime week starts with monday
-            final int dayOfWeekLegacy = dayOfWeekInternational == Schedule.DayOfWeek.SUNDAY_VALUE ? 1
+            final int dayOfWeekLegacy =
+                    dayOfWeekInternational == java.time.DayOfWeek.SUNDAY.getValue() ? 1
                     : dayOfWeekInternational + 1;
             return DayOfWeek.get(dayOfWeekLegacy);
         }

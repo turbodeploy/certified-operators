@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -14,8 +15,6 @@ import javax.ws.rs.NotSupportedException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
@@ -36,6 +35,7 @@ import com.vmturbo.api.dto.reservation.PlacementParametersDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
@@ -295,16 +295,16 @@ public class ReservationMapper {
         }
         // Right now, UI set reservation start date to empty string when start date is current date,
         // after UI fix this issue, we can remove empty string covert here.
-        final DateTime reserveDate = reserveDateStr.isEmpty() ? DateTime.now(DateTimeZone.UTC) :
-                DateTime.parse(reserveDateStr);
-        final DateTime expireDate = DateTime.parse(expireDateStr);
-        if (reserveDate.isAfter(expireDate)) {
+        final long reserveDate = reserveDateStr.isEmpty() ? Instant.now().toEpochMilli() :
+                DateTimeUtil.parseIso8601TimeAndAdjustTimezone(reserveDateStr, null);
+        final long expireDate = DateTimeUtil.parseIso8601TimeAndAdjustTimezone(expireDateStr, null);
+        if (reserveDate > expireDate) {
             throw new InvalidOperationException("Reservation expire date should be after start date.");
         }
-        reservationBuilder.setStartDate(reserveDate.getMillis());
-        reservationBuilder.setExpirationDate(expireDate.getMillis());
-        final DateTime today = DateTime.now(DateTimeZone.UTC);
-        if (today.isAfter(expireDate)) {
+        reservationBuilder.setStartDate(reserveDate);
+        reservationBuilder.setExpirationDate(expireDate);
+        final long today = Instant.now().toEpochMilli();
+        if (today > expireDate) {
             throw new InvalidOperationException("Reservation expire date should be after current date.");
         }
         reservationBuilder.setStatus(ReservationStatus.FUTURE);
@@ -411,7 +411,7 @@ public class ReservationMapper {
      * @return  {@link java.util.Date} string.
      */
     private String convertProtoDateToString(@Nonnull final long timestamp) {
-        return new DateTime(timestamp, DateTimeZone.UTC).toDate().toString();
+        return DateTimeUtil.toString(timestamp);
     }
 
     /**

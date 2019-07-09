@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.reservation;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -18,9 +19,9 @@ import com.google.common.collect.ImmutableMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
@@ -129,9 +130,9 @@ public class ReservationManager {
      */
     @VisibleForTesting
     boolean isReservationActiveNow(@Nonnull final Reservation reservation) {
-        final DateTime today = DateTime.now(DateTimeZone.UTC);
-        final DateTime reservationDate = new DateTime(reservation.getStartDate(), DateTimeZone.UTC);
-        return reservationDate.isEqual(today) || reservationDate.isBefore(today);
+        long today = Instant.now().toEpochMilli();
+        long reservationDate = reservation.getStartDate();
+        return reservationDate == today || reservationDate < today;
     }
 
     /**

@@ -3,12 +3,12 @@ package com.vmturbo.api.component.external.api.mapper;
 import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertEquals;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
-import java.util.stream.Stream;
 
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -18,7 +18,6 @@ import org.mockito.Mockito;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
@@ -33,6 +32,7 @@ import com.vmturbo.api.dto.reservation.PlacementInfoDTO;
 import com.vmturbo.api.dto.reservation.PlacementParametersDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.enums.ReservationAction;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
@@ -241,12 +241,13 @@ public class ReservationMapperTest {
     @Test
     public void testConvertToReservation() throws Exception {
         DemandReservationApiInputDTO demandApiInputDTO = new DemandReservationApiInputDTO();
-        final DateTime today = DateTime.now(DateTimeZone.UTC);
-        final DateTime tomorrow = today.plusDays(1);
-        final DateTime nextMonth = today.plusMonths(1);
+        final Date today = new Date();
+        LocalDateTime ldt = today.toInstant().atOffset(ZoneOffset.UTC).toLocalDateTime();
+        final Date tomorrow = Date.from(ldt.plusDays(1).atOffset(ZoneOffset.UTC).toInstant());
+        final Date nextMonth = Date.from(ldt.plusMonths(1).atOffset(ZoneOffset.UTC).toInstant());
         demandApiInputDTO.setDemandName("test-reservation");
-        demandApiInputDTO.setReserveDateTime(tomorrow.toString());
-        demandApiInputDTO.setExpireDateTime(nextMonth.toString());
+        demandApiInputDTO.setReserveDateTime(DateTimeUtil.toString(tomorrow));
+        demandApiInputDTO.setExpireDateTime(DateTimeUtil.toString(nextMonth));
         demandApiInputDTO.setAction(ReservationAction.RESERVATION);
         DemandReservationParametersDTO demandReservationParametersDTO =
                 new DemandReservationParametersDTO();
@@ -257,19 +258,20 @@ public class ReservationMapperTest {
         demandApiInputDTO.setParameters(Lists.newArrayList(demandReservationParametersDTO));
         final Reservation reservation = reservationMapper.convertToReservation(demandApiInputDTO);
         assertTrue(reservation.getStatus() == ReservationStatus.FUTURE);
-        assertEquals(tomorrow.getMillis(), reservation.getStartDate());
-        assertEquals(nextMonth.getMillis(), reservation.getExpirationDate());
+        assertEquals(tomorrow.getTime(), reservation.getStartDate(), 1000);
+        assertEquals(nextMonth.getTime(), reservation.getExpirationDate(), 1000);
     }
 
     @Test
     public void testConvertReservationToApiDTO() throws Exception {
-        DateTime today = DateTime.now(DateTimeZone.UTC);
-        DateTime nextMonth = today.plusMonths(1);
+        final Date today = new Date();
+        LocalDateTime ldt = today.toInstant().atOffset(ZoneOffset.UTC).toLocalDateTime();
+        final Date nextMonth = Date.from(ldt.plusMonths(1).atOffset(ZoneOffset.UTC).toInstant());
         Reservation.Builder reservationBuider = Reservation.newBuilder();
         reservationBuider.setId(111);
         reservationBuider.setName("test-reservation");
-        reservationBuider.setStartDate(today.getMillis());
-        reservationBuider.setExpirationDate(nextMonth.getMillis());
+        reservationBuider.setStartDate(today.getTime());
+        reservationBuider.setExpirationDate(nextMonth.getTime());
         reservationBuider.setStatus(ReservationStatus.RESERVED);
         ReservationTemplate reservationTemplate = ReservationTemplate.newBuilder()
                 .setTemplateId(TEMPLATE_ID)

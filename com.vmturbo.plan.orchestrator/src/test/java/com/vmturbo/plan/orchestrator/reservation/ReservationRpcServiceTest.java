@@ -3,13 +3,15 @@ package com.vmturbo.plan.orchestrator.reservation;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TimeZone;
 
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -149,15 +151,18 @@ public class ReservationRpcServiceTest {
 
     @Test
     public void testCreateReservation() {
-        final DateTime today = DateTime.now(DateTimeZone.UTC);
-        final DateTime nextMonth = today.plusMonths(1);
+        final Date today = new Date();
+        LocalDateTime ldt = today.toInstant()
+                        .atOffset(ZoneOffset.UTC).toLocalDateTime();
+        final Date nextMonth = Date.from(ldt.plusMonths(1)
+                        .atOffset(ZoneOffset.UTC).toInstant());
         final CreateReservationRequest request = CreateReservationRequest.newBuilder()
                 .setReservation(testReservation)
                 .build();
         final Reservation createdReservation = Reservation.newBuilder(testReservation)
                 .setId(123)
-                .setStartDate(today.getMillis())
-                .setExpirationDate(nextMonth.getMillis())
+                .setStartDate(today.getTime())
+                .setExpirationDate(nextMonth.getTime())
                 .build();
         Mockito.when(reservationDao.createReservation(testReservation)).thenReturn(createdReservation);
         Mockito.when(templatesDao.getTemplatesCount(Mockito.anySet()))

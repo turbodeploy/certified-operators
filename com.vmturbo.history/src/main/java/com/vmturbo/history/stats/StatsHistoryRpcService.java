@@ -1,7 +1,7 @@
 package com.vmturbo.history.stats;
 
 import static com.vmturbo.components.common.stats.StatsUtils.collectCommodityNames;
-import static org.joda.time.DateTimeConstants.MILLIS_PER_DAY;
+import static org.apache.commons.lang.time.DateUtils.MILLIS_PER_DAY;
 
 import java.math.BigDecimal;
 import java.sql.SQLException;
