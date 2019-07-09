@@ -163,7 +163,9 @@ public class InterpretActionTest {
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory());
-
+        CommodityDTOs.CommoditySpecificationTO cs = converter.getCommodityConverter().commoditySpecification(CommodityType.newBuilder()
+                .setKey("Seg")
+                .setType(11).build());
         final ActionTO executableActionTO = ActionTO.newBuilder()
                 .setImportance(0.)
                 .setIsNotExecutable(false)
@@ -172,6 +174,8 @@ public class InterpretActionTest {
                 .setProvisionBySupply(ProvisionBySupplyTO.newBuilder()
                         .setProvisionedSeller(-1)
                         .setModelSeller(modelSeller)
+                        .setMostExpensiveCommodity(CommodityDTOs.CommoditySpecificationTO.newBuilder()
+                                .setType(0).setBaseType(cs.getBaseType()).build())
                         .build())
                 .build();
 
@@ -383,14 +387,19 @@ public class InterpretActionTest {
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory());
-
+        CommodityDTOs.CommoditySpecificationTO cs = converter.getCommodityConverter()
+                .commoditySpecification(CommodityType.newBuilder()
+                    .setKey("Seg")
+                    .setType(11).build());
         ActionInfo actionInfo = converter.interpretAction(
                 ActionTO.newBuilder()
                     .setImportance(0.)
                     .setIsNotExecutable(false)
                     .setProvisionBySupply(ProvisionBySupplyTO.newBuilder()
                         .setProvisionedSeller(-1)
-                        .setModelSeller(modelSeller))
+                        .setModelSeller(modelSeller)
+                        .setMostExpensiveCommodity(CommodityDTOs.CommoditySpecificationTO.newBuilder()
+                                .setType(0).setBaseType(cs.getBaseType()).build()))
                     .build(), projectedTopology, null, null, null).get().getInfo();
 
         assertThat(actionInfo.getActionTypeCase(), is(ActionTypeCase.PROVISION));

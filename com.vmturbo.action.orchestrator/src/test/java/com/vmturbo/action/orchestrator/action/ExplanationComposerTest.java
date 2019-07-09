@@ -3,6 +3,7 @@ package com.vmturbo.action.orchestrator.action;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.COMMODITY_KEY_SEPARATOR;
 import static org.junit.Assert.assertEquals;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -248,7 +249,7 @@ public class ExplanationComposerTest {
                 .setExplanation(Explanation.newBuilder()
                     .setProvision(ProvisionExplanation.newBuilder()
                             .setProvisionBySupplyExplanation(ProvisionBySupplyExplanation.newBuilder()
-                                    .setMostExpensiveCommodity(21))))
+                                    .setMostExpensiveCommodity(ActionOrchestratorTestUtils.createReasonCommodity(21, null)))))
                 .build();
 
         assertEquals("Mem congestion", ExplanationComposer.composeExplanation(provision));

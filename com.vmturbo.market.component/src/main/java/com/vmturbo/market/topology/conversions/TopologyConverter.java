@@ -574,7 +574,8 @@ public class TopologyConverter {
             if (!projectedCouponCommBought.isPresent()) {
                 logger.error("Projected trader {} is placed on RI {}, but it's RI shopping list does not have " +
                                 "projectedCouponCommBought",
-                        projectedTraderTO.getDebugInfoNeverUseInCode(), projectedRiTierDestination.getDisplayName());
+                        projectedTraderTO.getDebugInfoNeverUseInCode(),
+                        projectedRiTierDestination != null ? projectedRiTierDestination.getDisplayName() : "");
                 return;
             }
             // TODO: When we start relinquishing coupons in XL if a VM is resizing, we need to
