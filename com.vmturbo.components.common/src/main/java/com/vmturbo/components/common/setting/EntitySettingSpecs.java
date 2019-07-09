@@ -170,26 +170,26 @@ public enum EntitySettingSpecs {
     CpuUtilization("cpuUtilization", "CPU Utilization",
             Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE_CONTROLLER),
-            numeric(20f, 100f, 100f), true),
+            numeric(0f, 100f, 100f), true),
     /**
      * Memory utilization threshold.
      */
     MemoryUtilization("memoryUtilization", "Memory Utilization",
             Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(1f, 100f, 100f), true),
+            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 100f, 100f), true),
     /**
      * IO throughput utilization threshold.
      */
     IoThroughput("ioThroughput", "IO Throughput",
             Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(10f, 100f, 50f), true),
+            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 100f, 50f), true),
     /**
      * Network throughput utilization threshold.
      */
     NetThroughput("netThroughput", "Net Throughput",
             Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.SWITCH),
-            new NumericSettingDataType(10f, 100f, 50f,
+            new NumericSettingDataType(0f, 100f, 50f,
                     Collections.singletonMap(EntityType.SWITCH, 70f)), true),
     /**
      * Swapping utilization threshold.
