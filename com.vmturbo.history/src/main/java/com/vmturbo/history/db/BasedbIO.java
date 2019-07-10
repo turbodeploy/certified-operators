@@ -1412,13 +1412,7 @@ public abstract class BasedbIO {
                 + ":"
                 + getPortNumber()
                 + "/"
-                + getDatabaseName()
-                + "?useUnicode=true"
-                + "&tcpRcvBuf=8192"
-                + "&tcpSndBuf=8192"
-                + "&characterEncoding=UTF-8"
-                + "&characterSetResults=UTF-8"
-                + "&connectionCollation=utf8_unicode_ci";
+                + getDatabaseName();
     }
 
     /**
