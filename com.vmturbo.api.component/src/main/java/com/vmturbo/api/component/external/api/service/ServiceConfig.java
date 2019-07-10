@@ -189,8 +189,10 @@ public class ServiceConfig {
     @Bean
     public BusinessUnitsService businessUnitsService() {
         return new BusinessUnitsService(
+                repositoryClientConfig.repositoryClient(),
                 communicationConfig.costServiceBlockingStub(),
                 mapperConfig.businessUnitMapper(),
+                searchService(),
                 targetService()
         );
     }

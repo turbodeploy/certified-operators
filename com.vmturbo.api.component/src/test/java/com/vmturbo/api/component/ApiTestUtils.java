@@ -164,17 +164,6 @@ public class ApiTestUtils {
     }
 
     @Nonnull
-    public static RepositoryApi.SearchRequest mockEmptySearchReq() {
-        SearchRequest req = mockSearchReq();
-        when(req.getEntities()).then(invocation -> Stream.empty());
-        when(req.getMinimalEntities()).then(invocation -> Stream.empty());
-        when(req.getFullEntities()).then(invocation -> Stream.empty());
-        when(req.getOids()).thenReturn(Collections.emptySet());
-        when(req.count()).thenReturn(0L);
-        return req;
-    }
-
-    @Nonnull
     public static RepositoryApi.SearchRequest mockSearchCountReq(long count) {
         SearchRequest req = mockSearchReq();
         when(req.count()).thenReturn(count);

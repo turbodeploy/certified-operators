@@ -18,9 +18,10 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitPriceAdjustmentApiDTO;
 import com.vmturbo.api.dto.businessunit.CloudServicePriceAdjustmentApiDTO;
@@ -28,6 +29,7 @@ import com.vmturbo.api.dto.businessunit.EntityDiscountDTO;
 import com.vmturbo.api.dto.businessunit.EntityPriceDTO;
 import com.vmturbo.api.dto.businessunit.TemplatePriceAdjustmentDTO;
 import com.vmturbo.api.dto.group.BillingFamilyApiDTO;
+import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.BusinessUnitType;
@@ -35,6 +37,9 @@ import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.ServicePricingModel;
 import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.pagination.SearchPaginationRequest;
+import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
+import com.vmturbo.api.serviceinterfaces.ISearchService;
 import com.vmturbo.api.serviceinterfaces.ITargetsService;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
@@ -42,14 +47,12 @@ import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.ServiceLevelDiscount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.ServiceLevelDiscount.Builder;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.TierLevelDiscount;
-import com.vmturbo.common.protobuf.search.SearchProtoUtil;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * Mapping between Cost domain DTO {@link Discount} and API DTOs
@@ -84,8 +87,6 @@ public class BusinessUnitMapper {
 
     private final long realtimeTopologyContextId;
 
-    private final RepositoryApi repositoryApi;
-
     private final Set SUPPORTED_CLOUD_TYPE = ImmutableSet.of("AWS", "AZURE");
 
     // EntityDiscountDTO predicate to filter those only have price adjustment
@@ -93,9 +94,8 @@ public class BusinessUnitMapper {
             dto.getPriceAdjustment() != null
             && dto.getPriceAdjustment().getValue() != null;
 
-    public BusinessUnitMapper(final long realtimeTopologyContextId, @Nonnull final RepositoryApi repositoryApi) {
+    public BusinessUnitMapper(final long realtimeTopologyContextId) {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
-        this.repositoryApi = repositoryApi;
     }
 
     /**
@@ -103,10 +103,14 @@ public class BusinessUnitMapper {
      * TODO: (September 17, 2019) handle other discount type
      *
      * @param discount         discount from Cost component
+     * @param repositoryClient repository client to resolve target type which could be AWS or AZURE
+     * @param targetsService   target service to resolve target type which could be AWS or AZURE
      * @return BusinessUnitApiDTO
      */
     @Nonnull
-    public BusinessUnitApiDTO toBusinessUnitApiDTO(@Nonnull Discount discount) {
+    public BusinessUnitApiDTO toBusinessUnitApiDTO(@Nonnull Discount discount,
+                                                   @Nonnull RepositoryClient repositoryClient,
+                                                   @Nonnull ITargetsService targetsService) {
         final BusinessUnitApiDTO businessUnitApiDTO = new BusinessUnitApiDTO();
         businessUnitApiDTO.setUuid(String.valueOf(discount.getAssociatedAccountId()));
         businessUnitApiDTO.setDisplayName(discount.getDiscountInfo().getDisplayName());
@@ -121,10 +125,10 @@ public class BusinessUnitMapper {
         businessUnitApiDTO.setHasRelatedTarget(false);
 
         businessUnitApiDTO.setBusinessUnitType(BusinessUnitType.DISCOUNT);
-        final String targetType = getTargetType(discount.getAssociatedAccountId())
+        final String targetTye = getTargetType(repositoryClient, targetsService, discount.getAssociatedAccountId())
                 .orElse(new TargetApiDTO())
                 .getType();
-        businessUnitApiDTO.setCloudType(SUPPORTED_CLOUD_TYPE.contains(targetType) ? CloudType.valueOf(targetType) : CloudType.UNKNOWN);
+        businessUnitApiDTO.setCloudType(SUPPORTED_CLOUD_TYPE.contains(targetTye) ? CloudType.valueOf(targetTye) : CloudType.UNKNOWN);
         businessUnitApiDTO.setChildrenBusinessUnits(ImmutableSet.of(String.valueOf(discount.getAssociatedAccountId())));
 
         // TODO provide Cost for this business account
@@ -179,15 +183,20 @@ public class BusinessUnitMapper {
      * Convert Cost domain objects {@link Discount} to business units with discount type
      *
      * @param discounts        discounts from Cost component
+     * @param repositoryClient repository client
+     * @param targetsService   target service
      * @return list for business units with discount type
      */
     @Nonnull
-    public List<BusinessUnitApiDTO> toDiscountBusinessUnitApiDTO(@Nonnull final Iterator<Discount> discounts) {
+    public List<BusinessUnitApiDTO> toDiscountBusinessUnitApiDTO(@Nonnull final Iterator<Discount> discounts,
+                                                                 @Nonnull final RepositoryClient repositoryClient,
+                                                                 @Nonnull final ITargetsService targetsService) {
         Objects.requireNonNull(discounts);
         final Iterable<Discount> iterable = () -> discounts;
-        return StreamSupport.stream(iterable.spliterator(), false)
-                .map(this::toBusinessUnitApiDTO)
+        final List<BusinessUnitApiDTO> businessUnitApiDTOs = StreamSupport.stream(iterable.spliterator(), false)
+                .map(discount -> toBusinessUnitApiDTO(discount, repositoryClient, targetsService))
                 .collect(Collectors.toList());
+        return businessUnitApiDTOs;
     }
 
     /**
@@ -197,22 +206,42 @@ public class BusinessUnitMapper {
      * 2. retrieve origin from topology entity
      * 3. Use target service to retrieve TargetApiDTO by origin id
      */
-    private Optional<TargetApiDTO> getTargetType(final long associatedAccountId) {
-        return repositoryApi.entityRequest(associatedAccountId).getSE()
-            .flatMap(entity -> Optional.ofNullable(entity.getDiscoveredBy()));
+    private Optional<TargetApiDTO> getTargetType(@Nonnull final RepositoryClient repositoryClient,
+                                                 @Nonnull final ITargetsService targetsService,
+                                                 final long associatedAccountId) {
+        final Stream<TopologyEntityDTO> response = repositoryClient
+                .retrieveTopologyEntities(ImmutableList.of(associatedAccountId), realtimeTopologyContextId);
+
+        return response
+                .findFirst()
+                .flatMap(topologyEntityDTO
+                        -> topologyEntityDTO.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList().stream()
+                        .findFirst()
+                        .flatMap(originId -> {
+                            try {
+                                return Optional.ofNullable(targetsService.getTarget(String.valueOf(originId)));
+                            } catch (Exception e) {
+                                logger.error(FAILED_TO_GET_TARGET_INFORMATION_BY_TARGET_ORIGIN_ID + originId);
+                                return Optional.of(new TargetApiDTO());
+                            }
+                        }));
     }
 
     /**
      * Convert from Cost domain object {@link Discount} to business unit discount API DTO
      *
      * @param discount         discount from Cost component
+     * @param repositoryClient repository client
+     * @param searchService    search service
      * @return BusinessUnitPriceAdjustmentApiDTO
      * @throws InvalidOperationException
      */
-    public BusinessUnitPriceAdjustmentApiDTO toDiscountApiDTO(@Nonnull final Discount discount)
+    public BusinessUnitPriceAdjustmentApiDTO toDiscountApiDTO(@Nonnull final Discount discount,
+                                                       @Nonnull final RepositoryClient repositoryClient,
+                                                       @Nonnull final ISearchService searchService)
             throws Exception {
         final BusinessUnitPriceAdjustmentApiDTO businessUnitDiscountApiDTO = new BusinessUnitPriceAdjustmentApiDTO();
-        businessUnitDiscountApiDTO.setServiceDiscounts(toCloudServicePriceAdjustmentApiDTOs(discount));
+        businessUnitDiscountApiDTO.setServiceDiscounts(toCloudServicePriceAdjustmentApiDTOs(discount, repositoryClient, searchService));
         return businessUnitDiscountApiDTO;
     }
 
@@ -224,12 +253,16 @@ public class BusinessUnitMapper {
      * 3. match Cloud tiers with tier discounts from {@link Discount} DTO, and assign discount
      *
      * @param discount         discount from Cost component
+     * @param repositoryClient repository client
+     * @param searchService    search service
      * @return CloudServicePriceAdjustmentApiDTOs
      * @throws InvalidOperationException if search operation failed
      */
-    private List<CloudServicePriceAdjustmentApiDTO> toCloudServicePriceAdjustmentApiDTOs(@Nonnull final Discount discount)
+    private List<CloudServicePriceAdjustmentApiDTO> toCloudServicePriceAdjustmentApiDTOs(@Nonnull final Discount discount,
+                                                                           @Nonnull final RepositoryClient repositoryClient,
+                                                                           @Nonnull final ISearchService searchService)
             throws Exception {
-        final List<CloudServicePriceAdjustmentApiDTO> cloudServiceDiscountApiDTOs = getCloudServicePriceAdjustmentApiDTOs();
+        final List<CloudServicePriceAdjustmentApiDTO> cloudServiceDiscountApiDTOs = getCloudServicePriceAdjustmentApiDTOs(repositoryClient, searchService);
         final DiscountInfo discountInfo = discount.getDiscountInfo();
         if (discountInfo.hasServiceLevelDiscount()) {
             discount.getDiscountInfo().getServiceLevelDiscount().getDiscountPercentageByServiceIdMap().forEach((serviceId, rate) -> {
@@ -263,17 +296,36 @@ public class BusinessUnitMapper {
     /**
      * Get all discovered Cloud services from search service
      *
+     * @param repositoryClient repository client
+     * @param searchService    search service
      * @return CloudServicePriceAdjustmentApiDTO
      * @throws InvalidOperationException if search operation failed
      */
-    private List<CloudServicePriceAdjustmentApiDTO> getCloudServicePriceAdjustmentApiDTOs() {
-        return repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
-            SearchProtoUtil.entityTypeFilter(UIEntityType.CLOUD_SERVICE)).build())
-                .getEntities()
-                .map(this::buildCloudServicePriceAdjustmentApiDTO)
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .collect(Collectors.toList());
+    private List<CloudServicePriceAdjustmentApiDTO> getCloudServicePriceAdjustmentApiDTOs(@Nonnull final RepositoryClient repositoryClient,
+                                                                            @Nonnull final ISearchService searchService)
+            throws Exception {
+        // TODO optimize following search, using search service to get all the Cloud services seems overkill
+        final GroupApiDTO groupApiDTO = new GroupApiDTO();
+        groupApiDTO.setClassName(UIEntityType.CLOUD_SERVICE.apiStr());
+        final SearchPaginationRequest searchPaginationRequest =
+                new SearchPaginationRequest(null, null, false, null);
+        final SearchPaginationResponse searchResponse =
+                searchService.getMembersBasedOnFilter("", groupApiDTO, searchPaginationRequest);
+        final List<Long> cloudServiceOids = searchResponse.getRawResults().stream()
+                .map(baseApiDTO -> Long.parseLong(baseApiDTO.getUuid()))
+                .collect(Collectors.toList());
+        final List<TopologyEntityDTO> topologyEntityDTOS = repositoryClient
+                .retrieveTopologyEntities(cloudServiceOids, realtimeTopologyContextId)
+                .collect(Collectors.toList());
+
+        return searchResponse.getRawResults().stream()
+                .flatMap(apiDTO -> topologyEntityDTOS
+                        .stream()
+                        .filter(dto -> dto.getOid() == Long.parseLong(apiDTO.getUuid()))
+                        .map(tpDto -> buildCloudServicePriceAdjustmentApiDTO(apiDTO, tpDto, repositoryClient))
+                        .filter(Optional::isPresent)
+                        .map(Optional::get)
+                ).collect(Collectors.toList());
     }
 
     /**
@@ -284,13 +336,15 @@ public class BusinessUnitMapper {
      * @param repositoryClient  repository client to find "owned" tiers
      * @return CloudServicePriceAdjustmentApiDTOs which includes their TemplatePriceAdjustmentDTOs
      */
-    private Optional<CloudServicePriceAdjustmentApiDTO> buildCloudServicePriceAdjustmentApiDTO(@Nonnull final ApiPartialEntity entity) {
+    private Optional<CloudServicePriceAdjustmentApiDTO> buildCloudServicePriceAdjustmentApiDTO(@Nonnull final BaseApiDTO baseApiDTO,
+                                                                                 @Nonnull final TopologyEntityDTO topologyEntityDTO,
+                                                                                 @Nonnull final RepositoryClient repositoryClient) {
         final CloudServicePriceAdjustmentApiDTO cloudServiceDiscountApiDTO = new CloudServicePriceAdjustmentApiDTO();
-        cloudServiceDiscountApiDTO.setUuid(Long.toString(entity.getOid()));
-        cloudServiceDiscountApiDTO.setDisplayName(entity.getDisplayName());
+        cloudServiceDiscountApiDTO.setUuid(baseApiDTO.getUuid());
+        cloudServiceDiscountApiDTO.setDisplayName(baseApiDTO.getDisplayName());
         cloudServiceDiscountApiDTO.setPricingModel(ServicePricingModel.ON_DEMAND);
         final List<TemplatePriceAdjustmentDTO> templateDiscountDTOS =
-                generateTemplatePriceAdjustmentDTO(entity.getConnectedToList());
+                generateTemplatePriceAdjustmentDTO(topologyEntityDTO.getConnectedEntityListList(), repositoryClient);
         cloudServiceDiscountApiDTO.setTemplateDiscounts(templateDiscountDTOS);
         return Optional.of(cloudServiceDiscountApiDTO);
     }
@@ -299,17 +353,20 @@ public class BusinessUnitMapper {
      * Build {@link TemplatePriceAdjustmentDTO}
      *
      * @param connectedEntityListList entity list has all the tiers owned by the service
+     * @param repositoryClient        repository client
      * @return TemplatePriceAdjustmentDTOs
      */
-    private List<TemplatePriceAdjustmentDTO> generateTemplatePriceAdjustmentDTO(@Nonnull final List<RelatedEntity> connectedEntityListList) {
-        return getTopologyEntityDTOS(connectedEntityListList)
+    private List<TemplatePriceAdjustmentDTO> generateTemplatePriceAdjustmentDTO(@Nonnull final List<ConnectedEntity> connectedEntityListList,
+                                                                  @Nonnull final RepositoryClient repositoryClient) {
+        return getTopologyEntityDTOS(connectedEntityListList, repositoryClient)
+                .stream()
                 .filter(dto -> TIER_TYPES.contains(dto.getEntityType()))
                 .map(topologyEntityDTO -> {
                     TemplatePriceAdjustmentDTO templateDiscountDTO = new TemplatePriceAdjustmentDTO();
                     templateDiscountDTO.setFamily(getFamilyName(topologyEntityDTO.getDisplayName()));
                     templateDiscountDTO.setUuid(String.valueOf(topologyEntityDTO.getOid()));
                     templateDiscountDTO.setDisplayName(topologyEntityDTO.getDisplayName());
-                    templateDiscountDTO.setPricesPerDatacenter(generateEntityDiscountDTO(topologyEntityDTO.getConnectedToList()));
+                    templateDiscountDTO.setPricesPerDatacenter(generateEntityDiscountDTO(topologyEntityDTO.getConnectedEntityListList(), repositoryClient));
                     return templateDiscountDTO;
                 }).collect(Collectors.toList());
     }
@@ -318,11 +375,13 @@ public class BusinessUnitMapper {
      * Build {@link EntityPriceDTO}
      *
      * @param connectedEntityList entity list has all the regions owned by the tiers
+     * @param repositoryClient    repository client
      * @return EntityPriceDTOs
      */
-    private List<EntityPriceDTO> generateEntityDiscountDTO(@Nonnull final List<RelatedEntity> connectedEntityList) {
-        return getTopologyEntityDTOS(connectedEntityList)
-                .filter(entity -> entity.getEntityType() == EntityType.REGION_VALUE)
+    private List<EntityPriceDTO> generateEntityDiscountDTO(@Nonnull final List<ConnectedEntity> connectedEntityList,
+                                                           @Nonnull final RepositoryClient repositoryClient) {
+        return getTopologyEntityDTOS(connectedEntityList, repositoryClient).stream()
+                .filter(topologyEntityDTO -> topologyEntityDTO.getEntityType() == EntityType.REGION_VALUE)
                 .map(tpDTO -> {
                     EntityPriceDTO entityPriceDTO = new EntityPriceDTO();
                     // TODO add entity price
@@ -337,13 +396,17 @@ public class BusinessUnitMapper {
      * Utility function to retrieve {@link TopologyEntityDTO}
      *
      * @param connectedEntityList connected entity list
+     * @param repositoryClient    repository client
      * @return {@link TopologyEntityDTO}s
      */
-    private Stream<ApiPartialEntity> getTopologyEntityDTOS(@Nonnull final List<RelatedEntity> connectedEntityList) {
-        final Set<Long> oids = connectedEntityList.stream()
-                .map(RelatedEntity::getOid)
-                .collect(Collectors.toSet());
-        return repositoryApi.entitiesRequest(oids).getEntities();
+    private List<TopologyEntityDTO> getTopologyEntityDTOS(@Nonnull final List<ConnectedEntity> connectedEntityList,
+                                                          @Nonnull final RepositoryClient repositoryClient) {
+        final List<Long> oids = connectedEntityList.stream()
+                .map(connectedEntity -> connectedEntity.getConnectedEntityId())
+                .collect(Collectors.toList());
+        return oids.isEmpty() ? Collections.emptyList() :
+                repositoryClient.retrieveTopologyEntities(oids, realtimeTopologyContextId)
+                .collect(Collectors.toList());
     }
 
 
@@ -360,32 +423,45 @@ public class BusinessUnitMapper {
     /**
      * Find all the discovered business unit with discount type
      *
+     * @param searchService    search service to find all the oids
      * @param targetsService   target service to find the Cloud type (AWS or Azure)
+     * @param repositoryClient repository client
      * @return discovered business unit with discount type
      * @throws InvalidOperationException if search operation failed
      */
-    public List<BusinessUnitApiDTO> getAndConvertDiscoveredBusinessUnits(@Nonnull final ITargetsService targetsService)
+    public List<BusinessUnitApiDTO> getAndConvertDiscoveredBusinessUnits(@Nonnull final ISearchService searchService,
+                                                                         @Nonnull final ITargetsService targetsService,
+                                                                         @Nonnull final RepositoryClient repositoryClient)
             throws Exception {
-        final List<TopologyEntityDTO> entities = repositoryApi.newSearchRequest(
-            SearchProtoUtil.makeSearchParameters(SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT))
-                .build())
-                .getFullEntities()
+        // TODO optimize following search, using search service to get all the discovered business accounts seems overkill
+        final GroupApiDTO groupApiDTO = new GroupApiDTO();
+        groupApiDTO.setClassName(UIEntityType.BUSINESS_ACCOUNT.apiStr());
+        final SearchPaginationRequest searchPaginationRequest = new SearchPaginationRequest(null, null, false, null);
+        final List<BaseApiDTO> baseApiDTOS = searchService.getMembersBasedOnFilter("", groupApiDTO, searchPaginationRequest).getRawResults();
+
+        final List<Long> oids = baseApiDTOS.stream()
+                .map(baseApiDTO -> Long.parseLong(baseApiDTO.getUuid()))
+                .collect(Collectors.toList());
+        Stream<TopologyEntityDTO> entityStream = repositoryClient.retrieveTopologyEntities(oids, realtimeTopologyContextId);
+        final List<TopologyEntityDTO> entities = entityStream
                 .collect(Collectors.toList());
 
         if (entities.size() > 0) {
             final long firstTopologyEntityOid = entities.get(0).getOid();
-            final CloudType type = normalize(getTargetType(firstTopologyEntityOid)
-                    .map(TargetApiDTO::getType)
-                    .orElse("UNKNOWN"));
+            final String type = getTargetType(repositoryClient, targetsService, firstTopologyEntityOid)
+                    .map(targetApiDTO -> targetApiDTO.getType())
+                    .orElse("UNKNOWN");
 
-            return entities.stream()
-                .map(tpDto -> buildDiscoveredBusinessUnitApiDTO(tpDto, type, targetsService))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toList());
-        } else {
-            return Collections.emptyList();
+            return baseApiDTOS.stream()
+                    .flatMap(apiDTO -> entities
+                            .stream()
+                            .filter(dto -> dto.getOid() == Long.parseLong(apiDTO.getUuid()))
+                            .map(tpDto -> buildDiscoveredBusinessUnitApiDTO(apiDTO, tpDto, normalize(type), targetsService))
+                            .filter(Optional::isPresent)
+                            .map(Optional::get)
+                    ).collect(Collectors.toList());
         }
+        throw new MissingTopologyEntityException(REPOSITORY_CANNOT_RESOLVE_OIDS + oids);
     }
 
     // From UI perspective, AWS is one Cloud type, but in implementation, we have AWS, AWS billing
@@ -404,17 +480,19 @@ public class BusinessUnitMapper {
     /**
      * Build discovered business unit API DTO.
      *
+     * @param baseApiDTO        API dto
      * @param topologyEntityDTO topology entity DTOP for the business account
      * @param cloudType         account Cloud type
      * @param targetsService    target service to get the account's target
      * @return BusinessUnitApiDTO
      */
-    private Optional<BusinessUnitApiDTO> buildDiscoveredBusinessUnitApiDTO(@Nonnull final TopologyEntityDTO topologyEntityDTO,
+    private Optional<BusinessUnitApiDTO> buildDiscoveredBusinessUnitApiDTO(@Nonnull final BaseApiDTO baseApiDTO,
+                                                                           @Nonnull final TopologyEntityDTO topologyEntityDTO,
                                                                            @Nonnull final CloudType cloudType,
                                                                            @Nonnull final ITargetsService targetsService) {
         final BusinessUnitApiDTO businessUnitApiDTO = new BusinessUnitApiDTO();
         businessUnitApiDTO.setBusinessUnitType(BusinessUnitType.DISCOVERED);
-        businessUnitApiDTO.setUuid(Long.toString(topologyEntityDTO.getOid()));
+        businessUnitApiDTO.setUuid(baseApiDTO.getUuid());
         businessUnitApiDTO.setEnvironmentType(EnvironmentType.CLOUD);
         businessUnitApiDTO.setClassName(UIEntityType.BUSINESS_ACCOUNT.apiStr());
         businessUnitApiDTO.setBudget(new StatApiDTO());

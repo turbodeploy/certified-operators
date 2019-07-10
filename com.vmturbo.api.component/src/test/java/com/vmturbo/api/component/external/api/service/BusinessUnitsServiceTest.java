@@ -25,11 +25,13 @@ import com.vmturbo.api.dto.businessunit.TemplatePriceAdjustmentDTO;
 import com.vmturbo.api.enums.BusinessUnitType;
 import com.vmturbo.api.enums.ServicePricingModel;
 import com.vmturbo.api.serviceinterfaces.IBusinessUnitsService;
+import com.vmturbo.api.serviceinterfaces.ISearchService;
 import com.vmturbo.api.serviceinterfaces.ITargetsService;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * Test services for the {@link BusinessUnitsService}
@@ -45,6 +47,8 @@ public class BusinessUnitsServiceTest {
     public static final float TIER_DISCOUNT = 11f;
     public static final float SERVICE_DISCOUNT = 22f;
     private final BusinessUnitMapper mapper = Mockito.mock(BusinessUnitMapper.class);
+    private final RepositoryClient repositoryClient = Mockito.mock(RepositoryClient.class);
+    private final ISearchService searchService = Mockito.mock(SearchService.class);
     private final ITargetsService targetsService = Mockito.mock(TargetsService.class);
     private IBusinessUnitsService businessUnitsService;
 
@@ -80,13 +84,13 @@ public class BusinessUnitsServiceTest {
     @Before
     public void setup() throws Exception {
         costService = CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
-        businessUnitsService = new BusinessUnitsService(costService, mapper, targetsService);
+        businessUnitsService = new BusinessUnitsService(repositoryClient, costService, mapper, searchService, targetsService);
     }
 
     @Test
     public void testGetBusinessUnitsWithDiscountType() throws Exception {
         BusinessUnitApiDTO apiDTO = getBusinessUnitApiDTO();
-        when(mapper.toDiscountBusinessUnitApiDTO(any())).thenReturn(ImmutableList.of(apiDTO));
+        when(mapper.toDiscountBusinessUnitApiDTO(any(), any(), any())).thenReturn(ImmutableList.of(apiDTO));
         List<BusinessUnitApiDTO> businessUnitApiDTOList = businessUnitsService.getBusinessUnits(BusinessUnitType.DISCOUNT, null, null);
         assertEquals(1, businessUnitApiDTOList.size());
         assertEquals(TEST_DISPLAY_NAME, businessUnitApiDTOList.get(0).getDisplayName());
@@ -100,7 +104,7 @@ public class BusinessUnitsServiceTest {
         apiDTO.setDisplayName(TEST_DISPLAY_NAME);
         apiDTO.setUuid(UUID_STRING);
         apiDTO.setBusinessUnitType(BusinessUnitType.DISCOVERED);
-        when(mapper.getAndConvertDiscoveredBusinessUnits(any())).thenReturn(ImmutableList.of(apiDTO));
+        when(mapper.getAndConvertDiscoveredBusinessUnits(any(), any(), any())).thenReturn(ImmutableList.of(apiDTO));
         List<BusinessUnitApiDTO> businessUnitApiDTOList = businessUnitsService.getBusinessUnits(BusinessUnitType.DISCOVERED, null, null);
         assertEquals(1, businessUnitApiDTOList.size());
         assertEquals(TEST_DISPLAY_NAME, businessUnitApiDTOList.get(0).getDisplayName());
@@ -112,7 +116,7 @@ public class BusinessUnitsServiceTest {
     public void testCreateBusinessUnit() throws Exception {
         BusinessUnitApiInputDTO businessUnitApiInputDTO = getBusinessUnitApiInputDTO();
         BusinessUnitApiDTO apiDTO = getBusinessUnitApiDTO();
-        when(mapper.toBusinessUnitApiDTO(any())).thenReturn(apiDTO);
+        when(mapper.toBusinessUnitApiDTO(any(), any(), any())).thenReturn(apiDTO);
         BusinessUnitApiDTO businessUnitApiDTO = businessUnitsService.createBusinessUnit(businessUnitApiInputDTO);
         assertEquals(TEST_DISPLAY_NAME, businessUnitApiDTO.getDisplayName());
         assertEquals(UUID_STRING, businessUnitApiDTO.getUuid());
@@ -144,7 +148,7 @@ public class BusinessUnitsServiceTest {
     public void testEditBusinessUnitWithUUID() throws Exception {
         BusinessUnitApiInputDTO businessUnitApiInputDTO = getBusinessUnitApiInputDTO();
         BusinessUnitApiDTO apiDTO = getBusinessUnitApiDTO();
-        when(mapper.toBusinessUnitApiDTO(any())).thenReturn(apiDTO);
+        when(mapper.toBusinessUnitApiDTO(any(), any(), any())).thenReturn(apiDTO);
         BusinessUnitApiDTO businessUnitApiDTO = businessUnitsService.editBusinessUnit(UUID_STRING, businessUnitApiInputDTO);
         assertEquals(TEST_DISPLAY_NAME, businessUnitApiDTO.getDisplayName());
         assertEquals(UUID_STRING, businessUnitApiDTO.getUuid());
@@ -162,7 +166,7 @@ public class BusinessUnitsServiceTest {
         BusinessUnitApiInputDTO businessUnitApiInputDTO = getBusinessUnitApiInputDTO();
         businessUnitApiInputDTO.setTargets(ImmutableList.of(UUID_STRING));
         BusinessUnitApiDTO apiDTO = getBusinessUnitApiDTO();
-        when(mapper.toBusinessUnitApiDTO(any())).thenReturn(apiDTO);
+        when(mapper.toBusinessUnitApiDTO(any(), any(), any())).thenReturn(apiDTO);
         BusinessUnitApiDTO businessUnitApiDTO = businessUnitsService.editBusinessUnit(null, businessUnitApiInputDTO);
         assertEquals(TEST_DISPLAY_NAME, businessUnitApiDTO.getDisplayName());
         assertEquals(UUID_STRING, businessUnitApiDTO.getUuid());

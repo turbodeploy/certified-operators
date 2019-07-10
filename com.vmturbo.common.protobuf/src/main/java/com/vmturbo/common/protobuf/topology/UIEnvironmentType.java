@@ -1,7 +1,6 @@
 package com.vmturbo.common.protobuf.topology;
 
 import java.util.Optional;
-import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -23,10 +22,10 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
  * want to avoid relying heavily on API types inside XL (other than the API component).
  */
 public enum UIEnvironmentType {
-    CLOUD("CLOUD", envType -> envType == EnvironmentType.CLOUD),
-    ON_PREM("ONPREM", envType -> envType != EnvironmentType.CLOUD),
-    HYBRID("HYBRID", envType -> true),
-    UNKNOWN("UNKNOWN", envType -> envType == EnvironmentType.UNKNOWN_ENV);
+    CLOUD("CLOUD"),
+    ON_PREM("ONPREM"),
+    HYBRID("HYBRID"),
+    UNKNOWN("UNKNOWN");
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -46,18 +45,10 @@ public enum UIEnvironmentType {
      * We don't actually import the api ENUM, because we have to use the string value
      * in places where the enum is unaccessible (e.g. in search protobufs).
      */
-    private final String apiEnumStringValue;
+    private String apiEnumStringValue;
 
-    /**
-     * Used to compare an {@link EnvironmentType} enum (on prem, cloud, or unknown) with a
-     * {@link UIEnvironmentType}. See: {@link UIEnvironmentType#matchesEnvType(EnvironmentType)}.
-     */
-    private final Predicate<EnvironmentType> envTypePredicate;
-
-    UIEnvironmentType(@Nonnull final String apiEnumStringValue,
-                      @Nonnull final Predicate<EnvironmentType> envTypePredicate) {
+    UIEnvironmentType(final String apiEnumStringValue) {
         this.apiEnumStringValue = apiEnumStringValue;
-        this.envTypePredicate = envTypePredicate;
     }
 
     /**
@@ -111,9 +102,5 @@ public enum UIEnvironmentType {
     @Nonnull
     public static UIEnvironmentType fromEnvType(@Nonnull final EnvironmentType envType) {
         return ENV_TYPE_MAPPINGS.getOrDefault(envType, UIEnvironmentType.UNKNOWN);
-    }
-
-    public boolean matchesEnvType(@Nonnull final EnvironmentType environmentType) {
-        return this.envTypePredicate.test(environmentType);
     }
 }
