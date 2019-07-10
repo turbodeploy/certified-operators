@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -53,6 +54,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
@@ -63,9 +65,11 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
  * Unit tests for the static Mapper utility functions for the {@link StatsService}.
@@ -758,7 +762,39 @@ public class StatsMapperTest {
         assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO ->
                 statApiDTO.getFilters().stream().allMatch(statFilterApiDTO ->
                         statFilterApiDTO.getValue().equals("AWS"))));
+    }
 
+    @Test
+    public void testToSnapShotApiDTODisplayNames() {
+        final long oid = 0L;
+        final String providerName = "provider";
+        final String key = "key";
+        final EntityStats entityStats =
+            EntityStats.newBuilder()
+                .setOid(oid)
+                .addStatSnapshots(
+                    StatSnapshot.newBuilder()
+                        .addStatRecords(StatRecord.newBuilder()
+                                          .setRelation(RelationType.COMMODITIES.getLiteral())
+                                          .setName(CommodityType.VCPU.toString()))
+                        .addStatRecords(StatRecord.newBuilder()
+                                           .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
+                                           .setName(CommodityType.CPU.toString())
+                                           .setProviderDisplayName(providerName))
+                        .addStatRecords(StatRecord.newBuilder()
+                                           .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
+                                           .setName(CommodityType.CLUSTER.toString())
+                                           .setProviderDisplayName(providerName)
+                                           .setStatKey(key)))
+                .build();
+
+        final StatSnapshotApiDTO result = statsMapper.toStatSnapshotApiDTO(entityStats.getStatSnapshots(0));
+
+        Assert.assertEquals(3L, result.getStatistics().size());
+        Assert.assertEquals("", result.getStatistics().get(0).getDisplayName());
+        Assert.assertEquals("FROM: " + providerName + " ", result.getStatistics().get(1).getDisplayName());
+        Assert.assertEquals("FROM: " + providerName + " KEY: " + key,
+                            result.getStatistics().get(2).getDisplayName());
     }
 
     @Test

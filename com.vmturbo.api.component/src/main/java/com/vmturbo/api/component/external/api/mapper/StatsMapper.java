@@ -15,6 +15,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -56,6 +57,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
@@ -318,6 +320,9 @@ public class StatsMapper {
             statApiDTO.setReserved(buildStatDTO(statRecord.getReserved()));
         }
 
+        // Set display name for this stat
+        statApiDTO.setDisplayName(buildStatDiplayName(statRecord));
+
         // The "values" should be equivalent to "used".
         statApiDTO.setValues(toStatValueApiDTO(statRecord.getUsed()));
         statApiDTO.setValue(statRecord.getUsed().getAvg());
@@ -345,6 +350,29 @@ public class StatsMapper {
             statApiDTO.setFilters(filters);
         }
         return statApiDTO;
+    }
+
+    @Nonnull
+    private String buildStatDiplayName(@Nonnull StatRecord statRecord) {
+        // if this is a flow commodity, just display "FLOW"
+        if (UICommodityType.FLOW.apiStr().equals(statRecord.getName())) {
+            return "FLOW";
+        }
+
+        final StringBuilder resultBuilder = new StringBuilder();
+
+        // if bought, add provider information
+        if (RelationType.COMMODITIESBOUGHT.getLiteral().equals(statRecord.getRelation())
+                && !StringUtils.isEmpty(statRecord.getProviderDisplayName())) {
+            resultBuilder.append("FROM: ").append(statRecord.getProviderDisplayName()).append(" ");
+        }
+
+        // add key information
+        if (!StringUtils.isEmpty(statRecord.getStatKey())) {
+            resultBuilder.append("KEY: ").append(statRecord.getStatKey());
+        }
+
+        return resultBuilder.toString();
     }
 
     @Nonnull
