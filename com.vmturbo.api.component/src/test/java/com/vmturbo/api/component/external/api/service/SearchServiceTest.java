@@ -238,7 +238,7 @@ public class SearchServiceTest {
         verify(targetsService).getTargets(null);
 
         getSearchResults(searchService, null, Lists.newArrayList("BusinessAccount"), null, null, null, EnvironmentType.CLOUD, null);
-        verify(businessUnitMapper).getAndConvertDiscoveredBusinessUnits(searchService, targetsService, repositoryClient);
+        verify(businessUnitMapper).getAndConvertDiscoveredBusinessUnits(targetsService);
     }
 
     @Test

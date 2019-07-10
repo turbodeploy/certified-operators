@@ -1,7 +1,10 @@
 package com.vmturbo.repository.listener.realtime;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -20,6 +23,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
@@ -52,7 +56,7 @@ public class SourceRealtimeTopology implements StreamingDiagnosable {
      * the global supply chain (which doesn't happen for most topologies with a 10-min update
      * interval).
      */
-    private final SetOnce<Map<UIEntityType, SupplyChainNode>> globalSupplyChain = new SetOnce<>();
+    private final Map<UIEnvironmentType, SetOnce<Map<UIEntityType, SupplyChainNode>>> globalSupplyChain = new HashMap<>();
 
     private final GlobalSupplyChainCalculator globalSupplyChainCalculator;
 
@@ -94,12 +98,17 @@ public class SourceRealtimeTopology implements StreamingDiagnosable {
      * @return (entity type) -> ({@link SupplyChainNode} for the entity type)
      */
     @Nonnull
-    public synchronized Map<UIEntityType, SupplyChainNode> globalSupplyChainNodes() {
-        if (!globalSupplyChain.getValue().isPresent()) {
-            globalSupplyChain.trySetValue(
-                globalSupplyChainCalculator.computeGlobalSupplyChain(entityGraph));
+    public synchronized Map<UIEntityType, SupplyChainNode> globalSupplyChainNodes(
+            @Nonnull final Optional<UIEnvironmentType> envType) {
+        UIEnvironmentType environmentType = envType.orElse(UIEnvironmentType.HYBRID);
+        if (environmentType == UIEnvironmentType.UNKNOWN) {
+            return Collections.emptyMap();
         }
-        return globalSupplyChain.getValue().get();
+
+        final SetOnce<Map<UIEntityType, SupplyChainNode>> envTypeNodes =
+            globalSupplyChain.computeIfAbsent(environmentType, k -> new SetOnce<>());
+
+        return envTypeNodes.ensureSet(() -> globalSupplyChainCalculator.computeGlobalSupplyChain(entityGraph, environmentType));
     }
 
     @Nonnull

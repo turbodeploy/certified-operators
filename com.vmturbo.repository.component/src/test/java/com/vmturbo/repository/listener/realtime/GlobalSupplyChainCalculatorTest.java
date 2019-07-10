@@ -9,6 +9,7 @@ import java.util.Map;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -16,15 +17,16 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
 
 public class GlobalSupplyChainCalculatorTest {
 
     /**
-     *  VM
-     *   |
-     *  PM   PM
+     *  VM           Cloud VM
+     *   |              |
+     *  PM   PM      Compute Tier
      *   \  /
      *    ST
      */
@@ -77,21 +79,44 @@ public class GlobalSupplyChainCalculatorTest {
                     .setType(UICommodityType.STORAGE_AMOUNT.typeNumber()))))
         .build();
 
+    private final TopologyEntityDTO computeTier = TopologyEntityDTO.newBuilder()
+        .setOid(5)
+        .setEntityType(UIEntityType.COMPUTE_TIER.typeNumber())
+        .setDisplayName("compute tier")
+        .setEnvironmentType(EnvironmentType.CLOUD)
+        .build();
+
+    private final TopologyEntityDTO cloudVm = TopologyEntityDTO.newBuilder()
+        .setOid(6)
+        .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+        .setDisplayName("cloud vm")
+        .setEnvironmentType(EnvironmentType.CLOUD)
+        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderEntityType(UIEntityType.COMPUTE_TIER.typeNumber())
+            .setProviderId(computeTier.getOid())
+            .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                    .setType(UICommodityType.MEM.typeNumber()))))
+        .build();
+
     private final GlobalSupplyChainCalculator supplyChainCalculatorFactory =
         GlobalSupplyChainCalculator.newFactory().newCalculator();
 
-    @Test
-    public void testCalculateSupplyChain() {
-        final TopologyGraph<RepoGraphEntity> graph = new TopologyGraphCreator<RepoGraphEntity.Builder, RepoGraphEntity>()
-            .addEntities(Arrays.asList(
-                RepoGraphEntity.newBuilder(vm),
-                RepoGraphEntity.newBuilder(host1),
-                RepoGraphEntity.newBuilder(host2),
-                RepoGraphEntity.newBuilder(storage)))
-            .build();
+    private final TopologyGraph<RepoGraphEntity> graph = new TopologyGraphCreator<RepoGraphEntity.Builder, RepoGraphEntity>()
+        .addEntities(Arrays.asList(
+            RepoGraphEntity.newBuilder(vm),
+            RepoGraphEntity.newBuilder(host1),
+            RepoGraphEntity.newBuilder(host2),
+            RepoGraphEntity.newBuilder(storage),
+            RepoGraphEntity.newBuilder(computeTier),
+            RepoGraphEntity.newBuilder(cloudVm)))
+        .build();
 
+    @Test
+    public void testCalculateOnPremSupplyChain() {
         final Map<UIEntityType, SupplyChainNode> nodesByType =
-            supplyChainCalculatorFactory.computeGlobalSupplyChain(graph);
+            supplyChainCalculatorFactory.computeGlobalSupplyChain(graph, UIEnvironmentType.ON_PREM);
+
         assertThat(nodesByType.keySet(),
             containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE, UIEntityType.PHYSICAL_MACHINE, UIEntityType.STORAGE));
         assertThat(nodesByType.get(UIEntityType.VIRTUAL_MACHINE).getConnectedProviderTypesList(),
@@ -110,6 +135,18 @@ public class GlobalSupplyChainCalculatorTest {
             containsInAnyOrder(UIEntityType.PHYSICAL_MACHINE.apiStr(), UIEntityType.VIRTUAL_MACHINE.apiStr()));
         assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(UIEntityType.STORAGE)),
             containsInAnyOrder(storage.getOid()));
+    }
+
+    @Test
+    public void testCalculateCloudSupplyChain() {
+        final Map<UIEntityType, SupplyChainNode> nodesByType =
+            supplyChainCalculatorFactory.computeGlobalSupplyChain(graph, UIEnvironmentType.CLOUD);
+
+        assertThat(nodesByType.keySet(),
+            containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE));
+        // We actually ignore the compute tiers.
+        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(UIEntityType.VIRTUAL_MACHINE)),
+            containsInAnyOrder(cloudVm.getOid()));
     }
 
 }

@@ -32,20 +32,18 @@ import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationRespon
 import com.vmturbo.api.pagination.EntityPaginationRequest;
 import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IBusinessUnitsService;
-import com.vmturbo.api.serviceinterfaces.ISearchService;
 import com.vmturbo.api.serviceinterfaces.ITargetsService;
+import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountResponse;
 import com.vmturbo.common.protobuf.cost.Cost.DeleteDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.AccountLevelDiscount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountQueryFilter;
-import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
-import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * {@inheritDoc}
@@ -60,21 +58,13 @@ public class BusinessUnitsService implements IBusinessUnitsService {
 
     private final BusinessUnitMapper mapper;
 
-    private final RepositoryClient repositoryClient;
-
-    private final ISearchService searchService;
-
     private final ITargetsService targetsService;
 
-    public BusinessUnitsService(@Nonnull final RepositoryClient repositoryClient,
-                                @Nonnull final CostServiceBlockingStub costServiceBlockingStub,
+    public BusinessUnitsService(@Nonnull final CostServiceBlockingStub costServiceBlockingStub,
                                 @Nonnull final BusinessUnitMapper mapper,
-                                @Nonnull final ISearchService searchService,
                                 @Nonnull final ITargetsService targetsService) {
-        this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.costService = Objects.requireNonNull(costServiceBlockingStub);
         this.mapper = Objects.requireNonNull(mapper);
-        this.searchService = Objects.requireNonNull(searchService);
         this.targetsService = Objects.requireNonNull(targetsService);
     }
 
@@ -91,9 +81,9 @@ public class BusinessUnitsService implements IBusinessUnitsService {
         if (BusinessUnitType.DISCOUNT.equals(type)) {
             final Iterator<Discount> discounts = costService.getDiscounts(GetDiscountRequest.newBuilder()
                     .build());
-            return mapper.toDiscountBusinessUnitApiDTO(discounts, repositoryClient, targetsService);
+            return mapper.toDiscountBusinessUnitApiDTO(discounts);
         } else if (BusinessUnitType.DISCOVERED.equals(type)) {
-            return mapper.getAndConvertDiscoveredBusinessUnits(searchService, targetsService, repositoryClient);
+            return mapper.getAndConvertDiscoveredBusinessUnits(targetsService);
         }
         return ImmutableList.of(new BusinessUnitApiDTO());
     }
@@ -128,7 +118,7 @@ public class BusinessUnitsService implements IBusinessUnitsService {
                 .setDiscountInfo(discountInfo)
                 .setId(Long.parseLong(associatedAccountId))
                 .build());
-        return mapper.toBusinessUnitApiDTO(response.getDiscount(), repositoryClient, targetsService);
+        return mapper.toBusinessUnitApiDTO(response.getDiscount());
     }
 
     /**
@@ -149,7 +139,7 @@ public class BusinessUnitsService implements IBusinessUnitsService {
                                     .setDiscountPercentage(businessUnitApiInputDTO.getPriceAdjustment().getValue()).build())
                             .setDisplayName(businessUnitApiInputDTO.getName()))
                     .build());
-            return mapper.toBusinessUnitApiDTO(response.getUpdatedDiscount(), repositoryClient, targetsService);
+            return mapper.toBusinessUnitApiDTO(response.getUpdatedDiscount());
         } else {
             // create a new discount with provided account level discount
             final String associatedAccountId = businessUnitApiInputDTO.getTargets().stream()
@@ -165,7 +155,7 @@ public class BusinessUnitsService implements IBusinessUnitsService {
                     .setId(Long.parseLong(associatedAccountId))
                     .setDiscountInfo(discountInfo)
                     .build());
-            return mapper.toBusinessUnitApiDTO(response.getDiscount(), repositoryClient, targetsService);
+            return mapper.toBusinessUnitApiDTO(response.getDiscount());
         }
     }
 
@@ -188,7 +178,7 @@ public class BusinessUnitsService implements IBusinessUnitsService {
                 .setAssociatedAccountId(Long.parseLong(uuid))
                 .setNewDiscountInfo(discountInfo)
                 .build());
-        return mapper.toDiscountApiDTO(response.getUpdatedDiscount(), repositoryClient, searchService);
+        return mapper.toDiscountApiDTO(response.getUpdatedDiscount());
     }
 
     /**
@@ -263,7 +253,7 @@ public class BusinessUnitsService implements IBusinessUnitsService {
                 .setFilter(DiscountQueryFilter.newBuilder().addAssociatedAccountId(Long.parseLong(uuid)))
                 .build());
         if (discounts.hasNext()) {
-            return mapper.toDiscountApiDTO(discounts.next(), repositoryClient, searchService);
+            return mapper.toDiscountApiDTO(discounts.next());
         }
         throw new MissingDiscountException("Failed to find discount by associated account id: " + uuid);
     }

@@ -300,7 +300,7 @@ public class SearchService implements ISearchService {
                 return paginationRequest.allResultsResponse(Lists.newArrayList(targets));
             } else if (types.contains(UIEntityType.BUSINESS_ACCOUNT.apiStr())) {
                 final Collection<BusinessUnitApiDTO> businessAccounts =
-                        businessUnitMapper.getAndConvertDiscoveredBusinessUnits(this, targetsService, repositoryClient);
+                        businessUnitMapper.getAndConvertDiscoveredBusinessUnits(targetsService);
                 return paginationRequest.allResultsResponse(Lists.newArrayList(businessAccounts));
             } else if (types.contains(StringConstants.BILLING_FAMILY)) {
                 return paginationRequest.allResultsResponse(fetchBillingFamilyApiDTOs());
@@ -352,7 +352,7 @@ public class SearchService implements ISearchService {
      */
     private List<BaseApiDTO> fetchBillingFamilyApiDTOs() throws Exception {
         final List<BusinessUnitApiDTO> businessAccounts =
-            businessUnitMapper.getAndConvertDiscoveredBusinessUnits(this, targetsService, repositoryClient);
+            businessUnitMapper.getAndConvertDiscoveredBusinessUnits(targetsService);
         final Map<String, String> accountIdToDisplayName = businessAccounts.stream()
             .collect(Collectors.toMap(BusinessUnitApiDTO::getUuid, BusinessUnitApiDTO::getDisplayName));
         return businessAccounts.stream()
