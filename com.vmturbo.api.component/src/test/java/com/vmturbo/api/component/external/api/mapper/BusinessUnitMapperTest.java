@@ -9,6 +9,7 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -19,6 +20,11 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.api.component.ApiTestUtils;
+import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper.MissingTopologyEntityException;
 import com.vmturbo.api.component.external.api.service.SearchService;
 import com.vmturbo.api.component.external.api.service.TargetsService;
@@ -28,6 +34,7 @@ import com.vmturbo.api.dto.businessunit.BusinessUnitPriceAdjustmentApiDTO;
 import com.vmturbo.api.dto.businessunit.CloudServicePriceAdjustmentApiDTO;
 import com.vmturbo.api.dto.businessunit.EntityPriceDTO;
 import com.vmturbo.api.dto.businessunit.TemplatePriceAdjustmentDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.BusinessUnitType;
@@ -40,11 +47,13 @@ import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.ServiceLevelDiscount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.TierLevelDiscount;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
 
@@ -84,14 +93,14 @@ public class BusinessUnitMapperTest {
                     .build())
             .setDisplayName(TEST_DSICOUNT)
             .build();
-    private final RepositoryClient repositoryClient = Mockito.mock(RepositoryClient.class);
+    private final RepositoryApi repositoryApi = mock(RepositoryApi.class);
     private final TargetsService targetsService = Mockito.mock(TargetsService.class);
     private final Discount discount1 = Discount.newBuilder()
             .setId(id)
             .setAssociatedAccountId(ASSOCIATED_ACCOUNT_ID)
             .setDiscountInfo(discountInfo1)
             .build();
-    private BusinessUnitMapper businessUnitMapper = new BusinessUnitMapper(111l);
+    private BusinessUnitMapper businessUnitMapper = new BusinessUnitMapper(111l, repositoryApi);
     private ISearchService searchService = mock(SearchService.class);
 
     private static CloudServicePriceAdjustmentApiDTO populateServiceDto() {
@@ -117,44 +126,50 @@ public class BusinessUnitMapperTest {
 
     @Before
     public void setup() throws Exception {
-        TopologyEntityDTO entity = TopologyEntityDTO.newBuilder()
-                .setOid(ENTITY_OID)
-                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
-                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
-                        DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(id2)))
-                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setBusinessAccount(
-                        BusinessAccountInfo.newBuilder().setHasAssociatedTarget(true)))
-                .build();
-        Stream<TopologyEntityDTO> responseStream = Stream.of(TopologyEntityDTO.newBuilder()
-                .setOid(ENTITY_OID)
-                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
-                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
-                        DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(id2)))
-                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setBusinessAccount(
-                        BusinessAccountInfo.newBuilder().setHasAssociatedTarget(true)))
-                .build());
-
-        when(repositoryClient.retrieveTopologyEntities(anyList(), anyLong()))
-                .thenAnswer(i -> Stream.of(entity));
-        final TargetApiDTO targetApiDTO = new TargetApiDTO();
-        targetApiDTO.setUuid(TARGET_UUID);
-        targetApiDTO.setType(AWS);
-        targetApiDTO.setDisplayName(ENGINEERING_AWS_AMAZON_COM);
-        BusinessUnitApiDTO businessUnitApiDTO = new BusinessUnitApiDTO();
-        businessUnitApiDTO.setChildrenBusinessUnits(ImmutableSet.of(CHILDREN_BUSINESS_UNITS));
-        targetApiDTO.setCurrentBusinessAccount(businessUnitApiDTO);
-        when(targetsService.getTarget(anyString())).thenReturn(targetApiDTO);
-        GroupApiDTO groupApiDTO = new GroupApiDTO();
-        groupApiDTO.setUuid(String.valueOf(ENTITY_OID));
-        List<BaseApiDTO> results = ImmutableList.of(groupApiDTO);
-        final SearchPaginationRequest searchPaginationRequest = new SearchPaginationRequest(null, null, false, null);
-        final SearchPaginationResponse searchPaginationResponse = searchPaginationRequest.allResultsResponse(results);
-        when(searchService.getMembersBasedOnFilter(anyString(), any(), any())).thenReturn(searchPaginationResponse);
+//        TopologyEntityDTO entity = TopologyEntityDTO.newBuilder()
+//                .setOid(ENTITY_OID)
+//                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+//                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
+//                        DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(id2)))
+//                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setBusinessAccount(
+//                        BusinessAccountInfo.newBuilder().setHasAssociatedTarget(true)))
+//                .build();
+//        Stream<TopologyEntityDTO> responseStream = Stream.of(TopologyEntityDTO.newBuilder()
+//                .setOid(ENTITY_OID)
+//                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+//                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
+//                        DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(id2)))
+//                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setBusinessAccount(
+//                        BusinessAccountInfo.newBuilder().setHasAssociatedTarget(true)))
+//                .build());
+//
+//        when(repositoryClient.retrieveTopologyEntities(anyList(), anyLong()))
+//                .thenAnswer(i -> Stream.of(entity));
+//        final TargetApiDTO targetApiDTO = new TargetApiDTO();
+//        targetApiDTO.setUuid(TARGET_UUID);
+//        targetApiDTO.setType(AWS);
+//        targetApiDTO.setDisplayName(ENGINEERING_AWS_AMAZON_COM);
+//        BusinessUnitApiDTO businessUnitApiDTO = new BusinessUnitApiDTO();
+//        businessUnitApiDTO.setChildrenBusinessUnits(ImmutableSet.of(CHILDREN_BUSINESS_UNITS));
+//        targetApiDTO.setCurrentBusinessAccount(businessUnitApiDTO);
+//        when(targetsService.getTarget(anyString())).thenReturn(targetApiDTO);
+//        GroupApiDTO groupApiDTO = new GroupApiDTO();
+//        groupApiDTO.setUuid(String.valueOf(ENTITY_OID));
+//        List<BaseApiDTO> results = ImmutableList.of(groupApiDTO);
+//        final SearchPaginationRequest searchPaginationRequest = new SearchPaginationRequest(null, null, false, null);
+//        final SearchPaginationResponse searchPaginationResponse = searchPaginationRequest.allResultsResponse(results);
+//        when(searchService.getMembersBasedOnFilter(anyString(), any(), any())).thenReturn(searchPaginationResponse);
     }
 
     @Test
     public void testToBusinessUnitApiDTO() {
-        BusinessUnitApiDTO businessUnitApiDTO = businessUnitMapper.toBusinessUnitApiDTO(discount1, repositoryClient, targetsService);
+        final ServiceEntityApiDTO associatedEntity = new ServiceEntityApiDTO();
+        associatedEntity.setDiscoveredBy(new TargetApiDTO());
+        associatedEntity.getDiscoveredBy().setType(AWS);
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(associatedEntity);
+        when(repositoryApi.entityRequest(ASSOCIATED_ACCOUNT_ID)).thenReturn(req);
+
+        BusinessUnitApiDTO businessUnitApiDTO = businessUnitMapper.toBusinessUnitApiDTO(discount1);
         assertEquals(BusinessUnitType.DISCOUNT, businessUnitApiDTO.getBusinessUnitType());
         assertEquals(false, businessUnitApiDTO.isMaster());
         assertEquals(CloudType.AWS, businessUnitApiDTO.getCloudType());
@@ -182,15 +197,43 @@ public class BusinessUnitMapperTest {
 
     @Test
     public void testToDiscountApiDTO() throws Exception {
-        BusinessUnitPriceAdjustmentApiDTO businessUnitApiDTO = businessUnitMapper.toDiscountApiDTO(discount1, repositoryClient, searchService);
+        MultiEntityRequest multiEntityRequest = ApiTestUtils.mockMultiEntityReqEmpty();
+        when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityRequest);
+        SearchRequest req = ApiTestUtils.mockSearchReq(Collections.singletonList(
+            ApiPartialEntity.newBuilder()
+                .setEntityType(UIEntityType.CLOUD_SERVICE.typeNumber())
+                .setOid(1000L)
+                .setDisplayName("Cloud Service")
+                .build()
+        ));
+        when(repositoryApi.newSearchRequest(any())).thenReturn(req);
+
+        BusinessUnitPriceAdjustmentApiDTO businessUnitApiDTO = businessUnitMapper.toDiscountApiDTO(discount1);
         assertEquals(1, businessUnitApiDTO.getServicePriceAdjustments().size());
-        assertEquals(String.valueOf(ENTITY_OID), businessUnitApiDTO.getServicePriceAdjustments().get(0).getUuid());
+        assertEquals(String.valueOf(1000), businessUnitApiDTO.getServicePriceAdjustments().get(0).getUuid());
         assertEquals(ServicePricingModel.ON_DEMAND, businessUnitApiDTO.getServicePriceAdjustments().get(0).getPricingModel());
     }
 
     @Test
     public void testToDiscoveredBusinessUnitDTO() throws Exception {
-        List<BusinessUnitApiDTO> businessUnitApiDTOs = businessUnitMapper.getAndConvertDiscoveredBusinessUnits(searchService, targetsService, repositoryClient);
+        TopologyEntityDTO entity = TopologyEntityDTO.newBuilder()
+                .setOid(ENTITY_OID)
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
+                        DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(id2)))
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setBusinessAccount(
+                        BusinessAccountInfo.newBuilder().setHasAssociatedTarget(true)))
+                .build();
+        final SearchRequest request = ApiTestUtils.mockSearchFullReq(Collections.singletonList(entity));
+        when(repositoryApi.newSearchRequest(any())).thenReturn(request);
+
+        final ServiceEntityApiDTO associatedEntity = new ServiceEntityApiDTO();
+        associatedEntity.setDiscoveredBy(new TargetApiDTO());
+        associatedEntity.getDiscoveredBy().setType(AWS);
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(associatedEntity);
+        when(repositoryApi.entityRequest(ENTITY_OID)).thenReturn(req);
+
+        List<BusinessUnitApiDTO> businessUnitApiDTOs = businessUnitMapper.getAndConvertDiscoveredBusinessUnits(targetsService);
         assertEquals(1, businessUnitApiDTOs.size());
         assertEquals(String.valueOf(ENTITY_OID), businessUnitApiDTOs.get(0).getUuid());
         assertEquals(BusinessUnitType.DISCOVERED, businessUnitApiDTOs.get(0).getBusinessUnitType());
@@ -201,27 +244,36 @@ public class BusinessUnitMapperTest {
 
     @Test
     public void testToDiscoveredBusinessUnitDTOWithBillingProbe() throws Exception {
+        TopologyEntityDTO entity = TopologyEntityDTO.newBuilder()
+            .setOid(ENTITY_OID)
+            .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+            .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
+                DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(id2)))
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setBusinessAccount(
+                BusinessAccountInfo.newBuilder().setHasAssociatedTarget(true)))
+            .build();
+
+        final SearchRequest request = ApiTestUtils.mockSearchFullReq(Collections.singletonList(entity));
+        when(repositoryApi.newSearchRequest(any())).thenReturn(request);
+
+        final ServiceEntityApiDTO associatedEntity = new ServiceEntityApiDTO();
+        associatedEntity.setDiscoveredBy(new TargetApiDTO());
+        associatedEntity.getDiscoveredBy().setType(AWS);
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(associatedEntity);
+        when(repositoryApi.entityRequest(ENTITY_OID)).thenReturn(req);
+
         TargetApiDTO targetApiDTO = new TargetApiDTO();
         targetApiDTO.setUuid(TARGET_UUID);
         targetApiDTO.setType("AWS Billing");
         targetApiDTO.setDisplayName("engineering.billing.aws.amazon.com");
         when(targetsService.getTarget(anyString())).thenReturn(targetApiDTO);
-        List<BusinessUnitApiDTO> businessUnitApiDTOs = businessUnitMapper.getAndConvertDiscoveredBusinessUnits(searchService, targetsService, repositoryClient);
+        List<BusinessUnitApiDTO> businessUnitApiDTOs = businessUnitMapper.getAndConvertDiscoveredBusinessUnits(targetsService);
         assertEquals(1, businessUnitApiDTOs.size());
         assertEquals(String.valueOf(ENTITY_OID), businessUnitApiDTOs.get(0).getUuid());
         assertEquals(BusinessUnitType.DISCOVERED, businessUnitApiDTOs.get(0).getBusinessUnitType());
         // still AWS instead of billing probe
         assertEquals(CloudType.AWS, businessUnitApiDTOs.get(0).getCloudType());
         assertEquals(WORKLOAD, businessUnitApiDTOs.get(0).getMemberType());
-    }
-
-
-    @Test(expected = MissingTopologyEntityException.class)
-    public void testToDiscoveredBusinessUnitDTOWithException() throws Exception {
-
-        when(repositoryClient.retrieveTopologyEntities(anyList(), anyLong())).thenReturn(Stream.empty());
-
-        businessUnitMapper.getAndConvertDiscoveredBusinessUnits(searchService, targetsService, repositoryClient);
     }
 
 }

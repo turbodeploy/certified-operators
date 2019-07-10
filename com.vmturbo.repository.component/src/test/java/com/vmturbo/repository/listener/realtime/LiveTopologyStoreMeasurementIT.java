@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.io.FileUtils;
@@ -27,6 +28,7 @@ import jdk.nashorn.internal.ir.debug.ObjectSizeCalculator;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -88,7 +90,9 @@ public class LiveTopologyStoreMeasurementIT {
 
         stopwatch.reset();
         stopwatch.start();
-        liveTopologyStore.getSourceTopology().get().globalSupplyChainNodes();
+        liveTopologyStore.getSourceTopology().get().globalSupplyChainNodes(Optional.empty());
+        liveTopologyStore.getSourceTopology().get().globalSupplyChainNodes(Optional.of(UIEnvironmentType.CLOUD));
+        liveTopologyStore.getSourceTopology().get().globalSupplyChainNodes(Optional.of(UIEnvironmentType.ON_PREM));
         stopwatch.stop();
         logger.info("GSC Took {}", stopwatch.elapsed(TimeUnit.MILLISECONDS));
         logger.info("Size with global supply chain: {}", FileUtils.byteCountToDisplaySize(ObjectSizeCalculator.getObjectSize(liveTopologyStore.getSourceTopology().get())));
