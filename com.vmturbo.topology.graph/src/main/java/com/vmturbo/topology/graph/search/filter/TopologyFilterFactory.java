@@ -137,6 +137,12 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                     numericCriteria.getComparisonOperator(),
                     TopologyGraphEntity::getEntityType
                 ));
+            case SearchableProperties.ENTITY_STATE:
+                return new PropertyFilter<>(intPredicate(
+                        (int) numericCriteria.getValue(),
+                        numericCriteria.getComparisonOperator(),
+                        entity -> entity.getEntityState().getNumber()
+                ));
             default:
                 throw new IllegalArgumentException("Unknown numeric property named: " + propertyName);
         }

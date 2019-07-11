@@ -357,6 +357,33 @@ public class TopologyFilterFactoryTest {
     }
 
     @Test
+    public void testNumericSearchFilterForEntityState() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+                .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName("state")
+                        .setNumericFilter(NumericFilter.newBuilder()
+                                .setValue(EntityState.POWERED_ON_VALUE)
+                                .setComparisonOperator(ComparisonOperator.EQ)
+                                .build())
+                        .build())
+                .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+                .setState(EntityState.POWERED_ON)
+                .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+                .setState(EntityState.POWERED_OFF)
+                .build();
+
+        assertTrue(propertyFilter.test(entity1));
+        assertFalse(propertyFilter.test(entity2));
+    }
+
+    @Test
     public void testSearchFilterForEnvironmentTypeMatch() {
         final SearchFilter searchCriteria = SearchFilter.newBuilder()
             .setPropertyFilter(Search.PropertyFilter.newBuilder()
