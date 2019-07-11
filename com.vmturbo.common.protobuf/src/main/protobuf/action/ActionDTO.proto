@@ -148,7 +148,8 @@ message Explanation {
         }
         // Provision by supply explanation contains the base type of the most expensive commodity.
         message ProvisionBySupplyExplanation {
-            required ReasonCommodity most_expensive_commodity = 1;
+            // TODO: Change this to topology.CommodityType when M2 provides sufficient information to do so.
+            required int32 most_expensive_commodity = 1;
         }
 
         // Provision by demand explanation

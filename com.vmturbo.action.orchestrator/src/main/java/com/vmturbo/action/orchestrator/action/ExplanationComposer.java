@@ -153,7 +153,7 @@ public class ExplanationComposer {
                     case PROVISION_BY_SUPPLY_EXPLANATION:
                         return buildProvisionBySupplyExplanation(provExp
                             .getProvisionBySupplyExplanation()
-                            .getMostExpensiveCommodity().getCommodityType().getType());
+                            .getMostExpensiveCommodity());
                     default:
                         return ACTION_TYPE_ERROR;
                 }

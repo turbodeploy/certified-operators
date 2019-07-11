@@ -771,15 +771,11 @@ public class ActionInterpreter {
 
     private ProvisionExplanation
     interpretProvisionExplanation(ProvisionBySupplyTO provisionBySupply) {
-        CommodityType commType = commodityConverter.economyToTopologyCommodity(
-                provisionBySupply.getMostExpensiveCommodity()).orElseThrow(() -> new IllegalArgumentException(
-                    "Most expensive commodity in provision can't be converted to topology commodity format! "
-                        + provisionBySupply.getMostExpensiveCommodity()));
         return ProvisionExplanation.newBuilder()
                 .setProvisionBySupplyExplanation(
                         ProvisionBySupplyExplanation.newBuilder()
-                                .setMostExpensiveCommodity(
-                                        ReasonCommodity.newBuilder().setCommodityType(commType).build())
+                                .setMostExpensiveCommodity(provisionBySupply
+                                        .getMostExpensiveCommodity())
                                 .build())
                 .build();
     }

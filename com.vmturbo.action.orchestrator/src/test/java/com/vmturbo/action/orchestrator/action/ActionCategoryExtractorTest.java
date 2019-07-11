@@ -3,7 +3,6 @@ package com.vmturbo.action.orchestrator.action;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
-import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -146,8 +145,7 @@ public class ActionCategoryExtractorTest {
     public void testProvisionBySupplyPerformanceAssurance() {
         Explanation provisionBySupply1 = Explanation.newBuilder().setProvision(ProvisionExplanation
             .newBuilder().setProvisionBySupplyExplanation(ProvisionBySupplyExplanation
-                .newBuilder().setMostExpensiveCommodity(ActionOrchestratorTestUtils.createReasonCommodity(102, null))
-                        .build())
+                .newBuilder().setMostExpensiveCommodity(102).build())
             .build()).build();
 
         assertThat(ActionCategoryExtractor.assignActionCategory(provisionBySupply1),
@@ -159,7 +157,7 @@ public class ActionCategoryExtractorTest {
         Explanation provisionBySupply2 = Explanation.newBuilder().setProvision(ProvisionExplanation
             .newBuilder().setProvisionBySupplyExplanation(ProvisionBySupplyExplanation
                 .newBuilder()
-                .setMostExpensiveCommodity(ActionOrchestratorTestUtils.createReasonCommodity(CommodityType.SEGMENTATION_VALUE, null))
+                .setMostExpensiveCommodity(CommodityType.SEGMENTATION_VALUE)
                 .build())
             .build()).build();
 
