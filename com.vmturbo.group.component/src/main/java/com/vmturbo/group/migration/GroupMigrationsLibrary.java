@@ -49,6 +49,8 @@ public class GroupMigrationsLibrary {
                 new V_01_00_03__Change_Default_Transactions_Capacity(settingStore))
             .put(V_01_00_04__Change_Nested_Groups_Filters_Protobuf_Representation.class.getSimpleName(),
                  new V_01_00_04__Change_Nested_Groups_Filters_Protobuf_Representation(dslContext))
+            .put(V_01_00_05__Change_Dynamic_Groups_Api_Filters_Protobuf_Representation.class.getSimpleName(),
+                 new V_01_00_05__Change_Dynamic_Groups_Api_Filters_Protobuf_Representation(dslContext))
             .build();
     }
 }

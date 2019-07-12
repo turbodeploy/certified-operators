@@ -161,7 +161,7 @@ public class V_01_00_04__Change_Nested_Groups_Filters_Protobuf_Representation im
                 return;
             }
 
-            // translation to 7.16
+            // translation
             final byte[] translation =
                     nestedGroupInfo716ToNestedGroupInfo(protobufObject).toByteArray();
             logger.debug(
