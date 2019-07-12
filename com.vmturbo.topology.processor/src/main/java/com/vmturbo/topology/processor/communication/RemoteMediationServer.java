@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.communication;
 
 import java.time.Clock;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
@@ -47,6 +48,8 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
 public class RemoteMediationServer implements TransportRegistrar, RemoteMediation {
 
     private final Logger logger = LogManager.getLogger();
+
+    private final ProbeContainerChooser containerChooser = new RoundRobinProbeContainerChooser();
 
     public RemoteMediationServer(@Nonnull final ProbeStore probeStore) {
         Objects.requireNonNull(probeStore);
@@ -213,15 +216,30 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
         logger.info("container {} closed", endpoint);
     }
 
+    private void broadcastMessageToProbeInstances(long probeId,
+                                             MediationServerMessage message)
+        throws CommunicationException, InterruptedException, ProbeException {
+            for (ITransport<MediationServerMessage, MediationClientMessage> transport
+                : probeStore.getTransport(probeId)) {
+                transport.send(message);
+            }
+    }
+
     private void sendMessageToProbe(long probeId,
                                     MediationServerMessage message,
                                     @Nullable IOperationMessageHandler<?> responseHandler)
             throws CommunicationException, InterruptedException, ProbeException {
         boolean success = false;
         try {
-            // Use first available transport.
+            final Collection<ITransport<MediationServerMessage, MediationClientMessage>> transports =
+                probeStore.getTransport(probeId);
+            logger.debug("Choosing transport from {} options.",
+                transports.size());
+            // Choose transport using round robin containerChooser.
             final ITransport<MediationServerMessage, MediationClientMessage> transport =
-                    probeStore.getTransport(probeId).iterator().next();
+                transports.size() == 1 ? transports.iterator().next()
+                    : containerChooser.choose(transports);
+            logger.debug("Choosing transport {}", transport.hashCode());
             // Register the handler before sending the message so there is no gap where there is
             // no registered handler for an outgoing message. Of course this means cleanup is
             // necessary!
@@ -286,7 +304,7 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
                 .setProperties(setProperties)
                 .build();
 
-        sendMessageToProbe(probeId, message, null);
+        broadcastMessageToProbeInstances(probeId, message);
     }
 
     /**
