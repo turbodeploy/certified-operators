@@ -385,13 +385,13 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
      * startTime and endTime.
      *
      * @param statsFilter The filter to use to get the stats.
-     * @param entityType optional of entity type
+     * @param relatedEntityType optional of entity type
      * @return an ImmutableList of DB Stats Records containing the result from searching all the stats tables
      * for the given time range and commodity names
      * @throws VmtDbException if there's an exception querying the data
      */
     public @Nonnull List<Record> getFullMarketStatsRecords(@Nonnull final StatsFilter statsFilter,
-                                                 @Nonnull Optional<String> entityType)
+                                                 @Nonnull Optional<String> relatedEntityType)
             throws VmtDbException {
         final Optional<TimeRange> timeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter,
             Optional.empty(), Optional.empty(), Optional.empty());
@@ -429,9 +429,10 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
                     ratioProcessor.getFilterWithCounts().getCommodityRequestsList(), table);
         commodityRequestsCond.ifPresent(whereConditions::add);
 
-        // if no entity type provided, it will include all entity types.
+        // if a related entity type provided, add a where clause to restrict to that entityType
         Optional<Condition> entityTypeCond =
-            entityType.flatMap(type -> StatsQueryFactory.DefaultStatsQueryFactory.entityTypeCond(type, table));
+            relatedEntityType.flatMap(type ->
+                StatsQueryFactory.DefaultStatsQueryFactory.entityTypeCond(type, table));
         entityTypeCond.ifPresent(whereConditions::add);
 
         // Format the query.

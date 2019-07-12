@@ -72,7 +72,7 @@ public class StatsMapper {
     @VisibleForTesting
     public static final String RELATION_FILTER_TYPE = "relation";
 
-    public static final String STAT_RECORD_PREFIX_CURRENT = "current";
+    private static final String STAT_RECORD_PREFIX_CURRENT = "current";
     public static final String FILTER_NAME_KEY = "key";
     private final ConcurrentHashMap<Long, TargetApiDTO> uuidToTargetApiDtoMap = new ConcurrentHashMap<>();
 
@@ -306,11 +306,16 @@ public class StatsMapper {
             statApiDTO.setName(statRecord.getName());
         }
 
-        final BaseApiDTO provider = new BaseApiDTO();
-        provider.setDisplayName(statRecord.getProviderDisplayName());
-        provider.setUuid(statRecord.getProviderUuid());
+        if (statRecord.hasProviderUuid() || statRecord.hasProviderDisplayName()) {
+            final BaseApiDTO provider = new BaseApiDTO();
+            provider.setDisplayName(statRecord.getProviderDisplayName());
+            provider.setUuid(statRecord.getProviderUuid());
+            statApiDTO.setRelatedEntity(provider);
+        }
 
-        statApiDTO.setRelatedEntity(provider);
+        if (statRecord.hasRelatedEntityType()) {
+            statApiDTO.setRelatedEntityType(statRecord.getRelatedEntityType());
+        }
 
         statApiDTO.setUnits(statRecord.getUnits());
         // Only add capacity and reservation values when the stat is NOT a metric (ie when it is

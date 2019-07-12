@@ -4,6 +4,7 @@ import static com.vmturbo.components.common.utils.StringConstants.AVG_VALUE;
 import static com.vmturbo.components.common.utils.StringConstants.CAPACITY;
 import static com.vmturbo.components.common.utils.StringConstants.COMMODITY_KEY;
 import static com.vmturbo.components.common.utils.StringConstants.EFFECTIVE_CAPACITY;
+import static com.vmturbo.components.common.utils.StringConstants.ENTITY_TYPE;
 import static com.vmturbo.components.common.utils.StringConstants.KEY;
 import static com.vmturbo.components.common.utils.StringConstants.MAX_VALUE;
 import static com.vmturbo.components.common.utils.StringConstants.MIN_VALUE;
@@ -112,6 +113,9 @@ public interface StatSnapshotCreator {
                                 dbFirstStatRecord.getValue(COMMODITY_KEY, String.class);
                         final String producerIdString = fullMarket ? null :
                                 dbFirstStatRecord.getValue(PRODUCER_UUID, String.class);
+                        final String relatedEntityType = dbFirstStatRecord.field(ENTITY_TYPE) != null
+                            ? dbFirstStatRecord.getValue(ENTITY_TYPE, String.class)
+                            : null;
                         final StatsAccumulator capacityValue = new StatsAccumulator();
                         Long producerId = null;
                         if (StringUtils.isNotEmpty(producerIdString)) {
@@ -174,10 +178,11 @@ public interface StatSnapshotCreator {
 
                             // calculate the "reserved" amount. This is the gap between capacity and
                             // "effective capacity".
-                            float reserved = (float) (capacityValue.getTotal() - effectiveCapacityValue.getTotal());
-                            statRecord = statRecordBuilder.buildStatRecord(propertyType, propertySubtype,
-                                capacityValue.toStatValue(), reserved,
-                                producerId, avgTotal, minTotal, maxTotal,
+                            float reserved = (float) (capacityValue.getTotal()
+                                - effectiveCapacityValue.getTotal());
+                            statRecord = statRecordBuilder.buildStatRecord(propertyType,
+                                propertySubtype, capacityValue.toStatValue(), reserved,
+                                relatedEntityType, producerId, avgTotal, minTotal, maxTotal,
                                 commodityKey, avgTotal, relation);
                         } else {
                             // calculate the averages
@@ -188,11 +193,13 @@ public interface StatSnapshotCreator {
 
                             // calculate the "reserved" amount. This is the gap between capacity and
                             // "effective capacity".
-                            float reserved = (float) (capacityValue.getAvg() - effectiveCapacityValue.getAvg());
+                            float reserved = (float) (capacityValue.getAvg()
+                                - effectiveCapacityValue.getAvg());
 
                             // build the record for this stat (commodity type)
-                            statRecord = statRecordBuilder.buildStatRecord(propertyType, propertySubtype,
-                                capacityValue.toStatValue(), reserved, producerId, avgValueAvg, minValueAvg, maxValueAvg,
+                            statRecord = statRecordBuilder.buildStatRecord(propertyType,
+                                propertySubtype, capacityValue.toStatValue(), reserved,
+                                relatedEntityType, producerId, avgValueAvg, minValueAvg, maxValueAvg,
                                 commodityKey, avgTotal, relation);
                         }
 
@@ -210,6 +217,10 @@ public interface StatSnapshotCreator {
          * <p>
          * Note that properties bought and sold may have the same name, so we need to distinguish
          * those by appending PROPERTY_TYPE with PROPERTY_SUBTYPE for the key for the commodity map.
+         *
+         * Similarly, a single commodity may be sold by more than one entity type, and so the
+         * entity_type field must also be included in the commodity map key. Note that this only
+         * applies to market_stats_xxx rows, not individual entity stats rows.
          *
          * @param statDBRecords the list of DB stats records to organize
          * @param commodityRequests a list of {@link CommodityRequest} being satisfied in this query. We
@@ -263,6 +274,13 @@ public interface StatSnapshotCreator {
                 // Need to separate commodity bought and sold as some commodities are both bought
                 // and sold in the same entity, e.g., StorageAccess in Storage entity.
                 String recordKey = commodityName + relation + groupByKey;
+
+                // Need to separate commodities by entity_type if the field exists, as some
+                // commodities (e.g. CPUAllocation) are sold by more than one entity type
+                // (VirtualDataCenter and PhysicalMachine)
+                if (dbStatRecord.field(ENTITY_TYPE) != null) {
+                    recordKey += dbStatRecord.getValue(ENTITY_TYPE, String.class);
+                }
 
                 snapshotMap.put(recordKey, dbStatRecord);
             }

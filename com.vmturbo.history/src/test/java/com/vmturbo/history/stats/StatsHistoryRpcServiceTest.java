@@ -12,7 +12,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -37,15 +36,15 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-
 import org.jooq.Record;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Matchers;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -175,7 +174,7 @@ public class StatsHistoryRpcServiceTest {
             newStatRecord(SNAPSHOT_TIME, c1Value2, propType, USED),
             newStatRecord(SNAPSHOT_TIME, c2Value, propType2, USED),
             // This one (utilization) should be dropped while processing the stats.
-            newStatRecord(SNAPSHOT_TIME, 0.95, propType2, UTILIZATION));
+            newStatRecord(SNAPSHOT_TIME, 0.95f, propType2, UTILIZATION));
 
         when(mockLivestatsreader.getRecords(anyObject(), anyObject()))
                 .thenReturn(statsRecordsList);
@@ -385,9 +384,9 @@ public class StatsHistoryRpcServiceTest {
 
         // three rows for 'c1', values 1, 2, 3 respectively
         final List<Record> statsRecordsList = Lists.newArrayList(
-            newStatRecord(SNAPSHOT_TIME, 1d, "c1", "c1-subtype"),
-            newStatRecord(SNAPSHOT_TIME, 2d, "c1", "c1-subtype"),
-            newStatRecord(SNAPSHOT_TIME, 3d, "c1", "c1-subtype"));
+            newStatRecord(SNAPSHOT_TIME, 1f, "c1", "c1-subtype"),
+            newStatRecord(SNAPSHOT_TIME, 2f, "c1", "c1-subtype"),
+            newStatRecord(SNAPSHOT_TIME, 3f, "c1", "c1-subtype"));
 
         when(mockLivestatsreader.getRecords(eq(queryEntityUuidsStr), eq(reqStatsBuilder.build())))
                 .thenReturn(statsRecordsList);

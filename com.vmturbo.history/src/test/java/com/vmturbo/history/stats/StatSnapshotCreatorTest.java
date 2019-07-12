@@ -1,12 +1,19 @@
 package com.vmturbo.history.stats;
 
+import static com.vmturbo.history.schema.RelationType.COMMODITIES;
+import static com.vmturbo.history.schema.RelationType.COMMODITIESBOUGHT;
+import static com.vmturbo.history.stats.StatsTestUtils.expectedStatRecord;
+import static com.vmturbo.history.stats.StatsTestUtils.newMarketStatRecordWithEntityType;
 import static com.vmturbo.history.stats.StatsTestUtils.newStatRecordWithKey;
 import static com.vmturbo.history.stats.StatsTestUtils.newStatRecordWithKeyAndEffectiveCapacity;
 import static com.vmturbo.history.stats.StatsTestUtils.newStatRecordWithProducerUuid;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.mock;
@@ -43,10 +50,19 @@ import com.vmturbo.history.stats.readers.LiveStatsReader;
 public class StatSnapshotCreatorTest {
 
     private static final Timestamp SNAPSHOT_TIME = new Timestamp(123L);
+    private static final String C_1 = "c1";
+    private static final String C_2 = "c2";
+    private static final String C_1_SUBTYPE = "c1-subtype";
+    private static final String C_2_SUBTYPE = "c2-subtype";
+    private static final String KEY_1 = "key1";
+    private static final String KEY_2 = "key2";
+    private static final String USED = "used";
+    public static final float FLOAT_COMPARISON_EPSILON = 0.001F;
 
-    final StatRecordBuilder statRecordBuilder = mock(StatRecordBuilder.class);
+    private final StatRecordBuilder statRecordBuilder = mock(StatRecordBuilder.class);
 
-    final StatSnapshotCreator snapshotCreator = new DefaultStatSnapshotCreator(statRecordBuilder);
+    private final StatSnapshotCreator snapshotCreator =
+        new DefaultStatSnapshotCreator(statRecordBuilder);
 
     @Test
     public void testGroupByKey() {
@@ -57,17 +73,17 @@ public class StatSnapshotCreatorTest {
                 .setName("mock2")
                 .build();
         when(statRecordBuilder.buildStatRecord(any(), any(), isA(StatValue.class), any(), any(),
-            any(), any(), any(), any(), any(), any()))
+            any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(record1, record2);
         final List<CommodityRequest> commodityRequests =
                 Collections.singletonList(CommodityRequest.newBuilder()
-                        .setCommodityName("c1")
+                        .setCommodityName(C_1)
                         .addGroupBy(StringConstants.KEY)
                         .build());
 
         final List<Record> statsRecordsList = Lists.newArrayList(
-                newStatRecordWithKey(SNAPSHOT_TIME, 1, "c1", "c1-subtype", "key1"),
-                newStatRecordWithKey(SNAPSHOT_TIME, 2, "c1", "c1-subtype", "key2"));
+                newStatRecordWithKey(SNAPSHOT_TIME, 1, C_1, C_1_SUBTYPE, KEY_1),
+                newStatRecordWithKey(SNAPSHOT_TIME, 2, C_1, C_1_SUBTYPE, KEY_2));
 
         final List<StatSnapshot> snapshots =
                 snapshotCreator.createStatSnapshots(statsRecordsList, false, commodityRequests)
@@ -120,10 +136,10 @@ public class StatSnapshotCreatorTest {
                 .build());
 
         final List<Record> statsRecordsList = Lists.newArrayList(
-            newStatRecordWithProducerUuid(SNAPSHOT_TIME, 12, storageAmount, "used", oidDiskArray1),
-            newStatRecordWithProducerUuid(SNAPSHOT_TIME, 13, storageAccess, "used", oidDiskArray1),
-            newStatRecordWithProducerUuid(SNAPSHOT_TIME, 14, storageAmount, "used", oidDiskArray2),
-            newStatRecordWithProducerUuid(SNAPSHOT_TIME, 15, storageAccess, "used", oidDiskArray2)
+            newStatRecordWithProducerUuid(SNAPSHOT_TIME, 12, storageAmount, USED, oidDiskArray1),
+            newStatRecordWithProducerUuid(SNAPSHOT_TIME, 13, storageAccess, USED, oidDiskArray1),
+            newStatRecordWithProducerUuid(SNAPSHOT_TIME, 14, storageAmount, USED, oidDiskArray2),
+            newStatRecordWithProducerUuid(SNAPSHOT_TIME, 15, storageAccess, USED, oidDiskArray2)
         );
 
         final List<StatSnapshot> snapshots =
@@ -190,10 +206,10 @@ public class StatSnapshotCreatorTest {
                 .build());
 
         final List<Record> statsRecordsList = Lists.newArrayList(
-            newStatRecordWithKey(SNAPSHOT_TIME, 12, storageAmount, "used", volume1),
-            newStatRecordWithKey(SNAPSHOT_TIME, 13, storageAccess, "used", volume1),
-            newStatRecordWithKey(SNAPSHOT_TIME, 14, storageAmount, "used", volume2),
-            newStatRecordWithKey(SNAPSHOT_TIME, 15, storageAccess, "used", volume2)
+            newStatRecordWithKey(SNAPSHOT_TIME, 12, storageAmount, USED, volume1),
+            newStatRecordWithKey(SNAPSHOT_TIME, 13, storageAccess, USED, volume1),
+            newStatRecordWithKey(SNAPSHOT_TIME, 14, storageAmount, USED, volume2),
+            newStatRecordWithKey(SNAPSHOT_TIME, 15, storageAccess, USED, volume2)
         );
 
         final List<StatSnapshot> snapshots =
@@ -225,16 +241,16 @@ public class StatSnapshotCreatorTest {
                 .setName("mock")
                 .build();
         when(statRecordBuilder.buildStatRecord(any(), any(), isA(StatValue.class), any(), any(),
-            any(), any(), any(), any(), any(), any()))
+            any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(record);
         final List<CommodityRequest> commodityRequests =
             Collections.singletonList(CommodityRequest.newBuilder()
-                .setCommodityName("c1")
+                .setCommodityName(C_1)
                 .build());
 
         final List<Record> statsRecordsList = Lists.newArrayList(
-            newStatRecordWithKey(SNAPSHOT_TIME, 1, "c1", "c1-subtype", "key1"),
-            newStatRecordWithKey(SNAPSHOT_TIME, 2, "c1", "c1-subtype", "key2"));
+            newStatRecordWithKey(SNAPSHOT_TIME, 1, C_1, C_1_SUBTYPE, KEY_1),
+            newStatRecordWithKey(SNAPSHOT_TIME, 2, C_1, C_1_SUBTYPE, KEY_2));
 
         final List<StatSnapshot> snapshots =
             snapshotCreator.createStatSnapshots(statsRecordsList, false, commodityRequests)
@@ -253,9 +269,9 @@ public class StatSnapshotCreatorTest {
         final StatSnapshotCreator snapshotCreator = new DefaultStatSnapshotCreator(new TestStatRecordBuilder());
 
         final List<Record> statsRecordsList = Lists.newArrayList(
-                newStatRecordWithKeyAndEffectiveCapacity(SNAPSHOT_TIME, 1, 1.0, "c1", "c1-subtype", "key1"),
-                newStatRecordWithKeyAndEffectiveCapacity(SNAPSHOT_TIME, 1, 0.5, "c1", "c1-subtype", "key1"),
-                newStatRecordWithKeyAndEffectiveCapacity(SNAPSHOT_TIME, 2, 0.5,"c1", "c1-subtype", "key1"));
+                newStatRecordWithKeyAndEffectiveCapacity(SNAPSHOT_TIME, 1, 1.0, C_1, C_1_SUBTYPE, KEY_1),
+                newStatRecordWithKeyAndEffectiveCapacity(SNAPSHOT_TIME, 1, 0.5, C_1, C_1_SUBTYPE, KEY_1),
+                newStatRecordWithKeyAndEffectiveCapacity(SNAPSHOT_TIME, 2, 0.5, C_1, C_1_SUBTYPE, KEY_1));
 
         final List<StatSnapshot> snapshots =
                 snapshotCreator.createStatSnapshots(statsRecordsList, false, Collections.emptyList())
@@ -268,11 +284,143 @@ public class StatSnapshotCreatorTest {
         Assert.assertEquals(1.5, snapshots.get(0).getStatRecords(0).getReserved(), 0);
     }
 
+    @Test
+    public void fullMarket_createStatSnapshots_expectRelatedEntityType() {
+        // arrange
+        final String entityType = "entityType";
+        final String entityType2 = "entityType2";
+        final StatSnapshotCreator snapshotCreator = new DefaultStatSnapshotCreator(new TestStatRecordBuilder());
+        final List<Record> statsRecordsList = Lists.newArrayList(
+            newMarketStatRecordWithEntityType(SNAPSHOT_TIME, 1.1d, C_1, C_1_SUBTYPE,
+                COMMODITIES, entityType),
+            newMarketStatRecordWithEntityType(SNAPSHOT_TIME, 1.2d, C_2, C_2_SUBTYPE,
+                COMMODITIES, entityType2),
+            newMarketStatRecordWithEntityType(SNAPSHOT_TIME, 1.3d, C_2, C_2_SUBTYPE,
+                COMMODITIESBOUGHT, entityType2));
+
+        final CommodityRequest commodityRequest = CommodityRequest.newBuilder()
+            .setRelatedEntityType(entityType)
+            .build();
+        // act
+        final List<StatSnapshot> snapshots =
+            snapshotCreator.createStatSnapshots(statsRecordsList, true,
+                Lists.newArrayList(commodityRequest))
+                .map(StatSnapshot.Builder::build)
+                .collect(Collectors.toList());
+        // assert
+        assertThat(snapshots.size(), equalTo(1));
+        final StatSnapshot snapshot = snapshots.iterator().next();
+        final List<StatRecord> statRecordsListReturned = snapshot.getStatRecordsList();
+        assertThat(statRecordsListReturned.size(), equalTo(3));
+
+        final List<StatRecord> expectedStatRecords = Lists.newArrayList(
+            expectedStatRecord(C_1, 1.1f, COMMODITIES, entityType),
+            expectedStatRecord(C_2, 1.2f, COMMODITIES, entityType2),
+            expectedStatRecord(C_2, 1.3f, COMMODITIESBOUGHT, entityType2));
+
+        assertThat(statRecordsListReturned.size(), equalTo(3));
+        assertStringPropertiesEqual(statRecordsListReturned, expectedStatRecords,
+            StatRecord::getName);
+        assertStringPropertiesEqual(statRecordsListReturned, expectedStatRecords,
+            StatRecord::getStatKey);
+        assertFloatPropertiesEqual(statRecordsListReturned, expectedStatRecords,
+            StatRecord::getCurrentValue);
+        assertFloatPropertiesEqual(statRecordsListReturned, expectedStatRecords,
+            s -> s.getValues().getMin());
+        assertFloatPropertiesEqual(statRecordsListReturned, expectedStatRecords,
+            s -> s.getValues().getMax());
+        assertFloatPropertiesEqual(statRecordsListReturned, expectedStatRecords,
+            s -> s.getValues().getTotal());
+        assertStringPropertiesEqual(statRecordsListReturned, expectedStatRecords,
+            StatRecord::getRelatedEntityType);
+        // more complicated comparisons for the StatValue fields
+        assertStatValuesEqual(statRecordsListReturned, expectedStatRecords,
+            StatRecord::getValues);
+        assertStatValuesEqual(statRecordsListReturned, expectedStatRecords,
+            StatRecord::getUsed);
+        assertStatValuesEqual(statRecordsListReturned, expectedStatRecords,
+            StatRecord::getPeak);
+        assertStatValuesEqual(statRecordsListReturned, expectedStatRecords,
+            StatRecord::getCapacity);
+    }
+
+    /**
+     * Assert that all four fields - min, max, avg, total - of each returned statRecordList match
+     * the corrsponding fields of the expected Stats Records. We need to compare the individual
+     * fields because these are Floats and require a comparison epsilon.
+     *
+     * @param statRecordsListReturned StatRecords to be tested
+     * @param expectedStatRecords StatRecord values we expect
+     * @param getStatValueField function to pull one StatValue field from a StatRecord
+     */
+    private void assertStatValuesEqual(final List<StatRecord> statRecordsListReturned,
+                                       final List<StatRecord> expectedStatRecords,
+                                       final Function<StatRecord, StatValue> getStatValueField) {
+        assertFloatPropertiesEqual(statRecordsListReturned, expectedStatRecords,
+            getStatValueField.andThen(StatValue::getMin));
+        assertFloatPropertiesEqual(statRecordsListReturned, expectedStatRecords,
+            getStatValueField.andThen(StatValue::getMax));
+        assertFloatPropertiesEqual(statRecordsListReturned, expectedStatRecords,
+            getStatValueField.andThen(StatValue::getAvg));
+        assertFloatPropertiesEqual(statRecordsListReturned, expectedStatRecords,
+            getStatValueField.andThen(StatValue::getTotal));
+    }
+
+    /**
+     * Assert that Float fields of a StatRecord match the expected values - without
+     * regard to order.
+     *
+     * @param statRecordsListReturned StatRecords to be tested
+     * @param expectedStatRecords StatRecords with the expected values
+     * @param statAccessorFunction a Function to extract a float to be compared from
+     *                             a given StatRecord
+     */
+    private void assertFloatPropertiesEqual(final List<StatRecord> statRecordsListReturned,
+                                            final List<StatRecord> expectedStatRecords,
+                                            final Function<StatRecord, Float> statAccessorFunction) {
+
+        // sort both arrays because assertArrayEquals() respects order
+        final double[] expectedArray = expectedStatRecords.stream()
+            .map(statAccessorFunction)
+            .mapToDouble(Float::doubleValue)
+            .sorted()
+            .toArray();
+        final double[] actualArray = statRecordsListReturned.stream()
+            .map(statAccessorFunction)
+            .mapToDouble(Float::doubleValue)
+            .sorted()
+            .toArray();
+
+        assertArrayEquals(expectedArray, actualArray, FLOAT_COMPARISON_EPSILON);
+    }
+
+    private void assertStringPropertiesEqual(final List<StatRecord> statRecordsListReturned,
+                                             final List<StatRecord> expectedStatRecords,
+                                             final Function<StatRecord, String> statAccessorFunction) {
+        final List<String> expectedValues = expectedStatRecords.stream()
+            .map(statAccessorFunction)
+            .collect(Collectors.toList());
+
+        assertThat(expectedValues, containsInAnyOrder(statRecordsListReturned.stream()
+            .map(statAccessorFunction).toArray()));
+    }
+
     class TestStatRecordBuilder implements StatRecordBuilder {
 
         @Nonnull
         @Override
-        public StatRecord buildStatRecord(@Nonnull final String propertyType, @Nullable final String propertySubtype, @Nullable final StatValue capacityStat, @Nullable final Float reserved, @Nullable final Long producerId, @Nullable final Float avgValue, @Nullable final Float minValue, @Nullable final Float maxValue, @Nullable final String commodityKey, @Nullable final Float totalValue, @Nullable final String relation) {
+        public StatRecord buildStatRecord(@Nonnull final String propertyType,
+                                          @Nullable final String propertySubtype,
+                                          @Nullable final StatValue capacityStat,
+                                          @Nullable final Float reserved,
+                                          @Nullable final String relatedEntityType,
+                                          @Nullable final Long producerId,
+                                          @Nullable final Float avgValue,
+                                          @Nullable final Float minValue,
+                                          @Nullable final Float maxValue,
+                                          @Nullable final String commodityKey,
+                                          @Nullable final Float totalValue,
+                                          @Nullable final String relation) {
             final StatRecord.Builder statRecordBuilder = StatRecord.newBuilder()
                     .setName(propertyType);
 
@@ -286,6 +434,10 @@ public class StatSnapshotCreatorTest {
 
             if (reserved != null) {
                 statRecordBuilder.setReserved(reserved);
+            }
+
+            if (relatedEntityType != null) {
+                statRecordBuilder.setRelatedEntityType(relatedEntityType);
             }
 
             if (commodityKey != null) {

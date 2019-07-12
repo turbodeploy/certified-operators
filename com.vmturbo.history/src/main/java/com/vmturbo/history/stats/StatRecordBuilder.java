@@ -24,6 +24,7 @@ public interface StatRecordBuilder {
      * @param propertySubtype refinement for this stat, e.g. "used" vs "utilization"
      * @param capacityStat The capacity stat.
      * @param reserved the amount of capacity that is "reserved" and unavailable for allocation.
+     * @param relatedEntityType the type of the entity related to (buying or selling) this commodity
      * @param producerId unique id of the producer for commodity bought
      * @param avgValue average value reported from discovery
      * @param minValue min value reported from discovery
@@ -38,6 +39,7 @@ public interface StatRecordBuilder {
                                @Nullable final String propertySubtype,
                                @Nullable final StatValue capacityStat,
                                @Nullable final Float reserved,
+                               @Nullable final String relatedEntityType,
                                @Nullable final Long producerId,
                                @Nullable final Float avgValue,
                                @Nullable final Float minValue,
@@ -53,6 +55,7 @@ public interface StatRecordBuilder {
      * @param propertySubtype refinement for this stat, e.g. "used" vs "utilization"
      * @param capacity available amount on the producer
      * @param reserved the (optional) amount of capacity that is unavailable for allocation
+     * @param relatedEntityType the (optional) entity type this commodity is associated with
      * @param producerId unique id of the producer for commodity bought
      * @param avgValue average value reported from discovery
      * @param minValue min value reported from discovery
@@ -67,6 +70,7 @@ public interface StatRecordBuilder {
                                        @Nullable String propertySubtype,
                                        @Nullable Float capacity,
                                        @Nullable Float reserved,
+                                       @Nullable String relatedEntityType,
                                        @Nullable Long producerId,
                                        @Nullable Float avgValue,
                                        @Nullable Float minValue,
@@ -75,16 +79,17 @@ public interface StatRecordBuilder {
                                        @Nullable Float totalValue,
                                        @Nullable String relation) {
         return buildStatRecord(propertyType,
-                propertySubtype,
-                capacity == null ? null : StatsAccumulator.singleStatValue(capacity),
-                reserved,
-                producerId,
-                avgValue,
-                minValue,
-                maxValue,
-                commodityKey,
-                totalValue,
-                relation);
+            propertySubtype,
+            capacity == null ? null : StatsAccumulator.singleStatValue(capacity),
+            reserved,
+            relatedEntityType,
+            producerId,
+            avgValue,
+            minValue,
+            maxValue,
+            commodityKey,
+            totalValue,
+            relation);
     }
 
     /**
@@ -104,6 +109,7 @@ public interface StatRecordBuilder {
                                           @Nullable final String propertySubtype,
                                           @Nullable final StatValue capacityStat,
                                           @Nullable final Float reserved,
+                                          @Nullable final String relatedEntityType,
                                           @Nullable final Long producerId,
                                           @Nullable final Float avgValue,
                                           @Nullable final Float minValue,
@@ -128,6 +134,9 @@ public interface StatRecordBuilder {
 
             if (commodityKey != null) {
                 statRecordBuilder.setStatKey(commodityKey);
+            }
+            if (relatedEntityType != null) {
+                statRecordBuilder.setRelatedEntityType(relatedEntityType);
             }
             if (producerId != null) {
                 // providerUuid

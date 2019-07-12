@@ -172,8 +172,8 @@ public class FullMarketRatioProcessor {
         results.forEach(record -> {
             final String propName = record.getValue(PROPERTY_TYPE, String.class);
             // containsValue is efficient in a BiMap.
-            final String entityType = countSEsMetrics.inverse().get(propName);
-            if (entityType != null) {
+            final String entityTypeToCount = countSEsMetrics.inverse().get(propName);
+            if (entityTypeToCount != null) {
                 final Timestamp statTime = record.getValue(SNAPSHOT_TIME, Timestamp.class);
                 final Map<String, Integer> snapshotCounts =
                     entityCountsByTimeAndType.computeIfAbsent(statTime, key -> new HashMap<>());
@@ -188,7 +188,7 @@ public class FullMarketRatioProcessor {
                 // the future there may be other commodities where the right thing to do is
                 // to drop one of the values, or to average them. We will cross that bridge
                 // when we get there!
-                snapshotCounts.compute(entityType, (k, existing) -> {
+                snapshotCounts.compute(entityTypeToCount, (k, existing) -> {
                     // Entity counts should be discrete numbers.
                     final int val = Math.round(record.getValue(AVG_VALUE, Float.class));
                     if (existing == null) {

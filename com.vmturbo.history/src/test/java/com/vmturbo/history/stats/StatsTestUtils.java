@@ -20,12 +20,16 @@ import org.jooq.Table;
 import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
 
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.history.db.EntityType;
+import com.vmturbo.history.schema.RelationType;
+import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
 import com.vmturbo.platform.common.dto.CommonDTO;
 
@@ -46,7 +50,7 @@ public class StatsTestUtils {
             .setType(CommonDTO.CommodityDTO.CommodityType.DSPM_ACCESS_VALUE).build();
     private static CommodityType Q1_VCPU_COMMODITY_TYPE = CommodityType.newBuilder()
             .setType(CommonDTO.CommodityDTO.CommodityType.Q1_VCPU_VALUE).build();
-    public static TopologyDTO.CommodityBoughtDTO cpuBought = TopologyDTO.CommodityBoughtDTO.newBuilder()
+    private static TopologyDTO.CommodityBoughtDTO cpuBought = TopologyDTO.CommodityBoughtDTO.newBuilder()
             .setCommodityType(CPU_COMMODITY_TYPE)
             .build();
     private static double CPU_CAPACITY = 111.111;
@@ -160,7 +164,7 @@ public class StatsTestUtils {
      */
     @Nonnull
     public static Record newStatRecord(@Nonnull final Timestamp snapshotTime,
-                                final double testValue,
+                                final float testValue,
                                 @Nonnull final String propType,
                                 @Nonnull final String propSubType) {
         return newStatRecordWithKey(snapshotTime, testValue, propType, propSubType, null);
@@ -178,7 +182,7 @@ public class StatsTestUtils {
      */
     @Nonnull
     public static Record newStatRecordWithKey(@Nonnull final Timestamp snapshotTime,
-                                       final double testValue,
+                                       final float testValue,
                                        @Nonnull final String propType,
                                        @Nonnull final String propSubType,
                                        @Nullable String commodityKey) {
@@ -203,7 +207,7 @@ public class StatsTestUtils {
      */
     @Nonnull
     public static Record newStatRecordWithKeyAndEffectiveCapacity(@Nonnull final Timestamp snapshotTime,
-                                              final double testValue,
+                                              final float testValue,
                                               final double effectiveCapacityPercentage,
                                               @Nonnull final String propType,
                                               @Nonnull final String propSubType,
@@ -214,7 +218,7 @@ public class StatsTestUtils {
 
     @Nonnull
     public static Record newStatRecordWithProducerUuid(@Nonnull final Timestamp snapshotTime,
-                                                       final double testValue,
+                                                       final float testValue,
                                                        @Nonnull final String propType,
                                                        @Nonnull final String propSubType,
                                                        @Nonnull String producerUuid) {
@@ -223,9 +227,31 @@ public class StatsTestUtils {
     }
 
     @Nonnull
-    public static Record newStatRecordWithKeyAndEffectiveCapacityAndProducerUuid(
+    public static Record newMarketStatRecordWithEntityType(@Nonnull final Timestamp snapshotTime,
+                                                       final double testValue,
+                                                       @Nonnull final String propType,
+                                                       @Nonnull final String propSubType,
+                                                       @Nonnull final RelationType relation,
+                                                       @Nullable String entityType) {
+        final MarketStatsLatestRecord statsRecord = new MarketStatsLatestRecord();
+        statsRecord.setSnapshotTime(snapshotTime);
+        statsRecord.setPropertyType(propType);
+        statsRecord.setPropertySubtype(propSubType);
+        statsRecord.setRelation(relation);
+        statsRecord.setAvgValue(testValue);
+        statsRecord.setMinValue(testMinValue(testValue));
+        statsRecord.setMaxValue(testMaxValue(testValue));
+        statsRecord.setCapacity(testCapacity(testValue));
+        if (entityType != null) {
+            statsRecord.setEntityType(entityType);
+        }
+        return statsRecord;
+    }
+
+    @Nonnull
+    private static Record newStatRecordWithKeyAndEffectiveCapacityAndProducerUuid(
                 @Nonnull final Timestamp snapshotTime,
-                final double testValue,
+                final float testValue,
                 final double effectiveCapacityPercentage,
                 @Nonnull final String propType,
                 @Nonnull final String propSubType,
@@ -235,10 +261,10 @@ public class StatsTestUtils {
         statsRecord.setSnapshotTime(snapshotTime);
         statsRecord.setPropertyType(propType);
         statsRecord.setPropertySubtype(propSubType);
-        statsRecord.setAvgValue(testValue);
-        statsRecord.setMinValue(testValue / 2);
-        statsRecord.setMaxValue(testValue * 2);
-        statsRecord.setCapacity(testValue * 3);
+        statsRecord.setAvgValue((double)testValue);
+        statsRecord.setMinValue(testMinValue(testValue));
+        statsRecord.setMaxValue(testMaxValue(testValue));
+        statsRecord.setCapacity(testCapacity(testValue));
         // we'll simulate a usage throttle of 75%
         statsRecord.setEffectiveCapacity(statsRecord.getCapacity() * effectiveCapacityPercentage);
         if (commodityKey != null) {
@@ -249,4 +275,52 @@ public class StatsTestUtils {
         }
         return statsRecord;
     }
+
+    private static double testMaxValue(final double testValue) {
+        return testValue * 2;
+    }
+
+    private static double testMinValue(final double testValue) {
+        return testValue / 2;
+    }
+
+    private static double testCapacity(final double testValue) {
+        return testValue * 3;
+    }
+
+    @Nonnull
+    private static StatValue expectedStatsValue(float testValue) {
+        return StatValue.newBuilder()
+            .setAvg(testValue)
+            .setMin((float)testMinValue(testValue))
+            .setMax((float)testMaxValue(testValue))
+            .setTotal(testValue)
+            .build();
+    }
+
+    @Nonnull
+    public static StatRecord expectedStatRecord(final String commodityName,
+                                                final float testValue,
+                                                final RelationType relation,
+                                                final String relatedEntityType) {
+        // testCapacity(1), testMaxValue(1), expectedStatsValue(1),
+        final StatValue expectedValue = expectedStatsValue(testValue);
+        return StatRecord.newBuilder()
+            .setName(commodityName)
+            .setCapacity(StatValue.newBuilder()
+                .setMin((float)testCapacity(testValue))
+                .setMax((float)testCapacity(testValue))
+                .setAvg((float)testCapacity(testValue))
+                .setTotal((float)testCapacity(testValue))
+                .build())
+            .setReserved(0)
+            .setCurrentValue((float)testMaxValue(testValue))
+            .setValues(expectedValue)
+            .setUsed(expectedValue)
+            .setPeak(expectedValue)
+            .setRelation(relation.toString())
+            .setRelatedEntityType(relatedEntityType)
+            .build();
+    }
+
 }
