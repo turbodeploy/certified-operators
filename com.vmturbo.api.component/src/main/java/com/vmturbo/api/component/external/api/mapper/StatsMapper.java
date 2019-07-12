@@ -540,8 +540,9 @@ public class StatsMapper {
                             UIEntityType.fromType(globalType).apiStr()));
                     if (stat.getRelatedEntityType() != null) {
                         if (commodityRequestBuilder.hasRelatedEntityType()
-                                && !commodityRequestBuilder.getRelatedEntityType()
-                                        .equals(stat.getRelatedEntityType())) {
+                            && !areRelatedEntityTypesCompatible(
+                            commodityRequestBuilder.getRelatedEntityType(),
+                            stat.getRelatedEntityType())) {
                             logger.error(
                                 "Api input related entity type: {} is not consistent with "
                                         + "group entity type: {}",
@@ -557,6 +558,11 @@ public class StatsMapper {
             }
         }
         return filterRequestBuilder.build();
+    }
+
+    private boolean areRelatedEntityTypesCompatible(@Nonnull final String relatedEntityType,
+                                                    @Nonnull final String otherEntityType) {
+        return normalizeRelatedType(relatedEntityType).equals(normalizeRelatedType(otherEntityType));
     }
 
     @Nonnull

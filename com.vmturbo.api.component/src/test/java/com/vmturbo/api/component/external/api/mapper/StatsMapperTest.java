@@ -70,6 +70,7 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 /**
  * Unit tests for the static Mapper utility functions for the {@link StatsService}.
@@ -547,6 +548,31 @@ public class StatsMapperTest {
         statPeriodApiInputDTO.setEndDate("1M");
         StatsFilter filter = localStatsMapper.newPeriodStatsFilter(statPeriodApiInputDTO, Optional.empty());
         assertTrue(filter.hasEndDate());
+    }
+
+    /**
+     * Test that data center stats can be retrieved successfully, even though the search is really
+     * done on stats of a group of physical machines.
+     */
+    @Test
+    public void testNewPeriodStatsFilterWithDataCenters() {
+        StatsMapper localStatsMapper = new StatsMapper(new PaginationMapper());
+        StatPeriodApiInputDTO statPeriodApiInputDTO = new StatPeriodApiInputDTO();
+        List<StatApiInputDTO> statistics = Lists.newArrayListWithCapacity(1);
+        // The API caller is requesting stats for a DATACENTER
+        statistics.add(new StatApiInputDTO(CommodityType.CPU_ALLOCATION.name(),
+            UIEntityType.DATACENTER.apiStr(), null, null));
+        statPeriodApiInputDTO.setStatistics(statistics);
+        // Stats for a data center will be collected with a group entity type of PHYSICAL_MACHINE
+        Optional<Integer> groupEntityType = Optional.of(EntityType.PHYSICAL_MACHINE.getValue());
+        StatsFilter filter =
+            localStatsMapper.newPeriodStatsFilter(statPeriodApiInputDTO, groupEntityType);
+        // All resulting commodity requests should have the related entity type of DATACENTER,
+        // expressed in the API format
+        filter.getCommodityRequestsList().stream()
+            .filter(CommodityRequest::hasRelatedEntityType)
+            .map(CommodityRequest::getRelatedEntityType)
+            .forEach(relatedEntityType -> assertEquals(UIEntityType.DATACENTER.apiStr(), relatedEntityType));
     }
 
     @Test
