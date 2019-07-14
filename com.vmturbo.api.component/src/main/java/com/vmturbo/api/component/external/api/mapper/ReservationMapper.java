@@ -392,7 +392,7 @@ public class ReservationMapper {
             final PolicyResponse response = policyService.getPolicy(PolicyRequest.newBuilder()
                     .setPolicyId(constraintId)
                     .build());
-            return Optional.of(response.getPolicy());
+            return response.hasPolicy() ? Optional.of(response.getPolicy()) : Optional.empty();
         } catch (StatusRuntimeException e) {
             if (e.getStatus().getCode().equals(Code.NOT_FOUND) ||
                     e.getStatus().getCode().equals(Code.INVALID_ARGUMENT)) {
