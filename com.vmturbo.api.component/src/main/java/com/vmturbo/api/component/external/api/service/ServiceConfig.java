@@ -162,7 +162,8 @@ public class ServiceConfig {
     @Bean
     public AdminService adminService() {
         return new AdminService(clusterService(), keyValueStoreConfig.keyValueStore(),
-            communicationConfig.clusterMgr(), communicationConfig.serviceRestTemplate());
+            communicationConfig.clusterMgr(), communicationConfig.serviceRestTemplate(),
+            websocketConfig.websocketHandler());
     }
 
     @Bean

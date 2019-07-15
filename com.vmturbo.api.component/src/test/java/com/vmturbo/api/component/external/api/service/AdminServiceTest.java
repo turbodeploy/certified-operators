@@ -6,7 +6,9 @@ import static com.vmturbo.api.component.external.api.service.AdminService.PROXY_
 import static com.vmturbo.api.component.external.api.service.AdminService.PROXY_USER_NAME;
 import static com.vmturbo.api.component.external.api.service.AdminService.PROXY_USER_PASSWORD;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.never;
@@ -15,7 +17,10 @@ import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Constructor;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -37,6 +42,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.dto.admin.HttpProxyDTO;
 import com.vmturbo.api.dto.admin.LoggingApiDTO;
 import com.vmturbo.api.dto.admin.ProductVersionDTO;
@@ -76,12 +82,16 @@ public class AdminServiceTest {
     private AdminService adminService;
     private KeyValueStore keyValueStoreTest;
     private ClusterMgrRestClient clusterMgrClient;
+    private static ApiWebsocketHandler apiWebsocketHandler = Mockito.mock(ApiWebsocketHandler.class);
 
     @Before
     public void setup(){
+        apiWebsocketHandler = Mockito.mock(ApiWebsocketHandler.class);
         clusterMgrClient = Mockito.mock(ClusterMgrRestClient.class);
         keyValueStoreTest = Mockito.mock(KeyValueStore.class);
-        adminService = new AdminService(clusterService, keyValueStoreTest, clusterMgrClient, restTemplate);
+        when(keyValueStoreTest.get(anyString())).thenReturn(Optional.empty());
+        adminService = new AdminService(clusterService, keyValueStoreTest,
+            clusterMgrClient, restTemplate, apiWebsocketHandler);
     }
 
     @Autowired
@@ -109,6 +119,31 @@ public class AdminServiceTest {
         String versionInfo = answer.getVersionInfo();
         assertTrue(versionInfo.contains(instance1Type + ": " + instance1Version));
         assertTrue(versionInfo.contains(instance2Type + ": " + instance2Version));
+    }
+
+    @Test
+    public void testExportDialDataSucceed() throws Exception {
+        when(clusterMgrClient.exportComponentDiagnostics(any())).thenReturn(true);
+        Future<Boolean> future = adminService.invokeSchedulerToExportDiags();
+        assertTrue(future.get(1000L, TimeUnit.SECONDS));
+        verify(apiWebsocketHandler).broadcastDiagsExportNotification(AdminService.EXPORTED_DIAGNOSTICS_SUCCEED);
+    }
+
+    @Test
+    public void testExportDiagDataFailed() throws Exception {
+        when(clusterMgrClient.exportComponentDiagnostics(any())).thenReturn(false);
+        Future<Boolean> future = adminService.invokeSchedulerToExportDiags();
+        assertFalse(future.get(1000L, TimeUnit.SECONDS));
+        verify(apiWebsocketHandler).broadcastDiagsExportNotification(AdminService.FAILED_TO_EXPORT_DIAGNOSTICS_FAILED);
+    }
+
+    // Verify receiving runtime exception (e.g. clusterMgr is down) will return false.
+    @Test
+    public void testExportDiagDataFailedWithRuntimeException() throws Exception {
+        when(clusterMgrClient.exportComponentDiagnostics(any())).thenThrow(new RuntimeException());
+        Future<Boolean> future = adminService.invokeSchedulerToExportDiags();
+        assertFalse(future.get(1000L, TimeUnit.SECONDS));
+        verify(apiWebsocketHandler).broadcastDiagsExportNotification(AdminService.FAILED_TO_EXPORT_DIAGNOSTICS_FAILED);
     }
 
     @Test
@@ -256,7 +291,7 @@ public class AdminServiceTest {
         @Bean
         public AdminService adminService() {
             final ClusterMgrRestClient clusterMgrClient = Mockito.mock(ClusterMgrRestClient.class);
-            return new AdminService(clusterService, keyValueStore, clusterMgrClient, restTemplate);
+            return new AdminService(clusterService, keyValueStore, clusterMgrClient, restTemplate, apiWebsocketHandler);
         }
 
         @Bean

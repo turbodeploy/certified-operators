@@ -22,6 +22,7 @@ import org.springframework.web.socket.adapter.jetty.JettyWebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import com.vmturbo.api.ActionNotificationDTO.ActionNotification;
+import com.vmturbo.api.ExportNotificationDTO.ExportNotification;
 import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
 import com.vmturbo.api.NotificationDTO.Notification;
 import com.vmturbo.api.ReportNotificationDTO.ReportNotification;
@@ -174,6 +175,16 @@ public class ApiWebsocketHandler extends TextWebSocketHandler implements UINotif
             .setId(IdentityGenerator.next())
             .setTime(Instant.now().toEpochMilli())
             .setTargetNotification(Objects.requireNonNull(notification))
+            .build());
+    }
+
+    @Override
+    public void broadcastDiagsExportNotification(@Nonnull final ExportNotification notification) {
+        logger_.debug("Broadcasting export diagnostics notification: {}", notification);
+        broadcastNotification(Notification.newBuilder()
+            .setId(IdentityGenerator.next())
+            .setTime(Instant.now().toEpochMilli())
+            .setExportNotification(Objects.requireNonNull(notification))
             .build());
     }
 

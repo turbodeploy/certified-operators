@@ -6,6 +6,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
@@ -23,7 +27,11 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
 
+import com.vmturbo.api.ExportNotificationDTO.ExportNotification;
+import com.vmturbo.api.ExportNotificationDTO.ExportStatusNotification;
+import com.vmturbo.api.ExportNotificationDTO.ExportStatusNotification.ExportStatus;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.dto.admin.HttpProxyDTO;
 import com.vmturbo.api.dto.admin.LoggingApiDTO;
 import com.vmturbo.api.dto.admin.ProductVersionDTO;
@@ -73,7 +81,27 @@ public class AdminService implements IAdminService {
     @VisibleForTesting
     public static final String PROXY_PORT_NUMBER = "proxyPortNumber";
 
+    @VisibleForTesting
+    public static final ExportNotification EXPORTED_DIAGNOSTICS_SUCCEED = ExportNotification.newBuilder()
+        .setStatusNotification(ExportStatusNotification.newBuilder()
+            .setStatus(ExportStatus.SUCCEEDED)
+            .setDescription("Exported diagnostics data").build())
+        .build();
+
+    @VisibleForTesting
+    public static final ExportNotification FAILED_TO_EXPORT_DIAGNOSTICS_FAILED = ExportNotification.newBuilder()
+        .setStatusNotification(ExportStatusNotification.newBuilder()
+            .setStatus(ExportStatus.FAILED)
+            .setDescription("Failed to export diagnostics data").build())
+        .build();
+
+    @VisibleForTesting
+    // use single thread to ensure only one export diagnostics at a time.
+    final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+
     private final KeyValueStore keyValueStore;
+
+    private final ApiWebsocketHandler apiWebsocketHandler;
 
     @Value("${publicVersionString}")
     private String publicVersionString;
@@ -106,11 +134,13 @@ public class AdminService implements IAdminService {
     AdminService(@Nonnull final ClusterService clusterService,
                  @Nonnull final KeyValueStore keyValueStore,
                  @Nonnull final ClusterMgrRestClient clusterMgrApi,
-                 @Nonnull final RestTemplate restTemplate) {
+                 @Nonnull final RestTemplate restTemplate,
+                 @Nonnull final ApiWebsocketHandler apiWebsocketHandler) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
         this.clusterMgrApi = Objects.requireNonNull(clusterMgrApi);
         this.restTemplate = Objects.requireNonNull(restTemplate);
+        this.apiWebsocketHandler = Objects.requireNonNull(apiWebsocketHandler);
     }
 
     @Override
@@ -244,7 +274,32 @@ public class AdminService implements IAdminService {
 
     @Override
     public boolean exportDiagData() {
-       return clusterMgrApi.exportComponentDiagnostics(retrieveProxyInfoFrom());
+        invokeSchedulerToExportDiags();
+        return true;
+    }
+
+    @VisibleForTesting
+    Future<Boolean> invokeSchedulerToExportDiags() {
+        return scheduler.schedule(
+            () -> {
+                boolean exportedSucceed;
+                try {
+                    exportedSucceed = clusterMgrApi.exportComponentDiagnostics(retrieveProxyInfoFrom());
+                } catch (RuntimeException e) {
+                    logger.error("Failed to export diagnostics files with exception: ", e);
+                    apiWebsocketHandler.broadcastDiagsExportNotification(FAILED_TO_EXPORT_DIAGNOSTICS_FAILED);
+                    return false;
+                }
+                if (exportedSucceed) {
+                    logger.debug("Successfully exported diagnostics files");
+                    apiWebsocketHandler.broadcastDiagsExportNotification(EXPORTED_DIAGNOSTICS_SUCCEED);
+                    return true;
+                } else {
+                    logger.error("Failed to export diagnostics files");
+                    apiWebsocketHandler.broadcastDiagsExportNotification(FAILED_TO_EXPORT_DIAGNOSTICS_FAILED);
+                    return false;
+                }
+            }, 1, TimeUnit.MILLISECONDS);
     }
 
     @Override
