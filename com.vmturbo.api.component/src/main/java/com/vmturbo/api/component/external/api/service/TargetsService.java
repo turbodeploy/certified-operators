@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -469,7 +470,7 @@ public class TargetsService implements ITargetsService {
             } else {
                 throw new OperationFailedException("Could not find probe by type " + probeType);
             }
-            final TargetData newtargetData = new NewTargetData(inputFields);
+            final TargetData newtargetData = new NewTargetData(probeType, inputFields);
             try {
                 // store the target number to determine if to send notification to UI.
                 final int targetSizeBeforeValidation = topologyProcessor.getAllTargets().size() ;
@@ -653,7 +654,18 @@ public class TargetsService implements ITargetsService {
      */
     private static class NewTargetData implements TargetData {
 
+        private static final String IS_STORAGE_BROWSING_ENABLED = "isStorageBrowsingEnabled";
         private final Set<AccountValue> accountData;
+        // Is it a VC probe? And is VC storage browsing filed NOT set?
+        private final BiFunction<String, Collection<InputFieldApiDTO>, Boolean> isVCStorageBrowsingNotSet =
+            (probeType, inputFields) -> SDKProbeType.VCENTER.getProbeType().equals(probeType) &&
+                !inputFields.stream().anyMatch(field -> IS_STORAGE_BROWSING_ENABLED.equals(field.getName()));
+
+        private static final InputFieldApiDTO storageBrowsingDisabledDTO = new InputFieldApiDTO();
+        static {
+            storageBrowsingDisabledDTO.setName(IS_STORAGE_BROWSING_ENABLED);
+            storageBrowsingDisabledDTO.setValue("false");
+        }
 
         /**
          * Initialize the accountData Set from a List of InputFieldApiDTO's. We use the inputField name
@@ -668,11 +680,49 @@ public class TargetsService implements ITargetsService {
         NewTargetData(Collection<InputFieldApiDTO> inputFields) {
             accountData = inputFields.stream().map(inputField -> {
                 return new InputField(inputField.getName(),
-                                inputField.getValue(),
-                                // TODO: fix type mismatch between InputFieldApiDTO.groupProperties and
-                                // TargetRESTAPI.TargetSpec.InputField.groupProperties
-                                // until then...return empty Optional
-                                Optional.empty());
+                    inputField.getValue(),
+                    // TODO: fix type mismatch between InputFieldApiDTO.groupProperties and
+                    // TargetRESTAPI.TargetSpec.InputField.groupProperties
+                    // until then...return empty Optional
+                    Optional.empty());
+            }).collect(Collectors.toSet());
+        }
+
+        /**
+         * Initialize the accountData Set from a List of InputFieldApiDTO's. We use the inputField name
+         * and value to build the new AccountData value to describe the target.
+         * <p>
+         * Note: "isStorageBrowsingEnabled" filed is introduce recently, and if users continue to use
+         * old API script to create VC target (without specifying this filed), VC browsing will be enabled by default.
+         * But UI shows VC browsing disabled (since target info doesn't have this filed). To address this problem,
+         * if this filed is not set when creating VC target, it will be added with value set to "false".
+         * So probe and UI are consistent.
+         * </p>
+         * <p>Warning: The GroupProperties of the InputFieldApiDTO is ignored for now, since there is a
+         * mismatch between the InputFieldApiDTO ({@code List<String>)}) and the
+         * InputField.groupProperties ({@code List<List<String>>}).
+         *
+         * @param probeType probe type
+         * @param inputFields a list of {@ref InputFieldApiDTO} to use to initialize the accountData
+         */
+        NewTargetData(@Nonnull final String probeType, final Collection<InputFieldApiDTO> inputFields) {
+            final Set<InputFieldApiDTO> inputFieldApiDTOList;
+            if (isVCStorageBrowsingNotSet.apply(probeType, inputFields)) {
+                // if input fields don't include the newly added "isStorageBrowsingEnabled" filed,
+                // e.g. calling from API, set it to "false",  so probe and UI are consistent.
+                inputFieldApiDTOList = Sets.newHashSet(inputFields);
+                inputFieldApiDTOList.add(storageBrowsingDisabledDTO);
+            } else {
+                inputFieldApiDTOList = ImmutableSet.copyOf(inputFields);
+            }
+
+            accountData = inputFieldApiDTOList.stream().map(inputField -> {
+                return new InputField(inputField.getName(),
+                    inputField.getValue(),
+                    // TODO: fix type mismatch between InputFieldApiDTO.groupProperties and
+                    // TargetRESTAPI.TargetSpec.InputField.groupProperties
+                    // until then...return empty Optional
+                    Optional.empty());
             }).collect(Collectors.toSet());
         }
 

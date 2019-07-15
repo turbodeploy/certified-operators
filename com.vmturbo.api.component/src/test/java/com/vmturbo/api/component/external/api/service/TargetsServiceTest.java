@@ -1,7 +1,10 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -90,6 +93,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
 import com.vmturbo.topology.processor.api.AccountValue;
@@ -896,6 +900,108 @@ public class TargetsServiceTest {
 
         org.junit.Assert.assertEquals(TargetsService.UI_VALIDATING_STATUS,
             TargetsService.mapStatusToApiDTO(targetInfo));
+    }
+
+    // verify adding VC target without setting "isStorageBrowsingEnabled" filed,
+    // it will be added with value set to "false".
+    @Test
+    public void testAddVCTargetWithNoStorageBrowsingFiled() throws Exception {
+        final long probeId = 1;
+        final String isStorageBrowsingEnabled = "isStorageBrowsingEnabled";
+        final String key = "key";
+        final ProbeInfo probe = createMockProbeInfo(probeId, SDKProbeType.VCENTER.getProbeType(), "category", createAccountDef
+            (key), createAccountDef(isStorageBrowsingEnabled));
+        final TargetApiDTO targetDto = new TargetApiDTO();
+        targetDto.setType(probe.getType());
+        targetDto.setInputFields(Arrays.asList(inputField(key, "value")));
+        final String targetString = GSON.toJson(targetDto);
+        final MvcResult result = mockMvc
+            .perform(MockMvcRequestBuilders.post("/targets")
+                .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
+                .content(targetString)
+                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+            .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final ArgumentCaptor<TargetData> captor = ArgumentCaptor.forClass(TargetData.class);
+        Mockito.verify(topologyProcessor).addTarget(Mockito.eq(probeId), captor.capture());
+        final Set<AccountValue> accountDataSet = captor.getValue().getAccountData();
+        assertTrue(accountDataSet.stream().anyMatch(accountValue -> accountValue.getName().equals(isStorageBrowsingEnabled)
+            && accountValue.getStringValue().equals("false")));
+        assertTrue(accountDataSet.stream().anyMatch(accountValue -> accountValue.getName().equals(key)));
+        Mockito.verify(topologyProcessor, Mockito.never()).validateAllTargets();
+        Mockito.verify(topologyProcessor, Mockito.never()).discoverAllTargets();
+
+        final TargetApiDTO resp = GSON.fromJson(result.getResponse().getContentAsString(),
+            TargetApiDTO.class);
+        Assert.assertEquals(Long.toString(registeredTargets.keySet().iterator().next()),
+            resp.getUuid());
+    }
+
+
+    // Verify use case: probeType: vCenter, isStorageBrowsingEnabled: false
+    @Test
+    public void testAddVCTargetWithStorageBrowsingFiledFalse() throws Exception {
+        final long probeId = 1;
+        final String isStorageBrowsingEnabled = "isStorageBrowsingEnabled";
+        final String key = "key";
+        final ProbeInfo probe = createMockProbeInfo(probeId, SDKProbeType.VCENTER.getProbeType(), "category", createAccountDef
+            (key), createAccountDef(isStorageBrowsingEnabled));
+        final TargetApiDTO targetDto = new TargetApiDTO();
+        targetDto.setType(probe.getType());
+        targetDto.setInputFields(Arrays.asList(inputField(isStorageBrowsingEnabled, "false"), inputField(key, "value")));
+        final String targetString = GSON.toJson(targetDto);
+        final MvcResult result = mockMvc
+            .perform(MockMvcRequestBuilders.post("/targets")
+                .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
+                .content(targetString)
+                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+            .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final ArgumentCaptor<TargetData> captor = ArgumentCaptor.forClass(TargetData.class);
+        Mockito.verify(topologyProcessor).addTarget(Mockito.eq(probeId), captor.capture());
+        final Set<AccountValue> accountDataSet = captor.getValue().getAccountData();
+        assertTrue(accountDataSet.stream().anyMatch(accountValue -> accountValue.getName().equals(isStorageBrowsingEnabled)
+            && accountValue.getStringValue().equals("false")));
+        assertTrue(accountDataSet.stream().anyMatch(accountValue -> accountValue.getName().equals(key)));
+        Mockito.verify(topologyProcessor, Mockito.never()).validateAllTargets();
+        Mockito.verify(topologyProcessor, Mockito.never()).discoverAllTargets();
+
+        final TargetApiDTO resp = GSON.fromJson(result.getResponse().getContentAsString(),
+            TargetApiDTO.class);
+        Assert.assertEquals(Long.toString(registeredTargets.keySet().iterator().next()),
+            resp.getUuid());
+    }
+
+    // Verify use case: probeType: vCenter, isStorageBrowsingEnabled: true
+    @Test
+    public void testAddVCTargetWithStorageBrowsingFiledTrue() throws Exception {
+        final long probeId = 1;
+        final String isStorageBrowsingEnabled = "isStorageBrowsingEnabled";
+        final String key = "key";
+        final ProbeInfo probe = createMockProbeInfo(probeId, SDKProbeType.VCENTER.getProbeType(), "category", createAccountDef
+            (key), createAccountDef(isStorageBrowsingEnabled));
+        final TargetApiDTO targetDto = new TargetApiDTO();
+        targetDto.setType(probe.getType());
+        final String value = "true";
+        targetDto.setInputFields(Arrays.asList(inputField(isStorageBrowsingEnabled, value), inputField(key, "value")));
+        final String targetString = GSON.toJson(targetDto);
+        final MvcResult result = mockMvc
+            .perform(MockMvcRequestBuilders.post("/targets")
+                .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
+                .content(targetString)
+                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+            .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final ArgumentCaptor<TargetData> captor = ArgumentCaptor.forClass(TargetData.class);
+        Mockito.verify(topologyProcessor).addTarget(Mockito.eq(probeId), captor.capture());
+        final Set<AccountValue> accountDataSet = captor.getValue().getAccountData();
+        assertTrue(accountDataSet.stream().anyMatch(accountValue -> accountValue.getName().equals(isStorageBrowsingEnabled)
+            && accountValue.getStringValue().equals(value)));
+        assertTrue(accountDataSet.stream().anyMatch(accountValue -> accountValue.getName().equals(key)));
+        Mockito.verify(topologyProcessor, Mockito.never()).validateAllTargets();
+        Mockito.verify(topologyProcessor, Mockito.never()).discoverAllTargets();
+
+        final TargetApiDTO resp = GSON.fromJson(result.getResponse().getContentAsString(),
+            TargetApiDTO.class);
+        Assert.assertEquals(Long.toString(registeredTargets.keySet().iterator().next()),
+            resp.getUuid());
     }
 
     private TargetApiDTO postAndReturn(String query) throws Exception {
