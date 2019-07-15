@@ -321,9 +321,12 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
 
         // currently only entity tags is a property of type map
         if (propertyName.equals(SearchableProperties.TAGS_TYPE_PROPERTY_NAME)) {
-            return new PropertyFilter<>(te -> te.getTags().entrySet().stream()
+            return new PropertyFilter<>(te ->
+                // Check tags for the match, and negate the result if we're not actually looking
+                // for a positive match.
+                mapCriteria.getPositiveMatch() == te.getTags().entrySet().stream()
                     .anyMatch(e -> e.getKey().equals(mapCriteria.getKey()) &&
-                            e.getValue().stream().anyMatch(valueFilter)));
+                        e.getValue().stream().anyMatch(valueFilter)));
         } else {
             throw new IllegalArgumentException("Unknown map property named: " + propertyName);
         }

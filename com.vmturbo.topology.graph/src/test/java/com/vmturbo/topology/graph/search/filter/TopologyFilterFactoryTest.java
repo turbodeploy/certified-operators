@@ -865,42 +865,54 @@ public class TopologyFilterFactoryTest {
      */
     @Test
     public void testMapFilter() {
-        final PropertyFilter<TestGraphEntity> filter = filterFactory.filterFor(
-                Search.PropertyFilter
+        final Search.PropertyFilter positiveSearchFilter = Search.PropertyFilter
+            .newBuilder()
+            .setPropertyName(SearchableProperties.TAGS_TYPE_PROPERTY_NAME)
+            .setMapFilter(
+                MapFilter
                     .newBuilder()
-                    .setPropertyName(SearchableProperties.TAGS_TYPE_PROPERTY_NAME)
-                    .setMapFilter(
-                        MapFilter
-                            .newBuilder()
-                            .setKey("KEY")
-                            .addValues("VALUE1")
-                            .addValues("VALUE2")
-                    ).build()
-        );
+                    .setKey("KEY")
+                    .addValues("VALUE1")
+                    .addValues("VALUE2")
+            ).build();
+
+        final Search.PropertyFilter negativeSearchFilter;
+        {
+            final Search.PropertyFilter.Builder negativeSearchFilterBldr = positiveSearchFilter.toBuilder();
+            negativeSearchFilterBldr.getMapFilterBuilder().setPositiveMatch(false);
+            negativeSearchFilter = negativeSearchFilterBldr.build();
+        }
+
+        final PropertyFilter<TestGraphEntity> positiveFilter = filterFactory.filterFor(positiveSearchFilter);
+        final PropertyFilter<TestGraphEntity> negativeFilter = filterFactory.filterFor(negativeSearchFilter);
 
         // entity has no tags
         final TestGraphEntity noTagsEntity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
             .build();
-        assertFalse(filter.test(noTagsEntity));
+        assertFalse(positiveFilter.test(noTagsEntity));
+        assertTrue(negativeFilter.test(noTagsEntity));
 
         // entity does not have the key
         final TestGraphEntity noKeyEntity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
             .addTag("OTHERKEY", Collections.singletonList("VALUE1"))
             .build();
-        assertFalse(filter.test(noKeyEntity));
+        assertFalse(positiveFilter.test(noKeyEntity));
+        assertTrue(negativeFilter.test(noKeyEntity));
 
         // entity has the key, but not one of the values
         final TestGraphEntity wrongValueEntity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
             .addTag("OTHERKEY", Arrays.asList("VALUE1"))
             .addTag("KEY", Arrays.asList("VALUE3", "VALUE4"))
             .build();
-        assertFalse(filter.test(wrongValueEntity));
+        assertFalse(positiveFilter.test(wrongValueEntity));
+        assertTrue(negativeFilter.test(wrongValueEntity));
 
         // entity has the key, and one of the values
         final TestGraphEntity rightValueEntity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
             .addTag("KEY", Arrays.asList("VALUE2", "VALUE4"))
             .build();
-        assertTrue(filter.test(rightValueEntity));
+        assertTrue(positiveFilter.test(rightValueEntity));
+        assertFalse(negativeFilter.test(rightValueEntity));
     }
 
     @Test
