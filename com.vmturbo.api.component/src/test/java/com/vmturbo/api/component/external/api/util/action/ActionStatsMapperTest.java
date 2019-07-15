@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.util.action;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -158,6 +159,29 @@ public class ActionStatsMapperTest {
 
         verify(stat2Filters, times(2)).getFilters();
         verifyNoMoreInteractions(stat2Filters);
+    }
+
+    @Test
+    public void tempNoSavingsOrInvestmentsShouldNotAddStats() {
+        final CurrentActionStat stat = CurrentActionStat.newBuilder()
+            .setInvestments(0.0)
+            .setSavings(0.0)
+            .build();
+
+        final ActionStatsQuery query = mock(ActionStatsQuery.class);
+        when(query.getCostType()).thenReturn(Optional.empty());
+        when(query.currentTimeStamp()).thenReturn(Optional.empty());
+        ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        inputDTO.setGroupBy(new ArrayList<>());
+        when(query.actionInput()).thenReturn(inputDTO);
+
+        StatSnapshotApiDTO stats = new ActionStatsMapper(clock, groupByFiltersFactory)
+            .currentActionStatsToApiSnapshot(Arrays.asList(stat), query, Maps.newHashMap());
+
+        List<StatApiDTO> statsList = stats.getStatistics();
+
+        // Because we we set the investment and savings to 0, there shouldn't be any stats.
+        assertEquals(statsList.size(),0);
     }
 
     @Test

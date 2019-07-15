@@ -178,14 +178,18 @@ class ActionStatsMapper {
         query.getCostType().ifPresent(actionCostType -> {
             // We only want to return cost stats when investments/savings are non-zero, even
             // if they are explicitly set to zero.
-            if (actionCostType == ActionCostType.INVESTMENT && actionStat.getInvestments() > 0) {
-                retStats.add(newCostApiStat(groupByFilters,
-                    numberToAPIStatValue((float)actionStat.getInvestments()),
-                    ActionCostType.INVESTMENT));
-            } else if (actionCostType == ActionCostType.SAVING && actionStat.getSavings() > 0) {
-                retStats.add(newCostApiStat(groupByFilters,
-                    numberToAPIStatValue((float)actionStat.getSavings()),
-                    ActionCostType.SAVING));
+            if (actionCostType == ActionCostType.INVESTMENT) {
+                if (actionStat.getInvestments() > 0) {
+                    retStats.add(newCostApiStat(groupByFilters,
+                        numberToAPIStatValue((float) actionStat.getInvestments()),
+                        ActionCostType.INVESTMENT));
+                }
+            } else if (actionCostType == ActionCostType.SAVING) {
+                if (actionStat.getSavings() > 0) {
+                    retStats.add(newCostApiStat(groupByFilters,
+                        numberToAPIStatValue((float) actionStat.getSavings()),
+                        ActionCostType.SAVING));
+                }
             } else {
                 logger.error("Action cost type: {} not supported for action stats queries.",
                     actionCostType);
