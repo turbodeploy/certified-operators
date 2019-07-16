@@ -285,6 +285,9 @@ message SaveClusterHeadroomRequest {
 
     // The number of Storages in the cluster at the time of this request.
     optional int64 numStorages = 8;
+
+    // Growth in number of VMs for this cluster project monthly.
+    optional int64 monthlyVMGrowth = 9;
 }
 
 message SaveClusterHeadroomResponse {

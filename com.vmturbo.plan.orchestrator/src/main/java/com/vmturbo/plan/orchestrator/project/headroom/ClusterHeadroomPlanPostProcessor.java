@@ -133,6 +133,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
     private static final Set<Integer> STORAGE_HEADROOM_COMMODITIES =
             ImmutableSet.of(CommodityType.STORAGE_AMOUNT_VALUE, CommodityType.STORAGE_PROVISIONED_VALUE);
 
+    private static final int DAYS_PER_MONTH = 30;
+
     /**
      * String representation of headroom entities.
      */
@@ -218,22 +220,22 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                                 getCommoditiesBoughtByTemplate(template.get());
 
 
-                long vmGrowth = getVMGrowth(headroomEntities.get(EntityType.VIRTUAL_MACHINE_VALUE).stream()
+                long vmGrowthInLookbackDays = getVMGrowth(headroomEntities.get(EntityType.VIRTUAL_MACHINE_VALUE).stream()
                                 .map(vm -> vm.getOid())
                                 .collect(Collectors.toSet()));
                 CommodityHeadroom cpuHeadroom = calculateHeadroom(
                                 headroomEntities.get(EntityType.PHYSICAL_MACHINE_VALUE),
-                                commoditiesBoughtByTemplate.get(CPU_HEADROOM_COMMODITIES), vmGrowth);
+                                commoditiesBoughtByTemplate.get(CPU_HEADROOM_COMMODITIES), vmGrowthInLookbackDays);
                 CommodityHeadroom memHeadroom = calculateHeadroom(
                                 headroomEntities.get(EntityType.PHYSICAL_MACHINE_VALUE),
-                                commoditiesBoughtByTemplate.get(MEM_HEADROOM_COMMODITIES), vmGrowth);
+                                commoditiesBoughtByTemplate.get(MEM_HEADROOM_COMMODITIES), vmGrowthInLookbackDays);
                 CommodityHeadroom storageHeadroom = calculateHeadroom(
                                 headroomEntities.get(EntityType.STORAGE_VALUE),
-                                commoditiesBoughtByTemplate.get(STORAGE_HEADROOM_COMMODITIES), vmGrowth);
+                                commoditiesBoughtByTemplate.get(STORAGE_HEADROOM_COMMODITIES), vmGrowthInLookbackDays);
                 createStatsRecords(headroom, entityCounts.getNumberOfVMs(),
                                 entityCounts.getNumberOfHosts(),
                                 entityCounts.getNumberOfStorages(),
-                                cpuHeadroom, memHeadroom, storageHeadroom);
+                                cpuHeadroom, memHeadroom, storageHeadroom, getMonthlyVMGrowth(vmGrowthInLookbackDays));
             }
         }
 
@@ -369,7 +371,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                     final long numHosts, final long numStorages,
                     CommodityHeadroom cpuHeadroomInfo,
                     CommodityHeadroom memHeadroomInfo,
-                    CommodityHeadroom storageHeadroomInfo) {
+                    CommodityHeadroom storageHeadroomInfo,
+                    final long monthlyVMGrowth) {
         if (headroom == addedClones) {
             logger.info("Cluster headroom for cluster {} is over {}",
                     cluster.getCluster().getDisplayName(), headroom);
@@ -389,6 +392,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                     .setCpuHeadroomInfo(cpuHeadroomInfo)
                     .setMemHeadroomInfo(memHeadroomInfo)
                     .setStorageHeadroomInfo(storageHeadroomInfo)
+                    .setMonthlyVMGrowth(monthlyVMGrowth)
                     .build());
         } catch (StatusRuntimeException e) {
             logger.error("Failed to save cluster headroom: {}", e.getMessage());
@@ -538,6 +542,15 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         return template.getTemplateInfo().getResourcesList().stream()
             .flatMap(resources -> resources.getFieldsList().stream())
             .collect(Collectors.toMap(TemplateField::getName, TemplateField::getValue));
+    }
+
+    /**
+     * Projects VM growth in "PEAK_LOOKBACK_DAYS" to a monthly value.
+     * @param vmGrowthInLookback : represents growth of VMs in last "PEAK_LOOKBACK_DAYS".
+     * @return monthly VM growth projection.
+     */
+    private long getMonthlyVMGrowth(long vmGrowthInLookbackDays) {
+        return (DAYS_PER_MONTH * vmGrowthInLookbackDays) / PEAK_LOOKBACK_DAYS;
     }
 
     @Value.Immutable

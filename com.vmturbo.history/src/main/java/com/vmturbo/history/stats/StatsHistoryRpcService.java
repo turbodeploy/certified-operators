@@ -129,7 +129,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                             StringConstants.HEADROOM_VMS,
                             StringConstants.NUM_VMS,
                             StringConstants.NUM_HOSTS,
-                            StringConstants.NUM_STORAGES);
+                            StringConstants.NUM_STORAGES,
+                            StringConstants.VM_GROWTH);
 
     private static final String PROPERTY_TYPE_PREFIX_CURRENT = "current";
 
@@ -576,6 +577,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                             BigDecimal.valueOf(request.getNumHosts()));
             headroomData.put(StringConstants.NUM_STORAGES, StringConstants.NUM_STORAGES,
                             BigDecimal.valueOf(request.getNumStorages()));
+            headroomData.put(StringConstants.VM_GROWTH, StringConstants.VM_GROWTH,
+                            BigDecimal.valueOf(request.getMonthlyVMGrowth()));
 
             // CPU related headroom stats.
             headroomData.put(StringConstants.CPU_HEADROOM, StringConstants.USED,

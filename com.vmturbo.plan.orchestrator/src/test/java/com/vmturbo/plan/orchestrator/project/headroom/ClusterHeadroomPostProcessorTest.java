@@ -183,6 +183,7 @@ public class ClusterHeadroomPostProcessorTest {
                 .setNumHosts(0)
                 .setNumVMs(0)
                 .setNumStorages(0)
+                .setMonthlyVMGrowth(8) // (vmGrowth * daysInMonth) / PeakLookback days = (2 * 30)/7 = 8
                 .build());
     }
 
