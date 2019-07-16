@@ -14,6 +14,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -65,7 +67,6 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
-import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
@@ -232,6 +233,38 @@ public class StatsMapperTest {
                         .setCommodityName("stat2")
                         .build()
         ));
+    }
+
+    /**
+     * Test to make sure that both start and end times are being parsed with the utility that
+     * understands relative times, not just millis-since-epoch
+     *
+     * <p>This test proves the fix for OM-48318. It's just a single case that failed prior to the
+     * fix. The parsing utility method has its own existing suite of tests.</p>
+     */
+    @Test
+    public void testToEntityStatsRequestOffsetTimes() {
+        // Arrange
+        final EntityStatsScope scope = EntityStatsScope.newBuilder()
+            .setEntityList(EntityList.newBuilder()
+                .addEntities(1L))
+            .build();
+        StatPeriodApiInputDTO apiRequestInput = new StatPeriodApiInputDTO();
+        apiRequestInput.setStartDate("-5d");
+        apiRequestInput.setEndDate("+2h");
+        final EntityStatsPaginationRequest paginationRequest = mock(EntityStatsPaginationRequest.class);
+        when(paginationMapper.toProtoParams(paginationRequest))
+            .thenReturn(PaginationParameters.getDefaultInstance());
+        final GetEntityStatsRequest requestProtobuf = statsMapper.toEntityStatsRequest(scope,
+            apiRequestInput, paginationRequest);
+
+        // calculate time ranges to test, with some slop to account for clock advance since mapping
+        Instant now = Instant.now();
+        Instant start = Instant.ofEpochMilli(requestProtobuf.getFilter().getStartDate());
+        Instant end = Instant.ofEpochMilli(requestProtobuf.getFilter().getEndDate());
+        Duration slop = Duration.ofSeconds(5);
+        assertThat(Duration.between(start, now).toDays(), equalTo(5L));
+        assertThat(Duration.between(now.minus(slop), end).toHours(), equalTo(2L));
     }
 
     @Test

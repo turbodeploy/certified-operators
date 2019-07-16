@@ -506,14 +506,14 @@ public class StatsMapper {
 
             final String inputStartDate = statApiInput.getStartDate();
             if (inputStartDate != null) {
-                final Long aLong = Long.valueOf(inputStartDate);
-                filterRequestBuilder.setStartDate(aLong);
+                final Long startDateMillis = DateTimeUtil.parseTime(inputStartDate);
+                filterRequestBuilder.setStartDate(startDateMillis);
             }
 
             final String inputEndDate = statApiInput.getEndDate();
             if (inputEndDate != null) {
-                final Long aLong = DateTimeUtil.parseTime(inputEndDate);
-                filterRequestBuilder.setEndDate(aLong);
+                final Long endDateMillis = DateTimeUtil.parseTime(inputEndDate);
+                filterRequestBuilder.setEndDate(endDateMillis);
             }
             if (statApiInput.getStatistics() != null) {
                 for (StatApiInputDTO stat : statApiInput.getStatistics()) {
