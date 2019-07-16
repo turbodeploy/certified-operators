@@ -57,13 +57,19 @@ public class GroupProtoUtil {
     );
 
     /**
+     * Match the name with filter. If the filter has case sensitive set to true,
+     * matching is case sensitive; otherwise matching is case insensitive.
      * @param name The name to compare with the filter.
      * @param filter The name filter.
      * @return True if the name matches the filter.
      */
     public static boolean nameFilterMatches(@Nonnull final String name,
                                             @Nonnull final StringFilter filter) {
-        return Pattern.matches(filter.getStringPropertyRegex(), name) == filter.getPositiveMatch();
+        if (filter.hasCaseSensitive() && filter.getCaseSensitive()) {
+            return Pattern.matches(filter.getStringPropertyRegex(), name) == filter.getPositiveMatch();
+        }
+        final Pattern pattern = Pattern.compile(filter.getStringPropertyRegex(), Pattern.CASE_INSENSITIVE);
+        return pattern.matcher(name).find() == filter.getPositiveMatch();
     }
 
     /**

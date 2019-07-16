@@ -32,10 +32,34 @@ public class GroupProtoUtilTest {
 
     private static final String NOT_MATCHING_NAME = "test 2";
 
+    private static final String REGEX_CASE_INSENSITIVE = ".*test.*";
+
+    private static final String MATCHING_NAME_WITH_CAPITAL_LETTER = "Test 2";
+
     @Test
     public void testNameMatches() {
         TestCase.assertTrue(GroupProtoUtil.nameFilterMatches(MATCHING_NAME,
                 StringFilter.newBuilder().setStringPropertyRegex(REGEX).build()));
+    }
+
+    // If the filter set case sensitive to true, marching should be case sensitive.
+    @Test
+    public void testNameMatchesWithCaseSensitiveTrue() {
+        TestCase.assertFalse(GroupProtoUtil.nameFilterMatches(MATCHING_NAME_WITH_CAPITAL_LETTER,
+            StringFilter.newBuilder()
+                .setCaseSensitive(true)
+                .setStringPropertyRegex(REGEX_CASE_INSENSITIVE)
+                .build()));
+    }
+
+    // If the filter set case sensitive to false, marching should be case insensitive.
+    @Test
+    public void testNameMatchesWithCaseSensitiveFalse() {
+        TestCase.assertTrue(GroupProtoUtil.nameFilterMatches(MATCHING_NAME_WITH_CAPITAL_LETTER,
+            StringFilter.newBuilder()
+                .setCaseSensitive(false)
+                .setStringPropertyRegex(REGEX_CASE_INSENSITIVE)
+                .build()));
     }
 
     @Test
