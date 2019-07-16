@@ -15,7 +15,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 
 import io.grpc.Channel;
 import io.grpc.stub.StreamObserver;
@@ -199,7 +198,7 @@ public class PlanProjectExecutor {
                 ProjectPlanPostProcessor planProjectPostProcessor = null;
                 if (planProject.getPlanProjectInfo().getType().equals(PlanProjectType.CLUSTER_HEADROOM)) {
                     planProjectPostProcessor = new ClusterHeadroomPlanPostProcessor(planInstance.getPlanId(),
-                            cluster.getId(), repositoryChannel, historyChannel, getNumClonesToAddForCluster(cluster),
+                            cluster.getId(), repositoryChannel, historyChannel,
                             planDao, groupChannel, templatesDao);
                 }
                 if (planProjectPostProcessor != null) {
@@ -371,11 +370,5 @@ public class PlanProjectExecutor {
             public void onCompleted() {
             }
         });
-    }
-
-    private int getNumClonesToAddForCluster(@Nonnull final Group cluster) {
-        Preconditions.checkArgument(cluster.getType().equals(Group.Type.CLUSTER));
-        return ADDED_CLONES_PER_HOST_IN_CLUSTER *
-                cluster.getCluster().getMembers().getStaticMemberOidsCount();
     }
 }

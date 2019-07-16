@@ -51,7 +51,6 @@ public class ClusterHeadroomPostProcessorTest {
 
     private static final long PLAN_ID = 7;
     private static final long CLUSTER_ID = 10;
-    private static final long ADDED_CLONES = 50;
 
     private static final Group CLUSTER = Group.newBuilder()
             .setType(Group.Type.CLUSTER)
@@ -85,7 +84,7 @@ public class ClusterHeadroomPostProcessorTest {
 
         final ClusterHeadroomPlanPostProcessor processor =
                 spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, CLUSTER.getId(),
-                        grpcTestServer.getChannel(), grpcTestServer.getChannel(), ADDED_CLONES,
+                        grpcTestServer.getChannel(), grpcTestServer.getChannel(),
                         planDao, grpcTestServer.getChannel(), templatesDao));
         final long projectedTopologyId = 100;
 
@@ -151,7 +150,6 @@ public class ClusterHeadroomPostProcessorTest {
         // VmGrowth = 2 (because history doesn't contain any VMs)
         verify(historyServiceMole).saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
                 .setClusterId(CLUSTER_ID)
-                .setHeadroom(48L)
                 .setNumVMs(0L)
                 // Template Value CPU_SPEED = 10, consumedFactor = 0.5, effectiveUsed = 5
                 // PM CPU value : used = 50, capacity = 100
@@ -159,8 +157,8 @@ public class ClusterHeadroomPostProcessorTest {
                 // headroomCapacity = capacity / effectiveUsed = 20, headroomAvailable = (capacity - used) / effectiveUsed = 10
                 // daysToExhaust = (headroomAvailable / vmGrowth) * peakLookbackDays = 35
                 .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
-                    .setCapacity(20)
                     .setHeadroom(10)
+                    .setCapacity(20)
                     .setDaysToExhaustion(35))
                 // Template Value MEMORY_SIZE = 100, consumedFactor = 0.4, effectiveUsed = 40
                 // PM MEM value : used = 40, capacity = 200
@@ -184,6 +182,7 @@ public class ClusterHeadroomPostProcessorTest {
                 .setNumVMs(0)
                 .setNumStorages(0)
                 .setMonthlyVMGrowth(8) // (vmGrowth * daysInMonth) / PeakLookback days = (2 * 30)/7 = 8
+                .setHeadroom(2) // minimum of mem, cpu and storage headroom values : min(10, 4, 2)
                 .build());
     }
 
@@ -191,7 +190,7 @@ public class ClusterHeadroomPostProcessorTest {
     public void testPlanSucceeded() throws NoSuchObjectException {
         final ClusterHeadroomPlanPostProcessor processor =
                 spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, CLUSTER.getId(),
-                        grpcTestServer.getChannel(), grpcTestServer.getChannel(), ADDED_CLONES,
+                        grpcTestServer.getChannel(), grpcTestServer.getChannel(),
                         planDao, grpcTestServer.getChannel(), templatesDao));
         Consumer<ProjectPlanPostProcessor> onCompleteHandler = mock(Consumer.class);
         processor.registerOnCompleteHandler(onCompleteHandler);
@@ -210,7 +209,7 @@ public class ClusterHeadroomPostProcessorTest {
     public void testPlanFailed() throws NoSuchObjectException {
         final ClusterHeadroomPlanPostProcessor processor =
                 spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, CLUSTER.getId(),
-                        grpcTestServer.getChannel(), grpcTestServer.getChannel(), ADDED_CLONES,
+                        grpcTestServer.getChannel(), grpcTestServer.getChannel(),
                         planDao, grpcTestServer.getChannel(), templatesDao));
         Consumer<ProjectPlanPostProcessor> onCompleteHandler = mock(Consumer.class);
         processor.registerOnCompleteHandler(onCompleteHandler);

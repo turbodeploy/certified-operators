@@ -1,5 +1,6 @@
 package com.vmturbo.plan.orchestrator.project.headroom;
 
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,6 +11,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
@@ -81,11 +83,6 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      */
     private final Group cluster;
 
-    /**
-     * The number of clones added to the cluster in the plan.
-     */
-    private final long addedClones;
-
     private final RepositoryServiceBlockingStub repositoryService;
 
     private final StatsHistoryServiceBlockingStub statsHistoryService;
@@ -151,7 +148,6 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                                             @Nonnull final long clusterId,
                                             @Nonnull final Channel repositoryChannel,
                                             @Nonnull final Channel historyChannel,
-                                            final long addedClones,
                                             @Nonnull final PlanDao planDao,
                                             @Nonnull final Channel groupChannel,
                                             @Nonnull TemplatesDao templatesDao) {
@@ -164,8 +160,6 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 SupplyChainServiceGrpc.newBlockingStub(Objects.requireNonNull(repositoryChannel));
         this.groupRpcService =
                 GroupServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
-
-        this.addedClones = addedClones;
         this.planDao = Objects.requireNonNull(planDao);
         this.templatesDao = Objects.requireNonNull(templatesDao);
         this.cluster = Objects.requireNonNull(groupRpcService
@@ -202,7 +196,6 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 final long unplacedClones = headroomEntities.get(EntityType.VIRTUAL_MACHINE_VALUE).stream()
                                 .filter(vm -> !TopologyDTOUtil.isPlaced(vm))
                                 .count();
-                final long headroom = addedClones - unplacedClones;
                 final ImmutableEntityCountData entityCounts = getHeadroomEntitesCount();
 
                 Optional<Template> template = templatesDao
@@ -232,7 +225,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 CommodityHeadroom storageHeadroom = calculateHeadroom(
                                 headroomEntities.get(EntityType.STORAGE_VALUE),
                                 commoditiesBoughtByTemplate.get(STORAGE_HEADROOM_COMMODITIES), vmGrowthInLookbackDays);
-                createStatsRecords(headroom, entityCounts.getNumberOfVMs(),
+                createStatsRecords(entityCounts.getNumberOfVMs(),
                                 entityCounts.getNumberOfHosts(),
                                 entityCounts.getNumberOfStorages(),
                                 cpuHeadroom, memHeadroom, storageHeadroom, getMonthlyVMGrowth(vmGrowthInLookbackDays));
@@ -367,20 +360,16 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * @param storageHeadroomInfo Headroom values for Storage.
      */
     @VisibleForTesting
-    void createStatsRecords(final long headroom, final long numVms,
+    void createStatsRecords(final long numVms,
                     final long numHosts, final long numStorages,
                     CommodityHeadroom cpuHeadroomInfo,
                     CommodityHeadroom memHeadroomInfo,
                     CommodityHeadroom storageHeadroomInfo,
                     final long monthlyVMGrowth) {
-        if (headroom == addedClones) {
-            logger.info("Cluster headroom for cluster {} is over {}",
-                    cluster.getCluster().getDisplayName(), headroom);
-        } else {
-            logger.info("Cluster headroom for cluster {} is {}",
-                    cluster.getCluster().getDisplayName(), headroom);
-        }
-
+        long minHeadroom = Stream.of(cpuHeadroomInfo.getHeadroom(), memHeadroomInfo.getHeadroom(), storageHeadroomInfo.getHeadroom())
+                        .min(Comparator.comparing(Long::valueOf))
+                        // Ideally this should never happen but if it does we are logging it before writing to db.
+                        .orElse(-1L);
         // Save the headroom in the history component.
         try {
             statsHistoryService.saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
@@ -388,7 +377,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                     .setNumVMs(numVms)
                     .setNumHosts(numHosts)
                     .setNumStorages(numStorages)
-                    .setHeadroom(headroom)
+                    .setHeadroom(minHeadroom)
                     .setCpuHeadroomInfo(cpuHeadroomInfo)
                     .setMemHeadroomInfo(memHeadroomInfo)
                     .setStorageHeadroomInfo(storageHeadroomInfo)
