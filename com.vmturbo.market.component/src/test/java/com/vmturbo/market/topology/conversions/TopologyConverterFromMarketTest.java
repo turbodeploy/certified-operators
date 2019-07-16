@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -21,6 +22,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -960,6 +962,185 @@ public class TopologyConverterFromMarketTest {
             is(originalVm.getOid()));
     }
 
+    /**
+     * Test that the shopping list with negative oid in a trader with positive oid
+     * is added in shoppingListOidToInfos map, when it is not there,
+     * when calling convertFromMarket().
+     */
+    @Test
+    public void testInsertShoppingListInMapPositiveTrader() {
+        TopologyConverter converter = Mockito.spy(
+                new TopologyConverter(TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN).build(),
+                        false, AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR, marketPriceTable,
+                        mockCommodityConverter, mockCCD, CommodityIndex.newFactory()));
+        final TopologyDTO.CommoditySoldDTO topologyDSPMSold =
+                TopologyDTO.CommoditySoldDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE)
+                                .build())
+                        .build();
+        final TopologyDTO.CommoditySoldDTO topologyCPUSold =
+                TopologyDTO.CommoditySoldDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.CPU_VALUE)
+                                .build())
+                        .build();
+
+        CommodityType cpuCommType = CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.CPU_VALUE).build();
+
+        final List<CommodityBoughtDTO> topologyCPUBought =
+                Lists.newArrayList(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(cpuCommType)
+                        .build());
+
+        final CommodityDTOs.CommoditySoldTO economyDSPMSold = CommodityDTOs.CommoditySoldTO.newBuilder()
+                .setSpecification(CommoditySpecificationTO.newBuilder()
+                        .setBaseType(BICLIQUE_TYPE_ID)
+                        .setType(DSPM_TYPE_ID)
+                        .build())
+                .build();
+        Mockito.doReturn(Optional.of(topologyCPUSold.getCommodityType())).when(mockCommodityConverter)
+                .economyToTopologyCommodity(Mockito.eq(CommoditySpecificationTO.newBuilder()
+                        .setBaseType(DSPM_TYPE_ID)
+                        .setType(CPU_TYPE_ID)
+                        .build()));
+        Mockito.doReturn(Optional.empty()).when(mockCommodityConverter)
+                .economyToTopologyCommodity(Mockito.eq(CommoditySpecificationTO.newBuilder()
+                        .setBaseType(BICLIQUE_TYPE_ID)
+                        .setType(DSPM_TYPE_ID)
+                        .build()));
+        // create a topology entity DTO with DSPM sold
+        TopologyDTO.TopologyEntityDTO expectedEntity = TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(10000L)
+                .setEntityState(EntityState.SUSPENDED)
+                .addCommoditySoldList(topologyDSPMSold)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PM_OID)
+                        .addAllCommodityBought(topologyCPUBought)
+                        .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE))
+                .putEntityPropertyMap("dummy", "dummy")
+                .build();
+
+        // create trader DTO corresponds to originalEntity
+        EconomyDTOs.TraderTO trader = EconomyDTOs.TraderTO.newBuilder()
+                .setOid(10000L)
+                .addCommoditiesSold(economyDSPMSold)
+                .setState(TraderStateTO.ACTIVE)
+                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addShoppingLists(ShoppingListTO.newBuilder()
+                        .setOid(-1L)
+                        .addCommoditiesBought(CommodityBoughtTO.newBuilder()
+                                .setSpecification(CommoditySpecificationTO.newBuilder()
+                                        .setBaseType(DSPM_TYPE_ID)
+                                        .setType(CPU_TYPE_ID)
+                                        .build())
+                                .build())
+                        .build())
+                .build();
+
+        Map<Long, TopologyDTO.ProjectedTopologyEntity> entity =
+                converter.convertFromMarket(Collections.singletonList(trader),
+                        ImmutableMap.of(expectedEntity.getOid(), expectedEntity),
+                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis);
+
+        assertEquals(1l, converter.getShoppingListOidToInfos().size());
+        assertEquals(10000L, converter.getShoppingListOidToInfos().get(-1L).getBuyerId());
+        assertEquals(1L, entity.size());
+        assertEquals(10000L, entity.get(10000L).getEntity().getOid());
+        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, entity.get(10000L).getEntity().getEntityType());
+    }
+
+    /**
+     * Test that the shopping list with negative oid in a trader with negative oid
+     * is added in shoppingListOidToInfos map, when it is not there,
+     * when calling convertFromMarket().
+     */
+    @Test
+    public void testInsertShoppingListInMapNegativeTrader() {
+        TopologyConverter converter = Mockito.spy(
+                new TopologyConverter(TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN).build(),
+                        false, AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR, marketPriceTable,
+                        mockCommodityConverter, mockCCD, CommodityIndex.newFactory()));
+        final TopologyDTO.CommoditySoldDTO topologyDSPMSold =
+                TopologyDTO.CommoditySoldDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE)
+                                .build())
+                        .build();
+        final TopologyDTO.CommoditySoldDTO topologyCPUSold =
+                TopologyDTO.CommoditySoldDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.CPU_VALUE)
+                                .build())
+                        .build();
+
+        CommodityType cpuCommType = CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.CPU_VALUE).build();
+
+        final List<CommodityBoughtDTO> topologyCPUBought =
+                Lists.newArrayList(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(cpuCommType)
+                        .build());
+
+        final CommodityDTOs.CommoditySoldTO economyDSPMSold = CommodityDTOs.CommoditySoldTO.newBuilder()
+                .setSpecification(CommoditySpecificationTO.newBuilder()
+                        .setBaseType(BICLIQUE_TYPE_ID)
+                        .setType(DSPM_TYPE_ID)
+                        .build())
+                .build();
+        Mockito.doReturn(Optional.of(topologyCPUSold.getCommodityType())).when(mockCommodityConverter)
+                .economyToTopologyCommodity(Mockito.eq(CommoditySpecificationTO.newBuilder()
+                        .setBaseType(DSPM_TYPE_ID)
+                        .setType(CPU_TYPE_ID)
+                        .build()));
+        Mockito.doReturn(Optional.empty()).when(mockCommodityConverter)
+                .economyToTopologyCommodity(Mockito.eq(CommoditySpecificationTO.newBuilder()
+                        .setBaseType(BICLIQUE_TYPE_ID)
+                        .setType(DSPM_TYPE_ID)
+                        .build()));
+        // create a topology entity DTO with DSPM sold
+        TopologyDTO.TopologyEntityDTO expectedEntity = TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(-1000L)
+                .setEntityState(EntityState.SUSPENDED)
+                .addCommoditySoldList(topologyDSPMSold)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PM_OID)
+                        .addAllCommodityBought(topologyCPUBought)
+                        .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE))
+                .putEntityPropertyMap("dummy", "dummy")
+                .build();
+
+        // create trader DTO corresponds to originalEntity
+        EconomyDTOs.TraderTO trader = EconomyDTOs.TraderTO.newBuilder()
+                .setOid(-1000L)
+                .addCommoditiesSold(economyDSPMSold)
+                .setState(TraderStateTO.ACTIVE)
+                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addShoppingLists(ShoppingListTO.newBuilder()
+                        .setOid(-1L)
+                        .addCommoditiesBought(CommodityBoughtTO.newBuilder()
+                                .setSpecification(CommoditySpecificationTO.newBuilder()
+                                        .setBaseType(DSPM_TYPE_ID)
+                                        .setType(CPU_TYPE_ID)
+                                        .build())
+                                .build())
+                        .build())
+                .build();
+
+        Map<Long, TopologyDTO.ProjectedTopologyEntity> entity =
+                converter.convertFromMarket(Collections.singletonList(trader),
+                        ImmutableMap.of(expectedEntity.getOid(), expectedEntity),
+                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis);
+
+        assertEquals(1l, converter.getShoppingListOidToInfos().size());
+        assertEquals(-1000L, converter.getShoppingListOidToInfos().get(-1L).getBuyerId());
+        assertEquals(1L, entity.size());
+        assertEquals(-1000L, entity.get(-1000L).getEntity().getOid());
+        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, entity.get(-1000L).getEntity().getEntityType());
+    }
 
 }
 

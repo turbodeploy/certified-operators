@@ -146,6 +146,8 @@ public class TopologyConverter {
     // shoppinglist oid, buyer oid, seller oid and commodity bought
     private final Map<Long, ShoppingListInfo> shoppingListOidToInfos = Maps.newHashMap();
 
+    public final Map<Long, ShoppingListInfo> getShoppingListOidToInfos() {return shoppingListOidToInfos;}
+
     // Mapping of CommoditySpecificationTO (string representation of type and baseType from
     // CommoditySpecificationTO) to specific CommodityType.
     private final Map<String, CommodityType>
@@ -507,6 +509,8 @@ public class TopologyConverter {
             final Map<Long, PriceIndexMessagePayload> priceIndexByOid =
                 priceIndexMessage.getPayloadList().stream()
                     .collect(Collectors.toMap(PriceIndexMessagePayload::getOid, Function.identity()));
+            Map<Long, EconomyDTOs.TraderTO> projTraders =
+                    projectedTraders.stream().collect(Collectors.toMap(t -> t.getOid(), Function.identity()));
             logger.info("Converting projectedTraders to topologyEntityDTOs");
             projectedTraders.forEach(t -> oidToProjectedTraderTOMap.put(t.getOid(), t));
             relinquishCoupons(projectedTraders, cloudCostData);
@@ -514,7 +518,7 @@ public class TopologyConverter {
                 projectedTraders.size());
             for (TraderTO projectedTrader : projectedTraders) {
                 final Set<TopologyEntityDTO> projectedEntities =
-                    traderTOtoTopologyDTO(projectedTrader, originalTopology, reservedCapacityAnalysis);
+                    traderTOtoTopologyDTO(projectedTrader, originalTopology, reservedCapacityAnalysis, projTraders);
                 for (TopologyEntityDTO projectedEntity : projectedEntities) {
                     final ProjectedTopologyEntity.Builder projectedEntityBuilder =
                         ProjectedTopologyEntity.newBuilder().setEntity(projectedEntity);
@@ -820,7 +824,8 @@ public class TopologyConverter {
      */
     private Set<TopologyDTO.TopologyEntityDTO> traderTOtoTopologyDTO(EconomyDTOs.TraderTO traderTO,
                     @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> traderOidToEntityDTO,
-                    @Nonnull final ReservedCapacityAnalysis reservedCapacityAnalysis) {
+                    @Nonnull final ReservedCapacityAnalysis reservedCapacityAnalysis,
+                    @Nonnull final Map<Long, EconomyDTOs.TraderTO> projTraders) {
         Set<TopologyDTO.TopologyEntityDTO> topologyEntityDTOs = Sets.newHashSet();
         if (cloudTc.isMarketTier(traderTO.getOid())) {
             // Tiers and regions are added from the original topology into the projected traders
@@ -865,6 +870,17 @@ public class TopologyConverter {
                     commBoughtTOtoCommBoughtDTO(traderTO.getOid(), sl.getSupplier(), sl.getOid(),
                         commBought, reservedCapacityAnalysis).ifPresent(commList::add);
                 }
+            }
+            // the shopping list might not exist in shoppingListOidToInfos, because it might be
+            // created inside M2 via a provision by demand action
+            if (shoppingListOidToInfos.get(sl.getOid()) == null) {
+                ShoppingListInfo slInfo = new ShoppingListInfo(sl.getOid(), traderTO.getOid(),
+                        sl.getSupplier(), null,
+                        projTraders.get(sl.getSupplier()) != null
+                        ? projTraders.get(sl.getSupplier()).getType()
+                        : null,
+                        commList);
+                shoppingListOidToInfos.put(sl.getOid(), slInfo);
             }
             topoDTOCommonBoughtGrouping.add(createCommoditiesBoughtFromProvider(sl, commList));
         }
@@ -1285,7 +1301,7 @@ public class TopologyConverter {
 
         final float peakQuantity = peak; // It must be final
 
-        long volumeId = shoppingListOidToInfos.get(slOid).getResourceId().isPresent() ?
+        long volumeId = shoppingListOidToInfos.get(slOid) != null && shoppingListOidToInfos.get(slOid).getResourceId().isPresent() ?
                 shoppingListOidToInfos.get(slOid).getResourceId().get() : 0;
         return commodityConverter.economyToTopologyCommodity(commBoughtTO.getSpecification())
                 .map(commType -> TopologyDTO.CommodityBoughtDTO.newBuilder()
