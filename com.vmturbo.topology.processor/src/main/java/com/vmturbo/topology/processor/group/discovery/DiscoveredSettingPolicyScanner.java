@@ -218,9 +218,6 @@ public class DiscoveredSettingPolicyScanner {
                                         @Nonnull final Optional<ClusterInfo> clusterInfo,
                                         @Nonnull final List<CommodityDTO.Builder> commoditiesWithThresholds) {
             // Create the setting policy.
-            // Note that we differ from legacy here in that we always create the setting regardless of
-            // whether there is a setting to ignore HA. IgnoreHA will be examined in conjunction with
-            // this setting when settings are applied.
             final TargetSettingPolicies targetSettingPolicies =
                 targetIdToSettingPoliciesMap.computeIfAbsent(host.getTargetId(), targetId ->
                     new TargetSettingPolicies());

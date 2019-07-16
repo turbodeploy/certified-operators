@@ -134,7 +134,7 @@ public final class SettingDTOUtil {
      *  @param settingPolicies List of SettingPolicy.
      *  @return List of Default SettingPolicy.
      */
-    public static List<SettingPolicy> extractDefaultSettingPolicies(List<SettingPolicy> settingPolicies) {
+    public static List<SettingPolicy> extractDefaultSettingPolicies(Collection<SettingPolicy> settingPolicies) {
         return settingPolicies.stream()
             .filter(settingPolicy -> settingPolicy.hasSettingPolicyType() &&
                 settingPolicy.getSettingPolicyType() == SettingPolicy.Type.DEFAULT)
@@ -147,7 +147,7 @@ public final class SettingDTOUtil {
      *  @param settingPolicies List of SettingPolicy.
      *  @return List of User SettingPolicy.
      */
-    public static List<SettingPolicy> extractUserAndDiscoveredSettingPolicies(List<SettingPolicy> settingPolicies) {
+    public static List<SettingPolicy> extractUserAndDiscoveredSettingPolicies(Collection<SettingPolicy> settingPolicies) {
         return settingPolicies.stream()
             .filter(settingPolicy -> settingPolicy.hasSettingPolicyType() &&
                 (settingPolicy.getSettingPolicyType() == SettingPolicy.Type.USER ||

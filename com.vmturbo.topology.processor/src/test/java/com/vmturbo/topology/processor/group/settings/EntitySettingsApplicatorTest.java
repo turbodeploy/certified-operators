@@ -119,9 +119,9 @@ public class EntitySettingsApplicatorTest {
 
     private EntitySettingsApplicator applicator;
 
-    private final TopologyInfo TOPOLOGY_INFO = TopologyInfo.getDefaultInstance();
+    private static final TopologyInfo TOPOLOGY_INFO = TopologyInfo.getDefaultInstance();
 
-    private final TopologyInfo CLUSTER_HEADROOM_TOPOLOGY_INFO = TopologyInfo.newBuilder()
+    private static final TopologyInfo CLUSTER_HEADROOM_TOPOLOGY_INFO = TopologyInfo.newBuilder()
             .setPlanInfo(PlanTopologyInfo.newBuilder()
                     .setPlanProjectType(PlanProjectType.CLUSTER_HEADROOM))
             .setTopologyType(TopologyType.PLAN)
@@ -470,58 +470,39 @@ public class EntitySettingsApplicatorTest {
     }
 
     /**
-     * Tests effective capacity of the commodity when ignoring HA and Utilization Threshold setting.
+     * Tests effective capacity of the commodity.
      * It is expected that value is sourced from setting.
      */
     @Test
-    public void testHaUtilOverrride() {
+    public void testUtilOverrride() {
         final TopologyEntityDTO.Builder builder =
                 createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU, 11f);
-        applySettings(TOPOLOGY_INFO, builder, createSetting(EntitySettingSpecs.CpuUtilization, 22f),
-                createSetting(EntitySettingSpecs.IgnoreHA, true));
+        applySettings(TOPOLOGY_INFO, builder, createSetting(EntitySettingSpecs.CpuUtilization, 22f));
         Assert.assertEquals(22f, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
                 0.0001);
     }
 
     /**
-     * Tests effective capacity of the commodity when not ignoring HA and having Utilization
-     * Threshold setting.
-     * It is expected that value is sourced from probe.
+     * Tests effective capacity of the commodity without settings.
      */
     @Test
-    public void testNoHaNoUtilOverride() {
+    public void testNoUtilOverride() {
         final TopologyEntityDTO.Builder entity =
                 createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU, 11f);
-        final Setting setting = createSetting(EntitySettingSpecs.IgnoreHA, false);
-        applySettings(TOPOLOGY_INFO, entity, setting);
         Assert.assertEquals(11f, entity.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
                 0.0001);
     }
 
     /**
-     * Tests effective capacity of the commodity when ignoring HA and no Utilization Threshold
-     * setting present.
-     * It is expected that value is sourced from oribe.
-     */
-    @Test
-    public void testHaNoUtilOverride() {
-        final TopologyEntityDTO.Builder builder =
-                createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU, 11f);
-        applySettings(TOPOLOGY_INFO, builder, createSetting(EntitySettingSpecs.IgnoreHA, true));
-        Assert.assertFalse(builder.getCommoditySoldList(0).hasEffectiveCapacityPercentage());
-    }
-
-    /**
-     * Tests effective capacity of the commodity when not ignoring HA and having Utilization
+     * Tests effective capacity of the commodity when having Utilization
      * Threshold setting.
      * It is expected that value is sourced from setting.
      */
     @Test
-    public void testNoHaUtilOverride() {
+    public void testUtilOverride() {
         final TopologyEntityDTO.Builder builder =
                 createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU, 11f);
-        applySettings(TOPOLOGY_INFO, builder, createSetting(EntitySettingSpecs.CpuUtilization, 22f),
-                createSetting(EntitySettingSpecs.IgnoreHA, false));
+        applySettings(TOPOLOGY_INFO, builder, createSetting(EntitySettingSpecs.CpuUtilization, 22f));
         Assert.assertEquals(22f, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
                 0.0001);
     }
@@ -531,11 +512,10 @@ public class EntitySettingsApplicatorTest {
      * It is expected that value is sourced from setting.
      */
     @Test
-    public void testNoHaUtilOverrideNoInitial() {
+    public void testUtilOverrideNoInitial() {
         final TopologyEntityDTO.Builder builder =
                 createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU);
-        applySettings(TOPOLOGY_INFO, builder, createSetting(EntitySettingSpecs.CpuUtilization, 22f),
-                createSetting(EntitySettingSpecs.IgnoreHA, false));
+        applySettings(TOPOLOGY_INFO, builder, createSetting(EntitySettingSpecs.CpuUtilization, 22f));
         Assert.assertEquals(22f, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
                 0.0001);
     }
@@ -644,20 +624,6 @@ public class EntitySettingsApplicatorTest {
         return Setting.newBuilder()
                 .setSettingSpecName(setting.getSettingName())
                 .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(value).build())
-                .build();
-    }
-
-    /**
-     * Creates boolean value setting.
-     *
-     * @param setting setting ID to create a setting with
-     * @param value value of the setting
-     * @return setting object
-     */
-    private Setting createSetting(EntitySettingSpecs setting, boolean value) {
-        return Setting.newBuilder()
-                .setSettingSpecName(setting.getSettingName())
-                .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(value).build())
                 .build();
     }
 

@@ -412,9 +412,8 @@ public class EntitySettingsApplicator {
     }
 
     /**
-     * HA related commodities applicator. This applicator will process ignoreHA setting and cpu/mem
-     * utilization threshold. Both of the commodities are calculated on top of appropriate settings
-     * and HA ignorance configuration.
+     * HA related commodities applicator. This applicator will process cpu/mem utilization
+     * threshold. Both of the commodities are calculated on top of appropriate settings.
      */
     @ThreadSafe
     private static class HaDependentUtilizationApplicator implements SettingApplicator {
@@ -445,13 +444,10 @@ public class EntitySettingsApplicator {
                     applyMaxUtilizationToCapacity(entity, CommodityType.MEM, maxDesiredUtilization);
                 }
             } else {
-                final Setting ignoreHaSetting = settings.get(EntitySettingSpecs.IgnoreHA);
-                final boolean ignoreHa =
-                        ignoreHaSetting != null && ignoreHaSetting.getBooleanSettingValue().getValue();
                 final Setting cpuUtilSetting = settings.get(EntitySettingSpecs.CpuUtilization);
                 final Setting memUtilSetting = settings.get(EntitySettingSpecs.MemoryUtilization);
-                applyUtilizationChanges(entity, CommodityType.CPU, cpuUtilSetting, ignoreHa);
-                applyUtilizationChanges(entity, CommodityType.MEM, memUtilSetting, ignoreHa);
+                applyUtilizationChanges(entity, CommodityType.CPU, cpuUtilSetting);
+                applyUtilizationChanges(entity, CommodityType.MEM, memUtilSetting);
             }
         }
 
@@ -481,19 +477,11 @@ public class EntitySettingsApplicator {
 
         private void applyUtilizationChanges(@Nonnull TopologyEntityDTO.Builder entity,
                                              @Nonnull CommodityType commodityType,
-                                             @Nullable Setting setting,
-                                             boolean ignoreHa) {
+                                             @Nullable Setting setting) {
             for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity, commodityType)) {
                 if (setting != null) {
                     commodity.setEffectiveCapacityPercentage(
                             setting.getNumericSettingValue().getValue());
-                } else if (ignoreHa) {
-                    // The ignore HA setting does NOT override explicitly set capacity percentage,
-                    // but it does override the values sent over from the probe.
-                    // Unfortunately, at the time of this writing the probe rolls capacity and HA
-                    // into one property, so there's no way to only ignore HA without ignoring
-                    // other things that may have affected capacity percentage.
-                    commodity.clearEffectiveCapacityPercentage();
                 }
             }
         }

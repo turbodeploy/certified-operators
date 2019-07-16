@@ -307,12 +307,6 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.STORAGE, EntityType.STORAGE_CONTROLLER,
                     EntityType.LOGICAL_POOL, EntityType.DISK_ARRAY),
             numeric(1f, 2000f, 100f), true),
-    /**
-     * Ignore High Availability(HA).
-     */
-    IgnoreHA("ignoreHa", "Ignore High Availability", Collections.emptyList(),
-            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.PHYSICAL_MACHINE),
-            new BooleanSettingDataType(false), true),
 
     /**
      * Virtual CPU Increment.

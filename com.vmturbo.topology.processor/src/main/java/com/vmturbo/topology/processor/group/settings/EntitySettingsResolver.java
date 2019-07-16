@@ -16,12 +16,12 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import io.grpc.StatusRuntimeException;
 
@@ -51,11 +51,11 @@ import com.vmturbo.topology.processor.group.GroupResolver;
  * applying settings which transform the entities in the topology.
  * One example where the Settings application would lead to transformation is
  * derived calculations:
- *      Sometimes a probe specifies a formula for calculating capacity
- *      e.g. value * multiply_by_factor(Memory_Provisioned_Factor,
- *      CPU_Provisioned_Factor, Storage_Provisoned_Factor).
- *      The actual settings values for the multiply_by_factor has to be applied
- *      by the TP.
+ *     Sometimes a probe specifies a formula for calculating capacity
+ *     e.g. value * multiply_by_factor(Memory_Provisioned_Factor,
+ *     CPU_Provisioned_Factor, Storage_Provisoned_Factor).
+ *     The actual settings values for the multiply_by_factor has to be applied
+ *     by the TP.
  *
  */
 public class EntitySettingsResolver {
@@ -83,24 +83,24 @@ public class EntitySettingsResolver {
         this.settingServiceClient = Objects.requireNonNull(settingServiceClient);
     }
 
-
     /**
-     *  Resolve the groups associated with the SettingPolicies and associate the
-     *  entities with their settings.
+     * Resolve the groups associated with the SettingPolicies and associate the
+     * entities with their settings.
      *
-     *  Do conflict resolution when an Entity has the same Setting from
-     *  different SettingPolicies.
+     * Do conflict resolution when an Entity has the same Setting from
+     * different SettingPolicies.
      *
-     *  @param groupResolver Group resolver to resolve the groups associated with the settings.
-     *  @param topologyGraph The topology graph on which to do the search.
-     *  @param settingOverrides These overrides get applied after regular setting resolution
-     *                          (including conflict resolution), so all entities that have these settings
-     *                          will have the requested values. For example, if "move" is overriden
-     *                          to "DISABLED" then all entities that "move" applies to (e.g. VMs)
-     *                          will have the "move" settings as "DISABLED" no matter what the
-     *                          setting policies say. There is currently no scope to the overrides,
-     *                          so all overrides are global.
-     *  @return List of EntitySettings
+     * @param groupResolver Group resolver to resolve the groups associated with the settings.
+     * @param topologyGraph The topology graph on which to do the search.
+     * @param settingOverrides These overrides get applied after regular setting resolution
+     *                         (including conflict resolution), so all entities that have these settings
+     *                         will have the requested values. For example, if "move" is overriden
+     *                         to "DISABLED" then all entities that "move" applies to (e.g. VMs)
+     *                         will have the "move" settings as "DISABLED" no matter what the
+     *                         setting policies say. There is currently no scope to the overrides,
+     *                         so all overrides are global.
+     * @param topologyInfo used to get the topology context id
+     * @return List of EntitySettings
      *
      */
     public GraphWithSettings resolveSettings(
@@ -109,11 +109,11 @@ public class EntitySettingsResolver {
             @Nonnull final SettingOverrides settingOverrides,
             @Nonnull final TopologyInfo topologyInfo) {
 
-        final List<SettingPolicy> allSettingPolicies =
+        final Map<Long, SettingPolicy> policyById =
             getAllSettingPolicies(settingPolicyServiceClient, topologyInfo.getTopologyContextId());
 
         final List<SettingPolicy> userAndDiscoveredSettingPolicies =
-            SettingDTOUtil.extractUserAndDiscoveredSettingPolicies(allSettingPolicies);
+            SettingDTOUtil.extractUserAndDiscoveredSettingPolicies(policyById.values());
 
         // groupId -> SettingPolicies mapping
         final Map<Long, List<SettingPolicy>> groupSettingPoliciesMap =
@@ -133,10 +133,10 @@ public class EntitySettingsResolver {
         // SettingSpecName -> SettingSpec
         final Map<String, SettingSpec> settingNameToSettingSpecs = getAllSettingSpecs();
 
-        // entity id -> Map<Setting name, whether setting is scheduled for entity>
-        final Map<Long, Map<String, Boolean>> settingsAreScheduled = new HashMap<>();
+        // entity id -> Map<Setting name, whether setting has a schedule for entity>
+        final Map<Long, Map<String, Boolean>> settingsWithSchedule = new HashMap<>();
 
-        //resolver to determine if a schedule applies at the canonical moment (i.e. right now)
+        // resolver to determine if a schedule applies at the canonical moment (i.e. right now)
         final ScheduleResolver scheduleResolver = new ScheduleResolver(Instant.now());
 
         // For each group, resolve it to get its entities. Then apply the settings
@@ -149,8 +149,8 @@ public class EntitySettingsResolver {
                 final Group group = groups.get(groupId);
                 if (group != null ) {
                     final Set<Long> allEntitiesInGroup = groupResolver.resolve(group, topologyGraph);
-                    resolveAllEntitySettings(allEntitiesInGroup, settingPolicies, scheduleResolver,
-                            settingsAreScheduled, userSettingsByEntityAndName,
+                    resolveAllEntitySettings(allEntitiesInGroup, settingPolicies, policyById, scheduleResolver,
+                            settingsWithSchedule, userSettingsByEntityAndName,
                             settingNameToSettingSpecs);
                 } else {
                     logger.error("Group {} does not exist.", groupId);
@@ -162,7 +162,7 @@ public class EntitySettingsResolver {
         });
 
         final List<SettingPolicy> defaultSettingPolicies =
-                SettingDTOUtil.extractDefaultSettingPolicies(allSettingPolicies);
+                SettingDTOUtil.extractDefaultSettingPolicies(policyById.values());
 
         // entityType -> SettingPolicyId mapping
         final Map<Integer, SettingPolicy> defaultSettingPoliciesByEntityType =
@@ -187,27 +187,30 @@ public class EntitySettingsResolver {
     }
 
     /**
-     *  Resolve settings for a set of entities. If the settings use the same spec and have
-     *  different values, select a winner. If one setting has a scheduled period of
-     *  activity and another does not, the scheduled setting takes priority. When conflicting
-     *  settings are both scheduled or unscheduled, use the spec's tiebreaker to resolve.
+     * Resolve settings for a set of entities. If the settings use the same spec and have
+     * different values, select a winner. If one setting is discovered and one is user-defined,
+     * user-defined takes priority. If one setting has a scheduled period of
+     * activity and another does not, the one with a schedule takes priority.
+     * Otherwise use the spec's tie-breaker to resolve.
      *
      * @param entities List of entity OIDs
      * @param settingPolicies List of settings policies to be applied to the entities
+     * @param policyById map from policy ID to settings policy
      * @param scheduleResolver Used to determine if a settings policy schedule applies when
-     *              the settings are being resolved.
-     * @param settingsByEntityAreScheduled Used to mark whether a setting spec has a scheduled
-     *              value per entity
+     *             the settings are being resolved.
+     * @param settingsByEntityWithSchedule Used to mark whether a setting spec has a scheduled
+     *             value per entity
      * @param userSettingsByEntityAndName The return parameter which
-     *              maps an entityId with its associated settings indexed by the
-     *              settingsSpecName
+     *             maps an entityId with its associated settings indexed by the
+     *             settingsSpecName
      * @param settingNameToSettingSpecs Map of SettingSpecName to SettingSpecs
      */
     @VisibleForTesting
     void resolveAllEntitySettings(final Set<Long> entities,
                                   final List<SettingPolicy> settingPolicies,
+                                  final Map<Long, SettingPolicy> policyById,
                                   final ScheduleResolver scheduleResolver,
-                                  Map<Long, Map<String, Boolean>> settingsByEntityAreScheduled,
+                                  Map<Long, Map<String, Boolean>> settingsByEntityWithSchedule,
                                   Map<Long, Map<String, SettingAndPolicyIdRecord>> userSettingsByEntityAndName,
                                   final Map<String, SettingSpec> settingNameToSettingSpecs) {
 
@@ -218,81 +221,119 @@ public class EntitySettingsResolver {
             Map<String, SettingAndPolicyIdRecord> settingsByName =
                 userSettingsByEntityAndName.computeIfAbsent(
                     oid, k -> new HashMap<>());
-            Map<String, Boolean> settingsAreScheduled =
-                    settingsByEntityAreScheduled.computeIfAbsent(
+            Map<String, Boolean> settingsWithSchedule =
+                    settingsByEntityWithSchedule.computeIfAbsent(
                             oid, k -> new HashMap<>());
 
             for (SettingPolicy sp : settingPolicies) {
-                final boolean policyIsScheduled = sp.getInfo().hasSchedule();
-                if (!policyIsScheduled ||
-                        scheduleResolver.appliesAtResolutionInstant(sp.getInfo().getSchedule())) {
-                    sp.getInfo().getSettingsList().forEach((newSetting) -> {
-                        final String specName = newSetting.getSettingSpecName();
-                        final SettingAndPolicyIdRecord existingSetting = settingsByName.get(specName);
-                        if (existingSetting != null) {
-                            final Setting conflictWinner = resolveSettingConflict(
-                                    existingSetting.getSetting(), newSetting,
-                                    settingNameToSettingSpecs, settingsAreScheduled,
-                                    policyIsScheduled);
-                            settingsByName.put(specName,
-                                    conflictWinner.equals(existingSetting.getSetting())
-                                    ? new SettingAndPolicyIdRecord(conflictWinner, existingSetting.getSettingPolicyId())
-                                    : new SettingAndPolicyIdRecord(conflictWinner, sp.getId()));
-                        } else {
-                            settingsByName.put(specName, new SettingAndPolicyIdRecord(newSetting, sp.getId()));
-                            settingsAreScheduled.put(specName, policyIsScheduled);
-                        }
-                    });
+                final boolean policyHasSchedule = sp.getInfo().hasSchedule();
+                if (inEffectNow(sp, scheduleResolver)) {
+                    SettingPolicy.Type nextType = sp.getSettingPolicyType();
+                    sp.getInfo().getSettingsList().forEach(
+                        nextSetting -> resolve(nextSetting, sp.getId(), policyHasSchedule, nextType,
+                            settingsByName, settingsWithSchedule, settingNameToSettingSpecs));
                 }
             }
         }
     }
 
     /**
-     * Determine which of an existing setting and a new setting, with the same spec name but
-     * different values, should apply to an entity. If one is scheduled and the other is not,
-     * the scheduled one wins. If both are scheduled or unscheduled, their spec's tiebreaker
-     * is used to resolve the conflict.
+     * Policy is in effect now if it doesn't have a schedule (in which case it is always in
+     * effect) or if it has a schedule and the schedule applies now.
      *
-     * @param existingSetting a previously found setting for an entity
-     * @param newSetting a new setting for an entity
+     * @param sp a setting policy with or without a schedule
+     * @param scheduleResolver resolves whether a schedule applies
+     * @return whether the policy is in effect
+     */
+    private static boolean inEffectNow(SettingPolicy sp, ScheduleResolver scheduleResolver) {
+        return !sp.getInfo().hasSchedule()
+                || scheduleResolver.appliesAtResolutionInstant(sp.getInfo().getSchedule());
+    }
+
+    private void resolve(Setting aSetting, long aPolicyId, boolean policyHasSchedule,
+                    SettingPolicy.Type aType, Map<String, SettingAndPolicyIdRecord> settingsByName,
+                    Map<String, Boolean> settingsWithSchedule,
+                    Map<String, SettingSpec> settingNameToSettingSpecs) {
+        final String specName = aSetting.getSettingSpecName();
+        final SettingAndPolicyIdRecord existingRecord = settingsByName.get(specName);
+        if (existingRecord != null) {
+            final Setting conflictWinner = resolveSettingConflict(
+                    existingRecord, aSetting, aType,
+                    settingNameToSettingSpecs, settingsWithSchedule,
+                    policyHasSchedule);
+            if (conflictWinner != existingRecord.getSetting()) {
+                settingsByName.put(specName, new SettingAndPolicyIdRecord(conflictWinner, aPolicyId, aType));
+            }
+        } else {
+            settingsByName.put(specName, new SettingAndPolicyIdRecord(aSetting, aPolicyId, aType));
+            settingsWithSchedule.put(specName, policyHasSchedule);
+        }
+    }
+
+    /**
+     * Determine which of an existing setting and a new setting, with the same spec name but
+     * different values, should apply to an entity. If one is USER defined and one is DISCOVERED
+     * then the USER defined policy wins. If one has a schedule and the other doesn't, the one
+     * with a schedule wins. If both have a schedule or both don't, their spec's tie-breaker
+     * is used to resolve the conflict.
+
+     * @param existingRecord a previously found record for an entity
+     * @param aSetting a new setting for an entity
+     * @param aType the policy type (USER/DISCOVERED) of the policy that contains
+     *     new setting
      * @param settingNameToSettingSpecs map of setting names to associated specs
-     * @param settingsAreScheduled map of which existing settings are scheduled
-     * @param newPolicyIsScheduled whether the new setting is scheduled
+     * @param settingsWithSchedule map of which existing settings are scheduled
+     * @param policyHasSchedule whether the new setting is scheduled
      * @return whichever of the newSetting or the existingSetting that takes priority
      */
-    private Setting resolveSettingConflict(final Setting existingSetting, final Setting newSetting,
-                                           final Map<String, SettingSpec> settingNameToSettingSpecs,
-                                           final Map<String, Boolean> settingsAreScheduled,
-                                           final boolean newPolicyIsScheduled) {
-        final String specName = newSetting.getSettingSpecName();
-        final boolean existingSettingIsScheduled =
-                settingsAreScheduled.getOrDefault(specName, false);
+    private static Setting resolveSettingConflict(
+                    final SettingAndPolicyIdRecord existingRecord,
+                    final Setting aSetting, SettingPolicy.Type aType,
+                    final Map<String, SettingSpec> settingNameToSettingSpecs,
+                    final Map<String, Boolean> settingsWithSchedule,
+                    final boolean policyHasSchedule) {
+        // First check USER vs. DISCOVERED type and pick the USER policy regardless of other
         final Setting resultSetting;
-        if (existingSettingIsScheduled && !newPolicyIsScheduled) {
-            resultSetting = existingSetting;
-        } else if (newPolicyIsScheduled && !existingSettingIsScheduled) {
-            resultSetting = newSetting;
-            settingsAreScheduled.put(specName, true);
+        // USER policies win over DISCOVERED policies
+        SettingPolicy.Type existingType = existingRecord.getType();
+        if (existingType == SettingPolicy.Type.DISCOVERED
+                        && aType == SettingPolicy.Type.USER) {
+            resultSetting = aSetting;
+        } else if (existingType == SettingPolicy.Type.USER
+                        && aType == SettingPolicy.Type.DISCOVERED) {
+            resultSetting = existingRecord.getSetting();
         } else {
-            logger.debug("Applying tiebreaker to settings: {} and {}", newSetting, existingSetting);
-            resultSetting = applyTiebreaker(newSetting, existingSetting,
+            // Now we have two policies that are either both USER policies or
+            // both DISCOVERED policies (latter is not expected to happen).
+            // Policies with a schedule win over policies without a schedule.
+            final String specName = aSetting.getSettingSpecName();
+            final boolean existingSettingHasSchedule =
+                            settingsWithSchedule.getOrDefault(specName, false);
+            if (existingSettingHasSchedule && !policyHasSchedule) {
+                resultSetting = existingRecord.getSetting();
+            } else if (policyHasSchedule && !existingSettingHasSchedule) {
+                resultSetting = aSetting;
+                settingsWithSchedule.put(specName, true);
+            } else  {
+                logger.debug("Applying tiebreaker to settings: {} and {}", aSetting, existingRecord.getSetting());
+                resultSetting = applyTiebreaker(aSetting, existingRecord.getSetting(),
                     settingNameToSettingSpecs);
-            settingsAreScheduled.put(specName, newPolicyIsScheduled);
+                settingsWithSchedule.put(specName, policyHasSchedule);
+            }
         }
         return resultSetting;
     }
 
     /**
-     *  Resolve conflict when 2 settings have the same spec but
-     *  different values.
+     * Resolve conflict when 2 settings have the same spec but
+     * different values.
      *
-     *  The tie-breaker to resolve conflict is defined in the SettingSpec.
+     * The tie-breaker to resolve conflict is defined in the SettingSpec.
      *
-     *  @param setting1 Setting message
-     *  @param setting2 Setting message
-     *  @param settingNameToSettingSpecs Mapping from SettingSpecName to SettingSpec
-     *  @return Resolved setting which won the tieBreaker
+     * @param setting1 Setting message
+     * @param setting2 Setting message
+     * @param settingNameToSettingSpecs Mapping from SettingSpecName to SettingSpec
+     * @return Resolved setting which won the tieBreaker
      */
     public static Setting applyTiebreaker(
                                 @Nonnull Setting setting1,
@@ -302,57 +343,51 @@ public class EntitySettingsResolver {
         Preconditions.checkArgument(!settingNameToSettingSpecs.isEmpty(),
             "Empty setting specs");
 
+        String specName1 = setting1.getSettingSpecName();
+        String specName2 = setting2.getSettingSpecName();
         Preconditions.checkArgument(
-            setting1.getSettingSpecName().equals(
-                setting2.getSettingSpecName()), "Settings have different spec names");
+            specName1.equals(specName2), "Settings have different spec names");
 
         Preconditions.checkArgument(
             hasSameValueTypes(setting1, setting2), "Settings have different value types");
 
-        Preconditions.checkArgument(
-                settingNameToSettingSpecs.get(setting1.getSettingSpecName())
-                    .hasEntitySettingSpec(),
+        SettingSpec spec1 = settingNameToSettingSpecs.get(specName1);
+        Preconditions.checkArgument(spec1.hasEntitySettingSpec(),
                     "SettingSpec should be of type EntitySettingSpec");
 
         Preconditions.checkArgument(
-                settingNameToSettingSpecs.get(setting2.getSettingSpecName())
-                    .hasEntitySettingSpec(),
+                settingNameToSettingSpecs.get(specName2).hasEntitySettingSpec(),
                     "SettingSpec should be of type EntitySettingSpec");
 
         // Verified above that both settings are of same type. Hence they should
         // both have the same tie-breaker. So just extract it from one of the setting.
-        SettingTiebreaker tieBreaker =
-            settingNameToSettingSpecs.get(setting1.getSettingSpecName())
-                .getEntitySettingSpec().getTiebreaker();
-
-        int ret = compareSettingValues(setting1, setting2,
-                    settingNameToSettingSpecs.get(setting1.getSettingSpecName()));
-
+        SettingTiebreaker tieBreaker = spec1.getEntitySettingSpec().getTiebreaker();
+        int ret = compareSettingValues(setting1, setting2, spec1);
         switch (tieBreaker) {
             case BIGGER:
                 return (ret >= 0) ? setting1 : setting2;
             case SMALLER:
                 return (ret <= 0) ? setting1 : setting2;
             default:
-            // shouldn't reach here.
-            throw new IllegalArgumentException("Illegal tiebreaker value : " + tieBreaker);
+                // shouldn't reach here.
+                throw new IllegalArgumentException("Illegal tiebreaker value : " + tieBreaker);
         }
     }
 
     /**
-     *  Compare two setting values.
+     * Compare two setting values.
      *
-     *  No validation is done in this method. Assumes all the
-     *  input types and values are correct.
+     * No validation is done in this method. Assumes all the
+     * input types and values are correct.
      *
-     *  @param setting1 Setting message
-     *  @param setting2 Setting message
-     *  @param settingSpec SettingSpec definiton referred by the setting
-     *                      messages. Both input settings should have the same
-     *                      settingSpec name
+     * @param setting1 Setting message
+     * @param setting2 Setting message
+     * @param settingSpec SettingSpec definiton referred by the setting
+     *                     messages. Both input settings should have the same
+     *                     settingSpec name
      *
-     *  @return Positive, negative or zero integer where setting1 value is
-     *          greater than, smaller than or equal to setting2 value respectively.
+     * @return Positive, negative or zero integer where setting1 value is
+     *         greater than, smaller than or equal to setting2 value respectively.
      *
      */
     private static int compareSettingValues(Setting setting1,
@@ -389,14 +424,14 @@ public class EntitySettingsResolver {
     }
 
     /**
-     *  Create EntitySettings message.
+     * Create EntitySettings message.
      *
-     *  @param entity {@link TopologyEntity} whose settings should be created.
-     *  @param userSettings List of user Setting
-     *  @param defaultSettingPoliciesByEntityType Mapping of entityType to SettingPolicyId
-     *  @param settingOverrides The map of overrides, by setting name. See
+     * @param entity {@link TopologyEntity} whose settings should be created.
+     * @param userSettings List of user Setting
+     * @param defaultSettingPoliciesByEntityType Mapping of entityType to SettingPolicyId
+     * @param settingOverrides The map of overrides, by setting name. See
            {@link EntitySettingsResolver#resolveSettings(GroupResolver, TopologyGraph<TopologyEntity>, SettingOverrides, TopologyInfo)}
-     *  @return EntitySettings message
+     * @return EntitySettings message
      *
      */
     private EntitySettings createEntitySettingsMessage(TopologyEntity entity,
@@ -414,7 +449,6 @@ public class EntitySettingsResolver {
                                 .setSettingPolicyId(settingRecord.getSettingPolicyId())
                                 .build())
                 );
-                        ;
         // Override user settings.
         settingOverrides.overrideSettings(entity.getTopologyEntityDtoBuilder(), entitySettingsBuilder);
 
@@ -430,7 +464,7 @@ public class EntitySettingsResolver {
      * Send entitySettings mapping to the Group component.
      *
      * @param topologyInfo The information about the topology which was used to resolve
-     *                     the settings.
+     *                    the settings.
      * @param entitiesSettings List of EntitySettings messages
      */
     public void sendEntitySettings(@Nonnull final TopologyInfo topologyInfo,
@@ -455,11 +489,12 @@ public class EntitySettingsResolver {
     /**
      * Get all SettingPolicies from Group Component (GC).
      *
-     * @param settingPolicyServiceClient Client for communicating with SettingPolicyService.
+     * @param settingPolicyServiceClient Client for communicating with SettingPolicyService
+     * @param contextId the topology context ID (used in the response message)
      * @return List of Setting policies.
      *
      */
-    private List<SettingPolicy> getAllSettingPolicies(
+    private Map<Long, SettingPolicy> getAllSettingPolicies(
             SettingPolicyServiceBlockingStub settingPolicyServiceClient, long contextId) {
 
         final List<SettingPolicy> settingPolicies = new LinkedList<>();
@@ -469,7 +504,8 @@ public class EntitySettingsResolver {
                        .build())
                        .forEachRemaining(settingPolicies::add);
 
-        return settingPolicies;
+        return settingPolicies.stream()
+                        .collect(Collectors.toMap(SettingPolicy::getId, Function.identity()));
     }
 
     /**
@@ -499,11 +535,11 @@ public class EntitySettingsResolver {
 
     /**
      * Extract the groups which are part of the SettingPolicies and return a mapping
-     *  from the GroupId to the list of setting policies associated with the
-     *  group.
+     * from the GroupId to the list of setting policies associated with the
+     * group.
      *
-     *  @param settingPolicies List of SettingPolicy
-     *  @return Mapping of the groupId to SettingPolicy
+     * @param settingPolicies List of SettingPolicy
+     * @return Mapping of the groupId to SettingPolicy
      *
      */
     private Map<Long, List<SettingPolicy>> getGroupSettingPolicyMapping(
@@ -520,11 +556,12 @@ public class EntitySettingsResolver {
         return groupSettingPoliciesMap;
     }
 
-    /** Query the GroupInfo from GroupComponent for the provided GroupIds.
+    /**
+     * Query the GroupInfo from GroupComponent for the provided GroupIds.
      *
-     *   @param groupServiceClient Client for communicating with Group Service
-     *   @param groupIds List of groupIds whose Group definitions has to be fetched
-     *   @return Map of groupId and its Group object
+     * @param groupServiceClient Client for communicating with Group Service
+     * @param groupIds List of groupIds whose Group definitions has to be fetched
+     * @return Map of groupId and its Group object
      */
     private Map<Long, Group> getGroupInfo(GroupServiceBlockingStub groupServiceClient,
                                           Collection<Long> groupIds) {
@@ -558,12 +595,13 @@ public class EntitySettingsResolver {
     class SettingAndPolicyIdRecord {
 
         private final Setting setting;
-
         private final long settingPolicyId;
+        private final SettingPolicy.Type type;
 
-        public SettingAndPolicyIdRecord(final Setting setting, long settingPolicyId) {
+        SettingAndPolicyIdRecord(final Setting setting, long settingPolicyId, SettingPolicy.Type type) {
             this.setting = setting;
             this.settingPolicyId = settingPolicyId;
+            this.type = type;
         }
 
         public Setting getSetting() {
@@ -572,6 +610,10 @@ public class EntitySettingsResolver {
 
         public long getSettingPolicyId() {
             return settingPolicyId;
+        }
+
+        public SettingPolicy.Type getType() {
+            return type;
         }
     }
 }
