@@ -95,6 +95,16 @@ public class ClusterStatsReaderTest {
             }
         }
 
+        // Insert only one commodity other than above for day "2017-12-13" in cluster 1
+        InsertSetMoreStep<?> insertStmtOneComm = historydbIO.getJooqBuilder()
+                .insertInto(CLUSTER_STATS_BY_DAY)
+                .set(Tables.CLUSTER_STATS_BY_DAY.RECORDED_ON, Date.valueOf("2017-12-13"))
+                .set(Tables.CLUSTER_STATS_BY_DAY.INTERNAL_NAME, clusterId1)
+                .set(Tables.CLUSTER_STATS_BY_DAY.PROPERTY_TYPE, "CPU")
+                .set(Tables.CLUSTER_STATS_BY_DAY.PROPERTY_SUBTYPE, "CPU")
+                .set(Tables.CLUSTER_STATS_BY_DAY.VALUE, BigDecimal.valueOf(20));
+        historydbIO.execute(BasedbIO.Style.FORCED, insertStmtOneComm);
+
         // a stat record from another cluster
         InsertSetMoreStep<?> insertStmt = historydbIO.getJooqBuilder()
                 .insertInto(CLUSTER_STATS_BY_DAY)
@@ -199,7 +209,7 @@ public class ClusterStatsReaderTest {
         t1 = Date.valueOf("2017-12-13").getTime();
         result = clusterStatsReader.getStatsRecordsByDay(Long.parseLong(clusterId1),
                         t1, t1, commodityNames);
-        // Db should return data from 2017-12-12 as that is most recent data on or before 2017-12-13.
+        // Db should return data from 2017-12-12 as that is most recent data on or before 2017-12-13 for these commodities.
         assertEquals(2, result.size());
         result.stream()
             .map(record -> record.getRecordedOn())

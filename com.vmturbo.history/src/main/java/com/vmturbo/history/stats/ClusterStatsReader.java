@@ -71,6 +71,7 @@ public class ClusterStatsReader {
                    .select(CLUSTER_STATS_BY_DAY.RECORDED_ON.max())
                    .from(CLUSTER_STATS_BY_DAY)
                    .where(CLUSTER_STATS_BY_DAY.INTERNAL_NAME.eq(Long.toString(clusterUuid)))
+                   .and(whereInCommodityNames)
                    .and(CLUSTER_STATS_BY_DAY.RECORDED_ON.lessOrEqual(new java.sql.Date(startDate))));
         } else {
             dateCondition = date(CLUSTER_STATS_BY_DAY.RECORDED_ON)
