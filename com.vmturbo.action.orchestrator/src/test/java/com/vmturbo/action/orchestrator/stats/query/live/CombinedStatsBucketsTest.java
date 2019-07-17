@@ -348,7 +348,7 @@ public class CombinedStatsBucketsTest {
                         .setProvision(ProvisionExplanation.newBuilder()
                             .setProvisionBySupplyExplanation(
                                 ProvisionBySupplyExplanation.newBuilder()
-                                    .setMostExpensiveCommodity(
+                                    .setMostExpensiveCommodityInfo(
                                             ActionOrchestratorTestUtils.createReasonCommodity(
                                                 CommodityDTO.CommodityType.CPU_VALUE, null)))
                         .build()));
@@ -364,7 +364,7 @@ public class CombinedStatsBucketsTest {
                         .setProvision(ProvisionExplanation.newBuilder()
                             .setProvisionBySupplyExplanation(
                                 ProvisionBySupplyExplanation.newBuilder()
-                                    .setMostExpensiveCommodity(
+                                    .setMostExpensiveCommodityInfo(
                                             ActionOrchestratorTestUtils.createReasonCommodity(
                                                 CommodityDTO.CommodityType.MEM_VALUE, null)))
                         .build()));
@@ -380,7 +380,7 @@ public class CombinedStatsBucketsTest {
                         .setProvision(ProvisionExplanation.newBuilder()
                             .setProvisionBySupplyExplanation(
                                 ProvisionBySupplyExplanation.newBuilder()
-                                    .setMostExpensiveCommodity(
+                                    .setMostExpensiveCommodityInfo(
                                         ActionOrchestratorTestUtils.createReasonCommodity(
                                                 CommodityDTO.CommodityType.MEM_VALUE, null)))
                         .build()));

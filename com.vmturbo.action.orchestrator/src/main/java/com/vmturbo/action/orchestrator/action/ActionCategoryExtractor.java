@@ -92,7 +92,7 @@ public class ActionCategoryExtractor {
                     case PROVISION_BY_SUPPLY_EXPLANATION:
                         if (SEGMENTATION_COMMODITY_SET
                                         .contains(provExp.getProvisionBySupplyExplanation()
-                                                        .getMostExpensiveCommodity().getCommodityType().getType())) {
+                                                        .getMostExpensiveCommodityInfo().getCommodityType().getType())) {
                             // if activation is due to segmentation commodity(DRS is a subclass of it)
                             return ActionCategory.COMPLIANCE;
                         } else {

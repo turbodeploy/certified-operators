@@ -510,7 +510,7 @@ public class ActionDTOUtil {
                         .map(baseType -> createReasonCommodityFromBaseType(baseType));
                 } else if (provisionExplanation.hasProvisionBySupplyExplanation()) {
                     return Stream.of(provisionExplanation.getProvisionBySupplyExplanation()
-                                    .getMostExpensiveCommodity());
+                                    .getMostExpensiveCommodityInfo());
                 } else {
                     return Stream.empty();
                 }

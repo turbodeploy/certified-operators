@@ -148,7 +148,8 @@ message Explanation {
         }
         // Provision by supply explanation contains the base type of the most expensive commodity.
         message ProvisionBySupplyExplanation {
-            required ReasonCommodity most_expensive_commodity = 1;
+            optional int32 most_expensive_commodity = 1 [deprecated=true];
+            required ReasonCommodity most_expensive_commodity_info = 2;
         }
 
         // Provision by demand explanation

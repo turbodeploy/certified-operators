@@ -249,7 +249,10 @@ public class ExplanationComposerTest {
                 .setExplanation(Explanation.newBuilder()
                     .setProvision(ProvisionExplanation.newBuilder()
                             .setProvisionBySupplyExplanation(ProvisionBySupplyExplanation.newBuilder()
-                                    .setMostExpensiveCommodity(ActionOrchestratorTestUtils.createReasonCommodity(21, null)))))
+                                    .setMostExpensiveCommodityInfo(ReasonCommodity.newBuilder()
+                                            .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                                    .setType(21).build()).build()).build()).build()))
+
                 .build();
 
         assertEquals("Mem congestion", ExplanationComposer.composeExplanation(provision));

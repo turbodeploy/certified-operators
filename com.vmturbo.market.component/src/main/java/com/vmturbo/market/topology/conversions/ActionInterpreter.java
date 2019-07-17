@@ -778,7 +778,7 @@ public class ActionInterpreter {
         return ProvisionExplanation.newBuilder()
                 .setProvisionBySupplyExplanation(
                         ProvisionBySupplyExplanation.newBuilder()
-                                .setMostExpensiveCommodity(
+                                .setMostExpensiveCommodityInfo(
                                         ReasonCommodity.newBuilder().setCommodityType(commType).build())
                                 .build())
                 .build();

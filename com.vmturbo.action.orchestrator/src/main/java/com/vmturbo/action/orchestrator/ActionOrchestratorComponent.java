@@ -3,11 +3,14 @@ package com.vmturbo.action.orchestrator;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.SortedMap;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 
+import com.vmturbo.action.orchestrator.migration.MigrationConfig;
+import com.vmturbo.components.common.migration.Migration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +42,7 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
 @Configuration("theComponent")
 @Import({ActionOrchestratorApiConfig.class,
         ActionOrchestratorDiagnosticsConfig.class,
+        MigrationConfig.class,
         RpcConfig.class,
         NotificationsConfig.class,
         ActionExecutionConfig.class,
@@ -68,6 +72,9 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
     @Autowired
     private WorkflowConfig workflowConfig;
 
+    @Autowired
+    private MigrationConfig migrationConfig;
+
     /**
      * JWT token verification and decoding.
      */
@@ -83,6 +90,12 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
         getHealthMonitor().addHealthCheck(
                 new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,dbConfig.dataSource()::getConnection));
         getHealthMonitor().addHealthCheck(actionOrchestratorApiConfig.kafkaProducerHealthMonitor());
+    }
+
+    @Override
+    @Nonnull
+    protected SortedMap<String, Migration> getMigrations() {
+        return migrationConfig.actionsMigrationsLibrary().getMigrationsList();
     }
 
     @Override

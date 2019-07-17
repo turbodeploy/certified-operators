@@ -466,9 +466,10 @@ public class ActionSpecMapperTest {
                         .setProvisionedSeller(-1).build()).build();
         Explanation provision = Explanation.newBuilder().setProvision(ProvisionExplanation
                         .newBuilder().setProvisionBySupplyExplanation(ProvisionBySupplyExplanation
-                                        .newBuilder().setMostExpensiveCommodity(
-                                                createReasonCommodity(21, null)).build())
-                        .build()).build();
+                                        .newBuilder().setMostExpensiveCommodityInfo(
+                                                ReasonCommodity.newBuilder().setCommodityType(
+                                                CommodityType.newBuilder().setType(21).build())
+                                                        .build())).build()).build();
 
         final MultiEntityRequest srcReq = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
             topologyEntityDTO("EntityToClone", 3L, EntityType.VIRTUAL_MACHINE_VALUE)));

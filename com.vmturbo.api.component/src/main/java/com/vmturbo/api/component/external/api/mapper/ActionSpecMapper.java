@@ -312,7 +312,7 @@ public class ActionSpecMapper {
             @Nonnull final ActionSpec actionSpec,
             @Nonnull final ActionSpecMappingContext context,
             final long topologyContextId)
-                    throws UnknownObjectException, ExecutionException, InterruptedException {
+                    throws UnsupportedActionException, UnknownObjectException, ExecutionException, InterruptedException {
         // Construct a response ActionApiDTO to return
         final ActionApiDTO actionApiDTO = new ActionApiDTO();
         // actionID and uuid are the same
@@ -579,10 +579,10 @@ public class ActionSpecMapper {
 
     @Nonnull
     private String createRiskDescription(@Nonnull final ActionSpec actionSpec,
-                    @Nonnull final ActionSpecMappingContext context) {
+                    @Nonnull final ActionSpecMappingContext context) throws UnsupportedActionException {
         final Optional<String> policyId = tryExtractPlacementPolicyId(actionSpec.getRecommendation());
         if (policyId.isPresent()) {
-            final long entityOid = getEntityOid(actionSpec.getRecommendation().getInfo());
+            final long entityOid = ActionDTOUtil.getPrimaryEntityId(actionSpec.getRecommendation());
             final long policyOid = Long.parseLong(policyId.get());
 
             try {
@@ -611,25 +611,6 @@ public class ActionSpecMapper {
     }
 
     /**
-     * Return targetId from the move or reconfigure action
-     *
-     * @param actionInfo contains the entityId for the action
-     * @return entityOid
-     */
-    private long getEntityOid(ActionDTO.ActionInfo actionInfo) {
-        long entityOid = 0;
-
-        if (actionInfo.hasMove()) {
-            entityOid = actionInfo.getMove().getTarget().getId();
-        }
-
-        if (actionInfo.hasReconfigure()) {
-            entityOid = actionInfo.getReconfigure().getTarget().getId();
-        }
-        return entityOid;
-    }
-
-    /**
      * Return comma seperated list of commodities to be reconfigured on the consumer
      *
      * @param recommendation contains the entityId for the action
@@ -645,7 +626,7 @@ public class ActionSpecMapper {
         if (recommendation.getExplanation().getReconfigure().getReconfigureCommodityCount() < 1) {
             return Optional.empty();
         }
-        String commNames = recommendation.getExplanation().getReconfigure().getReconfigureCommodityList().stream()
+        String commNames = ActionDTOUtil.getReasonCommodities(recommendation)
                 .filter(comm -> comm.getCommodityType().getType()
                         != CommodityDTO.CommodityType.SEGMENTATION_VALUE)
                 .map(ReasonCommodity::getCommodityType)
@@ -763,7 +744,7 @@ public class ActionSpecMapper {
             if (!recommendation.getExplanation().getProvision().hasProvisionBySupplyExplanation()) {
                 return Optional.empty();
             }
-            ReasonCommodity reasonCommodity = recommendation.getExplanation().getProvision().getProvisionBySupplyExplanation().getMostExpensiveCommodity();
+            ReasonCommodity reasonCommodity = recommendation.getExplanation().getProvision().getProvisionBySupplyExplanation().getMostExpensiveCommodityInfo();
             if (reasonCommodity.getCommodityType().getType() != CommodityDTO.CommodityType.SEGMENTATION_VALUE) {
                 return Optional.empty();
             }

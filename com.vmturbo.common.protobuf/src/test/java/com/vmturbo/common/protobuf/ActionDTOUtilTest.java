@@ -321,7 +321,7 @@ public class ActionDTOUtilTest {
             .setExplanation(Explanation.newBuilder()
                 .setProvision(ProvisionExplanation.newBuilder()
                     .setProvisionBySupplyExplanation(ProvisionBySupplyExplanation.newBuilder()
-                        .setMostExpensiveCommodity(commodity1))))
+                        .setMostExpensiveCommodityInfo(commodity1))))
             .setInfo(ActionInfo.newBuilder()
                 .setProvision(Provision.newBuilder()
                     .setEntityToClone(createActionEntity(11))))

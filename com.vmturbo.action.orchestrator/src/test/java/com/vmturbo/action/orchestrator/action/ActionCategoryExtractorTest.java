@@ -146,7 +146,10 @@ public class ActionCategoryExtractorTest {
     public void testProvisionBySupplyPerformanceAssurance() {
         Explanation provisionBySupply1 = Explanation.newBuilder().setProvision(ProvisionExplanation
             .newBuilder().setProvisionBySupplyExplanation(ProvisionBySupplyExplanation
-                .newBuilder().setMostExpensiveCommodity(ActionOrchestratorTestUtils.createReasonCommodity(102, null))
+                .newBuilder().setMostExpensiveCommodityInfo(ReasonCommodity.newBuilder()
+                                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                .setType(102).build())
+                                .build())
                         .build())
             .build()).build();
 
@@ -159,7 +162,7 @@ public class ActionCategoryExtractorTest {
         Explanation provisionBySupply2 = Explanation.newBuilder().setProvision(ProvisionExplanation
             .newBuilder().setProvisionBySupplyExplanation(ProvisionBySupplyExplanation
                 .newBuilder()
-                .setMostExpensiveCommodity(ActionOrchestratorTestUtils.createReasonCommodity(CommodityType.SEGMENTATION_VALUE, null))
+                .setMostExpensiveCommodityInfo(ActionOrchestratorTestUtils.createReasonCommodity(CommodityType.SEGMENTATION_VALUE, null))
                 .build())
             .build()).build();
 
