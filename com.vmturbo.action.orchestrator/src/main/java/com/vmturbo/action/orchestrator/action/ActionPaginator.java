@@ -19,6 +19,7 @@ import com.google.common.base.Preconditions;
 
 import com.vmturbo.action.orchestrator.store.query.QueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.ActionOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
@@ -48,9 +49,10 @@ public class ActionPaginator {
         final Map<ActionOrderBy, Comparator<ActionView>> registry = new EnumMap<>(ActionOrderBy.class);
         registry.put(ActionOrderBy.ACTION_NAME,
             new StableActionComparator(Comparator.comparing(ActionView::getDescription)));
-        // TODO: ask PM if we need to show top X actions and do we want to sort actions by importance ever?
         registry.put(ActionOrderBy.ACTION_SEVERITY,
-            new StableActionComparator(Comparator.comparingDouble(view -> view.getRecommendation().getDeprecatedImportance())));
+                     new StableActionComparator(Comparator.comparing(actionView ->
+                        ActionDTOUtil.mapActionCategoryToSeverity(actionView.getActionCategory())
+                     )));
         registry.put(ActionOrderBy.ACTION_RISK_CATEGORY, new StableActionComparator((a1, a2) -> {
             final ActionCategory a1Category = a1.getActionCategory();
             final ActionCategory a2Category = a2.getActionCategory();
