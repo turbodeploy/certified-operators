@@ -146,7 +146,8 @@ public class TopologyConverter {
     // shoppinglist oid, buyer oid, seller oid and commodity bought
     private final Map<Long, ShoppingListInfo> shoppingListOidToInfos = Maps.newHashMap();
 
-    public final Map<Long, ShoppingListInfo> getShoppingListOidToInfos() {return shoppingListOidToInfos;}
+    // We need access only in tests
+    protected final Map<Long, ShoppingListInfo> getShoppingListOidToInfos() {return shoppingListOidToInfos;}
 
     // Mapping of CommoditySpecificationTO (string representation of type and baseType from
     // CommoditySpecificationTO) to specific CommodityType.
@@ -872,7 +873,7 @@ public class TopologyConverter {
                 }
             }
             // the shopping list might not exist in shoppingListOidToInfos, because it might be
-            // created inside M2 via a provision by demand action
+            // created inside M2 via a provision by demand or provision by supply action
             if (shoppingListOidToInfos.get(sl.getOid()) == null) {
                 ShoppingListInfo slInfo = new ShoppingListInfo(sl.getOid(), traderTO.getOid(),
                         sl.getSupplier(), null,
