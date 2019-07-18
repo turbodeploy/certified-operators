@@ -86,7 +86,8 @@ public class BusinessUnitsService implements IBusinessUnitsService {
     @Override
     public List<BusinessUnitApiDTO> getBusinessUnits(@Nullable BusinessUnitType type,
                                                      @Nullable String cloudType,
-                                                     @Nullable Boolean hasParent) throws Exception {
+                                                     @Nullable Boolean hasParent,
+                                                     @Nullable String scopeUuid) throws Exception {
         // TODO OM-35804 implement required behavior for other types other than discount
         if (BusinessUnitType.DISCOUNT.equals(type)) {
             final Iterator<Discount> discounts = costService.getDiscounts(GetDiscountRequest.newBuilder()

@@ -91,7 +91,7 @@ public class BusinessUnitsServiceTest {
     public void testGetBusinessUnitsWithDiscountType() throws Exception {
         BusinessUnitApiDTO apiDTO = getBusinessUnitApiDTO();
         when(mapper.toDiscountBusinessUnitApiDTO(any(), any(), any())).thenReturn(ImmutableList.of(apiDTO));
-        List<BusinessUnitApiDTO> businessUnitApiDTOList = businessUnitsService.getBusinessUnits(BusinessUnitType.DISCOUNT, null, null);
+        List<BusinessUnitApiDTO> businessUnitApiDTOList = businessUnitsService.getBusinessUnits(BusinessUnitType.DISCOUNT, null, null, null);
         assertEquals(1, businessUnitApiDTOList.size());
         assertEquals(TEST_DISPLAY_NAME, businessUnitApiDTOList.get(0).getDisplayName());
         assertEquals(UUID_STRING, businessUnitApiDTOList.get(0).getUuid());
@@ -105,7 +105,7 @@ public class BusinessUnitsServiceTest {
         apiDTO.setUuid(UUID_STRING);
         apiDTO.setBusinessUnitType(BusinessUnitType.DISCOVERED);
         when(mapper.getAndConvertDiscoveredBusinessUnits(any(), any(), any())).thenReturn(ImmutableList.of(apiDTO));
-        List<BusinessUnitApiDTO> businessUnitApiDTOList = businessUnitsService.getBusinessUnits(BusinessUnitType.DISCOVERED, null, null);
+        List<BusinessUnitApiDTO> businessUnitApiDTOList = businessUnitsService.getBusinessUnits(BusinessUnitType.DISCOVERED, null, null, null);
         assertEquals(1, businessUnitApiDTOList.size());
         assertEquals(TEST_DISPLAY_NAME, businessUnitApiDTOList.get(0).getDisplayName());
         assertEquals(UUID_STRING, businessUnitApiDTOList.get(0).getUuid());
