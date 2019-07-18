@@ -180,7 +180,7 @@ public class V_01_00_05__Change_Dynamic_Groups_Api_Filters_Protobuf_Representati
             // static groups have the same representation
             if (protobufObject.hasStaticGroupMembers()) {
                 logger.info("Static simple group: no translation needed");
-                return false;
+                return true;
             }
 
             // make sure this is a valid dynamic group

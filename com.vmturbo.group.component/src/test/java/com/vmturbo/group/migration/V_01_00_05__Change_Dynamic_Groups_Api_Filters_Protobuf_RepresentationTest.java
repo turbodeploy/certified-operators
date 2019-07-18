@@ -15,11 +15,14 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.google.common.collect.ImmutableList;
+
 import com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo;
 import com.vmturbo.common.protobuf.common.Migration.MigrationStatus;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.GroupDTOREST.Group.Origin;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
@@ -177,6 +180,57 @@ public class V_01_00_05__Change_Dynamic_Groups_Api_Filters_Protobuf_Representati
                 searchParametersCollection.getSearchParameters(0).getSearchFilter(0));
         Assert.assertEquals(searchParametersOut.get(0).getSourceFilterSpecs(),
                 FilterSpecs.newBuilder(displayNameSpecs).setExpressionType("RXEQ").build());
+
+        // check migration idempotence
+        final MigrationProgressInfo migrationResult1 = migration.startMigration();
+        assertThat(migrationResult1.getStatus(), is(MigrationStatus.SUCCEEDED));
+        assertThat(migrationResult1.getCompletionPercentage(), is(100.0f));
+        final List<GroupingRecord> allRecordsOut1 = dslContext.selectFrom(Tables.GROUPING).fetch();
+        Assert.assertEquals(allRecordsOut, allRecordsOut1);
+    }
+
+    /**
+     * Tests treatment of a static group: it should not be deleted or translated.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testStaticGroup() throws Exception {
+        final String name = "name";
+        final long groupId = 0L;
+        final List<Long> memberOids = ImmutableList.of(1L, 2L, 5L);
+
+        final StaticGroupMembers staticGroupMembers = StaticGroupMembers.newBuilder()
+                                                            .addAllStaticMemberOids(memberOids)
+                                                            .build();
+        final GroupInfo groupInfoIn = GroupInfo.newBuilder()
+                                            .setName(name)
+                                            .setDisplayName(name)
+                                            .setEntityType(EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
+                                            .setStaticGroupMembers(staticGroupMembers)
+                                            .build();
+        final GroupingRecord recordIn = new GroupingRecord(
+                                                groupId, name, Origin.USER.getValue(),
+                                                Type.GROUP_VALUE, EntityType.VIRTUAL_MACHINE.getValue(),
+                                                null, groupInfoIn.toByteArray());
+        dslContext.insertInto(Tables.GROUPING).set(recordIn).execute();
+
+        final MigrationProgressInfo migrationResult = migration.startMigration();
+        assertThat(migrationResult.getStatus(), is(MigrationStatus.SUCCEEDED));
+        assertThat(migrationResult.getCompletionPercentage(), is(100.0f));
+
+        final List<GroupingRecord> allRecordsOut = dslContext.selectFrom(Tables.GROUPING).fetch();
+        Assert.assertEquals(1, allRecordsOut.size());
+        final GroupingRecord recordOut = allRecordsOut.get(0);
+        Assert.assertEquals(groupId, (long)recordOut.getId());
+        Assert.assertEquals(name, recordOut.getName());
+        Assert.assertEquals(Origin.USER.getValue(), (int)recordOut.getOrigin());
+        Assert.assertEquals(Type.GROUP_VALUE, (int)recordOut.getType());
+        Assert.assertEquals(EntityType.VIRTUAL_MACHINE.getValue(), (int)recordOut.getEntityType());
+        Assert.assertNull(recordOut.getDiscoveredById());
+
+        final GroupInfo groupInfoOut = GroupInfo.parseFrom(recordOut.getGroupData());
+        Assert.assertEquals(groupInfoIn, groupInfoOut);
 
         // check migration idempotence
         final MigrationProgressInfo migrationResult1 = migration.startMigration();
