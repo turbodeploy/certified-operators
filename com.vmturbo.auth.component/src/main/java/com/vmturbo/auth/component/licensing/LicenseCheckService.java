@@ -108,6 +108,9 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
     public static final String WORKLOAD_COUNT_IS_OVER_LIMIT = "Workload count is over limit";
 
     @VisibleForTesting
+    public static final String LICENSE_IS_ABOUT_TO_EXPIRE = "License is about to expire";
+
+    @VisibleForTesting
     public static final String TURBONOMIC_LICENSE_WILL_EXPIRE = "Your Turbonomic license on Turbonomic" +
         " instance %s will expire tomorrow, %s. To keep using the full power of" +
         " Turbonomic, be sure to install an updated license. To obtain a license, contact your Turbonomic" +
@@ -348,7 +351,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
                     if (isGoingToExpire(license.getExpirationDate(), numBeforeLicenseExpirationDays)) {
                         final String description = String.format(TURBONOMIC_LICENSE_WILL_EXPIRE,
                                 AuditLogUtils.getLocalIpAddress(), license.getExpirationDate());
-                        notifyLicenseExpiration(description, description, license);
+                        notifyLicenseExpiration(description, LICENSE_IS_ABOUT_TO_EXPIRE, license);
                     }
                     if (isOverLimit) {
                         final String description = String.format(LICENSE_WORKLOAD_COUNT_HAS_OVER_LIMIT,

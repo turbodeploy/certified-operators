@@ -254,10 +254,10 @@ public class LicenseCheckServiceTest {
         licenseCheckService.publishNotification(false, Collections.singleton(license), aggregateLicense);
         final String description = String.format(LicenseCheckService.TURBONOMIC_LICENSE_WILL_EXPIRE,
             AuditLogUtils.getLocalIpAddress(), expirationDate);
-        final SystemNotification notification = notification(description, description);
+        final SystemNotification notification = notification(description, LicenseCheckService.LICENSE_IS_ABOUT_TO_EXPIRE);
         verify(systemNotificationIMessageSender).sendMessage(notification);
         verify(mailManager).sendMail(Collections.singletonList(EMAIL),
-                description, description);
+            LicenseCheckService.LICENSE_IS_ABOUT_TO_EXPIRE, description);
     }
 
     /**
