@@ -18,6 +18,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -108,7 +109,7 @@ public class MergePolicyApplication extends PlacementPolicyApplication {
                 .getCommoditySoldListBuilderList();
 
             final Optional<Builder> commodityToModify = commoditySoldList.stream()
-                .filter(commodity -> commodity.getCommodityType().getType() == getCommodityType(policy))
+                .filter(commodity -> isCommodityTypeEligibleForMerge(commodity.getCommodityType(), policy))
                 .findFirst();
 
             final String key = commKey(policy);
@@ -170,7 +171,7 @@ public class MergePolicyApplication extends PlacementPolicyApplication {
                         .getCommodityBoughtBuilderList();
                     final Optional<CommodityBoughtDTO.Builder> commodityToModify = commodityBoughtDTOBuilderList
                         .stream()
-                        .filter(commodity -> commodity.getCommodityType().getType() == getCommodityType(policy))
+                        .filter(commodity -> isCommodityTypeEligibleForMerge(commodity.getCommodityType(), policy))
                         .findFirst();
 
                     final String key = commKey(policy);
@@ -191,6 +192,21 @@ public class MergePolicyApplication extends PlacementPolicyApplication {
         });
     }
 
+    /**
+     * Is commodityType eligible for merge? It is eligible for merge if the commodity type is the
+     * same as the commodity type associated with the policy. For a storage cluster commodity type,
+     * it is eligible for merge only if it is a real storage cluster commodity.
+     *
+     * @param commodityType the commodity type to check
+     * @param policy the merge policy
+     * @return true if commodityType is eligible for merge
+     */
+    private boolean isCommodityTypeEligibleForMerge(@Nonnull TopologyDTO.CommodityType commodityType,
+                                                    @Nonnull MergePolicy policy) {
+        return commodityType.getType() == getCommodityType(policy)
+            && (commodityType.getType() != CommodityType.STORAGE_CLUSTER_VALUE
+            || TopologyDTOUtil.isRealStorageClusterCommodityKey(commodityType.getKey()));
+    }
 
     /**
      * Get list of OIDs.

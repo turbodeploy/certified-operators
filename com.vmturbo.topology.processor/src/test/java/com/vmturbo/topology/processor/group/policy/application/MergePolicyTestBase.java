@@ -41,12 +41,12 @@ import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreato
  * Base test class for merge policy.
  */
 public class MergePolicyTestBase {
-    private static final long POLICY_ID = 9999L;
+    protected static final long POLICY_ID = 9999L;
     private static final long NEW_POLICY_ID = 10000L;
     private final long consumerID = 1234L;
     private final long providerID = 5678L;
     protected final List<Long> mergeGropuIds = Lists.newArrayList(consumerID, providerID);
-    private final GroupResolver groupResolver = mock(GroupResolver.class);
+    protected final GroupResolver groupResolver = mock(GroupResolver.class);
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
     protected Group group1;
@@ -397,7 +397,7 @@ public class MergePolicyTestBase {
 
     }
 
-    private void applyPolicy(@Nonnull final MergePolicy mergePolicy) {
+    protected void applyPolicy(@Nonnull final MergePolicy mergePolicy) {
         final MergePolicyApplication application = new MergePolicyApplication(groupResolver, topologyGraph);
         application.apply(Collections.singletonList(mergePolicy));
     }

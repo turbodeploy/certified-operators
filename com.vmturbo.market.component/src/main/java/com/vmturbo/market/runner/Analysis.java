@@ -48,6 +48,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -80,9 +81,6 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  * Analysis execution and properties. This can be for a scoped plan or for a real-time market.
  */
 public class Analysis {
-    private static final String STORAGE_CLUSTER_WITH_GROUP = "group";
-    private static final String STORAGE_CLUSTER_ISO = "iso-";
-    private static final String FREE_STORAGE_CLUSTER = "free_storage_cluster";
 
     private static final DataMetricSummary TOPOLOGY_SCOPING_SUMMARY = DataMetricSummary.builder()
             .withName("mkt_economy_scoping_duration_seconds")
@@ -577,13 +575,8 @@ public class Analysis {
      * @return true if it is for real cluster
      */
     private boolean isRealStorageClusterCommodity(TopologyDTO.CommoditySoldDTO comm) {
-        if (comm.getCommodityType().getType() == CommodityType.STORAGE_CLUSTER_VALUE) {
-            return !comm.getCommodityType().getKey().toLowerCase()
-                    .startsWith(STORAGE_CLUSTER_WITH_GROUP) && !comm.getCommodityType().getKey()
-                    .toLowerCase().startsWith(STORAGE_CLUSTER_ISO) && !comm.getCommodityType()
-                    .getKey().toLowerCase().equals(FREE_STORAGE_CLUSTER);
-        }
-        return false;
+        return comm.getCommodityType().getType() == CommodityType.STORAGE_CLUSTER_VALUE
+            && TopologyDTOUtil.isRealStorageClusterCommodityKey(comm.getCommodityType().getKey());
     }
 
     /**

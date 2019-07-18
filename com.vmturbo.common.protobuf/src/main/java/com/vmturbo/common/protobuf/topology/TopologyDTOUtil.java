@@ -1,5 +1,7 @@
 package com.vmturbo.common.protobuf.topology;
 
+import static com.vmturbo.platform.common.builders.SDKConstants.FREE_STORAGE_CLUSTER;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -24,6 +26,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Utilities for dealing with protobuf messages in topology/TopologyDTO.proto.
  */
 public final class TopologyDTOUtil {
+    private static final String STORAGE_CLUSTER_WITH_GROUP = "group";
+    private static final String STORAGE_CLUSTER_ISO = "iso-";
 
     private static final Logger LOGGER = LogManager.getLogger();
 
@@ -197,5 +201,23 @@ public final class TopologyDTOUtil {
      */
     public static boolean isStorageEntityType(int entityType) {
         return STORAGE_VALUES.contains(entityType);
+    }
+
+    /**
+     * Check if the key of storage cluster commodity is for real storage cluster.
+     * <p>
+     * Real storage cluster is a storage cluster that is physically exits in the data center.
+     * </p>
+     * @param storageClusterCommKey key of storage cluster commodity key
+     * @return true if it is for real cluster
+     */
+    public static boolean isRealStorageClusterCommodityKey(String storageClusterCommKey) {
+        if (storageClusterCommKey == null) {
+            return false;
+        }
+        storageClusterCommKey = storageClusterCommKey.toLowerCase();
+        return !storageClusterCommKey.startsWith(STORAGE_CLUSTER_WITH_GROUP)
+            && !storageClusterCommKey.startsWith(STORAGE_CLUSTER_ISO)
+            && !storageClusterCommKey.equals(FREE_STORAGE_CLUSTER);
     }
 }
