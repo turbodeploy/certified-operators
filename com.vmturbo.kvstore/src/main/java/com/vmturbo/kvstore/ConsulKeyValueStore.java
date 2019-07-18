@@ -225,7 +225,12 @@ public class ConsulKeyValueStore implements KeyValueStore {
                 .append("/")
                 .append(key)
                 .toString();
-       return UriUtils.encodeFragment(fullKey, "UTF-8");
+        try {
+            return UriUtils.encodeFragment(fullKey, "UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            logger.error(e); // Should never happen unless UTF-8 encoding support is somehow dropped
+            return "";
+        }
     }
 
     private <T> T performKeyValueOperation(@Nonnull ReturningConsulOperation<T> operation,
