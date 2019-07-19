@@ -128,13 +128,14 @@ public class ActionStateUpdaterTest {
         assertEquals(Status.SUCCESS, testAction.getCurrentExecutableStep().get().getStatus());
         verify(notificationSender).notifyActionSuccess(success);
         SerializationState serializedAction = new SerializationState(testAction);
+
         verify(actionHistoryDao).persistActionHistory(recommendation.getId(),
                 recommendation,
                 realtimeTopologyContextId,
                 serializedAction.getRecommendationTime(),
                 serializedAction.getActionDecision(),
                 serializedAction.getExecutionStep(),
-                serializedAction.getCurrentState().getNumber());
+                serializedAction.getCurrentState().getNumber(), serializedAction.getActionDetailData());
     }
 
 
@@ -167,7 +168,7 @@ public class ActionStateUpdaterTest {
                 serializedAction.getRecommendationTime(),
                 serializedAction.getActionDecision(),
                 serializedAction.getExecutionStep(),
-                serializedAction.getCurrentState().getNumber());
+                serializedAction.getCurrentState().getNumber(), serializedAction.getActionDetailData());
     }
 
     @Test

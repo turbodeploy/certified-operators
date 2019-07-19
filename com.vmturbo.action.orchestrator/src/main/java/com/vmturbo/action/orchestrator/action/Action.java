@@ -219,6 +219,12 @@ public class Action implements ActionView {
         this.actionTranslation = savedState.actionTranslation;
         this.actionCategory = savedState.actionCategory;
         this.actionModeCalculator = actionModeCalculator;
+        if (savedState.getActionDetailData() != null) {
+            // TODO: OM-48679 Initially actionDetailData will contain the action description.
+            //  It was named this way instead of description since eventually we should store the
+            //  the data used to build the action description instead of the description itself.
+            this.description = new String(savedState.getActionDetailData());
+        }
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
@@ -977,6 +983,9 @@ public class Action implements ActionView {
             return actionCategory;
         }
 
+        @Nullable
+        public byte[] getActionDetailData() { return actionDetailData; }
+
         final LocalDateTime recommendationTime;
 
         final ActionDecision actionDecision;
@@ -986,6 +995,8 @@ public class Action implements ActionView {
         final ActionState currentState;
 
         final ActionTranslation actionTranslation;
+
+        final byte[] actionDetailData;
 
         /**
          * We don't really need to save the category because it can be extracted from the
@@ -1003,6 +1014,8 @@ public class Action implements ActionView {
             this.currentState = action.stateMachine.getState();
             this.actionTranslation = action.actionTranslation;
             this.actionCategory = action.getActionCategory();
+            this.actionDetailData = action.getDescription() == null
+                ? null : action.getDescription().getBytes();
         }
 
         public SerializationState(final long actionPlanId,
@@ -1011,7 +1024,8 @@ public class Action implements ActionView {
                                   @Nullable ActionDecision decision,
                                   @Nullable ExecutionStep executableStep,
                                   @Nonnull ActionState actionState,
-                                  @Nonnull ActionTranslation actionTranslation) {
+                                  @Nonnull ActionTranslation actionTranslation,
+                                  @Nullable byte[] actionDetailData) {
             this.actionPlanId = actionPlanId;
             this.recommendation = recommendation;
             this.recommendationTime = recommendationTime;
@@ -1021,6 +1035,7 @@ public class Action implements ActionView {
             this.actionTranslation = actionTranslation;
             this.actionCategory =
                     ActionCategoryExtractor.assignActionCategory(recommendation.getExplanation());
+            this.actionDetailData = actionDetailData;
         }
     }
 
