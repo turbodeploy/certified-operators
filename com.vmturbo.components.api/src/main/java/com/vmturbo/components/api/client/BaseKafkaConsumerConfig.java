@@ -18,7 +18,7 @@ public class BaseKafkaConsumerConfig extends BaseKafkaConfig {
     /**
      * Kafka consumer group id.
      */
-    @Value("${consumer_group:${instance_id}}")
+    @Value("${consumer_group:${component_type}}")
     private String consumerGroup;
 
     /**
