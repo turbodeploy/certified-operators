@@ -51,13 +51,30 @@ if [ ! -d "/var/lib/mysql/mysql" ]; then
     fi
 
     echo '+++ MariaDB init process successful.' 2>&1 | logger --tag mariadb -u /tmp/log.sock
+else
+    # The mysql conf is copied to the $MYSQL_CONF location during DB initilization.
+    # But if it is missing(maybe due to upgrade or the file was deleted), then copy it from
+    # the default location.
+    if [ ! -f $MYSQL_CONF ]; then
+        copy_mysql_default_conf_file
+    fi
+
+    # Start mysqld in background
+    /usr/sbin/mysqld --defaults-file=$MYSQL_CONF --user=mysql --datadir=/var/lib/mysql --lc-messages-dir=/usr/share/mysql --skip-networking 2>&1 | logger --tag mariadb -u /tmp/log.sock &
+
+    # Upgrade mysql database if the database server was updated
+    /usr/bin/mysql_upgrade -S /var/run/mysqld/mysqld.sock -u root -pvmturbo 2>&1 | logger --tag mariadb -u /tmp/log.sock
+
+    pid=$(ps -e -o pid,args | grep [m]ysqld | awk '{print $1}')
+    # Terminate the initial mysqld
+    if ! kill -s TERM "$pid" || ! wait "$pid"; then
+        echo '--- MariaDB upgrade process failed. Unable to terminate daemon.' 2>&1 | logger --tag mariadb -u /tmp/log.sock
+    fi
+
+    echo '+++ MariaDB upgrade process successful.' 2>&1 | logger --tag mariadb -u /tmp/log.sock
 fi
 
-# The mysql conf is copied to the $MYSQL_CONF location during DB initilization.
-# But if it is missing(maybe due to upgrade or the file was deleted), then copy it from
-# the default location.
-if [ ! -f $MYSQL_CONF ]; then
-    copy_mysql_default_conf_file
-fi
 /change_buffer_pool_size.sh $MYSQL_CONF  2>&1 | logger --tag mariadb -u /tmp/log.sock
+
+# Start the database server
 exec /usr/sbin/mysqld --defaults-file=$MYSQL_CONF --user=mysql --datadir=/var/lib/mysql --lc-messages-dir=/usr/share/mysql > >(logger --tag mariadb -u /tmp/log.sock) 2>&1

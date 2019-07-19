@@ -1,19 +1,19 @@
-FROM registry.access.redhat.com/rhel7
+FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
 # Add user and group beforehand, so that rpm won't create its own with differen uid/gid.
 RUN groupadd -g 1000 nginx && useradd -r -g 1000 -s /bin/bash -u 102 nginx && \
 passwd -l root
 
-# Install nginx and other tools
+# Install rsyslog and nginx packages
 RUN echo "[nginx]" > /etc/yum.repos.d/nginx.repo && \
     echo "name=nginx repo" >> /etc/yum.repos.d/nginx.repo && \
     echo "baseurl=http://nginx.org/packages/rhel/7/x86_64/" >> /etc/yum.repos.d/nginx.repo && \
     echo "gpgcheck=0" >> /etc/yum.repos.d/nginx.repo && \
     echo "enabled=1" >> /etc/yum.repos.d/nginx.repo && \
-    yum install -y openssl nginx rsyslog gettext && \
-    yum clean all && \
-    rm -rf /var/cache/yum
+    dnf install -y rsyslog procps-ng openssl nginx gettext  && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
 
 # Create a user and group first so the IDs get set the same way, even as
 # the rest of this may change over time.

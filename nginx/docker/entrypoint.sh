@@ -30,9 +30,9 @@ envsubst '${API} ${TOPOLOGY} ${DNS_RESOLVER} ${WORKER_PROCESSES} ${WORKER_CONNEC
 # and consume disk space (Docker JSON log driver captures and saves them then docker logs shows them).
 # In a production environment, get the logs from the rsyslog component instead.
 if [[ -z ${LOG_TO_STDOUT} ]]; then
-  export LOGGER_COMMAND="logger --tag nginx-${instance_id} -u /tmp/log.sock"
+  export LOGGER_COMMAND="logger --tag ${instance_id} -u /tmp/log.sock"
 else
-  export LOGGER_COMMAND="eval tee >(logger --tag nginx-${instance_id} -u /tmp/log.sock)"
+  export LOGGER_COMMAND="eval tee >(logger --tag ${instance_id} -u /tmp/log.sock)"
 fi
 
 echo "Configuring" $WORKER_PROCESSES "and" $WORKER_CONNECTIONS "connections per process." 2>&1 | ${LOGGER_COMMAND}

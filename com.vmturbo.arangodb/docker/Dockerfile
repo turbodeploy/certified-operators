@@ -1,29 +1,19 @@
-FROM registry.access.redhat.com/rhel7
+FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
-ENV ARCHITECTURE x86_64
 ENV ARANGO_VERSION 3.3.23-1
-ENV ARANGO_URL https://download.arangodb.com/arangodb33/CentOS_7
-ENV ARANGO_PACKAGE arangodb3-${ARANGO_VERSION}.${ARCHITECTURE}.rpm
-ENV ARANGO_PACKAGE_URL ${ARANGO_URL}/${ARCHITECTURE}/${ARANGO_PACKAGE}
+ENV ARANGO_URL https://download.arangodb.com/arangodb33/CentOS_7/x86_64/arangodb3-${ARANGO_VERSION}.x86_64.rpm
+ENV OPENSSL_URL=https://download.fedoraproject.org/pub/fedora/linux/releases/30/Everything/x86_64/os/Packages/c/compat-openssl10-1.0.2o-5.fc30.x86_64.rpm
 
-RUN rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \
-        yum update -y && \
-        yum install -y \
-        jemalloc \
-        rsyslog \
-        snappy \
-        libssl1.0.0 \
-        ca-certificates \
-        pwgen \
-        curl \
-        python-flask \
-    yum clean all && \
-    rm -rf /var/cache/yum
+# Install rsyslog and other packages
+RUN dnf install -y https://download.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \
+    dnf install -y rsyslog procps-ng jemalloc pwgen && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
 
 RUN mkdir /docker-entrypoint-initdb.d && \
-	curl -k -s -O ${ARANGO_PACKAGE_URL} && \
-    rpm -i ${ARANGO_PACKAGE} && \
+    dnf install -y ${OPENSSL_URL} && \
+    dnf install -y ${ARANGO_URL} && \
     rm -rf /var/lib/arangodb3/* &&\
     sed -ri \
 # https://docs.arangodb.com/latest/Manual/Administration/Configuration/Endpoint.html
@@ -33,8 +23,7 @@ RUN mkdir /docker-entrypoint-initdb.d && \
 # run as arangodb:arangodb
         -e 's!^#\s*uid\s*=.*!uid = arangodb!' \
         -e 's!^#\s*gid\s*=.*!gid = arangodb!' \
-        /etc/arangodb3/arangod.conf && \
-    rm -f ${ARANGO_PACKAGE}*
+        /etc/arangodb3/arangod.conf
 
 COPY arangod.conf /etc/arangodb3/
 RUN chown arangodb:arangodb /etc/arangodb3/arangod.conf

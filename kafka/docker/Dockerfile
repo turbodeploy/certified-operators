@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/rhel7
+FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
 # This is the release of Kafka and Scala to pull in.
@@ -11,9 +11,10 @@ COPY start-kafka /
 RUN groupadd -g 1000 kafka && useradd -m -r -d /home/kafka -g 1000 -s /bin/bash -u 101 kafka && \
     passwd -l root
 
-RUN yum install -y rsyslog java-11-openjdk-headless && \
-    yum clean all && \
-    rm -rf /var/cache/yum
+# Install rsyslog and java-11 packages
+RUN dnf install -y rsyslog procps-ng java-11-openjdk-headless && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
 
 RUN source /etc/kafka.profile && \
     cd /tmp && \

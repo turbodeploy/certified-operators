@@ -1,9 +1,10 @@
-FROM registry.access.redhat.com/rhel7
+FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
-RUN yum install -y rsyslog java-11-openjdk-headless && \
-    yum clean all && \
-    rm -rf /var/cache/yum
+# Install rsyslog and java-11 packages
+RUN dnf install -y rsyslog procps-ng java-11-openjdk-headless  && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
 
 COPY entrypoint.sh /
 COPY collect_diags.sh /

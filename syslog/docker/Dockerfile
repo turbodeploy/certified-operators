@@ -1,12 +1,13 @@
-FROM registry.access.redhat.com/rhel7
+FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
 RUN groupadd -g 1000 vmtsyslog && useradd -m -r -d /home/vmtsyslog -g 1000 -s /bin/bash -u 1000 vmtsyslog && \
     passwd -l root
 
-RUN yum install -y rsyslog zip && \
-    yum clean all && \
-    rm -rf /var/cache/yum && \
+# Install rsyslog package
+RUN dnf install -y rsyslog procps-ng zip  && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf && \
     mkdir -p /home/vmtsyslog/rsyslog && \
     chown -R vmtsyslog:vmtsyslog /home/vmtsyslog && \
     mkdir -p /var/lib/logrotate && \

@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/rhel7
+FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
 # This is the release of Zookeeper to pull in.
@@ -13,9 +13,10 @@ passwd -l root
 COPY start_zookeeper /
 COPY zookeeper-ready /
 
-RUN yum install -y rsyslog java-11-openjdk-headless && \
-    yum clean all && \
-    rm -rf /var/cache/yum
+# Install rsyslog and java-11 packages
+RUN dnf install -y rsyslog procps-ng python2 java-11-openjdk-headless && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
 
 RUN cd /tmp && \
     curl -k -s -O https://10.10.150.66/repository/xl/zookeeper-${ZOOKEEPER_VERSION}.tar.gz && \

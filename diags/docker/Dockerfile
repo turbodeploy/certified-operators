@@ -1,11 +1,15 @@
-FROM registry.access.redhat.com/rhel7
+FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
-RUN yum install -y rsyslog java-11-openjdk-devel \
-    openssl rsyslog gettext iputils iproute nmap tcpdump lsof \
-    telnet sysstat strace iptraf-ng openssh-clients traceroute && \
-    yum clean all && \
-    rm -rf /var/cache/yum && \
+# Install rsyslog and java-11 packages
+RUN dnf install -y rsyslog procps-ng java-11-openjdk-headless \
+        openssl gettext iputils iproute nmap lsof openssh-clients && \
+    echo "[fedora]" > /etc/yum.repos.d/fedora.repo && \
+    echo "baseurl = https://download.fedoraproject.org/pub/fedora/linux/releases/30/Everything/x86_64/os" >> /etc/yum.repos.d/fedora.repo && \
+    echo "gpgcheck=0" >> /etc/yum.repos.d/fedora.repo && \
+    dnf install -y tcpdump telnet sysstat strace iptraf-ng traceroute && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf && \
     mkdir /root/.ssh
 
 COPY entrypoint.sh /

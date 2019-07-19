@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/rhel7
+FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
 # This is the release of Consul to pull in.
@@ -6,7 +6,8 @@ ENV CONSUL_VERSION=0.8.3
 # This is the release of the HashiCorp-built version of dumb-init.
 ENV DOCKER_DUMBINIT=1.2.0
 
-RUN yum install -y openssl iproute unzip rsyslog && \
+# Install rsyslog and consul packages
+RUN dnf install -y rsyslog procps-ng openssl iproute unzip && \
     cd /tmp && \
     curl -k -s -O https://releases.hashicorp.com/consul/${CONSUL_VERSION}/consul_${CONSUL_VERSION}_linux_amd64.zip && \
     unzip -d /bin consul_${CONSUL_VERSION}_linux_amd64.zip && \
@@ -16,8 +17,8 @@ RUN yum install -y openssl iproute unzip rsyslog && \
     curl -k -s -O https://github.com/Yelp/dumb-init/releases/download/v${DOCKER_DUMBINIT}/dumb-init_${DOCKER_DUMBINIT}_amd64 && \
     mv /tmp/dumb-init_${DOCKER_DUMBINIT}_amd64 /bin/dumb-init && \
     chmod +x /bin/dumb-init && \
-    yum clean all && \
-    rm -rf /var/cache/yum
+    dnf clean all && \
+    rm -rf /var/cache/dnf
 
 # Create a consul user and group first so the IDs get set the same way, even as
 # the rest of this may change over time.

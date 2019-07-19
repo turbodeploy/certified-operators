@@ -46,8 +46,6 @@ ln -fs /opt/zookeeper/conf/log4j.properties $ZOOCFGDIR/log4j.properties || exit_
 # Autoconfigure the max java heap based on container limit
 SERVER_JVMFLAGS="-Xms16m -XX:+UseG1GC -XX:MaxRAMPercentage=75.0"
 
-env
-
 # Zookeeper doesn't handle SIGTERM. By design, ZK doesn't have graceful shutdown.
 exec /opt/zookeeper/bin/zkServer.sh start-foreground > >($LOGGER_COMMAND) 2>&1
 
