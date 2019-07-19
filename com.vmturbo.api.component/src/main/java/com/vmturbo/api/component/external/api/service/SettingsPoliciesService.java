@@ -110,11 +110,8 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
                 }
             });
 
-        // Inject settings to make it visible in UI if :
-        // No entity type was provided and none of the settings
-        // have scope (Default settings have no scope).
-        if (acceptableEntityTypes.isEmpty() &&
-                settingPolicies.stream().noneMatch(setting -> setting.getInfo().hasScope())) {
+        // Inject settings to make it visible in UI if no entity type was provided.
+        if (acceptableEntityTypes.isEmpty()) {
             settingPolicies.add(createSettingPolicyForGlobalActionMode());
         }
 

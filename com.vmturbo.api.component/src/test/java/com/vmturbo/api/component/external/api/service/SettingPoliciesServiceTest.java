@@ -14,12 +14,14 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
 
@@ -148,11 +150,29 @@ public class SettingPoliciesServiceTest {
     }
 
     @Test
+    public void testGetPoliciesWithGlobalPolicyInjection() throws Exception {
+        when(settingPolicyBackend.listSettingPolicies(any()))
+                .thenReturn(Collections.singletonList(DEFAULT_POLICY));
+
+        // Since default policy has no entity type we should inject Global Action Policy
+        // and statsMapper should be called with two policies : Default and Global.
+        final List<SettingPolicy> settingPolicies = new LinkedList<>();
+        settingPolicies.add(DEFAULT_POLICY);
+        settingPolicies.add(settingsPoliciesService.createSettingPolicyForGlobalActionMode());
+
+        List<SettingsPolicyApiDTO> ret =
+                settingsPoliciesService.getSettingsPolicies(false, Collections.emptyList());
+
+        // Verify stats mapper is called with two policies mentioned above.
+        verify(settingsMapper, Mockito.times(1)).convertSettingPolicies(settingPolicies);
+    }
+
+    @Test
     public void testGetPolicies() throws Exception {
         when(settingPolicyBackend.listSettingPolicies(any()))
                 .thenReturn(Collections.singletonList(SCOPE_POLICY));
 
-        when(settingsMapper.convertSettingPolicies(Collections.singletonList(SCOPE_POLICY)))
+        when(settingsMapper.convertSettingPolicies(any()))
                 .thenReturn(Collections.singletonList(RET_SP_DTO));
 
         List<SettingsPolicyApiDTO> ret =
