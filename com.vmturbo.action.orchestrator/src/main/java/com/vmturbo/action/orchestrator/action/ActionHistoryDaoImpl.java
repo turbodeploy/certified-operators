@@ -9,7 +9,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import org.jooq.DSLContext;
 import org.slf4j.Logger;
@@ -74,11 +73,10 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
             final long actionId,
             @Nonnull final ActionDTO.Action recommendation,
             final long realtimeTopologyContextId,
-            @Nonnull final LocalDateTime recommendationTime,
+            @Nonnull final LocalDateTime recommedationTime,
             @Nonnull final ActionDecision decision,
             @Nonnull final ExecutionStep executionStep,
-            @Nonnull final int currentState,
-            @Nullable final byte[] actionDetailData) {
+            @Nonnull final int currentState) {
         final LocalDateTime curTime = LocalDateTime.now();
         String userName = SecurityConstant.USER_ID_CTX_KEY.get();
         if (userName == null) {
@@ -89,12 +87,11 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
                 curTime, curTime,
                 realtimeTopologyContextId,
                 recommendation,
-                recommendationTime,
+                recommedationTime,
                 decision,
                 executionStep,
                 currentState,
-                userName,
-                actionDetailData);
+                userName);
         dsl.newRecord(ACTION_HISTORY, actionHistory).store();
         return actionHistory;
     }
@@ -129,7 +126,6 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
                         actionHistory.getActionDecision(),
                         actionHistory.getExecutionStep(),
                         ActionDTO.ActionState.forNumber(actionHistory.getCurrentState()),
-                        new ActionTranslation(actionHistory.getRecommendation()),
-                        actionHistory.getActionDetailData()), actionModeCalculator);
+                        new ActionTranslation(actionHistory.getRecommendation())), actionModeCalculator);
     }
 }

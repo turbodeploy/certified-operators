@@ -66,9 +66,6 @@ public class ActionsRpcServiceTest {
         assertEquals(k2, builder.getActionCountsByDateBuilderList().get(1).getDate());
         // one is mode = manual, state = succeeded, the second is mode = manual, state = failed
         assertEquals(2, builder.getActionCountsByDateBuilderList().get(0).getCountsByStateAndModeCount());
-        assertEquals(actionView1.getDescription(),"Move VM10 from PM1 to PM2");
-        assertEquals(actionView2.getDescription(),"Move VM11 from PM1 to PM3");
-        assertEquals(actionView3.getDescription(),"Move VM12 from PM4 to PM2");
     }
 
 
@@ -97,9 +94,6 @@ public class ActionsRpcServiceTest {
         assertEquals(2, builder.getActionCountsByDateBuilderList().size());
         assertEquals(k1, builder.getActionCountsByDateBuilderList().get(0).getDate());
         assertEquals(k2, builder.getActionCountsByDateBuilderList().get(1).getDate());
-        assertEquals(actionView1.getDescription(),"Move VM10 from PM1 to PM2");
-        assertEquals(actionView2.getDescription(),"Move VM11 from PM1 to PM3");
-        assertEquals(actionView3.getDescription(),"Move VM12 from PM4 to PM2");
     }
 
     private ActionView executableMoveAction(
@@ -111,24 +105,22 @@ public class ActionsRpcServiceTest {
                 long targetId,
                 ActionState state) {
         final ActionDTO.Action action = ActionDTO.Action.newBuilder()
-            .setId(id)
-            .setDeprecatedImportance(0)
-            .setExecutable(true)
-            .setExplanation(Explanation.newBuilder().build())
-            .setInfo(TestActionBuilder
-                .makeMoveInfo(targetId, sourceId, sourceType, destId, destType))
-            .build();
+                .setId(id)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(TestActionBuilder
+                        .makeMoveInfo(targetId, sourceId, sourceType, destId, destType))
+                .build();
 
-        String actionDescription = "Move VM"+targetId+" from PM"+sourceId+" to PM"+destId;
-        SerializationState orchestratorAction = new SerializationState(ACTION_PLAN_ID,
-            action,
-            LocalDateTime.now(),
-            ActionDecision.getDefaultInstance(),
-            ExecutionStep.getDefaultInstance(),
-            state,
-            new ActionTranslation(action),
-            actionDescription.getBytes());
-        return spy(new Action(orchestratorAction, actionModeCalculator));
+        SerializationState orchesratorAction = new SerializationState(ACTION_PLAN_ID,
+                action,
+                LocalDateTime.now(),
+                ActionDecision.getDefaultInstance(),
+                ExecutionStep.getDefaultInstance(),
+                state,
+                new ActionTranslation(action));
+        return spy(new Action(orchesratorAction, actionModeCalculator));
     }
 
     private ActionView executableActivateAction(long id, long targetId) {

@@ -268,8 +268,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
                     serializedAction.getRecommendationTime(),
                     serializedAction.getActionDecision(),
                     serializedAction.getExecutionStep(),
-                    serializedAction.getCurrentState().getNumber(),
-                    serializedAction.getActionDetailData()
+                    serializedAction.getCurrentState().getNumber()
             );
         } catch (RuntimeException e) {
             logger.error(e.getMessage());

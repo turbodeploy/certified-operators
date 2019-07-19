@@ -27,11 +27,10 @@ public interface ActionHistoryDao {
             final long actionId,
             @Nonnull final ActionDTO.Action recommendation,
             final long realtimeTopologyContextId,
-            @Nonnull final LocalDateTime recommendationTime,
+            @Nonnull final LocalDateTime recommedationTime,
             @Nullable final ActionDecision decision,
             @Nullable final ExecutionStep executionStep,
-            final int currentState,
-            @Nullable final byte[] actionDetailData);
+            final int currentState);
 
     /**
      * Returns all the existing action history between 'startDate' and 'endDate'.
