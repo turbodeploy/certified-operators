@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.interceptor;
 
+import static com.vmturbo.api.component.external.api.interceptor.LicenseInterceptor.API_COMPONENT_IS_NOT_READY;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -57,6 +58,7 @@ public class LicenseInterceptorTest {
     public void testValidLicense() throws Exception {
         // test API call when license is valid
         when(licenseCheckClient.hasValidLicense()).thenReturn(true);
+        when(licenseCheckClient.isReady()).thenReturn(true);
         boolean result = licenseInterceptor.preHandle(request, response, null);
         assertTrue(result);
     }
@@ -65,6 +67,7 @@ public class LicenseInterceptorTest {
     public void testInvalidLicense() throws Exception {
         // test API call when license is invalid
         when(licenseCheckClient.hasValidLicense()).thenReturn(false);
+        when(licenseCheckClient.isReady()).thenReturn(true);
         boolean result = licenseInterceptor.preHandle(request, response, null);
         assertFalse(result);
 
@@ -74,5 +77,21 @@ public class LicenseInterceptorTest {
         ErrorApiDTO errorApiDTO = objectMapper.readValue(responseWriter.toString(), ErrorApiDTO.class);
         assertEquals(HttpStatus.FORBIDDEN.value(), errorApiDTO.getType());
         assertEquals("Invalid license", errorApiDTO.getMessage());
+    }
+
+    @Test
+    public void testAPICompnentNotReady() throws Exception {
+        // test API call when license summary is not available
+        when(licenseCheckClient.hasValidLicense()).thenReturn(false);
+        when(licenseCheckClient.isReady()).thenReturn(false);
+        boolean result = licenseInterceptor.preHandle(request, response, null);
+        assertFalse(result);
+
+        verify(response).setStatus(HttpStatus.FORBIDDEN.value());
+        verify(response).setContentType(ContentType.APPLICATION_JSON.toString());
+
+        ErrorApiDTO errorApiDTO = objectMapper.readValue(responseWriter.toString(), ErrorApiDTO.class);
+        assertEquals(HttpStatus.FORBIDDEN.value(), errorApiDTO.getType());
+        assertEquals(API_COMPONENT_IS_NOT_READY, errorApiDTO.getMessage());
     }
 }

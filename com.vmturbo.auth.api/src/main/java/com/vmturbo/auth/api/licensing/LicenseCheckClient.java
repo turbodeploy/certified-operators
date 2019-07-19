@@ -61,6 +61,14 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
         return false;
     }
 
+    /**
+     * Is license check ready? Internally, it will check if last license summary is available.
+     * @return true iff summary is available.
+     */
+    public boolean isReady() {
+        return lastLicenseSummary != null;
+    }
+
     @Override
     protected void processMessage(@Nonnull final LicenseSummary message) throws ApiClientException, InterruptedException {
         logger.info("Got a new license summary generated at {}", message.getGenerationDate());
