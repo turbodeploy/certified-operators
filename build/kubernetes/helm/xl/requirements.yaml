@@ -127,6 +127,10 @@ dependencies:
     repository: file://../probes/mediation-appdynamics
     version: 0.1.0
     condition: appdynamics.enabled
+  - name: mediation-appdynamics
+    repository: file://../probes/mediation-appinsights
+    version: 0.1.0
+    condition: appinsights.enabled
   - name: mediation-aws
     repository: file://../probes/mediation-aws
     version: 0.1.0
@@ -211,6 +215,10 @@ dependencies:
     repository: file://../probes/mediation-netflow
     version: 0.1.0
     condition: netflow.enabled
+  - name: mediation-netflow
+    repository: file://../probes/mediation-newrelic
+    version: 0.1.0
+    condition: newrelic.enabled
   - name: mediation-mssql
     repository: file://../probes/mediation-mssql
     version: 0.1.0

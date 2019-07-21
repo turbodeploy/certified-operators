@@ -39,6 +39,8 @@ aix:
   enabled: false
 appdynamics:
   enabled: false
+appinsights:
+  enabled: false
 aws:
   enabled: false
 datadog:
@@ -72,6 +74,8 @@ mssql:
 netapp:
   enabled: false
 netflow:
+  enabled: false
+newrelic:
   enabled: false
 oneview:
   enabled: false
