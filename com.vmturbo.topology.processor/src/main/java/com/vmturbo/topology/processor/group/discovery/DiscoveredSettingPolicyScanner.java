@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -222,7 +223,7 @@ public class DiscoveredSettingPolicyScanner {
                 targetIdToSettingPoliciesMap.computeIfAbsent(host.getTargetId(), targetId ->
                     new TargetSettingPolicies());
             final DiscoveredSettingPolicyCreator settingPolicyBuilder =
-                targetSettingPolicies.builderFor(commoditiesWithThresholds);
+                targetSettingPolicies.builderFor(clusterInfo, commoditiesWithThresholds);
             settingPolicyBuilder.applyToHost(host.getOid(), clusterInfo);
         }
 
@@ -254,19 +255,22 @@ public class DiscoveredSettingPolicyScanner {
          * the desired {@link UtilizationThresholdValues}, a new {@link DiscoveredSettingPolicyCreator} will
          * be created, stored for later use, and returned.
          *
+         * @param clusterInfo the cluster for which the thresholds apply
          * @param commoditiesSold The Memory and/or CPU commodities potentially containing utilization threshold values.
          *                        At least one of these commodities must contain a utilization threshold value.
          * @return A {@link DiscoveredSettingPolicyCreator} for the Mem/CPU utilization thresholds on
          *         the input commodities.
          */
-        public DiscoveredSettingPolicyCreator builderFor(@Nonnull final List<CommodityDTO.Builder> commoditiesSold) {
+        public DiscoveredSettingPolicyCreator builderFor(
+                        @Nonnull Optional<ClusterInfo> clusterInfo,
+                        @Nonnull final List<CommodityDTO.Builder> commoditiesSold) {
             Preconditions.checkArgument(commoditiesSold.size() <= 2); // Max size is 2 (MEM + CPU)
             Preconditions.checkArgument(!commoditiesSold.isEmpty());
 
             final UtilizationThresholdValues values = new UtilizationThresholdValues(
                 utilizationThresholdFor(commoditiesSold, CommodityType.MEM),
-                utilizationThresholdFor(commoditiesSold, CommodityType.CPU)
-            );
+                utilizationThresholdFor(commoditiesSold, CommodityType.CPU),
+                clusterInfo);
 
             return thresholdValuesToBuilders.computeIfAbsent(values,
                 v -> new DiscoveredSettingPolicyCreator(values));
@@ -301,24 +305,30 @@ public class DiscoveredSettingPolicyScanner {
     }
 
     /**
-     * Wraps optional mem and cpu utilization thresholds.
+     * Wraps optional mem and cpu utilization thresholds per (optional) cluster.
      *
      * Overrides {@link #equals(Object)} and {@link #hashCode()} so that these objects can be
-     * compared and used as keys in {@link HashMap}s.
+     * compared and used as keys in {@link HashMap}s. In {@link ClusterInfo} only checks the
+     * name of the cluster to determine equality.
      */
     private static class UtilizationThresholdValues {
         private final Optional<Float> memUtilizationThresholdPercentage;
         private final Optional<Float> cpuUtilizationThresholdPercentage;
+        private final Optional<ClusterInfo> clusterInfo;
 
+        private static final Function<ClusterInfo, String> CLUSTER_NAME = ClusterInfo::getName;
         /**
          * Create a new {@link UtilizationThresholdValues}. At least one of the mem or cpu utilization
          * values must be present.
          *
          * @param memUtilizationThresholdPercentage The memory utilization percentage.
          * @param cpuUtilizationThresholdPercentage The CPU utilization percentage.
+         * @param clusterInfo The clusterInfo object for which the thresholds apply.
          */
-        UtilizationThresholdValues(@Nonnull final Optional<Double> memUtilizationThresholdPercentage,
-                                          @Nonnull final Optional<Double> cpuUtilizationThresholdPercentage) {
+        UtilizationThresholdValues(
+            @Nonnull final Optional<Double> memUtilizationThresholdPercentage,
+            @Nonnull final Optional<Double> cpuUtilizationThresholdPercentage,
+            @Nonnull Optional<ClusterInfo> clusterInfo) {
             // At least one of mem or CPU utilization threshold must be non-null.
             Preconditions.checkArgument(memUtilizationThresholdPercentage.isPresent() ||
                 cpuUtilizationThresholdPercentage.isPresent());
@@ -327,6 +337,7 @@ public class DiscoveredSettingPolicyScanner {
                 .map(Double::floatValue);
             this.cpuUtilizationThresholdPercentage = cpuUtilizationThresholdPercentage
                 .map(Double::floatValue);
+            this.clusterInfo = clusterInfo;
         }
 
         /**
@@ -347,6 +358,16 @@ public class DiscoveredSettingPolicyScanner {
         @Nonnull
         public Optional<Float> getCpuUtilizationThresholdPercentage() {
             return cpuUtilizationThresholdPercentage;
+        }
+
+        /**
+         * Get the cluster Info.
+         *
+         * @return the cluster Info
+         */
+        @Nonnull
+        public Optional<ClusterInfo> getClusterInfo() {
+            return clusterInfo;
         }
 
         /**
@@ -380,7 +401,7 @@ public class DiscoveredSettingPolicyScanner {
         @Override
         public int hashCode() {
             return com.google.common.base.Objects.hashCode(memUtilizationThresholdPercentage,
-                cpuUtilizationThresholdPercentage);
+                cpuUtilizationThresholdPercentage, clusterInfo.map(CLUSTER_NAME));
         }
 
         @Override
@@ -391,9 +412,11 @@ public class DiscoveredSettingPolicyScanner {
 
             final UtilizationThresholdValues v = (UtilizationThresholdValues)other;
             return com.google.common.base.Objects.equal(memUtilizationThresholdPercentage,
-                v.memUtilizationThresholdPercentage) &&
-                com.google.common.base.Objects.equal(cpuUtilizationThresholdPercentage,
-                    v.cpuUtilizationThresholdPercentage);
+                    v.memUtilizationThresholdPercentage)
+                && com.google.common.base.Objects.equal(cpuUtilizationThresholdPercentage,
+                    v.cpuUtilizationThresholdPercentage)
+                && com.google.common.base.Objects.equal(clusterInfo.map(CLUSTER_NAME),
+                    v.clusterInfo.map(CLUSTER_NAME));
         }
     }
 
@@ -403,8 +426,6 @@ public class DiscoveredSettingPolicyScanner {
     private static class DiscoveredSettingPolicyCreator {
         private final UtilizationThresholdValues utilizationThresholdValues;
         private final List<Long> hostOids = new ArrayList<>();
-        private final Set<String> clusterNames = new HashSet<>();
-        private final Set<String> clusterDisplayNames = new HashSet<>();
 
         DiscoveredSettingPolicyCreator(@Nonnull final UtilizationThresholdValues utilizationThresholdValues) {
             this.utilizationThresholdValues = Objects.requireNonNull(utilizationThresholdValues);
@@ -422,10 +443,7 @@ public class DiscoveredSettingPolicyScanner {
          * @param clusterInfo The optional cluster containing this host.
          */
         public void applyToHost(final long hostOid, @Nonnull final Optional<ClusterInfo> clusterInfo) {
-            if (clusterInfo.isPresent()) {
-                clusterNames.add(clusterInfo.get().getName());
-                clusterDisplayNames.add(clusterInfo.get().getDisplayName());
-            } else {
+            if (!clusterInfo.isPresent()) {
                 hostOids.add(hostOid);
             }
         }
@@ -479,9 +497,12 @@ public class DiscoveredSettingPolicyScanner {
                     lowestHostOid, targetName));
             } else {
                 // Clusters are defined on the target (e.g. VC probe)
-                settingBuilder.addAllDiscoveredGroupNames(clusterNames);
-                settingBuilder.setName(String.format(IMPORTED_HA_SETTINGS_NAME,
-                    "for " + clusterDisplayNames, targetName));
+                utilizationThresholdValues.getClusterInfo()
+                    .ifPresent(ci -> {
+                        settingBuilder.addDiscoveredGroupNames(ci.getName());
+                        settingBuilder.setName(String.format(IMPORTED_HA_SETTINGS_NAME,
+                            "for " + ci.getDisplayName(), targetName));
+                    });
             }
             utilizationThresholdValues.getMemUtilizationSetting().ifPresent(settingBuilder::addSettings);
             utilizationThresholdValues.getCpuUtilizationSetting().ifPresent(settingBuilder::addSettings);

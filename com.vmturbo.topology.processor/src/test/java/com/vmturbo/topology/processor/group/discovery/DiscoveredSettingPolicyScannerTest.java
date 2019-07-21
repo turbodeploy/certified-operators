@@ -400,7 +400,7 @@ public class DiscoveredSettingPolicyScannerTest {
 
     private String policyName(long targetId, long hostId) {
         String clusterDisplayNames = targetId == VMM_TARGET_ID
-            ? String.valueOf(hostId) : ("for " + Lists.newArrayList(CLUSTER_DISPLAY_NAME));
+            ? String.valueOf(hostId) : ("for " + CLUSTER_DISPLAY_NAME);
         return String.format(DiscoveredSettingPolicyScanner.IMPORTED_HA_SETTINGS_NAME,
             clusterDisplayNames, targetStore.getTargetAddress(targetId).get());
     }
