@@ -9,7 +9,7 @@ global:
 #  imageUsername: turbouser
 #  imagePassword: turbopassword
   repository: turbonomic
-  tag: 7.20.0
+  tag: 7.21.0
 #  externalIP: 10.233.0.3 # byo k8s DNS
 #              10.100.0.10 # eks DNS
 #              10.0.0.10 # aks DNS
