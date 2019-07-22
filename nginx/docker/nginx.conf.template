@@ -226,7 +226,7 @@ http {
             # proxy_pass_header X-XSRF-TOKEN;
 
             # long timeout to allow for WS connections idle for longer than the default 60s
-            proxy_read_timeout 6000s;
+            proxy_read_timeout 600s;
 
             proxy_intercept_errors on;
             proxy_cache_bypass $http_upgrade;

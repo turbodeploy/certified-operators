@@ -25,7 +25,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 public class ApiWebsocketHandlerTest {
 
     private final WebSocketSession session = mock(WebSocketSession.class);
-    private final ApiWebsocketHandler websocketHandler = new ApiWebsocketHandler(60*30, TimeUnit.SECONDS);
+    private final ApiWebsocketHandler websocketHandler = new ApiWebsocketHandler();
 
     @Captor
     private ArgumentCaptor<BinaryMessage> notificationCaptor;

@@ -7,15 +7,22 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.web.socket.BinaryMessage;
 import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.PingMessage;
+import org.springframework.web.socket.PongMessage;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.adapter.jetty.JettyWebSocketSession;
@@ -29,11 +36,18 @@ import com.vmturbo.api.ReportNotificationDTO.ReportNotification;
 import com.vmturbo.api.TargetNotificationDTO.TargetNotification;
 import com.vmturbo.api.TargetNotificationDTO.TargetsNotification;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.proactivesupport.DataMetricGauge;
 
 /**
  * Implements websocket handler for the UX.
  */
-public class ApiWebsocketHandler extends TextWebSocketHandler implements UINotificationChannel {
+public class ApiWebsocketHandler extends TextWebSocketHandler implements UINotificationChannel, AutoCloseable {
+
+    static final DataMetricGauge NUM_WEBSOCKET_SESSIONS = DataMetricGauge.builder()
+            .withName("api_websocket_sessions_active")
+            .withHelp("Number of active websocket sessions.")
+            .build()
+            .register();
 
     /**
      * The logger.
@@ -45,10 +59,35 @@ public class ApiWebsocketHandler extends TextWebSocketHandler implements UINotif
      */
     private final Set<WebSocketSession> sessions_ = Collections.synchronizedSet(new HashSet<>());
     private final long sessionTimeoutMilliSeconds;
+    private final int pingIntervalSeconds;
 
-    public ApiWebsocketHandler(final int sessionTimeoutSeconds, final TimeUnit sessionTimeoutUnit) {
+    private final ScheduledExecutorService scheduler;
+
+    public ApiWebsocketHandler(final int sessionTimeoutSeconds, final int pingIntervalSeconds) {
         // convert from second to milliseconds
-        this.sessionTimeoutMilliSeconds = sessionTimeoutUnit.toMillis(sessionTimeoutSeconds);
+        this.sessionTimeoutMilliSeconds = TimeUnit.SECONDS.toMillis(sessionTimeoutSeconds);
+        this.pingIntervalSeconds = pingIntervalSeconds;
+
+        if (pingIntervalSeconds > 0) {
+            // we'll only schedule pings if a valid interval was set.
+            logger_.info("Scheduling websocket pings every {} secs.", pingIntervalSeconds);
+            scheduler = Executors.newScheduledThreadPool(1,
+                    new ThreadFactoryBuilder().setNameFormat("websocket-session-monitor-%d").build());
+            scheduler.scheduleAtFixedRate(this::broadcastPing, pingIntervalSeconds, pingIntervalSeconds,
+                    TimeUnit.SECONDS);
+        } else {
+            logger_.info("Not scheduling websocket pings.");
+            scheduler = null;
+        }
+    }
+
+    /**
+     * no-args constructor to facilitate testing.
+     */
+    @VisibleForTesting
+    public ApiWebsocketHandler() {
+        // default 30 min user time out and no websocket pings
+        this(1800, 0);
     }
 
     /**
@@ -68,6 +107,14 @@ public class ApiWebsocketHandler extends TextWebSocketHandler implements UINotif
         }
     }
 
+    @Override
+    protected void handlePongMessage(final WebSocketSession session, final PongMessage message) throws Exception {
+        // We are not doing anything special in terms of liveness tracking at the moment, so we'll
+        // just quietly log the response. The ping-pong traffic is more for avoiding idle timeouts
+        // right now, but in the future we can use it to detect dead clients / bad connections.
+        logger_.debug("Received pong message from session {}.", session.getId());
+    }
+
     /**
      * Handle the established sessions.
      *
@@ -85,6 +132,7 @@ public class ApiWebsocketHandler extends TextWebSocketHandler implements UINotif
         // TODO to Jetty WebSocket implementations.
         if (session instanceof JettyWebSocketSession) {
             JettyWebSocketSession jettySession = (JettyWebSocketSession) session;
+            logger_.debug("Setting websocket idle timeout to {} ms", sessionTimeoutMilliSeconds);
             jettySession.getNativeSession().setIdleTimeout(sessionTimeoutMilliSeconds);
             jettySession.initializeNativeSession(jettySession.getNativeSession());
         } else {
@@ -93,6 +141,7 @@ public class ApiWebsocketHandler extends TextWebSocketHandler implements UINotif
         }
         logger_.info("Connection established: {}, {}", session, this);
         sessions_.add(session);
+        NUM_WEBSOCKET_SESSIONS.setData((double) sessions_.size());
     }
 
     /**
@@ -107,7 +156,7 @@ public class ApiWebsocketHandler extends TextWebSocketHandler implements UINotif
             throws Exception {
         // idle websocket timeout exceptions are expected, since we aren't doing keepalives
         if (exception instanceof TimeoutException) {
-            logger_.debug(exception.getMessage());
+            logger_.info(exception.getMessage());
         } else {
             // TODO: Figure out the multiple sessions handling.
             logger_.error("Transport error", exception);
@@ -126,6 +175,7 @@ public class ApiWebsocketHandler extends TextWebSocketHandler implements UINotif
             throws Exception {
         logger_.info("Connection closed: {}", session);
         sessions_.remove(session);
+        NUM_WEBSOCKET_SESSIONS.setData((double) sessions_.size());
     }
 
     @Override
@@ -188,6 +238,20 @@ public class ApiWebsocketHandler extends TextWebSocketHandler implements UINotif
             .build());
     }
 
+    public void broadcastPing() {
+        if (sessions_.size() == 0) {
+            return; // no need to ping
+        }
+        logger_.debug("Pinging {} sessions", sessions_.size());
+        sessions_.forEach(session -> {
+            try {
+                session.sendMessage(new PingMessage());
+            } catch (IOException e) {
+                logger_.error("Error sending notification.", e);
+            }
+        });
+    }
+
     private void broadcastNotification(@Nonnull final Notification notification) {
         sessions_.forEach(session -> {
             try {
@@ -198,4 +262,11 @@ public class ApiWebsocketHandler extends TextWebSocketHandler implements UINotif
         });
     }
 
+    @Override
+    public void close() throws Exception {
+        if (scheduler != null) {
+            logger_.info("Shutting down websocket session monitor scheduler.");
+            scheduler.shutdownNow();
+        }
+    }
 }

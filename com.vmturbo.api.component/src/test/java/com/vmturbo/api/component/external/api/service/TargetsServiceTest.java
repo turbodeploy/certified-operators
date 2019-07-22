@@ -215,7 +215,7 @@ public class TargetsServiceTest {
                 return new HashSet<>(registeredTargets.values());
             }
         });
-        apiWebsocketHandler = new ApiWebsocketHandler(60 * 30, TimeUnit.SECONDS);
+        apiWebsocketHandler = new ApiWebsocketHandler();
     }
 
     private ProbeInfo createMockProbeInfo(long probeId, String type, String category,
@@ -1103,7 +1103,7 @@ public class TargetsServiceTest {
                 actionSpecMapper(),
                 actionRpcService(),
                 REALTIME_CONTEXT_ID,
-                new ApiWebsocketHandler(60 * 30, TimeUnit.SECONDS));
+                new ApiWebsocketHandler());
         }
 
         @Bean
