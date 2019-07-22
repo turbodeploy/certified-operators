@@ -671,6 +671,28 @@ services:
       instance_id: mediation-appdynamics-1
     restart: always
 
+  mediation-newrelic-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.newrelic.component
+    environment:
+      consul_host: consul
+      component_type: mediation-newrelic
+      instance_id: mediation-newrelic-1
+    restart: always
+
+  mediation-appinsights-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.appinsights.component
+    environment:
+      consul_host: consul
+      component_type: mediation-appinsights
+      instance_id: mediation-appinsights-1
+    restart: always
+
   mediation-dynatrace-prod:
     extends:
       file: common-services.yml

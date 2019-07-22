@@ -445,6 +445,20 @@ services:
 #    mem_limit: 1024M
 #    depends_on: *clustermgrdep
 #
+#  mediation-newrelic:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-newrelic-prod
+#    mem_limit: 1024M
+#    depends_on: *clustermgrdep
+#
+#  mediation-appinsights:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-appinsights-prod
+#    mem_limit: 1024M
+#    depends_on: *clustermgrdep
+#
 #  mediation-dynatrace:
 #    extends:
 #      file: prod-services.yml

@@ -146,10 +146,7 @@ public class TargetsService implements ITargetsService {
      */
     @VisibleForTesting
     static final String UNKNOWN_TARGET_STATUS = "UNKNOWN";
-    /**
-     * Probe types that requires the public cloud feautre in the license
-     */
-    static Set<SDKProbeType> publicCloudProbes = new HashSet<>(Arrays.asList(SDKProbeType.AWS,SDKProbeType.AZURE));
+
     /**
      * This is currently required because the SDK probes have
      * the category field inconsistently cased
@@ -353,29 +350,34 @@ public class TargetsService implements ITargetsService {
         SDKProbeType probeType = SDKProbeType.create(probeInfo.getType());
         switch (category) {
             case APPLICATION_SERVER :
+            case DATABASE_SERVER:
                 return licenseCheckClient.isFeatureAvailable(LicenseFeature.APP_CONTROL);
             case CLOUD_MANAGEMENT:
-                if (publicCloudProbes.contains(probeType)) {
+                if (SDKProbeType.isPublicCloudProbe(probeType)) {
                     return licenseCheckClient.isFeatureAvailable(LicenseFeature.PUBLIC_CLOUD);
                 }
                 return licenseCheckClient.isFeatureAvailable(LicenseFeature.CLOUD_TARGETS);
-            case DATABASE_SERVER:
-                return licenseCheckClient.isFeatureAvailable(LicenseFeature.APP_CONTROL);
             case FABRIC:
                 return licenseCheckClient.isFeatureAvailable(LicenseFeature.FABRIC);
             case GUEST_OS_PROCESSES:
-                if (probeType == SDKProbeType.APPDYNAMICS || probeType == SDKProbeType.DYNATRACE) {
+                // Probes like AppDynamics or NewRelic
+                if (SDKProbeType.isAppControlProbe(probeType)) {
                     return licenseCheckClient.isFeatureAvailable(LicenseFeature.APP_CONTROL);
                 }
+
                 //Docker isn't supported in XL yet. We need to make sure this category will correspond to its implementation
                 if (probeType == SDKProbeType.DOCKER ) {
                     return licenseCheckClient.isFeatureAvailable(LicenseFeature.CONTAINER_CONTROL);
                 }
+
+                // Probes like WMI or SNMP, no special check needed.
+                break;
             case NETWORK:
                 return licenseCheckClient.isFeatureAvailable(LicenseFeature.NETWORK_CONTROL);
             case STORAGE:
                 return licenseCheckClient.isFeatureAvailable(LicenseFeature.STORAGE);
         }
+
         // default behavior is that the probe is licensed.
         return true;
     }
