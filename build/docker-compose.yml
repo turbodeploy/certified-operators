@@ -36,7 +36,6 @@ volumes:
   mediation-aws: *localdriver
   mediation-awsbilling: *localdriver
   mediation-awscost: *localdriver
-  mediation-datadog: *localdriver
   mediation-azure: *localdriver
   mediation-azurecost: *localdriver
   kafka1-log: *localdriver
@@ -887,12 +886,10 @@ services:
     environment:
       component_type: mediation-datadog
       instance_id: mediation-datadog-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_DATADOG_XMX_MB}M ${MEDIATION_DATADOG_SYSTEM_PROPERTIES}"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_DATADOG_SYSTEM_PROPERTIES}"
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
-    volumes:
-      - mediation-datadog:/home/turbonomic/data
     mem_limit: ${MEDIATION_DATADOG_MEM_LIMIT_MB}M
 
   mediation-azure:

@@ -546,8 +546,6 @@ services:
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
-    volumes:
-      - mediation-datadog:/home/turbonomic/data
     restart: always
 
   mediation-azure-prod:
