@@ -27,6 +27,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
@@ -48,6 +49,7 @@ import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMemberOrderBy;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
@@ -77,6 +79,8 @@ import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
+import com.vmturbo.api.pagination.GroupMembersPaginationRequest;
+import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMembersPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsRequest;
@@ -155,7 +159,6 @@ public class GroupsService implements IGroupsService {
     private static final String CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME = "headroomVM";
     private static final String CLUSTER_HEADROOM_SETTINGS_MANAGER = "capacityplandatamanager";
     private static final String CLUSTER_HEADROOM_TEMPLATE_SETTING_UUID = "templateName";
-
     private final ActionsServiceBlockingStub actionOrchestratorRpc;
 
     private final GroupServiceBlockingStub groupServiceRpc;
@@ -744,54 +747,90 @@ public class GroupsService implements IGroupsService {
     }
 
     @Override
-    public List<?> getMembersByGroupUuid(String uuid) throws UnknownObjectException {
+    public GroupMembersPaginationResponse getMembersByGroupUuid(String uuid, final GroupMembersPaginationRequest request) throws UnknownObjectException, InvalidOperationException {
         if (CLUSTER_HEADROOM_GROUP_UUID.equals(uuid)) {
-            return getClusters(ClusterInfo.Type.COMPUTE, Collections.emptyList(), Collections.emptyList())
+            return request.allResultsResponse(getClusters(ClusterInfo.Type.COMPUTE, Collections.emptyList(),
+                Collections.emptyList())
                 .stream()
                 // TODO: The next line is a workaround of a UI limitation. The UI only accepts groups
                 // with classname "Group" This line can be removed when bug OM-30381 is fixed.
                 .peek(groupApiDTO -> groupApiDTO.setClassName(StringConstants.GROUP))
-                .collect(Collectors.toList());
+                .collect(Collectors.toList()));
         } else if (STORAGE_CLUSTER_HEADROOM_GROUP_UUID.equals(uuid)) {
-            return getClusters(ClusterInfo.Type.STORAGE, Collections.emptyList(), Collections.emptyList())
-                .stream()
-                // TODO: The next line is a workaround of a UI limitation. The UI only accepts groups
-                // with classname "Group" This line can be removed when bug OM-30381 is fixed.
-                .peek(groupApiDTO -> groupApiDTO.setClassName(StringConstants.GROUP))
-                .collect(Collectors.toList());
+             return request.allResultsResponse(getClusters(ClusterInfo.Type.STORAGE, Collections.emptyList(), Collections.emptyList())
+                 .stream()
+                 // TODO: The next line is a workaround of a UI limitation. The UI only accepts groups
+                 // with classname "Group" This line can be removed when bug OM-30381 is fixed.
+                 .peek(groupApiDTO -> groupApiDTO.setClassName(StringConstants.GROUP))
+                 .collect(Collectors.toList()));
         } else if (USER_GROUPS.equals(uuid)) { // Get all user-created groups
-            return getGroupApiDTOS(GetGroupsRequest.newBuilder()
-                    .addTypeFilter(Group.Type.GROUP)
-                    .addTypeFilter(Group.Type.NESTED_GROUP)
-                    .setOriginFilter(Origin.USER)
-                    .build(), true);
+            final Collection<GroupApiDTO> groups = getGroupApiDTOS(GetGroupsRequest.newBuilder()
+                .addTypeFilter(Group.Type.GROUP)
+                .addTypeFilter(Group.Type.NESTED_GROUP)
+                .setOriginFilter(Origin.USER)
+                .build(), true);
+             return request.allResultsResponse(Lists.newArrayList(groups));
         } else { // Get members of the group with the uuid (oid)
-            final GroupAndMembers groupAndMembers = groupExpander.getGroupWithMembers(uuid)
+            final GroupAndMembers groupAndMembers =
+                groupExpander.getGroupWithMembers(uuid)
                 .orElseThrow(() ->
                     new IllegalArgumentException("Can't get members in invalid group: " + uuid));
             logger.info("Number of members for group {} is {}", uuid, groupAndMembers.members().size());
 
             if (groupAndMembers.group().getType() == Type.NESTED_GROUP) {
-                return getGroupApiDTOS(GetGroupsRequest.newBuilder()
+                final Collection<GroupApiDTO> groups = getGroupApiDTOS(GetGroupsRequest.newBuilder()
                     .addAllId(groupAndMembers.members())
                     .build(), true);
+                return request.allResultsResponse(Lists.newArrayList(groups));
+
             } else {
                 // Special handling for the empty member list, because passing empty to
                 // repositoryApi returns all entities.
                 if (groupAndMembers.members().isEmpty()) {
-                    return Collections.emptyList();
+                    return request.allResultsResponse(Collections.emptyList());
                 } else {
                     // Get entities of group members from the repository component
-                    final List<ServiceEntityApiDTO> results =
-                        repositoryApi.entitiesRequest(Sets.newHashSet(groupAndMembers.members()))
+                    final long skipCount;
+                    if (request.getCursor().isPresent()){
+                        try {
+                            skipCount = Long.parseLong(request.getCursor().get());
+                            if (skipCount < 0) {
+                                throw new InvalidOperationException("Illegal cursor: " +
+                                    skipCount + ". Must be be a positive integer");
+                            }
+                        } catch (NumberFormatException e) {
+                            throw new InvalidOperationException("Cursor " + request.getCursor() +
+                                " is invalid. Should be a number.");
+                        }
+
+                    } else {
+                        skipCount = 0;
+                    }
+                    if (request.getOrderBy() != GroupMemberOrderBy.ID) {
+                        throw new InvalidOperationException("Order " + request.getOrderBy().name() +
+                            " is invalid. The only supported order is by id");
+                    }
+                    final Set<Long> nextPageIds = groupAndMembers.members().stream()
+                        .sorted()
+                        .skip(skipCount)
+                        .limit(request.getLimit())
+                        .collect(Collectors.toSet());
+                    final Collection<ServiceEntityApiDTO> results =
+                        repositoryApi.entitiesRequest(nextPageIds)
                             .getSEList();
 
-                    final int missingEntities = groupAndMembers.members().size() - results.size();
+                    final int missingEntities = nextPageIds.size() - results.size();
                     if (missingEntities > 0) {
                         logger.warn("{} group members from group {} not found in repository.",
                             missingEntities, uuid);
                     }
-                    return results;
+                    Long nextCursor = skipCount + nextPageIds.size();
+                    if (nextCursor == groupAndMembers.members().size()) {
+                        return request.finalPageResponse(Lists.newArrayList(results));
+                    }
+                    return request.nextPageResponse(Lists.newArrayList(results),
+                        Long.toString(nextCursor));
+
                 }
             }
         }
