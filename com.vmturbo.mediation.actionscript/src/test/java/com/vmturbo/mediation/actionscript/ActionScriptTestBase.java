@@ -137,8 +137,8 @@ public class ActionScriptTestBase extends Assert {
             @Override
             public Boolean execute(final ActionScriptProbeAccount accountValues, final ClientSession session,
                                    @Nullable final ActionExecutionDTO actionExecution) throws RemoteExecutionException {
-                SignalingSshChannelExec channel = new SignalingSshChannelExec("/bin/cat");
-                try (PipedOutputStream stdinPipe = new PipedOutputStream();
+                try (SignalingSshChannelExec channel = new SignalingSshChannelExec("/bin/cat");
+                     PipedOutputStream stdinPipe = new PipedOutputStream();
                      PipedInputStream stdin = new PipedInputStream(stdinPipe)) {
                     session.getService(ConnectionService.class).registerChannel(channel);
                     channel.setIn(stdin);

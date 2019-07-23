@@ -62,9 +62,6 @@ public class ActionScriptDiscovery {
     public ValidationResponse validateManifestFile() {
         try (SshRunner runner = new SshRunner(accountValues, null)) {
             return validateManifestFile(runner);
-        } catch (RemoteExecutionException | KeyValidationException e) {
-            ErrorDTO errorDTO = createAndLogErrorDTO(null, "Failed to load Action Scripts Manifest file: " + e.getMessage(), e);
-            return ValidationResponse.newBuilder().addErrorDTO(errorDTO).build();
         }
     }
 
@@ -122,9 +119,6 @@ public class ActionScriptDiscovery {
     public DiscoveryResponse discoverActionScripts() {
         try (SshRunner runner = new SshRunner(accountValues, null)) {
             return discoverActionScripts(runner);
-        } catch (RemoteExecutionException | KeyValidationException e) {
-            ErrorDTO errorDTO = createAndLogErrorDTO(null, "Failed to discover Action Scripts: " + e.getMessage(), e);
-            return DiscoveryResponse.newBuilder().addErrorDTO(errorDTO).build();
         }
     }
 
