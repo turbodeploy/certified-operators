@@ -54,9 +54,9 @@ public class ActionPaginator {
                         ActionDTOUtil.mapActionCategoryToSeverity(actionView.getActionCategory())
                      )));
         registry.put(ActionOrderBy.ACTION_RISK_CATEGORY, new StableActionComparator((a1, a2) -> {
-            final ActionCategory a1Category = a1.getActionCategory();
-            final ActionCategory a2Category = a2.getActionCategory();
-            return a1Category.compareTo(a2Category);
+            final String a1CategoryName = a1.getActionCategory().name();
+            final String a2CategoryName = a2.getActionCategory().name();
+            return a1CategoryName.compareTo(a2CategoryName);
         }));
         registry.put(ActionOrderBy.ACTION_SAVINGS,
             new StableActionComparator(Comparator.comparingDouble(view -> view.getRecommendation().getSavingsPerHour().getAmount())));

@@ -263,8 +263,9 @@ public class ActionPaginatorTest {
                             .setType(1)))
             .build();
         final ActionView smallerView = newActionView(1, action -> action.setInfo(resizeInfo));
-        final ActionCategory smallerCat = ActionCategory.PERFORMANCE_ASSURANCE;
-        final ActionCategory largerCat = ActionCategory.EFFICIENCY_IMPROVEMENT;
+        // Action category name is sorted alphabetically
+        final ActionCategory smallerCat = ActionCategory.EFFICIENCY_IMPROVEMENT;
+        final ActionCategory largerCat = ActionCategory.PERFORMANCE_ASSURANCE;
         when(smallerView.getActionCategory()).thenReturn(smallerCat);
         final ActionView smallerViewLargerId = newActionView(2, action -> action.setInfo(resizeInfo));
         when(smallerViewLargerId.getActionCategory()).thenReturn(smallerCat);
