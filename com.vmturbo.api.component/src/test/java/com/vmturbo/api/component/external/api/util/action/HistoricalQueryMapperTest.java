@@ -136,7 +136,7 @@ public class HistoricalQueryMapperTest {
         final ApiId mktScope = mock(ApiId.class);
         when(mktScope.isRealtimeMarket()).thenReturn(false);
         when(mktScope.isGlobalTempGroup()).thenReturn(true);
-        when(mktScope.getScopeType()).thenReturn(Optional.of(UIEntityType.VIRTUAL_MACHINE));
+        when(mktScope.getGroupEntityType()).thenReturn(Optional.of(UIEntityType.VIRTUAL_MACHINE));
 
         ActionStatsQuery query = ImmutableActionStatsQuery.builder()
             .addScopes(mktScope)

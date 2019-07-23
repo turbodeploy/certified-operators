@@ -488,10 +488,6 @@ message GetTagsResponse {
     optional .tag.Tags tags = 1;
 }
 
-message CountGroupsResponse {
-    optional int32 count = 1;
-}
-
 // A service responsible for group operations.
 service GroupService {
     // Create a group
@@ -506,9 +502,6 @@ service GroupService {
 
     // Get all user groups
     rpc GetGroups(GetGroupsRequest) returns (stream Group);
-
-    // Count groups matching a particular request.
-    rpc CountGroups(GetGroupsRequest) returns (CountGroupsResponse);
 
     // Update a group
     //

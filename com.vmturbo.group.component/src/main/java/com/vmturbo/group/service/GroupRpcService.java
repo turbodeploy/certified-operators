@@ -11,7 +11,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -19,7 +18,6 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -36,7 +34,6 @@ import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.CountGroupsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateNestedGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateNestedGroupResponse;
@@ -310,31 +307,6 @@ public class GroupRpcService extends GroupServiceImplBase {
             // possible that the user had access when the group did exist.
             return false;
         }
-    }
-
-    @Override
-    public void countGroups(GetGroupsRequest request, StreamObserver<CountGroupsResponse> responseObserver) {
-        getGroups(request, new StreamObserver<Group>() {
-            int count = 0;
-
-            @Override
-            public void onNext(final Group group) {
-                count++;
-            }
-
-            @Override
-            public void onError(final Throwable throwable) {
-                responseObserver.onError(throwable);
-            }
-
-            @Override
-            public void onCompleted() {
-                responseObserver.onNext(CountGroupsResponse.newBuilder()
-                    .setCount(count)
-                    .build());
-                responseObserver.onCompleted();
-            }
-        });
     }
 
     @Override

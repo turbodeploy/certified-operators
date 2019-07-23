@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -49,8 +50,6 @@ import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
@@ -83,6 +82,7 @@ import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
@@ -147,11 +147,15 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.topology.processor.api.ProbeInfo;
+import com.vmturbo.topology.processor.api.TargetInfo;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
  * Service implementation of Markets.
@@ -198,6 +202,8 @@ public class MarketsService implements IMarketsService {
 
     private final ActionStatsQueryExecutor actionStatsQueryExecutor;
 
+    private final TopologyProcessor topologyProcessor;
+
     private final EntitySeverityServiceBlockingStub entitySeverity;
 
     private final StatsHistoryServiceBlockingStub statsHistory;
@@ -205,8 +211,6 @@ public class MarketsService implements IMarketsService {
     private final RepositoryApi repositoryApi;
 
     private final ServiceEntityMapper serviceEntityMapper;
-
-    private final ThinTargetCache thinTargetCache;
 
     // Exclude request for price index for commodities of real market not saved in DB
     private final Set<Integer> notSavedEntityTypes = ImmutableSet.of(EntityDTO.EntityType.NETWORK.getValue(),
@@ -229,7 +233,7 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final UserSessionContext userSessionContext,
                           @Nonnull final UINotificationChannel uiNotificationChannel,
                           @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
-                          @Nonnull final ThinTargetCache thinTargetCache,
+                          @Nonnull final TopologyProcessor topologyProcessor,
                           @Nonnull final EntitySeverityServiceBlockingStub entitySeverity,
                           @Nonnull final StatsHistoryServiceBlockingStub statsHistory,
                           @Nonnull final StatsService statsService,
@@ -255,7 +259,7 @@ public class MarketsService implements IMarketsService {
         this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
         this.entitySeverity = Objects.requireNonNull(entitySeverity);
         this.mergeDataCenterPolicyHandler = new MergeDataCenterPolicyHandler();
-        this.thinTargetCache = Objects.requireNonNull(thinTargetCache);
+        this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.statsHistory = Objects.requireNonNull(statsHistory);
         this.statsService = Objects.requireNonNull(statsService);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
@@ -284,38 +288,52 @@ public class MarketsService implements IMarketsService {
     }
 
     @Override
-    public MarketApiDTO getMarketByUuid(String uuid) throws Exception {
+    public MarketApiDTO getMarketByUuid(String uuid) throws UnknownObjectException {
         // TODO: The implementation for the environment type might be possibly altered for the case
         // of a scoped plan (should we consoder only the scoped tergets?)
         EnvironmentType envType = null;
-        boolean isOnPrem = false;
-        boolean isCloud = false;
-        boolean isHybrid = false;
-        for (ThinTargetInfo thinTargetInfo : thinTargetCache.getAllTargets()) {
-            switch (ProbeCategory.create(thinTargetInfo.probeInfo().category())) {
-                case CLOUD_MANAGEMENT:
-                case CLOUD_NATIVE:
-                case PAAS:
-                case FAAS:
-                    isCloud = true;
-                    break;
-                default:
-                    isOnPrem = true;
-                    break;
+        try {
+            Set<Long> probeIds = new HashSet<Long>();
+            Set<TargetInfo> targetInfos = topologyProcessor.getAllTargets();
+            for (TargetInfo targetInfo : targetInfos) {
+                probeIds.add(targetInfo.getProbeId());
             }
-            if (isOnPrem && isCloud) {
-                isHybrid = true;
-                break;
-            }
-        }
-        if (isHybrid) {
-            envType = EnvironmentType.HYBRID;
-        } else if (isCloud) {
-            envType = EnvironmentType.CLOUD;
-        } else {
-            envType = EnvironmentType.ONPREM;
-        }
 
+            Set<ProbeInfo> probeInfos = topologyProcessor.getAllProbes();
+            boolean isOnPrem = false;
+            boolean isCloud = false;
+            boolean isHybrid = false;
+            for (ProbeInfo probeInfo : probeInfos) {
+                if (probeIds.contains(probeInfo.getId())) {
+                    switch (ProbeCategory.create(probeInfo.getCategory())) {
+                        case CLOUD_MANAGEMENT:
+                        case CLOUD_NATIVE:
+                        case PAAS:
+                        case FAAS:
+                            isCloud = true;
+                            break;
+                        default:
+                            isOnPrem = true;
+                            break;
+                    }
+                    if (isOnPrem && isCloud) {
+                        isHybrid = true;
+                        break;
+                    }
+                }
+            }
+            if (isHybrid) {
+                envType = EnvironmentType.HYBRID;
+            } else if (isOnPrem) {
+                envType = EnvironmentType.ONPREM;
+            } else {
+                envType = EnvironmentType.CLOUD;
+            }
+
+        } catch (CommunicationException e) {
+            logger.debug("getMarketByUuid(): Error while trying to calculate the environment type: {}",
+                    e.getMessage());
+        }
         final ApiId apiId = uuidMapper.fromUuid(uuid);
         if (apiId.isRealtimeMarket()) {
             // TODO (roman, Dec 21 2016): Not sure what the API

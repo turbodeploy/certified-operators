@@ -29,13 +29,15 @@ public interface TargetData {
     /**
      * Return the target display name, given its data, if one exists.
      *
+     * @param targetData target data.
      * @return the display name, if one exists.
      */
     @Nonnull
-    default Optional<String> getDisplayName() {
-        return getAccountData().stream()
-            .filter(accountValue -> TARGET_ADDRESS_KEYS.contains(accountValue.getName()))
-            .findAny()
-            .map(AccountValue::getStringValue);
+    static Optional<String> getDisplayName(@Nonnull TargetData targetData) {
+        return
+            targetData.getAccountData().stream()
+                .filter(accountValue -> TARGET_ADDRESS_KEYS.contains(accountValue.getName()))
+                .findAny()
+                .map(AccountValue::getStringValue);
     }
 }

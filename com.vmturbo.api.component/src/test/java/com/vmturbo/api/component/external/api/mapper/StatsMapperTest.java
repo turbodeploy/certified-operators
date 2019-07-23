@@ -104,14 +104,16 @@ public class StatsMapperTest {
 
         // Arrange
         Stats.StatSnapshot testSnapshot = Stats.StatSnapshot.newBuilder()
-                .setSnapshotDate(START_DATE)
+                .setSnapshotDate("date-value")
+                .setStartDate(1234L)
+                .setEndDate(5678L)
                 .addAllStatRecords(buildStatRecords(postfixes, relations))
                 .build();
 
         // Act
         StatSnapshotApiDTO mapped = statsMapper.toStatSnapshotApiDTO(testSnapshot);
         // Assert
-        assertThat(DateTimeUtil.toString(testSnapshot.getSnapshotDate()), is(mapped.getDate()));
+        assertThat(testSnapshot.getSnapshotDate(), is(mapped.getDate()));
         assertThat(testSnapshot.getStatRecordsCount(), is(mapped.getStatistics().size()));
         assertEquals(3, testSnapshot.getStatRecordsCount());
         verifyMappedStatRecord(testSnapshot.getStatRecords(0), mapped.getStatistics().get(0),
@@ -129,7 +131,9 @@ public class StatsMapperTest {
 
         // Arrange
         Stats.StatSnapshot testSnapshot = Stats.StatSnapshot.newBuilder()
-                .setSnapshotDate(START_DATE)
+                .setSnapshotDate("date-value")
+                .setStartDate(START_DATE)
+                .setEndDate(END_DATE)
                 .addAllStatRecords(buildStatRecords(postfixes, relations))
                 .build();
 
@@ -659,7 +663,9 @@ public class StatsMapperTest {
 
        // Arrange
         StatSnapshot testSnapshot = StatSnapshot.newBuilder()
-                .setSnapshotDate(START_DATE)
+                .setSnapshotDate("date-value")
+                .setStartDate(1234L)
+                .setEndDate(5678L)
                 .addAllStatRecords(buildStatRecords(postfixes, relations))
                 .build();
 
@@ -700,9 +706,9 @@ public class StatsMapperTest {
                 ImmutableList.of(apiDTO1, apiDTO2, apiDTO3),
                 targetsService);
         // Assert
-        assertThat(cloudStatRecord.getSnapshotDate(), is(mapped.getDate()));
-        assertThat(cloudStatRecord.getStatRecordsCount(), is(mapped.getStatistics().size()));
-        assertEquals(3, cloudStatRecord.getStatRecordsCount());
+        assertThat(testSnapshot.getSnapshotDate(), is(mapped.getDate()));
+        assertThat(testSnapshot.getStatRecordsCount(), is(mapped.getStatistics().size()));
+        assertEquals(3, testSnapshot.getStatRecordsCount());
         assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO ->
                 statApiDTO.getFilters().stream().allMatch(statFilterApiDTO ->
                         statFilterApiDTO.getType().equals(StatsService.CLOUD_SERVICE))));
@@ -727,7 +733,9 @@ public class StatsMapperTest {
 
         // Arrange
         StatSnapshot testSnapshot = StatSnapshot.newBuilder()
-                .setSnapshotDate(START_DATE)
+                .setSnapshotDate("date-value")
+                .setStartDate(1234L)
+                .setEndDate(5678L)
                 .addAllStatRecords(buildStatRecords(postfixes, relations))
                 .build();
 
@@ -756,9 +764,9 @@ public class StatsMapperTest {
                 Collections.EMPTY_LIST,
                 targetsService);
         // Assert
-        assertThat(cloudStatRecord.getSnapshotDate(), is(mapped.getDate()));
-        assertThat(cloudStatRecord.getStatRecordsCount(), is(mapped.getStatistics().size()));
-        assertEquals(3, cloudStatRecord.getStatRecordsCount());
+        assertThat(testSnapshot.getSnapshotDate(), is(mapped.getDate()));
+        assertThat(testSnapshot.getStatRecordsCount(), is(mapped.getStatistics().size()));
+        assertEquals(3, testSnapshot.getStatRecordsCount());
         assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO ->
                 statApiDTO.getFilters().stream().allMatch(statFilterApiDTO ->
                         statFilterApiDTO.getType().equals(csp))));
@@ -776,7 +784,9 @@ public class StatsMapperTest {
 
         // Arrange
         StatSnapshot testSnapshot = StatSnapshot.newBuilder()
-                .setSnapshotDate(START_DATE)
+                .setSnapshotDate("date-value")
+                .setStartDate(1234L)
+                .setEndDate(5678L)
                 .addAllStatRecords(buildStatRecords(postfixes, relations))
                 .build();
 
@@ -802,9 +812,9 @@ public class StatsMapperTest {
                 Collections.EMPTY_LIST,
                 targetsService);
         // Assert
-        assertThat(cloudStatRecord.getSnapshotDate(), is(mapped.getDate()));
-        assertThat(cloudStatRecord.getStatRecordsCount(), is(mapped.getStatistics().size()));
-        assertEquals(3, cloudStatRecord.getStatRecordsCount());
+        assertThat(testSnapshot.getSnapshotDate(), is(mapped.getDate()));
+        assertThat(testSnapshot.getStatRecordsCount(), is(mapped.getStatistics().size()));
+        assertEquals(3, testSnapshot.getStatRecordsCount());
         assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO ->
                 statApiDTO.getFilters().stream().allMatch(statFilterApiDTO ->
                         statFilterApiDTO.getType().equals("CSP"))));

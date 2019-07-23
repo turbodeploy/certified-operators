@@ -20,15 +20,12 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 
-import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.component.external.api.service.GroupsService;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
-import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
-import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
@@ -55,7 +52,7 @@ public class MagicScopeGateway implements RepositoryListener  {
 
     private final GroupServiceBlockingStub groupRpcService;
 
-    private final GroupMapper groupMapper;
+    private final GroupsService groupsService;
 
     private final long realtimeTopologyContextId;
 
@@ -64,10 +61,10 @@ public class MagicScopeGateway implements RepositoryListener  {
 
     private final ReadWriteLock cacheLock = new ReentrantReadWriteLock();
 
-    public MagicScopeGateway(@Nonnull final GroupMapper groupMapper,
+    public MagicScopeGateway(@Nonnull final GroupsService groupsService,
                              @Nonnull final GroupServiceBlockingStub groupRpcService,
                              final long realtimeTopologyContextId) {
-        this.groupMapper = Objects.requireNonNull(groupMapper);
+        this.groupsService = Objects.requireNonNull(groupsService);
         this.groupRpcService = Objects.requireNonNull(groupRpcService);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
@@ -193,15 +190,11 @@ public class MagicScopeGateway implements RepositoryListener  {
             allOnPremHostGroup.setDisplayName("Magic Group: " + ALL_ON_PREM_HOSTS);
             try {
                 logger.debug("Creating temp group for magic \"all on-prem hosts\" scope");
-                final TempGroupInfo tempGroupInfo = groupMapper.toTempGroupProto(allOnPremHostGroup);
-                final CreateTempGroupResponse resp = groupRpcService.createTempGroup(
-                    CreateTempGroupRequest.newBuilder()
-                        .setGroupInfo(tempGroupInfo)
-                        .build());
-                final long groupOid = resp.getGroup().getId();
+                final GroupApiDTO tempGroup = groupsService.createGroup(allOnPremHostGroup);
+                final long groupOid = Long.parseLong(tempGroup.getUuid());
                 logger.info("Created temp group {} for magic \"all on-prem hosts\" UUID", groupOid);
                 return Optional.of(ImmutableMagicScopeMapping.builder()
-                        .realId(Long.toString(groupOid))
+                        .realId(tempGroup.getUuid())
                         // Note - right now this will make an RPC to the group component every time,
                         // even if there are concurrent validity checks. We don't want to cache
                         // the validity results because a temporary group can expire at any time,

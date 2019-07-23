@@ -150,7 +150,7 @@ class HistoricalQueryMapper {
                     if (query.getRelatedEntityTypes().isEmpty()) {
                         // The .get() is safe because we know it's a group (or else we wouldn't be
                         // in this block.
-                        mgmtSubgroupFilterBldr.addEntityType(scope.getScopeType().get().typeNumber());
+                        mgmtSubgroupFilterBldr.addEntityType(scope.getGroupEntityType().get().typeNumber());
                     }
                 } else {
                     mgmtSubgroupFilterBldr.setMgmtUnitId(scope.oid());

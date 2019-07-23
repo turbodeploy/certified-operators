@@ -3,16 +3,18 @@ package com.vmturbo.api.component.external.api.mapper;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.Optional;
 
-import javax.annotation.Nonnull;
-
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.DiscoveredByCache;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -28,41 +30,29 @@ import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.mapping.EnvironmentTypeMapper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.api.AccountValue;
+import com.vmturbo.topology.processor.api.ProbeInfo;
+import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
-import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
-import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * Tests the methods of {@link ServiceEntityMapper}.
  */
 public class ServiceEntityMapperTest {
     private final TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
-    private final ThinTargetCache targetCache = mock(ThinTargetCache.class);
+    private final DiscoveredByCache discoveredByCache = mock(DiscoveredByCache.class);
+    private final ServiceEntityMapper mapper = new ServiceEntityMapper(topologyProcessor);
     private final static long TARGET_ID = 10L;
     private final static String TARGET_DISPLAY_NAME = "display name";
     private final static String PROBE_TYPE = "probe type";
-    private final static String PROBE_CATEGORY = "probe category";
-    private final static long PROBE_ID = 123123123;
-
-    @Before
-    public void setup() {
-        final ThinTargetInfo thinTargetInfo = ImmutableThinTargetInfo.builder()
-            .probeInfo(ImmutableThinProbeInfo.builder()
-                .category(PROBE_CATEGORY)
-                .type(PROBE_TYPE)
-                .oid(PROBE_ID)
-                .build())
-            .displayName(TARGET_DISPLAY_NAME)
-            .oid(TARGET_ID)
-            .build();
-        when(targetCache.getTargetInfo(TARGET_ID)).thenReturn(Optional.of(thinTargetInfo));
-    }
 
     @Test
     public void testApiToServiceEntity() {
-        final ServiceEntityMapper mapper = new ServiceEntityMapper(targetCache);
+        final ServiceEntityMapper mapper = new ServiceEntityMapper(discoveredByCache);
+
+        TargetApiDTO targetApiDTO = new TargetApiDTO();
+        targetApiDTO.setType("foo");
+        when(discoveredByCache.getTargetApiDTO(TARGET_ID)).thenReturn(Optional.of(targetApiDTO));
 
         final String displayName = "entity display name";
         final long oid = 152L;
@@ -105,14 +95,7 @@ public class ServiceEntityMapperTest {
         Assert.assertEquals(1, serviceEntityApiDTO.getTags().get(tagKey).size());
         Assert.assertEquals(tagValue, serviceEntityApiDTO.getTags().get(tagKey).get(0));
 
-        checkDiscoveredBy(serviceEntityApiDTO.getDiscoveredBy());
-    }
-
-    private void checkDiscoveredBy(@Nonnull final TargetApiDTO targetApiDTO) {
-        assertThat(targetApiDTO.getUuid(), is(Long.toString(TARGET_ID)));
-        assertThat(targetApiDTO.getDisplayName(), is(TARGET_DISPLAY_NAME));
-        assertThat(targetApiDTO.getCategory(), is(PROBE_CATEGORY));
-        assertThat(targetApiDTO.getType(), is(PROBE_TYPE));
+        assertThat(serviceEntityApiDTO.getDiscoveredBy(), is(targetApiDTO));
     }
 
     @Test
@@ -135,7 +118,11 @@ public class ServiceEntityMapperTest {
      */
     @Test
     public void testToServiceEntityApiDTO() throws Exception {
-        final ServiceEntityMapper mapper = new ServiceEntityMapper(targetCache);
+        final ServiceEntityMapper mapper = new ServiceEntityMapper(discoveredByCache);
+
+        TargetApiDTO targetApiDTO = new TargetApiDTO();
+        targetApiDTO.setType("foo");
+        when(discoveredByCache.getTargetApiDTO(TARGET_ID)).thenReturn(Optional.of(targetApiDTO));
 
         final String displayName = "entity display name";
         final long oid = 152L;
@@ -181,7 +168,83 @@ public class ServiceEntityMapperTest {
         Assert.assertEquals(1, serviceEntityApiDTO.getTags().get(tagKey).size());
         Assert.assertEquals(tagValue, serviceEntityApiDTO.getTags().get(tagKey).get(0));
 
-        checkDiscoveredBy(serviceEntityApiDTO.getDiscoveredBy());
+        assertThat(serviceEntityApiDTO.getDiscoveredBy(), is(targetApiDTO));
     }
 
+    @Test
+    public void testDiscoveryCacheLoadAndCacheTarget() throws Exception {
+        mockTopologyProcessorOutputs();
+
+        DiscoveredByCache discoveredByCache = new DiscoveredByCache(topologyProcessor);
+        Optional<TargetApiDTO> dto = discoveredByCache.getTargetApiDTO(TARGET_ID);
+        checkTargetApiDTO(dto.get());
+
+        verify(topologyProcessor).getTarget(TARGET_ID);
+
+        // THe second time should return the same thing, but not make a subsequent call.
+        Optional<TargetApiDTO> dto2 = discoveredByCache.getTargetApiDTO(TARGET_ID);
+        checkTargetApiDTO(dto2.get());
+        verify(topologyProcessor, times(1)).getTarget(TARGET_ID);
+    }
+
+    @Test
+    public void testDiscoveryCacheClearOnTargetUpdate() throws Exception {
+        mockTopologyProcessorOutputs();
+
+        DiscoveredByCache discoveredByCache = new DiscoveredByCache(topologyProcessor);
+        Optional<TargetApiDTO> dto = discoveredByCache.getTargetApiDTO(TARGET_ID);
+        checkTargetApiDTO(dto.get());
+
+        verify(topologyProcessor).getTarget(TARGET_ID);
+
+        TargetInfo targetInfo = mock(TargetInfo.class);
+        when(targetInfo.getId()).thenReturn(TARGET_ID);
+        discoveredByCache.onTargetChanged(targetInfo);
+
+        Optional<TargetApiDTO> dto2 = discoveredByCache.getTargetApiDTO(TARGET_ID);
+        checkTargetApiDTO(dto2.get());
+        // Should have made a subsequent call.
+        verify(topologyProcessor, times(2)).getTarget(TARGET_ID);
+    }
+
+    @Test
+    public void testDiscoveryCacheClearOnTargetRemove() throws Exception {
+        mockTopologyProcessorOutputs();
+
+        DiscoveredByCache discoveredByCache = new DiscoveredByCache(topologyProcessor);
+        Optional<TargetApiDTO> dto = discoveredByCache.getTargetApiDTO(TARGET_ID);
+        checkTargetApiDTO(dto.get());
+
+        verify(topologyProcessor).getTarget(TARGET_ID);
+
+        discoveredByCache.onTargetRemoved(TARGET_ID);
+
+        Optional<TargetApiDTO> dto2 = discoveredByCache.getTargetApiDTO(TARGET_ID);
+        checkTargetApiDTO(dto2.get());
+        // Should have made a subsequent call.
+        verify(topologyProcessor, times(2)).getTarget(TARGET_ID);
+    }
+
+    private void mockTopologyProcessorOutputs() throws Exception {
+        final TargetInfo targetInfo = mock(TargetInfo.class);
+        final ProbeInfo probeInfo = mock(ProbeInfo.class);
+        final AccountValue accountValue = mock(AccountValue.class);
+        when(targetInfo.getId()).thenReturn(TARGET_ID);
+        final long probeId = 11L;
+        when(targetInfo.getProbeId()).thenReturn(probeId);
+        when(targetInfo.getAccountData()).thenReturn(Collections.singleton(accountValue));
+        when(accountValue.getName()).thenReturn(TargetInfo.TARGET_ADDRESS);
+        when(accountValue.getStringValue()).thenReturn(TARGET_DISPLAY_NAME);
+        when(probeInfo.getId()).thenReturn(probeId);
+        when(probeInfo.getType()).thenReturn(PROBE_TYPE);
+        when(topologyProcessor.getProbe(Mockito.eq(probeId))).thenReturn(probeInfo);
+        when(topologyProcessor.getTarget(Mockito.eq(TARGET_ID))).thenReturn(targetInfo);
+    }
+
+    private void checkTargetApiDTO(TargetApiDTO targetApiDTO) {
+        Assert.assertNotNull(targetApiDTO);
+        Assert.assertEquals(TARGET_ID, (long)Long.valueOf(targetApiDTO.getUuid()));
+        Assert.assertEquals(TARGET_DISPLAY_NAME, targetApiDTO.getDisplayName());
+        Assert.assertEquals(PROBE_TYPE, targetApiDTO.getType());
+    }
 }

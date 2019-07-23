@@ -150,7 +150,13 @@ message ProjectedEntityStatsResponse {
 message StatSnapshot {
 
     // the actual snapshot_date for this response
-    optional uint64 snapshot_date = 1;
+    optional string snapshot_date = 1;
+
+    // the oldest date of the request time window
+    optional uint64 start_date = 2;
+
+    // the most recent date of the request time window
+    optional uint64 end_date = 3;
 
     // the individual stat_records collected; if the input was a group, these values will be averaged over the group
     repeated StatRecord stat_records = 4;

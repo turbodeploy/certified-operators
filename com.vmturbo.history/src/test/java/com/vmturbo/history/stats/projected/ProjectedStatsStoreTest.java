@@ -113,7 +113,7 @@ public class ProjectedStatsStoreTest {
         final Set<String> commodities = Sets.newHashSet(COMMODITY);
 
         final StatSnapshot snapshot = StatSnapshot.newBuilder()
-                .setSnapshotDate(1L)
+                .setSnapshotDate("foo")
                 .build();
         when(statSnapshotCalculator.buildSnapshot(topoSnapshot, entities, commodities))
             .thenReturn(snapshot);
@@ -219,10 +219,10 @@ public class ProjectedStatsStoreTest {
         final Set<String> commodities = Sets.newHashSet(COMMODITY);
 
         final StatSnapshot snapshot1 = StatSnapshot.newBuilder()
-                .setSnapshotDate(1L)
+                .setSnapshotDate("foo")
                 .build();
         final StatSnapshot snapshot2 = StatSnapshot.newBuilder()
-                .setSnapshotDate(1L)
+                .setSnapshotDate("bar")
                 .build();
         when(snapshot.getEntityComparator(paginationParams)).thenReturn(Long::compare);
         when(snapshotCalculator.buildSnapshot(snapshot, Collections.singleton(1L), commodities))
@@ -255,7 +255,7 @@ public class ProjectedStatsStoreTest {
         final Set<String> commodities = Sets.newHashSet(COMMODITY);
 
         final StatSnapshot snapshot1 = StatSnapshot.newBuilder()
-                .setSnapshotDate(1L)
+                .setSnapshotDate("foo")
                 .build();
         when(snapshot.getEntityComparator(paginationParams)).thenReturn(Long::compare);
         when(snapshotCalculator.buildSnapshot(snapshot, Collections.singleton(1L), commodities))

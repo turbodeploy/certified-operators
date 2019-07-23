@@ -29,12 +29,9 @@ import io.grpc.StatusRuntimeException;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
-import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
@@ -102,20 +99,23 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
     private final PlanServiceBlockingStub planRpcService;
 
-    private final StatsQueryExecutor statsQueryExecutor;
+    private final CostServiceBlockingStub costServiceRpc;
 
-    private final UuidMapper uuidMapper;
+    private final SupplyChainFetcherFactory supplyChainFetcher;
+
+    private long realtimeTopologyContextId;
 
     public ReservedInstancesService(
-            @Nonnull final ReservedInstanceBoughtServiceBlockingStub reservedInstanceService,
-            @Nonnull final ReservedInstanceSpecServiceBlockingStub reservedInstanceSpecService,
-            @Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService,
-            @Nonnull final ReservedInstanceMapper reservedInstanceMapper,
-            @Nonnull final RepositoryApi repositoryApi,
-            @Nonnull final GroupExpander groupExpander,
-            @Nonnull final PlanServiceBlockingStub planRpcService,
-            @Nonnull final StatsQueryExecutor statsQueryExecutor,
-            @Nonnull final UuidMapper uuidMapper) {
+        @Nonnull final ReservedInstanceBoughtServiceBlockingStub reservedInstanceService,
+        @Nonnull final ReservedInstanceSpecServiceBlockingStub reservedInstanceSpecService,
+        @Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService,
+        @Nonnull final ReservedInstanceMapper reservedInstanceMapper,
+        @Nonnull final RepositoryApi repositoryApi,
+        @Nonnull final GroupExpander groupExpander,
+        @Nonnull final PlanServiceBlockingStub planRpcService,
+        @Nonnull final CostServiceBlockingStub costServiceRpc,
+        @Nonnull final SupplyChainFetcherFactory supplyChainFetcher,
+        final long realtimeTopologyContextId) {
         this.reservedInstanceService = Objects.requireNonNull(reservedInstanceService);
         this.reservedInstanceSpecService = Objects.requireNonNull(reservedInstanceSpecService);
         this.riUtilizationCoverageService = Objects.requireNonNull(riUtilizationCoverageService);
@@ -123,8 +123,9 @@ public class ReservedInstancesService implements IReservedInstancesService {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.groupExpander = Objects.requireNonNull(groupExpander);
         this.planRpcService = Objects.requireNonNull(planRpcService);
-        this.statsQueryExecutor = Objects.requireNonNull(statsQueryExecutor);
-        this.uuidMapper = Objects.requireNonNull(uuidMapper);
+        this.costServiceRpc = Objects.requireNonNull(costServiceRpc);
+        this.supplyChainFetcher = Objects.requireNonNull(supplyChainFetcher);
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     @Override
@@ -170,13 +171,45 @@ public class ReservedInstancesService implements IReservedInstancesService {
             throw new InvalidOperationException("Input dto data is not supported: " + inputDto);
         }
         //TODO: support multiple scopes.
-        final ApiId scope = uuidMapper.fromUuid(inputDto.getScopes().get(0));
+        final String scope = inputDto.getScopes().get(0);
+        final Optional<Group> groupOptional = groupExpander.getGroup(scope);
+        final Optional<PlanInstance> optPlan = fetchPlanInstance(scope);
+        // it has already checked statistics can only has one element.
+        final String riStatsName = inputDto.getPeriod().getStatistics().get(0).getName();
+        if (riStatsName.equals(StringConstants.NUM_RI)) {
+            final Map<Long, Long> reservedInstanceCountMap = getReservedInstanceCountMap(scope, groupOptional, optPlan);
+            final Map<Long, MinimalEntity> riServiceEntityApiDtoMap = repositoryApi.entitiesRequest(reservedInstanceCountMap.keySet())
+                .getMinimalEntities()
+                .collect(Collectors.toMap(MinimalEntity::getOid, Function.identity()));
+            final EntityStatsApiDTO result =
+                    reservedInstanceMapper.riCountMapToEntityStatsApiDTO(reservedInstanceCountMap,
+                            riServiceEntityApiDtoMap);
+            return paginationRequest.allResultsResponse(Lists.newArrayList(result));
+        }
 
-        final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
-        entityStatsApiDTO.setUuid(scope.uuid());
-        entityStatsApiDTO.setDisplayName(scope.getDisplayName());
-        entityStatsApiDTO.setStats(statsQueryExecutor.getAggregateStats(scope, inputDto.getPeriod()));
-        return paginationRequest.allResultsResponse(Lists.newArrayList(entityStatsApiDTO));
+        final long startTime = getStartTime(inputDto.getPeriod(), optPlan);
+        final long endTime = getEndTime(inputDto.getPeriod());
+        if (riStatsName.equals(StringConstants.RI_COUPON_UTILIZATION)) {
+            final List<ReservedInstanceStatsRecord> riStatsRecords =
+                    getRiUtilizationStats(startTime, endTime, scope, groupOptional, optPlan);
+            final EntityStatsApiDTO result =
+                reservedInstanceMapper.convertRIStatsRecordsToEntityStatsApiDTO(riStatsRecords,
+                            scope, groupOptional, optPlan, false);
+            return paginationRequest.allResultsResponse(Lists.newArrayList(result));
+        } else if (riStatsName.equals(StringConstants.RI_COUPON_COVERAGE)) {
+            final List<ReservedInstanceStatsRecord> riStatsRecords =
+                getRiCoverageStats(startTime, endTime, scope, groupOptional, optPlan);
+            final EntityStatsApiDTO result =
+                reservedInstanceMapper.convertRIStatsRecordsToEntityStatsApiDTO(riStatsRecords,
+                    scope, groupOptional, optPlan, true);
+            return paginationRequest.allResultsResponse(Lists.newArrayList(result));
+        } else if (riStatsName.equals(StringConstants.RI_COST)) {
+            final EntityStatsApiDTO result = getRiCostStats(startTime, endTime, scope, groupOptional, optPlan);
+            return paginationRequest.allResultsResponse(Lists.newArrayList(result));
+        } else {
+            logger.error("Not support reserved instance stats type: " + riStatsName);
+            throw new UnknownObjectException(riStatsName + " is not supported query type.");
+        }
     }
 
     /**
@@ -246,6 +279,69 @@ public class ReservedInstancesService implements IReservedInstancesService {
     }
 
     /**
+     * Get the reserved instance count map which belongs to the input scope.
+     *
+     * @param scope The scope could be global market, a group, a region, a availability zone or a account.
+     * @param groupOptional The optional of {@link Group}.
+     * @return a Map which key is computer tier id, value is the count of reserved instance bought.
+     * @throws UnknownObjectException if scope type is not supported.
+     */
+    private Map<Long, Long> getReservedInstanceCountMap(@Nonnull final String scope,
+                                                        @Nonnull final Optional<Group> groupOptional,
+                                                        @Nonnull final Optional<PlanInstance> optPlan)
+            throws UnknownObjectException {
+        if (isGlobalScope(scope, groupOptional)) {
+            return reservedInstanceService.getReservedInstanceBoughtCount(
+                    GetReservedInstanceBoughtCountRequest.newBuilder().build())
+                    .getReservedInstanceCountMapMap();
+        } else if (groupOptional.isPresent()) {
+            final int groupEntityType = GroupProtoUtil.getEntityType(groupOptional.get());
+            final Set<Long> expandedOidsList = groupExpander.expandUuid(scope);
+            final GetReservedInstanceBoughtCountRequest request =
+                    createGetReservedInstanceBoughtCountRequest(expandedOidsList, groupEntityType);
+            return reservedInstanceService.getReservedInstanceBoughtCount(request)
+                    .getReservedInstanceCountMapMap();
+        } else {
+            // if cloud plan, use plan scope ids for the RI request
+            final Set<Long> scopeIds = optPlan.map(MarketMapper::getPlanScopeIds)
+                .orElse(Sets.newHashSet(Long.valueOf(scope)));
+            final int scopeEntityType = getScopeEntityType(scopeIds.iterator().next());
+            final GetReservedInstanceBoughtCountRequest request =
+                    createGetReservedInstanceBoughtCountRequest(scopeIds, scopeEntityType);
+            return reservedInstanceService.getReservedInstanceBoughtCount(request)
+                .getReservedInstanceCountMapMap();
+        }
+    }
+
+    /**
+     * Create a {@link GetReservedInstanceBoughtCountRequest} based on input filter type and filter ids.
+     *
+     * @param filterIds a list of ids need to filter by.
+     * @param filterType the filter entity type.
+     * @return {@link GetReservedInstanceBoughtCountRequest}.
+     * @throws UnknownObjectException
+     */
+    private GetReservedInstanceBoughtCountRequest createGetReservedInstanceBoughtCountRequest(
+            @Nonnull final Set<Long> filterIds,
+            final int filterType) throws UnknownObjectException {
+        final GetReservedInstanceBoughtCountRequest.Builder request =
+                GetReservedInstanceBoughtCountRequest.newBuilder();
+        if (filterType == EntityDTO.EntityType.REGION_VALUE) {
+            request.setRegionFilter(RegionFilter.newBuilder()
+                    .addAllRegionId(filterIds));
+        } else if (filterType == EntityDTO.EntityType.AVAILABILITY_ZONE_VALUE) {
+            request.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
+                    .addAllAvailabilityZoneId(filterIds));
+        } else if (filterType == EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE) {
+            request.setAccountFilter(AccountFilter.newBuilder()
+                    .addAllAccountId(filterIds));
+        } else {
+            throw new UnknownObjectException("filter type: "  + filterType + " is not supported.");
+        }
+        return request.build();
+    }
+
+    /**
      * Create a {@link GetReservedInstanceBoughtByFilterRequest} based on input filter type and filter ids.
      *
      * @param filterIds a list of ids need to filter by.
@@ -268,6 +364,286 @@ public class ReservedInstancesService implements IReservedInstancesService {
             request.setAccountFilter(AccountFilter.newBuilder()
                     .addAllAccountId(filterIds));
         } else {
+            throw new UnknownObjectException("filter type: "  + filterType + " is not supported.");
+        }
+        return request.build();
+    }
+
+    /**
+     * Get a list of {@link ReservedInstanceStatsRecord} for reserved instance utilization stats request.
+     *
+     * @param startDateMillis the request start date millis.
+     * @param endDateMillis the request end date millis.
+     * @param scope the scope of the request.
+     * @param groupOptional a optional of {@link Group}.
+     * @return a list of {@link ReservedInstanceStatsRecord}.
+     * @throws UnknownObjectException if the scope entity is unknown.
+     */
+    private List<ReservedInstanceStatsRecord> getRiUtilizationStats(
+            final long startDateMillis,
+            final long endDateMillis,
+            @Nonnull final String scope,
+            @Nonnull final Optional<Group> groupOptional,
+            @Nonnull final Optional<PlanInstance> optPlan) throws UnknownObjectException {
+        if (isGlobalScope(scope, groupOptional)) {
+            return riUtilizationCoverageService.getReservedInstanceUtilizationStats(
+                    GetReservedInstanceUtilizationStatsRequest.newBuilder()
+                            .setStartDate(startDateMillis)
+                            .setEndDate(endDateMillis)
+                            .build())
+                    .getReservedInstanceStatsRecordsList();
+        } else if (groupOptional.isPresent()) {
+            final int groupEntityType = GroupProtoUtil.getEntityType(groupOptional.get());
+            final Set<Long> expandedOidsList = groupExpander.expandUuid(scope);
+            final GetReservedInstanceUtilizationStatsRequest request =
+                    createGetReservedInstanceUtilizationStatsRequest(startDateMillis, endDateMillis,
+                            expandedOidsList, groupEntityType);
+            return riUtilizationCoverageService.getReservedInstanceUtilizationStats(request)
+                    .getReservedInstanceStatsRecordsList();
+        } else {
+            // if cloud plan, use plan scope ids for the RI request
+            final Set<Long> scopeIds = optPlan.map(MarketMapper::getPlanScopeIds)
+                .orElse(Sets.newHashSet(Long.valueOf(scope)));
+            final int scopeEntityType = getScopeEntityType(scopeIds.iterator().next());
+            final GetReservedInstanceUtilizationStatsRequest request =
+                    createGetReservedInstanceUtilizationStatsRequest(startDateMillis, endDateMillis,
+                        scopeIds, scopeEntityType);
+            return riUtilizationCoverageService.getReservedInstanceUtilizationStats(request)
+                    .getReservedInstanceStatsRecordsList();
+        }
+    }
+
+    private int getScopeEntityType(final long scopeEntityId) throws UnknownObjectException {
+        return repositoryApi.entityRequest(scopeEntityId)
+            .getMinimalEntity()
+            .orElseThrow(() -> new UnknownObjectException("Unknown scope id: " + scopeEntityId))
+            .getEntityType();
+    }
+
+    /**
+     * Get a list of {@link ReservedInstanceStatsRecord} for reserved instance coverage stats request.
+     *
+     * @param startDateMillis the request start date millis.
+     * @param endDateMillis the request end date millis.
+     * @param scope the scope of the request.
+     * @param groupOptional a optional of {@link Group}.
+     * @param optPlan an optional of {@link PlanInstance}
+     * @return a list of {@link ReservedInstanceStatsRecord}.
+     * @throws UnknownObjectException if the scope entity is unknown.
+     */
+    public List<ReservedInstanceStatsRecord> getRiCoverageStats(
+            final long startDateMillis,
+            final long endDateMillis,
+            final String scope,
+            final Optional<Group> groupOptional,
+            @Nonnull Optional<PlanInstance> optPlan) throws UnknownObjectException {
+        if (isGlobalScope(scope, groupOptional)) {
+            return riUtilizationCoverageService.getReservedInstanceCoverageStats(
+                GetReservedInstanceCoverageStatsRequest.newBuilder()
+                    .setStartDate(startDateMillis)
+                    .setEndDate(endDateMillis)
+                    .build())
+                .getReservedInstanceStatsRecordsList();
+        } else if (groupOptional.isPresent()) {
+            final int groupEntityType = GroupProtoUtil.getEntityType(groupOptional.get());
+            final Set<Long> expandedOidsList = groupExpander.expandUuid(scope);
+            final GetReservedInstanceCoverageStatsRequest request =
+                createGetReservedInstanceCoverageStatsRequest(startDateMillis, endDateMillis,
+                    expandedOidsList, groupEntityType);
+            return riUtilizationCoverageService.getReservedInstanceCoverageStats(request)
+                .getReservedInstanceStatsRecordsList();
+        } else {
+            // if cloud plan, use plan scope ids for the RI request
+            final Set<Long> scopeIds = optPlan.map(MarketMapper::getPlanScopeIds)
+                .orElse(Sets.newHashSet(Long.valueOf(scope)));
+            final int scopeEntityType = getScopeEntityType(scopeIds.iterator().next());
+            final GetReservedInstanceCoverageStatsRequest request =
+                createGetReservedInstanceCoverageStatsRequest(startDateMillis, endDateMillis,
+                    scopeIds, scopeEntityType);
+            return riUtilizationCoverageService.getReservedInstanceCoverageStats(request)
+                .getReservedInstanceStatsRecordsList();
+        }
+    }
+
+    /**
+     * Get a list of {@link StatSnapshotApiDTO} for reserved instance coverage stats from cost component.
+     *
+     * @param scope the scope of the request.
+     * @param inputDto a {@link StatPeriodApiInputDTO}.
+     * @return a list of {@link StatSnapshotApiDTO}.
+     * @throws UnknownObjectException if scope entity is unknown.
+     */
+    public List<StatSnapshotApiDTO> getRICoverageOrUtilizationStats(
+            @Nonnull final String scope,
+            @Nonnull final StatPeriodApiInputDTO inputDto,
+            @Nonnull final Optional<PlanInstance> optPlan) throws UnknownObjectException {
+        final Optional<Group> groupOptional = groupExpander.getGroup(scope);
+        long startTime = getStartTime(inputDto, optPlan);
+        long endTime = getEndTime(inputDto);
+        // TODO: add the projected reserved instance utilization stats.
+        String statName = inputDto.getStatistics().get(0).getName();
+        if (StringConstants.RI_COUPON_COVERAGE.equals(statName)) {
+            final List<ReservedInstanceStatsRecord> riStatsRecords = getRiCoverageStats(
+                startTime, endTime, scope, groupOptional, optPlan);
+            return reservedInstanceMapper.convertRIStatsRecordsToStatSnapshotApiDTO(riStatsRecords, true);
+        } else if (StringConstants.RI_COUPON_UTILIZATION.equals(statName)) {
+            final List<ReservedInstanceStatsRecord> riStatsRecords = getRiUtilizationStats(
+                startTime, endTime, scope, groupOptional, optPlan);
+            return reservedInstanceMapper.convertRIStatsRecordsToStatSnapshotApiDTO(riStatsRecords, false);
+        } else {
+            // not supported ri stats
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Get the latest RI coverage stats for the given scope.
+     *
+     * @param scope the scope to fetch latest RI coverage stats for
+     * @return an optional of StatApiDTO
+     */
+    public Optional<StatApiDTO> getLatestRICoverageStats(@Nonnull final String scope) {
+        final Optional<Group> groupOptional = groupExpander.getGroup(scope);
+        // use last 1 hour as start time and current time as end time
+        Instant now = Instant.now();
+        long startTime = now.minus(Duration.ofHours(1)).toEpochMilli();
+        long endTime = now.toEpochMilli();
+
+        try {
+            final List<ReservedInstanceStatsRecord> riStatsRecords = getRiCoverageStats(
+                startTime, endTime, scope, groupOptional, Optional.empty());
+            if (riStatsRecords.isEmpty()) {
+                return Optional.empty();
+            }
+            // use first one from response as latest stat
+            return Optional.of(reservedInstanceMapper.createRIUtilizationStatApiDTO(
+                riStatsRecords.get(0), true));
+        } catch (UnknownObjectException e) {
+            return Optional.empty();
+        }
+    }
+
+    public EntityStatsApiDTO getRiCostStats(long startDateMillis,
+                                            long endDateMillis,
+                                            @Nonnull String scope,
+                                            @Nonnull Optional<Group> groupOptional,
+                                            @Nonnull Optional<PlanInstance> optPlan)
+                throws OperationFailedException, InterruptedException, UnknownObjectException {
+        // get all VMs related to scope
+        Set<Long> relatedVMs = getScopesForRiCostStatsRequest(scope, groupOptional, optPlan);
+
+        // build request and fetch ri cost stats
+        final GetCloudCostStatsRequest.Builder builder = GetCloudCostStatsRequest.newBuilder();
+        builder.setEntityTypeFilter(EntityTypeFilter.newBuilder()
+            .addEntityTypeId(EntityType.VIRTUAL_MACHINE_VALUE)
+            .build());
+        builder.setEntityFilter(EntityFilter.newBuilder().addAllEntityId(relatedVMs).build());
+        builder.setStartDate(startDateMillis);
+        builder.setEndDate(endDateMillis);
+        final List<CloudCostStatRecord> riCostStatRecords = costServiceRpc.getCloudCostStats(
+            builder.build()).getCloudStatRecordList();
+
+        return reservedInstanceMapper.convertRiCostStatsRecordsToEntityStatsApiDTO(
+            riCostStatRecords, scope, groupOptional, optPlan);
+    }
+
+    private Set<Long> getScopesForRiCostStatsRequest(@Nonnull String scope,
+                                                     @Nonnull Optional<Group> groupOptional,
+                                                     @Nonnull Optional<PlanInstance> optPlan)
+                throws OperationFailedException, InterruptedException {
+        if (isGlobalScope(scope, groupOptional)) {
+            return Collections.emptySet();
+        }
+        final Set<Long> sourceScopeIds;
+        if (groupOptional.isPresent()) {
+            sourceScopeIds = groupExpander.expandUuid(scope);
+        } else if (optPlan.isPresent()) {
+            // if cloud plan, use plan scope ids for the RI request
+            sourceScopeIds = MarketMapper.getPlanScopeIds(optPlan.get());
+        } else {
+            sourceScopeIds = Sets.newHashSet(Long.valueOf(scope));
+        }
+
+        // get all VMs ids related to source scopes, using supply chain fetcher
+        SupplychainApiDTO supplychain = supplyChainFetcher.newApiDtoFetcher()
+            .topologyContextId(realtimeTopologyContextId)
+            .addSeedUuids(sourceScopeIds.stream().map(String::valueOf).collect(Collectors.toList()))
+            .entityTypes(Lists.newArrayList(UIEntityType.VIRTUAL_MACHINE.apiStr()))
+            .entityDetailType(EntityDetailType.entity)
+            .fetch();
+        return supplychain.getSeMap().get(UIEntityType.VIRTUAL_MACHINE.apiStr())
+            .getInstances().keySet().stream()
+            .map(Long::valueOf)
+            .collect(Collectors.toSet());
+    }
+
+    /**
+     * Create a {@link GetReservedInstanceUtilizationStatsRequest} based on input parameters.
+     *
+     * @param startDateMillis the request start date millis.
+     * @param endDateMillis the request end date millis.
+     * @param filterIds a list of filter ids.
+     * @param filterType the filter type.
+     * @return a {@link GetReservedInstanceUtilizationStatsRequest}.
+     * @throws UnknownObjectException if the filter type is unknown.
+     */
+    private GetReservedInstanceUtilizationStatsRequest createGetReservedInstanceUtilizationStatsRequest(
+            final long startDateMillis,
+            final long endDateMillis,
+            @Nonnull final Set<Long> filterIds,
+            final int filterType)  throws UnknownObjectException {
+        final GetReservedInstanceUtilizationStatsRequest.Builder request =
+                GetReservedInstanceUtilizationStatsRequest.newBuilder()
+                        .setStartDate(startDateMillis)
+                        .setEndDate(endDateMillis);
+        if (filterType == EntityDTO.EntityType.REGION_VALUE) {
+            request.setRegionFilter(RegionFilter.newBuilder()
+                    .addAllRegionId(filterIds));
+        } else if (filterType == EntityDTO.EntityType.AVAILABILITY_ZONE_VALUE) {
+            request.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
+                    .addAllAvailabilityZoneId(filterIds));
+        } else if (filterType == EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE) {
+            request.setAccountFilter(AccountFilter.newBuilder()
+                    .addAllAccountId(filterIds));
+        } else {
+            throw new UnknownObjectException("filter type: "  + filterType + " is not supported.");
+        }
+        return request.build();
+    }
+
+    /**
+     * Create a {@link GetReservedInstanceCoverageStatsRequest} based on input parameters.
+     *
+     * @param startDateMillis the request start date milliseconds.
+     * @param endDateMillis the request end date milliseconds.
+     * @param filterIds a list of filter ids.
+     * @param filterType the filter type.
+     * @return a {@link GetReservedInstanceCoverageStatsRequest}.
+     * @throws UnknownObjectException if the filter type is unknown.
+     */
+    private GetReservedInstanceCoverageStatsRequest createGetReservedInstanceCoverageStatsRequest(
+        final long startDateMillis,
+        final long endDateMillis,
+        @Nonnull final Set<Long> filterIds,
+        final int filterType) throws UnknownObjectException {
+        final GetReservedInstanceCoverageStatsRequest.Builder request =
+            GetReservedInstanceCoverageStatsRequest.newBuilder()
+                .setStartDate(startDateMillis)
+                .setEndDate(endDateMillis);
+        if (filterType == EntityDTO.EntityType.REGION_VALUE) {
+            request.setRegionFilter(RegionFilter.newBuilder()
+                .addAllRegionId(filterIds));
+        } else if (filterType == EntityDTO.EntityType.AVAILABILITY_ZONE_VALUE) {
+            request.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
+                .addAllAvailabilityZoneId(filterIds));
+        } else if (filterType == EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE) {
+            request.setAccountFilter(AccountFilter.newBuilder()
+                .addAllAccountId(filterIds));
+        } else if (filterType == EntityType.VIRTUAL_MACHINE_VALUE) {
+            request.setEntityFilter(EntityFilter.newBuilder()
+                .addAllEntityId(filterIds));
+        }
+        else {
             throw new UnknownObjectException("filter type: "  + filterType + " is not supported.");
         }
         return request.build();
@@ -319,5 +695,35 @@ public class ReservedInstancesService implements IReservedInstancesService {
         } catch (IllegalArgumentException | StatusRuntimeException e) {
             return Optional.empty();
         }
+    }
+
+    /**
+     * Get the start time which will be used in the RI stats request. startDate may not be set
+     * only in case of plan. If it's plan, use plan startTime as the start time.
+     */
+    private long getStartTime(@Nonnull final StatPeriodApiInputDTO inputDto,
+                              @Nonnull final Optional<PlanInstance> optPlan) {
+        if (inputDto.getStartDate() != null) {
+            return DateTimeUtil.parseTime(inputDto.getStartDate());
+        } else if (optPlan.isPresent()) {
+            // startDate may not be set only in case of plan
+            return optPlan.get().getStartTime();
+        } else {
+            // by default use 10 min from now
+            return Instant.now().minus(Duration.ofMinutes(10)).toEpochMilli();
+        }
+    }
+
+    /**
+     * Get the end time which will be used in the RI stats request. endDate may not be set or
+     * UI may pass "1M" as endDate, in this case, we use one day from now as end time.
+     */
+    private long getEndTime(@Nonnull final StatPeriodApiInputDTO inputDto) {
+        final String endDate = inputDto.getEndDate();
+        if ("1M".equals(endDate) || endDate == null) {//todo: check if 1M can be removed
+            // use 1 day from now as end time
+            return Instant.now().plus(Duration.ofDays(1)).toEpochMilli();
+        }
+        return DateTimeUtil.parseTime(inputDto.getEndDate());
     }
 }

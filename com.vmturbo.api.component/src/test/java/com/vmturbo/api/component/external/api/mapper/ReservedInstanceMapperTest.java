@@ -1,16 +1,25 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.api.component.external.api.mapper.UuidMapper.UI_REAL_TIME_MARKET_STR;
 import static org.junit.Assert.assertEquals;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
+import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
+import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.PaymentOption;
 import com.vmturbo.api.enums.Platform;
 import com.vmturbo.api.enums.ReservedInstanceType;
@@ -23,12 +32,15 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord.StatValue;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 
 public class ReservedInstanceMapperTest {
 
-    private ReservedInstanceMapper reservedInstanceMapper = new ReservedInstanceMapper();
+    final RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
+
+    private ReservedInstanceMapper reservedInstanceMapper = new ReservedInstanceMapper(repositoryApi);
 
     private ReservedInstanceBought riBought = ReservedInstanceBought.newBuilder()
             .setId(123L)
@@ -110,6 +122,93 @@ public class ReservedInstanceMapperTest {
         assertEquals("ReservedInstance", reservedInstanceApiDTO.getClassName());
         assertEquals(100.0, reservedInstanceApiDTO.getUpFrontCost(), delta);
         assertEquals(300.0, reservedInstanceApiDTO.getActualHourlyCost(), delta);
+    }
+
+    @Test
+    public void testRiCountToEntityStatsApiDTO() {
+        final float delta = 0.000001f;
+        final Map<Long, Long> riCountMap = ImmutableMap.of(11L, 5L, 12L, 10L,
+                13L, 15L);
+        final Map<Long, MinimalEntity> serviceEntityApiDTOMap = new HashMap<>();
+        MinimalEntity templateEntityOne = MinimalEntity.newBuilder()
+            .setOid(11)
+            .setDisplayName("c3.xlarge")
+            .build();
+        MinimalEntity templateEntityTwo = MinimalEntity.newBuilder()
+            .setOid(12)
+            .setDisplayName("m3.xlarge")
+            .build();
+        MinimalEntity templateEntityThree = MinimalEntity.newBuilder()
+            .setOid(13)
+            .setDisplayName("r3.xlarge")
+            .build();
+        serviceEntityApiDTOMap.put(11L, templateEntityOne);
+        serviceEntityApiDTOMap.put(12L, templateEntityTwo);
+        serviceEntityApiDTOMap.put(13L, templateEntityThree);
+        final EntityStatsApiDTO entityStatsApiDTO =
+                reservedInstanceMapper.riCountMapToEntityStatsApiDTO(riCountMap, serviceEntityApiDTOMap);
+        assertEquals(1L, entityStatsApiDTO.getStats().size());
+        assertEquals(3L, entityStatsApiDTO.getStats().get(0).getStatistics().size());
+        final List<StatApiDTO> statApiDTOList = entityStatsApiDTO.getStats().get(0).getStatistics();
+        assertEquals(5L, statApiDTOList.stream()
+                .filter(stat -> stat.getFilters().get(0).getValue().equals("c3.xlarge"))
+                .mapToDouble(StatApiDTO::getValue)
+                .sum(), delta);
+        assertEquals(5L, statApiDTOList.stream()
+                .filter(stat -> stat.getFilters().size() == 1
+                        && stat.getFilters().get(0).getValue().equals("c3.xlarge"))
+                .mapToDouble(StatApiDTO::getValue)
+                .sum(), delta);
+        assertEquals(10L, statApiDTOList.stream()
+                .filter(stat -> stat.getFilters().size() == 1
+                        && stat.getFilters().get(0).getValue().equals("m3.xlarge"))
+                .mapToDouble(StatApiDTO::getValue)
+                .sum(), delta);
+        assertEquals(15L, statApiDTOList.stream()
+                .filter(stat -> stat.getFilters().size() == 1
+                        && stat.getFilters().get(0).getValue().equals("r3.xlarge"))
+                .mapToDouble(StatApiDTO::getValue)
+                .sum(), delta);
+    }
+
+    @Test
+    public void testRiUtilizationStatsRecordsToEntityStatsApiDTO() throws Exception {
+        final EntityStatsApiDTO entityStatsApiDTO =
+                reservedInstanceMapper.convertRIStatsRecordsToEntityStatsApiDTO(
+                        Lists.newArrayList(riStatsrecord), UI_REAL_TIME_MARKET_STR,
+                        Optional.empty(), Optional.empty(), false);
+        final List<StatSnapshotApiDTO> statSnapshotApiDTOS = entityStatsApiDTO.getStats();
+        assertEquals(1L, statSnapshotApiDTOS.size());
+
+        assertEquals(1L, statSnapshotApiDTOS.get(0).getStatistics().size());
+        final StatApiDTO statApiDTO = statSnapshotApiDTOS.get(0).getStatistics().get(0);
+        assertEquals(10, statApiDTO.getCapacity().getMin(), DELTA);
+        assertEquals(20, statApiDTO.getCapacity().getMax(), DELTA);
+        assertEquals(15, statApiDTO.getCapacity().getAvg(), DELTA);
+        assertEquals(30, statApiDTO.getCapacity().getTotal(), DELTA);
+        assertEquals(5, statApiDTO.getValues().getMax(), DELTA);
+        assertEquals(1, statApiDTO.getValues().getMin(), DELTA);
+        assertEquals(3, statApiDTO.getValues().getAvg(), DELTA);
+        assertEquals(6, statApiDTO.getValues().getTotal(), DELTA);
+    }
+
+    @Test
+    public void testRiCoverageStatsRecordsToStatSnapshotApiDTO() {
+        final List<StatSnapshotApiDTO> statSnapshotApiDTOS =
+                reservedInstanceMapper.convertRIStatsRecordsToStatSnapshotApiDTO(
+                        Lists.newArrayList(riStatsrecord), true);
+        assertEquals(1L, statSnapshotApiDTOS.size());
+
+        assertEquals(1L, statSnapshotApiDTOS.get(0).getStatistics().size());
+        final StatApiDTO statApiDTO = statSnapshotApiDTOS.get(0).getStatistics().get(0);
+        assertEquals(10, statApiDTO.getCapacity().getMin(), DELTA);
+        assertEquals(20, statApiDTO.getCapacity().getMax(), DELTA);
+        assertEquals(15, statApiDTO.getCapacity().getAvg(), DELTA);
+        assertEquals(30, statApiDTO.getCapacity().getTotal(), DELTA);
+        assertEquals(5, statApiDTO.getValues().getMax(), DELTA);
+        assertEquals(1, statApiDTO.getValues().getMin(), DELTA);
+        assertEquals(3, statApiDTO.getValues().getAvg(), DELTA);
+        assertEquals(6, statApiDTO.getValues().getTotal(), DELTA);
     }
 
 }

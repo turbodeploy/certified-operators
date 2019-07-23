@@ -288,12 +288,8 @@ public class StringConstants {
     public final static String BEFORE_PLAN = "beforePlan";
     public final static String ON_DEMAND_COMPUTE_LICENSE_COST = "ON_DEMAND_COMPUTE_LICENSE_COST";
 
-    public static final String CSP = "CSP";
-
     // aspect name constants
     public static final String CLOUD_ASPECT_NAME = "cloudAspect";
     public static final String VM_ASPECT_NAME = "virtualMachineAspect";
     public static final String VIRTUAL_VOLUME_ASPECT_NAME = "virtualDisksAspect";
-
-    public static final String UNKNOWN = "Unknown";
 }

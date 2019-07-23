@@ -21,7 +21,6 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.auth.api.widgets.AuthClientConfig;
@@ -444,11 +443,6 @@ public class CommunicationConfig {
     public ServiceEntityMapper serviceEntityMapper() {
         // Normally this would be in MapperConfig, but RepositoryApi needs it and we don't want
         // to introduce a circular dependency.
-        return new ServiceEntityMapper(thinTargetCache());
-    }
-
-    @Bean
-    public ThinTargetCache thinTargetCache() {
-        return new ThinTargetCache(topologyProcessor());
+        return new ServiceEntityMapper(topologyProcessor());
     }
 }

@@ -52,8 +52,6 @@ import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers
 import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -152,7 +150,7 @@ public class GroupsServiceTest {
     private ActionStatsQueryExecutor actionStatsQueryExecutor;
 
     @Mock
-    private ThinTargetCache targetCache;
+    private TargetsService targetsService;
 
     @Mock
     private SupplyChainFetcherFactory supplyChainFetcherFactory;
@@ -208,7 +206,7 @@ public class GroupsServiceTest {
                 actionSearchUtil,
                 settingPolicyServiceBlockingStub,
                 settingsMapper,
-                targetCache);
+                targetsService);
 
         groupFilterApiDTO.setFilterType(GROUP_FILTER_TYPE);
         groupFilterApiDTO.setExpVal(GROUP_TEST_PATTERN);
@@ -578,7 +576,7 @@ public class GroupsServiceTest {
     }
 
     @Test
-    public void testGetComputerCluster() throws UnknownObjectException, OperationFailedException {
+    public void testGetComputerCluster() throws UnknownObjectException {
         // Arrange
         final String name = "name";
 
@@ -650,9 +648,8 @@ public class GroupsServiceTest {
             .setStartingFilter(SearchProtoUtil.discoveredBy(Arrays.asList(1L, 2L)))
             .build())).thenReturn(req);
 
-        final ThinTargetInfo targetInfo = mock(ThinTargetInfo.class);
-        when(targetCache.getTargetInfo(Long.parseLong(target1))).thenReturn(Optional.of(targetInfo));
-        when(targetCache.getTargetInfo(Long.parseLong(target2))).thenReturn(Optional.of(targetInfo));
+        when(targetsService.isTarget(target1)).thenReturn(true);
+        when(targetsService.isTarget(target2)).thenReturn(true);
 
         // without related entity type
         Set<Long> expandedIds = groupsService.expandUuids(Sets.newHashSet(target1, target2), null, null);
@@ -670,7 +667,7 @@ public class GroupsServiceTest {
         long vm1 = 11;
         long vm2 = 12;
         long pm1 = 21;
-        when(targetCache.getTargetInfo(Long.parseLong(groupId11))).thenReturn(Optional.empty());
+        when(targetsService.isTarget(groupId11)).thenReturn(false);
 
         // expand a VM group, provide no entity type and expect to get all vms in the group
         SupplyChainNodeFetcherBuilder fetcherBuilder = ApiTestUtils.mockNodeFetcherBuilder(

@@ -311,13 +311,6 @@ public class SupplyChainFetcherFactory {
             return (B)this;
         }
 
-        public B addSeedOids(@Nullable Collection<Long> oids) {
-            if (oids != null) {
-                oids.forEach(oid -> this.seedUuids.add(Long.toString(oid)));
-            }
-            return (B)this;
-        }
-
         /**
          * the topologyContext in which to perform the supplychain lookup - default is the Live Topology
          * @param topologyContextId the topologyContextId on which the supplychain operations should

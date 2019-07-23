@@ -160,6 +160,7 @@ public class StatsHistoryRpcServiceTest {
         List<Long> entities = Arrays.asList(1L, 2L, 3L);
 
         // convert to the standard time format we return
+        final String snapshotTimeTest = DateTimeUtil.toString(SNAPSHOT_TIME.getTime());
         // the two values for "c1" will be averaged"
         final float c1Value1 = 123;
         final String propType = "c1";
@@ -189,7 +190,7 @@ public class StatsHistoryRpcServiceTest {
         // Assert
         assertThat(snapshots.size(), is(1));
         final StatSnapshot snapshot = snapshots.get(0);
-        assertThat(snapshot.getSnapshotDate(), is(SNAPSHOT_TIME.getTime()));
+        assertThat(snapshot.getSnapshotDate(), is(snapshotTimeTest));
         assertThat(snapshot.getStatRecordsCount(), is(2));
 
         // The order is not guaranteed as map iteration is used in the implementation.
@@ -675,7 +676,7 @@ public class StatsHistoryRpcServiceTest {
         when(mockLivestatsreader.getPaginatedStatsRecords(scope, filter, paginationParams))
                 .thenReturn(statRecordPage);
         final StatSnapshot.Builder statSnapshotBuilder = StatSnapshot.newBuilder()
-                .setSnapshotDate(1L);
+                .setSnapshotDate("date to uniquely identify this snapshot");
         doReturn(Stream.of(statSnapshotBuilder)).when(statSnapshotCreatorSpy)
                 .createStatSnapshots(Collections.singletonList(record), false, Collections.emptyList());
 
