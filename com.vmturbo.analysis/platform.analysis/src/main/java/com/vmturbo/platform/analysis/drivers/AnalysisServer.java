@@ -57,7 +57,7 @@ import com.vmturbo.platform.analysis.utilities.StatsUtils;
  */
 public class AnalysisServer implements AutoCloseable {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private final Logger logger = LogManager.getLogger(AnalysisServer.class);
     // the maximum number of task queue allowed to process client message
     private static final int MAX_QUEUE_SIZE = 100;
     // the thread pool used for handling message sent from client side
