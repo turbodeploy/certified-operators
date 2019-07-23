@@ -26,15 +26,17 @@ import com.vmturbo.api.component.external.api.mapper.aspect.StorageTierAspectMap
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualMachineAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
+import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.cost.api.CostClientConfig;
+import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
 @Configuration
-@Import({CommunicationConfig.class, UserSessionConfig.class})
+@Import({CommunicationConfig.class, UserSessionConfig.class, RepositoryClientConfig.class})
 public class MapperConfig {
 
     @Value("${groupBuildUseCaseFile}")
@@ -65,6 +67,9 @@ public class MapperConfig {
 
     @Autowired
     private MapperConfig mapperConfig;
+
+    @Autowired
+    private RepositoryClientConfig repositoryClientConfig;
 
     @Bean
     public ActionSpecMapper actionSpecMapper() {
@@ -152,7 +157,9 @@ public class MapperConfig {
     @Bean
     public UuidMapper uuidMapper() {
         return new UuidMapper(communicationConfig.getRealtimeTopologyContextId(),
+            magicScopeGateway(),
             communicationConfig.repositoryApi(),
+            communicationConfig.topologyProcessor(),
             communicationConfig.planRpcService(),
             communicationConfig.groupRpcService());
     }
@@ -169,7 +176,7 @@ public class MapperConfig {
 
     @Bean
     public ReservedInstanceMapper reservedInstanceMapper() {
-        return new ReservedInstanceMapper(communicationConfig.repositoryApi());
+        return new ReservedInstanceMapper();
     }
 
     @Bean
@@ -214,7 +221,7 @@ public class MapperConfig {
 
     @Bean
     public CloudAspectMapper cloudAspectMapper() {
-        return new CloudAspectMapper(serviceConfig.reservedInstancesService());
+        return new CloudAspectMapper(serviceConfig.statsQueryExecutor(), mapperConfig.uuidMapper());
     }
 
     @Bean
@@ -275,5 +282,14 @@ public class MapperConfig {
         return Tracing.traceAwareExecutor(Executors.newCachedThreadPool(new ThreadFactoryBuilder()
             .setNameFormat("MapperThread-%d")
             .build()));
+    }
+
+    @Bean
+    public MagicScopeGateway magicScopeGateway() {
+        final MagicScopeGateway gateway = new MagicScopeGateway(groupMapper(),
+            communicationConfig.groupRpcService(),
+            communicationConfig.getRealtimeTopologyContextId());
+        repositoryClientConfig.repository().addListener(gateway);
+        return gateway;
     }
 }

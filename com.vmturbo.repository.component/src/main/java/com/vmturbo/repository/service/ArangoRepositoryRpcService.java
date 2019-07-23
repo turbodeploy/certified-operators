@@ -445,7 +445,7 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
                 Set<String> commodityNames = collectCommodityNames(request.getFilter());
                 StatSnapshot.Builder snapshot = StatSnapshot.newBuilder();
                 if (request.hasFilter() && request.getFilter().hasStartDate()) {
-                    snapshot.setSnapshotDate(DateTimeUtil.toString(request.getFilter().getStartDate()));
+                    snapshot.setSnapshotDate(request.getFilter().getStartDate());
                 }
 
                 // commodities bought - TODO: compute capacity of commodities bought = seller capacity

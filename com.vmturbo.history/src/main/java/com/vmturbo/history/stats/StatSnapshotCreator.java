@@ -95,7 +95,7 @@ public interface StatSnapshotCreator {
                 final Timestamp timestamp = entry.getKey();
                 final Multimap<String, Record> commodityMap = entry.getValue();
                 Builder snapshotBuilder = StatSnapshot.newBuilder();
-                snapshotBuilder.setSnapshotDate(DateTimeUtil.toString(timestamp.getTime()));
+                snapshotBuilder.setSnapshotDate(timestamp.getTime());
 
                 // process all the stats records for a given commodity for the current snapshot_time
                 // - might be 1, many for group, or none if time range didn't overlap recorded stats
