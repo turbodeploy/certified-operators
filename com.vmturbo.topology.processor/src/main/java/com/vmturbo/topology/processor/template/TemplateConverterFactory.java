@@ -167,6 +167,11 @@ public class TemplateConverterFactory {
                     .setOid(identityProvider.generateTopologyId())
                     .setDisplayName(template.getTemplateInfo().getName() + " - Replacing " +
                             entityBuilder.getDisplayName());
+                if (entityBuilder.getEntityBuilder().getEditBuilder().hasReplaced()) {
+                    entityBuilder.getEntityBuilder().getEditBuilder()
+                            .getReplacedBuilder().setReplacementId(topologyEntityBuilder.getOid());
+
+                }
                 return generateTopologyEntityByType(template, topologyEntityBuilder, topology,
                     entityOid, false);
             });

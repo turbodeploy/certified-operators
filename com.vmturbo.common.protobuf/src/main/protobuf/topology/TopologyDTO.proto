@@ -498,6 +498,7 @@ message TopologyEntityDTO {
     // complexity. We don't seem to need it yet, so leaving it out.
     message Replaced {
         required int64 plan_id = 1; // the plan calling for the entity's replacement
+        optional int64 replacement_id = 2; // new entity that is replacing the target entity
     }
 
     // List of entities that are topologically connected with the entity that this probuf defines.
