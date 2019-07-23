@@ -48,6 +48,7 @@ import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
@@ -189,7 +190,7 @@ public class GroupsService implements IGroupsService {
 
     private final SettingsMapper settingsMapper;
 
-    private final TargetsService targetsService;
+    private final ThinTargetCache thinTargetCache;
 
     private final Logger logger = LogManager.getLogger();
 
@@ -209,7 +210,7 @@ public class GroupsService implements IGroupsService {
                   @Nonnull final ActionSearchUtil actionSearchUtil,
                   @Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub,
                   @Nonnull final SettingsMapper settingsMapper,
-                  @Nonnull final TargetsService targetsService) {
+                  @Nonnull final ThinTargetCache thinTargetCache) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.groupMapper = Objects.requireNonNull(groupMapper);
@@ -226,7 +227,7 @@ public class GroupsService implements IGroupsService {
         this.settingPolicyServiceBlockingStub = Objects.requireNonNull(settingPolicyServiceBlockingStub);
         this.actionSearchUtil = Objects.requireNonNull(actionSearchUtil);
         this.settingsMapper = Objects.requireNonNull(settingsMapper);
-        this.targetsService = Objects.requireNonNull(targetsService);
+        this.thinTargetCache = Objects.requireNonNull(thinTargetCache);
     }
 
     /**
@@ -279,8 +280,9 @@ public class GroupsService implements IGroupsService {
 
     @Override
     public List<?> getEntitiesByGroupUuid(String uuid) throws Exception {
+        final ApiId apiId = uuidMapper.fromUuid(uuid);
         // check if scope is real time market, return all entities in the market
-        if (UuidMapper.UI_REAL_TIME_MARKET_STR.equals(uuid)) {
+        if (apiId.isRealtimeMarket()) {
             return repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
                     SearchProtoUtil.entityTypeFilter(SearchMapper.SEARCH_ALL_TYPES))
                     .build())
@@ -292,7 +294,7 @@ public class GroupsService implements IGroupsService {
         final Optional<GroupAndMembers> groupAndMembers = groupExpander.getGroupWithMembers(uuid);
         if (groupAndMembers.isPresent()) {
             leafEntities = Sets.newHashSet(groupAndMembers.get().entities());
-        } else if (targetsService.isTarget(uuid)) {
+        } else if (apiId.isTarget()) {
             // check if it's target
             leafEntities = expandUuids(Collections.singleton(uuid), Collections.emptyList(), null);
         } else {
@@ -1024,7 +1026,13 @@ public class GroupsService implements IGroupsService {
         //   - The scope is a list of entities, in which case we want the clusters the entities are in.
         // We assume it's either-or - i.e. either all scopes are groups, or all scopes are entities.
         if (UuidMapper.hasLimitedScope(scopes)) {
-            if (scopes.stream().anyMatch(uuid -> uuidMapper.fromUuid(uuid).isGroup())) {
+            if (scopes.stream().anyMatch(uuid -> {
+                try {
+                    return uuidMapper.fromUuid(uuid).isGroup();
+                } catch (OperationFailedException e) {
+                    return false;
+                }
+            })) {
                 return getClustersInGroups(clusterType, scopes, filterList);
             } else {
                 // Note - for now (March 29 2019) we don't have cases where we need to apply the
@@ -1106,7 +1114,7 @@ public class GroupsService implements IGroupsService {
         final Set<Long> targetUuids = new HashSet<>();
         final Set<String> seedUuids = new HashSet<>();
         scopeUuids.forEach(scopeUuid -> {
-            if (targetsService.isTarget(scopeUuid)) {
+            if (thinTargetCache.getTargetInfo(Long.parseLong(scopeUuid)).isPresent()) {
                 targetUuids.add(Long.parseLong(scopeUuid));
             } else {
                 seedUuids.add(scopeUuid);

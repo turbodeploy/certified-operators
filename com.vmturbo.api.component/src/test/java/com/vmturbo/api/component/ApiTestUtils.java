@@ -279,7 +279,11 @@ public class ApiTestUtils {
         when(apiId.isEntity()).thenReturn(isEntity);
 
         uuidMapperOpt.ifPresent(uuidMapper -> {
-            when(uuidMapper.fromUuid(uuid)).thenReturn(apiId);
+            try {
+                when(uuidMapper.fromUuid(uuid)).thenReturn(apiId);
+            } catch (OperationFailedException e) {
+                throw new IllegalStateException(e);
+            }
             when(uuidMapper.fromOid(id)).thenReturn(apiId);
         });
         return apiId;

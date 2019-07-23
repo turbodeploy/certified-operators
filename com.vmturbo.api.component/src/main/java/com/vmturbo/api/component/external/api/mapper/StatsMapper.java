@@ -141,7 +141,7 @@ public class StatsMapper {
     public StatSnapshotApiDTO toStatSnapshotApiDTO(StatSnapshot statSnapshot) {
         final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
         if (statSnapshot.hasSnapshotDate()) {
-            dto.setDate(statSnapshot.getSnapshotDate());
+            dto.setDate(DateTimeUtil.toString(statSnapshot.getSnapshotDate()));
         }
         dto.setStatistics(statSnapshot.getStatRecordsList().stream()
                 .map(this::toStatApiDto)

@@ -5,9 +5,6 @@ import static org.apache.commons.lang.time.DateUtils.MILLIS_PER_DAY;
 
 import java.math.BigDecimal;
 import java.sql.SQLException;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -22,12 +19,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Multimap;
-
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -35,12 +26,17 @@ import org.jooq.Record;
 import org.jooq.exception.DataAccessException;
 import org.springframework.util.CollectionUtils;
 
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
+
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.client.Summary;
 import io.prometheus.client.Summary.Timer;
 
-import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
@@ -85,11 +81,11 @@ import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByMonth
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
+import com.vmturbo.history.stats.live.SystemLoadReader;
+import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 import com.vmturbo.history.stats.readers.LiveStatsReader;
 import com.vmturbo.history.stats.readers.LiveStatsReader.StatRecordPage;
-import com.vmturbo.history.stats.live.SystemLoadReader;
 import com.vmturbo.history.stats.writers.SystemLoadWriter;
-import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 
 /**
  * Handles incoming RPC calls to History Component to return Stats information.
@@ -437,11 +433,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             for (java.sql.Date recordDate : sortedStatsDates) {
                 StatSnapshot.Builder statSnapshotResponseBuilder = StatSnapshot.newBuilder();
                 resultMap.get(recordDate).forEach(statSnapshotResponseBuilder::addStatRecords);
-                statSnapshotResponseBuilder.setSnapshotDate(LocalDateTime.ofInstant(
-                        Instant.ofEpochMilli(recordDate.getTime()), ZoneOffset.systemDefault())
-                        .toString());
-                statSnapshotResponseBuilder.setStartDate(recordDate.getTime());
-                statSnapshotResponseBuilder.setEndDate(recordDate.getTime());
+                statSnapshotResponseBuilder.setSnapshotDate(recordDate.getTime());
                 responseObserver.onNext(statSnapshotResponseBuilder.build());
             }
 
@@ -671,16 +663,10 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         if (planStatsRecord.isPresent()) {
             final long planTime = planStatsRecord.get().getCreateTime().getTime();
 
-            beforePlanStatSnapshotResponseBuilder.setSnapshotDate(DateTimeUtil.toString(planTime));
-            // TODO: the timestamps should be based on listening to the Plan Orchestrator OM-14839
-            beforePlanStatSnapshotResponseBuilder.setStartDate(planTime);
-            beforePlanStatSnapshotResponseBuilder.setEndDate(planTime);
+            beforePlanStatSnapshotResponseBuilder.setSnapshotDate(planTime);
             responseObserver.onNext(beforePlanStatSnapshotResponseBuilder.build());
 
-            afterPlanStatSnapshotResponseBuilder.setSnapshotDate(DateTimeUtil.toString(planTime));
-            // TODO: the timestamps should be based on listening to the Plan Orchestrator OM-14839
-            afterPlanStatSnapshotResponseBuilder.setStartDate(planTime);
-            afterPlanStatSnapshotResponseBuilder.setEndDate(planTime);
+            afterPlanStatSnapshotResponseBuilder.setSnapshotDate(planTime);
             responseObserver.onNext(afterPlanStatSnapshotResponseBuilder.build());
 
             responseObserver.onCompleted();

@@ -73,6 +73,7 @@ import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.controller.MarketsController;
@@ -125,7 +126,6 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
  * Unit test for {@link MarketsService}.
@@ -479,8 +479,8 @@ public class MarketsServiceTest {
     public static class TestConfig extends WebMvcConfigurerAdapter {
 
         @Bean
-        public TopologyProcessor topologyProcessor() {
-            return Mockito.mock(TopologyProcessor.class);
+        public ThinTargetCache thinTargetCache() {
+            return Mockito.mock(ThinTargetCache.class);
         }
 
         @Bean
@@ -489,7 +489,7 @@ public class MarketsServiceTest {
                     policiesService(), policyCpcService(), planRpcService(), scenarioServiceClient(),
                     policyMapper(), marketMapper(), statsMapper(), paginationMapper(),
                     groupRpcService(), repositoryRpcService(), new UserSessionContext(),
-                    uiNotificationChannel(), actionStatsQueryExecutor(), topologyProcessor(),
+                    uiNotificationChannel(), actionStatsQueryExecutor(), thinTargetCache(),
                     entitySeverityRpcService(), statsHistoryRpcService(),
                     statsService(), repositoryApi(), serviceEntityMapper(), REALTIME_CONTEXT_ID);
         }
@@ -531,7 +531,7 @@ public class MarketsServiceTest {
 
         @Bean
         public ServiceEntityMapper serviceEntityMapper() {
-            return new ServiceEntityMapper(topologyProcessor());
+            return new ServiceEntityMapper(thinTargetCache());
         }
 
         @Bean

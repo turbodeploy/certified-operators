@@ -106,8 +106,7 @@ public class TargetsService implements ITargetsService {
      * The UI string constant for the "VALIDATED" state of a target.
      * Should match what's defined in the UI in stringUtils.js
      */
-    @VisibleForTesting
-    static final String UI_VALIDATED_STATUS = "Validated";
+    public static final String UI_VALIDATED_STATUS = "Validated";
 
     /**
      * The display name of the category for all targets that are not functional.
@@ -239,36 +238,31 @@ public class TargetsService implements ITargetsService {
     @Override
     public List<TargetApiDTO> getTargets(@Nullable final EnvironmentType environmentType) {
         logger.debug("Get all targets");
-        try {
-            // No Cloud target supported yet, if the user ask for only Cloud, return empty
-            if (environmentType != null && environmentType == EnvironmentType.CLOUD) {
-                return new ArrayList<>();
-            }
+        // No Cloud target supported yet, if the user ask for only Cloud, return empty
+        if (environmentType != null && environmentType == EnvironmentType.CLOUD) {
+            return new ArrayList<>();
+        }
+        return getAllTargets(false);
+    }
 
+    @Nonnull
+    public List<TargetApiDTO> getAllTargets(final boolean includeHidden) {
+        try {
             final Set<TargetInfo> targets = topologyProcessor.getAllTargets();
             final List<TargetApiDTO> answer = targets.stream()
-                    .filter(removeHiddenTargets())
-                    .map(targetInfo -> {
-                        try {
-                            return mapTargetInfoToDTO(targetInfo);
-                        } catch (CommunicationException e) {
-                            throw new CommunicationError(e);
-                        }
-                    })
-                    .collect(Collectors.toList());
+                .filter(target -> includeHidden || !target.isHidden())
+                .map(targetInfo -> {
+                    try {
+                        return mapTargetInfoToDTO(targetInfo);
+                    } catch (CommunicationException e) {
+                        throw new CommunicationError(e);
+                    }
+                })
+                .collect(Collectors.toList());
             return answer;
         } catch (CommunicationException e) {
             throw new RuntimeException("Error getting targets list", e);
         }
-    }
-
-    /**
-     * Filter the targets list which we do not want to show users.
-     *
-     * @return Predicate<TargetInfo> True if the target is not hidden
-     */
-    private Predicate<TargetInfo> removeHiddenTargets() {
-        return targetInfo -> !targetInfo.isHidden();
     }
 
     /**

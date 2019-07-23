@@ -284,9 +284,14 @@ public interface StatsQueryFactory {
                             break;
                         default:
                             // default is to use 'property' as column name and perform a string match
-                            commodityTest = commodityTest.and(
-                                    str(dField(table, propertyValueFilter.getProperty()))
-                                            .eq(propertyValueFilter.getValue()));
+                            final Field<?> propField = table.field(propertyValueFilter.getProperty());
+                            if (propField != null) {
+                                commodityTest = commodityTest.and(
+                                    str(propField).eq(propertyValueFilter.getValue()));
+                            } else {
+                                logger.warn("Unhandled stat property filter: {}",
+                                    propertyValueFilter.getProperty());
+                            }
                     }
                 }
                 // construct the "or" of all the different commodityTests

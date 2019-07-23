@@ -26,6 +26,8 @@ import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
@@ -41,6 +43,7 @@ import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 public class UuidMapperTest {
 
@@ -50,6 +53,10 @@ public class UuidMapperTest {
 
     private RepositoryApi repositoryApi = mock(RepositoryApi.class);
 
+    private TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
+
+    private MagicScopeGateway magicScopeGateway = mock(MagicScopeGateway.class);
+
     @Rule
     public GrpcTestServer grpcServer =
         GrpcTestServer.newServer(groupServiceBackend, planServiceMole);
@@ -57,15 +64,19 @@ public class UuidMapperTest {
     private UuidMapper uuidMapper;
 
     @Before
-    public void setup() {
+    public void setup() throws OperationFailedException {
         uuidMapper = new UuidMapper(7L,
+            magicScopeGateway,
             repositoryApi,
+            topologyProcessor,
             PlanServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+
+        when(magicScopeGateway.enter(any(String.class))).thenAnswer(invocation -> invocation.getArgumentAt(0, String.class));
     }
 
     @Test
-    public void testRealtimeMarketId() {
+    public void testRealtimeMarketId() throws OperationFailedException {
         ApiId id = uuidMapper.fromUuid(UuidMapper.UI_REAL_TIME_MARKET_STR);
         assertTrue(id.isRealtimeMarket());
         assertEquals(7L, id.oid());
@@ -151,7 +162,7 @@ public class UuidMapperTest {
     }
 
     @Test
-    public void testPlanId() {
+    public void testPlanId() throws OperationFailedException {
         doReturn(OptionalPlanInstance.newBuilder()
             .setPlanInstance(PlanInstance.newBuilder()
                 .setPlanId(123)
@@ -174,7 +185,7 @@ public class UuidMapperTest {
     }
 
     @Test
-    public void testPlanIdNotPlan() {
+    public void testPlanIdNotPlan() throws OperationFailedException {
         doReturn(OptionalPlanInstance.getDefaultInstance())
             .when(planServiceMole).getPlan(PlanId.newBuilder()
                 .setPlanId(123)
@@ -190,7 +201,7 @@ public class UuidMapperTest {
     }
 
     @Test
-    public void testPlanIdException() {
+    public void testPlanIdException() throws OperationFailedException {
         final PlanId plan = PlanId.newBuilder()
             .setPlanId(123)
             .build();
@@ -217,11 +228,12 @@ public class UuidMapperTest {
     }
 
     @Test
-    public void testGroupId() {
+    public void testGroupId() throws OperationFailedException {
         doReturn(GetGroupResponse.newBuilder()
             .setGroup(Group.newBuilder()
                 .setId(123)
                 .setGroup(GroupInfo.newBuilder()
+                    .setName("foo")
                     .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
                 .build())
             .build()).when(groupServiceBackend).getGroup(GroupID.newBuilder()
@@ -238,6 +250,8 @@ public class UuidMapperTest {
 
         assertThat(id.getCachedGroupInfo().get().getEntityType(), is(UIEntityType.VIRTUAL_MACHINE));
         assertThat(id.getCachedGroupInfo().get().isGlobalTempGroup(), is(false));
+        assertThat(id.getDisplayName(), is("foo"));
+        assertThat(id.getScopeType().get(), is(UIEntityType.VIRTUAL_MACHINE));
 
         assertFalse(id.isRealtimeMarket());
         assertFalse(id.isPlan());
@@ -245,7 +259,7 @@ public class UuidMapperTest {
     }
 
     @Test
-    public void testGroupIdNotGroup() {
+    public void testGroupIdNotGroup() throws OperationFailedException {
         doReturn(GetGroupResponse.getDefaultInstance())
             .when(groupServiceBackend).getGroup(GroupID.newBuilder()
                 .setId(123)
@@ -261,7 +275,7 @@ public class UuidMapperTest {
     }
 
     @Test
-    public void testGroupIdError() {
+    public void testGroupIdError() throws OperationFailedException {
         GroupID groupID = GroupID.newBuilder()
             .setId(123)
             .build();
@@ -279,6 +293,7 @@ public class UuidMapperTest {
             .setGroup(Group.newBuilder()
                 .setId(123)
                 .setGroup(GroupInfo.newBuilder()
+                    .setName("foo")
                     .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
                 .build())
             .build()).when(groupServiceBackend).getGroup(groupID);
@@ -289,6 +304,7 @@ public class UuidMapperTest {
 
         assertThat(id.getCachedGroupInfo().get().getEntityType(), is(UIEntityType.VIRTUAL_MACHINE));
         assertThat(id.getCachedGroupInfo().get().isGlobalTempGroup(), is(false));
+        assertThat(id.getDisplayName(), is("foo"));
 
         assertFalse(id.isRealtimeMarket());
         assertFalse(id.isPlan());

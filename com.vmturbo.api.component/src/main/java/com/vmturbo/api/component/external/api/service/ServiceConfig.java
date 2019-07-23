@@ -22,10 +22,18 @@ import com.vmturbo.api.component.external.api.SAML.SAMLUserDetailsServiceImpl;
 import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
-import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
-import com.vmturbo.api.component.external.api.util.TargetExpander;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander;
+import com.vmturbo.api.component.external.api.util.stats.query.impl.CloudCostsStatsSubQuery;
+import com.vmturbo.api.component.external.api.util.stats.query.impl.CloudPlanNumEntitiesByTierSubQuery;
+import com.vmturbo.api.component.external.api.util.stats.query.impl.ClusterStatsSubQuery;
+import com.vmturbo.api.component.external.api.util.stats.query.impl.HistoricalCommodityStatsSubQuery;
+import com.vmturbo.api.component.external.api.util.stats.query.impl.NumClustersStatsSubQuery;
+import com.vmturbo.api.component.external.api.util.stats.query.impl.ProjectedCommodityStatsSubQuery;
+import com.vmturbo.api.component.external.api.util.stats.query.impl.RIStatsSubQuery;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.serviceinterfaces.ISAMLService;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
@@ -248,7 +256,7 @@ public class ServiceConfig {
                 actionSearchUtil(),
                 communicationConfig.settingPolicyRpcService(),
                 mapperConfig.settingsMapper(),
-                targetService());
+                communicationConfig.thinTargetCache());
     }
 
     @Bean
@@ -283,7 +291,7 @@ public class ServiceConfig {
                 userSessionContext(),
                 websocketConfig.websocketHandler(),
                 actionStatsQueryExecutor(),
-                communicationConfig.topologyProcessor(),
+                communicationConfig.thinTargetCache(),
                 communicationConfig.entitySeverityService(),
                 communicationConfig.historyRpcService(),
                 statsService(),
@@ -312,16 +320,15 @@ public class ServiceConfig {
     @Bean
     public ReservedInstancesService reservedInstancesService() {
         return new ReservedInstancesService(
-                communicationConfig.reservedInstanceBoughtServiceBlockingStub(),
-                communicationConfig.reservedInstanceSpecServiceBlockingStub(),
-                communicationConfig.reservedInstanceUtilizationCoverageServiceBlockingStub(),
-                mapperConfig.reservedInstanceMapper(),
-                communicationConfig.repositoryApi(),
-                communicationConfig.groupExpander(),
-                communicationConfig.planRpcService(),
-                communicationConfig.costServiceBlockingStub(),
-                communicationConfig.supplyChainFetcher(),
-                communicationConfig.getRealtimeTopologyContextId());
+            communicationConfig.reservedInstanceBoughtServiceBlockingStub(),
+            communicationConfig.reservedInstanceSpecServiceBlockingStub(),
+            communicationConfig.reservedInstanceUtilizationCoverageServiceBlockingStub(),
+            mapperConfig.reservedInstanceMapper(),
+            communicationConfig.repositoryApi(),
+            communicationConfig.groupExpander(),
+            communicationConfig.planRpcService(),
+            statsQueryExecutor(),
+            mapperConfig.uuidMapper());
     }
 
     @Bean
@@ -419,28 +426,22 @@ public class ServiceConfig {
 
     @Bean
     public StatsService statsService() {
-        final StatsService statsService =
-            new StatsService(
-                communicationConfig.historyRpcService(),
-                communicationConfig.planRpcService(),
-                communicationConfig.repositoryApi(),
-                communicationConfig.repositoryRpcService(),
-                communicationConfig.supplyChainFetcher(),
-                mapperConfig.statsMapper(),
-                communicationConfig.groupExpander(),
-                targetExpander(),
-                Clock.systemUTC(),
-                targetService(),
-                communicationConfig.groupRpcService(),
-                Duration.ofSeconds(liveStatsRetrievalWindowSeconds),
-                communicationConfig.costServiceBlockingStub(),
-                magicScopeGateway(),
-                userSessionContext(),
-                reservedInstancesService(),
-                communicationConfig.serviceEntityMapper(),
-                communicationConfig.getRealtimeTopologyContextId());
+        final StatsService statsService = new StatsService(
+            communicationConfig.historyRpcService(),
+            communicationConfig.planRpcService(),
+            communicationConfig.repositoryApi(),
+            communicationConfig.repositoryRpcService(),
+            communicationConfig.supplyChainFetcher(),
+            mapperConfig.statsMapper(),
+            communicationConfig.groupExpander(),
+            Clock.systemUTC(),
+            communicationConfig.groupRpcService(),
+            mapperConfig.magicScopeGateway(),
+            userSessionContext(),
+            communicationConfig.serviceEntityMapper(),
+            mapperConfig.uuidMapper(),
+            statsQueryExecutor());
         groupsService().setStatsService(statsService);
-        //marketsService().setStatsService(statsService);
         return statsService;
     }
 
@@ -525,15 +526,6 @@ public class ServiceConfig {
     }
 
     @Bean
-    public MagicScopeGateway magicScopeGateway() {
-        final MagicScopeGateway gateway = new MagicScopeGateway(groupsService(),
-            communicationConfig.groupRpcService(),
-            communicationConfig.getRealtimeTopologyContextId());
-        repositoryClientConfig.repository().addListener(gateway);
-        return gateway;
-    }
-
-    @Bean
     public ActionStatsQueryExecutor actionStatsQueryExecutor() {
         return new ActionStatsQueryExecutor(Clock.systemUTC(),
             communicationConfig.actionsRpcService(),
@@ -546,9 +538,85 @@ public class ServiceConfig {
     }
 
     @Bean
-    public TargetExpander targetExpander() {
-        return new TargetExpander(communicationConfig.topologyProcessor(),
-            communicationConfig.repositoryApi());
+    public CloudCostsStatsSubQuery cloudCostsStatsSubQuery() {
+        final CloudCostsStatsSubQuery cloudCostsStatsQuery =
+            new CloudCostsStatsSubQuery(communicationConfig.repositoryApi(),
+                communicationConfig.costServiceBlockingStub(),
+                communicationConfig.supplyChainFetcher(),
+                communicationConfig.thinTargetCache());
+        statsQueryExecutor().addSubquery(cloudCostsStatsQuery);
+        return cloudCostsStatsQuery;
+    }
+
+    @Bean
+    public CloudPlanNumEntitiesByTierSubQuery cloudPlanNumEntitiesByTierSubQuery() {
+        final CloudPlanNumEntitiesByTierSubQuery cloudPlanNumEntitiesByTierQuery =
+            new CloudPlanNumEntitiesByTierSubQuery(communicationConfig.repositoryApi(),
+                communicationConfig.supplyChainFetcher(),
+                communicationConfig.getRealtimeTopologyContextId());
+        statsQueryExecutor().addSubquery(cloudPlanNumEntitiesByTierQuery);
+        return cloudPlanNumEntitiesByTierQuery;
+    }
+
+    @Bean
+    public ClusterStatsSubQuery clusterStatsSubQuery() {
+        final ClusterStatsSubQuery clusterStatsQuery =
+            new ClusterStatsSubQuery(mapperConfig.statsMapper(), communicationConfig.historyRpcService());
+        statsQueryExecutor().addSubquery(clusterStatsQuery);
+        return clusterStatsQuery;
+    }
+
+    @Bean
+    public HistoricalCommodityStatsSubQuery historicalCommodityStatsSubQuery() {
+        final HistoricalCommodityStatsSubQuery historicalStatsQuery =
+            new HistoricalCommodityStatsSubQuery(mapperConfig.statsMapper(),
+                communicationConfig.historyRpcService(), userSessionContext());
+        statsQueryExecutor().addSubquery(historicalStatsQuery);
+        return historicalStatsQuery;
+    }
+
+    @Bean
+    public ProjectedCommodityStatsSubQuery projectedCommodityStatsSubQuery() {
+        final ProjectedCommodityStatsSubQuery projectedStatsQuery =
+            new ProjectedCommodityStatsSubQuery(Duration.ofSeconds(liveStatsRetrievalWindowSeconds),
+                mapperConfig.statsMapper(), communicationConfig.historyRpcService());
+        statsQueryExecutor().addSubquery(projectedStatsQuery);
+        return projectedStatsQuery;
+    }
+
+    @Bean
+    public RIStatsSubQuery riStatsSubQuery() {
+        final RIStatsSubQuery riStatsQuery =
+            new RIStatsSubQuery(
+                communicationConfig.reservedInstanceUtilizationCoverageServiceBlockingStub());
+        statsQueryExecutor().addSubquery(riStatsQuery);
+        return riStatsQuery;
+    }
+
+    @Bean
+    public NumClustersStatsSubQuery numClustersStatsSubQuery() {
+        final NumClustersStatsSubQuery numClustersStatsQuery =
+            new NumClustersStatsSubQuery(communicationConfig.groupRpcService());
+        statsQueryExecutor().addSubquery(numClustersStatsQuery);
+        return numClustersStatsQuery;
+    }
+
+    @Bean
+    public StatsQueryExecutor statsQueryExecutor() {
+        return new StatsQueryExecutor(statsQueryContextFactory(), scopeExpander());
+    }
+
+    @Bean
+    public StatsQueryScopeExpander scopeExpander() {
+        return new StatsQueryScopeExpander(communicationConfig.groupExpander(),
+            communicationConfig.repositoryApi(), communicationConfig.supplyChainFetcher(),
+            userSessionContext());
+    }
+
+    @Bean
+    public StatsQueryContextFactory statsQueryContextFactory() {
+        return new StatsQueryContextFactory(Duration.ofSeconds(liveStatsRetrievalWindowSeconds),
+            userSessionContext(), Clock.systemUTC(), communicationConfig.thinTargetCache());
     }
 
     @Bean

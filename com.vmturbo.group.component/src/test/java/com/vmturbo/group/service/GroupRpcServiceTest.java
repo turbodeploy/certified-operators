@@ -2,7 +2,6 @@ package com.vmturbo.group.service;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
@@ -50,6 +49,7 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.CountGroupsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings;
@@ -527,6 +527,36 @@ public class GroupRpcServiceTest {
         verify(mockObserver).onNext(GroupDTO.GetGroupResponse.newBuilder()
                 .setGroup(Group.getDefaultInstance())
                 .build());
+        verify(mockObserver).onCompleted();
+    }
+
+    @Test
+    public void testCountGroups() {
+        final long id1 = 1234L;
+        final long id2 = 5678L;
+
+        final GroupDTO.GetGroupsRequest getGroupsRequest =
+            GroupDTO.GetGroupsRequest.getDefaultInstance();
+        final StreamObserver<CountGroupsResponse> mockObserver =
+            mock(StreamObserver.class);
+
+        final GroupDTO.Group g1 = GroupDTO.Group.newBuilder()
+            .setId(id1)
+            .build();
+
+        final GroupDTO.Group g2 = GroupDTO.Group.newBuilder()
+            .setId(id2)
+            .build();
+
+        given(groupStore.getAll()).willReturn(Arrays.asList(g1, g2));
+
+        groupRpcService.countGroups(getGroupsRequest, mockObserver);
+
+        verify(groupStore).getAll();
+        verify(temporaryGroupCache, never()).getAll();
+        verify(mockObserver).onNext(CountGroupsResponse.newBuilder()
+            .setCount(2)
+            .build());
         verify(mockObserver).onCompleted();
     }
 

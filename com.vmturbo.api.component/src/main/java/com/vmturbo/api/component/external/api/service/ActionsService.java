@@ -64,6 +64,7 @@ import com.vmturbo.components.common.utils.StringConstants;
  * Service Layer to implement Actions
  **/
 public class ActionsService implements IActionsService {
+    private static final Logger logger = LogManager.getLogger();
 
     private final ActionStatsQueryExecutor actionStatsQueryExecutor;
 
@@ -200,7 +201,15 @@ public class ActionsService implements IActionsService {
                 scopes = Collections.singleton(uuidMapper.fromUuid(UuidMapper.UI_REAL_TIME_MARKET_STR));
             } else {
                 scopes = actionScopesApiInputDTO.getScopes().stream()
-                    .map(uuidMapper::fromUuid)
+                    .map(uuid -> {
+                        try {
+                            return uuidMapper.fromUuid(uuid);
+                        } catch (OperationFailedException e) {
+                            logger.error("Failed to map uuid {} to Api ID. Error: {}", e.getLocalizedMessage());
+                            return null;
+                        }
+                    })
+                    .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
             }
 
