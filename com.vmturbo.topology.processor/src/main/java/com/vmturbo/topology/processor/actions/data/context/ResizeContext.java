@@ -4,6 +4,9 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
@@ -24,6 +27,8 @@ import com.vmturbo.topology.processor.entity.EntityStore;
  *  A class for collecting data needed for Resize action execution
  */
 public class ResizeContext extends AbstractActionExecutionContext {
+
+    private static final Logger logger = LogManager.getLogger();
 
     public ResizeContext(@Nonnull final ExecuteActionRequest request,
                          @Nonnull final ActionDataManager dataManager,
@@ -99,8 +104,23 @@ public class ResizeContext extends AbstractActionExecutionContext {
         CommodityDTO.CommodityType sdkCommodityType = CommodityDTO.CommodityType.forNumber(commodityType.getType());
         CommodityDTO.Builder commodity = CommodityDTO.newBuilder()
             .setCommodityType(sdkCommodityType)
-            .setKey(commodityType.getKey())
-            .setCapacity(capacity);
+            .setKey(commodityType.getKey());
+
+        // Note: the meaning of the capacity value is determined by the commodityAttribute setting
+        switch (resizeInfo.getCommodityAttribute()) {
+            case CAPACITY:
+                commodity.setCapacity(capacity);
+                break;
+            case LIMIT:
+                commodity.setLimit(capacity);
+                break;
+            case RESERVED:
+                commodity.setReservation(capacity);
+                break;
+            default:
+                logger.error("Invalid commodityAttribute: " + resizeInfo.getCommodityAttribute().name());
+                break;
+        }
 
         // set VMem/Vcpu data which includes info on hot add/hot remove
         if (sdkCommodityType == CommodityDTO.CommodityType.VMEM) {
