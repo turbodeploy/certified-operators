@@ -29,6 +29,7 @@ import javax.annotation.Nullable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -421,10 +422,11 @@ public class ActionSpecMapper {
                 final ActionDecision.ExecutionDecision executionDecision =
                         decision.getExecutionDecision();
                 final String decisionUserUUid = executionDecision.getUserUuid();
-                actionApiDTO.setUserName(decisionUserUUid);
-                // update actionMode based on decision uer id
-                // TODO: move it to Action Orchestrator (see OM-37935)
-                updateActionMode(actionApiDTO, decisionUserUUid);
+                if (!StringUtils.isBlank(decisionUserUUid)) {
+                    actionApiDTO.setUserName(decisionUserUUid);
+                    // update actionMode based on decision uer id
+                    updateActionMode(actionApiDTO, decisionUserUUid);
+                }
             }
         }
 
@@ -549,15 +551,18 @@ public class ActionSpecMapper {
 
     /**
      * Update action mode based on decision user id.
-     * Rule: if the decision user id is "SYSTEM", set the action mode to "automatic".
+     * Rule: if the decision user id is "SYSTEM", set the action mode to "automatic"; otherwise
+     * set it to "MANUAL".
      *
      * @param actionApiDTO action API DTO
      * @param decisionUserUUid decision user id
      */
     private void updateActionMode(@Nonnull final ActionApiDTO actionApiDTO,
-                                  @Nullable final String decisionUserUUid) {
+                                  @Nonnull final String decisionUserUUid) {
         if (AuditLogUtils.SYSTEM.equals(decisionUserUUid)) {
             actionApiDTO.setActionMode(ActionMode.AUTOMATIC);
+        } else {
+            actionApiDTO.setActionMode(ActionMode.MANUAL);
         }
     }
 
