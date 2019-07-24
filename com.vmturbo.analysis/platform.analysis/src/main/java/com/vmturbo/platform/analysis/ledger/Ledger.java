@@ -564,43 +564,55 @@ public class Ledger {
                     CommoditySold commSoldBySeller = supplier.getCommoditySold(basketBought
                             .get(boughtIndex));
                     String commBoughtInformationForLogs = basketBought.get(boughtIndex).getDebugInfoNeverUseInCode();
-                    // Use desired utilization if we are using historical quantity for populating
-                    // income statement otherwise calculate the utilization based on shopping list
-                    // quantity
-                    double commBoughtUtil = cs.isHistoricalQuantitySet()
-                                    ? (minDesUtil + maxDesUtil) / 2
-                                    : shoppingList.getQuantity(boughtIndex)
-                                                    / commSoldBySeller.getEffectiveCapacity();
-                    if (commBoughtUtil != 0) {
-                        double[] incomeStatementExpenses = calculateIncomeStatementExpenses(commSoldBySeller,
-                                shoppingList, supplier, economy, commBoughtUtil, maxDesUtil, minDesUtil);
-                        // Use average of min and max desired expenses if we are using historical
-                        // quantity for resizing otherwise use current expenses
-                        double historicalExpenses = cs.isHistoricalQuantitySet()
-                                                        ? ((incomeStatementExpenses[1]
-                                                                        + incomeStatementExpenses[2])
-                                                                        / 2)
-                                                        : incomeStatementExpenses[0];
-                        commSoldIS.setExpenses(relevantShoppingListProcessed
-                            ? (commSoldIS.getExpenses() + historicalExpenses)
-                                : historicalExpenses);
-                        commSoldIS.setMaxDesiredExpenses(relevantShoppingListProcessed
-                            ? (commSoldIS.getMaxDesiredExpenses() + incomeStatementExpenses[1])
-                                : incomeStatementExpenses[1]);
-                        commSoldIS.setMinDesiredExpenses(relevantShoppingListProcessed
-                            ? (commSoldIS.getMinDesiredExpenses() + incomeStatementExpenses[2])
-                                : incomeStatementExpenses[2]);
-                        // Set relevantShoppingList as it contains a valid bought index in current shopping list.
-                        relevantShoppingListProcessed = true;
+                    if (commSoldBySeller == null) {
+                        logger.warn("Trying to set expenses for commodity sold " + commSoldInformationForLogs
+                            + " by Trader " + buyerDebugInfo
+                            + " but Trader's SL " + shoppingList.getDebugInfoNeverUseInCode()
+                            + " with supplier " + supplier.getDebugInfoNeverUseInCode()
+                            + " attempts to buy commodity " + commBoughtInformationForLogs
+                            + " which supplier is not selling.");
+                        commSoldIS.setExpenses(relevantShoppingListProcessed ? commSoldIS.getExpenses() : 1.0);
+                        commSoldIS.setMaxDesiredExpenses(relevantShoppingListProcessed ? commSoldIS.getMaxDesiredExpenses() : 1.0);
+                        commSoldIS.setMinDesiredExpenses(relevantShoppingListProcessed ? commSoldIS.getMinDesiredExpenses() : 1.0);
+                    } else {
+                        // Use desired utilization if we are using historical quantity for populating
+                        // income statement otherwise calculate the utilization based on shopping list
+                        // quantity
+                        double commBoughtUtil = cs.isHistoricalQuantitySet()
+                                        ? (minDesUtil + maxDesUtil) / 2
+                                        : shoppingList.getQuantity(boughtIndex)
+                                                        / commSoldBySeller.getEffectiveCapacity();
+                        if (commBoughtUtil != 0) {
+                            double[] incomeStatementExpenses = calculateIncomeStatementExpenses(commSoldBySeller,
+                                    shoppingList, supplier, economy, commBoughtUtil, maxDesUtil, minDesUtil);
+                            // Use average of min and max desired expenses if we are using historical
+                            // quantity for resizing otherwise use current expenses
+                            double historicalExpenses = cs.isHistoricalQuantitySet()
+                                                            ? ((incomeStatementExpenses[1]
+                                                                            + incomeStatementExpenses[2])
+                                                                            / 2)
+                                                            : incomeStatementExpenses[0];
+                            commSoldIS.setExpenses(relevantShoppingListProcessed
+                                ? (commSoldIS.getExpenses() + historicalExpenses)
+                                    : historicalExpenses);
+                            commSoldIS.setMaxDesiredExpenses(relevantShoppingListProcessed
+                                ? (commSoldIS.getMaxDesiredExpenses() + incomeStatementExpenses[1])
+                                    : incomeStatementExpenses[1]);
+                            commSoldIS.setMinDesiredExpenses(relevantShoppingListProcessed
+                                ? (commSoldIS.getMinDesiredExpenses() + incomeStatementExpenses[2])
+                                    : incomeStatementExpenses[2]);
+                            // Set relevantShoppingList as it contains a valid bought index in current shopping list.
+                            relevantShoppingListProcessed = true;
 
-                        if (logger.isTraceEnabled() || isDebugTrader) {
-                            logger.info("Using relevant shopping list " + shoppingList.getDebugInfoNeverUseInCode()
-                                    + " to set expenses for the trader " + buyerDebugInfo + ", the"
-                                    + " commodity sold " + commSoldInformationForLogs + " and"
-                                    + " the raw material bought " + commBoughtInformationForLogs
-                                    + " the expenses are " + incomeStatementExpenses[0] + ", the max desired"
-                                    + " expenses are " + incomeStatementExpenses[1] + " and the min"
-                                    + " desired expenses are " + incomeStatementExpenses[2] + ".");
+                            if (logger.isTraceEnabled() || isDebugTrader) {
+                                logger.info("Using relevant shopping list " + shoppingList.getDebugInfoNeverUseInCode()
+                                        + " to set expenses for the trader " + buyerDebugInfo + ", the"
+                                        + " commodity sold " + commSoldInformationForLogs + " and"
+                                        + " the raw material bought " + commBoughtInformationForLogs
+                                        + " the expenses are " + incomeStatementExpenses[0] + ", the max desired"
+                                        + " expenses are " + incomeStatementExpenses[1] + " and the min"
+                                        + " desired expenses are " + incomeStatementExpenses[2] + ".");
+                            }
                         }
                     }
                 }
