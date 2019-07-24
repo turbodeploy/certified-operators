@@ -104,7 +104,6 @@
         "memoryOverprovisionedPercentage",
         "utilTarget",
         "targetBand",
-        "ignoreHa",
         "usedIncrement_VCPU",
         "usedIncrement_VMEM",
         "usedIncrement_VStorage",
