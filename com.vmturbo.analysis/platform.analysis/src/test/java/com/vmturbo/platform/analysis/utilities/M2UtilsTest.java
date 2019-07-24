@@ -1,12 +1,15 @@
 package com.vmturbo.platform.analysis.utilities;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.text.ParseException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.text.ParseException;
 import java.util.List;
 
 import javax.xml.parsers.ParserConfigurationException;
@@ -22,18 +25,19 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
+
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
-import com.vmturbo.platform.analysis.topology.LegacyTopology;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
-
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-import junitparams.naming.TestCaseName;
+import com.vmturbo.platform.analysis.topology.LegacyTopology;
 
 /**
  * A test case for the {@link M2Utils} class.
@@ -60,7 +64,8 @@ public class M2UtilsTest {
         ctx.updateLoggers();
     }
 
-    private static final String REPOS_PATH = "target/test-classes/data/repos/";
+    private static final String REPOS_PATH = M2UtilsTest.class.getClassLoader()
+                                            .getResource("data/repos/").getPath();
 
     private static final String XML_TOP = fileToString(REPOS_PATH + "xml_top.xml");
     private static final String XML_BOTTOM = fileToString(REPOS_PATH + "xml_bottom.xml");
