@@ -185,7 +185,7 @@ public final class Utility {
             CommoditySold buyerCommoditySold = resizeThroughSupplierTrader.getCommoditySold(buyerCS);
             // Scale the capacity of the commodities of the resizeThroughSupplier trader with the
             // capacity of the commodity sold by the supplier of the trader as the added amount.
-            if (buyerCommoditySold.getSettings().isResizable()) {
+            if (buyerCommoditySold != null && buyerCommoditySold.getSettings().isResizable()) {
                 Resize resizeAction = new Resize(economy, resizeThroughSupplierTrader, buyerCS,
                     buyerCommoditySold,
                     resizeThroughSupplierTrader.getBasketSold().indexOf(buyerCS),

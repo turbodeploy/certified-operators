@@ -522,20 +522,6 @@ public class CostFunctionFactory {
         if (buyer.getSupplier() == seller) {
             return 0;
         }
-        final List<CostTuple> costTuples = cbtpResourceBundle.getCostTuplesList();
-        if (!costTuples.isEmpty()) {
-            final long sellerAccountId = costTuples.iterator().next().getBusinessAccountId();
-            final long buyerAccountId = buyer.getBuyer().getSettings().getBalanceAccount().getId();
-            if (sellerAccountId != buyerAccountId) {
-                if (logger.isTraceEnabled() || seller.isDebugEnabled()
-                        || buyer.getBuyer().isDebugEnabled()) {
-                    logger.info("Buyer {} is not in CBTP {} scope, buyer accountId: {}, seller " +
-                                    "accountId: {}", buyer.getDebugInfoNeverUseInCode(),
-                            seller.getDebugInfoNeverUseInCode(), buyerAccountId, sellerAccountId);
-                }
-                return Double.POSITIVE_INFINITY;
-            }
-        }
         // Match the vm with a template in order to:
         // 1) Estimate the number of coupons requested by the vm
         // 2) Determine the template cost the discount should apply to

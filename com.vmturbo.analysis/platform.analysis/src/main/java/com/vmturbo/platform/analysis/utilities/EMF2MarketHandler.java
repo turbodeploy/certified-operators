@@ -120,7 +120,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
 
     /**
      * A constructor that uses the class logger for logging.
-     * The class logger is Logger.getLogger(EMF2MarketHandler.class)
+     * The class logger is LogManager.getLogger(EMF2MarketHandler.class)
      */
     public EMF2MarketHandler() {
         this(LogManager.getLogger(EMF2MarketHandler.class));
