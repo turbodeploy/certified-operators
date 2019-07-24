@@ -355,8 +355,8 @@ public class GroupsService implements IGroupsService {
                                       ActionApiInputDTO inputDto,
                                       ActionPaginationRequest paginationRequest) throws Exception {
         return
-            actionSearchUtil.getActionsByEntityUuids(
-                getMemberIds(uuid).orElseGet(Collections::emptySet), inputDto, paginationRequest);
+            actionSearchUtil.getActionsByEntityUuids(Collections.singleton(uuidMapper.fromUuid(uuid)),
+                inputDto, paginationRequest);
     }
 
     @Override

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -28,11 +29,14 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
@@ -90,6 +94,8 @@ public class EntitiesServiceTest {
     // mocked services and mappers
     private final TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
     private final ActionSpecMapper actionSpecMapper = mock(ActionSpecMapper.class);
+    private final UuidMapper uuidMapper = mock(UuidMapper.class);
+    private final GroupExpander groupExpander = mock(GroupExpander.class);
 
     // data objects
     private TargetInfo targetInfo;
@@ -187,7 +193,10 @@ public class EntitiesServiceTest {
         final ActionSearchUtil actionSearchUtil =
             new ActionSearchUtil(
                 actionOrchestratorRpcService, actionSpecMapper,
-                paginationMapper, supplyChainFetcherFactory, CONTEXT_ID);
+                paginationMapper, supplyChainFetcherFactory, groupExpander, CONTEXT_ID);
+
+        when(groupExpander.expandOids(any()))
+            .thenAnswer(invocation -> invocation.getArgumentAt(0, Set.class));
 
         // Create service
         service =
@@ -201,7 +210,7 @@ public class EntitiesServiceTest {
                 severityPopulator,
                 mock(StatsService.class),
                 mock(ActionStatsQueryExecutor.class),
-                mock(UuidMapper.class),
+                uuidMapper,
                 StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 SettingServiceGrpc.newBlockingStub(grpcServer.getChannel()),
@@ -442,6 +451,10 @@ public class EntitiesServiceTest {
 
         SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(VM);
         when(repositoryApi.entityRequest(VM_ID)).thenReturn(req);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(VM_ID);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
 
         // call the service
         final ActionPaginationRequest paginationRequest =

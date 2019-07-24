@@ -362,8 +362,8 @@ public class EntitiesService implements IEntitiesService {
                                        ActionApiInputDTO inputDto,
                                        ActionPaginationRequest paginationRequest) throws Exception {
         return
-            actionSearchUtil.getActionsByEntityUuids(
-                Collections.singleton(Long.valueOf(uuid)), inputDto, paginationRequest);
+            actionSearchUtil.getActionsByEntityUuids(Collections.singleton(uuidMapper.fromUuid(uuid)),
+                inputDto, paginationRequest);
     }
 
     @Override

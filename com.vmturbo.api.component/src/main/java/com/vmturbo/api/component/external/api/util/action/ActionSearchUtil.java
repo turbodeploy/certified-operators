@@ -12,6 +12,8 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -38,24 +40,27 @@ public class ActionSearchUtil {
     private final PaginationMapper paginationMapper;
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
     private final long realtimeTopologyContextId;
+    private final GroupExpander groupExpander;
 
     public ActionSearchUtil(
             @Nonnull ActionsServiceBlockingStub actionOrchestratorRpc,
             @Nonnull ActionSpecMapper actionSpecMapper,
             @Nonnull PaginationMapper paginationMapper,
             @Nonnull SupplyChainFetcherFactory supplyChainFetcherFactory,
+            @Nonnull GroupExpander groupExpander,
             long realtimeTopologyContextId) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpc);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
+        this.groupExpander = Objects.requireNonNull(groupExpander);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     /**
      * Get the actions related to a set of entity uuids.
      *
-     * @param entityUuids the set of entities.
+     * @param scopeIds the set of entities.
      * @param inputDto query about the related actions.
      * @param paginationRequest pagination request.
      * @return a pagination response with {@link ActionApiDTO} objects.
@@ -68,13 +73,16 @@ public class ActionSearchUtil {
      */
     @Nonnull
     public ActionPaginationResponse getActionsByEntityUuids(
-            @Nonnull Set<Long> entityUuids,
+            @Nonnull Set<ApiId> scopeIds,
             ActionApiInputDTO inputDto,
             ActionPaginationRequest paginationRequest)
             throws  InterruptedException, UnknownObjectException, OperationFailedException,
                     UnsupportedActionException, ExecutionException {
-        final Set<Long> scope = new HashSet<>(entityUuids);
+        final Set<Long> scope = groupExpander.expandOids(scopeIds.stream()
+            .map(ApiId::oid)
+            .collect(Collectors.toSet()));
 
+        final Set<Long> expandedScope;
         // if the field "relatedEntityTypes" is not empty, then we need to fetch additional
         // entities from the scoped supply chain
         if (inputDto != null &&
@@ -82,13 +90,14 @@ public class ActionSearchUtil {
                 !inputDto.getRelatedEntityTypes().isEmpty()) {
             // get the scoped supply chain
             // extract entity oids from the supply chain and add them to the scope
-            scope.addAll(
-                supplyChainFetcherFactory.expandScope(entityUuids, inputDto.getRelatedEntityTypes()));
+            expandedScope = supplyChainFetcherFactory.expandScope(scope, inputDto.getRelatedEntityTypes());
+        } else {
+            expandedScope = scope;
         }
 
         // create filter
         final ActionQueryFilter filter =
-            actionSpecMapper.createActionFilter(inputDto, Optional.of(scope));
+            actionSpecMapper.createActionFilter(inputDto, Optional.of(expandedScope));
 
         // call the service and retrieve results
         final FilteredActionResponse response =

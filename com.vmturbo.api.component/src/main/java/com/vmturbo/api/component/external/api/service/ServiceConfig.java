@@ -624,6 +624,7 @@ public class ServiceConfig {
             mapperConfig.actionSpecMapper(),
             mapperConfig.paginationMapper(),
             communicationConfig.supplyChainFetcher(),
+            communicationConfig.groupExpander(),
             communicationConfig.getRealtimeTopologyContextId());
     }
 }

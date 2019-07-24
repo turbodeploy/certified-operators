@@ -664,7 +664,6 @@ public class StatsService implements IStatsService {
                     @Nonnull final StatScopesApiInputDTO inputDto,
                     @Nonnull final EntityStatsPaginationRequest paginationRequest)
                 throws OperationFailedException, InterruptedException {
-
         // 1. Request the next page of entity stats from the proper service.
 
         // This variable will be set to the next page of per-entity stats.
