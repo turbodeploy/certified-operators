@@ -135,11 +135,8 @@ cp ${kubesprayPath}/roles/container-engine/docker/defaults/main.yml ${kubesprayP
 dns_strict="docker_dns_servers_strict: true"
 dns_not_strick="docker_dns_servers_strict: false"
 dns_not_strick_group="#docker_dns_servers_strict: false"
-helm_enabled="helm_enabled: false"
-helm_enabled_group="helm_enabled: true"
 sed -i "s/${dns_strict}/${dns_not_strick}/g" ${kubesprayPath}/roles/container-engine/docker/defaults/main.yml
 sed -i "s/${dns_strict}/${dns_not_strick_group}/g" ${inventoryPath}/group_vars/all/all.yml
-sed -i "s/${helm_enabled}/${helm_enabled_group}/g" ${inventoryPath}/group_vars/k8s-cluster/addons.yml
 
 # Run ansible kubespray install
 /usr/bin/ansible-playbook --flush-cache -i inventory/turbocluster/hosts.yml -b --become-user=root cluster.yml
