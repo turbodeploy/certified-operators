@@ -14,7 +14,8 @@ import javax.annotation.Nonnull;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.vmturbo.mediation.cloud.util.TestUtils;
+import com.vmturbo.mediation.conversion.onprem.AddVirtualVolumeDiscoveryConverter;
+import com.vmturbo.mediation.conversion.util.TestUtils;
 import com.vmturbo.mediation.vmware.sdk.VimAccount;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -29,13 +30,13 @@ public class VimStorageBrowsingConversionProbeTest {
     private static final String STORAGE_BROWSING_PATH =
             "src/test/resources/data/vCenter_Storage_Browsing_vsphere_dc7.eng.vmturbo.com.txt";
 
-    @Test
     /**
      * Used captured data from a discovery of vsphere-dc7.eng.vmturbo.com to ensure that the
      * discovery conversion is working properly.  Check that we end up with the right number of
      * VMs, Storages, and VirtualVolumes and that the volumes have the correct sets of files
      * associated with them.
      */
+    @Test
     public void testDc7() throws Exception {
         DiscoveryResponse oldResponse = TestUtils.readResponseFromFile(STORAGE_BROWSING_PATH);
         VimStorageBrowsingConversionProbe probe = Mockito.spy(new VimStorageBrowsingConversionProbe());
@@ -52,9 +53,8 @@ public class VimStorageBrowsingConversionProbeTest {
 
         // check each entity type count
         assertEquals(62, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
-        assertEquals(89, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
+        assertEquals(85, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
         assertEquals(24, entitiesByType.get(EntityType.STORAGE).size());
-
 
         // ensure other fields are consistent with original discovery response
         verifyVolumes(entitiesByType.get(EntityType.VIRTUAL_MACHINE),
@@ -83,29 +83,25 @@ public class VimStorageBrowsingConversionProbeTest {
         // check that we create a volume for each vm-storage pair where the vm has files from the
         // storage
         vms.forEach(vm -> {
-                    vm.getVirtualMachineData().getFileList().stream()
-                            .map(VirtualMachineFileDescriptor::getStorageId)
-                            .collect(Collectors.toSet())
-                            .stream()
-                            .map(storageId -> storageMap.get(
-                                    VimStorageBrowsingDiscoveryConverter.STORAGE_BROWSING_ID_PREFIX
-                                            + storageId))
-                            .forEach(storage -> checkVolume(vm, storage,
-                                    volumeMap.get(VimStorageBrowsingDiscoveryConverter
-                                            .combineStringsForVolumeNaming(vm.getId(), storage.getId()))));
-                });
+            vm.getVirtualMachineData().getFileList().stream()
+                .map(VirtualMachineFileDescriptor::getStorageId)
+                .collect(Collectors.toSet())
+                .stream()
+                .map(storageId -> storageMap.get(
+                    AddVirtualVolumeDiscoveryConverter.STORAGE_BROWSING_ID_PREFIX + storageId))
+                .forEach(storage -> checkVolume(vm, storage, volumeMap.get(
+                    AddVirtualVolumeDiscoveryConverter.combineStringsForVolumeNaming(
+                        vm.getId(), storage.getId()))));
+        });
 
         // check that each storage that has files on it has an associated volume for wasted files
         storages.forEach(storage -> {
-                    if (!storage.getStorageData().getFileList().isEmpty()) {
-                        checkWastedFilesVolume(storage, volumeMap
-                                .get(VimStorageBrowsingDiscoveryConverter
-                                        .combineStringsForVolumeNaming(storage.getId(),
-                                                VimStorageBrowsingDiscoveryConverter
-                                                        .WASTED_VOLUMES_SUFFIX)));
-                    }
-                });
-
+            if (!storage.getStorageData().getFileList().isEmpty()) {
+                checkWastedFilesVolume(storage, volumeMap.get(
+                    AddVirtualVolumeDiscoveryConverter.combineStringsForVolumeNaming(
+                        storage.getId(), AddVirtualVolumeDiscoveryConverter.WASTED_VOLUMES_SUFFIX)));
+            }
+        });
     }
 
     private void checkVolume(final EntityDTO vm, final EntityDTO storage, final EntityDTO volume) {
@@ -117,7 +113,7 @@ public class VimStorageBrowsingConversionProbeTest {
         // check that all files between vm and storage made it to the volume
         assertEquals(vm.getVirtualMachineData().getFileList().stream()
                 .filter(file -> storage.getId().equals(
-                        VimStorageBrowsingDiscoveryConverter.STORAGE_BROWSING_ID_PREFIX
+                    AddVirtualVolumeDiscoveryConverter.STORAGE_BROWSING_ID_PREFIX
                         + file.getStorageId()))
                 .count(),
                 volume.getVirtualVolumeData().getFileCount());

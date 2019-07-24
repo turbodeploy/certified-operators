@@ -232,7 +232,7 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
         GLOBAL_SUPPLY_CHAIN_DURATION_SUMMARY.startTimer().time(() -> {
             final SupplyChain.Builder supplyChainBuilder = SupplyChain.newBuilder();
             realtimeTopologyOpt.ifPresent(realtimeTopology -> {
-                realtimeTopology.globalSupplyChainNodes(environmentType).values().stream()
+                realtimeTopology.globalSupplyChainNodes(environmentType, supplyChainResolver).values().stream()
                     .filter(node -> CollectionUtils.isEmpty(entityTypesToIncludeList) || entityTypesToIncludeList.contains(node.getEntityType()))
                     .forEach(supplyChainBuilder::addSupplyChainNodes);
             });

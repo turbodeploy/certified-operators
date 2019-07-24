@@ -78,9 +78,8 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.mediation.cloud.conversion</artifactId>
+            <artifactId>com.vmturbo.mediation.conversion</artifactId>
             <version>${project.version}</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>

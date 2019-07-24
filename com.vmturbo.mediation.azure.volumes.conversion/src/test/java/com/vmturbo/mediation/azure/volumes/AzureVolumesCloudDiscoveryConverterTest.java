@@ -10,39 +10,16 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-
-import com.vmturbo.mediation.cloud.CloudDiscoveryConverter;
-import com.vmturbo.mediation.cloud.CloudProviderConversionContext;
-import com.vmturbo.mediation.cloud.IEntityConverter;
-import com.vmturbo.mediation.cloud.converter.AvailabilityZoneConverter;
-import com.vmturbo.mediation.cloud.converter.BusinessAccountConverter;
-import com.vmturbo.mediation.cloud.converter.ComputeTierConverter;
-import com.vmturbo.mediation.cloud.converter.DatabaseConverter;
-import com.vmturbo.mediation.cloud.converter.DatabaseServerConverter;
-import com.vmturbo.mediation.cloud.converter.DatabaseTierConverter;
-import com.vmturbo.mediation.cloud.converter.DiskArrayConverter;
-import com.vmturbo.mediation.cloud.converter.RegionConverter;
-import com.vmturbo.mediation.cloud.converter.StorageConverter;
-import com.vmturbo.mediation.cloud.converter.VirtualApplicationConverter;
-import com.vmturbo.mediation.cloud.converter.VirtualMachineConverter;
-import com.vmturbo.mediation.cloud.util.CloudService;
-import com.vmturbo.mediation.cloud.util.ConverterUtils;
-import com.vmturbo.mediation.cloud.util.TestUtils;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
+import com.vmturbo.mediation.conversion.cloud.converter.StorageConverter;
+import com.vmturbo.mediation.conversion.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SubDivisionData;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 

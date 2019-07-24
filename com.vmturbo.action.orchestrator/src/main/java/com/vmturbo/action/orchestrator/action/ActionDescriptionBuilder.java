@@ -234,7 +234,7 @@ public class ActionDescriptionBuilder {
             String resource = "";
             if (primaryChange.hasResource()) {
                 Optional<ActionPartialEntity> resourceEntity = entitiesSnapshot.getEntityFromOid(
-                    sourceEntityId);
+                    primaryChange.getResource().getId());
                 if (resourceEntity.isPresent()) {
                     resource = beautifyEntityTypeAndName(resourceEntity.get()) + OF;
                 }

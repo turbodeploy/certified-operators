@@ -58,7 +58,7 @@
     <dependencies>
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.mediation.cloud.conversion</artifactId>
+            <artifactId>com.vmturbo.mediation.conversion</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

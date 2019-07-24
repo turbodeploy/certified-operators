@@ -5,7 +5,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -16,6 +15,7 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.repository.service.TopologyGraphSupplyChainRpcService;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.graph.supplychain.SupplyChainResolver;
 
 /**
  * Utility class responsible for calculating the global supply chain of a topology represented
@@ -35,7 +35,8 @@ public class GlobalSupplyChainCalculator {
      */
     @Nonnull
     public Map<UIEntityType, SupplyChainNode> computeGlobalSupplyChain(@Nonnull final TopologyGraph<RepoGraphEntity> entityGraph,
-                                                                       @Nonnull final UIEnvironmentType envType) {
+                                                                       @Nonnull final UIEnvironmentType envType,
+                                                                       @Nonnull final SupplyChainResolver<RepoGraphEntity> supplyChainResolver) {
         final Map<UIEntityType, SupplyChainNode> nodes = new HashMap<>(entityGraph.entityTypes().size());
         entityGraph.entityTypes().stream()
             .filter(type -> !TopologyGraphSupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN.contains(type))
@@ -56,15 +57,13 @@ public class GlobalSupplyChainCalculator {
                     .filter(entity -> envType.matchesEnvType(entity.getEnvironmentType()))
                     .forEach(entityOfType -> {
                         // Consumers and connected-from count as "connected consumer types"
-                        Stream.concat(entityOfType.getConsumers().stream(),
-                            entityOfType.getConnectedFromEntities().stream())
+                        supplyChainResolver.getConnectedConsumers(entityOfType)
                             .map(RepoGraphEntity::getEntityType)
                             .filter(consumerType ->
                                 !TopologyGraphSupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN.contains(consumerType))
                             .forEach(connectedConsumerTypes::add);
                         // Providers and connected-to count as "connected provider types"
-                        Stream.concat(entityOfType.getProviders().stream(),
-                            entityOfType.getConnectedToEntities().stream())
+                        supplyChainResolver.getConnectedProviders(entityOfType)
                             .map(RepoGraphEntity::getEntityType)
                             .filter(consumerType ->
                                 !TopologyGraphSupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN.contains(consumerType))

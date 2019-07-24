@@ -20,6 +20,7 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
+import com.vmturbo.topology.graph.supplychain.SupplyChainResolver;
 
 public class GlobalSupplyChainCalculatorTest {
 
@@ -112,10 +113,12 @@ public class GlobalSupplyChainCalculatorTest {
             RepoGraphEntity.newBuilder(cloudVm)))
         .build();
 
+    private final SupplyChainResolver<RepoGraphEntity> supplyChainResolver = new SupplyChainResolver<>();
+
     @Test
     public void testCalculateOnPremSupplyChain() {
         final Map<UIEntityType, SupplyChainNode> nodesByType =
-            supplyChainCalculatorFactory.computeGlobalSupplyChain(graph, UIEnvironmentType.ON_PREM);
+            supplyChainCalculatorFactory.computeGlobalSupplyChain(graph, UIEnvironmentType.ON_PREM, supplyChainResolver);
 
         assertThat(nodesByType.keySet(),
             containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE, UIEntityType.PHYSICAL_MACHINE, UIEntityType.STORAGE));
@@ -140,7 +143,7 @@ public class GlobalSupplyChainCalculatorTest {
     @Test
     public void testCalculateCloudSupplyChain() {
         final Map<UIEntityType, SupplyChainNode> nodesByType =
-            supplyChainCalculatorFactory.computeGlobalSupplyChain(graph, UIEnvironmentType.CLOUD);
+            supplyChainCalculatorFactory.computeGlobalSupplyChain(graph, UIEnvironmentType.CLOUD, supplyChainResolver);
 
         assertThat(nodesByType.keySet(),
             containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE));

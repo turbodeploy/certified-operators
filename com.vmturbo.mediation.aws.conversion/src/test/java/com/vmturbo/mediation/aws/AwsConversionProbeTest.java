@@ -14,7 +14,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.mediation.aws.client.AwsAccount;
-import com.vmturbo.mediation.cloud.util.TestUtils;
+import com.vmturbo.mediation.conversion.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;

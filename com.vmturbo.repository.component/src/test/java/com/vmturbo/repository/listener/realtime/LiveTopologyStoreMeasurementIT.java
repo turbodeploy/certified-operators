@@ -20,7 +20,6 @@ import org.junit.Test;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
-import com.google.gson.Gson;
 import com.google.protobuf.util.JsonFormat;
 
 import jdk.nashorn.internal.ir.debug.ObjectSizeCalculator;
@@ -29,12 +28,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
-import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.listener.realtime.ProjectedRealtimeTopology.ProjectedTopologyBuilder;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology.SourceRealtimeTopologyBuilder;
-import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.supplychain.SupplyChainResolver;
 
 /**
  * This test is ignored for automatic builds.
@@ -45,6 +42,8 @@ import com.vmturbo.stitching.TopologyEntity;
 @Ignore
 public class LiveTopologyStoreMeasurementIT {
     private final Logger logger = LogManager.getLogger();
+
+    private final SupplyChainResolver<RepoGraphEntity> supplyChainResolver = new SupplyChainResolver<>();
 
     @Test
     @Ignore
@@ -90,9 +89,9 @@ public class LiveTopologyStoreMeasurementIT {
 
         stopwatch.reset();
         stopwatch.start();
-        liveTopologyStore.getSourceTopology().get().globalSupplyChainNodes(Optional.empty());
-        liveTopologyStore.getSourceTopology().get().globalSupplyChainNodes(Optional.of(UIEnvironmentType.CLOUD));
-        liveTopologyStore.getSourceTopology().get().globalSupplyChainNodes(Optional.of(UIEnvironmentType.ON_PREM));
+        liveTopologyStore.getSourceTopology().get().globalSupplyChainNodes(Optional.empty(), supplyChainResolver);
+        liveTopologyStore.getSourceTopology().get().globalSupplyChainNodes(Optional.of(UIEnvironmentType.CLOUD), supplyChainResolver);
+        liveTopologyStore.getSourceTopology().get().globalSupplyChainNodes(Optional.of(UIEnvironmentType.ON_PREM), supplyChainResolver);
         stopwatch.stop();
         logger.info("GSC Took {}", stopwatch.elapsed(TimeUnit.MILLISECONDS));
         logger.info("Size with global supply chain: {}", FileUtils.byteCountToDisplaySize(ObjectSizeCalculator.getObjectSize(liveTopologyStore.getSourceTopology().get())));

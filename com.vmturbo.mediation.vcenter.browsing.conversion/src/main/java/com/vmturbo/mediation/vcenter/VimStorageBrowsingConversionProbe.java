@@ -16,6 +16,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.mediation.conversion.onprem.AddVirtualVolumeDiscoveryConverter;
 import com.vmturbo.mediation.vmware.browsing.sdk.VimStorageBrowsingProbe;
 import com.vmturbo.mediation.vmware.sdk.VimAccount;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -24,6 +25,7 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.ReturnType;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
+import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO.TemplateType;
 import com.vmturbo.platform.sdk.common.supplychain.MergedEntityMetadataBuilder;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainNodeBuilder;
@@ -68,14 +70,14 @@ public class VimStorageBrowsingConversionProbe extends VimStorageBrowsingProbe {
     @Nonnull
     @Override
     public DiscoveryResponse discoverTarget(@Nonnull VimAccount vimAccount,
-            @Nullable DiscoveryContextDTO discoveryContext)
+                                            @Nullable DiscoveryContextDTO discoveryContext)
             throws InterruptedException, NullPointerException {
         logger.debug("Started converting discovery response for VCenter Storage Browsing target {}",
                 vimAccount::getAddress);
 
         final Stopwatch stopwatch = Stopwatch.createStarted();
-        final DiscoveryResponse newDiscoveryResponse = new VimStorageBrowsingDiscoveryConverter(
-                getRawDiscoveryResponse(vimAccount, discoveryContext)).convert();
+        final DiscoveryResponse newDiscoveryResponse = new AddVirtualVolumeDiscoveryConverter(
+            getRawDiscoveryResponse(vimAccount, discoveryContext), true).convert();
 
         logger.debug("Done converting discovery response for VCenter Storage Browsing"
                 + " target {} within {} ms",
@@ -111,7 +113,11 @@ public class VimStorageBrowsingConversionProbe extends VimStorageBrowsingProbe {
 
         // create supply chain nodes for new entity types
         for (EntityType entityType : NEW_ENTITY_TYPES) {
-            SupplyChainNodeBuilder nodeBuilder = new SupplyChainNodeBuilder().entity(entityType);
+            // Since the volume is stitched with the vc volume, the template priority must be
+            // reduced from 0 (default value) to -1, so that vc template will take higher priority
+            // and it will avoid warnings in TP
+            SupplyChainNodeBuilder nodeBuilder = new SupplyChainNodeBuilder().entity(entityType,
+                TemplateType.BASE, -1);
             if (MERGED_ENTITY_METADATA_MAP.containsKey(entityType)) {
                 nodeBuilder.mergedBy(MERGED_ENTITY_METADATA_MAP.get(entityType));
             }

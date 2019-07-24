@@ -352,7 +352,7 @@ public class SupplyChainResolverTest {
             new SupplyChainNodeBuilder<>(7, UIEntityType.VIRTUAL_MACHINE.typeNumber());
         graph.entitiesOfType(UIEntityType.VIRTUAL_MACHINE.typeNumber()).forEach(nodeBuilder::addMember);
 
-        SupplyChainNode node = nodeBuilder.buildNode(graph);
+        SupplyChainNode node = nodeBuilder.buildNode(graph, supplyChainResolver);
         assertThat(node.getEntityType(), is(UIEntityType.VIRTUAL_MACHINE.apiStr()));
         assertThat(node.getSupplyChainDepth(), is(7));
         assertThat(RepositoryDTOUtil.getAllMemberOids(node), containsInAnyOrder(1L, 2L));

@@ -12,7 +12,7 @@ import javax.annotation.Nonnull;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.vmturbo.mediation.cloud.util.TestUtils;
+import com.vmturbo.mediation.conversion.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
@@ -53,8 +53,8 @@ public class VimSdkConversionProbeTest {
         Map<EntityType, List<EntityDTO>> entitiesByType = newResponse.getEntityDTOList().stream()
                 .collect(Collectors.groupingBy(EntityDTO::getEntityType));
 
-        // verify there are 10 different entity types in new topology
-        assertEquals(7, entitiesByType.size());
+        // verify there are 8 different entity types in new topology
+        assertEquals(8, entitiesByType.size());
 
         // check each changed entity
         assertEquals(3, entitiesByType.get(EntityType.STORAGE).size());
@@ -63,6 +63,7 @@ public class VimSdkConversionProbeTest {
         assertEquals(1, entitiesByType.get(EntityType.DATACENTER).size());
         assertEquals(1, entitiesByType.get(EntityType.PHYSICAL_MACHINE).size());
         assertEquals(3, entitiesByType.get(EntityType.APPLICATION).size());
+        assertEquals(6, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
 
         // ensure other fields are consistent with original discovery response
         verifyOtherFieldsNotModified(oldResponse, newResponse, isStorageBrowsingEnabled);
@@ -78,7 +79,7 @@ public class VimSdkConversionProbeTest {
         if (isStorageBrowsingEnabled) {
             assertEquals(oldResponse.getDerivedTargetList(), newResponse.getDerivedTargetList());
         } else {
-            assertTrue(newResponse.getDerivedTargetCount() == 0);
+            assertEquals(0, newResponse.getDerivedTargetCount());
         }
         assertEquals(oldResponse.getNonMarketEntityDTOList(), newResponse.getNonMarketEntityDTOList());
         assertEquals(oldResponse.getCostDTOList(), newResponse.getCostDTOList());

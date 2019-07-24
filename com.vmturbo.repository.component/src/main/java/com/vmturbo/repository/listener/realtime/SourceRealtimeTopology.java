@@ -32,6 +32,7 @@ import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity.Builder;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
+import com.vmturbo.topology.graph.supplychain.SupplyChainResolver;
 
 /**
  * Represents an in-memory "source" topology for the realtime (live) context.
@@ -99,7 +100,8 @@ public class SourceRealtimeTopology implements StreamingDiagnosable {
      */
     @Nonnull
     public synchronized Map<UIEntityType, SupplyChainNode> globalSupplyChainNodes(
-            @Nonnull final Optional<UIEnvironmentType> envType) {
+            @Nonnull final Optional<UIEnvironmentType> envType,
+            @Nonnull final SupplyChainResolver<RepoGraphEntity> supplyChainResolver) {
         UIEnvironmentType environmentType = envType.orElse(UIEnvironmentType.HYBRID);
         if (environmentType == UIEnvironmentType.UNKNOWN) {
             return Collections.emptyMap();
@@ -108,7 +110,8 @@ public class SourceRealtimeTopology implements StreamingDiagnosable {
         final SetOnce<Map<UIEntityType, SupplyChainNode>> envTypeNodes =
             globalSupplyChain.computeIfAbsent(environmentType, k -> new SetOnce<>());
 
-        return envTypeNodes.ensureSet(() -> globalSupplyChainCalculator.computeGlobalSupplyChain(entityGraph, environmentType));
+        return envTypeNodes.ensureSet(() -> globalSupplyChainCalculator.computeGlobalSupplyChain(
+            entityGraph, environmentType, supplyChainResolver));
     }
 
     @Nonnull

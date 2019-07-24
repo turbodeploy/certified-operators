@@ -11,6 +11,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -72,6 +73,14 @@ public class SupplyChainResolver<E extends TopologyGraphEntity<E>> {
         }
     }
 
+    // Providers and connected-to count as "connected provider types"
+    private NeighborFunction<E> getProvidersFunction = entity -> Stream.concat(
+        entity.getProviders().stream(), entity.getConnectedToEntities().stream());
+
+    // Consumers and connected-from count as "connected consumer types"
+    private NeighborFunction<E> getConsumersFunction = entity -> Stream.concat(
+        entity.getConsumers().stream(), entity.getConnectedFromEntities().stream());
+
     /**
      * Get the supply chain starting from a set of vertices.
      *
@@ -116,25 +125,25 @@ public class SupplyChainResolver<E extends TopologyGraphEntity<E>> {
         initialFrontier.forEach(entity ->
             context.frontier.add(new VertexAndNeighbor<>(entity, null)));
 
-        traverseSupplyChainBFS(E::getProviders, 1, context);
+        traverseSupplyChainBFS(getProvidersFunction, 1, context);
 
         // Traverse outward from the starting vertices to collect supply chain consumers
         // Start from the starting vertices consumers because the starting vertices themselves
         // was added in the producers traversal.
         context.frontier = new ArrayDeque<>();
         for (E entity : initialFrontier) {
-            entity.getConsumers().stream()
+            getConsumersFunction.neighborsFor(entity)
                 .filter(memberPredicate)
                 .map(consumer -> new VertexAndNeighbor<>(consumer, entity))
                 .forEach(context.frontier::add);
         }
 
-        traverseSupplyChainBFS(E::getConsumers, 2, context);
+        traverseSupplyChainBFS(getConsumersFunction, 2, context);
 
         return context.nodeMap.values().stream()
             .collect(Collectors.toMap(
                 bldr -> UIEntityType.fromType(bldr.entityType),
-                bldr -> bldr.buildNode(topologyGraph)));
+                bldr -> bldr.buildNode(topologyGraph, this)));
     }
 
     /**
@@ -144,7 +153,7 @@ public class SupplyChainResolver<E extends TopologyGraphEntity<E>> {
     @FunctionalInterface
     private interface NeighborFunction<E extends TopologyGraphEntity<E>> {
         @Nonnull
-        List<E> neighborsFor(@Nonnull final E vertex);
+        Stream<E> neighborsFor(@Nonnull final E vertex);
     }
 
 
@@ -173,7 +182,7 @@ public class SupplyChainResolver<E extends TopologyGraphEntity<E>> {
             // or if the connection corresponds to a mandatory edge.
             if (!context.visitedEntityTypes.contains(vertex.getEntityType()) || vertexAndNeighbor.mandatoryEdge()) {
                 nextFrontier.addAll(
-                    neighborFunction.neighborsFor(vertex).stream()
+                    neighborFunction.neighborsFor(vertex)
                         .filter(context.memberPredicate)
                         .filter(neighbor -> !context.visitedEntities.contains(neighbor))
                         .map(neighbor -> new VertexAndNeighbor<E>(neighbor, vertex))
@@ -194,6 +203,26 @@ public class SupplyChainResolver<E extends TopologyGraphEntity<E>> {
         }
     }
 
+    /**
+     *
+     * Providers and connected-to count as "connected provider types".
+     *
+     * @param entity the entity to get connected providers from
+     * @return stream of connected providers
+     */
+    public Stream<E> getConnectedProviders(E entity) {
+        return getProvidersFunction.neighborsFor(entity);
+    }
+
+    /**
+     * Consumers and connected-from count as "connected consumer types".
+     *
+     * @param entity the entity to get connected consumers from
+     * @return stream of connected consumers
+     */
+    public Stream<E> getConnectedConsumers(E entity) {
+        return getConsumersFunction.neighborsFor(entity);
+    }
 
     /**
      * A simple class that pairs a vertex and the neighbor from which we reached that vertex during
@@ -257,7 +286,8 @@ public class SupplyChainResolver<E extends TopologyGraphEntity<E>> {
         }
 
         @Nonnull
-        public SupplyChainNode buildNode(@Nonnull final TopologyGraph<? extends TopologyGraphEntity> graph) {
+        public SupplyChainNode buildNode(@Nonnull final TopologyGraph<E> graph,
+                                         @Nonnull final SupplyChainResolver<E> supplyChainResolver) {
             final SupplyChainNode.Builder protoNodeBuilder = SupplyChainNode.newBuilder()
                 .setSupplyChainDepth(supplyChainDepth)
                 .setEntityType(UIEntityType.fromType(entityType).apiStr());
@@ -270,10 +300,10 @@ public class SupplyChainResolver<E extends TopologyGraphEntity<E>> {
                     .build());
                 memberSet.forEach(memberOid -> {
                     graph.getEntity(memberOid).ifPresent(entity -> {
-                        entity.getProviders().forEach(provider ->
+                        supplyChainResolver.getConnectedProviders(entity).forEach(provider ->
                             connectedProviderTypes.add(UIEntityType.fromType(provider.getEntityType()).apiStr()));
-                        entity.getConsumers().forEach(provider ->
-                            connectedConsumerTypes.add(UIEntityType.fromType(provider.getEntityType()).apiStr()));
+                        supplyChainResolver.getConnectedConsumers(entity).forEach(consumer ->
+                            connectedConsumerTypes.add(UIEntityType.fromType(consumer.getEntityType()).apiStr()));
                     });
                 });
             });

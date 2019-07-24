@@ -10,10 +10,10 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.mediation.azure.AzureConversionContext;
-import com.vmturbo.mediation.cloud.CloudDiscoveryConverter;
-import com.vmturbo.mediation.cloud.IEntityConverter;
-import com.vmturbo.mediation.cloud.converter.StorageConverter;
-import com.vmturbo.mediation.cloud.util.CloudService;
+import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
+import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
+import com.vmturbo.mediation.conversion.cloud.converter.StorageConverter;
+import com.vmturbo.mediation.conversion.util.CloudService;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
