@@ -295,8 +295,8 @@ public class ReportDataUtils {
             // daily_pm_top_resource_utilization_bar
                 put(169L, new NullReportTemplate(delegate)).
                 put(170L, new Daily_cluster_30_days_avg_stats_vs_thresholds_grid(delegate)).
-            // daily_potential_storage_waste_grid
-                put(172L, new NullReportTemplate(delegate)).
+            // daily_potential_storage_waste_grid, according to PT it show recently added VM, hide it for now
+            //  put(172L, new NullReportTemplate(delegate)).
             // monthly_individual_vm_summary
                 put(181L, new NullReportTemplate(delegate)).
             // monthly_30_days_pm_top_bottom_capacity_grid
