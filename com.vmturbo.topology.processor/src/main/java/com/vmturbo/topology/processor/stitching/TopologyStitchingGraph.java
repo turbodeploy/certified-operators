@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -23,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors.StitchingErrorCode;
@@ -281,8 +283,10 @@ public class TopologyStitchingGraph {
         // layeredOver means normal connection
         if (entityData.supportsConnectedTo()) {
             if (!entityDtoBuilder.getLayeredOverList().isEmpty()) {
-                final Map<String, TopologyStitchingEntity> validLayeredOverByLocalId =
-                    entityDtoBuilder.getLayeredOverList().stream()
+                final Set<String> distinctLayeredOver =
+                    Sets.newHashSet(entityDtoBuilder.getLayeredOverList());
+                final Map<String, TopologyStitchingEntity> validLayeredOverById =
+                    distinctLayeredOver.stream()
                         .map(layeredOverId -> {
                             final StitchingEntityData layeredOverData = entityMap.get(layeredOverId);
                             if (layeredOverData == null) {
@@ -314,7 +318,7 @@ public class TopologyStitchingGraph {
                         .filter(Objects::nonNull)
                         .collect(Collectors.toMap(TopologyStitchingEntity::getLocalId, Function.identity()));
 
-                if (validLayeredOverByLocalId.size() < entityDtoBuilder.getLayeredOverCount()) {
+                if (validLayeredOverById.size() < distinctLayeredOver.size()) {
                     // Some are invalid!
                     // This is a pretty serious error, so it's worth logging at error-level.
                     // We want to see the invalid entity IDs because that can be helpful in figuring
@@ -322,23 +326,34 @@ public class TopologyStitchingGraph {
                     logger.error("Entity {} (local id: {}) layered over invalid entities: {}",
                         entity::getOid,
                         entity::getLocalId,
-                        () -> Collections2.filter(entityDtoBuilder.getLayeredOverList(),
-                            e -> !validLayeredOverByLocalId.containsKey(e)));
+                        () -> Collections2.filter(distinctLayeredOver,
+                            e -> !validLayeredOverById.containsKey(e)));
 
                     entityDtoBuilder.clearLayeredOver();
-                    entityDtoBuilder.addAllLayeredOver(validLayeredOverByLocalId.keySet());
+                    entityDtoBuilder.addAllLayeredOver(validLayeredOverById.keySet());
+                } else if (distinctLayeredOver.size() < entityDtoBuilder.getLayeredOverCount()) {
+                    // Remove duplicates, so downstream uses of entityDtoBuilder don't have to
+                    // deal with this error.
+                    logger.info("Entity {} (local id: {}) Removing {} duplicate entries from layer over list.",
+                        entity.getOid(),
+                        entity.getLocalId(),
+                        entityDtoBuilder.getLayeredOverCount() - distinctLayeredOver.size());
+
+                    entityDtoBuilder.clearLayeredOver();
+                    entityDtoBuilder.addAllLayeredOver(distinctLayeredOver);
                 }
 
-                validLayeredOverByLocalId.values().forEach(layeredOverEntity -> {
+                validLayeredOverById.values().forEach(layeredOverEntity -> {
                     entity.addConnectedTo(ConnectionType.NORMAL_CONNECTION, layeredOverEntity);
                     layeredOverEntity.addConnectedFrom(ConnectionType.NORMAL_CONNECTION, entity);
                 });
             }
 
             // consistsOf means owns connection
-            entityDtoBuilder.getConsistsOfList().forEach(connectedEntityId -> {
-                final Map<String, TopologyStitchingEntity> validConsistsOf =
-                    entityDtoBuilder.getConsistsOfList().stream()
+            if (!entityDtoBuilder.getConsistsOfList().isEmpty()) {
+                final Set<String> distinctConsistsOfIds = Sets.newHashSet(entityDtoBuilder.getConsistsOfList());
+                final Map<String, TopologyStitchingEntity> validConsistsOfById =
+                    distinctConsistsOfIds.stream()
                         .map(consistsOfId -> {
                             final StitchingEntityData consistsOfData = entityMap.get(consistsOfId);
                             if (consistsOfData == null) {
@@ -370,7 +385,7 @@ public class TopologyStitchingGraph {
                         .filter(Objects::nonNull)
                         .collect(Collectors.toMap(TopologyStitchingEntity::getLocalId, Function.identity()));
 
-                if (validConsistsOf.size() < entityDtoBuilder.getConsistsOfCount()) {
+                if (validConsistsOfById.size() < distinctConsistsOfIds.size()) {
                     // Some are invalid!
                     // This is a pretty serious error, so it's worth logging at error-level.
                     // We want to see the invalid entity IDs because that can be helpful in figuring
@@ -378,18 +393,28 @@ public class TopologyStitchingGraph {
                     logger.error("Entity {} (local id: {}) consists of invalid entities: {}",
                         entity::getOid,
                         entity::getLocalId,
-                        () -> Collections2.filter(entityDtoBuilder.getConsistsOfList(),
-                            e -> !validConsistsOf.containsKey(e)));
+                        () -> Collections2.filter(distinctConsistsOfIds,
+                            e -> !validConsistsOfById.containsKey(e)));
 
                     entityDtoBuilder.clearConsistsOf();
-                    entityDtoBuilder.addAllConsistsOf(validConsistsOf.keySet());
+                    entityDtoBuilder.addAllConsistsOf(validConsistsOfById.keySet());
+                } else if (distinctConsistsOfIds.size() < entityDtoBuilder.getConsistsOfCount()) {
+                    // Remove duplicates, so downstream uses of entityDtoBuilder don't have to
+                    // deal with this error.
+                    logger.info("Entity {} (local id: {}) Removing {} duplicate entries from consists of list.",
+                        entity.getOid(),
+                        entity.getLocalId(),
+                        entityDtoBuilder.getConsistsOfCount() - distinctConsistsOfIds.size());
+
+                    entityDtoBuilder.clearConsistsOf();
+                    entityDtoBuilder.addAllConsistsOf(distinctConsistsOfIds);
                 }
 
-                validConsistsOf.values().forEach(consistsOfEntity -> {
+                validConsistsOfById.values().forEach(consistsOfEntity -> {
                     entity.addConnectedTo(ConnectionType.OWNS_CONNECTION, consistsOfEntity);
                     consistsOfEntity.addConnectedFrom(ConnectionType.OWNS_CONNECTION, entity);
                 });
-            });
+            }
         }
 
         // Log and record the high-level error summary.
