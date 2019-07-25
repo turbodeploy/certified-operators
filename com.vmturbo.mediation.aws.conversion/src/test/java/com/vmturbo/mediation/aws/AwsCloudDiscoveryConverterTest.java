@@ -54,8 +54,8 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 public class AwsCloudDiscoveryConverterTest {
 
-    private static final String AWS_ENGINEERING_FILE_PATH =
-            "src/test/resources/data/aws_engineering.aws.amazon.com.txt";
+    private static final String AWS_ENGINEERING_FILE_PATH = AwsCloudDiscoveryConverterTest.class
+        .getClassLoader().getResource("data/aws_engineering.aws.amazon.com.txt").getPath();
 
     private static final String masterAccountId = "192821421245";
 

@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.diagnostics;
 
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -20,9 +21,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -489,9 +487,9 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                 templateDeploymentProfileUploader, identityProvider, new DiagnosticsWriter());
         when(probeStore.getProbe(71664194068896L)).thenReturn(Optional.of(Probes.defaultProbe));
         when(probeStore.getProbe(71564745273056L)).thenReturn(Optional.of(Probes.defaultProbe));
-        handler.restore(new FileInputStream(new File(fullPath("diags/compressed/diags0.zip"))));
+        handler.restore(this.getClass().getClassLoader().getResource("diags/compressed/diags0.zip").openStream());
         List<Target> targets = simpleTargetStore.getAll();
-        assertTrue(!targets.isEmpty());
+        assertFalse(targets.isEmpty());
         for (Target target : simpleTargetStore.getAll()) {
             verify(scheduler, times(1)).setDiscoverySchedule(target.getId(), 600000, TimeUnit.MILLISECONDS);
             verify(entityStore).entitiesRestored(eq(target.getId()), anyLong(), anyMapOf(Long.class, EntityDTO.class));
@@ -499,20 +497,19 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
 
             verify(groupUploader).setTargetDiscoveredGroups(eq(target.getId()), captor.capture());
-            List<GroupDTO> groupResult = captor.<List<GroupDTO>>getValue();
+            List<GroupDTO> groupResult = captor.getValue();
             assertEquals(3, groupResult.size());
             assertTrue(groupResult.stream().allMatch(GroupDTO::hasMemberList));
 
             verify(groupUploader).setTargetDiscoveredSettingPolicies(eq(target.getId()), captor.capture());
-            List<DiscoveredSettingPolicyInfo> settingResult = captor.<List<DiscoveredSettingPolicyInfo>>getValue();
+            List<DiscoveredSettingPolicyInfo> settingResult = captor.getValue();
             assertEquals(2, settingResult.size());
             assertTrue(settingResult.stream().allMatch(setting -> setting.getEntityType() == 14));
 
             ArgumentCaptor<Map> mapCaptor = ArgumentCaptor.forClass(Map.class);
             verify(templateDeploymentProfileUploader).setTargetsTemplateDeploymentProfileInfos(eq(target.getId()),
                     mapCaptor.capture());
-            Map<DeploymentProfileInfo, Set<EntityProfileDTO>> profileResult = mapCaptor
-                    .<Map<DeploymentProfileInfo, Set<EntityProfileDTO>>>getValue();
+            Map<DeploymentProfileInfo, Set<EntityProfileDTO>> profileResult = mapCaptor.getValue();
             assertEquals(2, profileResult.size());
             assertTrue(profileResult.values().stream().allMatch(set -> set.size() == 1));
 
@@ -521,7 +518,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
         ArgumentCaptor<Map> mapCaptor = ArgumentCaptor.forClass(Map.class);
         verify(probeStore).overwriteProbeInfo(mapCaptor.capture());
-        Map<Long, ProbeInfo> probeResult = mapCaptor.<Map<Long, ProbeInfo>>getValue();
+        Map<Long, ProbeInfo> probeResult = mapCaptor.getValue();
         assertEquals(2, probeResult.size());
         assertTrue(probeResult.values().stream().allMatch(
                 probeInfo -> probeInfo.getSupplyChainDefinitionSet(0).getTemplateClass() == EntityType.APPLICATION));
@@ -892,15 +889,4 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
     }
 
-    /**
-     * Converts a relative (to src/test/resources) path to absolute path.
-     * @param fileName file name as relative path
-     * @return file name with absolute path
-     * @throws URISyntaxException if the path name cannot be parsed properly
-     * @throws IOException is I/O error occurs
-     */
-    private String fullPath(String fileName) throws URISyntaxException, IOException {
-        URL fileUrl = this.getClass().getClassLoader().getResources(fileName).nextElement();
-        return Paths.get(fileUrl.toURI()).toString();
-    }
 }

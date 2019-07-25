@@ -22,11 +22,13 @@ public class AzureConversionProbeTest {
     private AzureAccount azureAccount = Mockito.mock(AzureAccount.class);
     private DiscoveryContextDTO discoveryContext = null;
 
-    private static final String AZURE_ENGINEERING_FILE_PATH =
-            "src/test/resources/data/azure_engineering.management.core.windows.net.txt";
+    private static final String AZURE_ENGINEERING_FILE_PATH = AzureConversionProbeTest.class
+        .getClassLoader().getResource("data/azure_engineering.management.core.windows.net.txt")
+        .getPath();
 
-    private static final String AZURE_PRODUCTMGMT_FILE_PATH =
-            "src/test/resources/data/azure_productmgmt.management.core.windows.net.txt";
+    private static final String AZURE_PRODUCTMGMT_FILE_PATH = AzureConversionProbeTest.class
+        .getClassLoader().getResource("data/azure_productmgmt.management.core.windows.net.txt")
+        .getPath();
 
     @Test
     public void testEngineering() throws Exception {

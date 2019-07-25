@@ -48,8 +48,9 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 public class AzureCloudDiscoveryConverterTest {
 
-    private static final String AZURE_ENGINEERING_FILE_PATH =
-            "src/test/resources/data/azure_engineering.management.core.windows.net.txt";
+    private static final String AZURE_ENGINEERING_FILE_PATH = AzureCloudDiscoveryConverterTest.class
+        .getClassLoader().getResource("data/azure_engineering.management.core.windows.net.txt")
+        .getPath();
 
     private static final String businessAccountId = "758ad253-cbf5-4b18-8863-3eed0825bf07";
 

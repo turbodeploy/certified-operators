@@ -19,8 +19,9 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 
 public class HyperVConversionProbeTest {
 
-    private static final String HYPERV_FILE_PATH =
-        "src/test/resources/data/Hyper_V_hv08_cluster1.corp.vmturbo.com-2019.07.17.19.34.29.595-FULL.txt";
+    private static final String HYPERV_FILE_PATH = HyperVConversionProbeTest.class.getClassLoader()
+        .getResource("data/Hyper_V_hv08_cluster1.corp.vmturbo.com-2019.07.17.19.34.29.595-FULL.txt")
+        .getPath();
 
     private HypervAccount hypervAccount = Mockito.mock(HypervAccount.class);
 

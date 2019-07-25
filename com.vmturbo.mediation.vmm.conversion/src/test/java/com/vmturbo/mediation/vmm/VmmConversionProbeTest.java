@@ -20,8 +20,9 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 
 public class VmmConversionProbeTest {
 
-    private static final String VMM_FILE_PATH =
-            "src/test/resources/data/VMM_hp_dl390.corp.vmturbo.com-2019.07.17.19.33.00.703-FULL.txt";
+    private static final String VMM_FILE_PATH = VmmConversionProbeTest.class.getClassLoader()
+        .getResource("data/VMM_hp_dl390.corp.vmturbo.com-2019.07.17.19.33.00.703-FULL.txt")
+        .getPath();
 
     private VmmAccount vmmAccount = Mockito.mock(VmmAccount.class);
 

@@ -22,8 +22,9 @@ public class VimSdkConversionProbeTest {
     private VimAccountWithStorageBrowsingFlag vimAccount =
         Mockito.mock(VimAccountWithStorageBrowsingFlag.class);
 
-    private static final String VCENTER_FILE_PATH =
-            "src/test/resources/data/vCenter_vsphere_dc20.eng.vmturbo.com-FULL.txt";
+    private static final String VCENTER_FILE_PATH = VimAccountWithStorageBrowsingFlag.class
+        .getClassLoader().getResource("data/vCenter_vsphere_dc20.eng.vmturbo.com-FULL.txt")
+        .getPath();
 
     @Test
     public void testStorageBrowsingDisabled() throws Exception {

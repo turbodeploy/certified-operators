@@ -25,11 +25,11 @@ public class AwsConversionProbeTest {
     private AwsAccount awsAccount = Mockito.mock(AwsAccount.class);
     private DiscoveryContextDTO discoveryContext = null;
 
-    private static final String AWS_ENGINEERING_FILE_PATH =
-            "src/test/resources/data/aws_engineering.aws.amazon.com.txt";
+    private static final String AWS_ENGINEERING_FILE_PATH = AwsConversionProbeTest.class
+        .getClassLoader().getResource("data/aws_engineering.aws.amazon.com.txt").getPath();
 
-    private static final String AWS_ADVENG_FILE_PATH =
-            "src/test/resources/data/aws_adveng.aws.amazon.com.txt";
+    private static final String AWS_ADVENG_FILE_PATH = AwsConversionProbeTest.class
+        .getClassLoader().getResource("data/aws_adveng.aws.amazon.com.txt").getPath();
 
     @Test
     public void testEngineering() throws Exception {
