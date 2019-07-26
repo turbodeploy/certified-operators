@@ -76,7 +76,6 @@ import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationFailure;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger.KeyChangeOutcome;
-import com.vmturbo.topology.processor.topology.CloudTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
@@ -87,6 +86,7 @@ import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicator
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
+import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PassthroughStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
@@ -370,40 +370,6 @@ public class Stages {
         }
     }
 
-    /**
-     * This stage applies scoping logic to filter out undesirable TopologyStitchingEntities.
-     * <p>
-     * It happens only for cloud related plans.
-     *
-     */
-    public static class CloudPlanScopingStage extends Stage<StitchingContext, StitchingContext> {
-        private final CloudTopologyScopeEditor cloudTopologyScopeEditor;
-        private final PlanScope scope;
-        private final StitchingJournalFactory journalFactory;
-
-        public CloudPlanScopingStage(@Nonnull final CloudTopologyScopeEditor cloudTopologyScopeEditor,
-                                     @Nullable final PlanScope scope,
-                                     @Nonnull final StitchingJournalFactory journalFactory) {
-            this.cloudTopologyScopeEditor = cloudTopologyScopeEditor;
-            this.scope = scope;
-            this.journalFactory = Objects.requireNonNull(journalFactory);
-        }
-        @Override
-        public StageResult<StitchingContext> execute(@Nonnull StitchingContext stitchingContext) {
-            int totalCount = stitchingContext.size();
-            TopologyInfo topologyInfo = getContext().getTopologyInfo();
-            if (!topologyInfo.hasPlanInfo() || (!topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.OPTIMIZE_CLOUD_PLAN_TYPE)
-                            && !topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.CLOUD_MIGRATION_PLAN_TYPE))) {
-                return StageResult.withResult(stitchingContext)
-                        .andStatus(Status.success("Maintained topology of size " + stitchingContext.size()));
-            }
-            cloudTopologyScopeEditor.scope(stitchingContext, scope, journalFactory);
-            return StageResult.withResult(stitchingContext)
-                .andStatus(Status.success("CloudPlanScopingStage: Constructed a scoped topology of size "
-                    + totalCount + " from topology of size " + stitchingContext.size()));
-        }
-
-    }
     /**
      * This stage construct a topology map (ie OID -> TopologyEntity.Builder) from a {@Link StitchingContext}.
      */
@@ -1190,6 +1156,58 @@ public class Stages {
             return new TopologyBroadcastInfo(resultSentCount, topologyInfo.getTopologyId(),
                 topologyInfo.getTopologyContextId());
         }
+    }
+
+    /**
+     * Stage to reduce the entities by plan scope.
+     */
+    public static class PlanScopingStage extends Stage<TopologyGraph<TopologyEntity>, TopologyGraph<TopologyEntity>> {
+
+        private final PlanScope planScope;
+        private final PlanTopologyScopeEditor planTopologyScopeEditor;
+        private final SearchResolver<TopologyEntity> searchResolver;
+        private final List<ScenarioChange> changes;
+
+        public PlanScopingStage(@Nonnull final PlanTopologyScopeEditor topologyScopeEditor,
+                                @Nullable final PlanScope planScope,
+                                @Nonnull final SearchResolver<TopologyEntity> searchResolver,
+                                @Nonnull final List<ScenarioChange> changes) {
+            this.planScope = planScope;
+            this.planTopologyScopeEditor = Objects.requireNonNull(topologyScopeEditor);
+            this.searchResolver = Objects.requireNonNull(searchResolver);
+            this.changes = changes;
+        }
+
+        @Override
+        public StageResult<TopologyGraph<TopologyEntity>> execute(@Nonnull final TopologyGraph<TopologyEntity> graph)
+                throws PipelineStageException, InterruptedException {
+            if (planScope == null || planScope.getScopeEntriesList().isEmpty()) {
+                return StageResult.withResult(graph).andStatus(Status.success());
+            }
+            TopologyInfo topologyInfo = getContext().getTopologyInfo();
+            TopologyGraph<TopologyEntity> result;
+            if (!topologyInfo.hasPlanInfo()) {
+                throw new PipelineStageException("Plan with topology context id " +
+                        topologyInfo.getTopologyContextId() + " has no planInfo object");
+            }
+            final GroupResolver groupResolver = new GroupResolver(searchResolver);
+            if (!topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.OPTIMIZE_CLOUD_PLAN_TYPE)
+                            && !topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.CLOUD_MIGRATION_PLAN_TYPE)) {
+                // on prem plans
+                result = planTopologyScopeEditor.scopeOnPremTopology(topologyInfo, graph, planScope,
+                        groupResolver, changes);
+                return StageResult.withResult(result).andStatus(Status.success("PlanScopingStage:"
+                                + " Constructed a scoped topology of size " + result.size() +
+                                " from topology of size " + graph.size()));
+            } else {
+                // cloud plans
+                result = planTopologyScopeEditor.scopeCloudTopology(graph, planScope);
+                return StageResult.withResult(result)
+                                .andStatus(Status.success("PlanScopingStage: Constructed a scoped topology of size "
+                                                + result.size() + " from topology of size " + graph.size()));
+            }
+        }
+
     }
 
     /**

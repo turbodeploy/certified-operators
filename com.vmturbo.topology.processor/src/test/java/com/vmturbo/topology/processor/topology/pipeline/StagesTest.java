@@ -14,17 +14,20 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
-
+import com.vmturbo.api.dto.scenario.ScenarioChangeApiDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
@@ -33,6 +36,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
@@ -62,14 +66,14 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal.StitchingJournalContainer;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
-import com.vmturbo.topology.processor.topology.CloudTopologyScopeEditor;
+import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ChangeAppCommodityKeyOnVMAndAppStage;
-import com.vmturbo.topology.processor.topology.pipeline.Stages.CloudPlanScopingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.EntityValidationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.PlanScopingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PostStitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ScanDiscoveredSettingPoliciesStage;
@@ -82,6 +86,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadGroupsStage
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadTemplatesStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadWorkflowsStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.StageResult;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 
 public class StagesTest {
@@ -103,36 +108,81 @@ public class StagesTest {
     }
 
     @Test
-    public void testCloudPlanScopingStage() {
-        final StitchingContext stitchingContext = mock(StitchingContext.class);
+    public void testEmptyPlanScopingStage() throws PipelineStageException, InterruptedException {
         final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
-        final StitchingJournalFactory journalFactory = mock(StitchingJournalFactory.class);
         final StitchingJournalContainer container = new StitchingJournalContainer();
-        final IStitchingJournal<StitchingEntity> journal = spy(new EmptyStitchingJournal<>());
-        final TopologyStitchingGraph graph = mock(TopologyStitchingGraph.class);
+        final IStitchingJournal<TopologyEntity> journal = spy(new EmptyStitchingJournal<TopologyEntity>());
+        container.setPostStitchingJournal(journal);
+        final SearchResolver<TopologyEntity> searchResolver = mock(SearchResolver.class);
+        final GroupResolver groupResolver = new GroupResolver(searchResolver);
+        final TopologyGraph<TopologyEntity> graph = mock(TopologyGraph.class);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
                         .setTopologyContextId(1)
                         .setTopologyId(1)
                         .setTopologyType(TopologyType.PLAN)
                         .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanType("OPTIMIZE_CLOUD").build())
                         .build();
+        final PlanTopologyScopeEditor scopeEditor = mock(PlanTopologyScopeEditor.class);
 
-        when(journalFactory.stitchingJournal(eq(stitchingContext))).thenReturn(journal);
-        when(stitchingContext.constructTopology()).thenReturn(Collections.emptyMap());
         when(context.getStitchingJournalContainer()).thenReturn(container);
-        when(stitchingContext.entityTypeCounts()).thenReturn(Collections.emptyMap());
-        when(journal.shouldDumpTopologyBeforePreStitching()).thenReturn(true);
-        when(stitchingContext.getStitchingGraph()).thenReturn(graph);
         when(graph.entities()).thenReturn(Stream.empty());
         when(context.getTopologyInfo()).thenReturn(topologyInfo);
-        when(stitchingContext.size()).thenReturn(0);
 
-        final CloudTopologyScopeEditor scopeEditor = mock(CloudTopologyScopeEditor.class);
-        PlanScope scope = PlanScope.newBuilder().build();
-        final CloudPlanScopingStage scopingStage = new CloudPlanScopingStage(scopeEditor, scope , journalFactory);
-        scopingStage.setContext(context);
-        assertThat(scopingStage.execute(stitchingContext).getResult().constructTopology(), is(Collections.emptyMap()));
-        verify(scopeEditor).scope(stitchingContext, scope, journalFactory);
+        PlanScope emptyScope = PlanScope.newBuilder().build();
+        final PlanScopingStage emptyScopingStage = new PlanScopingStage(scopeEditor, emptyScope , searchResolver,
+                                                                   new ArrayList<ScenarioChange>());
+        assertTrue(emptyScopingStage.execute(graph).getResult().entities().count() == 0);
+    }
+
+    @Test
+    public void testCloudPlanScopingStage() throws PipelineStageException, InterruptedException {
+        final TopologyInfo cloudTopologyInfo = TopologyInfo.newBuilder()
+                        .setTopologyContextId(1)
+                        .setTopologyId(1)
+                        .setTopologyType(TopologyType.PLAN)
+                        .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanType("OPTIMIZE_CLOUD").build())
+                        .build();
+        final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
+        final StitchingJournalContainer container = new StitchingJournalContainer();
+        final PlanTopologyScopeEditor scopeEditor = mock(PlanTopologyScopeEditor.class);
+        final TopologyGraph<TopologyEntity> graph = mock(TopologyGraph.class);
+        final SearchResolver<TopologyEntity> searchResolver = mock(SearchResolver.class);
+        final PlanScope scope = PlanScope.newBuilder().addScopeEntries(PlanScopeEntry
+                .newBuilder().setClassName(StringConstants.CLUSTER).setScopeObjectOid(11111)).build();
+        final PlanScopingStage cloudScopingStage = spy(new PlanScopingStage(scopeEditor, scope , searchResolver,
+                new ArrayList<ScenarioChange>()));
+        when(cloudScopingStage.getContext()).thenReturn(context);
+        when(context.getStitchingJournalContainer()).thenReturn(container);
+        when(context.getTopologyInfo()).thenReturn(cloudTopologyInfo);
+        when(scopeEditor.scopeCloudTopology(graph, scope)).thenReturn(graph);
+        cloudScopingStage.execute(graph);
+        verify(scopeEditor).scopeCloudTopology(graph, scope);
+    }
+
+    @Test
+    public void testOnpremPlanScopingStage() throws PipelineStageException, InterruptedException {
+        final TopologyInfo onpremTopologyInfo = TopologyInfo.newBuilder()
+                        .setTopologyContextId(2)
+                        .setTopologyId(2)
+                        .setTopologyType(TopologyType.PLAN)
+                        .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanType("CUSTOM").build())
+                        .build();
+        final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
+        final PlanTopologyScopeEditor scopeEditor = mock(PlanTopologyScopeEditor.class);
+        final SearchResolver<TopologyEntity> searchResolver = mock(SearchResolver.class);
+        final TopologyGraph<TopologyEntity> graph = mock(TopologyGraph.class);
+        final PlanScope scope = PlanScope.newBuilder().addScopeEntries(PlanScopeEntry
+                .newBuilder().setClassName(StringConstants.CLUSTER).setScopeObjectOid(11111)).build();
+        List<ScenarioChange> changes = new ArrayList<ScenarioChange>();
+        final PlanScopingStage onpremScopingStage = spy(new PlanScopingStage(scopeEditor, scope , searchResolver, changes));
+        TopologyGraph<TopologyEntity> result = mock(TopologyGraph.class);
+        when(onpremScopingStage.getContext()).thenReturn(context);
+        when(context.getTopologyInfo()).thenReturn(onpremTopologyInfo);
+        when(scopeEditor.scopeOnPremTopology(eq(onpremTopologyInfo), eq(graph), eq(scope), any(), eq(changes))).thenReturn(result);
+        when(result.size()).thenReturn(0);
+        when(graph.size()).thenReturn(0);
+        onpremScopingStage.execute(graph);
+        verify(scopeEditor).scopeOnPremTopology(eq(onpremTopologyInfo), eq(graph), eq(scope), any(), eq(changes));
     }
 
     @Test
