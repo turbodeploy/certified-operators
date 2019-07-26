@@ -42,7 +42,7 @@ public class RolledUpStatCalculatorTest {
             RollupTestUtils.statRecordWithActionCount(1, ActionStatsLatestRecord.class);
         latestRecord2.record().setTotalEntityCount(8);
         latestRecord2.record().setTotalActionCount(4);
-        latestRecord2.record().setNewActionCount(4);
+        latestRecord2.record().setNewActionCount(1);
         latestRecord2.record().setTotalSavings(BigDecimal.valueOf(8));
         latestRecord2.record().setTotalInvestment(BigDecimal.valueOf(6));
         latestRecord2.record().setActionGroupId(ACTION_GROUP_ID);
@@ -53,9 +53,9 @@ public class RolledUpStatCalculatorTest {
         final RolledUpActionGroupStat rolledUp = calculator.rollupLatestRecords(3,
             Arrays.asList(latestRecord1, latestRecord2)).orElseThrow(RuntimeException::new);
         assertThat(rolledUp.avgEntityCount(), closeTo((10.0 + 8) / 3, 0.0001));
-        assertThat(rolledUp.avgActionCount(), closeTo((5.0 + 4) / 3, 0.0001));
+        assertThat(rolledUp.avgActionCount(), closeTo((5.0 + 1) / 3, 0.0001));
         assertThat(rolledUp.priorActionCount(), is(5));
-        assertThat(rolledUp.newActionCount(), is(5 + 4));
+        assertThat(rolledUp.newActionCount(), is(5 + 1));
 
         assertThat(rolledUp.avgSavings(), closeTo((7.0 + 8) / 3, 0.0001));
         assertThat(rolledUp.avgInvestment(), closeTo((6.0 + 6) / 3, 0.0001));

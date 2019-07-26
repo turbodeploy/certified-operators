@@ -200,6 +200,7 @@ public class HistoricalActionStatReader {
              * {@inheritDoc}
              */
             @Override
+            @Nonnull
             public CombinedStatsBuckets arrangeIntoBuckets(@Nonnull final GroupBy groupBy,
                     final int numSnapshots,
                     @Nonnull final Map<ActionGroup, Map<Integer, RolledUpActionGroupStat>> statsByGroupAndMu) {
@@ -213,30 +214,28 @@ public class HistoricalActionStatReader {
                         break;
                     }
                     case ACTION_STATE:
-                        final Map<ActionState, List<ActionGroup>> groupsByState = statsByGroupAndMu.keySet().stream()
+                        final Map<ActionState, List<ActionGroup>> groupsByState =
+                            statsByGroupAndMu.keySet().stream()
                             .collect(Collectors.groupingBy(ag -> ag.key().getActionState()));
-                        groupsByState.forEach((state, groupsForState) -> {
+                        groupsByState.forEach((state, groupsForState) ->
                             buckets.createBucket(groupsForState, numSnapshots,
-                                () -> ActionDTO.ActionStat.newBuilder().setActionState(state));
-                        });
+                                () -> ActionDTO.ActionStat.newBuilder().setActionState(state)));
                         break;
                     case ACTION_CATEGORY:
-                        final Map<ActionCategory, List<ActionGroup>> groupsByCat = statsByGroupAndMu.keySet().stream()
+                        final Map<ActionCategory, List<ActionGroup>> groupsByCat =
+                            statsByGroupAndMu.keySet().stream()
                             .collect(Collectors.groupingBy(ag -> ag.key().getCategory()));
-                        groupsByCat.forEach((category, groupsForCat) -> {
+                        groupsByCat.forEach((category, groupsForCat) ->
                             buckets.createBucket(groupsForCat, numSnapshots,
-                                () -> ActionDTO.ActionStat.newBuilder().setActionCategory(category));
-                        });
+                                () -> ActionDTO.ActionStat.newBuilder().setActionCategory(category)));
                         break;
                     default:
                         logger.error("Unhandled split by: {}", groupBy);
                 }
 
-                statsByGroupAndMu.forEach((actionGroup, statsByMuId) -> {
-                    statsByMuId.values().forEach(stat -> {
-                        buckets.addStatsForGroup(actionGroup, stat);
-                    });
-                });
+                statsByGroupAndMu.forEach((actionGroup, statsByMuId) ->
+                    statsByMuId.values().forEach(stat ->
+                        buckets.addStatsForGroup(actionGroup, stat)));
                 return buckets;
             }
         }
@@ -286,6 +285,8 @@ public class HistoricalActionStatReader {
 
             private int numSnapshots;
 
+            private int       totalActionCount = 0;
+
             private int       avgActionCount = 0;
             private int       minActionCount = 0;
             private int       maxActionCount = 0;
@@ -309,6 +310,10 @@ public class HistoricalActionStatReader {
             }
 
             public void add(@Nonnull final RolledUpActionGroupStat statsForGroup) {
+
+                totalActionCount += statsForGroup.newActionCount() +
+                    statsForGroup.priorActionCount();
+
                 avgActionCount += statsForGroup.avgActionCount();
                 minActionCount += statsForGroup.minActionCount();
                 maxActionCount += statsForGroup.maxActionCount();
@@ -334,7 +339,7 @@ public class HistoricalActionStatReader {
                         .setAvg(avgActionCount)
                         .setMin(minActionCount)
                         .setMax(maxActionCount)
-                        .setTotal(avgActionCount * numSnapshots));
+                        .setTotal(totalActionCount));
                 }
                 if (maxEntityCount > 0) {
                     statBuilder.setEntityCount(ActionDTO.ActionStat.Value.newBuilder()
