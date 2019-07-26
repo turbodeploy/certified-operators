@@ -570,7 +570,7 @@ public class TestUtils {
                 // Values for no License
                 setUpCostTuple(1, NO_TYPE, DC1_COMM_TYPE, 1.5),
                 setUpCostTuple(1, NO_TYPE, DC2_COMM_TYPE, 2.5),
-                setUpCostTuple(1, NO_TYPE, DC3_COMM_TYPE, 3.5),
+                setUpCostTuple(1, NO_TYPE, DC3_COMM_TYPE, Double.POSITIVE_INFINITY),
                 setUpCostTuple(1, NO_TYPE, DC4_COMM_TYPE, 4.5),
                 setUpCostTuple(2, NO_TYPE, DC1_COMM_TYPE, 1.6),
                 setUpCostTuple(2, NO_TYPE, DC2_COMM_TYPE, 2.6),

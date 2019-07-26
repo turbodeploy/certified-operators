@@ -651,18 +651,23 @@ public class CostFunctionFactory {
             return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
         }
 
+        final int licenseTypeKey;
         // NOTE: CostTable.NO_VALUE (-1) is the no license commodity type
-        final int licenseTypeKey = licenseCommBoughtIndex == CostTable.NO_VALUE ?
-                licenseCommBoughtIndex :
-                sl.getBasket().get(licenseCommBoughtIndex).getType();
+        if (licenseCommBoughtIndex == CostTable.NO_VALUE) {
+            licenseTypeKey = licenseCommBoughtIndex;
+            logger.error("Cannot find license commodity on seller: {}, for shopping list: {}, "
+                         + "license base type: {}",
+                         seller.getDebugInfoNeverUseInCode(), sl.getDebugInfoNeverUseInCode(),
+                         licenseBaseType);
+        } else {
+            licenseTypeKey = sl.getBasket().get(licenseCommBoughtIndex).getType();
+        }
         // NOTE: CostTable.NO_VALUE (-1) means find the cheapest region Id
         final int regionTypeKey = regionCommBoughtIndex == CostTable.NO_VALUE ?
                 regionCommBoughtIndex :
                 sl.getBasket().get(regionCommBoughtIndex).getType();
 
         CostTuple costTuple = costTable.getTuple(regionTypeKey, accountId, licenseTypeKey);
-        Integer regionId;
-        double cost;
         if (costTuple == null) {
             logger.error("Cannot find type {} and region {} in costMap, license base type: {}",
                     licenseTypeKey, regionCommBoughtIndex, licenseBaseType);
@@ -670,9 +675,10 @@ public class CostFunctionFactory {
             costTuple = costTable.getTuple(regionCommBoughtIndex, accountId, CostTable.NO_VALUE);
         }
 
-        regionId = costTuple.getRegionId();
-        cost = costTuple.getPrice();
-        return Double.isInfinite(cost) ?
+        final Integer regionId = costTuple.getRegionId();
+        final double cost = costTuple.getPrice();
+        // NOTE: CostTable.NO_VALUE (-1) is the no license commodity type
+        return Double.isInfinite(cost) && licenseCommBoughtIndex != CostTable.NO_VALUE ?
                 new LicenseUnavailableQuote(seller, sl.getBasket().get(licenseCommBoughtIndex)) :
                 new CommodityCloudQuote(seller, cost * groupFactor, regionId);
     }
