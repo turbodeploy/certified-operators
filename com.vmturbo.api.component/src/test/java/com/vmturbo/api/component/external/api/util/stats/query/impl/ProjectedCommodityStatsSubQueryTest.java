@@ -82,34 +82,37 @@ public class ProjectedCommodityStatsSubQueryTest {
 
     @Test
     public void testNotApplicableToPlan() {
-        final TimeWindow timeWindow = ImmutableTimeWindow.builder()
-            .startTime(1_000)
-            .endTime(3_000)
-            .build();
         final ApiId scope = mock(ApiId.class);
         when(scope.isPlan()).thenReturn(true);
         final StatsQueryContext context = mock(StatsQueryContext.class);
         when(context.getScope()).thenReturn(scope);
-        when(context.getTimeWindow()).thenReturn(Optional.of(timeWindow));
-        when(context.getCurTime()).thenReturn(1_000L);
+        when(context.requestProjected()).thenReturn(true);
 
         assertThat(query.applicableInContext(context), is(false));
     }
 
     @Test
     public void testApplicableToNotPlan() {
-        final TimeWindow timeWindow = ImmutableTimeWindow.builder()
-            .startTime(1_000)
-            .endTime(3_000)
-            .build();
         final ApiId scope = mock(ApiId.class);
         when(scope.isPlan()).thenReturn(false);
         final StatsQueryContext context = mock(StatsQueryContext.class);
         when(context.getScope()).thenReturn(scope);
-        when(context.getTimeWindow()).thenReturn(Optional.of(timeWindow));
-        when(context.getCurTime()).thenReturn(1_000L);
+        when(context.requestProjected()).thenReturn(true);
 
         assertThat(query.applicableInContext(context), is(true));
+    }
+
+    @Test
+    public void testNotApplicableWhenNoRequestProjected() {
+        final ApiId scope = mock(ApiId.class);
+        when(scope.isPlan()).thenReturn(false);
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+        when(context.getScope()).thenReturn(scope);
+
+        // Request did not include projected stats.
+        when(context.requestProjected()).thenReturn(false);
+
+        assertThat(query.applicableInContext(context), is(false));
     }
 
     @Test

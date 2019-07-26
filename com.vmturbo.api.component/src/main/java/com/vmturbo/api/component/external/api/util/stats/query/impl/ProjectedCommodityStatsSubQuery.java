@@ -40,15 +40,7 @@ public class ProjectedCommodityStatsSubQuery implements StatsSubQuery {
 
     @Override
     public boolean applicableInContext(@Nonnull final StatsQueryContext context) {
-        // OM-37484: give the startTime a +/- 60 second window for delineating between "current"
-        // and "projected" stats requests. Without this window, the stats retrieval is too
-        // sensitive to clock skew issues between the browser and the server, leading to incorrect
-        // results in the UI.
-        final boolean requestProjected = context.getTimeWindow()
-            .map(TimeWindow::endTime)
-            .map(endTime -> endTime > (context.getCurTime() + liveStatsRetrievalWindow.toMillis()))
-            .orElse(false);
-        return requestProjected && !context.getScope().isPlan();
+        return context.requestProjected() && !context.getScope().isPlan();
     }
 
     @Override
@@ -77,9 +69,13 @@ public class ProjectedCommodityStatsSubQuery implements StatsSubQuery {
             response.getSnapshot());
 
         // set the time of the snapshot to "future" using the "endDate" of the request
-        //
-        // The "get()" should be safe, because we only run this query if there is an explicit
-        // end time.
-        return ImmutableMap.of(context.getTimeWindow().get().endTime(), projectedStatSnapshot.getStatistics());
+        return ImmutableMap.of(context.getTimeWindow()
+            .map(TimeWindow::endTime)
+            // If the request didn't have an explicit end time, set the time the future (and beyond).
+            // We want it to be out of the "live stats retrieval window" (to keep the semantics
+            // that anything within the live stats retrieval window = current stats), so we add
+            // a minute.
+            .orElseGet(() -> context.getCurTime() + liveStatsRetrievalWindow.plusMinutes(1).toMillis()),
+                projectedStatSnapshot.getStatistics());
     }
 }

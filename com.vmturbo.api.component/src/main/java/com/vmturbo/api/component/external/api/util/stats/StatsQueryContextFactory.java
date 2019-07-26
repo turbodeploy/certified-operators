@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -19,6 +20,7 @@ import org.immutables.value.Value;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext.TimeWindow;
@@ -34,6 +36,8 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
  */
 public class StatsQueryContextFactory {
     private static final Logger logger = LogManager.getLogger();
+
+    private static final int DAYS_IN_MONTH = 30;
 
     private final Duration liveStatsRetrievalWindow;
 
@@ -77,8 +81,15 @@ public class StatsQueryContextFactory {
             }
         }
 
-        final Long endTime = (inputDTO.getEndDate() == null || inputDTO.getEndDate().equalsIgnoreCase("1M")) ?
-            null : DateTimeUtil.parseTime(inputDTO.getEndDate());
+        final Long endTime;
+        final boolean requestProjected;
+        if (inputDTO.getEndDate() == null) {
+            endTime = null;
+            requestProjected = false;
+        } else {
+            endTime = DateTimeUtil.parseTime(inputDTO.getEndDate());
+            requestProjected = endTime > currentStatsTimeWindowEnd;
+        }
 
 
         final Optional<TimeWindow> timeWindow;
@@ -99,7 +110,8 @@ public class StatsQueryContextFactory {
             timeWindow,
             targets,
             expandedScope,
-            clockTimeNow);
+            clockTimeNow,
+            requestProjected);
     }
 
     /**
@@ -124,6 +136,8 @@ public class StatsQueryContextFactory {
 
         private final Set<Long> scopeEntities;
 
+        private final boolean requestProjected;
+
         /**
          * Use {@link StatsQueryContextFactory}.
          */
@@ -133,7 +147,8 @@ public class StatsQueryContextFactory {
                                  @Nonnull final Optional<TimeWindow> timeWindow,
                                  @Nonnull final List<ThinTargetInfo> targets,
                                  @Nonnull final StatsQueryScope expandedScope,
-                                 final long curTime) {
+                                 final long curTime,
+                                 final boolean requestProjected) {
             this.scope = scope;
             this.requestedStats = requestedStats;
             this.curTime = curTime;
@@ -141,6 +156,7 @@ public class StatsQueryContextFactory {
             this.userSessionContext = userSessionContext;
             this.targets = targets;
             this.scopeEntities = expandedScope.getEntities();
+            this.requestProjected = requestProjected;
         }
 
         @Value.Immutable
@@ -165,6 +181,10 @@ public class StatsQueryContextFactory {
 
         public boolean includeCurrent() {
             return timeWindow.map(window -> window.contains(curTime)).orElse(true);
+        }
+
+        public boolean requestProjected() {
+            return requestProjected;
         }
 
         @Nonnull
