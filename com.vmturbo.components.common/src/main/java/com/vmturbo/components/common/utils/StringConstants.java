@@ -296,4 +296,6 @@ public class StringConstants {
     public static final String VIRTUAL_VOLUME_ASPECT_NAME = "virtualDisksAspect";
 
     public static final String UNKNOWN = "Unknown";
+
+    public static final String STAT_PREFIX_CURRENT = "current";
 }

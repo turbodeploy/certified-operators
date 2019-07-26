@@ -72,7 +72,6 @@ public class StatsMapper {
     @VisibleForTesting
     public static final String RELATION_FILTER_TYPE = "relation";
 
-    private static final String STAT_RECORD_PREFIX_CURRENT = "current";
     public static final String FILTER_NAME_KEY = "key";
     private final ConcurrentHashMap<Long, TargetApiDTO> uuidToTargetApiDtoMap = new ConcurrentHashMap<>();
 
@@ -297,11 +296,11 @@ public class StatsMapper {
     @Nonnull
     private StatApiDTO toStatApiDto(StatRecord statRecord) {
         final StatApiDTO statApiDTO = new StatApiDTO();
-        if (statRecord.getName().startsWith(STAT_RECORD_PREFIX_CURRENT)) {
+        if (statRecord.getName().startsWith(StringConstants.STAT_PREFIX_CURRENT)) {
             // The UI requires the name for both before and after plan values to be the same.
             // Remove the prefix "current".  e.g. currentNumVMs => numVMs
             statApiDTO.setName(CaseFormat.UPPER_CAMEL.to(CaseFormat.LOWER_CAMEL,
-                    statRecord.getName().substring(STAT_RECORD_PREFIX_CURRENT.length())));
+                    statRecord.getName().substring(StringConstants.STAT_PREFIX_CURRENT.length())));
         } else {
             statApiDTO.setName(statRecord.getName());
         }
@@ -337,7 +336,7 @@ public class StatsMapper {
         if (statRecord.hasRelation()) {
             relationFilter(statRecord.getRelation()).ifPresent(filters::add);
         }
-        if (statRecord.getName().startsWith(STAT_RECORD_PREFIX_CURRENT)) {
+        if (statRecord.getName().startsWith(StringConstants.STAT_PREFIX_CURRENT)) {
             StatFilterApiDTO resultsTypeFilter = new StatFilterApiDTO();
             resultsTypeFilter.setType(com.vmturbo.components.common.utils.StringConstants.RESULTS_TYPE);
             resultsTypeFilter.setValue(com.vmturbo.components.common.utils.StringConstants.BEFORE_PLAN);

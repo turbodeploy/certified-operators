@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
@@ -46,7 +47,6 @@ public class PlanStatsAggregator {
     private final Logger logger = LogManager.getLogger();
 
     private static final String NO_COMMODITY_PREFIX = "";
-    private static final String CURRENT_COMMODITY_PREFIX = "current";
 
     private Map<Integer, MktSnapshotsStatsRecord> commodityAggregate = Maps.newHashMap();
     private Map<Integer, Integer> commodityTypeCounts = Maps.newHashMap();
@@ -68,7 +68,7 @@ public class PlanStatsAggregator {
         this.historydbIO = historydbIO;
 
         this.isProcessingSourceTopologyStats = isProcessingSourceTopologyStats;
-        dbCommodityPrefix = isProcessingSourceTopologyStats ? CURRENT_COMMODITY_PREFIX : NO_COMMODITY_PREFIX;
+        dbCommodityPrefix = isProcessingSourceTopologyStats ? StringConstants.STAT_PREFIX_CURRENT : NO_COMMODITY_PREFIX;
     }
 
     /**

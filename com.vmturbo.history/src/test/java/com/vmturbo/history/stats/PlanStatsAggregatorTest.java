@@ -22,6 +22,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -37,7 +38,7 @@ public class PlanStatsAggregatorTest {
     private static List<MktSnapshotsStatsRecord> records;
 
     private static long CONTEXT_ID = 6666666;
-    private static String PREFIX = "current";
+    private static String PREFIX = StringConstants.STAT_PREFIX_CURRENT;
     private static double CPU_CAPACITY = 111.111;
     private static double CPU_MIN = 10;
     private static double CPU_MID = 20;
