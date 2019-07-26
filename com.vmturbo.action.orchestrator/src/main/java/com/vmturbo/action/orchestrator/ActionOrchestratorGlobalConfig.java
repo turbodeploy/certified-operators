@@ -13,7 +13,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
 
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
@@ -32,9 +31,6 @@ public class ActionOrchestratorGlobalConfig {
 
     @Autowired
     private TopologyProcessorClientConfig tpClientConfig;
-
-    @Autowired
-    private RepositoryClientConfig repositoryClientConfig;
 
     @Bean
     public TopologyProcessor topologyProcessor() {
@@ -62,10 +58,6 @@ public class ActionOrchestratorGlobalConfig {
     @Bean
     public Channel topologyProcessorChannel() {
         return tpClientConfig.topologyProcessorChannel();
-    }
-
-    public Channel repositoryProcessorChannel() {
-        return repositoryClientConfig.repositoryChannel();
     }
 
     @Bean

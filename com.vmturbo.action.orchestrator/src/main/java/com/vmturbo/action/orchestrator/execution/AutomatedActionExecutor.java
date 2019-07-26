@@ -36,7 +36,6 @@ import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
-import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 
 public class AutomatedActionExecutor {
@@ -108,8 +107,7 @@ public class AutomatedActionExecutor {
         final Map<Long, Set<Long>> result = new HashMap<>();
         final Map<Long, ActionTargetInfo> targetIdsForActions =
                 actionTargetSelector.getTargetsForActions(allActions.values().stream()
-                    .map(Action::getRecommendation),
-                    Optional.empty());
+                    .map(Action::getRecommendation));
         for(Entry<Long, ActionTargetInfo> targetIdForActionEntry : targetIdsForActions.entrySet()) {
             final Long actionId = targetIdForActionEntry.getKey();
             final ActionTargetInfo targetInfo = targetIdForActionEntry.getValue();

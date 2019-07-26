@@ -27,6 +27,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.EntityServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.components.api.client.IMessageReceiver;
@@ -63,6 +64,8 @@ public abstract class AbstractApiCallsTest {
     private TopologyProcessorClient topologyProcessor;
 
     protected ActionExecutionServiceBlockingStub actionExecutionService;
+
+    protected EntityServiceGrpc.EntityServiceBlockingStub entityServiceBlockingStub;
 
     /**
      * Not using it as a Rule because we get the services from the {@link IntegrationTestServer}.

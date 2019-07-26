@@ -208,7 +208,7 @@ public class ActionExecutionSecureRpcTest {
             .supportingLevel(SupportLevel.SUPPORTED)
             .targetId(123)
             .build();
-        when(actionTargetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {
+        when(actionTargetSelector.getTargetsForActions(any())).thenAnswer(invocation -> {
             Stream<Action> actions = invocation.getArgumentAt(0, Stream.class);
             return actions.collect(Collectors.toMap(ActionDTO.Action::getId, action -> targetInfo));
         });
@@ -240,8 +240,6 @@ public class ActionExecutionSecureRpcTest {
                 .setActionId(ACTION_ID)
                 .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                 .build();
-        EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
 
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
@@ -274,8 +272,6 @@ public class ActionExecutionSecureRpcTest {
                 .setActionId(ACTION_ID)
                 .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                 .build();
-        EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
 
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
@@ -305,8 +301,6 @@ public class ActionExecutionSecureRpcTest {
                 .setActionId(ACTION_ID)
                 .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                 .build();
-        EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
 
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
@@ -330,8 +324,6 @@ public class ActionExecutionSecureRpcTest {
                 .setActionId(ACTION_ID)
                 .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                 .build();
-        EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
 
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
@@ -374,8 +366,6 @@ public class ActionExecutionSecureRpcTest {
                 .setActionId(ACTION_ID)
                 .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                 .build();
-        EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
 
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
@@ -408,11 +398,10 @@ public class ActionExecutionSecureRpcTest {
         when(userSessionContext.isUserScoped()).thenReturn(true);
 
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
-            .setActionId(ACTION_ID)
-            .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
-            .build();
-        EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+                .setActionId(ACTION_ID)
+                .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                .build();
+
         // a user WITH access CAN execute the action
         EntityAccessScope accessScopeOK = new EntityAccessScope(null, null,
                 new ArrayOidSet(Arrays.asList(10L, 0L, 1L)), null);

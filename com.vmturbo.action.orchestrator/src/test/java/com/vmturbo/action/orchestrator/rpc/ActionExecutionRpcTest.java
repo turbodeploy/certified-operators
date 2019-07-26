@@ -152,7 +152,7 @@ public class ActionExecutionRpcTest {
             .supportingLevel(SupportLevel.SUPPORTED)
             .targetId(123)
             .build();
-        when(actionTargetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {
+        when(actionTargetSelector.getTargetsForActions(any())).thenAnswer(invocation -> {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
             return actions.collect(Collectors.toMap(ActionDTO.Action::getId, action -> targetInfo));
         });
@@ -183,8 +183,6 @@ public class ActionExecutionRpcTest {
             .setActionId(ACTION_ID)
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
-        EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
 
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
@@ -211,8 +209,6 @@ public class ActionExecutionRpcTest {
             .setActionId(ACTION_ID)
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
-        EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
 
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
@@ -249,8 +245,6 @@ public class ActionExecutionRpcTest {
             .setActionId(ACTION_ID)
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
-        EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
 
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
@@ -275,8 +269,6 @@ public class ActionExecutionRpcTest {
             .setActionId(ACTION_ID)
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
-        EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
 
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
@@ -305,8 +297,6 @@ public class ActionExecutionRpcTest {
             .setActionId(ACTION_ID)
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
-        EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
 
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
@@ -332,8 +322,6 @@ public class ActionExecutionRpcTest {
             .setActionId(ACTION_ID)
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
-        EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
 
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);

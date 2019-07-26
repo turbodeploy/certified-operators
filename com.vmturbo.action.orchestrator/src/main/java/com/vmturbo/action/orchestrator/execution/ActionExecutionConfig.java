@@ -76,7 +76,7 @@ public class ActionExecutionConfig {
         final ActionTargetSelector actionTargetSelector =
                 new ActionTargetSelector(targetCapabilityCache(),
                         actionExecutionTargetEntitySelector(),
-                        globalConfig.repositoryProcessorChannel());
+                        globalConfig.topologyProcessorChannel());
         return actionTargetSelector;
     }
 }

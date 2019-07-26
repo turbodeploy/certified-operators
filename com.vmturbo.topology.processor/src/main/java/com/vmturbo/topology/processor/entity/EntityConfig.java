@@ -38,4 +38,14 @@ public class EntityConfig {
     public EntityValidator entityValidator() {
         return new EntityValidator();
     }
+
+    @Bean
+    public EntityRpcService entityInfoRpcService() {
+        return new EntityRpcService(entityStore(), targetConfig.targetStore());
+    }
+
+    @Bean
+    public EntityInfoREST.EntityServiceController entityInfoServiceController() {
+        return new EntityInfoREST.EntityServiceController(entityInfoRpcService());
+    }
 }

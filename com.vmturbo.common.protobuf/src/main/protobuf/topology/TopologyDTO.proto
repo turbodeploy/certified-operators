@@ -223,8 +223,6 @@ message PartialEntity {
 
         optional int32 entity_type = 3;
 
-        repeated int64 discovering_target_ids = 4;
-
         // Contains the commodities the action orchestrator needs.
         repeated .topology.CommoditySoldDTO commodity_sold = 10;
     }
