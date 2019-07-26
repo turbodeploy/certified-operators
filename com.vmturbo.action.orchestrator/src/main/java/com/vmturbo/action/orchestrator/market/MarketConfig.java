@@ -69,7 +69,7 @@ public class MarketConfig {
     @Bean
     public MarketComponent marketComponent() {
         final MarketComponent market = marketClientConfig.marketComponent(
-            MarketSubscription.forTopicWithStartFrom(Topic.ActionPlans, StartFrom.BEGINNING),
+            MarketSubscription.forTopic(Topic.ActionPlans),
             MarketSubscription.forTopicWithStartFrom(Topic.AnalysisSummary, StartFrom.BEGINNING));
         market.addActionsListener(marketActionListener());
         return market;
