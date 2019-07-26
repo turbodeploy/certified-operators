@@ -73,6 +73,7 @@ public enum UICommodityType {
     VDC("VDCCommodity", CommodityType.VDC),
     VMEM("VMem", CommodityType.VMEM),
     VMEM_REQUEST("VMemRequest", CommodityType.VMEM_REQUEST),
+    VMPM_ACCESS("VMPMAccessCommodity", CommodityType.VMPM_ACCESS),
     VSTORAGE("VStorage", CommodityType.VSTORAGE),
     UNKNOWN("Unknown", CommodityType.UNKNOWN);
 
