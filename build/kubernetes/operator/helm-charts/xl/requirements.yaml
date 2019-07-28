@@ -127,7 +127,7 @@ dependencies:
     repository: file://../probes/mediation-appdynamics
     version: 0.1.0
     condition: appdynamics.enabled
-  - name: mediation-appdynamics
+  - name: mediation-appinsights
     repository: file://../probes/mediation-appinsights
     version: 0.1.0
     condition: appinsights.enabled
