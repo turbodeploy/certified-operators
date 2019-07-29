@@ -213,6 +213,8 @@ message PartialEntity {
         optional int32 entity_type = 3;
 
         optional .common.EnvironmentType environment_type = 4;
+
+        repeated int64 discovering_target_ids = 5;
     }
 
     // Contains the fields required by the action orchestrator to calculate action modes.

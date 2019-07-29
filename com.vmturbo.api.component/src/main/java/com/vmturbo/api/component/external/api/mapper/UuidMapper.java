@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -16,11 +17,14 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import org.springframework.util.CollectionUtils;
 
+import com.google.common.collect.Sets;
+
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.DefaultCloudGroup;
 import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
@@ -66,6 +70,8 @@ public class UuidMapper {
 
     private final GroupServiceBlockingStub groupServiceBlockingStub;
 
+    private final GroupExpander groupExpander;
+
     private final RepositoryApi repositoryApi;
 
     private final TopologyProcessor topologyProcessor;
@@ -86,13 +92,15 @@ public class UuidMapper {
                       @Nonnull final RepositoryApi repositoryApi,
                       @Nonnull final TopologyProcessor topologyProcessor,
                       @Nonnull final PlanServiceBlockingStub planServiceBlockingStub,
-                      @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub) {
+                      @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
+                      @Nonnull final GroupExpander groupExpander) {
         this.realtimeContextId = realtimeContextId;
         this.magicScopeGateway = magicScopeGateway;
         this.repositoryApi = repositoryApi;
         this.topologyProcessor = topologyProcessor;
         this.planServiceBlockingStub = planServiceBlockingStub;
         this.groupServiceBlockingStub = groupServiceBlockingStub;
+        this.groupExpander = groupExpander;
     }
 
     /**
@@ -112,8 +120,8 @@ public class UuidMapper {
         return cachedIds.compute(oid, (k, existing) -> {
             if (existing == null) {
                 Metrics.CACHE_MISS_COUNT.increment();
-                return new ApiId(oid, realtimeContextId, repositoryApi,
-                    topologyProcessor, planServiceBlockingStub, groupServiceBlockingStub);
+                return new ApiId(oid, realtimeContextId, repositoryApi, topologyProcessor,
+                    planServiceBlockingStub, groupServiceBlockingStub, groupExpander);
             } else {
                 Metrics.CACHE_HIT_COUNT.increment();
                 return existing;
@@ -126,8 +134,8 @@ public class UuidMapper {
         return cachedIds.compute(oid, (k, existing) -> {
             if (existing == null) {
                 Metrics.CACHE_MISS_COUNT.increment();
-                return new ApiId(oid, realtimeContextId, repositoryApi,
-                    topologyProcessor, planServiceBlockingStub, groupServiceBlockingStub);
+                return new ApiId(oid, realtimeContextId, repositoryApi, topologyProcessor,
+                    planServiceBlockingStub, groupServiceBlockingStub, groupExpander);
             } else {
                 Metrics.CACHE_HIT_COUNT.increment();
                 return existing;
@@ -160,11 +168,13 @@ public class UuidMapper {
         private final String displayName;
         private final UIEntityType entityType;
         private final EnvironmentType environmentType;
+        private final Set<Long> discoveringTargetIds;
 
         public CachedEntityInfo(final MinimalEntity entity) {
             this.displayName = entity.getDisplayName();
             this.entityType = UIEntityType.fromType(entity.getEntityType());
             this.environmentType = entity.getEnvironmentType();
+            this.discoveringTargetIds = Sets.newHashSet(entity.getDiscoveringTargetIdsList());
         }
 
         @Nonnull
@@ -181,6 +191,11 @@ public class UuidMapper {
         public String getDisplayName() {
             return displayName;
         }
+
+        @Nonnull
+        public Set<Long> getDiscoveringTargetIds() {
+            return discoveringTargetIds;
+        }
     }
 
     /**
@@ -196,13 +211,16 @@ public class UuidMapper {
 
         private final String name;
 
-        private CachedGroupInfo(Group group) {
+        private final Set<Long> discoveringTargetIds;
+
+        private CachedGroupInfo(Group group, final Set<Long> discoveringTargetIds) {
             this.entityType = UIEntityType.fromType(GroupProtoUtil.getEntityType(group));
             // Will be set to false if it's not a temp group, because it's false in the default
             // instance.
             this.globalTempGroup = group.getTempGroup().getIsGlobalScopeGroup();
             this.groupType = group.getType();
             this.name = GroupProtoUtil.getGroupName(group);
+            this.discoveringTargetIds = discoveringTargetIds;
         }
 
         public boolean isGlobalTempGroup() {
@@ -219,6 +237,11 @@ public class UuidMapper {
 
         public String getName() {
             return name;
+        }
+
+        @Nonnull
+        public Set<Long> getDiscoveringTargetIds() {
+            return discoveringTargetIds;
         }
     }
 
@@ -254,6 +277,8 @@ public class UuidMapper {
 
         private final GroupServiceBlockingStub groupServiceBlockingStub;
 
+        private final GroupExpander groupExpander;
+
         private final TopologyProcessor topologyProcessor;
 
         private final RepositoryApi repositoryApi;
@@ -265,13 +290,15 @@ public class UuidMapper {
                       @Nonnull final RepositoryApi repositoryApi,
                       @Nonnull final TopologyProcessor topologyProcessor,
                       @Nonnull final PlanServiceBlockingStub planServiceBlockingStub,
-                      @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub) {
+                      @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
+                      @Nonnull final GroupExpander groupExpander) {
             this.oid = value;
             this.realtimeContextId = realtimeContextId;
             this.repositoryApi = Objects.requireNonNull(repositoryApi);
             this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
             this.planServiceBlockingStub = Objects.requireNonNull(planServiceBlockingStub);
             this.groupServiceBlockingStub = Objects.requireNonNull(groupServiceBlockingStub);
+            this.groupExpander = groupExpander;
             if (isRealtimeMarket()) {
                 isPlan.trySetValue(false);
                 groupInfo.trySetValue(Optional.empty());
@@ -427,7 +454,13 @@ public class UuidMapper {
                         .setId(oid)
                         .build());
                     if (resp.hasGroup()) {
-                        return Optional.of(new CachedGroupInfo(resp.getGroup()));
+                        final Collection<Long> members =
+                            groupExpander.getMembersForGroup(resp.getGroup()).members();
+                        final Set<Long> discoveringTargetIds =
+                            repositoryApi.entitiesRequest(Sets.newHashSet(members)).getMinimalEntities()
+                                .flatMap(minEntity -> minEntity.getDiscoveringTargetIdsList().stream())
+                                .collect(Collectors.toSet());
+                        return Optional.of(new CachedGroupInfo(resp.getGroup(), discoveringTargetIds));
                     } else {
                         return Optional.empty();
                     }
@@ -506,6 +539,24 @@ public class UuidMapper {
         public boolean isPlan() {
             checkPlanInstance();
             return isPlan.getValue().orElse(false);
+        }
+
+        /**
+         * Get all the discovering target ids.
+         *
+         * @return A {@link Set} of target Ids.
+         */
+        public Set<Long> getDiscoveringTargetIds() {
+            if (isGroup()) {
+                return getCachedGroupInfo().get().getDiscoveringTargetIds();
+            } else if (isTarget()) {
+                return Collections.singleton(oid);
+            } else if (isPlan()) {
+                return Collections.emptySet();
+            } else {
+                return getCachedEntityInfo().map(CachedEntityInfo::getDiscoveringTargetIds)
+                    .orElseGet(Collections::emptySet);
+            }
         }
 
         @Override

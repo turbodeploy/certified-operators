@@ -26,7 +26,6 @@ import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
-import com.vmturbo.api.component.external.api.service.TargetsService;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
@@ -37,10 +36,11 @@ import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
-import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.StatsUtils;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * A shared utility class to execute stats queries, meant to be used by whichever
@@ -153,21 +153,20 @@ public class StatsQueryExecutor {
                 return statSnapshotApiDTO;
             })
             .collect(Collectors.toList());
-        return StatsUtils.filterStats(stats, context.getTargets().stream()
-            .map(thinTarget -> {
-                final TargetApiDTO targetApiDTO = new TargetApiDTO();
-                targetApiDTO.setCategory(thinTarget.probeInfo().category());
-                // We pretend all targets are validated. The stats filtering logic only checks
-                // valid targets. It adds extra complexity to keep and
-                // maintain the validation status in the target cache, so since targets are
-                // generally "valid" we hard-code it here.
-                //
-                // Note - the intent is also to re-factor stats filtering, to look at the target
-                // associated with the scope (instead of the global list of targets).
-                targetApiDTO.setStatus(TargetsService.UI_VALIDATED_STATUS);
-                return targetApiDTO;
-            })
-            .collect(Collectors.toList()));
+
+        // Check if allow showing cooling and power commodities.
+        // If not all the entities were discovered by Fabric, then don't allow.
+        // The reason that we need to check allowCoolingPower here is:
+        // Suppose scope is a mixed group with entities discovered by vCenter and Fabric.
+        // Then the target list contains both a vCenter target and a Fabric target.
+        // If we send this target list to StatsUtils#filterStats, the returned stats will still
+        // contain cooling and power because StatsUtils#allowCoolingPower will always return true.
+        final Map<Long, String> targetIdToCategory = context.getTargets().stream().collect(
+            Collectors.toMap(ThinTargetInfo::oid, thinTarget -> thinTarget.probeInfo().category()));
+        final boolean allowCoolingPower = scope.getDiscoveringTargetIds().stream().allMatch(targetId ->
+            ProbeCategory.FABRIC.getCategory().equalsIgnoreCase(targetIdToCategory.get(targetId)));
+
+        return StatsUtils.filterStats(stats, allowCoolingPower ? null : Collections.emptyList());
     }
 
     /**

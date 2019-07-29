@@ -6,6 +6,7 @@ import static com.vmturbo.api.component.external.api.util.stats.StatsTestUtil.st
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -21,6 +22,7 @@ import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
@@ -33,6 +35,9 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
+import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 public class StatsQueryExecutorTest {
 
@@ -278,5 +283,56 @@ public class StatsQueryExecutorTest {
         // verify that there are 2 stats with same name, but different key
         assertThat(snapshotApiDTO.getStatistics().size(), is(2));
         assertThat(snapshotApiDTO.getStatistics(), containsInAnyOrder(stat1, stat2));
+    }
+
+    @Test
+    public void testCoolingPowerStatsRequestAll() throws OperationFailedException {
+        StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+
+        when(expandedScope.isAll()).thenReturn(false);
+        when(expandedScope.getEntities()).thenReturn(Collections.singleton(1L));
+
+        // One of the queries is applicable.
+        when(statsSubQuery1.applicableInContext(statsQueryContext)).thenReturn(true);
+        when(statsSubQuery2.applicableInContext(statsQueryContext)).thenReturn(true);
+
+        final StatApiDTO stat1 = stat("Cooling");
+        final StatApiDTO stat2 = stat("foo");
+        when(statsSubQuery1.getAggregateStats(any(), any()))
+            .thenReturn(ImmutableMap.of(MILLIS, Collections.singletonList(stat1)));
+        when(statsSubQuery2.getAggregateStats(any(), any()))
+            .thenReturn(ImmutableMap.of(MILLIS, Collections.singletonList(stat2)));
+
+        // Create a list of targets.
+        List<ThinTargetInfo> thinTargetInfos = Lists.newArrayList(
+            ImmutableThinTargetInfo.builder().oid(1L).displayName("target1").probeInfo(
+                ImmutableThinProbeInfo.builder().oid(3L).type("probe1").category("hypervisor").build()).build(),
+            ImmutableThinTargetInfo.builder().oid(2L).displayName("target2").probeInfo(
+                ImmutableThinProbeInfo.builder().oid(4L).type("probe2").category("fabric").build()).build());
+        when(statsQueryContext.getTargets()).thenReturn(thinTargetInfos);
+
+        List<StatSnapshotApiDTO> stats;
+        StatSnapshotApiDTO snapshotApiDTO;
+
+        // If not all entities were discovered by fabric, then don't show cooling and power.
+        when(scope.getDiscoveringTargetIds()).thenReturn(Sets.newHashSet(1L, 2L));
+        stats = executor.getAggregateStats(scope, period);
+        snapshotApiDTO = stats.get(0);
+        assertTrue(snapshotApiDTO.getStatistics().stream()
+            .noneMatch(stat -> "Cooling".equalsIgnoreCase(stat.getName())));
+
+        // If not all entities were discovered by fabric, then don't show cooling and power.
+        when(scope.getDiscoveringTargetIds()).thenReturn(Sets.newHashSet(1L));
+        stats = executor.getAggregateStats(scope, period);
+        snapshotApiDTO = stats.get(0);
+        assertTrue(snapshotApiDTO.getStatistics().stream()
+            .noneMatch(stat -> "Cooling".equalsIgnoreCase(stat.getName())));
+
+        // If all entities were discovered by fabric, then show cooling and power.
+        when(scope.getDiscoveringTargetIds()).thenReturn(Sets.newHashSet(2L));
+        stats = executor.getAggregateStats(scope, period);
+        snapshotApiDTO = stats.get(0);
+        assertTrue(snapshotApiDTO.getStatistics().stream()
+            .anyMatch(stat -> "Cooling".equalsIgnoreCase(stat.getName())));
     }
 }
