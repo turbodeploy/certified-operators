@@ -265,6 +265,16 @@ public class SettingStore implements Diagnosable {
                         throw new InvalidItemException("Illegal attempt to change the " +
                                 " name of a default setting policy.");
                     }
+                    Set<String> newSettingNames =
+                        newInfo.getSettingsList().stream().map(Setting::getSettingSpecName)
+                            .collect(Collectors.toSet());
+
+                    for (Setting existingSettingName : existingPolicy.getInfo().getSettingsList()) {
+                        if (!newSettingNames.contains(existingSettingName.getSettingSpecName())) {
+                            throw new InvalidItemException("Illegal attempt to remove a " +
+                                "default setting.");
+                        }
+                    }
                 }
 
                 if (type.equals(Type.DISCOVERED)) {
