@@ -215,7 +215,7 @@ dependencies:
     repository: file://../probes/mediation-netflow
     version: 0.1.0
     condition: netflow.enabled
-  - name: mediation-netflow
+  - name: mediation-newrelic
     repository: file://../probes/mediation-newrelic
     version: 0.1.0
     condition: newrelic.enabled
