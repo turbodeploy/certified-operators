@@ -46,6 +46,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.TimeFrame;
@@ -489,5 +491,15 @@ public class HistoryStatsUtils {
 
     public static boolean isMarketStatsTable(@Nonnull final Table<?> table) {
         return MARKET_TABLES.contains(table);
+    }
+
+    /**
+     * Check whether the given entity is a cloud entity.
+     *
+     * @param entity the entity to check if it's cloud
+     * @return true if the entity is cloud, otherwise false
+     */
+    public static boolean isCloudEntity(@Nonnull TopologyEntityDTO entity) {
+        return entity.getEnvironmentType() == EnvironmentType.CLOUD;
     }
 }

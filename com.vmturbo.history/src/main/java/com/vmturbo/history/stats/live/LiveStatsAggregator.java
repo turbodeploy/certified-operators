@@ -30,6 +30,7 @@ import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.stats.MarketStatsAccumulator;
 import com.vmturbo.history.stats.MarketStatsAccumulator.DelayedCommodityBoughtWriter;
+import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
@@ -106,16 +107,16 @@ public class LiveStatsAggregator {
      */
     private void cacheCapacities(TopologyEntityDTO entityDTO) {
         final Map<Integer, Double> map;
-        if (entityDTO.getEntityType() == EntityDTO.EntityType.VIRTUAL_VOLUME.getNumber()) {
+        // for cloud volumes, the capacity is available in the volume info
+        if (HistoryStatsUtils.isCloudEntity(entityDTO) &&
+                entityDTO.getEntityType() == EntityDTO.EntityType.VIRTUAL_VOLUME_VALUE) {
             // todo: currently volume doesn't sell any commodities, the capacity is stored as
             // properties, we should remove this logic once volume starts selling commodities
             map = new HashMap<>();
             if (entityDTO.hasTypeSpecificInfo() && entityDTO.getTypeSpecificInfo().hasVirtualVolume()) {
                 VirtualVolumeInfo volume = entityDTO.getTypeSpecificInfo().getVirtualVolume();
-                map.put(CommodityType.STORAGE_AMOUNT.getNumber(),
-                        Double.valueOf(volume.getStorageAmountCapacity()));
-                map.put(CommodityType.STORAGE_ACCESS.getNumber(),
-                        Double.valueOf(volume.getStorageAccessCapacity()));
+                map.put(CommodityType.STORAGE_AMOUNT.getNumber(), (double)volume.getStorageAmountCapacity());
+                map.put(CommodityType.STORAGE_ACCESS.getNumber(), (double)volume.getStorageAccessCapacity());
             } else {
                 logger.warn("Capacity info is missing for volume {}", entityDTO.getOid());
             }

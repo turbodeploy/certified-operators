@@ -9,6 +9,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -30,8 +31,10 @@ import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactor
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
@@ -106,7 +109,8 @@ public class StatsQueryExecutor {
 
         final Map<StatsSubQuery, SubQueryInput> inputsByQuery = assignInputToQueries(context);
 
-        final Table<Long, String, StatApiDTO> statsByDateAndName = HashBasedTable.create();
+        // table <date, stat identifier, stat>
+        final Table<Long, String, StatApiDTO> statsByDateAndId = HashBasedTable.create();
         // Run the individual queries and assemble their results.
         for (Entry<StatsSubQuery, SubQueryInput> entry : inputsByQuery.entrySet()) {
             final StatsSubQuery query = entry.getKey();
@@ -115,8 +119,8 @@ public class StatsQueryExecutor {
                 try {
                     query.getAggregateStats(subQueryInput.getRequestedStats(), context).forEach((date, stats) -> {
                         stats.forEach(statApiDTO -> {
-                            final StatApiDTO prevValue = statsByDateAndName.put(date,
-                                statApiDTO.getName(), statApiDTO);
+                            final StatApiDTO prevValue = statsByDateAndId.put(date,
+                                createStatIdentifier(statApiDTO), statApiDTO);
                             if (prevValue != null) {
                                 logger.warn("Sub-query {} returned stat {}," +
                                         " which was already returned by another sub-query for the same time.",
@@ -140,7 +144,7 @@ public class StatsQueryExecutor {
         // Sort the stats in ascending order by time.
         final Comparator<Entry<Long, Map<String, StatApiDTO>>> ascendingByTime =
             Comparator.comparingLong(Entry::getKey);
-        final List<StatSnapshotApiDTO> stats = statsByDateAndName.rowMap().entrySet().stream()
+        final List<StatSnapshotApiDTO> stats = statsByDateAndId.rowMap().entrySet().stream()
             .sorted(ascendingByTime)
             .map(entry -> {
                 final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
@@ -235,6 +239,42 @@ public class StatsQueryExecutor {
         }
 
         return queriesToStats;
+    }
+
+    /**
+     * Create the unique identifier for StatApiDTO by combining stat name, related entity and
+     * filters' values.
+     *
+     * For example: a VM can buy multiple StorageAmounts (from multiple Storages), stat name is the
+     * same, but the related entity is different. Also an entity can buy multiple same commodities
+     * with different key.
+     *
+     * @param statApiDTO the StatApiDTO
+     * @return identifier for the given StatApiDTO
+     */
+    private String createStatIdentifier(@Nonnull StatApiDTO statApiDTO) {
+        StringBuilder sb = new StringBuilder();
+
+        // stat name
+        sb.append(statApiDTO.getName());
+
+        // related entity
+        final BaseApiDTO relatedEntity = statApiDTO.getRelatedEntity();
+        if (relatedEntity != null && relatedEntity.getUuid() != null) {
+            sb.append(relatedEntity.getUuid());
+        }
+
+        // filters' values, sample filters: key, relation...
+        List<StatFilterApiDTO> filters = statApiDTO.getFilters();
+        if (filters != null) {
+            sb.append(filters.stream()
+                .sorted(Comparator.comparing(StatFilterApiDTO::getType))
+                .map(StatFilterApiDTO::getValue)
+                .filter(Objects::nonNull)
+                .collect(Collectors.joining()));
+        }
+
+        return sb.toString();
     }
 
     /**
