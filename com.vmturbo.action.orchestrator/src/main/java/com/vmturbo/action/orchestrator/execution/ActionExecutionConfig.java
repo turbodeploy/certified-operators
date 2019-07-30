@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.execution;
 
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,6 +34,9 @@ public class ActionExecutionConfig {
     @Value("${failedGroupUpdateDelaySeconds:10}")
     private int groupUpdateDelaySeconds;
 
+    @Value("${actionExecution.timeoutMins}")
+    private int actionExecutionTimeoutMins;
+
     @Bean
     public ProbeCapabilityCache targetCapabilityCache() {
         return new ProbeCapabilityCache(globalConfig.topologyProcessor(), actionCapabilitiesService());
@@ -64,7 +68,9 @@ public class ActionExecutionConfig {
     @Bean
     public ActionExecutor actionExecutor() {
         final ActionExecutor executor =
-                new ActionExecutor(globalConfig.topologyProcessorChannel());
+                new ActionExecutor(globalConfig.topologyProcessorChannel(),
+                    actionExecutionTimeoutMins,
+                    TimeUnit.MINUTES);
 
         globalConfig.topologyProcessor().addActionListener(executor);
 

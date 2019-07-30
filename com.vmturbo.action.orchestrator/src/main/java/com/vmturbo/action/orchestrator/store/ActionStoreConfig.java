@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.store;
 
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -75,6 +76,9 @@ public class ActionStoreConfig {
     @Value("${entityRetrievalMaxRetries:900}")
     private int entityRetrievalMaxRetries;
 
+    @Value("${actionExecution.concurrentAutomatedActions:1}")
+    private int concurrentAutomatedActions;
+
     @Bean
     public IActionFactory actionFactory() {
         return new ActionFactory(actionModeCalculator());
@@ -96,9 +100,14 @@ public class ActionStoreConfig {
     }
 
     @Bean
+    public ExecutorService automatedActionThreadpool() {
+        return Executors.newFixedThreadPool(concurrentAutomatedActions);
+    }
+
+    @Bean
     public AutomatedActionExecutor automatedActionExecutor() {
         return new AutomatedActionExecutor(actionExecutionConfig.actionExecutor(),
-                Executors.newSingleThreadExecutor(),
+                automatedActionThreadpool(),
                 actionTranslationConfig.actionTranslator(),
                 workflowConfig.workflowStore(),
                 actionExecutionConfig.actionTargetSelector());

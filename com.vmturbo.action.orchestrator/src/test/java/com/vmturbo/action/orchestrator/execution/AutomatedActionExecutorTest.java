@@ -59,7 +59,7 @@ public class AutomatedActionExecutorTest {
     private final ActionTranslator actionTranslator = Mockito.mock(ActionTranslator.class);
     private final Channel channel = Mockito.mock(Channel.class);
     private final ActionExecutor actionExecutor =
-            Mockito.spy(new ActionExecutor(channel));
+            Mockito.spy(new ActionExecutor(channel, 1, TimeUnit.HOURS));
     private final ActionTargetSelector actionTargetSelector =
             Mockito.mock(ActionTargetSelector.class);
     private final ActionStore actionStore = Mockito.mock(ActionStore.class);

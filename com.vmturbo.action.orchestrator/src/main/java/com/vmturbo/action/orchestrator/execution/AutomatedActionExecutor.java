@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -157,18 +158,54 @@ public class AutomatedActionExecutor {
 
         List<ActionExecutionTask> actionsToBeExecuted = new ArrayList<>();
         final String userNameAndUuid = AuditLogUtils.getUserNameAndUuidFromGrpcSecurityContext();
+
+
+        // We want to distribute actions across targets. If we have 5 targets, 10 actions each,
+        // and a threadpool of size 10, we don't want to queue 10 actions for target 1.
+        // It's better to queue 2 actions for targets 1-5 - so that we can minimize the impact
+        // of execution on any particular probe/backend service.
+        //
+        // So what we do is:
+        //   1) Build a map from (target id) -> (iterator over actions to execute for the target)
+        //   2) Do a breadth-first traversal over the map (i.e. looping over the target ids
+        //      multiple times, taking one action id every time) and queue the actions.
+
+        // Build up a map from (target id) -> (iterator over actions to execute for the target).
+        final Map<Long, Iterator<Long>> actionItsByTargetId = new HashMap<>();
         actionsByTarget.forEach((targetId, actionSet) -> {
-            actionSet.forEach(actionId -> {
-                Action action = autoActions.get(actionId);
+            actionItsByTargetId.put(targetId, actionSet.iterator());
+        });
+
+        // Breadth-first traversal over the (target id) -> (iterator over action ids) map.
+        while (!actionItsByTargetId.isEmpty()) {
+            final Iterator<Entry<Long, Iterator<Long>>> actionItsByTargetIdIt = actionItsByTargetId.entrySet().iterator();
+            while (actionItsByTargetIdIt.hasNext()) {
+                final Entry<Long, Iterator<Long>> targetToActionIt = actionItsByTargetIdIt.next();
+                final Long targetId = targetToActionIt.getKey();
+                final Iterator<Long> actionIt = targetToActionIt.getValue();
+                if (!actionIt.hasNext()) {
+                    // We're done processing all actions associated with this target.
+                    // Remove the (target, iterator) entry from the outer map.
+                    actionItsByTargetIdIt.remove();
+                    continue;
+                }
+
+                // Process the action.
+                final Long actionId = actionIt.next();
+                final Action action = autoActions.get(actionId);
                 try {
                     action.receive(new AutomaticAcceptanceEvent(userNameAndUuid, targetId));
                 } catch (UnexpectedEventException ex) {
                     // log the error and continue with the execution of next action.
                     logger.error("Illegal state transition for action {}", action, ex);
-                    return;
+                    continue;
                 }
                 // We don't need to refresh severity cache because we will refresh it
                 // in the ActionStorehouse after calling this method.
+                //
+                // TODO (roman, July 30 2019): OM-49079 - Submit an asynchronous callable to
+                // the threadpool, and use a different mechanism than the size of the threadpool
+                // to limit concurrent actions.
                 try {
                     Future<Action> actionFuture = executionService.submit(() -> {
                         // A prepare event prepares the action for execution, and initiates a PRE
@@ -178,17 +215,17 @@ public class AutomatedActionExecutor {
                         action.receive(new BeginExecutionEvent());
                         actionTranslator.translate(action);
                         Optional<ActionDTO.Action> translated =
-                                action.getActionTranslation().getTranslatedRecommendation();
+                            action.getActionTranslation().getTranslatedRecommendation();
                         if (translated.isPresent()) {
                             try {
                                 logger.info("Attempting to execute action {}", action);
                                 // Fetch the Workflow, if any, that controls this Action
                                 Optional<WorkflowDTO.Workflow> workflowOpt =
-                                        action.getWorkflow(workflowStore);
+                                    action.getWorkflow(workflowStore);
                                 // Execute the Action on the given target, or the Workflow target
                                 // if a Workflow is specified.
                                 actionExecutor.executeSynchronously(targetId, translated.get(),
-                                        workflowOpt);
+                                    workflowOpt);
                             } catch (ExecutionStartException e) {
                                 final String errorMsg = String.format(EXECUTION_START_MSG, actionId);
                                 logger.error(errorMsg, e);
@@ -215,8 +252,9 @@ public class AutomatedActionExecutor {
                 } catch (RejectedExecutionException ex) {
                     logger.error("Failed to submit action {} to executor.", actionId, ex);
                 }
-            });
-        });
+            }
+        }
+
         logger.info("TotalExecutableActions={}, SubmittedActionsCount={}",
                     autoActions.size(), actionsToBeExecuted.size());
         return actionsToBeExecuted;
