@@ -50,7 +50,7 @@ import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.auditing.AuditAction;
-import com.vmturbo.auth.api.auditing.AuditLogEntry;
+import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
@@ -217,10 +217,9 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                         store.getEntitySeverityCache()
                                 .refresh(action.getRecommendation(), store);
                     }
-                    AuditLogEntry entry = new AuditLogEntry.Builder(AuditAction.EXECUTE_ACTION, action.toString(), true)
-                            .targetName(String.valueOf(action.getId()))
-                            .build();
-                    AuditLogUtils.audit(entry);
+                    AuditLog.newEntry(AuditAction.EXECUTE_ACTION, action.getDescription(), true)
+                        .targetName(String.valueOf(action.getId()))
+                        .audit();
                     return attemptResponse;
                 }).orElse(acceptanceError("Action " + request.getActionId() + " doesn't exist."));
 

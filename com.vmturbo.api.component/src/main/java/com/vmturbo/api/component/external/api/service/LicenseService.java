@@ -31,6 +31,8 @@ import com.vmturbo.api.component.external.api.mapper.LicenseMapper;
 import com.vmturbo.api.dto.license.LicenseApiDTO;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.serviceinterfaces.ILicenseService;
+import com.vmturbo.auth.api.auditing.AuditAction;
+import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc.LicenseCheckServiceBlockingStub;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc.LicenseManagerServiceBlockingStub;
@@ -41,6 +43,7 @@ import com.vmturbo.common.protobuf.licensing.Licensing.GetLicenseSummaryResponse
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
 import com.vmturbo.common.protobuf.licensing.Licensing.RemoveLicenseRequest;
+import com.vmturbo.common.protobuf.licensing.Licensing.RemoveLicenseResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.ValidateLicensesRequest;
 import com.vmturbo.licensing.utils.LicenseDeserializer;
 
@@ -192,6 +195,14 @@ public class LicenseService implements ILicenseService {
                             .addAllLicenseDTO(licenseDTOS)
                             .build())
                     .getLicenseDTOList();
+            final String licenseFileName = licenseDTOS.stream()
+                .map(LicenseDTO::getFilename)
+                .findFirst()
+                .orElse("");
+            AuditLog.newEntry(AuditAction.ADD_LICENSE,
+                "Turbonomic license added", true)
+                .targetName(licenseFileName)
+                .audit();
         }
 
         // return the set of licenses that were added
@@ -213,9 +224,14 @@ public class LicenseService implements ILicenseService {
     @Override
     public boolean deleteLicense(final String s) {
         logger_.info("Deleting license {}", s);
-        return licenseManagerService.removeLicense(RemoveLicenseRequest.newBuilder()
+        final boolean isSuccessful =  licenseManagerService.removeLicense(RemoveLicenseRequest.newBuilder()
                 .setUuid(s)
                 .build()).getWasRemoved();
+        AuditLog.newEntry(AuditAction.DELETE_LICENSE,
+            "Turbonomic license deletion", isSuccessful)
+            .targetName(s)
+            .audit();
+        return isSuccessful;
     }
 
     @Override
