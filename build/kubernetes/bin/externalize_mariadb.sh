@@ -14,7 +14,7 @@ RSYNC_LOG_FILE="/var/log/mariadb_migrate_rsync.log"
 # interrupted and the script can be safely retried if the cookie
 # file exists.
 DB_COPY_COOKIE_FILE="$MYSQL_MOUNT_DIR/db_data_migration.cookie"
-MYSQL_SERVICE_CNF="/etc/systemd/system/mysql.service"
+MYSQL_SERVICE_CNF="/usr/lib/systemd/system/mariadb.service"
 
 source $CODE_DIR/libs.sh
 
@@ -38,12 +38,12 @@ then
 fi
 
 # Set mariadb systemd service timeout to infinity.
-if ! grep -q 'TimeoutStartSec=0' $MYSQL_SERVICE_CNF ; then
-	sed -i '/^\[Service\]$/a TimeoutStartSec=0' $MYSQL_SERVICE_CNF
+if ! sudo grep -q 'TimeoutStartSec=0' $MYSQL_SERVICE_CNF ; then
+	sudo sed -i '/^\[Service\]$/a TimeoutStartSec=0' $MYSQL_SERVICE_CNF
 fi
 
-if ! grep -q 'TimeoutStopSec=0' $MYSQL_SERVICE_CNF ; then
-    sed -i '/^TimeoutStartSec=0$/a TimeoutStopSec=0' $MYSQL_SERVICE_CNF
+if ! sudo grep -q 'TimeoutStopSec=0' $MYSQL_SERVICE_CNF ; then
+    sudo sed -i '/^TimeoutStartSec=0$/a TimeoutStopSec=0' $MYSQL_SERVICE_CNF
 fi
 
 if [[ ! -z "$(sudo ls -A $MYSQL_DATA_DIR 2>/dev/null)" ]] && [[ ! -f $DB_COPY_COOKIE_FILE ]]; then
