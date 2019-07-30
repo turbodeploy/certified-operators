@@ -332,23 +332,35 @@ public class ActionSpecMappingContextFactory {
     private List<ApiPartialEntity> getEntities(@Nonnull final List<Action> actions, final long contextId) {
         final Set<Long> srcEntities = new HashSet<>();
         final Set<Long> projEntities = new HashSet<>();
-        ActionDTOUtil.getInvolvedEntityIds(actions)
-            .forEach(id -> {
-                // Because it is faster to retrieve realtime source entities (compared to realtime
-                // projected entities), we try a shortcut:
-                //
-                // Right now (June 21 2019) the Market always assigns negative OIDs to entities that
-                // it provisions. For example, if the market recommends provisioning a host
-                // and moving VM 1 onto the host, the move will be to a host with some negative ID.
-                // We can use this as a quick way to determine of an involved entity can be found
-                // in the source topology (Market-recommended entities will only be
-                // in the projected topology).
-                if (!isProjected(id)) {
-                    srcEntities.add(id);
-                } else {
-                    projEntities.add(id);
-                }
-            });
+        final Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(actions);
+
+        // getInvolvedEntityIds doesn't return the IDs of provisioned sellers (representations
+        // of entities provisioned by the market), since those aren't "real" entities, and are
+        // not relevant in most places. However, they ARE relevant when displaying action details
+        // to the user, so we get them here.
+        for (Action action : actions) {
+            if (action.getInfo().getProvision().hasProvisionedSeller()) {
+                involvedEntities.add(action.getInfo().getProvision().getProvisionedSeller());
+            }
+        }
+
+        involvedEntities.forEach(id -> {
+            // Because it is faster to retrieve realtime source entities (compared to realtime
+            // projected entities), we try a shortcut:
+            //
+            // Right now (June 21 2019) the Market always assigns negative OIDs to entities that
+            // it provisions. For example, if the market recommends provisioning a host
+            // and moving VM 1 onto the host, the move will be to a host with some negative ID.
+            // We can use this as a quick way to determine of an involved entity can be found
+            // in the source topology (Market-recommended entities will only be
+            // in the projected topology).
+            if (!isProjected(id)) {
+                srcEntities.add(id);
+            } else {
+                projEntities.add(id);
+            }
+        });
+
         final List<ApiPartialEntity> retList = repositoryApi.entitiesRequest(srcEntities)
             .contextId(contextId)
             .getEntities()

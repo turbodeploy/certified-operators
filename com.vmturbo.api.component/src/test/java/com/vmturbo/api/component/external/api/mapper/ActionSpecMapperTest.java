@@ -473,8 +473,12 @@ public class ActionSpecMapperTest {
 
         final MultiEntityRequest srcReq = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
             topologyEntityDTO("EntityToClone", 3L, EntityType.VIRTUAL_MACHINE_VALUE)));
+        final MultiEntityRequest projReq = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
+            topologyEntityDTO("EntityToClone", -1, EntityType.VIRTUAL_MACHINE_VALUE)));
         when(repositoryApi.entitiesRequest(Sets.newHashSet(3L)))
             .thenReturn(srcReq);
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(-1L)))
+            .thenReturn(projReq);
 
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
                 buildActionSpec(provisionInfo, provision), REAL_TIME_TOPOLOGY_CONTEXT_ID);
@@ -491,7 +495,7 @@ public class ActionSpecMapperTest {
 
         assertEquals("EntityToClone", actionApiDTO.getNewEntity().getDisplayName());
         assertEquals("VirtualMachine", actionApiDTO.getNewEntity().getClassName());
-        assertEquals("3", actionApiDTO.getNewEntity().getUuid());
+        assertEquals("-1", actionApiDTO.getNewEntity().getUuid());
 
         assertEquals(ActionType.PROVISION, actionApiDTO.getActionType());
         assertEquals(DC2_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
