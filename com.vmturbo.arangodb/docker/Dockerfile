@@ -11,7 +11,7 @@ RUN userdel systemd-coredump
 
 # Install rsyslog and other packages
 RUN dnf install -y https://download.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \
-    dnf install -y rsyslog procps-ng jemalloc pwgen && \
+    dnf install -y rsyslog procps-ng python2 jemalloc pwgen && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 
