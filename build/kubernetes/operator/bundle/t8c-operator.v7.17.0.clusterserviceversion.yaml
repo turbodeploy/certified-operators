@@ -126,5 +126,4 @@ spec:
   maturity: alpha
   provider:
     name: Turbonomic, Inc.
-  replaces: t8c-operator.v7.16.0
   version: 7.17.0

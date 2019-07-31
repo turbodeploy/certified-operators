@@ -12,7 +12,7 @@ RUN echo "[influxdb]" > /etc/yum.repos.d/influxdb.repo && \
     echo "gpgkey=https://repos.influxdata.com/influxdb.key" >> /etc/yum.repos.d/influxdb.repo && \
     echo "gpgcheck=1" >> /etc/yum.repos.d/influxdb.repo && \
     echo "enabled=1" >> /etc/yum.repos.d/influxdb.repo && \
-    dnf install -y rsyslog procps-ng python2 openssl influxdb gettext && \
+    dnf install -y rsyslog procps-ng openssl influxdb gettext && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 

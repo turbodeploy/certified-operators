@@ -16,7 +16,6 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -57,18 +56,13 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
-import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
-import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
-import com.vmturbo.api.pagination.GroupMembersPaginationRequest;
-import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMemberOrderBy;
-import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMembersPaginationResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
@@ -129,7 +123,6 @@ public class GroupsServiceTest {
 
     private static final String GROUP_TEST_PATTERN = "groupTestString";
     private static final String CLUSTER_TEST_PATTERN = "clusterTestString";
-    private static final Integer DEFAULT_N_ENTITIES = 20;
 
     @Mock
     private ActionSpecMapper actionSpecMapper;
@@ -344,12 +337,8 @@ public class GroupsServiceTest {
             .thenReturn(Optional.of(Severity.NORMAL));
 
         final String clusterHeadroomGroupUuid = "GROUP-PhysicalMachineByCluster";
-        GroupMembersPaginationRequest memberRequest = new GroupMembersPaginationRequest(null,
-            DEFAULT_N_ENTITIES,
-            false, GroupMemberOrderBy.DEFAULT);
-        List<BaseApiDTO> clustersList =
-            groupsService.getMembersByGroupUuid(clusterHeadroomGroupUuid,
-                memberRequest).getRestResponse().getBody();
+        List<GroupApiDTO> clustersList =
+            (List<GroupApiDTO>)groupsService.getMembersByGroupUuid(clusterHeadroomGroupUuid);
 
 
         verify(groupExpander).getGroupsWithMembers(getGroupsRequestCaptor.capture());
@@ -379,11 +368,9 @@ public class GroupsServiceTest {
             .thenReturn(Optional.of(Severity.NORMAL));
 
         final String clusterHeadroomGroupUuid = "GROUP-StorageByStorageCluster";
-        GroupMembersPaginationRequest memberRequest = new GroupMembersPaginationRequest("0",
-            DEFAULT_N_ENTITIES,
-            false, GroupMemberOrderBy.DEFAULT);
-        List<BaseApiDTO> clustersList =
-            groupsService.getMembersByGroupUuid(clusterHeadroomGroupUuid, memberRequest).getRestResponse().getBody();
+
+        List<GroupApiDTO> clustersList =
+            (List<GroupApiDTO>)groupsService.getMembersByGroupUuid(clusterHeadroomGroupUuid);
 
         verify(groupExpander).getGroupsWithMembers(getGroupsRequestCaptor.capture());
         assertThat(clustersList, containsInAnyOrder(clusterApiDto));
@@ -424,43 +411,33 @@ public class GroupsServiceTest {
     }
 
     @Test
-    public void testGetGroupMembersByUuid() throws UnknownObjectException, InvalidOperationException {
+    public void testGetGroupMembersByUuid() throws UnknownObjectException {
         // Arrange
-        final long member1Id = 7;
-        final long member2Id = 8;
-
+        final long memberId = 7;
         when(groupServiceSpy.getMembers(GetMembersRequest.newBuilder()
             .setId(1L)
             .build()))
             .thenReturn(GetMembersResponse.newBuilder()
-                .setMembers(Members.newBuilder().addAllIds(Arrays.asList(member1Id, member2Id)))
+                .setMembers(Members.newBuilder().addIds(memberId))
                 .build());
 
-        final ServiceEntityApiDTO member1Dto = new ServiceEntityApiDTO();
-        member1Dto.setUuid("7");
+        final ServiceEntityApiDTO memberDto = new ServiceEntityApiDTO();
+        memberDto.setUuid("7");
 
-        final ServiceEntityApiDTO member2Dto = new ServiceEntityApiDTO();
-        member2Dto.setUuid("8");
-
-        MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(
-            member2Dto));
-        when(repositoryApi.entitiesRequest(Collections.singleton(member2Id)))
+        MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(memberDto));
+        when(repositoryApi.entitiesRequest(Collections.singleton(memberId)))
             .thenReturn(req);
 
         final GroupAndMembers groupAndMembers =
-            groupAndMembers(1L, Type.GROUP, new HashSet<>(Arrays.asList(7L, 8L)));
+            groupAndMembers(1L, Type.GROUP, Collections.singleton(memberId));
         when(groupExpander.getGroupWithMembers("1")).thenReturn(Optional.of(groupAndMembers));
-        GroupMembersPaginationRequest request = new GroupMembersPaginationRequest("1",
-            DEFAULT_N_ENTITIES,
-            false, GroupMemberOrderBy.DEFAULT);
+
         // Act
-        final GroupMembersPaginationResponse response = groupsService.getMembersByGroupUuid("1",
-            request);
+        final List<?> members = groupsService.getMembersByGroupUuid("1");
 
         // Assert
-        assertThat(response.getRestResponse().getBody().size(), is(1));
-        // Checks for pagination as well
-        assertThat(response.getRestResponse().getBody().get(0), is(member2Dto));
+        assertThat(members.size(), is(1));
+        assertThat(members.get(0), is(memberDto));
     }
 
     private GroupAndMembers groupAndMembers(final long groupId,
@@ -477,7 +454,7 @@ public class GroupsServiceTest {
     }
 
     @Test
-    public void testGetGroupMembersByUuidNoMembers() throws UnknownObjectException, InvalidOperationException {
+    public void testGetGroupMembersByUuidNoMembers() throws UnknownObjectException {
         // Arrange
         when(groupServiceSpy.getMembers(GetMembersRequest.newBuilder()
                 .setId(1L)
@@ -490,13 +467,10 @@ public class GroupsServiceTest {
             .thenReturn(Optional.of(groupAndMembers(1L, Type.GROUP, Collections.emptySet())));
 
         // Act
-        GroupMembersPaginationRequest request = new GroupMembersPaginationRequest(null,
-            DEFAULT_N_ENTITIES,
-            false, GroupMemberOrderBy.DEFAULT);
-        GroupMembersPaginationResponse response = groupsService.getMembersByGroupUuid("1", request);
+        List<?> members = groupsService.getMembersByGroupUuid("1");
 
         // Assert
-        assertTrue(response.getRestResponse().getBody().isEmpty());
+        assertTrue(members.isEmpty());
         // Should be no call to repository to get entity information.
         verifyZeroInteractions(repositoryApi);
     }
