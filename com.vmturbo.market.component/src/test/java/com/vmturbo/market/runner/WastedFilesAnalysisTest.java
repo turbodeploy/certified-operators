@@ -3,24 +3,27 @@ package com.vmturbo.market.runner;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.junit.Before;
 import org.junit.Test;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
@@ -35,9 +38,11 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
+import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 
@@ -88,7 +93,7 @@ public class WastedFilesAnalysisTest {
         volume.setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setVirtualVolume(volumeInfo));
     }
 
-    private Map<Long, TopologyEntityDTO> createTestTopology() {
+    private Set<TopologyEntityDTO> createTestTopology() {
         final long vmOid = 1l;
         final long storOid = 2l;
         final long wastedFileVolumeOid = 3l;
@@ -108,11 +113,8 @@ public class WastedFilesAnalysisTest {
         connectEntities(wastedFileVolume, storage);
         addFilesToOnpremVolume(wastedFileVolume, filePathsWasted, wastedSizesKb);
         addFilesToOnpremVolume(connectedVolume, filePathsUsed, usedSizesKb);
-        return ImmutableMap.of(
-            vm.getOid(), vm.build(),
-            storage.getOid(), storage.build(),
-            wastedFileVolume.getOid(), wastedFileVolume.build(),
-            connectedVolume.getOid(), connectedVolume.build());
+        return ImmutableSet.of(vm.build(), storage.build(), wastedFileVolume.build(),
+            connectedVolume.build());
     }
 
     /**

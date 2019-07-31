@@ -1,7 +1,7 @@
 package com.vmturbo.market.runner;
 
 import java.time.Clock;
-import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -29,7 +29,7 @@ public interface WastedFilesAnalysisFactory {
      */
     @Nonnull
     WastedFilesAnalysis newWastedFilesAnalysis(@Nonnull final TopologyInfo topologyInfo,
-                                               @Nonnull final Map<Long, TopologyEntityDTO> topologyEntities,
+                                               @Nonnull final Set<TopologyEntityDTO> topologyEntities,
                                                @Nonnull final Clock clock,
                                                @Nonnull final TopologyCostCalculator topologyCostCalculator,
                                                @Nonnull final MarketPriceTable marketPriceTable);
@@ -42,7 +42,7 @@ public interface WastedFilesAnalysisFactory {
         @Override
         public WastedFilesAnalysis newWastedFilesAnalysis(
             @Nonnull final TopologyInfo topologyInfo,
-            @Nonnull final Map<Long, TopologyEntityDTO> topologyEntities,
+            @Nonnull final Set<TopologyEntityDTO> topologyEntities,
             @Nonnull final Clock clock,
             @Nonnull final TopologyCostCalculator topologyCostCalculator,
             @Nonnull final MarketPriceTable marketPriceTable) {

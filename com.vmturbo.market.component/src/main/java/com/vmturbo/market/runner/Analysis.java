@@ -172,7 +172,7 @@ public class Analysis {
 
     private final MarketPriceTable marketPriceTable;
 
-    private final WastedFilesAnalysisFactory wastedFilesAnalysisFactory;
+    private final WastedFilesAnalysis wastedFilesAnalysis;
 
     /**
      * Create and execute a context for a Market Analysis given a topology, an optional 'scope' to
@@ -221,7 +221,9 @@ public class Analysis {
             null,
             this.topologyCostCalculator.getCloudCostData(),
             CommodityIndex.newFactory());
-        this.wastedFilesAnalysisFactory = wastedFilesAnalysisFactory;
+        this.wastedFilesAnalysis = wastedFilesAnalysisFactory.newWastedFilesAnalysis(topologyInfo,
+            topologyDTOs, this.clock, topologyCostCalculator, marketPriceTable);
+
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
@@ -282,28 +284,24 @@ public class Analysis {
 
             // if a scope 'seed' entity OID list is specified, then scope the topology starting with
             // the given 'seed' entities
-            if (!stopAnalysis) {
-                if (isScoped()) {
-                    try (final DataMetricTimer scopingTimer = TOPOLOGY_SCOPING_SUMMARY.startTimer()) {
-                        traderTOs = scopeTopology(traderTOs,
-                            ImmutableSet.copyOf(topologyInfo.getScopeSeedOidsList()));
-                        // add back fake traderTOs for suspension throttling as it may be removed due
-                        // to scoping
-                        traderTOs.addAll(fakeTraderTOs);
-                    }
-
-                    // save the scoped topology for later broadcast
-                    scopeEntities = traderTOs.stream()
-                        // convert the traders in the scope into topologyEntities
-                        .map(trader -> topologyDTOs.get(trader.getOid()))
-                        // remove the topologyEntities that were created as fake because of suspension throttling
-                        .filter(topologyEntityDTO -> !fakeEntityDTOs.containsKey(topologyEntityDTO.getOid()))
-                        // convert it to a map
-                        .collect(Collectors.toMap(TopologyEntityDTO::getOid,
-                            trader -> topologyDTOs.get(trader.getOid())));
-                } else {
-                    scopeEntities = topologyDTOs;
+            if (isScoped() && !stopAnalysis) {
+                try (final DataMetricTimer scopingTimer = TOPOLOGY_SCOPING_SUMMARY.startTimer()) {
+                    traderTOs = scopeTopology(traderTOs,
+                        ImmutableSet.copyOf(topologyInfo.getScopeSeedOidsList()));
+                    // add back fake traderTOs for suspension throttling as it may be removed due
+                    // to scoping
+                    traderTOs.addAll(fakeTraderTOs);
                 }
+
+                // save the scoped topology for later broadcast
+                scopeEntities = traderTOs.stream()
+                    // convert the traders in the scope into topologyEntities
+                    .map(trader -> topologyDTOs.get(trader.getOid()))
+                    // remove the topologyEntities that were created as fake because of suspension throttling
+                    .filter(topologyEntityDTO -> !fakeEntityDTOs.containsKey(topologyEntityDTO.getOid()))
+                    // convert it to a map
+                    .collect(Collectors.toMap(TopologyEntityDTO::getOid,
+                        trader -> topologyDTOs.get(trader.getOid())));
             }
 
             // remove any (scoped) traders that may have been flagged for removal
@@ -344,7 +342,7 @@ public class Analysis {
                 logger.info(logPrefix + "Done performing analysis");
 
             // Calculate reservedCapacity and generate resize actions
-            ReservedCapacityAnalysis reservedCapacityAnalysis = new ReservedCapacityAnalysis(scopeEntities);
+            ReservedCapacityAnalysis reservedCapacityAnalysis = new ReservedCapacityAnalysis(topologyDTOs);
             reservedCapacityAnalysis.execute();
 
             List<TraderTO> projectedTraderDTO = new ArrayList<>();
@@ -955,8 +953,6 @@ public class Analysis {
      */
     private Collection<Action> getWastedFilesActions() {
         if (topologyInfo.getAnalysisTypeList().contains(AnalysisType.WASTED_FILES)) {
-            WastedFilesAnalysis wastedFilesAnalysis = wastedFilesAnalysisFactory.newWastedFilesAnalysis(
-                topologyInfo, scopeEntities, this.clock, topologyCostCalculator, marketPriceTable);
             wastedFilesAnalysis.execute();
             logger.debug("Getting wasted files actions.");
             if (wastedFilesAnalysis.getState() == AnalysisState.SUCCEEDED) {
