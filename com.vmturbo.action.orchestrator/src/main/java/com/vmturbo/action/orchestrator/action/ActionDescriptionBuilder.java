@@ -70,6 +70,7 @@ public class ActionDescriptionBuilder {
             .put(CommodityDTO.CommodityType.VMEM, Units.KBYTE)
             .put(CommodityDTO.CommodityType.STORAGE_AMOUNT, Units.MBYTE)
             .put(CommodityDTO.CommodityType.HEAP, Units.KBYTE)
+            .put(CommodityDTO.CommodityType.MEM, Units.KBYTE)
             .build();
 
     /**
