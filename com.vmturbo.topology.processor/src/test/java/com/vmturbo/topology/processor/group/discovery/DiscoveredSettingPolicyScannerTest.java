@@ -2,8 +2,6 @@ package com.vmturbo.topology.processor.group.discovery;
 
 import static com.vmturbo.platform.common.builders.CommodityBuilders.cpuMHz;
 import static com.vmturbo.platform.common.builders.CommodityBuilders.memKB;
-import static com.vmturbo.platform.common.builders.CommodityBuilders.space;
-import static com.vmturbo.platform.common.builders.EntityBuilders.datacenter;
 import static com.vmturbo.platform.common.builders.EntityBuilders.physicalMachine;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -49,7 +47,6 @@ import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.MembersList;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
@@ -67,7 +64,7 @@ public class DiscoveredSettingPolicyScannerTest {
 
     private final DiscoveredGroupUploader groupUploader = mock(DiscoveredGroupUploader.class);
 
-    private static final StitchingContext stitchingContext = mock(StitchingContext.class);
+    private final StitchingContext stitchingContext = mock(StitchingContext.class);
 
     private final DiscoveredSettingPolicyScanner scanner =
                     new DiscoveredSettingPolicyScanner(probeStore, targetStore);
@@ -83,9 +80,9 @@ public class DiscoveredSettingPolicyScannerTest {
     private static final long VC_TARGET_ID = 782634L;
     private static final long VMM_TARGET_ID = 9891371236L;
 
-    private static final long HOST_1_ID = 1001L;
-    private static final long HOST_2_ID = 1002L;
-    private static final long HOST_3_ID = 1003L;
+    private static final long HOST_1_ID = 1L;
+    private static final long HOST_2_ID = 2L;
+    private static final long HOST_3_ID = 3L;
 
     private static final double MEM_THRESHOLD = 91.0;
     private static final double CPU_THRESHOLD = 39.0;
@@ -93,21 +90,7 @@ public class DiscoveredSettingPolicyScannerTest {
     private static final double CPU_THRESHOLD_2 = 70.0;
 
     private static final String COMPUTE_CLUSTER_NAME = "SG-123456";
-    private static final String DC_DISPLAY_NAME = "DC17";
     private static final String CLUSTER_DISPLAY_NAME = "Test Cluster";
-
-    private static final String DC_ID = "dc-id";
-    private static final TopologyStitchingEntity DC_ENTITY = new TopologyStitchingEntity(
-        datacenter(DC_ID).displayName(DC_DISPLAY_NAME).build().toBuilder(),
-        2001L,
-        VC_TARGET_ID,
-        0);
-
-    static {
-        when(stitchingContext.getEntitiesByEntityTypeAndTarget())
-            .thenReturn(ImmutableMap.of(EntityType.PHYSICAL_MACHINE, ImmutableMap.of(
-                VC_TARGET_ID, Lists.newArrayList(host(HOST_1_ID).build(VC_TARGET_ID)))));
-    }
 
     @Before
     public void setup() {
@@ -300,11 +283,11 @@ public class DiscoveredSettingPolicyScannerTest {
         // Should create two discovered groups and two thresholds
         givenTarget(SDKProbeType.VMM, VMM_TARGET_ID);
         givenTarget(SDKProbeType.VCENTER, VC_TARGET_ID);
-        givenComputeCluster(VC_TARGET_ID, HOST_1_ID);
-        givenHosts(VMM_TARGET_ID, host(HOST_2_ID)
+        givenComputeCluster(VC_TARGET_ID, HOST_2_ID);
+        givenHosts(VMM_TARGET_ID, host(HOST_1_ID)
             .withMemThreshold(MEM_THRESHOLD)
             .withCpuThreshold(CPU_THRESHOLD));
-        givenHosts(VC_TARGET_ID, host(HOST_1_ID)
+        givenHosts(VC_TARGET_ID, host(HOST_2_ID)
             .withMemThreshold(MEM_THRESHOLD)
             .withCpuThreshold(CPU_THRESHOLD));
 
@@ -367,13 +350,25 @@ public class DiscoveredSettingPolicyScannerTest {
     }
 
     private DiscoveredSettingPolicyInfo memSettingPolicy(final long targetId,
-                    final double expectedMemValue, @Nonnull String... groupNames) {
-        return memAndCpuSettingPolicy(targetId, expectedMemValue, -1, groupNames);
+                    final double expectedValue, @Nonnull String... groupNames) {
+        return settingPolicy(groupNames)
+            .setName(policyName(targetId))
+            .addSettings(Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.MemoryUtilization.getSettingName())
+                .setNumericSettingValue(NumericSettingValue.newBuilder()
+                    .setValue((float)expectedValue)))
+            .build();
     }
 
     private DiscoveredSettingPolicyInfo cpuSettingPolicy(final long targetId,
-                    final double expectedCpuValue, @Nonnull String... groupNames) {
-        return memAndCpuSettingPolicy(targetId, -1, expectedCpuValue, groupNames);
+                    final double expectedValue, @Nonnull String... groupNames) {
+        return settingPolicy(groupNames)
+            .setName(policyName(targetId))
+            .addSettings(Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.CpuUtilization.getSettingName())
+                .setNumericSettingValue(NumericSettingValue.newBuilder()
+                    .setValue((float)expectedValue)))
+            .build();
     }
 
     private DiscoveredSettingPolicyInfo memAndCpuSettingPolicy(final long targetId,
@@ -386,32 +381,27 @@ public class DiscoveredSettingPolicyScannerTest {
                     final long hostOid,
                     final double expectedMemValue, final double expectedCpuValue,
                     @Nonnull String... groupNames) {
-        String baseName = groupNames.length == 0
-                    ? composeSettingPolicyName(
-                        targetId, Optional.of(expectedMemValue), Optional.of(expectedCpuValue))
-                    : groupNames[0];
-        DiscoveredSettingPolicyInfo.Builder policyBuilder = settingPolicy(groupNames)
-            .setName("HA-" + baseName)
-            .setDisplayName(policyDisplayName(targetId, hostOid));
-        if (expectedMemValue >= 0) {
-            policyBuilder.addSettings(Setting.newBuilder()
+        return settingPolicy(groupNames)
+            .setName(policyName(targetId, hostOid))
+            .addSettings(Setting.newBuilder()
                 .setSettingSpecName(EntitySettingSpecs.MemoryUtilization.getSettingName())
                 .setNumericSettingValue(NumericSettingValue.newBuilder()
-                    .setValue((float)expectedMemValue)));
-        }
-        if (expectedCpuValue > 0) {
-            policyBuilder.addSettings(Setting.newBuilder()
+                    .setValue((float)expectedMemValue)))
+            .addSettings(Setting.newBuilder()
                 .setSettingSpecName(EntitySettingSpecs.CpuUtilization.getSettingName())
                 .setNumericSettingValue(NumericSettingValue.newBuilder()
-                    .setValue((float)expectedCpuValue)));
-        }
-        return policyBuilder.build();
+                    .setValue((float)expectedCpuValue)))
+            .build();
     }
 
-    private String policyDisplayName(long targetId, long hostId) {
+    private String policyName(long targetId) {
+        return policyName(targetId, HOST_1_ID);
+    }
+
+    private String policyName(long targetId, long hostId) {
         String clusterDisplayNames = targetId == VMM_TARGET_ID
-            ? String.valueOf(hostId) : (DC_DISPLAY_NAME + "/" + CLUSTER_DISPLAY_NAME);
-        return String.format(DiscoveredSettingPolicyScanner.IMPORTED_HA_SETTINGS_DISPLAY_NAME,
+            ? String.valueOf(hostId) : ("for " + CLUSTER_DISPLAY_NAME);
+        return String.format(DiscoveredSettingPolicyScanner.IMPORTED_HA_SETTINGS_NAME,
             clusterDisplayNames, targetStore.getTargetAddress(targetId).get());
     }
 
@@ -428,11 +418,11 @@ public class DiscoveredSettingPolicyScannerTest {
         Optional<Double> mem = getThreshold(settingPolicy, "mem");
         Optional<Double> cpu = getThreshold(settingPolicy, "cpu");
 
-        final String groupName = "GROUP-" + composeSettingPolicyName(VMM_TARGET_ID, mem, cpu);
+        final String groupName = composeSettingPolicyName(VMM_TARGET_ID, mem, cpu)
+                    + "-group";
         final String groupDisplayName = String.format(
             "PMs with Mem threshold %s and CPU threshold %s on VMM", mem.get(), cpu.get());
         settingPolicy.addDiscoveredGroupNames(groupName);
-        settingPolicy.setDisplayName("HA Settings for " + groupDisplayName);
 
         return interpretedGroupFor(hosts, groupName, groupDisplayName);
     }
@@ -498,11 +488,13 @@ public class DiscoveredSettingPolicyScannerTest {
 
         public HostBuilder withMemThreshold(final double memUtilizationThreshold) {
             pmBuilder.selling(memKB().sold().utilizationThresholdPct(memUtilizationThreshold));
+
             return this;
         }
 
         public HostBuilder withCpuThreshold(final double cpuUtilizationThreshold) {
             pmBuilder.selling(cpuMHz().sold().utilizationThresholdPct(cpuUtilizationThreshold));
+
             return this;
         }
 
@@ -511,12 +503,6 @@ public class DiscoveredSettingPolicyScannerTest {
                 pmBuilder.build().toBuilder(), oid, targetId, 0);
             entity.getEntityBuilder().getCommoditiesSoldBuilderList().stream().forEach(
                 commoditySold -> entity.addCommoditySold(commoditySold, Optional.empty()));
-            // VC hosts buy something from DC, to test that DC display name is added to
-            // the policy display name
-            if (targetId == VC_TARGET_ID) {
-                entity.addProviderCommodityBought(DC_ENTITY,
-                    new CommoditiesBought(Collections.singletonList(space().build().toBuilder())));
-            }
             return entity;
         }
     }

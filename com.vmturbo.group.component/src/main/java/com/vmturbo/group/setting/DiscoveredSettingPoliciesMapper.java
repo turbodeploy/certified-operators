@@ -70,7 +70,6 @@ public class DiscoveredSettingPoliciesMapper {
             .setEntityType(info.getEntityType())
             .setScope(Scope.newBuilder().addAllGroups(groupOids))
             .setName(info.getName())
-            .setDisplayName(info.getDisplayName())
             .addAllSettings(info.getSettingsList())
             .build());
     }

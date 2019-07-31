@@ -290,7 +290,6 @@ public class SettingsMapper {
                 })
                 .collect(Collectors.toList());
     }
-
     /**
      * Convert a collection of {@link SettingSpec} objects into the {@link SettingsManagerApiDTO}
      * that will represent these settings to the UI.
@@ -315,6 +314,7 @@ public class SettingsMapper {
             settingMgrToSettingsMap.computeIfAbsent(managerUuid.get(),
                     k -> new ArrayList<>()).addAll(entry.getValue());
         });
+
 
         return settingMgrToSettingsMap.entrySet().stream()
                 // Don't return the specs that don't have a Manager mapping
@@ -426,7 +426,7 @@ public class SettingsMapper {
             // type.
             if (isVmEntityType(entityType) &&
                     involvedSettings.containsKey(rateOfResizeSettingName)) {
-                SettingApiDTO<?> settingApiDto = involvedSettings.remove(rateOfResizeSettingName);
+                SettingApiDTO settingApiDto = involvedSettings.remove(rateOfResizeSettingName);
                 settingService.updateGlobalSetting(
                     UpdateGlobalSettingRequest.newBuilder()
                         .setSettingSpecName(rateOfResizeSettingName)
@@ -452,10 +452,8 @@ public class SettingsMapper {
             }
         }
 
-        String inputPolicyDisplayName = apiInputPolicy.getDisplayName();
         final SettingPolicyInfo.Builder infoBuilder = SettingPolicyInfo.newBuilder()
-            .setName(inputPolicyDisplayName)
-            .setDisplayName(inputPolicyDisplayName);
+            .setName(apiInputPolicy.getDisplayName());
 
         if (!apiInputPolicy.isDefault() && apiInputPolicy.getScopes() != null) {
             final Scope.Builder scopeBuilder = Scope.newBuilder();
@@ -549,7 +547,7 @@ public class SettingsMapper {
     }
 
     /**
-     * Translate the day of the week from the classic API enum to the XL recurrence enum.
+     * Translate the day of the week from the classic API enum to the XL recurrence enum
      *
      * @param day the classic API day of the week
      * @return the equivalent XL day of the week
@@ -606,6 +604,7 @@ public class SettingsMapper {
         return managerMapping;
     }
 
+
     /**
      * Create a {@link SettingsManagerApiDTO} containing information about settings, but not their
      * values. This will be a "thicker" manager than the one created by
@@ -652,6 +651,7 @@ public class SettingsMapper {
 
         return mgrApiDto;
     }
+
 
     /**
      * Create a {@link SettingsManagerApiDTO} containing information about settings, but not their
@@ -763,7 +763,7 @@ public class SettingsMapper {
             final SettingsPolicyApiDTO apiDto = new SettingsPolicyApiDTO();
             apiDto.setUuid(Long.toString(settingPolicy.getId()));
             final SettingPolicyInfo info = settingPolicy.getInfo();
-            apiDto.setDisplayName(info.hasDisplayName() ? info.getDisplayName() : info.getName());
+            apiDto.setDisplayName(info.getName());
             // We need this check because some inject some fake setting policies without any entity
             // type to show in UI (like Global Action Mode Defaults.)
             if (info.hasEntityType()) {
@@ -926,17 +926,16 @@ public class SettingsMapper {
         }
 
         /**
-         * Translate an XL DayOfWeek enum to the DayOfWeek enum used by the classic API.
-         *
+         * Translate an XL DayOfWeek enum to the DayOfWeek enum used by the classic API
          * @param day the XL DayOfWeek
          * @return the corresponding classic DayOfWeek
          */
         private DayOfWeek translateDayOfWeekToDTO(Schedule.DayOfWeek day) {
-            return DayOfWeek.get(day.name().substring(0, 3));
+            return DayOfWeek.get(day.name().substring(0,3));
         }
 
         /**
-         * Get the api.enums.DayOfWeek associated with a date represented by a Joda DateTime.
+         * Get the api.enums.DayOfWeek associated with a date represented by a Joda DateTime
          *
          * @param dateTime the datetime to convert
          * @return the legacy DayOfWeek associated
@@ -1063,7 +1062,7 @@ public class SettingsMapper {
      */
     @FunctionalInterface
     private interface ApiSettingValueInjector {
-        void setSettingValue(@Nonnull final Setting setting, @Nonnull final SettingApiDTO<String> apiDTO);
+        void setSettingValue(@Nonnull final Setting setting, @Nonnull final SettingApiDTO apiDTO);
     }
 
     /**
@@ -1105,7 +1104,7 @@ public class SettingsMapper {
         }
     }
 
-    public static Optional<String> inputValueToString(@Nullable SettingApiDTO<?> dto) {
+    public static Optional<String> inputValueToString(@Nullable SettingApiDTO dto) {
         if (dto == null) {
             return Optional.empty();
         }
@@ -1154,7 +1153,8 @@ public class SettingsMapper {
      * An object to represent the possible {@link SettingApiDTO}s associated with a single
      * {@link SettingSpec}. The {@link SettingApiDTO}s may or may not have values, depending
      * on whether a {@link Setting} is provided.
-     * <p>In XL, a single {@link SettingSpec} may apply to multiple entity types. However, a
+     * <p>
+     * In XL, a single {@link SettingSpec} may apply to multiple entity types. However, a
      * {@link SettingApiDTO} applies to just one entity type. There are circumstances where we need
      * all the {@link SettingApiDTO}s that can be derived from a {@link SettingSpec}, and other
      * circumstances where we only need the {@link SettingApiDTO} for a specific entity type.
@@ -1315,7 +1315,7 @@ public class SettingsMapper {
          */
         private static void fillSkeleton(@Nonnull final SettingSpec settingSpec,
                                          @Nonnull final Optional<Setting> settingVal,
-                                         @Nonnull final SettingApiDTO<String> dtoSkeleton) {
+                                         @Nonnull final SettingApiDTO dtoSkeleton) {
             dtoSkeleton.setUuid(settingSpec.getName());
             dtoSkeleton.setDisplayName(settingSpec.getDisplayName());
 
@@ -1341,10 +1341,10 @@ public class SettingsMapper {
                     final NumericSettingValueType numericType = settingSpec.getNumericSettingValueType();
                     dtoSkeleton.setDefaultValue(Float.toString(numericType.getDefault()));
                     if (numericType.hasMin()) {
-                        dtoSkeleton.setMin((double)numericType.getMin());
+                        dtoSkeleton.setMin((double) numericType.getMin());
                     }
                     if (numericType.hasMax()) {
-                        dtoSkeleton.setMax((double)numericType.getMax());
+                        dtoSkeleton.setMax((double) numericType.getMax());
                     }
                     break;
                 case STRING_SETTING_VALUE_TYPE:
