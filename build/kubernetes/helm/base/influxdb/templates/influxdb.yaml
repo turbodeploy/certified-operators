@@ -52,7 +52,7 @@ spec:
       containers:
       - name: {{ .Chart.Name }}
         image: {{ template "image" . }}
-        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        imagePullPolicy: {{ template "pullPolicy" . }}
         env:
 {{ toYaml .Values.env | indent 8 -}}
         readinessProbe:

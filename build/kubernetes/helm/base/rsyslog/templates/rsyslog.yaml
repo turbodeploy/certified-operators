@@ -55,7 +55,7 @@ spec:
       containers:
       - name: {{ .Chart.Name }}
         image: {{ template "syslog_image" . }}
-        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        imagePullPolicy: {{ template "pullPolicy" . }}
         ports:
         - containerPort: 2514
         readinessProbe:

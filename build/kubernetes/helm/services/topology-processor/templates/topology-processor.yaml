@@ -36,8 +36,8 @@ spec:
     spec:
       containers:
       - name: {{ .Chart.Name }}
-        image: {{ template "topology_image" . }}
-        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        image: {{ template "image" . }}
+        imagePullPolicy: {{ template "pullPolicy" . }}
         env:
         - name: JAVA_OPTS
 {{- if .Values.global }}
