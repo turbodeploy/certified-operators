@@ -271,6 +271,9 @@ message DiscoveredSettingPolicyInfo {
     // The name should be unique.
     required string name = 1;
 
+    // Display name of the setting policy
+    optional string display_name = 5;
+
     // The settings that should be applied to the entities in the scope.
     //
     // These settings may only be associated with SettingSpecs that are of an EntitySettingSpec type.
