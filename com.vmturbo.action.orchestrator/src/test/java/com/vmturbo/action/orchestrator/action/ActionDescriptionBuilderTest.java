@@ -28,6 +28,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.commons.Units;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -38,6 +39,7 @@ public class ActionDescriptionBuilderTest {
 
     private ActionDTO.Action moveRecommendation;
     private ActionDTO.Action resizeRecommendation;
+    private ActionDTO.Action resizeMemRecommendation;
     private ActionDTO.Action deactivateRecommendation;
     private ActionDTO.Action activateRecommendation;
     private ActionDTO.Action reconfigureRecommendation;
@@ -70,6 +72,7 @@ public class ActionDescriptionBuilderTest {
                     PM_DESTINATION_ID, EntityType.PHYSICAL_MACHINE.getNumber()),
                             SupportLevel.SUPPORTED).build();
         resizeRecommendation = makeRec(makeResizeInfo(VM1_ID), SupportLevel.SUPPORTED).build();
+        resizeMemRecommendation = makeRec(makeResizeMemInfo(VM1_ID), SupportLevel.SUPPORTED).build();
         deactivateRecommendation =
                 makeRec(makeDeactivateInfo(VM1_ID), SupportLevel.SUPPORTED).build();
         activateRecommendation = makeRec(makeActivateInfo(VM1_ID), SupportLevel.SUPPORTED).build();
@@ -100,6 +103,15 @@ public class ActionDescriptionBuilderTest {
                 .setNewCapacity(20)
                 .setOldCapacity(10)
                 .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId)));
+    }
+
+    private ActionInfo.Builder makeResizeMemInfo(long targetId) {
+        return ActionInfo.newBuilder().setResize(Resize.newBuilder()
+            .setCommodityType(CommodityType.newBuilder()
+                .setType(21).build())
+            .setNewCapacity(8 * Units.MBYTE)
+            .setOldCapacity(16 * Units.MBYTE)
+            .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId)));
     }
 
     private ActionInfo.Builder makeDeactivateInfo(long targetId) {
@@ -238,6 +250,19 @@ public class ActionDescriptionBuilderTest {
             entitySettingsCache, resizeRecommendation);
 
         Assert.assertEquals(description, "Resize up Vcpu for Virtual Machine vm1_test from 10 to 20");
+    }
+
+    @Test
+    public void testBuildResizeMemActionDescription() {
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
+            .thenReturn((createEntity(VM1_ID,
+                EntityType.VIRTUAL_MACHINE.getNumber(),
+                VM1_DISPLAY_NAME)));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+            entitySettingsCache, resizeMemRecommendation);
+
+        Assert.assertEquals(description, "Resize down Mem for Virtual Machine vm1_test from 16 GB to 8 GB");
     }
 
     @Test
