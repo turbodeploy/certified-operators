@@ -2,7 +2,7 @@ FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
 # Install rsyslog and java-11 packages
-RUN dnf install -y rsyslog java-11-openjdk && \
+RUN dnf install -y rsyslog procps-ng python2 java-11-openjdk && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 
