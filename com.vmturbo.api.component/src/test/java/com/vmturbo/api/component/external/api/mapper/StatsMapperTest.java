@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -883,7 +884,7 @@ public class StatsMapperTest {
         assertThat(cloudStatRecord.getSnapshotDate(), is(mapped.getDate()));
         assertThat(cloudStatRecord.getStatRecordsCount(), is(mapped.getStatistics().size()));
         assertEquals(1, cloudStatRecord.getStatRecordsCount());
-        assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO -> statApiDTO.getFilters() == null ));
+        assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO -> CollectionUtils.isEmpty(statApiDTO.getFilters())));
     }
 
     private CloudCostStatRecord.StatRecord.Builder getStatRecordBuilder(@Nullable CostCategory costCategory, float value, Optional<Long> associatedEntityId) {
