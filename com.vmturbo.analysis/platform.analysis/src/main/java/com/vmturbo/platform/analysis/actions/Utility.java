@@ -275,6 +275,11 @@ public final class Utility {
         // Find provider of seller to increase capacities of commodities of seller trader that are
         // highly utilized and therefore giving the buyer shopping list an infinite quote.
         for (ShoppingList shoppingList : economy.getMarketsAsBuyer(seller).keySet()) {
+            // shopping list suppliers can be null if for example the entity is in maintenenace/uknown/failover/not_monitored state.
+            // This is because such entites are not sent to the market.
+            if (shoppingList.getSupplier() == null) {
+                continue;
+            }
             if (infiniteCommsBasket.isSatisfiedBy(shoppingList.getSupplier().getBasketSold())) {
                 provisionableProvider = shoppingList.getSupplier();
                 break;
