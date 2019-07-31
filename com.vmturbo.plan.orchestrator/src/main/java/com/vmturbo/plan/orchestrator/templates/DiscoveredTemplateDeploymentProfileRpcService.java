@@ -6,6 +6,8 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
 import io.grpc.Status;
@@ -22,6 +24,8 @@ import com.vmturbo.plan.orchestrator.templates.DiscoveredTemplateDeploymentProfi
 import com.vmturbo.plan.orchestrator.templates.exceptions.NoMatchingTemplateSpecException;
 
 public class DiscoveredTemplateDeploymentProfileRpcService extends DiscoveredTemplateDeploymentProfileServiceImplBase {
+
+    private final Logger logger = LogManager.getLogger();
 
     private final TemplateSpecParser templateSpecParser;
 
@@ -43,9 +47,15 @@ public class DiscoveredTemplateDeploymentProfileRpcService extends DiscoveredTem
             for (SetTargetDiscoveredTemplateDeploymentProfileRequest targetRequest : request.getTargetRequestList()) {
                 final TemplateInfoToDeploymentProfileMap templateInfoSetMap = new TemplateInfoToDeploymentProfileMap();
                 for (EntityProfileToDeploymentProfile profile : targetRequest.getEntityProfileToDeploymentProfileList()) {
-                    final TemplateInfo templateInfo = TemplatesMapper.createTemplateInfo(profile.getEntityProfile(),
-                        templateSpecParser.getTemplateSpecMap());
-                    templateInfoSetMap.put(templateInfo, profile.getDeploymentProfileList());
+                    try {
+                        final TemplateInfo templateInfo = TemplatesMapper.createTemplateInfo(profile.getEntityProfile(),
+                            templateSpecParser.getTemplateSpecMap());
+                        templateInfoSetMap.put(templateInfo, profile.getDeploymentProfileList());
+                    } catch (NoMatchingTemplateSpecException e) {
+                        logger.warn("Could not find template spec for discovered template {} with entity type {}",
+                            profile.getEntityProfile().getDisplayName(),
+                            profile.getEntityProfile().getEntityType());
+                    }
                 }
                 targetProfileMap.put(targetRequest.getTargetId(), templateInfoSetMap);
                 orphanedDeploymentProfile.put(targetRequest.getTargetId(), targetRequest.getDeploymentProfileWithoutTemplatesList());
@@ -56,10 +66,6 @@ public class DiscoveredTemplateDeploymentProfileRpcService extends DiscoveredTem
         } catch (DataAccessException e) {
             responseObserver.onError(Status.ABORTED
                 .withDescription("Failed to update discovered templates and deployment profile")
-                .asException());
-        } catch (NoMatchingTemplateSpecException e) {
-            responseObserver.onError(Status.ABORTED
-                .withDescription("Failed to find match template spec")
                 .asException());
         }
     }
