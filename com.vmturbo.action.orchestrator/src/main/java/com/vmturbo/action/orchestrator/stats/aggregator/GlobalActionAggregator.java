@@ -1,7 +1,6 @@
 package com.vmturbo.action.orchestrator.stats.aggregator;
 
 import java.time.LocalDateTime;
-import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -13,7 +12,6 @@ import com.vmturbo.action.orchestrator.stats.ActionStat;
 import com.vmturbo.action.orchestrator.stats.ManagementUnitType;
 import com.vmturbo.action.orchestrator.stats.StatsActionViewFactory.StatsActionView;
 import com.vmturbo.action.orchestrator.stats.aggregator.ActionAggregatorFactory.ActionAggregator;
-import com.vmturbo.action.orchestrator.stats.groups.ActionGroup.ActionGroupKey;
 import com.vmturbo.action.orchestrator.stats.groups.ImmutableMgmtUnitSubgroupKey;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup.MgmtUnitSubgroupKey;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -40,8 +38,7 @@ public class GlobalActionAggregator extends ActionAggregator {
      * {@inheritDoc}
      */
     @Override
-    public void processAction(@Nonnull final StatsActionView action,
-                              @Nonnull final Map<ActionGroupKey, Set<Long>> lastIterationActions) {
+    public void processAction(@Nonnull final StatsActionView action, final Set<Long> newActionIds) {
         final ActionEnvironmentType actionEnvType;
         try {
             actionEnvType = ActionEnvironmentType.forAction(action.recommendation());
@@ -81,8 +78,7 @@ public class GlobalActionAggregator extends ActionAggregator {
                 .entityType(entityType)
                 .build();
             final ActionStat stat = getStat(unitKey, action.actionGroupKey());
-            stat.recordAction(action.recommendation(), entities, actionIsNew(action,
-                lastIterationActions));
+            stat.recordAction(action.recommendation(), entities, actionIsNew(action, newActionIds));
         });
 
         // Update the global records.
@@ -95,7 +91,7 @@ public class GlobalActionAggregator extends ActionAggregator {
                 .build();
         final ActionStat stat = getStat(unitKey, action.actionGroupKey());
         stat.recordAction(action.recommendation(), involvedEntitiesByType.values(),
-            actionIsNew(action, lastIterationActions));
+            actionIsNew(action, newActionIds));
     }
 
     /**

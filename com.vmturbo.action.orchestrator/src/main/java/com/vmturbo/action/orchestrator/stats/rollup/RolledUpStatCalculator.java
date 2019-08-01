@@ -76,8 +76,8 @@ public class RolledUpStatCalculator {
         final StatWithSnapshotCnt<ActionStatsLatestRecord> firstStatOfTimeRange =
             actionStats.iterator().next();
         // calculate the "old actions" indirectly from "total actions" - "new actions"
-        int initialTotalActions = firstStatOfTimeRange.record().getTotalActionCount() - firstStatOfTimeRange.record().getNewActionCount();
-        int totalActions = initialTotalActions;
+        int initialTotalActions = firstStatOfTimeRange.record().getTotalActionCount();
+        int totalActions = initialTotalActions - firstStatOfTimeRange.record().getNewActionCount();
         int newActions = 0;
 
         for (final StatWithSnapshotCnt<ActionStatsLatestRecord> recordAndCount : actionStats) {

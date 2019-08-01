@@ -311,7 +311,6 @@ public class LiveActionStore implements ActionStore {
             }
 
 
-
             // Some of these may be noops - if we're re-adding an action that was already in
             // the map from a previous action plan.
             // THis also updates the snapshot in the entity settings cache.

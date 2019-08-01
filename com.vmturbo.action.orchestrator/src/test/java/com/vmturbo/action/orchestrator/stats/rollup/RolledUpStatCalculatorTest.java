@@ -30,9 +30,7 @@ public class RolledUpStatCalculatorTest {
         final StatWithSnapshotCnt<ActionStatsLatestRecord> latestRecord1 =
             RollupTestUtils.statRecordWithActionCount(1, ActionStatsLatestRecord.class);
         latestRecord1.record().setTotalEntityCount(10);
-        // The first of the "latest" snapshots has 10 total actions, but only 5 of them are
-        // new (e.g. 5 are inherited from the previous record, which is not in this hour).
-        latestRecord1.record().setTotalActionCount(10);
+        latestRecord1.record().setTotalActionCount(5);
         latestRecord1.record().setNewActionCount(5);
         latestRecord1.record().setTotalSavings(BigDecimal.valueOf(7));
         latestRecord1.record().setTotalInvestment(BigDecimal.valueOf(6));
@@ -55,7 +53,7 @@ public class RolledUpStatCalculatorTest {
         final RolledUpActionGroupStat rolledUp = calculator.rollupLatestRecords(3,
             Arrays.asList(latestRecord1, latestRecord2)).orElseThrow(RuntimeException::new);
         assertThat(rolledUp.avgEntityCount(), closeTo((10.0 + 8) / 3, 0.0001));
-        assertThat(rolledUp.avgActionCount(), closeTo((10.0 + 1) / 3, 0.0001));
+        assertThat(rolledUp.avgActionCount(), closeTo((5.0 + 1) / 3, 0.0001));
         assertThat(rolledUp.priorActionCount(), is(5));
         assertThat(rolledUp.newActionCount(), is(5 + 1));
 
@@ -68,8 +66,7 @@ public class RolledUpStatCalculatorTest {
         assertThat(rolledUp.minInvestment(), closeTo(6.0, 0.0001));
 
         assertThat(rolledUp.maxEntityCount(), is(10));
-        // The first snapshot had 10 actions.
-        assertThat(rolledUp.maxActionCount(), is(10));
+        assertThat(rolledUp.maxActionCount(), is(5));
         assertThat(rolledUp.maxSavings(), closeTo(8.0, 0.0001));
         assertThat(rolledUp.maxInvestment(), closeTo(6.0, 0.0001));
     }

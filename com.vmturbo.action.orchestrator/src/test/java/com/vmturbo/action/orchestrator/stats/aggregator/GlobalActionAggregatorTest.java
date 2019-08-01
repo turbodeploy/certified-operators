@@ -6,7 +6,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -76,7 +75,7 @@ public class GlobalActionAggregatorTest {
                 .build())
             .build();
 
-        aggregator.processAction(savingsSnapshot, Collections.emptyMap());
+        aggregator.processAction(savingsSnapshot, ImmutableSet.of(1L));
 
         final MgmtUnitSubgroup globalSubgroup = ImmutableMgmtUnitSubgroup.builder()
                 .id(987)
@@ -154,7 +153,7 @@ public class GlobalActionAggregatorTest {
             .addInvolvedEntities(entity)
             .build();
 
-        aggregator.processAction(savingsSnapshot, Collections.emptyMap());
+        aggregator.processAction(savingsSnapshot, ImmutableSet.of(1L));
 
         final MgmtUnitSubgroup globalSubgroup = ImmutableMgmtUnitSubgroup.builder()
             .id(987)
@@ -241,7 +240,7 @@ public class GlobalActionAggregatorTest {
             .addInvolvedEntities(cloudVm)
             .build();
 
-        aggregator.processAction(savingsSnapshot, Collections.emptyMap());
+        aggregator.processAction(savingsSnapshot, ImmutableSet.of(1L));
 
         final MgmtUnitSubgroup globalSubgroup = ImmutableMgmtUnitSubgroup.builder()
             .id(987)

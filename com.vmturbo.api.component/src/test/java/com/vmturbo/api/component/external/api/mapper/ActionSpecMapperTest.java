@@ -458,53 +458,7 @@ public class ActionSpecMapperTest {
     }
 
     @Test
-    public void testMapProvisionPlan() throws Exception {
-        ActionInfo provisionInfo =
-            ActionInfo.newBuilder()
-                .setProvision(Provision.newBuilder()
-                    .setEntityToClone(ApiUtilsTest.createActionEntity(3))
-                    .setProvisionedSeller(-1).build()).build();
-        Explanation provision = Explanation.newBuilder().setProvision(ProvisionExplanation
-            .newBuilder().setProvisionBySupplyExplanation(ProvisionBySupplyExplanation
-                .newBuilder().setMostExpensiveCommodityInfo(
-                    ReasonCommodity.newBuilder().setCommodityType(
-                        CommodityType.newBuilder().setType(21).build())
-                        .build())).build()).build();
-
-        final MultiEntityRequest srcReq = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
-            topologyEntityDTO("EntityToClone", 3L, EntityType.VIRTUAL_MACHINE_VALUE)));
-        final MultiEntityRequest projReq = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
-            topologyEntityDTO("EntityToClone", -1, EntityType.VIRTUAL_MACHINE_VALUE)));
-        when(repositoryApi.entitiesRequest(Sets.newHashSet(3L)))
-            .thenReturn(srcReq);
-        when(repositoryApi.entitiesRequest(Sets.newHashSet(-1L)))
-            .thenReturn(projReq);
-
-        final long planId = 1 + REAL_TIME_TOPOLOGY_CONTEXT_ID;
-        final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
-            buildActionSpec(provisionInfo, provision), planId);
-
-        // Verify that we set the context ID on the request.
-        verify(srcReq).contextId(planId);
-
-        assertEquals("EntityToClone", actionApiDTO.getCurrentEntity().getDisplayName());
-        assertEquals("3", actionApiDTO.getCurrentValue());
-
-        assertEquals("EntityToClone", actionApiDTO.getTarget().getDisplayName());
-        assertEquals("VirtualMachine", actionApiDTO.getTarget().getClassName());
-        assertEquals("3", actionApiDTO.getTarget().getUuid());
-
-        assertEquals("EntityToClone", actionApiDTO.getNewEntity().getDisplayName());
-        assertEquals("VirtualMachine", actionApiDTO.getNewEntity().getClassName());
-        assertEquals("-1", actionApiDTO.getNewEntity().getUuid());
-
-        assertEquals(ActionType.PROVISION, actionApiDTO.getActionType());
-        assertEquals(DC2_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
-        assertEquals(DC2_NAME, actionApiDTO.getNewLocation().getDisplayName());
-    }
-
-    @Test
-    public void testMapProvisionRealtime() throws Exception {
+    public void testMapProvision() throws Exception {
         ActionInfo provisionInfo =
                 ActionInfo.newBuilder()
                     .setProvision(Provision.newBuilder()
@@ -539,10 +493,9 @@ public class ActionSpecMapperTest {
         assertEquals("VirtualMachine", actionApiDTO.getTarget().getClassName());
         assertEquals("3", actionApiDTO.getTarget().getUuid());
 
-        // Should be empty in realtime - we don't provide a reference to the provisioned entity.
-        assertNull(actionApiDTO.getNewEntity().getDisplayName());
-        assertNull(actionApiDTO.getNewEntity().getClassName());
-        assertNull(actionApiDTO.getNewEntity().getUuid());
+        assertEquals("EntityToClone", actionApiDTO.getNewEntity().getDisplayName());
+        assertEquals("VirtualMachine", actionApiDTO.getNewEntity().getClassName());
+        assertEquals("-1", actionApiDTO.getNewEntity().getUuid());
 
         assertEquals(ActionType.PROVISION, actionApiDTO.getActionType());
         assertEquals(DC2_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
@@ -1216,7 +1169,7 @@ public class ActionSpecMapperTest {
         ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesMap,
             Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
             Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-            Collections.emptyMap(), serviceEntityMapper, false);
+            Collections.emptyMap(), serviceEntityMapper);
         context.getOptionalEntity(1L).get().setCostPrice(1.0f);
 
         String noTranslationNeeded = "Simple string";

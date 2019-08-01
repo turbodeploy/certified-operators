@@ -971,22 +971,11 @@ public class ActionSpecMapper {
         actionApiDTO.setTarget(
             ServiceEntityMapper.copyServiceEntityAPIDTO(actionApiDTO.getCurrentEntity()));
 
-        if (context.isPlan()) {
-            // In plan actions we want to provide a reference to the provisioned entities, because
-            // we will show other actions (e.g. moves/starts) that involve the provisioned entities.
-            //
-            // The "new" entity is the provisioned seller.
-            final ServiceEntityApiDTO newEntity = ServiceEntityMapper.copyServiceEntityAPIDTO(
-                context.getEntity(provisionedSellerId));
-            actionApiDTO.setNewEntity(newEntity);
-            actionApiDTO.setNewValue(newEntity.getUuid());
-        } else {
-            // In realtime actions we don't provide a reference to the provisioned entities, because
-            // they do not exist in the projected topology. This is because provisioning is not
-            // something that can be realistically executed, and we don't show the impact of
-            // provisions when constructing the projected topology.
-            actionApiDTO.setNewEntity(new ServiceEntityApiDTO());
-        }
+        // The "new" entity is the provisioned seller.
+        final ServiceEntityApiDTO newEntity = ServiceEntityMapper.copyServiceEntityAPIDTO(
+            context.getEntity(provisionedSellerId));
+        actionApiDTO.setNewEntity(newEntity);
+        actionApiDTO.setNewValue(newEntity.getUuid());
     }
 
     private void addResizeInfo(@Nonnull final ActionApiDTO actionApiDTO,
