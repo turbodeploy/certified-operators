@@ -122,6 +122,7 @@ public class ClassicEnumMapper {
             .put("VDCCommodity",                CommodityType.VDC)
             .put("VMem",                        CommodityType.VMEM)
             .put("VMemRequest",                 CommodityType.VMEM_REQUEST)
+            .put("VMPMAccessCommodity",         CommodityType.VMPM_ACCESS)
             .put("VStorage",                    CommodityType.VSTORAGE)
             .put("Unknown",                     CommodityType.UNKNOWN)
             .build();

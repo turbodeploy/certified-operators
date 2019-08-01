@@ -275,7 +275,7 @@ message SettingPolicy {
 // Describes the properties of a SettingPolicy object. For additional information about
 // SettingPolicies, see the comments for the SettingPolicy message.
 message SettingPolicyInfo {
-    // The name of the SettingPolicy, used to name it in the UI.
+    // The name of the SettingPolicy, used as a unique identifier.
     //
     // The name should be unique.
     //
@@ -283,6 +283,9 @@ message SettingPolicyInfo {
     // is not meant to be user-visible. The API component (and UI) should generate the "right"
     // name to use.
     optional string name = 1;
+
+    // The display name of the SettingPolicy, used to name it in the UI.
+    optional string display_name = 9;
 
     // The settings that should be applied to the entities in the scope.
     //

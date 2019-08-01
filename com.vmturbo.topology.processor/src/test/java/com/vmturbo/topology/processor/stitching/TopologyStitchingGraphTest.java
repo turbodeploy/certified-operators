@@ -169,6 +169,21 @@ public class TopologyStitchingGraphTest {
     }
 
     @Test
+    public void testDuplicateLayeredOver() {
+        final StitchingEntityData entity = stitchingData(entityBuilder()
+            .addLayeredOver(validEntity.getLocalId())
+            .addLayeredOver(validEntity.getLocalId())
+            .addLayeredOver(validEntity.getLocalId()));
+
+        final TopologyStitchingGraph graph = newStitchingGraph(topologyMapOf(validEntity, entity));
+
+        assertThat(graph.entityCount(), is(2));
+        final TopologyStitchingEntity resEntity = graph.getEntity(entity.getEntityDtoBuilder()).get();
+        assertThat(resEntity.getEntityBuilder().getLayeredOverList(),
+            containsInAnyOrder(validEntity.getLocalId()));
+    }
+
+    @Test
     public void testInvalidConsistsOf() {
         final StitchingEntityData entity = stitchingData(entityBuilder()
             .addConsistsOf("bad consists of")
@@ -180,6 +195,21 @@ public class TopologyStitchingGraphTest {
         assertThat(graph.entityCount(), is(2));
         final TopologyStitchingEntity resEntity = graph.getEntity(entity.getEntityDtoBuilder()).get();
         assertTrue(resEntity.getStitchingErrors().contains(StitchingErrorCode.INVALID_CONSISTS_OF));
+        assertThat(resEntity.getEntityBuilder().getConsistsOfList(),
+            containsInAnyOrder(validEntity.getLocalId()));
+    }
+
+    @Test
+    public void testDuplicateConsistsOf() {
+        final StitchingEntityData entity = stitchingData(entityBuilder()
+            .addConsistsOf(validEntity.getLocalId())
+            .addConsistsOf(validEntity.getLocalId())
+            .addConsistsOf(validEntity.getLocalId()));
+
+        final TopologyStitchingGraph graph = newStitchingGraph(topologyMapOf(validEntity, entity));
+
+        assertThat(graph.entityCount(), is(2));
+        final TopologyStitchingEntity resEntity = graph.getEntity(entity.getEntityDtoBuilder()).get();
         assertThat(resEntity.getEntityBuilder().getConsistsOfList(),
             containsInAnyOrder(validEntity.getLocalId()));
     }

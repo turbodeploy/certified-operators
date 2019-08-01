@@ -142,9 +142,29 @@ public abstract class PlacementPolicyApplication {
         providers.forEach(providerId -> topologyGraph.getEntity(providerId)
             .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .ifPresent(provider -> {
-                recordCommodityAddition(segmentationCommodity.getCommodityType().getType());
-                provider.addCommoditySoldList(segmentationCommodity);
+                addCommoditySold(providerId, segmentationCommodity);
+                // add segmentation comm on replaced entity
+                if (provider.hasEdit() && provider.getEdit().hasReplaced()) {
+                    addCommoditySold(provider.getEdit().getReplaced().getReplacementId(),
+                            segmentationCommodity);
+                }
             }));
+    }
+
+    /**
+     * Force the provider to sell the commodity passed.
+     *
+     * @param providerId The provider that needs to sell the commodity.
+     * @param commodity The commodity to be sold.
+     */
+    protected void addCommoditySold(@Nonnull final long providerId,
+                                    @Nonnull final CommoditySoldDTO commodity) {
+        topologyGraph.getEntity(providerId)
+            .map(TopologyEntity::getTopologyEntityDtoBuilder)
+            .ifPresent(provider -> {
+                recordCommodityAddition(commodity.getCommodityType().getType());
+                provider.addCommoditySoldList(commodity);
+            });
     }
 
     /**

@@ -957,7 +957,7 @@ public class ActionSpecMapper {
                                   @Nonnull final ActionSpecMappingContext context)
                     throws UnknownObjectException, ExecutionException, InterruptedException {
         final long currentEntityId = provision.getEntityToClone().getId();
-        final String provisionedSellerUuid = Long.toString(provision.getProvisionedSeller());
+        final long provisionedSellerId = provision.getProvisionedSeller();
 
         actionApiDTO.setActionType(ActionType.PROVISION);
 
@@ -966,15 +966,16 @@ public class ActionSpecMapper {
             ServiceEntityMapper.copyServiceEntityAPIDTO(
                 context.getEntity(currentEntityId)));
         setRelatedDatacenter(currentEntityId, actionApiDTO, context, false);
-
-        actionApiDTO.setNewValue(provisionedSellerUuid);
-
-        ServiceEntityApiDTO currentEntity = actionApiDTO.getCurrentEntity();
-        actionApiDTO.setNewEntity(
-            ServiceEntityMapper.copyServiceEntityAPIDTO(currentEntity));
         setRelatedDatacenter(currentEntityId, actionApiDTO, context, true);
+
         actionApiDTO.setTarget(
-            ServiceEntityMapper.copyServiceEntityAPIDTO(actionApiDTO.getNewEntity()));
+            ServiceEntityMapper.copyServiceEntityAPIDTO(actionApiDTO.getCurrentEntity()));
+
+        // The "new" entity is the provisioned seller.
+        final ServiceEntityApiDTO newEntity = ServiceEntityMapper.copyServiceEntityAPIDTO(
+            context.getEntity(provisionedSellerId));
+        actionApiDTO.setNewEntity(newEntity);
+        actionApiDTO.setNewValue(newEntity.getUuid());
     }
 
     private void addResizeInfo(@Nonnull final ActionApiDTO actionApiDTO,

@@ -35,17 +35,16 @@ import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
-import com.vmturbo.topology.processor.topology.CloudTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
 import com.vmturbo.topology.processor.topology.HistoricalEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
+import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ApplyClusterCommodityStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ChangeAppCommodityKeyOnVMAndAppStage;
-import com.vmturbo.topology.processor.topology.pipeline.Stages.CloudPlanScopingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.CommoditiesEditStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ConstructTopologyFromStitchingContextStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ControllableStage;
@@ -57,6 +56,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.HistoricalUtiliza
 import com.vmturbo.topology.processor.topology.pipeline.Stages.IgnoreConstraintsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PostStitchingStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.PlanScopingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ReservationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ScanDiscoveredSettingPoliciesStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ScopeResolutionStage;
@@ -89,8 +89,6 @@ public class TopologyPipelineFactory {
     private final PolicyManager policyManager;
 
     private final StitchingManager stitchingManager;
-
-    private final CloudTopologyScopeEditor cloudTopologyScopeEditor;
 
     private final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier;
 
@@ -132,6 +130,8 @@ public class TopologyPipelineFactory {
 
     private final CommoditiesEditor commoditiesEditor;
 
+    private final PlanTopologyScopeEditor planTopologyScopeEditor;
+
     private final HistoricalEditor historicalEditor;
 
     private final MatrixInterface matrix;
@@ -139,7 +139,6 @@ public class TopologyPipelineFactory {
     public TopologyPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                    @Nonnull final PolicyManager policyManager,
                                    @Nonnull final StitchingManager stitchingManager,
-                                   @Nonnull final CloudTopologyScopeEditor cloudTopoScopeEditor,
                                    @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
                                    @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
                                    @Nonnull final DiscoveredWorkflowUploader discoveredWorkflowUploader,
@@ -160,12 +159,12 @@ public class TopologyPipelineFactory {
                                    @Nonnull final ApplicationCommodityKeyChanger applicationCommodityKeyChanger,
                                    @Nonnull final ControllableManager controllableManager,
                                    @Nonnull final CommoditiesEditor commoditiesEditor,
+                                   @Nonnull final PlanTopologyScopeEditor planTopologyScopeEditor,
                                    @Nonnull final HistoricalEditor historicalEditor,
                                    @Nonnull final MatrixInterface matrix) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
-        this.cloudTopologyScopeEditor = cloudTopoScopeEditor;
         this.discoveredTemplateDeploymentProfileNotifier = discoveredTemplateDeploymentProfileNotifier;
         this.discoveredGroupUploader = discoveredGroupUploader;
         this.discoveredWorkflowUploader = discoveredWorkflowUploader;
@@ -186,6 +185,7 @@ public class TopologyPipelineFactory {
         this.supplyChainValidator = Objects.requireNonNull(supplyChainValidator);
         this.controllableManager = Objects.requireNonNull(controllableManager);
         this.commoditiesEditor = Objects.requireNonNull(commoditiesEditor);
+        this.planTopologyScopeEditor = planTopologyScopeEditor;
         this.historicalEditor = Objects.requireNonNull(historicalEditor);
         this.matrix = Objects.requireNonNull(matrix);
     }
@@ -278,7 +278,6 @@ public class TopologyPipelineFactory {
                 new TopologyPipelineContext(new GroupResolver(searchResolver), topologyInfo);
         return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
                 .addStage(new StitchingStage(stitchingManager, journalFactory))
-                .addStage(new CloudPlanScopingStage(cloudTopologyScopeEditor, scope, journalFactory))
                 // TODO: We should fixup stitched groups but cannot because doing so would
                 // for the plan would also affect the live broadcast. See OM-31747.
                 .addStage(new ConstructTopologyFromStitchingContextStage())
@@ -300,6 +299,7 @@ public class TopologyPipelineFactory {
                 .addStage(new PostStitchingStage(stitchingManager))
                 .addStage(new EntityValidationStage(entityValidator))
                 .addStage(new ExtractTopologyGraphStage())
+                .addStage(new PlanScopingStage(planTopologyScopeEditor, scope, searchResolver, changes))
                 .addStage(new HistoricalUtilizationStage(historicalEditor))
                 .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager)))
                 .build();

@@ -7,10 +7,9 @@ import javax.annotation.Nonnull;
 
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass;
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetHostInfoRequest;
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetHostInfoResponse;
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.HostInfo;
+import com.vmturbo.common.protobuf.topology.EntityInfo.GetHostInfoRequest;
+import com.vmturbo.common.protobuf.topology.EntityInfo.GetHostInfoResponse;
+import com.vmturbo.common.protobuf.topology.EntityInfo.HostInfo;
 import com.vmturbo.common.protobuf.topology.EntityServiceGrpc;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -27,25 +26,6 @@ public class EntityRpcService extends EntityServiceGrpc.EntityServiceImplBase {
                             @Nonnull final TargetStore targetStore) {
         this.entityStore = Objects.requireNonNull(entityStore);
         this.targetStore = Objects.requireNonNull(targetStore);
-    }
-
-    /**
-     * Get entityInfo list from given entity Ids that is specified in request.
-     *
-     * @param request The {@link EntityInfoOuterClass.GetEntitiesInfoRequest} all entity ids are stored in.
-     * @param responseObserver The {@link StreamObserver} is defined in GRPC framework.
-     */
-    @Override
-    public void getEntitiesInfo(EntityInfoOuterClass.GetEntitiesInfoRequest request,
-                                StreamObserver<EntityInfoOuterClass.EntityInfo> responseObserver) {
-        for (final Long entityId : request.getEntityIdsList()) {
-            Optional<Entity> entity = entityStore.getEntity(entityId);
-            if (entity.isPresent()) {
-                responseObserver.onNext(success(entity.get(), targetStore));
-            }
-        }
-
-        responseObserver.onCompleted();
     }
 
     @Override
@@ -68,21 +48,6 @@ public class EntityRpcService extends EntityServiceGrpc.EntityServiceImplBase {
         }
 
         responseObserver.onCompleted();
-    }
-    
-    private EntityInfoOuterClass.EntityInfo success(@Nonnull final Entity entity,
-                                                    @Nonnull final TargetStore targetStore) {
-        Objects.requireNonNull(entity);
-        final EntityInfoOuterClass.EntityInfo.Builder entityInfoBuilder =
-                EntityInfoOuterClass.EntityInfo.newBuilder()
-                    .setEntityId(entity.getId());
-        entity.getTargets().stream()
-                .map(targetStore::getTarget)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .forEach(target -> entityInfoBuilder.putTargetIdToProbeId(target.getId(), target.getProbeId()));
-
-        return entityInfoBuilder.build();
     }
 
     /**

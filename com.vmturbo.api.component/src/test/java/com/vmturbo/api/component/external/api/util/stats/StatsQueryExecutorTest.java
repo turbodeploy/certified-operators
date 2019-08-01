@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.util.stats;
 
 import static com.vmturbo.api.component.external.api.util.stats.StatsTestUtil.stat;
 import static com.vmturbo.api.component.external.api.util.stats.StatsTestUtil.statInput;
+import static com.vmturbo.api.component.external.api.util.stats.StatsTestUtil.statWithKey;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
@@ -218,6 +219,64 @@ public class StatsQueryExecutorTest {
 
         final StatSnapshotApiDTO snapshotApiDTO = stats.get(0);
         assertThat(snapshotApiDTO.getDate(), is(DateTimeUtil.toString(MILLIS)));
+        assertThat(snapshotApiDTO.getStatistics(), containsInAnyOrder(stat1, stat2));
+    }
+
+    @Test
+    public void testGetStatsRequestSameStatNameDifferentRelatedEntity() throws OperationFailedException {
+        StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+
+        when(expandedScope.isAll()).thenReturn(false);
+        when(expandedScope.getEntities()).thenReturn(Collections.singleton(1L));
+
+        // Both queries applicable
+        when(statsSubQuery1.applicableInContext(statsQueryContext)).thenReturn(true);
+        when(statsSubQuery2.applicableInContext(statsQueryContext)).thenReturn(true);
+
+        final StatApiDTO stat1 = stat("foo", "11");
+        final StatApiDTO stat2 = stat("foo", "12");
+
+        when(statsSubQuery1.getAggregateStats(any(), any()))
+            .thenReturn(ImmutableMap.of(MILLIS, Collections.singletonList(stat1)));
+        when(statsSubQuery2.getAggregateStats(any(), any()))
+            .thenReturn(ImmutableMap.of(MILLIS, Collections.singletonList(stat2)));
+
+        // ACT
+        List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
+        assertThat(stats.size(), is(1));
+
+        final StatSnapshotApiDTO snapshotApiDTO = stats.get(0);
+        // verify that there are 2 stats with same name, but different relatedEntity
+        assertThat(snapshotApiDTO.getStatistics().size(), is(2));
+        assertThat(snapshotApiDTO.getStatistics(), containsInAnyOrder(stat1, stat2));
+    }
+
+    @Test
+    public void testGetStatsRequestSameStatNameDifferentKey() throws OperationFailedException {
+        StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+
+        when(expandedScope.isAll()).thenReturn(false);
+        when(expandedScope.getEntities()).thenReturn(Collections.singleton(1L));
+
+        // Both queries applicable
+        when(statsSubQuery1.applicableInContext(statsQueryContext)).thenReturn(true);
+        when(statsSubQuery2.applicableInContext(statsQueryContext)).thenReturn(true);
+
+        final StatApiDTO stat1 = statWithKey("foo", "key1");
+        final StatApiDTO stat2 = statWithKey("foo", "key2");
+
+        when(statsSubQuery1.getAggregateStats(any(), any()))
+            .thenReturn(ImmutableMap.of(MILLIS, Collections.singletonList(stat1)));
+        when(statsSubQuery2.getAggregateStats(any(), any()))
+            .thenReturn(ImmutableMap.of(MILLIS, Collections.singletonList(stat2)));
+
+        // ACT
+        List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
+        assertThat(stats.size(), is(1));
+
+        final StatSnapshotApiDTO snapshotApiDTO = stats.get(0);
+        // verify that there are 2 stats with same name, but different key
+        assertThat(snapshotApiDTO.getStatistics().size(), is(2));
         assertThat(snapshotApiDTO.getStatistics(), containsInAnyOrder(stat1, stat2));
     }
 }

@@ -38,7 +38,9 @@ public enum AuditAction {
     DELETE_GROUP("Delete External Group"),
     CREATE_POLICY("Create Policy"),
     DELETE_POLICY("Delete Policy"),
-    CHANGE_POLICY("Change Policy");
+    CHANGE_POLICY("Change Policy"),
+    ADD_LICENSE("Add License"),
+    DELETE_LICENSE("Delete License");
 
     private String displayName;
 

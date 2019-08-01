@@ -180,8 +180,9 @@ public class ReservationMapper {
                 .setTemplateId(topologyAddition.getTemplateId())
                 .build());
         final Map<Long, ServiceEntityApiDTO> serviceEntityMap = getServiceEntityMap(placementInfos);
-        // if can not find placements, need to set status to placement failed.
-        final String placementStatus = placementInfos.isEmpty() ? PLACEMENT_FAILED : PLACEMENT_SUCCEEDED;
+        /// If there exists an unplaced VM, then the initial placement failed.
+        final String placementStatus = placementInfos.size() == topologyAddition.getAdditionCount() ?
+            PLACEMENT_SUCCEEDED : PLACEMENT_FAILED;
         DemandReservationApiDTO reservationApiDTO =
                 generateDemandReservationApiDTO(topologyAddition, placementStatus);
         final List<DemandEntityInfoDTO> demandEntityInfoDTOS = new ArrayList<>();

@@ -21,7 +21,7 @@ spec:
       containers:
       - name: {{ .Chart.Name }}
         image: {{ template "horizon_image" . }}
-        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        imagePullPolicy: {{ template "pullPolicy" . }}
         env:
         - name: JAVA_OPTS
 {{- if .Values.global }}

@@ -268,10 +268,18 @@ public class EntityStore {
         }
 
         stitchingDataMap.allStitchingData()
-            .forEach(stitchingEntityData -> builder.addEntity(
-                stitchingEntityData,
-                stitchingDataMap.getTargetIdToStitchingDataMap(stitchingEntityData.getTargetId())
-            ));
+            .forEach(stitchingEntityData -> {
+                try {
+                    builder.addEntity(
+                        stitchingEntityData,
+                        stitchingDataMap.getTargetIdToStitchingDataMap(stitchingEntityData.getTargetId()));
+                } catch (IllegalArgumentException | NullPointerException e) {
+                    // We want to make sure we don't block the whole broadcast if one entity
+                    // encounters an error.
+                    logger.error("Failed to add entity " +
+                        stitchingEntityData + " to stitching context due to error.", e);
+                }
+            });
 
         return builder.build();
     }

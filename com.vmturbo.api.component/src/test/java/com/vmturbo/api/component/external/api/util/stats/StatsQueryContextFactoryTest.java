@@ -89,6 +89,7 @@ public class StatsQueryContextFactoryTest {
 
         assertThat(context.getTimeWindow(), is(Optional.empty()));
         assertThat(context.includeCurrent(), is(true));
+        assertThat(context.requestProjected(), is(false));
     }
 
     @Test
@@ -106,6 +107,7 @@ public class StatsQueryContextFactoryTest {
             .endTime(clock.millis() - 5000)
             .build())));
         assertThat(context.includeCurrent(), is(false));
+        assertThat(context.requestProjected(), is(false));
     }
 
     @Test
@@ -126,6 +128,7 @@ public class StatsQueryContextFactoryTest {
         // treated as null. Time window is only present if both start and end date are non-null.
         assertThat(context.getTimeWindow(), is(Optional.empty()));
         assertThat(context.includeCurrent(), is(true));
+        assertThat(context.requestProjected(), is(true));
     }
 
     @Test

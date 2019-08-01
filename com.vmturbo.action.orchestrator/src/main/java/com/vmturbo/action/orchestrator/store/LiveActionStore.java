@@ -48,6 +48,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -187,10 +188,16 @@ public class LiveActionStore implements ActionStore {
 
             final TopologyInfo sourceTopologyInfo =
                 actionPlan.getInfo().getMarket().getSourceTopologyInfo();
+            // Get a new snapshot for the entity settings cache. We do this outside of lock scope
+            // so as to not block the readers on the RPC.
+            final EntitiesAndSettingsSnapshot snapshot =
+                entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()),
+                sourceTopologyInfo.getTopologyContextId(), sourceTopologyInfo.getTopologyId());
 
             // This call requires some computation and an RPC call, so do it outside of the
             // action lock.
-            Collection<ActionDTO.Action> actionsWithSupportLevel = actionsWithSupportLevel(actionPlan);
+            Collection<ActionDTO.Action> actionsWithSupportLevel =
+                actionsWithSupportLevel(actionPlan, snapshot.getEntityMap());
 
             // RecommendationTracker to accelerate lookups of recommendations.
             RecommendationTracker recommendations = new RecommendationTracker();
@@ -233,6 +240,9 @@ public class LiveActionStore implements ActionStore {
             final long planId = actionPlan.getId();
             final MutableInt newActionCounts = new MutableInt(0);
             final Set<Long> newActionIds = Sets.newHashSet();
+            // TODO (marco, July 16 2019): We can do the translation before we do the support
+            // level resolution. In this way we wouldn't need to go to the repository for entities
+            // that fail translation.
             final Stream<Action> translatedReadyActions = actionTranslator.translate(actionsWithSupportLevel.stream()
                 .map(recommendedAction -> {
                     final Optional<Action> existingActionOpt = recommendations.take(recommendedAction.getInfo());
@@ -300,10 +310,6 @@ public class LiveActionStore implements ActionStore {
                 logger.error("Action plan contained unsupported action types: {}", unsupportedActionTypes);
             }
 
-            // Get a new snapshot for the entity settings cache. We do this outside of lock scope
-            // so as to not block the readers on the RPC.
-            final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(entitiesToRetrieve,
-                sourceTopologyInfo.getTopologyContextId(), sourceTopologyInfo.getTopologyId());
 
             // Some of these may be noops - if we're re-adding an action that was already in
             // the map from a previous action plan.
@@ -339,7 +345,7 @@ public class LiveActionStore implements ActionStore {
     }
 
     @Nonnull
-    private Collection<ActionDTO.Action> actionsWithSupportLevel(@Nonnull final ActionPlan actionPlan) {
+    private Collection<ActionDTO.Action> actionsWithSupportLevel(@Nonnull final ActionPlan actionPlan, final Map<Long, ActionPartialEntity> partialEntityMap) {
         try (DataMetricTimer timer = Metrics.SUPPORT_LEVEL_CALCULATION.startTimer()) {
             // Attempt to fully refresh the cache - this gets the most up-to-date target and
             // probe information from the topology processor.
@@ -350,7 +356,8 @@ public class LiveActionStore implements ActionStore {
             probeCapabilityCache.fullRefresh();
 
             final Map<Long, ActionTargetInfo> actionAndTargetInfo =
-                actionTargetSelector.getTargetsForActions(actionPlan.getActionList().stream());
+                actionTargetSelector.getTargetsForActions(actionPlan.getActionList().stream(),
+                    Optional.of(partialEntityMap));
 
             // Increment the relevant counters.
             final Map<SupportLevel, Long> actionsBySupportLevel =

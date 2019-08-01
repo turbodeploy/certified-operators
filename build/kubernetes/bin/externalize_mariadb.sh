@@ -14,6 +14,7 @@ RSYNC_LOG_FILE="/var/log/mariadb_migrate_rsync.log"
 # interrupted and the script can be safely retried if the cookie
 # file exists.
 DB_COPY_COOKIE_FILE="$MYSQL_MOUNT_DIR/db_data_migration.cookie"
+MYSQL_SERVICE_CNF="/usr/lib/systemd/system/mariadb.service"
 
 source $CODE_DIR/libs.sh
 
@@ -36,6 +37,14 @@ then
     exit 1
 fi
 
+# Set mariadb systemd service timeout to infinity.
+if ! sudo grep -q 'TimeoutStartSec=0' $MYSQL_SERVICE_CNF ; then
+	sudo sed -i '/^\[Service\]$/a TimeoutStartSec=0' $MYSQL_SERVICE_CNF
+fi
+
+if ! sudo grep -q 'TimeoutStopSec=0' $MYSQL_SERVICE_CNF ; then
+    sudo sed -i '/^TimeoutStartSec=0$/a TimeoutStopSec=0' $MYSQL_SERVICE_CNF
+fi
 
 if [[ ! -z "$(sudo ls -A $MYSQL_DATA_DIR 2>/dev/null)" ]] && [[ ! -f $DB_COPY_COOKIE_FILE ]]; then
     log_msg "Error: Mariadb data directory already exists and is not empty. Aborting."

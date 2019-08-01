@@ -1,9 +1,13 @@
 package com.vmturbo.action.orchestrator.execution;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doReturn;
 
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -15,10 +19,12 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
+import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
+import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionResponse;
 import com.vmturbo.common.protobuf.topology.ActionExecutionMoles.ActionExecutionServiceMole;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -57,7 +63,7 @@ public class ActionExecutorTest {
     public void setup() {
         MockitoAnnotations.initMocks(this);
         // The class under test
-        actionExecutor = new ActionExecutor(server.getChannel());
+        actionExecutor = new ActionExecutor(server.getChannel(), 1, TimeUnit.HOURS);
     }
 
     @Test
@@ -86,6 +92,27 @@ public class ActionExecutorTest {
         Assert.assertEquals(1, move.getChangesCount());
         Assert.assertEquals(2, move.getChanges(0).getSource().getId());
         Assert.assertEquals(3, move.getChanges(0).getDestination().getId());
+    }
+
+    @Test
+    public void testMoveTimeout() throws ExecutionStartException, SynchronousExecutionException, InterruptedException {
+        doReturn(ExecuteActionResponse.getDefaultInstance())
+            .when(actionExecutionBackend).executeAction(any());
+
+        ActionExecutor actionExecutor = new ActionExecutor(server.getChannel(), 1, TimeUnit.MILLISECONDS);
+
+        final long targetEntityId = 1L;
+
+        final ActionDTO.Action action =
+            testActionBuilder.buildMoveAction(targetEntityId, 2L, 1, 3L, 1);
+
+        try {
+            actionExecutor.executeSynchronously(targetId, action, workflowOpt);
+            Assert.fail("Expected synchronous execution exception.");
+        } catch (SynchronousExecutionException e) {
+            Assert.assertEquals(action.getId(), e.getFailure().getActionId());
+            Assert.assertTrue(e.getFailure().getErrorDescription().contains("Action timed out"));
+        }
     }
 
 }

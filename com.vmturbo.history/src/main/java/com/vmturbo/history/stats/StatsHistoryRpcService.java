@@ -128,8 +128,6 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                             StringConstants.NUM_STORAGES,
                             StringConstants.VM_GROWTH);
 
-    private static final String PROPERTY_TYPE_PREFIX_CURRENT = "current";
-
     private static final Summary GET_STATS_SNAPSHOT_DURATION_SUMMARY = Summary.build()
         .name("history_get_stats_snapshot_duration_seconds")
         .help("Duration in seconds it takes the history component to get a stats snapshot for a group or entity.")
@@ -653,7 +651,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
             // Group all records with property type name that start with "current" in one group
             // (before plan) and others in another group (after plan).
-            if (statsDBRecord.getPropertyType().startsWith(PROPERTY_TYPE_PREFIX_CURRENT)) {
+            if (statsDBRecord.getPropertyType().startsWith(StringConstants.STAT_PREFIX_CURRENT)) {
                 beforePlanStatSnapshotResponseBuilder.addStatRecords(statResponseRecord);
             } else {
                 afterPlanStatSnapshotResponseBuilder.addStatRecords(statResponseRecord);

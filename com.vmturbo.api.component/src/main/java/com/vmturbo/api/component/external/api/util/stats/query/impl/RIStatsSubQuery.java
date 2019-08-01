@@ -58,7 +58,10 @@ public class RIStatsSubQuery implements StatsSubQuery {
     public boolean applicableInContext(@Nonnull final StatsQueryContext context) {
         // Doesn't seem like it should support plan, because the backend doesn't allow specifying
         // the plan ID.
-        return !context.getScope().isPlan();
+        return !context.getScope().isPlan() &&
+            // Right now we don't support retrieving "latest" RI stats - we expect the UI/API
+            // to pass in some values.
+            context.getTimeWindow().isPresent();
     }
 
     @Override

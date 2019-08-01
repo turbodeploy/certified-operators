@@ -55,7 +55,7 @@ public class WastedFilesAnalysis {
 
     private final Clock clock;
 
-    private final Set<TopologyEntityDTO> topologyDTOs;
+    private final Map<Long, TopologyEntityDTO> topologyDTOs;
 
     private final TopologyCostCalculator cloudCostCalculator;
 
@@ -72,7 +72,7 @@ public class WastedFilesAnalysis {
     private Collection<Action> actions;
 
     public WastedFilesAnalysis(@Nonnull final TopologyInfo topologyInfo,
-                               @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
+                               @Nonnull final Map<Long, TopologyEntityDTO> topologyDTOs,
                                @Nonnull final Clock clock,
                                @Nonnull final TopologyCostCalculator cloudCostCalculator,
                                @Nonnull final MarketPriceTable priceTable) {
@@ -117,7 +117,7 @@ public class WastedFilesAnalysis {
             try (final DataMetricTimer scopingTimer = Metrics.WASTED_FILES_SUMMARY.startTimer()) {
                 // create a map by OID of all virtual volumes that have file data and are connected to
                 // Storages or StorageTiers
-                final Map<Long, TopologyEntityDTO> wastedFilesMap = topologyDTOs.stream()
+                final Map<Long, TopologyEntityDTO> wastedFilesMap = topologyDTOs.values().stream()
                     .filter(topoEntity -> topoEntity.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
                     .filter(topoEntity -> topoEntity.hasTypeSpecificInfo())
                     .filter(topoEntity -> topoEntity.getTypeSpecificInfo().hasVirtualVolume())
@@ -131,7 +131,7 @@ public class WastedFilesAnalysis {
                             || connEntity.getConnectedEntityType() == EntityType.STORAGE_TIER_VALUE)))
                     .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
                 // remove any VirtualVolumes that have VMs which are connectedTo them
-                topologyDTOs.stream()
+                topologyDTOs.values().stream()
                     .filter(topoEntity -> topoEntity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
                     .forEach(virtualMachine -> virtualMachine.getConnectedEntityListList().stream()
                         .filter(connEntity -> connEntity.hasConnectedEntityType())

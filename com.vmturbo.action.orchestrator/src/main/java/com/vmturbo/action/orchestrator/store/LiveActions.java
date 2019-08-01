@@ -228,7 +228,14 @@ class LiveActions implements QueryableActionViews {
 
             // Now that we updated the entities + settings cache, refresh the action modes
             // of all market actions and set action description.
-            marketActions.values().forEach(action -> action.refreshAction(newEntitiesSnapshot));
+            marketActions.values().forEach(action -> {
+                // We only want to refresh the action modes of "READY" actions.
+                // Once an action has been accepted (by the user or system) it doesn't make
+                // sense to retroactively modify the action mode or other dynamic information.
+                if (action.getState() == ActionState.READY) {
+                    action.refreshAction(newEntitiesSnapshot);
+                }
+            });
 
             marketActions.values().stream()
                 .collect(Collectors.groupingBy(a ->

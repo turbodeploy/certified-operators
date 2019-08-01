@@ -1,5 +1,7 @@
 package com.vmturbo.components.test.performance.action.orchestrator;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -34,6 +36,7 @@ import com.vmturbo.action.orchestrator.api.ActionOrchestrator;
 import com.vmturbo.action.orchestrator.api.ActionsListener;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorNotificationReceiver;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -52,16 +55,18 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.EntityInfo;
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetEntitiesInfoRequest;
-import com.vmturbo.common.protobuf.topology.EntityServiceGrpc.EntityServiceImplBase;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceImplBase;
 import com.vmturbo.common.protobuf.topology.Probe.GetProbeActionCapabilitiesRequest;
 import com.vmturbo.common.protobuf.topology.Probe.GetProbeActionCapabilitiesResponse;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapability;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapabilityElement;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.ProbeActionCapabilitiesServiceImplBase;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
@@ -299,31 +304,29 @@ public class ActionOrchestratorPerformanceTest {
      * Entity Service Stub that provides bare-bones entity information for entities referenced in
      * an action plan.
      */
-    public class EntityServiceStub extends EntityServiceImplBase {
+    public class EntityServiceStub extends RepositoryServiceImplBase {
 
-        private Map<Long,EntityInfo> entitiesForActionPlan = new HashMap<>();
+        private Map<Long, ActionPartialEntity> entitiesForActionPlan = new HashMap<>();
 
         public void loadEntitiesForActionPlan(ActionPlan actionPlan) throws UnsupportedActionException {
             // create simple entities for each action in the plan
             entitiesForActionPlan = ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()).stream()
-                    .map(entityId -> EntityInfo.newBuilder()
-                        .putTargetIdToProbeId(1L, 2L)
-                        .setEntityId(entityId).build())
-                    .collect(Collectors.toMap(EntityInfo::getEntityId, Function.identity()));
+                    .map(entityId -> ActionPartialEntity.newBuilder()
+                    .addAllDiscoveringTargetIds(Arrays.asList(1L))
+                    .setOid(entityId).build())
+                    .collect(Collectors.toMap(ActionPartialEntity::getOid, Function.identity()));
         }
-
-        public Collection<Long> getEntityIds() {
-            return entitiesForActionPlan.keySet();
-        }
-
         @Override
-        public void getEntitiesInfo(final GetEntitiesInfoRequest request, final StreamObserver<EntityInfo> responseObserver) {
-            for (final Long entityId : request.getEntityIdsList()) {
-                EntityInfo entityInfo = entitiesForActionPlan.get(entityId);
-                if (entityInfo != null) {
-                    responseObserver.onNext(entityInfo);
+        public void retrieveTopologyEntities(final RetrieveTopologyEntitiesRequest request,
+                                              final StreamObserver<PartialEntityBatch> responseObserver) {
+            List<PartialEntity> actionPartialEntities = new ArrayList<>();
+            for (final Long entityId : request.getEntityOidsList()) {
+                ActionPartialEntity actionPartialEntity = entitiesForActionPlan.get(entityId);
+                if (actionPartialEntity != null) {
+                    actionPartialEntities.add(PartialEntity.newBuilder().setAction(actionPartialEntity).build());
                 }
             }
+            responseObserver.onNext(PartialEntityBatch.newBuilder().addAllEntities(actionPartialEntities).build());
             responseObserver.onCompleted();
         }
     }

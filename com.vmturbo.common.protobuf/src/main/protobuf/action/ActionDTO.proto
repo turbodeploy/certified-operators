@@ -253,10 +253,10 @@ message Resize {
     // The commodity that's being resized.
     optional topology.CommodityType commodityType = 2;
 
-    // The expected old capacity.
+    // This may be old capacity/reservation/limit/etc, depending on commodity_attribute.
     optional float old_capacity = 3;
 
-    // The recommended capacity.
+    // This may be new capacity/reservation/limit/etc, depending on commodity_attribute.
     optional float new_capacity = 4;
 
     // which specific attribute of the commodity should be resized? defaults to "capacity".

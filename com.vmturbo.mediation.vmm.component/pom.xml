@@ -32,7 +32,7 @@
                             <artifactItems>
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
-                                    <artifactId>com.vmturbo.mediation.vmm.sdk</artifactId>
+                                    <artifactId>com.vmturbo.mediation.vmm.conversion</artifactId>
                                     <version>${project.version}</version>
                                     <type>zip</type>
                                     <overWrite>false</overWrite>

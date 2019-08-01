@@ -23,8 +23,7 @@ import com.vmturbo.action.orchestrator.execution.FailedCloudVMGroupProcessor;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.auditing.AuditAction;
-import com.vmturbo.auth.api.auditing.AuditLogEntry;
-import com.vmturbo.auth.api.auditing.AuditLogUtils;
+import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
@@ -244,10 +243,9 @@ public class ActionStateUpdater implements ActionExecutionListener {
      */
     private void writeToAudit(final Action action, final boolean isSuccessful) {
         try {
-            AuditLogEntry entry = new AuditLogEntry.Builder(AuditAction.EXECUTE_ACTION, action.toString(), isSuccessful)
-                    .targetName(String.valueOf(action.getId()))
-                    .build();
-            AuditLogUtils.audit(entry);
+            AuditLog.newEntry(AuditAction.EXECUTE_ACTION, action.getDescription(), isSuccessful)
+                .targetName(String.valueOf(action.getId()))
+                .audit();
         } catch (RuntimeException e) {
             logger.error(e.getMessage());
         }

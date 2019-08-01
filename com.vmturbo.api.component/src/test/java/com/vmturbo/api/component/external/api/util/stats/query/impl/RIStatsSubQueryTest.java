@@ -88,6 +88,7 @@ public class RIStatsSubQueryTest {
     @Test
     public void testApplicableInNotPlan() {
         when(scope.isPlan()).thenReturn(false);
+        when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));
 
         assertThat(query.applicableInContext(context), is(true));
     }
@@ -95,6 +96,15 @@ public class RIStatsSubQueryTest {
     @Test
     public void testNotApplicableInPlan() {
         when(scope.isPlan()).thenReturn(true);
+        when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));
+
+        assertThat(query.applicableInContext(context), is(false));
+    }
+
+    @Test
+    public void testNotApplicableNoTimeWindow() {
+        when(scope.isPlan()).thenReturn(false);
+        when(context.getTimeWindow()).thenReturn(Optional.empty());
 
         assertThat(query.applicableInContext(context), is(false));
     }

@@ -32,6 +32,7 @@ import com.vmturbo.api.component.external.api.util.stats.query.impl.CloudPlanNum
 import com.vmturbo.api.component.external.api.util.stats.query.impl.ClusterStatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.HistoricalCommodityStatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.NumClustersStatsSubQuery;
+import com.vmturbo.api.component.external.api.util.stats.query.impl.PlanCommodityStatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.ProjectedCommodityStatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.RIStatsSubQuery;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
@@ -597,6 +598,14 @@ public class ServiceConfig {
             new NumClustersStatsSubQuery(communicationConfig.groupRpcService());
         statsQueryExecutor().addSubquery(numClustersStatsQuery);
         return numClustersStatsQuery;
+    }
+
+    @Bean
+    public PlanCommodityStatsSubQuery planCommodityStatsSubQuery() {
+        final PlanCommodityStatsSubQuery planCommodityStatsSubQuery =
+            new PlanCommodityStatsSubQuery(mapperConfig.statsMapper(), communicationConfig.historyRpcService());
+        statsQueryExecutor().addSubquery(planCommodityStatsSubQuery);
+        return planCommodityStatsSubQuery;
     }
 
     @Bean

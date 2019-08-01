@@ -27,6 +27,7 @@ import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
+import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
@@ -134,9 +135,16 @@ public class StatsQueryScopeExpander {
                     .build())
                 .getOids();
         } else if (scope.isPlan()) {
-            immediateOidsInScope = scope.getPlanInstance()
+            Set<Long> explicitPlanScope = scope.getPlanInstance()
                 .map(MarketMapper::getPlanScopeIds)
                 .orElse(Collections.emptySet());
+            // If the plan is not scoped, it must be defined on the entire market, so
+            // the expanded scope is "all".
+            if (explicitPlanScope.isEmpty()) {
+                return StatsQueryScope.all();
+            } else {
+                immediateOidsInScope = explicitPlanScope;
+            }
         } else {
             immediateOidsInScope = Sets.newHashSet(scope.oid());
         }

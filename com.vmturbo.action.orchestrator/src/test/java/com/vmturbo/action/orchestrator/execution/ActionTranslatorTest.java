@@ -37,10 +37,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ClearingDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.topology.EntityInfo.GetHostInfoRequest;
+import com.vmturbo.common.protobuf.topology.EntityInfo.GetHostInfoResponse;
+import com.vmturbo.common.protobuf.topology.EntityInfo.HostInfo;
 import com.vmturbo.common.protobuf.topology.EntityInfoMoles.EntityServiceMole;
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetHostInfoRequest;
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetHostInfoResponse;
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.HostInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 

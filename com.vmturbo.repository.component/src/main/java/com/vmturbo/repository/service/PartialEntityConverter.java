@@ -1,5 +1,7 @@
 package com.vmturbo.repository.service;
 
+import java.util.stream.Collectors;
+
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -12,6 +14,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartial
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 
 /**
@@ -45,7 +48,9 @@ public class PartialEntityConverter {
                 final ActionPartialEntity.Builder actionEntityBldr = ActionPartialEntity.newBuilder()
                     .setOid(repoGraphEntity.getOid())
                     .setEntityType(repoGraphEntity.getEntityType())
-                    .setDisplayName(repoGraphEntity.getDisplayName());
+                    .setDisplayName(repoGraphEntity.getDisplayName())
+                    .addAllDiscoveringTargetIds(
+                            repoGraphEntity.getDiscoveringTargetIds().collect(Collectors.toList()));
                 ActionDTOUtil.NON_DISRUPTIVE_SETTING_COMMODITIES.forEach(commType -> {
                     final CommoditySoldDTO comm = repoGraphEntity.soldCommoditiesByType().get(commType);
                     if (comm != null) {
@@ -113,7 +118,9 @@ public class PartialEntityConverter {
                 final ActionPartialEntity.Builder actionEntityBldr = ActionPartialEntity.newBuilder()
                     .setOid(topoEntity.getOid())
                     .setEntityType(topoEntity.getEntityType())
-                    .setDisplayName(topoEntity.getDisplayName());
+                    .setDisplayName(topoEntity.getDisplayName())
+                    .addAllDiscoveringTargetIds(
+                        topoEntity.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList());
                 topoEntity.getCommoditySoldListList().stream()
                     .filter(comm -> ActionDTOUtil.NON_DISRUPTIVE_SETTING_COMMODITIES.contains(
                         comm.getCommodityType().getType()))

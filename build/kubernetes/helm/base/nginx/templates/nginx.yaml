@@ -37,7 +37,7 @@ spec:
       containers:
       - name: {{ .Chart.Name }}
         image: {{ template "image" . }}
-        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        imagePullPolicy: {{ template "pullPolicy" . }}
         env:
         - name: API
           value: api.{{ .Release.Namespace }}.svc.cluster.local

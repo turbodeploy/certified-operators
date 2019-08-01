@@ -37,7 +37,7 @@ spec:
       containers:
       - name: {{ .Chart.Name }}
         image: {{ template "consul_image" . }}
-        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        imagePullPolicy: {{ template "pullPolicy" . }}
         args:
         - vmt-server
         - -client=0.0.0.0

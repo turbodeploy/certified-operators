@@ -272,12 +272,14 @@ public class HistoricalActionStatReaderTest {
     private ActionDTO.ActionStat combinedIncreasingStats(final int numGroupStats,
                                                  final ActionDTO.ActionStat.Builder template) {
         final RolledUpActionGroupStat increasingGroupStat = increasingGroupStat();
+        final int actionCount = increasingGroupStat.priorActionCount()
+            + increasingGroupStat.newActionCount();
         return template
             .setActionCount(Value.newBuilder()
                 .setMin(numGroupStats * increasingGroupStat.minActionCount())
                 .setAvg(numGroupStats * increasingGroupStat.avgActionCount())
                 .setMax(numGroupStats * increasingGroupStat.maxActionCount())
-                .setTotal(numGroupStats * increasingGroupStat.avgActionCount()))
+                .setTotal(numGroupStats * actionCount))
             .setEntityCount(Value.newBuilder()
                 .setMin(numGroupStats * increasingGroupStat.minEntityCount())
                 .setAvg(numGroupStats * increasingGroupStat.avgEntityCount())
@@ -395,8 +397,7 @@ public class HistoricalActionStatReaderTest {
                 .setMin(increasingStat.minActionCount() * 2)
                 .setAvg(increasingStat.avgActionCount() * 2)
                 .setMax(increasingStat.maxActionCount() * 2)
-                // Total is avg * num snapshots, which is 1
-                .setTotal(increasingStat.avgActionCount() * 2)
+                .setTotal((increasingStat.newActionCount() + increasingStat.priorActionCount()) * 2)
             )
             .setEntityCount(
                 Value.newBuilder()
@@ -440,7 +441,8 @@ public class HistoricalActionStatReaderTest {
             .collect(Collectors.toList());
         assertThat(stats.size(), is(1));
         ActionDTO.ActionStat stat = stats.get(0);
-        assertThat(stat.getActionCount().getTotal(), is(increasingStat.avgActionCount() * 3));
+        assertThat(stat.getActionCount().getTotal(), is(Double.valueOf(increasingStat.newActionCount()
+            + increasingStat.priorActionCount())));
         assertThat(stat.getEntityCount().getTotal(), is(increasingStat.avgEntityCount() * 3));
         assertThat(stat.getSavings().getTotal(), is(increasingStat.avgSavings() * 3));
         assertThat(stat.getInvestments().getTotal(), is(increasingStat.avgInvestment() * 3));

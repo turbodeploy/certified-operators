@@ -4,6 +4,8 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.MoreObjects;
+
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 /**
@@ -96,6 +98,14 @@ public class StitchingEntityData {
         return targetId == otherEntityData.targetId &&
                 oid == otherEntityData.oid &&
                 entityDtoBuilder == otherEntityData.entityDtoBuilder;
+    }
+
+    @Override
+    public String toString() {
+        return MoreObjects.toStringHelper(Long.toString(getOid()))
+            .add("localId", getLocalId())
+            .add("targetId", targetId)
+            .toString();
     }
 
     /**

@@ -81,6 +81,7 @@ public class SettingStoreTest {
 
     private final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
             .setName("test")
+            .addAllSettings(Arrays.asList(Setting.newBuilder().setSettingSpecName("TestSetting").build()))
             .build();
 
     private static final String SETTING_TEST_JSON_SETTING_SPEC_JSON =
@@ -287,6 +288,15 @@ public class SettingStoreTest {
     public void testUpdateDiscoveredSettingPolicyFail() throws Exception {
         final SettingPolicy policy = settingStore.createDiscoveredSettingPolicy(info);
         settingStore.updateSettingPolicy(policy.getId(), policy.getInfo());
+    }
+
+    @Test(expected = InvalidItemException.class)
+    public void testUpdateDefaultSettingPolicyChangeDefaultSettings() throws Exception {
+        //Throws an exception since one of the settings is missing in the updated SettingPolicyInfo
+        final SettingPolicy policy =
+            settingStore.createDefaultSettingPolicy(info);
+        settingStore.updateSettingPolicy(policy.getId(),
+            SettingPolicyInfo.newBuilder().setName(policy.getInfo().getName()).build());
     }
 
     @Test

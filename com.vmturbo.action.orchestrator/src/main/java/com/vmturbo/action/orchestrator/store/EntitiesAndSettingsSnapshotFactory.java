@@ -96,6 +96,11 @@ public class EntitiesAndSettingsSnapshotFactory {
         public Optional<ActionPartialEntity> getEntityFromOid(final long entityOid) {
             return Optional.ofNullable(oidToEntityMap.get(entityOid));
         }
+
+        @Nonnull
+        public  Map<Long, ActionPartialEntity> getEntityMap() {
+            return oidToEntityMap;
+        }
     }
 
     /**

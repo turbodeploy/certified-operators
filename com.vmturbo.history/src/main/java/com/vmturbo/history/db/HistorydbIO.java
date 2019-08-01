@@ -68,6 +68,7 @@ import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.springframework.beans.factory.annotation.Value;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableBiMap;
@@ -726,8 +727,9 @@ public class HistorydbIO extends BasedbIO {
      * @param entityScope      The {@link EntityStatsScope} for the stats query.
      * @param timestamp        The timestamp to use to calculate the next page.
      * @param tFrame           The timeframe to use for the timestamp.
-     * @param paginationParams The pagination parameters. We sort the results by the average value
-     *                         of the sort commodity, and then by the UUID of the entity.
+     * @param paginationParams The pagination parameters. For princeIndex, we sort the results by
+     *                         the average value; for others, we sort the results by the utilization
+     *                        (average/capacity) value of the sort commodity. And then by the UUID of the entity.
      * @return A {@link NextPageInfo} object describing the entity IDs that should be in the next page.
      * @throws VmtDbException           If there is an error interacting with the database.
      * @throws IllegalArgumentException If the input is invalid.
@@ -786,7 +788,7 @@ public class HistorydbIO extends BasedbIO {
         seekPaginationCursor.toCondition(table, paginationParams.isAscending()).ifPresent(conditions::add);
 
         final Field<String> uuidField = (Field<String>) dField(table, UUID);
-        final Field<Double> valueField = (Field<Double>) dField(table, AVG_VALUE);
+        final Field<Double> valueField = getValueField(paginationParams, table);
 
         if (!requestedIdSet.isEmpty()) {
             conditions.add(uuidField.in(requestedIdSet));
@@ -818,6 +820,20 @@ public class HistorydbIO extends BasedbIO {
         } catch (SQLException e) {
             throw new VmtDbException(VmtDbException.SQL_EXEC_ERR, e);
         }
+    }
+
+    /**
+     * Return the value field used in sort by.
+     * For princeIndex, sort by the average value, because it's a compound metrics already.
+     * For others commodity, sort by the average/capacity value, because the average value
+     * is from "used", so divided by "capacity" to be utilization.
+     */
+    @VisibleForTesting
+    Field<Double> getValueField(@Nonnull final EntityStatsPaginationParams paginationParams,
+                                @Nonnull final Table<?> table) {
+        final Field<Double> avgValueField = (Field<Double>) dField(table, AVG_VALUE);
+        return paginationParams.getSortCommodity().equals(PRICE_INDEX)
+            ? avgValueField : avgValueField.divide((Field<Double>) dField(table, CAPACITY));
     }
 
     /**

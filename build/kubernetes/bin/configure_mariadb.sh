@@ -8,7 +8,7 @@ source /opt/local/bin/libs.sh
 
 SRC_MY_CNF="/opt/turbonomic/kubernetes/etc/my.cnf"
 MY_CNF="/etc/my.cnf.d/server.cnf"
-
+MYSQL_SERVICE_CNF="/usr/lib/systemd/system/mariadb.service"
 
 # Check if mariadb is installed
 yum list installed Mariadb-server
@@ -20,6 +20,16 @@ fi
 
 sudo systemctl stop mariadb.service
 sudo cp -f $SRC_MY_CNF $MY_CNF
+
+# Set mariadb systemd service timeout to infinity.
+if ! sudo grep -q 'TimeoutStartSec=0' $MYSQL_SERVICE_CNF ; then
+	sudo sed -i '/^\[Service\]$/a TimeoutStartSec=0' $MYSQL_SERVICE_CNF
+fi
+
+if ! sudo grep -q 'TimeoutStopSec=0' $MYSQL_SERVICE_CNF ; then
+    sudo sed -i '/^TimeoutStartSec=0$/a TimeoutStopSec=0' $MYSQL_SERVICE_CNF
+fi
+
 
 mariadb_tmp_dir=$(grep tmpdir $MY_CNF  | awk '{print $NF}')
 mariadb_data_dir=$(grep datadir $MY_CNF  | awk '{print $NF}')

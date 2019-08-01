@@ -174,7 +174,7 @@ public class ReportingTestConfig {
                 put(169L, new NullReportTemplate(delegate)).
                 put(170L, new Daily_cluster_30_days_avg_stats_vs_thresholds_grid(delegate)).
             // daily_potential_storage_waste_grid
-                put(172L, new NullReportTemplate(delegate)).
+            //    put(172L, new NullReportTemplate(delegate)).
             // monthly_individual_vm_summary
                 put(181L, new NullReportTemplate(delegate)).
             // monthly_30_days_pm_top_bottom_capacity_grid

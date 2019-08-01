@@ -41,6 +41,7 @@ import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.ProbeListener;
+import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 
@@ -63,6 +64,9 @@ public class ProbeCapabilityCache implements ProbeListener {
     private final ProbeActionCapabilitiesServiceBlockingStub actionCapabilitiesBlockingStub;
 
     private final CachedCapabilitiesFactory cachedCapabilitiesFactory;
+
+    @GuardedBy("cacheLock")
+    private Map<Long, Long> targetToProbe = new HashMap<>();
 
     @GuardedBy("cacheLock")
     private Map<Long, ProbeCategory> probeInfosById = new HashMap<>();
@@ -134,12 +138,15 @@ public class ProbeCapabilityCache implements ProbeListener {
                 ListProbeActionCapabilitiesRequest.getDefaultInstance()).forEachRemaining(probeActionCapabilities -> {
                 newCapabilitiesByProbeId.put(probeActionCapabilities.getProbeId(), probeActionCapabilities.getActionCapabilitiesList());
             });
-
+            final Map<Long, Long> newTargetToProbeId =
+                topologyProcessor.getAllTargets().stream()
+                    .collect(Collectors.toMap(TargetInfo::getId, TargetInfo::getProbeId));
             // Synchronize AFTER doing all the remote calls, so concurrent users can still
             // access the cache while we're refreshing.
             synchronized (cacheLock) {
                 this.probeInfosById = newProbeCategoriesById;
                 this.capabilitiesByProbeId = newCapabilitiesByProbeId;
+                this.targetToProbe = newTargetToProbeId;
 
                 this.cachedCapabilities = rebuildCapabilities();
             }
@@ -152,6 +159,7 @@ public class ProbeCapabilityCache implements ProbeListener {
             if (cachedCapabilities == null) {
                 return cachedCapabilitiesFactory.newCapabilities(
                     Collections.emptyMap(),
+                    Collections.emptyMap(),
                     Collections.emptyMap());
             } else {
                 return cachedCapabilities;
@@ -162,7 +170,7 @@ public class ProbeCapabilityCache implements ProbeListener {
     @Nonnull
     private CachedCapabilities rebuildCapabilities() {
         return cachedCapabilitiesFactory.newCapabilities(probeInfosById,
-            capabilitiesByProbeId);
+            capabilitiesByProbeId, targetToProbe);
     }
 
     /**
@@ -179,7 +187,8 @@ public class ProbeCapabilityCache implements ProbeListener {
         @Nonnull
         CachedCapabilities newCapabilities(
                 @Nonnull final Map<Long, ProbeCategory> probeCategoriesById,
-                @Nonnull final Map<Long, List<ProbeActionCapability>> capabilitiesByProbeId) {
+                @Nonnull final Map<Long, List<ProbeActionCapability>> capabilitiesByProbeId,
+                @Nonnull final Map<Long, Long> targetToProbe) {
             final Map<Long, ProbeCapabilities> capabilitiesById = new HashMap<>();
             probeCategoriesById.forEach((probeId, probeCategory) -> {
                 final List<ProbeActionCapability> capabilities = capabilitiesByProbeId.get(probeId);
@@ -193,7 +202,7 @@ public class ProbeCapabilityCache implements ProbeListener {
                         .build());
                 }
             });
-            return new CachedCapabilities(capabilitiesById, capabilityMatcher);
+            return new CachedCapabilities(capabilitiesById, capabilityMatcher, targetToProbe);
         }
     }
 
@@ -250,10 +259,14 @@ public class ProbeCapabilityCache implements ProbeListener {
 
         private final CapabilityMatcher capabilityMatcher;
 
+        private final Map<Long, Long> targetToProbe;
+
         private CachedCapabilities(@Nonnull final Map<Long, ProbeCapabilities> capabilitiesByProbeId,
-                                  @Nonnull final CapabilityMatcher capabilityMatcher) {
+                                  @Nonnull final CapabilityMatcher capabilityMatcher,
+                                   @Nonnull final Map<Long, Long> targetToProbe) {
             this.capabilitiesByProbeId = capabilitiesByProbeId;
             this.capabilityMatcher = capabilityMatcher;
+            this.targetToProbe = targetToProbe;
         }
 
         /**
@@ -316,6 +329,16 @@ public class ProbeCapabilityCache implements ProbeListener {
         public Optional<ProbeCategory> getProbeCategory(@Nullable final Long probeId) {
             return Optional.ofNullable(capabilitiesByProbeId.get(probeId))
                 .map(ProbeCapabilities::probeCategory);
+        }
+
+        /**
+         * Get the probe id from target id.
+         *
+         * @param targetId The id of the target.
+         * @return The probe id of the probe.
+         */
+        public Optional<Long> getProbeFromTarget(long targetId) {
+            return Optional.ofNullable(this.targetToProbe.get(targetId));
         }
     }
 

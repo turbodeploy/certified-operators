@@ -7,6 +7,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
 
@@ -49,14 +51,22 @@ public class ActionExecutor implements ActionExecutionListener {
     private final Map<Long, CompletableFuture<Void>> inProgressSyncActions =
             Collections.synchronizedMap(new HashMap<>());
 
+    private final int executionTimeout;
+
+    private final TimeUnit executionTimeoutUnit;
+
     /**
      * Creates an object of ActionExecutor with ActionExecutionService and EntityService.
      *
      * @param topologyProcessorChannel to create services
      */
-    public ActionExecutor(@Nonnull final Channel topologyProcessorChannel) {
+    public ActionExecutor(@Nonnull final Channel topologyProcessorChannel,
+                          final int executionTimeout,
+                          @Nonnull final TimeUnit executionTimeoutUnit) {
         this.actionExecutionService = ActionExecutionServiceGrpc
                 .newBlockingStub(Objects.requireNonNull(topologyProcessorChannel));
+        this.executionTimeout = executionTimeout;
+        this.executionTimeoutUnit = executionTimeoutUnit;
     }
 
     /**
@@ -79,13 +89,21 @@ public class ActionExecutor implements ActionExecutionListener {
         final CompletableFuture<Void> future = new CompletableFuture<>();
         inProgressSyncActions.put(action.getId(), future);
         try {
-            future.get();
+            // TODO (roman, July 30 2019): OM-49081 - Handle TP restarts and dropped messages
+            // without relying only on timeout.
+            future.get(executionTimeout, executionTimeoutUnit);
         } catch (ExecutionException e) {
             if (e.getCause() instanceof SynchronousExecutionException) {
                 throw (SynchronousExecutionException)e.getCause();
             } else {
                 throw new IllegalStateException("Unexpected execution exception!", e);
             }
+        } catch (TimeoutException e) {
+            throw new SynchronousExecutionException(ActionFailure.newBuilder()
+                .setActionId(action.getId())
+                .setErrorDescription("Action timed out after " +
+                    executionTimeout + " " + executionTimeoutUnit.toString())
+                .build());
         }
     }
 
@@ -124,6 +142,8 @@ public class ActionExecutor implements ActionExecutionListener {
         }
 
         try {
+            // TODO (roman, July 30 2019): OM-49080 - persist the state of in-progress actions in
+            // the database, so that we don't lose the information across restarts.
             actionExecutionService.executeAction(executionRequestBuilder.build());
             logger.info("Action: {} started.", action.getId());
         } catch (StatusRuntimeException e) {
