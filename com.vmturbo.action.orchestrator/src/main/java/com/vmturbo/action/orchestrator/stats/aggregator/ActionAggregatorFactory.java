@@ -54,7 +54,7 @@ public interface ActionAggregatorFactory<AGGREGATOR_TYPE extends ActionAggregato
      * 1. Creation
      * 2. {@link ActionAggregator#start()} to initialize
      * 3. for each action recorded by the {@link LiveActionsStatistician}:
-     *     - {@link ActionAggregator#processAction(StatsActionView, Set)}
+     *     - {@link ActionAggregator#processAction(StatsActionView, Map)}
      * 4. {@link ActionAggregator#createRecords(Map, Map)} ()} to retrieve the aggregated records.
      */
     abstract class ActionAggregator {
@@ -80,7 +80,7 @@ public interface ActionAggregatorFactory<AGGREGATOR_TYPE extends ActionAggregato
 
         /**
          * This method must be called before any calls to
-         * {@link ActionAggregator#processAction(StatsActionView, Set)}.
+         * {@link ActionAggregator::processAction(StatsActionView, Set)}.
          *
          * The aggregator can override this to get any information it needs to process actions -
          * e.g. members of the management unit.
@@ -91,23 +91,30 @@ public interface ActionAggregatorFactory<AGGREGATOR_TYPE extends ActionAggregato
          * Process a single action, adding it to any {@link ActionStat}
          *
          * @param action The action to process.
-         * @param newActionIds the IDs for all actions that are "new", i.e.
-         *                     not previously recommended
+         * @param lastIterationActions map from action group key to recommendation id from the
+         *                             **prior** action broadcast.
          */
-        public abstract void processAction(@Nonnull final StatsActionView action,
-                                           @Nonnull final Set<Long> newActionIds);
+        public abstract void processAction(
+            @Nonnull final StatsActionView action,
+            @Nonnull final Map<ActionGroupKey, Set<Long>> lastIterationActions);
 
         /**
          * Check if a given action is "new", i.e. not previously recommended, given a set of
          * action IDs for new actions.
          *
          * @param action the action to be checkted
-         * @param newActionIds the set of IDs of new actions
-         * @return true iff the action is "new", i.e. the ID is contained in the newActionIds set
+         * @param lastIterationActions map from action group key to recommendation id from the
+         *                             **prior** action broadcast.
+         * @return true iff the action is "new", i.e. the ID is contained in the set of IDs
+         * corresponding to the actionGroupKey for this action.
          */
-        protected boolean actionIsNew(@Nonnull final StatsActionView action,
-                                      @Nonnull final Set<Long> newActionIds) {
-            return newActionIds.contains(action.recommendation().getId());
+        protected boolean actionIsNew(
+            @Nonnull final StatsActionView action,
+            @Nonnull final Map<ActionGroupKey, Set<Long>> lastIterationActions) {
+            // check to see if the action id for this action group key was previously seen
+            return !lastIterationActions.getOrDefault(action.actionGroupKey(),
+                Collections.emptySet())
+                .contains(action.recommendation().getId());
         }
 
         /**
@@ -133,7 +140,7 @@ public interface ActionAggregatorFactory<AGGREGATOR_TYPE extends ActionAggregato
 
         /**
          * This method should only be called after all calls to
-         * {@link ActionAggregator#processAction(StatsActionView, Set)}.
+         * {@link ActionAggregator#processAction(StatsActionView, Map)}.
          *
          * Return the {@link ActionStat}s this aggregator processed -
          * organized by {@link MgmtUnitSubgroupKey} and {@link ActionGroupKey} - as a stream of

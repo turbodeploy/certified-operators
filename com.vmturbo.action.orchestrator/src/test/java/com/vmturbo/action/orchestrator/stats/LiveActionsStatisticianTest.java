@@ -6,9 +6,13 @@ import static com.vmturbo.action.orchestrator.db.Tables.MGMT_UNIT_SUBGROUP;
 import static com.vmturbo.action.orchestrator.db.tables.ActionStatsLatest.ACTION_STATS_LATEST;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyMap;
+import static org.mockito.Matchers.anyObject;
+import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -22,6 +26,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,7 +49,9 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionGroupRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotLatestRecord;
@@ -56,12 +63,17 @@ import com.vmturbo.action.orchestrator.stats.aggregator.ActionAggregatorFactory.
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup.ActionGroupKey;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore;
+import com.vmturbo.action.orchestrator.stats.groups.ImmutableActionGroupKey;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup.MgmtUnitSubgroupKey;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatCleanupScheduler;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -99,6 +111,13 @@ public class LiveActionsStatisticianTest {
 
     private ActionStatCleanupScheduler cleanupScheduler = mock(ActionStatCleanupScheduler.class);
 
+    private static final ActionGroupKey ACTION_GROUP_KEY = ImmutableActionGroupKey.builder()
+        .actionMode(ActionMode.MANUAL)
+        .actionState(ActionState.READY)
+        .actionType(ActionType.MOVE)
+        .category(ActionCategory.PERFORMANCE_ASSURANCE)
+        .build();
+
     /**
      * The clock can't start at too small of a number because TIMESTAMP starts in 1970, but
      * epoch millis starts in 1969.
@@ -131,8 +150,14 @@ public class LiveActionsStatisticianTest {
         final ActionView action2 = mock(ActionView.class);
         final ActionView action3 = mock(ActionView.class);
         final StatsActionView snapshot1 = mock(StatsActionView.class);
+        when(snapshot1.actionGroupKey()).thenReturn(ACTION_GROUP_KEY);
+        when(snapshot1.recommendation()).thenReturn(ActionOrchestratorTestUtils.createMoveRecommendation(1L));
         final StatsActionView snapshot2 = mock(StatsActionView.class);
+        when(snapshot2.recommendation()).thenReturn(ActionOrchestratorTestUtils.createMoveRecommendation(2L));
+        when(snapshot2.actionGroupKey()).thenReturn(ACTION_GROUP_KEY);
         final StatsActionView snapshot3 = mock(StatsActionView.class);
+        when(snapshot3.recommendation()).thenReturn(ActionOrchestratorTestUtils.createMoveRecommendation(3L));
+        when(snapshot3.actionGroupKey()).thenReturn(ACTION_GROUP_KEY);
         when(snapshotFactory.newStatsActionView(eq(action1))).thenReturn(snapshot1);
         when(snapshotFactory.newStatsActionView(eq(action2))).thenReturn(snapshot2);
         when(snapshotFactory.newStatsActionView(eq(action3))).thenReturn(snapshot3);
@@ -172,9 +197,9 @@ public class LiveActionsStatisticianTest {
         // Verify that the statistician interacts with the aggregator in the right order.
         final InOrder inOrder = Mockito.inOrder(aggregator);
         inOrder.verify(aggregator).start();
-        inOrder.verify(aggregator).processAction(snapshot1, ImmutableSet.of());
-        inOrder.verify(aggregator).processAction(snapshot2, ImmutableSet.of());
-        inOrder.verify(aggregator).processAction(snapshot3, ImmutableSet.of());
+        inOrder.verify(aggregator).processAction(eq(snapshot1), any(Map.class));
+        inOrder.verify(aggregator).processAction(eq(snapshot2), any(Map.class));
+        inOrder.verify(aggregator).processAction(eq(snapshot3), any(Map.class));
         inOrder.verify(aggregator).createRecords(upsertedSubgroup, upsertedActionGroup);
 
         // Verify that the statistician schedules rollups.

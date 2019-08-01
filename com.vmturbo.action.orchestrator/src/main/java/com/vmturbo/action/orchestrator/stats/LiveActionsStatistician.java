@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -79,6 +80,14 @@ public class LiveActionsStatistician {
     private final ActionStatRollupScheduler actionStatRollupScheduler;
 
     private final ActionStatCleanupScheduler actionStatCleanupScheduler;
+
+    /**
+     * This map tracks the history from the prior actions snapshot, organized by
+     * ActionGroupKey -> Recommendation ID. The history is used to determine which actions are "new",
+     * i.e. not previously recommended. The history is used, cleared, and then re-populated for
+     * each live action broadcast received.
+     */
+    private final Map<ActionGroupKey, Set<Long>> lastPopulateActionsByActionGroup = new HashMap<>();
 
     public LiveActionsStatistician(@Nonnull final DSLContext dsl,
             final int batchSize,
@@ -196,7 +205,7 @@ public class LiveActionsStatistician {
             snapshot.actions().forEach(action -> {
                 startedAggregators.forEach(startedAggregator -> {
                     try {
-                        startedAggregator.processAction(action, newActionIds);
+                        startedAggregator.processAction(action, lastPopulateActionsByActionGroup);
                     } catch (RuntimeException e) {
                         logger.debug("Aggregator {} got exception when processing action." +
                                 " Message: {}", startedAggregator, e.getLocalizedMessage());
@@ -272,6 +281,14 @@ public class LiveActionsStatistician {
                 Metrics.ACTION_STAT_RECORDS.increment((double) recordCount.get());
             }
         }
+
+        // the action history from the prior broadcast has been used; clear it and repopulate
+        // from this broadcast.
+        lastPopulateActionsByActionGroup.values().forEach(Set::clear);
+        snapshot.actions().forEach(action -> {
+            lastPopulateActionsByActionGroup.computeIfAbsent(action.actionGroupKey(), k -> new HashSet<>())
+                .add(action.recommendation().getId());
+        });
 
         final int rollupsScheduled = actionStatRollupScheduler.scheduleRollups();
         if (rollupsScheduled > 0) {
