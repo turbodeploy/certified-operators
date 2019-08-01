@@ -8,11 +8,15 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Stream;
 import java.util.stream.Collectors;
 import java.util.zip.ZipInputStream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Sets;
+import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
 import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -111,5 +115,48 @@ public class TestUtils {
             os.write(discoveryResponse.toString().getBytes(Charset.defaultCharset()));
         } catch (IOException e) {
         }
+    }
+
+    /**
+     * Create set of all cloud entity types used to create supply chain nodes.
+     * Including new shared/non-shared cloud entity types and original Azure probe entity types.
+     *
+     * @param supplyChainTemplates set of {@link TemplateDTO}s, output of original
+     * probe SupplyChainDefinition.
+     * @param convertionProbeTypes one or more sets of {@link EntityType}s.
+     * These types don't exist in original Azure probe discovery response
+     * @return Set of all cloud entity types in order to create supply chain nodes.
+     */
+    public static Set<EntityType> getCloudEntityTypes(Set<TemplateDTO> supplyChainTemplates,
+                                            Set<EntityType>... convertionProbeTypes) {
+        Set<EntityType> mergedEntityTypes = Sets.newHashSet();
+        Stream.of(convertionProbeTypes).forEach(mergedEntityTypes::addAll);
+        supplyChainTemplates.stream()
+                .map(TemplateDTO::getTemplateClass)
+                .forEach(mergedEntityTypes::add);
+        return mergedEntityTypes;
+    }
+
+    /**
+     * Given set of supply chain entities, check whether all entity types exist.
+     *
+     * @param entitiesInSupplyChain set of {@link TemplateDTO}s, output of SupplyChainDefinition.
+     * @param expectedEntityTypes set of {@link EntityType}s to be compared.
+     * @return True if all entity types exist in expectedEntityTypes, otherwise False.
+     */
+    public static boolean verifyEntityTypes(Set<TemplateDTO> entitiesInSupplyChain,
+                                    Set<EntityType> expectedEntityTypes ) {
+        Set<EntityType> missingEntityTypes = Sets.newHashSet();
+        for (TemplateDTO entity : entitiesInSupplyChain) {
+            EntityType entityType = entity.getTemplateClass();
+            if (!expectedEntityTypes.contains(entityType)) {
+                missingEntityTypes.add(entityType);
+            }
+        }
+        if (!missingEntityTypes.isEmpty()) {
+            logger.warn("Missing entity types: " + missingEntityTypes.stream()
+                    .map(Object::toString).collect(Collectors.joining(", ")));
+        }
+        return missingEntityTypes.isEmpty();
     }
 }

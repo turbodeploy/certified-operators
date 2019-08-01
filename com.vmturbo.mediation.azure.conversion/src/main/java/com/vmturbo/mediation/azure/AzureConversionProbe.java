@@ -6,6 +6,7 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -36,7 +37,8 @@ public class AzureConversionProbe extends AzureProbe {
      * List of new cloud entity types to create supply chain node for, which don't exist in
      * original Azure probe discovery response.
      */
-    private static Set<EntityType> NEW_SHARED_ENTITY_TYPES = ImmutableSet.of(
+    @VisibleForTesting
+    protected static Set<EntityType> NEW_SHARED_ENTITY_TYPES = ImmutableSet.of(
             EntityType.CLOUD_SERVICE,
             EntityType.COMPUTE_TIER,
             EntityType.STORAGE_TIER,
@@ -48,7 +50,8 @@ public class AzureConversionProbe extends AzureProbe {
      * List of new non-shared cloud entity types to create supply chain nodes for, which don't
      * exist in original Azure probe supply chain definition.
      */
-    private static Set<EntityType> NEW_NON_SHARED_ENTITY_TYPES = ImmutableSet.of(
+    @VisibleForTesting
+    protected static Set<EntityType> NEW_NON_SHARED_ENTITY_TYPES = ImmutableSet.of(
             EntityType.VIRTUAL_VOLUME
     );
 
