@@ -16,6 +16,7 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -91,6 +92,10 @@ public class AtMostNBoundPolicyTest {
         topologyMap.put(6L, topologyEntity(6L, EntityType.VIRTUAL_MACHINE, 2, 3));
         topologyMap.put(7L, topologyEntity(7L, EntityType.VIRTUAL_MACHINE, 2, 3));
         topologyMap.put(8L, topologyEntity(8L, EntityType.VIRTUAL_MACHINE, 1));
+        // replacement from template
+        topologyMap.put(9L, topologyEntity(9L, EntityType.PHYSICAL_MACHINE));
+        topologyMap.get(2L).getEntityBuilder().getEditBuilder().setReplaced(
+                TopologyDTO.TopologyEntityDTO.Replaced.newBuilder().setPlanId(7777L).setReplacementId(9L).build());
 
         topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         policyMatcher = new PolicyMatcher(topologyGraph);
@@ -109,6 +114,8 @@ public class AtMostNBoundPolicyTest {
             not(policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, 1.0f)));
         assertThat(topologyGraph.getEntity(2L).get(),
             not(policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, 1.0f)));
+        assertThat(topologyGraph.getEntity(9L).get(),
+                not(policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, 1.0f)));
         assertThat(topologyGraph.getEntity(1L).get(),
             not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(2L).get(),
@@ -128,6 +135,8 @@ public class AtMostNBoundPolicyTest {
             not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(2L).get(),
             not(policyMatcher.hasProviderSegment(POLICY_ID)));
+        assertThat(topologyGraph.getEntity(9L).get(),
+                not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(4L).get(),
             policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
         assertThat(topologyGraph.getEntity(5L).get(),
@@ -149,6 +158,8 @@ public class AtMostNBoundPolicyTest {
             policyMatcher.hasProviderSegmentWithCapacityAndUsed(POLICY_ID, 1.0f, 3.0f));
         assertThat(topologyGraph.getEntity(2L).get(),
             not(policyMatcher.hasProviderSegment(POLICY_ID)));
+        assertThat(topologyGraph.getEntity(9L).get(),
+                not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(3L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(4L).get(),
             policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));

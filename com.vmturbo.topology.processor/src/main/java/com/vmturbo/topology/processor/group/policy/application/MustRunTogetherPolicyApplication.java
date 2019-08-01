@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.group.policy.application;
 
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -92,6 +93,6 @@ public class MustRunTogetherPolicyApplication extends PlacementPolicyApplication
             .max(providerCompare.thenComparing(Long::compare))
             .flatMap(topologyGraph::getEntity)
             .map(TopologyEntity::getTopologyEntityDtoBuilder)
-            .ifPresent(provider -> provider.addCommoditySoldList(commoditySold(policy)));
+            .ifPresent(provider -> addCommoditySold(Collections.singleton(provider.getOid()), commoditySold(policy)));
     }
 }
