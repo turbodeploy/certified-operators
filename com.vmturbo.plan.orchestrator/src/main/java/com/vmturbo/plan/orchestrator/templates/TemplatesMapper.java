@@ -53,8 +53,7 @@ public class TemplatesMapper {
         Objects.requireNonNull(profile);
         Optional<TemplateSpec> templateSpecOpt = Optional.ofNullable(templateSpecMap.get(profile.getEntityType().name()));
         if (!templateSpecOpt.isPresent()) {
-            throw new NoMatchingTemplateSpecException("Could not find template spec for entity type "
-                + profile.getEntityType());
+            throw new NoMatchingTemplateSpecException("Not find template spec for entity type " + profile.getEntityType());
         }
         final TemplateSpec templateSpec = templateSpecOpt.get();
         final Map<String, Float> defaultTemplateSpecFieldMap = getDefaultTemplateSpecFieldMap(templateSpec);
