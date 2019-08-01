@@ -56,7 +56,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class AutomatedActionExecutorTest {
 
-    private final ActionTranslator actionTranslator = Mockito.mock(ActionTranslator.class);
     private final Channel channel = Mockito.mock(Channel.class);
     private final ActionExecutor actionExecutor =
             Mockito.spy(new ActionExecutor(channel, 1, TimeUnit.HOURS));
@@ -70,7 +69,6 @@ public class AutomatedActionExecutorTest {
     private final AutomatedActionExecutor automatedActionExecutor =
             new AutomatedActionExecutor(actionExecutor,
                     executorService,
-                    actionTranslator,
                     workflowStore,
                     actionTargetSelector);
 
@@ -109,15 +107,12 @@ public class AutomatedActionExecutorTest {
         when(actionStore.allowsExecution()).thenReturn(false);
 
         automatedActionExecutor.executeAutomatedFromStore(actionStore);
-
-        Mockito.verifyZeroInteractions(actionTranslator, actionExecutor);
     }
 
     @Test
     public void testAutomatedExecuteNoActions() {
         automatedActionExecutor.executeAutomatedFromStore(actionStore);
 
-        Mockito.verifyZeroInteractions(actionTranslator, channel);
         Mockito.verify(actionStore).getActions();
         Mockito.verify(actionStore).allowsExecution();
         Mockito.verifyNoMoreInteractions(actionStore, actionExecutor);
@@ -133,7 +128,6 @@ public class AutomatedActionExecutorTest {
         automatedActionExecutor.executeAutomatedFromStore(actionStore);
 
         Mockito.verify(nonAutoAction, never()).receive(any(ActionEvent.class));
-        Mockito.verifyZeroInteractions(actionTranslator, channel);
         Mockito.verify(actionStore).getActions();
         Mockito.verifyNoMoreInteractions(actionExecutor);
     }
@@ -155,7 +149,6 @@ public class AutomatedActionExecutorTest {
         String expectedFailure = String.format(AutomatedActionExecutor.TARGET_RESOLUTION_MSG, 99);
         Assert.assertEquals(expectedFailure, event.getErrorDescription());
 
-        Mockito.verifyZeroInteractions(actionTranslator, channel);
         Mockito.verify(actionStore).getActions();
         Mockito.verify(actionStore).allowsExecution();
         Mockito.verifyNoMoreInteractions(actionStore, actionExecutor);
@@ -192,9 +185,8 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(actionStore).getActions();
         Mockito.verify(actionStore).allowsExecution();
         Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any());
-        Mockito.verify(actionTranslator).translate(any(Action.class));
         Mockito.verify(actionExecutor).executeSynchronously(targetId1, crossTargetRec, workflowOpt);
-        Mockito.verifyNoMoreInteractions(actionTranslator, actionStore, actionExecutor, actionTargetSelector);
+        Mockito.verifyNoMoreInteractions(actionStore, actionExecutor, actionTargetSelector);
     }
 
     private ActionTargetInfo actionTargetInfo(final long targetId) {
@@ -237,8 +229,7 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(actionStore).getActions();
         Mockito.verify(actionStore).allowsExecution();
         Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any());
-        Mockito.verify(actionTranslator).translate(failedTranslationAction);
-        Mockito.verifyNoMoreInteractions(actionTranslator, actionStore, actionExecutor, actionTargetSelector);
+        Mockito.verifyNoMoreInteractions(actionStore, actionExecutor, actionTargetSelector);
     }
 
     @Test
@@ -277,9 +268,8 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(actionStore).getActions();
         Mockito.verify(actionStore).allowsExecution();
         Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any());
-        Mockito.verify(actionTranslator).translate(any(Action.class));
         Mockito.verify(actionExecutor).executeSynchronously(targetId1, rec, workflowOpt);
-        Mockito.verifyNoMoreInteractions(actionTranslator, actionStore, actionExecutor, actionTargetSelector);
+        Mockito.verifyNoMoreInteractions(actionStore, actionExecutor, actionTargetSelector);
     }
 
     @Test
@@ -313,9 +303,8 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(actionStore).getActions();
         Mockito.verify(actionStore).allowsExecution();
         Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any());
-        Mockito.verify(actionTranslator).translate(any(Action.class));
         Mockito.verify(actionExecutor).executeSynchronously(targetId1, rec, workflowOpt);
-        Mockito.verifyNoMoreInteractions(actionTranslator, actionStore, actionExecutor, actionTargetSelector);
+        Mockito.verifyNoMoreInteractions(actionStore, actionExecutor, actionTargetSelector);
     }
 
     @Test
@@ -423,12 +412,9 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(actionStore).allowsExecution();
         // This mapping happens once, for all actions
         Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any());
-        // This translation happens once per action
-        // When adding actions to this test case, increment this number
-        Mockito.verify(actionTranslator, times(4)).translate(any(Action.class));
         Mockito.verify(actionExecutor).executeSynchronously(targetId1, goodRec, workflowOpt);
         Mockito.verify(actionExecutor).executeSynchronously(targetId2, execFailRec, workflowOpt);
-        Mockito.verifyNoMoreInteractions(actionTranslator, actionStore, actionExecutor, actionTargetSelector);
+        Mockito.verifyNoMoreInteractions(actionStore, actionExecutor, actionTargetSelector);
 
     }
 
@@ -439,7 +425,7 @@ public class AutomatedActionExecutorTest {
         ExecutorService testExecutor = mock(ExecutorService.class);
         ActionExecutor testActionExecutor = mock(ActionExecutor.class);
         final AutomatedActionExecutor automatedActionExecutor =
-                new AutomatedActionExecutor(testActionExecutor, testExecutor, actionTranslator,
+                new AutomatedActionExecutor(testActionExecutor, testExecutor,
                         workflowStore, actionTargetSelector);
         long actionId = 1L;
         Callable<Action> mockCallable = new Callable<Action>() {

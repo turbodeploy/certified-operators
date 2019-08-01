@@ -73,6 +73,8 @@ public class TopologyEditorTest {
     private static final long pmId = 20;
     private static final long stId = 30;
     private static final double USED = 100;
+    private static final double VCPU_CAPACITY = 1000;
+    private static final double VMEM_CAPACITY = 1000;
 
     private static final CommodityType MEM = CommodityType.newBuilder().setType(21).build();
     private static final CommodityType CPU = CommodityType.newBuilder().setType(40).build();
@@ -82,6 +84,10 @@ public class TopologyEditorTest {
                     .setType(CommodityDTO.CommodityType.DATASTORE_VALUE).build();
     private static final CommodityType DSPM = CommodityType.newBuilder()
                     .setType(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE).build();
+    private static final CommodityType VCPU = CommodityType.newBuilder()
+        .setType(CommodityDTO.CommodityType.VCPU_VALUE).build();
+    private static final CommodityType VMEM = CommodityType.newBuilder()
+        .setType(CommodityDTO.CommodityType.VMEM_VALUE).build();
 
     private static final TopologyEntity.Builder vm = TopologyEntityUtils.topologyEntityBuilder(
         TopologyEntityDTO.newBuilder()
@@ -102,6 +108,14 @@ public class TopologyEditorTest {
                 .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(IOPS)
                     .setUsed(USED).build())
                 .build())
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(VCPU)
+                .setUsed(USED)
+                .setCapacity(VCPU_CAPACITY))
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(VMEM)
+                .setUsed(USED)
+                .setCapacity(VMEM_CAPACITY))
     );
 
     private static final TopologyEntity.Builder unplacedVm = TopologyEntityUtils.topologyEntityBuilder(
@@ -260,6 +274,8 @@ public class TopologyEditorTest {
             assertEquals(cloneCommBought.getCommodityBoughtList(),
                 vmCommBought.getCommodityBoughtList());
         }
+        // Assert that the commodity sold usages are the same.
+        assertEquals(vm.getEntityBuilder().getCommoditySoldListList(), oneClone.getCommoditySoldListList());
     }
 
     /**

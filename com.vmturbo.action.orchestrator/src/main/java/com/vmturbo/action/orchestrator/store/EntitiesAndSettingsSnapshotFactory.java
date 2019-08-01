@@ -13,6 +13,8 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.Maps;
+
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
@@ -73,11 +75,14 @@ public class EntitiesAndSettingsSnapshotFactory {
     public static class EntitiesAndSettingsSnapshot {
         private final Map<Long, Map<String, Setting>> settingsByEntityAndSpecName;
         private final Map<Long, ActionPartialEntity> oidToEntityMap;
+        private final long topologyContextId;
 
         public EntitiesAndSettingsSnapshot(@Nonnull final Map<Long, Map<String, Setting>> settings,
-                                           @Nonnull final Map<Long, ActionPartialEntity> entityMap) {
+                                           @Nonnull final Map<Long, ActionPartialEntity> entityMap,
+                                           @Nonnull final long topologyContextId) {
             this.settingsByEntityAndSpecName = settings;
             this.oidToEntityMap = entityMap;
+            this.topologyContextId = topologyContextId;
         }
 
         /**
@@ -101,6 +106,10 @@ public class EntitiesAndSettingsSnapshotFactory {
         public  Map<Long, ActionPartialEntity> getEntityMap() {
             return oidToEntityMap;
         }
+
+        public long getToologyContextId() {
+            return topologyContextId;
+        }
     }
 
     /**
@@ -123,7 +132,18 @@ public class EntitiesAndSettingsSnapshotFactory {
             topologyContextId, topologyId);
         final Map<Long, ActionPartialEntity> entityMap = retrieveOidToEntityMap(entities,
             topologyContextId, topologyId);
-        return new EntitiesAndSettingsSnapshot(newSettings, entityMap);
+        return new EntitiesAndSettingsSnapshot(newSettings, entityMap, topologyContextId);
+    }
+
+    /**
+     * Creates an empty snapshot. It only has a topology context id.
+     *
+     * @param topologyContextId The topology context id
+     * @return An empty {@link EntitiesAndSettingsSnapshot}
+     */
+    @Nonnull
+    public EntitiesAndSettingsSnapshot emptySnapshot(final long topologyContextId) {
+        return new EntitiesAndSettingsSnapshot(Collections.emptyMap(), Maps.newHashMap(), topologyContextId);
     }
 
     /**

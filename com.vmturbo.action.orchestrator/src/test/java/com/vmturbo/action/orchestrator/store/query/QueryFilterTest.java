@@ -45,8 +45,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Tests for the {@link QueryFilter} class.
  */
 public class QueryFilterTest {
-    private ActionTranslator actionTranslator = mock(ActionTranslator.class);
-    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
+    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
     private static final long ACTION_PLAN_ID = 9876;
 
     private final ActionStore actionStore = mock(ActionStore.class);
@@ -70,11 +69,6 @@ public class QueryFilterTest {
             .addStates(ActionState.READY)
             .setVisible(true)
             .build();
-
-    @Before
-    public void setup() {
-        when(actionTranslator.translate(any(ActionView.class))).thenReturn(true);
-    }
 
     @Test
     public void testEmptyFilter() throws Exception {

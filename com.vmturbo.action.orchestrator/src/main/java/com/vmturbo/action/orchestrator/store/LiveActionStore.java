@@ -272,7 +272,7 @@ public class LiveActionStore implements ActionStore {
                         return null;
                     }
                 })
-                .filter(Objects::nonNull));
+                .filter(Objects::nonNull), snapshot);
 
             final MutableInt removedCount = new MutableInt(0);
             final Set<ActionTypeCase> unsupportedActionTypes = new HashSet<>();
@@ -390,10 +390,16 @@ public class LiveActionStore implements ActionStore {
 
     private boolean populateBuyRIActions(@Nonnull ActionPlan actionPlan) {
         final long planId = actionPlan.getId();
+        final long topologyContextId =
+            actionPlan.getInfo().getBuyRi().getTopologyContextId();
+        // Get an empty snapshot. Empty snapshot is sufficient here because Buy RI actions do not
+        // go through any action translation.
+        final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.emptySnapshot(topologyContextId);
         // All RI translations should be passthrough, but we do it here anyway for consistency
         // with the "normal" action case.
-        actions.replaceRiActions(actionTranslator.translate(actionPlan.getActionList().stream()
-                .map(recommendedAction -> actionFactory.newAction(recommendedAction, planId))));
+        actions.replaceRiActions(actionTranslator.translate(
+            actionPlan.getActionList().stream().map(
+                recommendedAction -> actionFactory.newAction(recommendedAction, planId)), snapshot));
         logger.info("Number of buy RI actions={}", actionPlan.getActionCount());
         return true;
     }

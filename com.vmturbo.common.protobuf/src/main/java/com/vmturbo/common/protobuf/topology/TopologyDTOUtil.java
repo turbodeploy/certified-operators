@@ -5,8 +5,10 @@ import static com.vmturbo.platform.common.builders.SDKConstants.FREE_STORAGE_CLU
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -29,7 +31,7 @@ public final class TopologyDTOUtil {
     private static final String STORAGE_CLUSTER_WITH_GROUP = "group";
     private static final String STORAGE_CLUSTER_ISO = "iso-";
 
-    private static final Logger LOGGER = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * Name of alleviate pressure plan type.
@@ -201,6 +203,39 @@ public final class TopologyDTOUtil {
      */
     public static boolean isStorageEntityType(int entityType) {
         return STORAGE_VALUES.contains(entityType);
+    }
+
+    /**
+     * Returns the index of the primary provider from the list of providers.
+     * If there is only one provider, then that is the primary provider.
+     * If there are multiple providers,
+     * 1. For a VirtualMachine, we find the PM/Compute Tier provider.
+     * 2. For other entity types, we return 0 as the index of the primary provider. This might
+     * need changes in the future.
+     *
+     * @param targetEntityType the entity type of the target entity
+     * @param targetOid the target entity's oid
+     * @param providerTypes the provider entity types
+     * @return
+     */
+    public static Optional<Integer> getPrimaryProviderIndex(int targetEntityType, long targetOid,
+                                                            @Nonnull List<Integer> providerTypes) {
+        if (providerTypes.isEmpty()) {
+            return Optional.empty();
+        }
+        if (providerTypes.size() == 1) {
+            return Optional.of(0);
+        }
+        switch (targetEntityType) {
+            case EntityType.VIRTUAL_MACHINE_VALUE:
+                return IntStream.range(0, providerTypes.size())
+                    .filter(i -> providerTypes.get(i) == EntityType.PHYSICAL_MACHINE_VALUE
+                        || providerTypes.get(i) == EntityType.COMPUTE_TIER_VALUE)
+                    .boxed()
+                    .findFirst();
+            default:
+                return Optional.of(0);
+        }
     }
 
     /**

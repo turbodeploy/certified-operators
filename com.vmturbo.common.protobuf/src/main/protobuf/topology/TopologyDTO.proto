@@ -195,6 +195,7 @@ message PartialEntity {
         // The following are "generic" detail levels.
         FULL = 1;
         MINIMAL = 2;
+        TYPE_SPECIFIC = 3;
 
         // The following are component-specific.
         // Some components require fairly specific subsets of the TopologyEntityDTO, and it would be
@@ -226,6 +227,12 @@ message PartialEntity {
         optional int32 entity_type = 3;
 
         repeated int64 discovering_target_ids = 4;
+
+        // The oid of the primary provider
+        // If an entity has only one provider, then that is the primary provider.
+        // If an entity has multiple providers, then which provider is the primary one depends on the type of entity.
+        // Check TopologyDTOUtil::getPrimaryProviderIndex
+        optional int64 primary_provider_id = 5;
 
         // Contains the commodities the action orchestrator needs.
         repeated .topology.CommoditySoldDTO commodity_sold = 10;
@@ -268,11 +275,23 @@ message PartialEntity {
         }
     }
 
+    // The type specific info of the Topology entity DTO.
+    message TypeSpecificPartialEntity {
+        required int64 oid = 1;
+
+        optional string display_name = 2;
+
+        optional int32 entity_type = 3;
+
+        optional TypeSpecificInfo type_specific_info = 4;
+    }
+
     // The type of the entity.
     // The index should align with the Type value.
     oneof type {
         .topology.TopologyEntityDTO full_entity = 1;
         MinimalEntity minimal = 2;
+        TypeSpecificPartialEntity type_specific = 3;
 
         ActionPartialEntity action = 10;
         ApiPartialEntity api = 11;

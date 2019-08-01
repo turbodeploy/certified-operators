@@ -57,13 +57,14 @@ public class ActionOrchestratorTestUtils {
     private static final int DEFAULT_ENTITY_TYPE = EntityType.VIRTUAL_MACHINE_VALUE;
 
     private static ActionTranslator actionTranslator = mock(ActionTranslator.class);
-    private static ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
+    private static ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
 
     @Nonnull
     public static ActionTranslator passthroughTranslator() {
         return Mockito.spy(new ActionTranslator(new TranslationExecutor() {
             @Override
-            public <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream) {
+            public <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream,
+                                                              @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
                 return actionStream.peek(action -> action.getActionTranslation().setPassthroughTranslationSuccess());
             }
         }));

@@ -36,6 +36,7 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator.TranslationExecutor;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -120,7 +121,8 @@ public class FailedCloudVMGroupProcessorTest {
     private final GroupServiceMole testGroupService = spy(new GroupServiceMole());
     private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(new TranslationExecutor() {
         @Override
-        public <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream) {
+        public <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream,
+                                                          @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
             return actionStream.peek(action -> action.getActionTranslation().setPassthroughTranslationSuccess());
         }
     }));
@@ -132,7 +134,7 @@ public class FailedCloudVMGroupProcessorTest {
     public GrpcTestServer testServer = GrpcTestServer.newServer(testGroupService);
 
     private FailedCloudVMGroupProcessor failedCloudVMGroupProcessor;
-    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
+    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
     private ScheduledExecutorService scheduledExecutorService = Mockito.spy(ScheduledExecutorService.class);
 
 

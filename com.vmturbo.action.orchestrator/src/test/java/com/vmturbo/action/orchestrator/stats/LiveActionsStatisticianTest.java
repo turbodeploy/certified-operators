@@ -89,8 +89,6 @@ public class LiveActionsStatisticianTest {
     private ActionAggregatorFactory<ActionAggregator> aggregatorFactory =
             mock(ActionAggregatorFactory.class);
 
-    private ActionTranslator actionTranslator = mock(ActionTranslator.class);
-
     private ActionGroupStore actionGroupStore = mock(ActionGroupStore.class);
 
     private MgmtUnitSubgroupStore mgmtUnitSubgroupStore = mock(MgmtUnitSubgroupStore.class);
@@ -112,12 +110,9 @@ public class LiveActionsStatisticianTest {
         flyway.clean();
         flyway.migrate();
 
-
-        when(actionTranslator.translate(any(Stream.class))).thenAnswer(invocation -> invocation.getArgumentAt(0, Stream.class));
-
         statistician = new LiveActionsStatistician(dsl, 2, actionGroupStore,
             mgmtUnitSubgroupStore, snapshotFactory, Collections.singletonList(aggregatorFactory),
-            clock, actionTranslator, rollupScheduler, cleanupScheduler);
+            clock, rollupScheduler, cleanupScheduler);
     }
 
     @After

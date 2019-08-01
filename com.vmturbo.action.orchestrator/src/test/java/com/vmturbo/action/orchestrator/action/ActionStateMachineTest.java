@@ -53,9 +53,7 @@ public class ActionStateMachineTest {
 
     private final EntitiesAndSettingsSnapshot entitySettingsCache = mock(EntitiesAndSettingsSnapshot.class);
 
-    private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
-
-    private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
+    private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
 
     private final ActionDTO.Action move = ActionDTO.Action.newBuilder()
         .setId(0)
@@ -85,6 +83,7 @@ public class ActionStateMachineTest {
             .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
         setEntitiesOIDs();
         Action action = new Action(move, actionPlanId, actionModeCalculator);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
         action.refreshAction(entitySettingsCache);
         action.getActionTranslation().setPassthroughTranslationSuccess();
         assertEquals(ActionState.QUEUED, action.receive(new ManualAcceptanceEvent(userUuid, targetId)).getAfterState());
@@ -99,6 +98,7 @@ public class ActionStateMachineTest {
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.AUTOMATIC));
         setEntitiesOIDs();
         Action action = new Action(move, actionPlanId, actionModeCalculator);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
         action.refreshAction(entitySettingsCache);
         assertEquals(ActionState.QUEUED, action.receive(new AutomaticAcceptanceEvent(userUuid, targetId)).getAfterState());
 
@@ -112,6 +112,7 @@ public class ActionStateMachineTest {
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.AUTOMATIC));
         setEntitiesOIDs();
         Action action = new Action(move,  actionPlanId, actionModeCalculator);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
         action.refreshAction(entitySettingsCache);
         assertEquals(ActionState.QUEUED, action.receive(new AutomaticAcceptanceEvent(userUuid, targetId)).getAfterState());
         assertEquals(ActionState.PRE_IN_PROGRESS, action.receive(new PrepareExecutionEvent()).getAfterState());
@@ -131,8 +132,9 @@ public class ActionStateMachineTest {
     public void testBeginExecutionManualAction() {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
-        Action action = new Action(move, actionPlanId, actionModeCalculator);
         setEntitiesOIDs();
+        Action action = new Action(move, actionPlanId, actionModeCalculator);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
         action.refreshAction(entitySettingsCache);
         assertEquals(ActionState.QUEUED, action.receive(new ManualAcceptanceEvent(userUuid, targetId)).getAfterState());
         assertEquals(ActionState.PRE_IN_PROGRESS, action.receive(new PrepareExecutionEvent()).getAfterState());
@@ -170,6 +172,7 @@ public class ActionStateMachineTest {
         // Test the state transition from QUEUED to CLEARED state.
         setEntitiesOIDs();
         Action action = new Action(move, actionPlanId, actionModeCalculator);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
         action.refreshAction(entitySettingsCache);
         action.receive(new AutomaticAcceptanceEvent(userUuid, targetId));
         assertEquals(ActionState.QUEUED, action.getState());
@@ -199,6 +202,7 @@ public class ActionStateMachineTest {
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
         setEntitiesOIDs();
         Action action = new Action(move, actionPlanId, actionModeCalculator);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
         action.refreshAction(entitySettingsCache);
 
         action.receive(new ManualAcceptanceEvent(userUuid, targetId));
@@ -223,6 +227,7 @@ public class ActionStateMachineTest {
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
         setEntitiesOIDs();
         Action action = new Action(move, actionPlanId, actionModeCalculator);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
         action.refreshAction(entitySettingsCache);
         action.receive(new ManualAcceptanceEvent(userUuid, targetId));
         action.receive(new PrepareExecutionEvent());
@@ -249,6 +254,7 @@ public class ActionStateMachineTest {
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
         setEntitiesOIDs();
         Action action = new Action(move, actionPlanId, actionModeCalculator);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
         action.refreshAction(entitySettingsCache);
         action.receive(new ManualAcceptanceEvent(userUuid, targetId));
         action.receive(new PrepareExecutionEvent());
@@ -273,6 +279,7 @@ public class ActionStateMachineTest {
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
         setEntitiesOIDs();
         Action action = new Action(move, actionPlanId, actionModeCalculator);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
         action.setDescription("Move VM 1 from PM 1 to PM 2");
         action.refreshAction(entitySettingsCache);
         action.receive(new ManualAcceptanceEvent(userUuid, targetId));
@@ -301,6 +308,7 @@ public class ActionStateMachineTest {
             .thenReturn(makePostMoveWorkflowSetting(ActionMode.MANUAL, "postMove.sh"));
         setEntitiesOIDs();
         Action action = new Action(move, actionPlanId, actionModeCalculator);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
         action.refreshAction(entitySettingsCache);
         action.receive(new ManualAcceptanceEvent(userUuid, targetId));
         action.receive(new PrepareExecutionEvent());
@@ -330,6 +338,7 @@ public class ActionStateMachineTest {
             .thenReturn(makePostMoveWorkflowSetting(ActionMode.MANUAL, "postMove.sh"));
         setEntitiesOIDs();
         Action action = new Action(move, actionPlanId, actionModeCalculator);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
         action.refreshAction(entitySettingsCache);
         action.receive(new ManualAcceptanceEvent(userUuid, targetId));
         action.receive(new PrepareExecutionEvent());

@@ -114,8 +114,7 @@ public class ActionStatsConfig {
     @Bean
     public CurrentActionStatReader currentActionStatReader() {
         return new CurrentActionStatReader(globalConfig.realtimeTopologyContextId(),
-            actionStoreConfig.actionStorehouse(),
-            actionTranslationConfig.actionTranslator());
+            actionStoreConfig.actionStorehouse());
     }
 
     @Bean
@@ -129,7 +128,6 @@ public class ActionStatsConfig {
                 // OM-43498 is solved.
                 Arrays.asList(globalAggregatorFactory()),
                 globalConfig.actionOrchestratorClock(),
-                actionTranslationConfig.actionTranslator(),
                 rollupConfig.rollupScheduler(),
                 rollupConfig.cleanupScheduler());
     }

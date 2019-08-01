@@ -131,7 +131,7 @@ public class LiveActionStoreTest {
 
     private LiveActionsStatistician actionsStatistician = mock(LiveActionsStatistician.class);
 
-    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
+    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
 
     private Clock clock = new MutableFixedClock(1_000_000);
 
@@ -680,7 +680,7 @@ public class LiveActionStoreTest {
         doAnswer(invocation -> {
             Stream<Action> actionStream = (Stream<Action>)invocation.getArgumentAt(0, Stream.class);
             return actionStream.peek(action -> action.getActionTranslation().setTranslationFailure());
-        }).when(actionTranslator).translate(any(Stream.class));
+        }).when(actionTranslator).translate(any(Stream.class), any(EntitiesAndSettingsSnapshot.class));
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(plan.getActionList()),
                 TOPOLOGY_CONTEXT_ID, topologyId);

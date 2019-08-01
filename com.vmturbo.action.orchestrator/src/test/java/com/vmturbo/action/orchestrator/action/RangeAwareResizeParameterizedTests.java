@@ -48,9 +48,7 @@ public class RangeAwareResizeParameterizedTests {
     private static final Map<String, Setting> rangeAwareSettingsForEntity = Maps.newHashMap();
     private EntitiesAndSettingsSnapshot entitySettingsCache = mock(EntitiesAndSettingsSnapshot.class);
 
-    private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
-
-    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
+    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
 
     public RangeAwareResizeParameterizedTests(CommodityAttribute changedAttribute, int commodityType,
                                               int entityType, float oldCapacity, float newCapacity,
@@ -194,6 +192,7 @@ public class RangeAwareResizeParameterizedTests {
                     .setNewCapacity(newCapacity)))
             .build();
         Action action = new Action(recommendation, 1l, actionModeCalculator);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
         when(entitySettingsCache.getSettingsForEntity(7L)).thenReturn(rangeAwareSettingsForEntity);
         ActionMode actualMode = actionModeCalculator.calculateActionMode(action, entitySettingsCache);
         assertEquals(expectedActionMode, actualMode);
