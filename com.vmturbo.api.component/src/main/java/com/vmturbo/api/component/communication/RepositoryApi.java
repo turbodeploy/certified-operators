@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 
 /**
  * This is the preferred way to access the repository from the API.
@@ -532,6 +533,18 @@ public class RepositoryApi {
         @Nonnull
         public REQ useAspectMapper(EntityAspectMapper aspectMapper) {
             this.aspectMapper = aspectMapper;
+            return clazz.cast(this);
+        }
+
+        /**
+         * Restrict the request to a set of entity types
+         *
+         * @param types The entity types.
+         * @return The request, for chaining.
+         */
+        @Nonnull
+        public REQ restrictTypes(@Nonnull final Collection<UIEntityType> types) {
+            types.forEach(type -> restrictedTypes.add(type.typeNumber()));
             return clazz.cast(this);
         }
 
