@@ -30,6 +30,8 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
+import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
@@ -78,8 +80,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                @Nonnull final DiscountApplicatorFactory<ENTITY_CLASS> discountApplicatorFactory,
                @Nonnull final ReservedInstanceApplicatorFactory<ENTITY_CLASS> reservedInstanceApplicatorFactory,
                @Nonnull final DependentCostLookup<ENTITY_CLASS> dependentCostLookup,
-               @Nonnull final Map<Long, EntityReservedInstanceCoverage> topologyRICoverage)
-            throws CloudCostDataRetrievalException {
+               @Nonnull final Map<Long, EntityReservedInstanceCoverage> topologyRICoverage) {
         this.cloudCostData = Objects.requireNonNull(cloudCostData);
         this.cloudTopology = Objects.requireNonNull(cloudTopology);
         this.entityInfoExtractor = Objects.requireNonNull(entityInfoExtractor);
@@ -150,11 +151,9 @@ public class CloudCostCalculator<ENTITY_CLASS> {
 
         final CostJournal.Builder<ENTITY_CLASS> journal =
                 CostJournal.newBuilder(entity, entityInfoExtractor, region, discountApplicator, dependentCostLookup);
-
-        // TODO (roman, Oct 17 2018): Consider moving the calculation logic into separate classes.
         switch (entityInfoExtractor.getEntityType(entity)) {
             case EntityType.VIRTUAL_MACHINE_VALUE:
-                calculateVirtualMachineCost(entity, region, journal, dependentCostLookup);
+                calculateVirtualMachineCost(entity, region, journal);
                 break;
             case EntityType.DATABASE_VALUE:
             case EntityType.DATABASE_SERVER_VALUE:
@@ -199,75 +198,18 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                         // Extract the different prices present in this tier's price list. This will
                         // tell us how to price the capacity of the volume.
                         //
-                        // TODO (roman, 17 Oct 2018): It may make sense to put price ranges into
-                        // individual messages, so that instead of "repeated Price" we have
-                        // "repeated TieredPrice". That way we don't need to do this grouping + sorting
-                        // during calculation.
+                        // TODO (roman, 17 Oct 2018):
+                        // It may make sense to put price ranges into individual messages, so that instead
+                        // of "repeated Price" we have "repeated TieredPrice". That way we don't need
+                        // to do this grouping + sorting during calculation.
                         final Map<Price.Unit, List<Price>> pricesByUnit =
-                                storageTierPrices.getCloudStoragePriceList().stream()
-                                        .flatMap(storageTierPrice -> storageTierPrice.getPricesList().stream())
-                                        .collect(Collectors.groupingBy(Price::getUnit));
-                        // Sort each price list by end range.
-                        pricesByUnit.values().forEach(priceList -> priceList.sort((price1, price2) -> {
-                            final long endRange1 = price1.getEndRangeInUnits() > 0 ? price1.getEndRangeInUnits() : Long.MAX_VALUE;
-                            final long endRange2 = price2.getEndRangeInUnits() > 0 ? price2.getEndRangeInUnits() : Long.MAX_VALUE;
-                            return Long.compare(endRange1, endRange2);
-                        }));
-
-                        final List<Price> iopsPrices = pricesByUnit.get(Unit.MILLION_IOPS);
-                        if (!CollectionUtils.isEmpty(iopsPrices)) {
-                            logger.trace("Recording IOPS costs from prices: {}", iopsPrices);
-                            recordPriceRangeEntries(volumeConfig.getAccessCapacityMillionIops(),
-                                    pricesByUnit.getOrDefault(Unit.MILLION_IOPS, Collections.emptyList()),
-                                    (price, amount) -> journal.recordOnDemandCost(CostCategory.STORAGE,
-                                            storageTier,
-                                            price,
-                                            amount));
-                        }
-
-                        final List<Price> gbPrices = pricesByUnit.get(Unit.GB_MONTH);
-                        if (!CollectionUtils.isEmpty(gbPrices)) {
-                            logger.trace("Recording GB-Month costs from prices: {}", gbPrices);
-                            recordPriceRangeEntries(volumeConfig.getAmountCapacityGb(),
-                                    pricesByUnit.getOrDefault(Unit.GB_MONTH, Collections.emptyList()),
-                                    (price, amount) -> journal.recordOnDemandCost(CostCategory.STORAGE,
-                                            storageTier,
-                                            price,
-                                            amount));
-                        }
-
-                        // For monthly prices, there are two cases:
-                        // 1) A flat monthly fee. In this case, there should just be one price
-                        //    in the list with no end range.
-                        // 2) A list of monthly ranges - e.g. $5 for a 10GB disk, $7 for a 20GB
-                        //    disk, and so on.
-                        //
-                        // In both cases, we just loop through the list until we find the price
-                        // whose end range is less than the amount required by the volume.
-                        // Unset or 0 = infinity.
-                        final List<Price> monthlyPrices = pricesByUnit.get(Unit.MONTH);
-                        if (!CollectionUtils.isEmpty(monthlyPrices) &&
-                                // 0 capacity shouldn't get charged anything.
-                                volumeConfig.getAmountCapacityGb() > 0) {
-                            logger.trace("Recording monthly price.");
-                            Price price = null;
-                            for (final Price rangePrice : monthlyPrices) {
-                                price = rangePrice;
-                                final long endRange = rangePrice.getEndRangeInUnits() > 0 ?
-                                        rangePrice.getEndRangeInUnits() : Long.MAX_VALUE;
-                                if (volumeConfig.getAmountCapacityGb() < endRange) {
-                                    break;
-                                }
-                            }
-                            journal.recordOnDemandCost(CostCategory.STORAGE,
-                                    storageTier,
-                                    // This won't be null because we check if colection is
-                                    // null/empty.
-                                    Objects.requireNonNull(price),
-                                    // No RI, so we are buying "100%" of the storage for on-demand
-                                    // prices.
-                                    1.0);
-                        }
+                            createSortedStoragePriceMap(storageTierPrices);
+                        recordStorageRangePricesByUnit(pricesByUnit, journal, storageTier,
+                            volumeConfig.getAccessCapacityMillionIops(), Unit.MILLION_IOPS);
+                        recordStorageRangePricesByUnit(pricesByUnit, journal, storageTier,
+                            volumeConfig.getAmountCapacityGb(), Unit.GB_MONTH);
+                        recordRangePricesForMonth(pricesByUnit.get(Unit.MONTH),
+                            volumeConfig.getAmountCapacityGb(), journal, storageTier);
                     } else {
                         logger.error("Could not calculate cost for Virtual volume {}. Price table " +
                                 "for region {} has no entry for tier {}. Skipping cost " +
@@ -278,28 +220,126 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                             " is some inconsistency between the topology and pricing data.", regionId);
                 }
             } else {
-                logger.error("Unable to find related storage tier for volume entity {}. Skipping cost calculation.", entityId);
+                logger.error("Unable to find related storage tier for volume entity {}. " +
+                    "Skipping cost calculation.", entityId);
             }
         } else {
-            logger.error("No volume config present for volume entity {}. Skipping cost calculation.", entityId);
+            logger.error("No volume config present for volume entity {}. Skipping cost calculation.",
+                entityId);
         }
     }
 
+    /**
+     *  Recording the storage costs on the journal for a time unit of a month.
+     *  For monthly prices, there are two cases:
+     *  1) A flat monthly fee. In this case, there should just be one price in the list with no end range.
+     *  2) A list of monthly ranges - e.g. $5 for a 10GB disk, $7 for a 20GB disk, and so on.
+     *
+     *  In both cases, we just loop through the list until we find the price whose end range is less
+     *  than the amount required by the volume, if the endRange is unset or 0 we treat it like infinity.
+     *
+     * @param monthlyPrices     contains all prices for month unit.
+     * @param amountCapacityGb  amount capacity of the volume in gb.
+     * @param storageTier       that we are calculating.
+     * @param journal           used to add the costs to.
+     */
+    private void recordRangePricesForMonth(List<Price> monthlyPrices, float amountCapacityGb,
+                               CostJournal.Builder<ENTITY_CLASS> journal, ENTITY_CLASS storageTier) {
+        if (!CollectionUtils.isEmpty(monthlyPrices) &&
+                // 0 capacity shouldn't get charged anything.
+            amountCapacityGb > 0) {
+            Price price = null;
+            for (final Price rangePrice : monthlyPrices) {
+                price = rangePrice;
+                final long endRange = rangePrice.getEndRangeInUnits() > 0
+                    ? rangePrice.getEndRangeInUnits() : Long.MAX_VALUE;
+                if (amountCapacityGb < endRange) {
+                    break;
+                }
+            }
+            journal.recordOnDemandCost(CostCategory.STORAGE,
+                storageTier,
+                // This won't be null because we check if collection is null/empty.
+                Objects.requireNonNull(price),
+                // No RI, so we are buying "100%" of the storage for on-demand prices.
+                1.0);
+        }
+    }
+
+    /**
+     * Helper function to sort the prices by units for future usage.
+     *
+     * @param  storageTierPrices contains prices to sort.
+     * @return mapping between price unit to a list of prices for this unit.
+     */
+    private Map<Price.Unit, List<Price>> createSortedStoragePriceMap(final StorageTierPriceList storageTierPrices) {
+        Map<Price.Unit, List<Price>> pricesByUnit =
+            storageTierPrices.getCloudStoragePriceList().stream()
+                .flatMap(storageTierPrice -> storageTierPrice.getPricesList().stream())
+                .collect(Collectors.groupingBy(Price::getUnit));
+        // Sort each price list by end range.
+        pricesByUnit.values().forEach(priceList -> priceList.sort((price1, price2) -> {
+            final long endRange1 = price1.getEndRangeInUnits() > 0 ? price1.getEndRangeInUnits() : Long.MAX_VALUE;
+            final long endRange2 = price2.getEndRangeInUnits() > 0 ? price2.getEndRangeInUnits() : Long.MAX_VALUE;
+            return Long.compare(endRange1, endRange2);
+        }));
+        return pricesByUnit;
+    }
+
+    /**
+     * Recording the storage costs into the journal.
+     *
+     * @param pricesByUnit  Map from price unit to a list of prices.
+     * @param journal       Journal used to add the costs to.
+     * @param storageTier   Storage Tier that will be recorded.
+     * @param amountToBuy   How much to buy.
+     * @param priceUnit     Price unit in hours/days/months and so on.
+     */
+    private void recordStorageRangePricesByUnit(Map<Price.Unit, List<Price>> pricesByUnit,
+                        CostJournal.Builder<ENTITY_CLASS> journal, ENTITY_CLASS storageTier,
+                        double amountToBuy, Unit priceUnit) {
+        List<Price> prices = pricesByUnit.get(priceUnit);
+        if (!CollectionUtils.isEmpty(prices)) {
+            logger.trace("Recording {} costs from prices: {}", priceUnit.name(),
+                pricesByUnit.get(priceUnit));
+            recordPriceRangeEntries(amountToBuy,
+                pricesByUnit.getOrDefault(priceUnit, Collections.emptyList()),
+                (price, amount) -> journal.recordOnDemandCost(CostCategory.STORAGE,
+                    storageTier,
+                    price,
+                    amount));
+        }
+    }
+
+    /**
+     *  Recording vm volumes costs into the journal.
+     *  For storage costs, the primary entity for cost calculation is the volume.
+     *  The VM's storage cost just inherits the volumes.
+     *
+     *  Note - the volume may not have been processed yet. We're not looking for its cost
+     *  journal at this time. We are simply recording the dependency in the VM's cost journal.
+     *  The actual lookup will happen when someone tries to get the hourly cost from the
+     *  VM's cost journal, and we do assume that that will happen after all cost calculations have
+     *  been completed.
+     *
+     * @param entity    The entity to calculate cost for.
+     * @param region    The region that the entity belongs to.
+     * @param journal   The journal that is used to add the costs to.
+     */
     private void calculateVirtualMachineCost(
                 @Nonnull final ENTITY_CLASS entity,
                 @Nonnull final ENTITY_CLASS region,
-                @Nonnull final CostJournal.Builder<ENTITY_CLASS> journal,
-                final DependentCostLookup<ENTITY_CLASS> dependentCostLookup) {
+                @Nonnull final CostJournal.Builder<ENTITY_CLASS> journal) {
         final long entityId = entityInfoExtractor.getId(entity);
         logger.trace("Starting entity cost calculation for vm {}", entityId);
         final ReservedInstanceApplicator<ENTITY_CLASS> reservedInstanceApplicator =
                 reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
                     journal, entityInfoExtractor, cloudCostData, topologyRICoverage);
-
+        // Recording vm volumes costs into the journal.
         // For storage costs, the primary entity for cost calculation is the volume.
         // The VM's storage cost just inherits the volumes.
         //
-        // Note - the volume may not have been processed yet. We're not looking for it's cost
+        // Note - the volume may not have been processed yet. We're not looking for its cost
         // journal at this time. We are simply recording the dependency in the VM's cost journal.
         // The actual lookup will happen when someone tries to get the hourly cost from the
         // VM's cost journal, and we do assume that that will happen after all cost calculations have
@@ -309,81 +349,128 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         entityInfoExtractor.getComputeConfig(entity).ifPresent(computeConfig -> {
             // Calculate on-demand prices for entities that have a compute config.
             cloudTopology.getComputeTier(entityId).ifPresent(computeTier -> {
-                // Apply the reserved instance coverage, and return the percent of the entity's compute
-                // that's covered by reserved instances.
-                final double riComputeCoveragePercent =
-                                reservedInstanceApplicator.recordRICoverage(computeTier);
+
+                // Apply the reserved instance coverage, and return the percent of the entity's compute that's
+                // covered by reserved instances.
+                double riComputeCoveragePercent = reservedInstanceApplicator.recordRICoverage(computeTier);
                 Preconditions.checkArgument(
                     riComputeCoveragePercent >= 0.0 && riComputeCoveragePercent <= 1.0);
-
                 final long regionId = entityInfoExtractor.getId(region);
-                if (computeConfig.getBillingType() == VMBillingType.BIDDING) {
-                    final Pricing.SpotInstancePriceTable spotPriceTable =
-                        cloudCostData.getPriceTable().getSpotPriceByRegionIdMap().get(regionId);
-                    if (spotPriceTable != null) {
-                        Price spotPrice = spotPriceTable.getSpotPriceByInstanceIdMap()
-                                .get(entityInfoExtractor.getId(computeTier));
-                        final double unitsBought = 1 - riComputeCoveragePercent;
-                        journal.recordOnDemandCost(CostCategory.SPOT, computeTier,
-                                spotPrice, unitsBought);
-
-                    }
-                }
+                recordVMSpotInstance(regionId, computeTier, riComputeCoveragePercent, journal, computeConfig);
                 final OnDemandPriceTable onDemandPriceTable =
                     cloudCostData.getPriceTable().getOnDemandPriceByRegionIdMap().get(regionId);
                 if (onDemandPriceTable != null) {
                     if (computeConfig.getBillingType() != VMBillingType.BIDDING) {
                         final ComputeTierPriceList computePriceList =
-                                onDemandPriceTable.getComputePricesByTierIdMap()
-                                        .get(entityInfoExtractor.getId(computeTier));
+                            onDemandPriceTable.getComputePricesByTierIdMap()
+                                .get(entityInfoExtractor.getId(computeTier));
                         if (computePriceList != null) {
                             final ComputeTierConfigPrice basePrice = computePriceList.getBasePrice();
-                            // For compute tiers, we're working with "hourly" costs, and the
-                            // amount of "compute" bought from the tier is the percentage
-                            // of the hour filled by on-demand coverage (i.e. 1 - % RI coverage).
+                            // For compute tiers, we're working with "hourly" costs, and the amount
+                            // of "compute" bought from the tier is the percentage of the hour filled
+                            // by on-demand coverage (i.e. 1 - % RI coverage).
                             final double unitsBought = 1 - riComputeCoveragePercent;
-                            journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, computeTier,
-                                    basePrice.getPricesList().get(0), unitsBought);
-                            if (computeConfig.getOs() != basePrice.getGuestOsType()) {
-                                computePriceList.getPerConfigurationPriceAdjustmentsList().stream()
-                                        .filter(computeConfig::matchesPriceTableConfig)
-                                        .findAny()
-                                        .ifPresent(priceAdjustmentConfig -> journal.recordOnDemandCost(
-                                                CostCategory.LICENSE,
-                                                computeTier,
-                                                priceAdjustmentConfig.getPricesList().get(0), unitsBought));
-                            }
-                            cloudCostData.getLicensePrice(
-                                computeConfig.getOs(), computeConfig.getNumCores())
-                                    .ifPresent(licensePrice -> journal.recordOnDemandCost(
-                                        CostCategory.LICENSE, computeTier,
-                                        licensePrice.getPrice(), 1.0));
+                            recordOnDemandVmCost(journal, unitsBought, basePrice, computeTier);
+                            recordVMLicenseCost(journal, computeTier, basePrice, computeConfig,
+                                computePriceList, unitsBought);
                         }
                     }
-
-                    // compute IP price and add it to the compute cost
-                    entityInfoExtractor.getNetworkConfig(entity).ifPresent(networkConfigBought -> {
-                        Optional<ENTITY_CLASS> service = cloudTopology.getConnectedService(
-                                entityInfoExtractor.getId(computeTier));
-                        // there can be only 1 entry in the priceList in the current implementation
-                        onDemandPriceTable.getIpPrices().getIpPriceList().stream()
-                                .findFirst()
-                                .ifPresent(ipPriceList -> {
-                                    // excess of Elastic IPs needed beyond the freeIPs available in the region
-                                    long numElasticIps = networkConfigBought.getNumElasticIps()
-                                            - ipPriceList.getFreeIpCount();
-                                    recordPriceRangeEntries(numElasticIps,
-                                            ipPriceList.getPricesList(),
-                                            (price, amountBought) -> journal.recordOnDemandCost(CostCategory.IP,
-                                                    service.get(), price, amountBought));
-                                });
-                    });
+                    recordVMIpPrice(entity, computeTier, onDemandPriceTable, journal);
                 } else {
                     logger.warn("Global price table has no entry for region {}. This means there" +
-                            " is some inconsistency between the topology and pricing data.", regionId);
+                        " is some inconsistency between the topology and pricing data.", regionId);
                 }
             });
         });
+    }
+
+    /**
+     * Calculate vm price and add it to the journal, taking into consideration the licence, OS, and RI.
+     *
+     * @param journal                  Used to add the costs to.
+     * @param computeTier              Compute Tier that we are calculating.
+     * @param basePrice                Base Price of the computeTier.
+     * @param unitsBought              Amount of units bought.
+     * @param computeConfig            Compute configuration of a the computeTier.
+     * @param computePriceList         List that contains all the prices.
+     */
+    private void recordVMLicenseCost(CostJournal.Builder<ENTITY_CLASS> journal, ENTITY_CLASS computeTier,
+                                     ComputeTierConfigPrice basePrice, ComputeConfig computeConfig,
+                                     ComputeTierPriceList computePriceList, double unitsBought) {
+        // Recording any price adjustments from the license base price
+        if (computeConfig.getOs() != basePrice.getGuestOsType()) {
+            computePriceList.getPerConfigurationPriceAdjustmentsList().stream()
+                .filter(computeConfig::matchesPriceTableConfig)
+                .findAny()
+                .ifPresent(priceAdjustmentConfig -> journal.recordOnDemandCost(
+                    CostCategory.LICENSE,
+                    computeTier,
+                    priceAdjustmentConfig.getPricesList().get(0), unitsBought));
+        }
+        // Recording the license price according to os and number of cores (used for explicit cases)
+        cloudCostData.getLicensePrice(
+            computeConfig.getOs(), computeConfig.getNumCores())
+            .ifPresent(licensePrice -> journal.recordOnDemandCost(
+                CostCategory.LICENSE, computeTier,
+                licensePrice.getPrice(), 1.0));
+    }
+
+    private void recordOnDemandVmCost(CostJournal.Builder<ENTITY_CLASS> journal, double unitsBought,
+                                      ComputeTierConfigPrice basePrice, ENTITY_CLASS computeTier){
+        journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, computeTier,
+            basePrice.getPricesList().get(0), unitsBought);
+    }
+
+    /**
+     * Compute IP price and add it to the compute cost journal.
+     *
+     * @param entity             Entity that we are calculating price for.
+     * @param computeTier        Compute Tier that we are calculating.
+     * @param onDemandPriceTable PriceTable that contains the prices.
+     * @param journal            Journal used to add the costs to.
+     */
+    private void recordVMIpPrice(ENTITY_CLASS entity, ENTITY_CLASS computeTier, OnDemandPriceTable onDemandPriceTable,
+                                 CostJournal.Builder<ENTITY_CLASS> journal) {
+        entityInfoExtractor.getNetworkConfig(entity).ifPresent(networkConfigBought -> {
+            Optional<ENTITY_CLASS> service = cloudTopology.getConnectedService(
+                entityInfoExtractor.getId(computeTier));
+            // There can be only 1 entry in the priceList in the current implementation
+            onDemandPriceTable.getIpPrices().getIpPriceList().stream()
+                .findFirst()
+                .ifPresent(ipPriceList -> {
+                    // Excess of Elastic IPs needed beyond the freeIPs available in the region
+                    long numElasticIps = networkConfigBought.getNumElasticIps()
+                        - ipPriceList.getFreeIpCount();
+                    recordPriceRangeEntries(numElasticIps,
+                        ipPriceList.getPricesList(),
+                        (price, amountBought) -> journal.recordOnDemandCost(CostCategory.IP,
+                            service.get(), price, amountBought));
+                });
+        });
+    }
+
+    /**
+     * Record vm prices for spot instance/low priority vms and add it to the compute cost journal.
+     *
+     * @param regionId                 Region id to get the spot instances in.
+     * @param computeTier              Compute Tier that we are calculating.
+     * @param riComputeCoveragePercent RI to calculate the coverage.
+     * @param journal                  Journal used to add the costs to.
+     * @param computeConfig            Compute configuration of the computeTier.
+     */
+    private void recordVMSpotInstance(long regionId, ENTITY_CLASS computeTier, double riComputeCoveragePercent,
+                                      CostJournal.Builder<ENTITY_CLASS> journal, ComputeConfig computeConfig) {
+        if (computeConfig.getBillingType() == VMBillingType.BIDDING) {
+            final Pricing.SpotInstancePriceTable spotPriceTable =
+                cloudCostData.getPriceTable().getSpotPriceByRegionIdMap().get(regionId);
+            if (spotPriceTable != null) {
+                Price spotPrice = spotPriceTable.getSpotPriceByInstanceIdMap()
+                    .get(entityInfoExtractor.getId(computeTier));
+                final double unitsBought = 1 - riComputeCoveragePercent;
+                journal.recordOnDemandCost(CostCategory.SPOT, computeTier,
+                    spotPrice, unitsBought);
+            }
+        }
     }
 
     private void calculateDatabaseCost(@Nonnull final ENTITY_CLASS entity,
@@ -393,7 +480,6 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         logger.trace("Starting entity cost calculation for db {}", entityId);
         entityInfoExtractor.getDatabaseConfig(entity).ifPresent(databaseConfig -> {
             // Calculate on-demand prices for entities that have a database config.
-            // cloudTopology.get
             cloudTopology.getDatabaseTier(entityId).ifPresent(databaseTier -> {
                 final long regionId = entityInfoExtractor.getId(region);
                 final OnDemandPriceTable onDemandPriceTable =
@@ -403,17 +489,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                             onDemandPriceTable.getDbPricesByInstanceIdMap()
                                     .get(entityInfoExtractor.getId(databaseTier));
                     if (dbPriceList != null) {
-                        final DatabaseTierConfigPrice basePrice = dbPriceList.getBasePrice();
-                        final double amountBought = 1;
-                        journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, databaseTier,
-                                basePrice.getPricesList().get(0), amountBought);
-                        dbPriceList.getConfigurationPriceAdjustmentsList().stream()
-                                .filter(databaseConfig::matchesPriceTableConfig)
-                                .findAny()
-                                .ifPresent(priceAdjustmentConfig -> journal.recordOnDemandCost(
-                                        CostCategory.LICENSE,
-                                        databaseTier,
-                                        priceAdjustmentConfig.getPricesList().get(0), amountBought));
+                        recordDatabaseCost(dbPriceList, journal, databaseTier, databaseConfig);
                     }
                 } else {
                     logger.warn("Global price table has no entry for region {}. This means there" +
@@ -421,6 +497,29 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 }
             });
         });
+    }
+
+    /**
+     * Record db prices and add it to the compute cost journal.
+     *
+     * @param dbPriceList     DB list contains all the db prices.
+     * @param journal         Journal used to add the costs to.
+     * @param databaseTier    DB Tier that we are calculating.
+     * @param databaseConfig  DB config of the db that we want to record.
+     */
+    private void recordDatabaseCost(DatabaseTierPriceList dbPriceList, CostJournal.Builder<ENTITY_CLASS> journal,
+                                    ENTITY_CLASS databaseTier, DatabaseConfig databaseConfig){
+        final DatabaseTierConfigPrice basePrice = dbPriceList.getBasePrice();
+        final double amountBought = 1;
+        journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, databaseTier,
+            basePrice.getPricesList().get(0), amountBought);
+        dbPriceList.getConfigurationPriceAdjustmentsList().stream()
+            .filter(databaseConfig::matchesPriceTableConfig)
+            .findAny()
+            .ifPresent(priceAdjustmentConfig -> journal.recordOnDemandCost(
+                CostCategory.LICENSE,
+                databaseTier,
+                priceAdjustmentConfig.getPricesList().get(0), amountBought));
     }
 
     /**
@@ -434,9 +533,9 @@ public class CloudCostCalculator<ENTITY_CLASS> {
      *    - Price 2, amount: 2
      *
      * @param amountToBuy The total amount bought.
-     * @param prices The tiered list of prices. Prices should be arranged in increasing order
-     *               by endRangeInUnits.
-     * @param recordFn Callback to record prices and amounts bought at those prices.
+     * @param prices      The tiered list of prices. Prices should be arranged in increasing order
+     *                    by endRangeInUnits.
+     * @param recordFn    Callback to record prices and amounts bought at those prices.
      */
     private void recordPriceRangeEntries(final double amountToBuy,
                                          @Nonnull final List<Price> prices,

@@ -6,10 +6,13 @@ import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -18,9 +21,12 @@ import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.AccountLevelDiscount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.ServiceLevelDiscount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.TierLevelDiscount;
-import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -35,10 +41,11 @@ public class DiscountApplicatorTest {
 
     private CloudCostData cloudCostData = mock(CloudCostData.class);
 
-    private CloudCostCalculatorFactory<TestEntityClass> calculatorFactory =
-            CloudCostCalculator.<TestEntityClass>newFactory();
-
     private DiscountApplicatorFactory<TestEntityClass> factory = DiscountApplicator.newFactory();
+
+    private CloudCostData emptyCloudCostData = new CloudCostData(PriceTable.getDefaultInstance(),
+         Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+         Collections.emptyMap(), Collections.emptyMap());
 
     @Before
     public void setup() {
@@ -227,6 +234,23 @@ public class DiscountApplicatorTest {
 
         // The input to the applicator is the tier, because the applicator itself is entity-specific.
         assertThat(applicator.getDiscountPercentage(tier.getId()), is(discountPercentage));
+    }
+
+    @Test
+    public void testEmptyCloudCostData(){
+        Assert.assertFalse(emptyCloudCostData.getDiscountForAccount(1L).isPresent());
+        Assert.assertFalse(emptyCloudCostData.getRiCoverageForEntity(1L).isPresent());
+        Assert.assertTrue(emptyCloudCostData.getCurrentRiCoverage().isEmpty());
+        Assert.assertFalse(emptyCloudCostData.getExistingRiBoughtData(1L).isPresent());
+        Assert.assertTrue(emptyCloudCostData.getExistingRiBought().isEmpty());
+        Assert.assertTrue(emptyCloudCostData.getAllRiBought().isEmpty());
+    }
+
+    @Test
+    public void testInvalidReservedInstanceData(){
+        final ReservedInstanceData reservedInstanceData =
+            new ReservedInstanceData(ReservedInstanceBought.getDefaultInstance(), ReservedInstanceSpec.getDefaultInstance());
+        Assert.assertFalse(reservedInstanceData.isValid(new HashMap<>()));
     }
 
     @Test

@@ -167,8 +167,6 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
                 .getReservedInstanceBoughtCost();
 
         // usage cost: recurring cost + usage cost.
-        // TODO (roman, Sept 17 2018): Do we need to use entity state to determine whether to
-        // take into account usage cost?
         return riBoughtPercentage * cost.getRecurringCostPerHour().getAmount() +
                riBoughtPercentage * cost.getUsageCostPerHour().getAmount();
     }
