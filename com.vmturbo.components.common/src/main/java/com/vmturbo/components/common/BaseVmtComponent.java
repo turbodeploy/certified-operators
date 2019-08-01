@@ -1,5 +1,7 @@
 package com.vmturbo.components.common;
 
+import static com.vmturbo.clustermgr.api.ClusterMgrClient.COMPONENT_VERSION_KEY;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -60,13 +62,13 @@ import com.vmturbo.clustermgr.api.ClusterMgrClient;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
+import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
 import com.vmturbo.components.common.health.HealthStatus;
 import com.vmturbo.components.common.health.HealthStatusProvider;
 import com.vmturbo.components.common.health.SimpleHealthStatus;
 import com.vmturbo.components.common.metrics.ScheduledMetrics;
 import com.vmturbo.components.common.migration.Migration;
-import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.common.utils.EnvironmentUtils;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 
@@ -85,7 +87,6 @@ import com.vmturbo.proactivesupport.DataMetricGauge;
 public abstract class BaseVmtComponent implements IVmtComponent,
         ApplicationListener<ContextRefreshedEvent> {
 
-    public static final String KEY_COMPONENT_VERSION = "component.version";
     /**
      * The number of seconds to wait for gRPC server to shutdown
      * during the shutdown procedure for the component.
@@ -810,8 +811,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             // get the component version
             final String specVersion = getClass().getPackage().getSpecificationVersion();
             if (specVersion != null) {
-                logger.debug("Component version {} found", specVersion);
-                clusterMgrClient.setPropertyForComponentInstance(componentType, instanceId, KEY_COMPONENT_VERSION, specVersion);
+                logger.info("Component version for {} found: {}", componentType, specVersion);
+                baseVmtComponentConfig.keyValueStore().put(COMPONENT_VERSION_KEY, specVersion);
             } else if (specVersion == null) {
                 logger.error("Could not get Specification-Version for component class {}", getClass());
             }
