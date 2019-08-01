@@ -1,19 +1,26 @@
 package com.vmturbo.plan.orchestrator.project.headroom;
 
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.text.SimpleDateFormat;
 import java.util.Collections;
+import java.util.Date;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 
+import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
@@ -33,7 +40,13 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResp
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityHeadroom;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomRequest;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -51,6 +64,8 @@ public class ClusterHeadroomPostProcessorTest {
 
     private static final long PLAN_ID = 7;
     private static final long CLUSTER_ID = 10;
+    private static final int MORE_THAN_A_YEAR = 3650;
+    private static final long ONE_HOUR = 3600000;
 
     private static final Group CLUSTER = Group.newBuilder()
             .setType(Group.Type.CLUSTER)
@@ -147,7 +162,7 @@ public class ClusterHeadroomPostProcessorTest {
                 .setProjectedTopologyId(projectedTopologyId)
                 .build());
 
-        // VmGrowth = 2 (because history doesn't contain any VMs)
+        // VmGrowth = 0 (because we don't have data in the past)
         verify(historyServiceMole).saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
                 .setClusterId(CLUSTER_ID)
                 .setNumVMs(0L)
@@ -155,35 +170,129 @@ public class ClusterHeadroomPostProcessorTest {
                 // PM CPU value : used = 50, capacity = 100
                 // CPU headroom calculation :
                 // headroomCapacity = capacity / effectiveUsed = 20, headroomAvailable = (capacity - used) / effectiveUsed = 10
-                // daysToExhaust = (headroomAvailable / vmGrowth) * peakLookbackDays = 35
+                // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
                 .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
                     .setHeadroom(10)
                     .setCapacity(20)
-                    .setDaysToExhaustion(35))
+                    .setDaysToExhaustion(MORE_THAN_A_YEAR))
                 // Template Value MEMORY_SIZE = 100, consumedFactor = 0.4, effectiveUsed = 40
                 // PM MEM value : used = 40, capacity = 200
                 // MEM headroom calculation :
                 // headroomCapacity = capacity / effectiveUsed = 5, headroomAvailable = (capacity - used) / effectiveUsed = 4
-                // daysToExhaust = (headroomAvailable / vmGrowth) * peakLookbackDays = 14
+                // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
                 .setMemHeadroomInfo(CommodityHeadroom.newBuilder()
                     .setCapacity(5)
                     .setHeadroom(4)
-                    .setDaysToExhaustion(14))
+                    .setDaysToExhaustion(MORE_THAN_A_YEAR))
                 // Template Value DISK_SIZE = 200, consumedFactor = 1, effectiveUsed = 200
                 // Storage value : used = 100, capacity = 600
                 // Storage headroom calculation :
                 // headroomCapacity = capacity / effectiveUsed = 3, headroomAvailable = (capacity - used) / effectiveUsed = 2
-                // daysToExhaust = (headroomAvailable / vmGrowth) * peakLookbackDays = 7
+                // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
                 .setStorageHeadroomInfo(CommodityHeadroom.newBuilder()
                     .setCapacity(3)
                     .setHeadroom(2)
-                    .setDaysToExhaustion(7))
+                    .setDaysToExhaustion(MORE_THAN_A_YEAR))
                 .setNumHosts(0)
                 .setNumVMs(0)
                 .setNumStorages(0)
-                .setMonthlyVMGrowth(8) // (vmGrowth * daysInMonth) / PeakLookback days = (2 * 30)/7 = 8
+                .setMonthlyVMGrowth(0) // (vmGrowth * daysInMonth) / PeakLookback days = (0 * 30)/7 = 0
                 .setHeadroom(2) // minimum of mem, cpu and storage headroom values : min(10, 4, 2)
                 .build());
+    }
+
+    @Test
+    public void testVMGrowth() throws Exception {
+        final ClusterHeadroomPlanPostProcessor processor =
+                new ClusterHeadroomPlanPostProcessor(PLAN_ID, CLUSTER.getId(),
+                        grpcTestServer.getChannel(), grpcTestServer.getChannel(),
+                        planDao, grpcTestServer.getChannel(), templatesDao);
+
+        EntityStatsScope scope = EntityStatsScope.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).build();
+
+        Long endDate = System.currentTimeMillis();
+        // put middle date before the middle of the interval to avoid rounding issues
+        Long middleDate = endDate - ClusterHeadroomPlanPostProcessor.DAY_MILLI_SECS - ONE_HOUR;
+        Long startDate = middleDate - ClusterHeadroomPlanPostProcessor.DAY_MILLI_SECS;
+
+        long vmId1 = 20;
+        long vmId2 = 21;
+        long vmId3 = 22;
+
+        Set<Long> vmsInCluster = ImmutableSet.of(vmId1, vmId2, vmId3);
+
+        EntityStats entityStats1 = EntityStats.newBuilder()
+                    .addStatSnapshots(StatSnapshot.newBuilder()
+                        .setSnapshotDate(startDate))
+                    .setOid(vmId1)
+                    .build();
+
+        EntityStats entityStats2 = EntityStats.newBuilder()
+                .addStatSnapshots(StatSnapshot.newBuilder()
+                        .setSnapshotDate(middleDate))
+                .setOid(vmId2)
+                .build();
+
+        EntityStats entityStats3 = EntityStats.newBuilder()
+                .addStatSnapshots(StatSnapshot.newBuilder()
+                        .setSnapshotDate(endDate))
+                .setOid(vmId3)
+                .build();
+
+        when(historyServiceMole.getEntityStats(any()))
+                .thenReturn(GetEntityStatsResponse.newBuilder()
+                    .addEntityStats(entityStats1)
+                    .addEntityStats(entityStats2)
+                    .addEntityStats(entityStats3)
+                    .build());
+
+        Assert.assertEquals(1, processor.getVMGrowth(vmsInCluster));
+    }
+
+    @Test
+    public void testVMGrowthBigSize() throws Exception {
+        final long N = 1000;
+        final ClusterHeadroomPlanPostProcessor processor =
+                new ClusterHeadroomPlanPostProcessor(PLAN_ID, CLUSTER.getId(),
+                        grpcTestServer.getChannel(), grpcTestServer.getChannel(),
+                        planDao, grpcTestServer.getChannel(), templatesDao);
+
+        EntityStatsScope scope = EntityStatsScope.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).build();
+
+        Long endDate = System.currentTimeMillis();
+        // put middle date before the middle of the interval to avoid rounding issues
+        Long middleDate = endDate - ClusterHeadroomPlanPostProcessor.DAY_MILLI_SECS - ONE_HOUR;
+        Long startDate = middleDate - ClusterHeadroomPlanPostProcessor.DAY_MILLI_SECS;
+
+        Set<Long> vmsInCluster = new HashSet<>();
+
+        GetEntityStatsResponse.Builder getEntityStatsResponseBuilder = GetEntityStatsResponse.newBuilder();
+        for (long i = 0; i < N; i++) {
+            getEntityStatsResponseBuilder.addEntityStats(EntityStats.newBuilder()
+                    .addStatSnapshots(StatSnapshot.newBuilder()
+                            .setSnapshotDate(startDate))
+                    .setOid(i)
+                    .build());
+            getEntityStatsResponseBuilder.addEntityStats(EntityStats.newBuilder()
+                    .addStatSnapshots(StatSnapshot.newBuilder()
+                            .setSnapshotDate(middleDate))
+                    .setOid(N + i)
+                    .build());
+            getEntityStatsResponseBuilder.addEntityStats(EntityStats.newBuilder()
+                    .addStatSnapshots(StatSnapshot.newBuilder()
+                            .setSnapshotDate(endDate))
+                    .setOid(2 * N + i)
+                    .build());
+            vmsInCluster.add(2 * N + i);
+        }
+        GetEntityStatsResponse getEntityStatsResponse = getEntityStatsResponseBuilder.build();
+
+        when(historyServiceMole.getEntityStats(any()))
+                .thenReturn(getEntityStatsResponse);
+
+        Assert.assertEquals(N, processor.getVMGrowth(vmsInCluster));
     }
 
     @Test
