@@ -107,12 +107,6 @@ public class AdminServiceTest {
         String instance2Version = "1.1.0";
 
         ClusterConfigurationDTO clusterConfigurationDTO = new ClusterConfigurationDTO();
-        final ComponentPropertiesDTO instance1Defaults = new ComponentPropertiesDTO();
-        instance1Defaults.put("component.version", instance1Version);
-        final ComponentPropertiesDTO instance2Defaults = new ComponentPropertiesDTO();
-        instance2Defaults.put("component.version", instance2Version);
-        clusterConfigurationDTO.addComponentType(instance1Type, instance1Defaults);
-        clusterConfigurationDTO.addComponentType(instance2Type, instance2Defaults);
         clusterConfigurationDTO.addComponentInstance(instance1, instance1Type, instance1Version, "node", new ComponentPropertiesDTO());
         clusterConfigurationDTO.addComponentInstance(instance2, instance2Type, instance2Version, "node", new ComponentPropertiesDTO());
         Mockito.when(clusterService.getClusterConfiguration())

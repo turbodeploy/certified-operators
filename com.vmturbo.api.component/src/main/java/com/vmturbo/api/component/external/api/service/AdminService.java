@@ -1,7 +1,5 @@
 package com.vmturbo.api.component.external.api.service;
 
-import static com.vmturbo.clustermgr.api.ClusterMgrClient.COMPONENT_VERSION_KEY;
-
 import java.text.MessageFormat;
 import java.util.HashMap;
 import java.util.Map;
@@ -13,7 +11,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nonnull;
 
 import org.apache.commons.lang3.StringUtils;
@@ -414,12 +411,10 @@ public class AdminService implements IAdminService {
     private String getVersionInfoString() {
         String header = MessageFormat.format(VERSION_INFO_HEADER, publicVersionString, buildNumber, buildTime);
         ClusterConfigurationDTO clusterConfig = clusterService.getClusterConfiguration();
-        return header + clusterConfig.getDefaults().entrySet().stream()
-            .map(componentDefaultsEntry -> {
-                return String.format("%s: %s", componentDefaultsEntry.getKey(),
-                    componentDefaultsEntry.getValue().get(COMPONENT_VERSION_KEY));
-            })
-            .sorted()
-            .collect(Collectors.joining("\n"));
+        return header + clusterConfig.getInstances().values().stream()
+                .filter(instanceInfo -> instanceInfo.getComponentVersion() != null)
+                .map(instanceInfo -> String.format("%s: %s", instanceInfo.getComponentType(),
+                        instanceInfo.getComponentVersion()))
+                .collect(Collectors.joining("\n"));
     }
 }
