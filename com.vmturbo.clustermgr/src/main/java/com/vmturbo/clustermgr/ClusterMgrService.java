@@ -2,6 +2,9 @@ package com.vmturbo.clustermgr;
 
 import static com.vmturbo.clustermgr.ClusterMgrConfig.TELEMETRY_ENABLED;
 import static com.vmturbo.clustermgr.ClusterMgrConfig.TELEMETRY_LOCKED;
+import static com.vmturbo.clustermgr.api.ClusterMgrClient.COMPONENT_VERSION_KEY;
+import static com.vmturbo.clustermgr.api.ClusterMgrClient.UNKNOWN_VERSION_STRING;
+import static com.vmturbo.components.common.BaseVmtComponent.PROP_INSTANCE_IP;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -19,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -31,7 +33,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.ws.rs.NotFoundException;
 
-import com.vmturbo.components.common.BaseVmtComponent;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpEntity;
@@ -750,7 +751,7 @@ public class ClusterMgrService {
             log.debug("getting " + requestPath + " for component type: " + componentType);
             Set<String> instanceIds = getComponentInstanceIds(componentType);
             for (String instanceId : instanceIds) {
-                String instanceIp = getComponentInstanceProperty(componentType, instanceId, BaseVmtComponent.PROP_INSTANCE_IP);
+                String instanceIp = getComponentInstanceProperty(componentType, instanceId, PROP_INSTANCE_IP);
                 if (StringUtils.isNotBlank(instanceIp)) {
                     URI requestUri = getComponentInstanceUri(instanceIp, requestPath);
                     HttpGet request = new HttpGet(requestUri);
@@ -847,12 +848,13 @@ public class ClusterMgrService {
         for (String componentType : getKnownComponents()) {
             ComponentProperties defaultProperties = getComponentDefaultProperties(componentType);
             answer.addComponentType(componentType, defaultProperties);
+            // copy the version number string into the instance properties...TODO: revisit if/when we
+            // remove the instance properties for components
+            String version = defaultProperties.get(COMPONENT_VERSION_KEY);
             Set<String> instanceIds = getComponentInstanceIds(componentType);
             for (String instanceId : instanceIds) {
                 String nodeId = getNodeForComponentInstance(componentType, instanceId);
                 String instancePropertiesKey = getComponentInstancePropertiesKey(componentType, instanceId);
-                Optional<String> componentVersion = Optional.ofNullable(getComponentInstanceProperty(componentType, instanceId, BaseVmtComponent.KEY_COMPONENT_VERSION));
-                String version = componentVersion.isPresent() ? componentVersion.get() : "<unknown>";
                 ComponentProperties instanceProperties = getComponentPropertiesWithPrefix(instancePropertiesKey);
                 answer.addComponentInstance(instanceId, componentType, version, nodeId, instanceProperties);
             }
@@ -1093,7 +1095,7 @@ public class ClusterMgrService {
     /**
      * Return the default {@link ComponentProperties} for the given component instance / type.
      *
-     * If there are no defaults for the given component type, then an empty {@link ComponentProperties} will be returned.
+     * Add the version for the component type to the default properties.
      *
      * @param componentType the component type for the requested defaults
      * @return the default {@link ComponentProperties} for the given component type
@@ -1101,7 +1103,29 @@ public class ClusterMgrService {
     @Nonnull
     private ComponentProperties getComponentDefaultProperties(String componentType) {
         String defaultPropertiesKey = getComponentDefaultsKey(componentType);
-        return getComponentPropertiesWithPrefix(defaultPropertiesKey);
+        final ComponentProperties defaultProperties = getComponentPropertiesWithPrefix(defaultPropertiesKey);
+
+        // The Component version is added to the defaults for each component.  This assumes
+        // that version of all instancese of a component are the same.
+        String version = getComponentVersionString(componentType);
+        defaultProperties.put(COMPONENT_VERSION_KEY, version);
+
+        return defaultProperties;
+    }
+
+    /**
+     * Fetch the version string for this component from the the k/v store.
+     * The key for the version string is, for now, "${component_type}-1". This is a hold-over
+     * from the naming for the component key/value store naming.
+     *
+     * @param componentType the component-type to look up
+     * @return the version string for this component type, or "<unknown>" if not found.
+     */
+    @Nonnull
+    private String getComponentVersionString(@Nonnull final String componentType) {
+        com.google.common.base.Optional<String> componentVersion = consulService.getValueAsString(
+            componentType + "-1/" + COMPONENT_VERSION_KEY);
+        return componentVersion.isPresent() ? componentVersion.get() : UNKNOWN_VERSION_STRING;
     }
 
     /**

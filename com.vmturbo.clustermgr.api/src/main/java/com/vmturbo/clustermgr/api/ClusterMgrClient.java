@@ -10,6 +10,9 @@ import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
  **/
 public class ClusterMgrClient {
 
+    public static final String COMPONENT_VERSION_KEY = "component.version";
+    public static final String UNKNOWN_VERSION_STRING = "<Unknown Version>";
+
     private ClusterMgrClient() {}
 
     @Nonnull
