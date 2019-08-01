@@ -179,6 +179,9 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @Autowired
     private ServletContext servletContext;
 
+    @Autowired
+    private ConsulDiscoveryManualConfig consulDiscoveryManualConfig;
+
     /**
      * Embed a component for monitoring dependency/subcomponent health
      */
@@ -323,6 +326,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @Override
     public final void stopComponent() {
         setStatus(ExecutionStatus.STOPPING);
+        logger.info("Deregistering service: {}", instanceId);
+        consulDiscoveryManualConfig.deregisterService();
         onStopComponent();
         stopGrpc();
         JETTY_SERVER.getValue().ifPresent(server -> {

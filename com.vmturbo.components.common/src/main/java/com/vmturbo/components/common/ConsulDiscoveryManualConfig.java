@@ -60,4 +60,19 @@ public class ConsulDiscoveryManualConfig {
         healthCheck.setInterval("60s");
         client.agentCheckRegister(healthCheck);
     }
+
+    /**
+     * Deregister service from consul
+     */
+    protected void deregisterService() {
+        enableConsulRegistration = EnvironmentUtils.getOptionalEnvProperty(ENABLE_CONSUL_REGISTRATION)
+            .map(Boolean::parseBoolean)
+            .orElse(false);
+        if (!enableConsulRegistration) {
+            return;
+        }
+        final ConsulRawClient rawClient = new ConsulRawClient(consulHost, consulPort);
+        final ConsulClient client = new ConsulClient(rawClient);
+        client.agentServiceDeregister(instanceId);
+    }
 }
