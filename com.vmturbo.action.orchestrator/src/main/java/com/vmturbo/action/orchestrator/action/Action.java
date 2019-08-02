@@ -17,6 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.StringUtils;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 
 import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceEvent;
@@ -150,7 +151,7 @@ public class Action implements ActionView {
 
     private String executionAuthorizerId;
 
-    private String description;
+    private String description = null;
 
     /**
      * The state of the action. The state of an action transitions due to certain system events.
@@ -385,20 +386,25 @@ public class Action implements ActionView {
      *
      * @return The action description string.
      */
+    @Nonnull
     @Override
     public String getDescription() {
-        return description;
+        return description == null ? "" : description;
     }
 
     /**
      * Sets action description.
      *
+     * This method is exposed to permit setting action description in tests without the need to
+     * go through Action Store logic.
+     *
      * The action description is being built by
+     * {@link ActionDescriptionBuilder#buildActionDescription(EntitiesAndSettingsSnapshot, ActionDTO.Action)}
      *
      * @param description The action description that will be set.
      */
-    @Override
-    public void setDescription(final String description) {
+    @VisibleForTesting
+    public void setDescription(@Nonnull final String description) {
         this.description =  description;
 
     }
