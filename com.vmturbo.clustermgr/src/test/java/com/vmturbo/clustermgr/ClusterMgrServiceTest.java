@@ -139,9 +139,6 @@ public class ClusterMgrServiceTest {
         newProperties.put("p2", "v2");
         String componentTypeKeyStem = "vmturbo/components/c1/";
         String defaultPropertiesKeyStem = componentTypeKeyStem + "defaults/";
-        when(consulServiceMock.getValueAsString("c1-1/component.version"))
-            .thenReturn(Optional.fromNullable("1.0.0"));
-
         // Act
         clusterMgrService.putDefaultPropertiesForComponentType("c1", newProperties);
         // Assert
@@ -160,7 +157,6 @@ public class ClusterMgrServiceTest {
         // fetch the values
         verify(consulServiceMock).getKeys(defaultPropertiesKeyStem);
         verify(consulServiceMock, times(1)).getValues(defaultPropertiesKeyStem);
-        verify(consulServiceMock).getValueAsString("c1-1/component.version");
         verifyNoMoreInteractions(consulServiceMock);
     }
 
