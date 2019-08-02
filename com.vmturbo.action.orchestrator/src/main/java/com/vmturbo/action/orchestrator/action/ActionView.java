@@ -178,6 +178,18 @@ public interface ActionView {
      *
      * @return The action description string.
      */
-    @Nonnull
     String getDescription();
+
+    /**
+     * Sets action description.
+     *
+     * This method is exposed to permit setting action description in tests without the need to
+     * go through Action Store logic.
+     *
+     * The action description is being built by
+     * {@link ActionDescriptionBuilder#buildActionDescription(EntitiesAndSettingsSnapshot, ActionDTO.Action)}
+     *
+     * @param description The action description that will be set.
+     */
+    void setDescription(String description);
 }
