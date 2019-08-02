@@ -1218,6 +1218,7 @@ public class TopologyConverter {
             CommoditySoldDTO commSold = drivingCommSold.get(0);
             double targetUtil = commSold.getResizeTargetUtilization();
             if (targetUtil <= 0.0) {
+                // Dividing by 100 to convert the percentage in setting to decimal expected here
                 final double globalDefault = EntitySettingSpecs.UtilTarget.getSettingSpec()
                         .getNumericSettingValueType().getDefault() / 100;
                 logger.warn("Invalid resize target util {} in commodity of type {} in entity {}; " +
