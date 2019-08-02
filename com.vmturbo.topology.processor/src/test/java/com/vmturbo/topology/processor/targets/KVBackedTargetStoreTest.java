@@ -38,6 +38,8 @@ import com.vmturbo.platform.common.dto.Discovery.AccountValue;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
@@ -543,5 +545,31 @@ public class KVBackedTargetStoreTest {
         Assert.assertTrue(targetStore.getTarget(derived1.getId()).isPresent());
         Assert.assertFalse(targetStore.getTarget(derived2.getId()).isPresent());
         Assert.assertEquals(1, targetStore.getAll().size());
+    }
+
+    @Test
+    public void testGetProbeCategoryForTarget() throws Exception {
+        AccountDefEntry plain = AccountDefEntry.newBuilder()
+            .setCustomDefinition(
+                CustomAccountDefEntry.newBuilder()
+                    .setName(PredefinedAccountDefinition.Address.name().toLowerCase())
+                    .setDisplayName("this is my address")
+                    .setDescription("The address")
+                    .setIsSecret(false))
+            .setMandatory(true)
+            .build();
+        ProbeInfo probeInfo = ProbeInfo.newBuilder()
+            .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+            .setProbeType(SDKProbeType.VCENTER.toString())
+            .addTargetIdentifierField(PredefinedAccountDefinition.Address.name().toLowerCase())
+            .addAccountDefinition(plain)
+            .build();
+        Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
+
+        final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Collections.singletonList(
+            new InputField(PredefinedAccountDefinition.Address.name().toLowerCase(), FIELD_NAME, Optional.empty())));
+        final Target target = targetStore.createTarget(spec.toDto());
+        Assert.assertEquals(ProbeCategory.HYPERVISOR, targetStore.getProbeCategoryForTarget(target.getId()).get());
+
     }
 }

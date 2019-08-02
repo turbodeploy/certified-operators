@@ -9,6 +9,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
@@ -159,4 +160,13 @@ public interface TargetStore {
      * @return SDKProbeType for the target if it exists
      */
     Optional<SDKProbeType> getProbeTypeForTarget(long targetId);
+
+    /**
+     * Get the probe category for a given target id.
+     *
+     * @param targetId the id of the target to get probe type for
+     * @return ProbeCategory for the target if it exists
+     */
+    Optional<ProbeCategory> getProbeCategoryForTarget(long targetId);
+
 }

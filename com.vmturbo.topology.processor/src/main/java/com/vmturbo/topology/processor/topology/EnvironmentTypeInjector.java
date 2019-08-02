@@ -1,7 +1,9 @@
 package com.vmturbo.topology.processor.topology;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -18,6 +20,7 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -34,12 +37,29 @@ public class EnvironmentTypeInjector {
      * Entities discovered by these probes should be considered CLOUD entities.
      */
     private static final Set<SDKProbeType> CLOUD_PROBE_TYPES = ImmutableSet.of(
-            SDKProbeType.AWS,
-            SDKProbeType.AWS_COST,
-            SDKProbeType.AWS_BILLING,
-            SDKProbeType.AZURE,
-            SDKProbeType.AZURE_COST,
-            SDKProbeType.AZURE_STORAGE_BROWSE);
+        SDKProbeType.AWS,
+        SDKProbeType.AWS_COST,
+        SDKProbeType.AWS_BILLING,
+        SDKProbeType.AZURE,
+        SDKProbeType.AZURE_COST,
+        SDKProbeType.AZURE_STORAGE_BROWSE);
+
+    public static final Set<SDKProbeType> APP_CONTAINER_PROBES = ImmutableSet.of(
+        SDKProbeType.CLOUD_FOUNDRY,
+        SDKProbeType.PIVOTAL_OPSMAN,
+        SDKProbeType.DOCKER,
+        SDKProbeType.SNMP,
+        SDKProbeType.WMI,
+        SDKProbeType.APPDYNAMICS,
+        SDKProbeType.DYNATRACE,
+        SDKProbeType.NEWRELIC,
+        SDKProbeType.APPINSIGHTS,
+        SDKProbeType.DATADOG,
+        SDKProbeType.TOMCAT,
+        SDKProbeType.WEBSPHERE,
+        SDKProbeType.WEBLOGIC,
+        SDKProbeType.MSSQL,
+        SDKProbeType.MYSQL);
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -59,24 +79,43 @@ public class EnvironmentTypeInjector {
     public InjectionSummary injectEnvironmentType(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
         final Map<EnvironmentType, Integer> envTypeCounts = new EnumMap<>(EnvironmentType.class);
         final AtomicInteger conflictingTypeCount = new AtomicInteger(0);
-
         // Pre-compute the targets whose entities should count as "CLOUD", because it's far more
         // efficient than doing it for each entity.
-        final Set<Long> cloudTargetIds = targetStore.getAll().stream()
-                .map(Target::getId)
-                .filter(targetId -> targetStore.getProbeTypeForTarget(targetId)
-                    .map(CLOUD_PROBE_TYPES::contains)
-                    .orElse(false))
-                .collect(Collectors.toSet());
+        List<Target> targets = new ArrayList<>(targetStore.getAll());
+        final Set<Long> cloudTargetIds = targets.stream()
+            .map(Target::getId)
+            .filter(targetId -> targetStore.getProbeTypeForTarget(targetId)
+                .map(CLOUD_PROBE_TYPES::contains)
+                .orElse(false))
+            .collect(Collectors.toSet());
+        // Pre-compute the targets that produces containers/apps
+        final Set<Long> appContainerTargetIds = targets.stream()
+            .map(Target::getId)
+            .filter(targetId -> targetStore.getProbeTypeForTarget(targetId)
+                .map(APP_CONTAINER_PROBES::contains)
+                .orElse(false)
+                || targetStore.getProbeCategoryForTarget(targetId)
+                .map(ProbeCategory.CLOUD_NATIVE::equals)
+                .orElse(false))
+            .collect(Collectors.toSet());
         topologyGraph.entities().forEach(topoEntity -> {
-
-            final EnvironmentType envType = getEnvironmentType(topoEntity, cloudTargetIds);
-
+            final EnvironmentType envType;
+            final boolean discoveredByAppOrContainer = topoEntity.getDiscoveringTargetIds()
+                .anyMatch(appContainerTargetIds::contains);
+            TopologyEntity entityCopy = topoEntity;
+            if (discoveredByAppOrContainer) {
+                //For entities discovered by Container or App probe, we need to traverse down to the bottom provider to evaluate the envType
+                while (!entityCopy.getProviders().isEmpty()) {
+                    //TODO: Need to double check when an entity span over on-prem and cloud, i.e. BusinessApplication
+                    entityCopy = entityCopy.getProviders().get(0);
+                }
+            }
+            envType = getEnvironmentType(entityCopy, cloudTargetIds);
             // We shouldn't have entities with env type already set
             // unless we're in plan-over-plan.
             if (topoEntity.getTopologyEntityDtoBuilder().hasEnvironmentType()) {
                 final EnvironmentType existingType =
-                        topoEntity.getTopologyEntityDtoBuilder().getEnvironmentType();
+                    topoEntity.getTopologyEntityDtoBuilder().getEnvironmentType();
                 // If environment type is already set, it REALLY shouldn't be different from what
                 // the injector determines it should be.
                 if (existingType != envType) {
@@ -84,17 +123,17 @@ public class EnvironmentTypeInjector {
                     // to set it to, then it's probably safe to do so.
                     if (existingType == EnvironmentType.UNKNOWN_ENV) {
                         logger.info("Entity {} (id: {}) Overriding explicitly-set unknown " +
-                            "environment type with {}", topoEntity.getDisplayName(),
+                                "environment type with {}", topoEntity.getDisplayName(),
                             topoEntity.getOid(), envType);
                         topoEntity.getTopologyEntityDtoBuilder().setEnvironmentType(envType);
                         envTypeCounts.compute(envType, (k, curCount) ->
-                                (curCount == null ? 0 : curCount) + 1);
+                            (curCount == null ? 0 : curCount) + 1);
                     } else {
                         // If it's explicitly set to something different than what we found, leave
                         // it as is. This shouldn't happen.
                         logger.error("Entity {} (id: {}) already has environment type set to: {}." +
                                 " Injector calculated: {}. Not overriding.",
-                            topoEntity.getDisplayName() , topoEntity.getOid(),
+                            topoEntity.getDisplayName(), topoEntity.getOid(),
                             topoEntity.getTopologyEntityDtoBuilder().getEnvironmentType(), envType);
                         conflictingTypeCount.incrementAndGet();
                     }
@@ -104,7 +143,7 @@ public class EnvironmentTypeInjector {
                     topoEntity.getDisplayName(), topoEntity.getOid(), envType);
                 topoEntity.getTopologyEntityDtoBuilder().setEnvironmentType(envType);
                 envTypeCounts.compute(envType, (k, curCount) ->
-                        (curCount == null ? 0 : curCount) + 1);
+                    (curCount == null ? 0 : curCount) + 1);
             }
         });
 
