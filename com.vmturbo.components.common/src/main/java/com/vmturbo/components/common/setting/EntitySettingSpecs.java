@@ -279,7 +279,7 @@ public enum EntitySettingSpecs {
             //path is needed for the UI to display this setting in a separate category
             Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
-            numeric(0.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
+            numeric(1.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
 
     /**
      * Resize target Utilization for VMEM.
@@ -288,7 +288,7 @@ public enum EntitySettingSpecs {
             //path is needed for the UI to display this setting in a separate category
             Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
-            numeric(0.0f/*min*/, 100.0f/*max*/, 90.0f/*default*/), true),
+            numeric(1.0f/*min*/, 100.0f/*max*/, 90.0f/*default*/), true),
 
     /**
      * IOPS capacity to set on the entity.

@@ -54,6 +54,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.AnalysisUtil;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
@@ -1216,9 +1217,19 @@ public class TopologyConverter {
         if (drivingCommSold.size() == 1 && topologyDTO.getEnvironmentType() == EnvironmentType.CLOUD) {
             CommoditySoldDTO commSold = drivingCommSold.get(0);
             double targetUtil = commSold.getResizeTargetUtilization();
+            if (targetUtil <= 0.0) {
+                final double globalDefault = EntitySettingSpecs.UtilTarget.getSettingSpec()
+                        .getNumericSettingValueType().getDefault() / 100;
+                logger.warn("Invalid resize target util {} in commodity of type {} in entity {}; " +
+                                "replacing it with the global default {}",
+                        targetUtil, commSold.getCommodityType().getType(),
+                        topologyDTO.getDisplayName(), globalDefault);
+                targetUtil = globalDefault;
+            }
             logger.debug("Resizing {} of {}. Used = {}, Peak = {}, RTU = {}",
                     commSold.getCommodityType().getType(), topologyDTO.getDisplayName(),
                     commSold.getUsed(), commSold.getPeak(), targetUtil);
+
             double resizeUpDemand = commSold.getUsed();
             // For cloud resize down where instead of using the max we use weighted average
             double resizeDownDemand = getWeightedUsed(commSold);
