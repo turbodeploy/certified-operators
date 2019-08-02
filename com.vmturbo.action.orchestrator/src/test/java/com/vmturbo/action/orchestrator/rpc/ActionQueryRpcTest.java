@@ -30,14 +30,14 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
+
+import com.google.common.collect.ImmutableMap;
 
 import io.grpc.Status.Code;
 
@@ -169,7 +169,7 @@ public class ActionQueryRpcTest {
      */
     @Test
     public void testGetAction() throws Exception {
-        final ActionView actionView = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
+        final Action actionView = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
         actionView.setDescription("Move VM1 from Host1 to Host2");
         when(actionStore.getActionView(1)).thenReturn(Optional.of(actionView));
 
@@ -229,8 +229,8 @@ public class ActionQueryRpcTest {
 
     @Test
     public void testGetAllActions() throws Exception {
-        final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
-        final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
+        final Action visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
+        final Action disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
         visibleAction.setDescription("Move VM1 from Host1 to Host2");
         disabledAction.setDescription("Move VM2 from HostA to HostB");
         doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
@@ -257,7 +257,7 @@ public class ActionQueryRpcTest {
     @Test
     public void testGetAllActionWithResizeActionWithTranslation() throws Exception {
         final long id = 11l;
-        ActionView resizeAction = new Action(ActionOrchestratorTestUtils
+        Action resizeAction = new Action(ActionOrchestratorTestUtils
                 .createResizeRecommendation(1, id, CommodityType.VCPU, 5000,
                         2500), actionPlanId, actionModeCalculator);
         resizeAction.setDescription("Resize down vcpu for VM1 from 5 to 2.5");
@@ -289,7 +289,7 @@ public class ActionQueryRpcTest {
 
     @Test
     public void testGetAllActionsPaginationParamsSetWithCursor() {
-        final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
+        final Action visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
         visibleAction.setDescription("Move VM1 from HostA to HostB");
         final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
                 visibleAction.getId(), visibleAction), PlanActionStore.VISIBILITY_PREDICATE);
@@ -322,7 +322,7 @@ public class ActionQueryRpcTest {
 
     @Test
     public void testGetAllActionsPaginationParamsSetNoCursor() {
-        final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
+        final Action visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
         visibleAction.setDescription("Move VM1 from Host1 to Host2");
         final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
                 visibleAction.getId(), visibleAction), PlanActionStore.VISIBILITY_PREDICATE);
@@ -354,8 +354,8 @@ public class ActionQueryRpcTest {
 
     @Test
     public void testGetFilteredActionsForRealTime() throws Exception {
-        final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
-        final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
+        final Action visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
+        final Action disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
         visibleAction.setDescription("Move VM1 from Host1 to Host2");
         disabledAction.setDescription("Move VM2 from Host1 to Host2");
         doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
@@ -382,8 +382,8 @@ public class ActionQueryRpcTest {
     // All plan actions should be visible.
     @Test
     public void testGetFilteredActionsForPlan() throws Exception {
-        final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
-        final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
+        final Action visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
+        final Action disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
         visibleAction.setDescription("Move VM1 from Host1 to Host2");
         disabledAction.setDescription("Move VM2 from Host1 to Host2");
         doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
@@ -436,9 +436,9 @@ public class ActionQueryRpcTest {
 
     @Test
     public void testGetMultiAction() throws Exception {
-        final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
-        final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
-        final ActionView notRetrievedAction = ActionOrchestratorTestUtils.createMoveAction(3, actionPlanId);
+        final Action visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
+        final Action disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
+        final Action notRetrievedAction = ActionOrchestratorTestUtils.createMoveAction(3, actionPlanId);
         visibleAction.setDescription("Move VM1 from Host1 to Host2");
         disabledAction.setDescription("Move VM2 from Host1 to Host2");
         notRetrievedAction.setDescription("Move VM3 from Host1 to Host2");
@@ -469,8 +469,8 @@ public class ActionQueryRpcTest {
      */
     @Test
     public void testGetMultiActionSomeMissing() throws Exception {
-        final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
-        final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
+        final Action visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
+        final Action disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
         visibleAction.setDescription("Move VM1 from Host1 to Host2");
         disabledAction.setDescription("Move VM2 from Host1 to Host2");
         doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
