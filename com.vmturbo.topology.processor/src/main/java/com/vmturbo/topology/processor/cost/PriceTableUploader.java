@@ -28,8 +28,6 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protobuf.util.JsonFormat;
 
 import io.grpc.stub.StreamObserver;
 
@@ -45,8 +43,6 @@ import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTableSegment.ProbeRISp
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstanceSpecPrice;
 import com.vmturbo.common.protobuf.cost.Pricing.UploadPriceTablesResponse;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceStub;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
-import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.OnDemandPriceTableByRegionEntry;
@@ -68,7 +64,7 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  * Because price data is expected to change infrequently, we will do a checksum comparison with the
  * latest price table checksum from the cost component before initiating a new upload.
  */
-public class PriceTableUploader implements Diagnosable {
+public class PriceTableUploader {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -126,11 +122,6 @@ public class PriceTableUploader implements Diagnosable {
         }
 
         sourcePriceTableByProbeType.put(probeType, priceTable);
-    }
-
-    @Nonnull
-    Map<SDKProbeType, PricingDTO.PriceTable> getSourcePriceTables() {
-        return Collections.unmodifiableMap(sourcePriceTableByProbeType);
     }
 
     /**
@@ -482,58 +473,6 @@ public class PriceTableUploader implements Diagnosable {
                             + "kept for each RI Spec.", numConflictingPrices);
         }
         return retVal;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Nonnull
-    @Override
-    public List<String> collectDiags() throws DiagnosticsException {
-        final List<String> retList = new ArrayList<>(sourcePriceTableByProbeType.size() * 2);
-        synchronized (sourcePriceTableByProbeType) {
-            final JsonFormat.Printer printer = JsonFormat.printer().omittingInsignificantWhitespace();
-            sourcePriceTableByProbeType.forEach((probeType, priceTable) -> {
-                try {
-                    final String priceTableStr = printer.print(priceTable);
-                    retList.add(probeType.getProbeType());
-                    retList.add(priceTableStr);
-                } catch (InvalidProtocolBufferException e) {
-                    logger.error("Failed to serialize price table for probe: {}. Error: {}", probeType, e.getMessage());
-                }
-            });
-        }
-        return retList;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
-        if (collectedDiags.size() % 2 != 0) {
-            throw new DiagnosticsException("Unexpected diags - should be even length.");
-        }
-
-        synchronized (sourcePriceTableByProbeType) {
-            final JsonFormat.Parser parser = JsonFormat.parser().ignoringUnknownFields();
-            for (int i = 0; i + 2 <= collectedDiags.size(); i += 2) {
-                String probeType = collectedDiags.get(i);
-                String priceTableStr = collectedDiags.get(i + 1);
-                SDKProbeType sdkProbeType = SDKProbeType.create(probeType);
-                if (sdkProbeType == null) {
-                    logger.error("Failed to find SDK probe type for probe type: {}", probeType);
-                } else {
-                    PricingDTO.PriceTable.Builder priceTableBldr = PricingDTO.PriceTable.newBuilder();
-                    try {
-                        parser.merge(priceTableStr, priceTableBldr);
-                        sourcePriceTableByProbeType.put(sdkProbeType, priceTableBldr.build());
-                    } catch (InvalidProtocolBufferException e) {
-                        logger.error("Failed to deserialize price table for probe: {}. Error: {}", probeType, e.getMessage());
-                    }
-                }
-            }
-        }
     }
 
     /**

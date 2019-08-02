@@ -231,8 +231,7 @@ public class ScheduledRollupIntegrationTest {
             assertThat(mu1A1HourRecord.getMgmtUnitSubgroupId(), is(mgmtSubgroup1));
             assertThat(mu1A1HourRecord.getActionGroupId(), is(actionGroup1));
 
-            // Total - New of the first latest record.
-            assertThat(mu1A1HourRecord.getPriorActionCount(), is(9));
+            assertThat(mu1A1HourRecord.getPriorActionCount(), is(10));
             assertThat(mu1A1HourRecord.getNewActionCount(), is(2));
             assertThat(mu1A1HourRecord.getMaxActionCount(), is(10));
             assertThat(mu1A1HourRecord.getMinActionCount(), is(8));

@@ -13,7 +13,6 @@ import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.proactivesupport.DataCollectorFramework;
 import com.vmturbo.proactivesupport.bridge.TCPAggregatorBridge;
 import com.vmturbo.topology.processor.KVConfig;
-import com.vmturbo.topology.processor.cost.CloudCostConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
@@ -28,7 +27,7 @@ import com.vmturbo.topology.processor.targets.TargetConfig;
  */
 @Configuration
 @Import({TargetConfig.class, SchedulerConfig.class, EntityConfig.class, GroupConfig.class,
-    PlanConfig.class, IdentityProviderConfig.class, ProbeConfig.class, CloudCostConfig.class})
+    PlanConfig.class, IdentityProviderConfig.class, ProbeConfig.class})
 public class TopologyProcessorDiagnosticsConfig {
     /**
      * The urgent collection interval setting.
@@ -86,9 +85,6 @@ public class TopologyProcessorDiagnosticsConfig {
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
 
-    @Autowired
-    private CloudCostConfig cloudCostConfig;
-
     /**
      * The hardLock key.
      */
@@ -109,8 +105,6 @@ public class TopologyProcessorDiagnosticsConfig {
             groupConfig.discoveredGroupUploader(),
             planConfig.discoveredTemplatesUploader(),
             identityProviderConfig.identityProvider(),
-            cloudCostConfig.discoveredCloudCostUploader(),
-            cloudCostConfig.priceTableUploader(),
             diagnosticsWriter());
     }
 

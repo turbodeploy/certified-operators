@@ -49,8 +49,6 @@ import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.TopologyProcessorComponent;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetInfo;
-import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
-import com.vmturbo.topology.processor.cost.PriceTableUploader;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.IdentifiedEntityDTO;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
@@ -80,9 +78,6 @@ public class TopologyProcessorDiagnosticsHandler {
     private static final String PROBES_DIAGS_FILE_NAME = "Probes.diags";
     private static final String TARGET_IDENTIFIERS_DIAGS_FILE_NAME = "Target.identifiers.diags";
 
-    private static final String DISCOVERED_CLOUD_COST_NAME = "DiscoveredCloudCost.diags";
-    private static final String PRICE_TABLE_NAME = "PriceTables.diags";
-
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
 
     private final TargetStore targetStore;
@@ -93,8 +88,6 @@ public class TopologyProcessorDiagnosticsHandler {
     private final DiscoveredGroupUploader discoveredGroupUploader;
     private final DiscoveredTemplateDeploymentProfileUploader templateDeploymentProfileUploader;
     private final IdentityProvider identityProvider;
-    private final DiscoveredCloudCostUploader discoveredCloudCostUploader;
-    private final PriceTableUploader priceTableUploader;
     private final DiagnosticsWriter diagnosticsWriter;
 
     private final Logger logger = LogManager.getLogger();
@@ -108,8 +101,6 @@ public class TopologyProcessorDiagnosticsHandler {
             @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
             @Nonnull final DiscoveredTemplateDeploymentProfileUploader templateDeploymentProfileUploader,
             @Nonnull final IdentityProvider identityProvider,
-            @Nonnull final DiscoveredCloudCostUploader discoveredCloudCostUploader,
-            @Nonnull final PriceTableUploader priceTableUploader,
             @Nonnull final DiagnosticsWriter diagnosticsWriter) {
         this.targetStore = targetStore;
         this.targetPersistentIdentityStore = targetPersistentIdentityStore;
@@ -119,8 +110,6 @@ public class TopologyProcessorDiagnosticsHandler {
         this.discoveredGroupUploader = discoveredGroupUploader;
         this.templateDeploymentProfileUploader = templateDeploymentProfileUploader;
         this.identityProvider = identityProvider;
-        this.discoveredCloudCostUploader = discoveredCloudCostUploader;
-        this.priceTableUploader = priceTableUploader;
         this.diagnosticsWriter = diagnosticsWriter;
     }
 
@@ -181,24 +170,6 @@ public class TopologyProcessorDiagnosticsHandler {
                 .map(schedule -> GSON.toJson(schedule, TargetDiscoverySchedule.class))
                 .collect(Collectors.toList()),
             diagnosticZip);
-
-        // Discovered costs
-        try {
-            diagnosticsWriter.writeZipEntry(DISCOVERED_CLOUD_COST_NAME,
-                discoveredCloudCostUploader.collectDiags(),
-                diagnosticZip);
-        } catch (DiagnosticsException e) {
-            logger.error("Failed to dump discovered cloud costs. Will continue with others.", e);
-        }
-
-        // Discovered price tables.
-        try {
-            diagnosticsWriter.writeZipEntry(PRICE_TABLE_NAME,
-                priceTableUploader.collectDiags(),
-                diagnosticZip);
-        } catch (DiagnosticsException e) {
-            logger.error("Failed to dump discovered cloud costs. Will continue with others.", e);
-        }
 
         final Map<Long, List<DiscoveredGroupInfo>> discoveredGroups = discoveredGroupUploader
             .getDiscoveredGroupInfoByTarget();
@@ -261,22 +232,20 @@ public class TopologyProcessorDiagnosticsHandler {
 
         // discovery dumps
         File dumpDirInZip = new File("discoveryDumps");
-        if (DiscoveryDumperSettings.DISCOVERY_DUMP_DIRECTORY.isDirectory()) {
-            for (String dumpFileName : DiscoveryDumperSettings.DISCOVERY_DUMP_DIRECTORY.list()) {
-                File dumpFile = new File(DiscoveryDumperSettings.DISCOVERY_DUMP_DIRECTORY, dumpFileName);
-                if (dumpFile.exists() && dumpFile.isFile()) {
-                    File entryFileName = new File(dumpDirInZip, dumpFileName);
-                    try {
-                        diagnosticsWriter.writeZipEntry(entryFileName.toString(), FileUtils.readFileToByteArray(dumpFile), diagnosticZip);
-                    } catch (IOException e) {
-                        logger.warn("Failed to write discovery dump file {} to diags zip file", dumpFile);
-                        logger.catching(Level.DEBUG, e);
-                    }
-                } else {
-                    logger.warn("Not dumping item {} in discovery dump directory; not a regular file", dumpFileName);
+        for (String dumpFileName: DiscoveryDumperSettings.DISCOVERY_DUMP_DIRECTORY.list()) {
+            File dumpFile = new File(DiscoveryDumperSettings.DISCOVERY_DUMP_DIRECTORY, dumpFileName);
+            if (dumpFile.exists() && dumpFile.isFile()) {
+                File entryFileName = new File(dumpDirInZip, dumpFileName);
+                try {
+                    diagnosticsWriter.writeZipEntry(entryFileName.toString(), FileUtils.readFileToByteArray(dumpFile), diagnosticZip);
+                } catch (IOException e) {
+                    logger.warn("Failed to write discovery dump file {} to diags zip file", dumpFile);
+                    logger.catching(Level.DEBUG, e);
                 }
-
+            } else {
+                logger.warn("Not dumping item {} in discovery dump directory; not a regular file", dumpFileName);
             }
+
         }
     }
 
@@ -321,24 +290,6 @@ public class TopologyProcessorDiagnosticsHandler {
                                                         .map(IdentifiedEntityDTO::toJsonAnonymized)
                                                         .collect(Collectors.toList()),
                                              diagnosticZip);
-        }
-
-        // Discovered costs
-        try {
-            diagnosticsWriter.writeZipEntry(DISCOVERED_CLOUD_COST_NAME,
-                discoveredCloudCostUploader.collectDiags(),
-                diagnosticZip);
-        } catch (DiagnosticsException e) {
-            logger.error("Failed to dump discovered cloud costs. Will continue with others.", e);
-        }
-
-        // Discovered price tables.
-        try {
-            diagnosticsWriter.writeZipEntry(PRICE_TABLE_NAME,
-                priceTableUploader.collectDiags(),
-                diagnosticZip);
-        } catch (DiagnosticsException e) {
-            logger.error("Failed to dump discovered price tables. Will continue with others.", e);
         }
 
         try {
@@ -424,12 +375,6 @@ public class TopologyProcessorDiagnosticsHandler {
                         break;
                     case PROBES_DIAGS_FILE_NAME:
                         restoreProbes(diagsLines);
-                        break;
-                    case DISCOVERED_CLOUD_COST_NAME:
-                        discoveredCloudCostUploader.restoreDiags(diagsLines);
-                        break;
-                    case PRICE_TABLE_NAME:
-                        priceTableUploader.restoreDiags(diagsLines);
                         break;
                     default:
                        // Other diags files should match a pattern
