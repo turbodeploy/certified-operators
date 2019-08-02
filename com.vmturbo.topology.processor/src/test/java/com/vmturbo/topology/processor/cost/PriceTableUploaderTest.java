@@ -1,9 +1,13 @@
 package com.vmturbo.topology.processor.cost;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.spy;
 
 import java.time.Clock;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.Assert;
@@ -17,6 +21,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceImplBase;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
@@ -247,6 +252,37 @@ public class PriceTableUploaderTest {
         Assert.assertNotNull(onDemandPriceTable);
         Assert.assertEquals(IP_RPICE_AMOUNT, onDemandPriceTable.getIpPrices().getIpPrice(0)
             .getPrices(0).getPriceAmount().getAmount(), DELTA);
+    }
+
+    @Test
+    public void testDiags() throws DiagnosticsException {
+        PricingDTO.PriceTable sourcePriceTable = PricingDTO.PriceTable.newBuilder()
+            .addOnDemandPriceTable(OnDemandPriceTableByRegionEntry.newBuilder()
+                .setRelatedRegion(EntityDTO.newBuilder()
+                    .setId(REGION_ONE)
+                    .setDisplayName(REGION_ONE)
+                    .setEntityType(EntityType.REGION))
+                .setIpPrices(IpPriceList.newBuilder()
+                    .addIpPrice(IpConfigPrice.newBuilder().addPrices(Price.newBuilder()
+                        .setPriceAmount(CurrencyAmount.newBuilder()
+                            .setAmount(IP_RPICE_AMOUNT))))))
+            .build();
+
+        priceTableUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC(), 100);
+        priceTableUploader.recordPriceTable(SDKProbeType.AZURE_COST, sourcePriceTable);
+
+        final Map<SDKProbeType, PricingDTO.PriceTable> originalSrcTables = priceTableUploader.getSourcePriceTables();
+        assertThat(originalSrcTables.keySet(), containsInAnyOrder(SDKProbeType.AZURE_COST));
+        assertThat(originalSrcTables.get(SDKProbeType.AZURE_COST), is(sourcePriceTable));
+
+        // ACT
+        List<String> diags = priceTableUploader.collectDiags();
+
+        PriceTableUploader newUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC(), 100);
+        newUploader.restoreDiags(diags);
+        final Map<SDKProbeType, PricingDTO.PriceTable> newSrcTables = newUploader.getSourcePriceTables();
+
+        assertThat(newSrcTables, is(originalSrcTables));
     }
 
     public static class TestPriceService extends PricingServiceImplBase {

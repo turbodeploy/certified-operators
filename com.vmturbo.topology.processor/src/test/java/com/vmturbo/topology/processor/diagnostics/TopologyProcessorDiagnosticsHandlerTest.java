@@ -48,6 +48,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
+
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
@@ -123,6 +124,8 @@ import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
+import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
+import com.vmturbo.topology.processor.cost.PriceTableUploader;
 import com.vmturbo.topology.processor.diagnostics.TopologyProcessorDiagnosticsHandler.DeploymentProfileWithTemplate;
 import com.vmturbo.topology.processor.diagnostics.TopologyProcessorDiagnosticsHandler.ProbeInfoWithId;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -162,6 +165,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
     private final DiscoveredGroupUploader groupUploader = mock(DiscoveredGroupUploader.class);
     private final DiscoveredTemplateDeploymentProfileUploader templateDeploymentProfileUploader =
         mock(DiscoveredTemplateDeploymentProfileUploader.class);
+    private final DiscoveredCloudCostUploader discoveredCloudCostUploader = mock(DiscoveredCloudCostUploader.class);
+    private final PriceTableUploader priceTableUploader = mock(PriceTableUploader.class);
     private final IdentityProvider identityProvider = mock(IdentityProvider.class);
     private final EntityDTO nwDto =
             EntityDTO.newBuilder().setId("NW-1").setEntityType(EntityType.NETWORK).build();
@@ -187,6 +192,9 @@ public class TopologyProcessorDiagnosticsHandlerTest {
     private final Map<Long, ProbeInfo> probeMap = new HashMap<>();
     private final List<String> identifierDiags = new ArrayList<>();
 
+    private static final String DISCOVERED_CLOUD_COST = "foo";
+    private static final String DISCOVERED_PRICE_TABLE = "bar";
+
     @Before
     public void setup() throws Exception {
         Map<Long, EntityDTO> map = ImmutableMap.of(199L, nwDto);
@@ -201,6 +209,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             .getDiscoveredDeploymentProfilesByTarget();
         when(probeStore.getProbes()).thenReturn(probeMap);
         when(targetPersistentIdentityStore.collectDiags()).thenReturn(identifierDiags);
+        when(discoveredCloudCostUploader.collectDiags()).thenReturn(Collections.singletonList(DISCOVERED_CLOUD_COST));
+        when(priceTableUploader.collectDiags()).thenReturn(Collections.singletonList(DISCOVERED_PRICE_TABLE));
     }
 
     private ZipInputStream dumpDiags() throws IOException {
@@ -209,7 +219,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         TopologyProcessorDiagnosticsHandler handler =
                 new TopologyProcessorDiagnosticsHandler(targetStore, targetPersistentIdentityStore, scheduler,
                         entityStore, probeStore, groupUploader, templateDeploymentProfileUploader,
-                        identityProvider, new DiagnosticsWriter());
+                        identityProvider, discoveredCloudCostUploader, priceTableUploader, new DiagnosticsWriter());
         handler.dumpDiags(zos);
         zos.close();
         return new ZipInputStream(new ByteArrayInputStream(zipBytes.toByteArray()));
@@ -248,6 +258,12 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         bytes = new byte[20];
         assertEquals(-1, zis.read(bytes));
         assertEquals(0, bytes[0]); // the entry is empty
+
+        ze = zis.getNextEntry();
+        assertEquals("DiscoveredCloudCost.diags", ze.getName());
+
+        ze = zis.getNextEntry();
+        assertEquals("PriceTables.diags", ze.getName());
 
         ze = zis.getNextEntry();
         assertEquals("Identity.diags", ze.getName());
@@ -332,7 +348,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         final TopologyProcessorDiagnosticsHandler handler =
                 new TopologyProcessorDiagnosticsHandler(targetStore, targetPersistentIdentityStore, scheduler,
                         entityStore, probeStore, groupUploader, templateDeploymentProfileUploader,
-                        identityProvider, new DiagnosticsWriter());
+                        identityProvider, discoveredCloudCostUploader, priceTableUploader,new DiagnosticsWriter());
         // Valid json, but not a target info
         final String invalidJsonTarget = GSON.toJson(targetSpecBuilder.setProbeId(3));
         // Invalid json
@@ -421,6 +437,18 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         assertNotEquals(-1, zis.read(bytes));
         assertEquals(SCHEDULE_JSON, new String(bytes, 0, SCHEDULE_JSON.length()));
 
+        ze = zis.getNextEntry();
+        assertEquals("DiscoveredCloudCost.diags", ze.getName());
+        bytes = new byte[1024];
+        assertNotEquals(-1, zis.read(bytes));
+        assertEquals(DISCOVERED_CLOUD_COST, new String(bytes, 0, DISCOVERED_CLOUD_COST.length()));
+
+        ze = zis.getNextEntry();
+        assertEquals("PriceTables.diags", ze.getName());
+        bytes = new byte[1024];
+        assertNotEquals(-1, zis.read(bytes));
+        assertEquals(DISCOVERED_PRICE_TABLE, new String(bytes, 0, DISCOVERED_PRICE_TABLE.length()));
+
         for (TestTopology testTopology: testTopologies) {
             final String suffix = "." + testTopology.targetId + "-" + testTopology.time + ".diags";
 
@@ -484,9 +512,10 @@ public class TopologyProcessorDiagnosticsHandlerTest {
     public void testRestore() throws Exception {
         TargetStore simpleTargetStore = new KVBackedTargetStore(new MapKeyValueStore(), probeStore,
                 new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore)));
-        TopologyProcessorDiagnosticsHandler handler = new TopologyProcessorDiagnosticsHandler(simpleTargetStore,
-                targetPersistentIdentityStore, scheduler, entityStore, probeStore, groupUploader,
-                templateDeploymentProfileUploader, identityProvider, new DiagnosticsWriter());
+        TopologyProcessorDiagnosticsHandler handler = new TopologyProcessorDiagnosticsHandler(
+            simpleTargetStore, targetPersistentIdentityStore, scheduler, entityStore, probeStore,
+            groupUploader, templateDeploymentProfileUploader, identityProvider,
+            discoveredCloudCostUploader, priceTableUploader, new DiagnosticsWriter());
         when(probeStore.getProbe(71664194068896L)).thenReturn(Optional.of(Probes.defaultProbe));
         when(probeStore.getProbe(71564745273056L)).thenReturn(Optional.of(Probes.defaultProbe));
         handler.restore(new FileInputStream(new File(fullPath("diags/compressed/diags0.zip"))));
