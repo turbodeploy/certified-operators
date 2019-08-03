@@ -11,7 +11,7 @@ MY_CNF="/etc/my.cnf.d/server.cnf"
 MYSQL_SERVICE_CNF="/usr/lib/systemd/system/mariadb.service"
 
 # Check if mariadb is installed
-yum list --disablerepo=* installed Mariadb-server
+yum list installed Mariadb-server
 if [ "$?" -ne 0 ];
 then
     log_msg "Mariadb server package is not installed. Aborting..."
