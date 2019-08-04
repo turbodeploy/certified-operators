@@ -160,8 +160,11 @@ public class StatsQueryScopeExpander {
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
         if (!relatedTypes.isEmpty()) {
-            expandedOidsInScope = supplyChainFetcherFactory.expandScope(
-                expandGroupingServiceEntities(immediateOidsInScope), relatedTypes);
+            // We replace the proxy entities after first finding related type entities, so that the
+            // supply chain search for related entities has the correct starting point (the original
+            // entities in the request, rather than the replacement entities).
+            expandedOidsInScope = expandGroupingServiceEntities(supplyChainFetcherFactory.expandScope(
+                immediateOidsInScope, relatedTypes));
         } else {
             expandedOidsInScope = expandGroupingServiceEntities(immediateOidsInScope);
         }
