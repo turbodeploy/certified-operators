@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -133,6 +134,7 @@ public class TopologyEntitiesHandler {
         topology.populateMarketsWithSellers();
 
         populateCommodityResizeDependencyMap(topology);
+        populateProducesDependencyMap(topology);
         populateRawMaterialsMap(topology);
         commToAllowOverheadInClone(topology);
 
@@ -252,7 +254,7 @@ public class TopologyEntitiesHandler {
     }
 
     /**
-     * Convert a {@link CommodityResizeDependencyMap.CommodityResizeDependencySpec} to
+     * Convert a {@link CommodityResizeSpecification} to
      * {@link CommodityResizeSpecification}.
      *
      * @param spec a commodity resize specification from the commons package
@@ -263,6 +265,19 @@ public class TopologyEntitiesHandler {
         return new CommodityResizeSpecification(spec.getCommodityType(),
             convertUpdateFunction(spec.getIncrementFunction()),
             convertUpdateFunction(spec.getDecrementFunction()));
+    }
+
+    /**
+     * Obtain the commodity resize produces-sdependency map from the commons package, convert it and
+     * put it in the topology.
+     *
+     * @param topology where to place the map
+     */
+    private static void populateProducesDependencyMap(Topology topology) {
+        CommodityResizeDependencyMap.commodityResizeProducesMap.forEach((k, v) -> {
+                topology.addToModifiableCommodityProducesDependencyMap(k, v);
+            }
+        );
     }
 
     /**
