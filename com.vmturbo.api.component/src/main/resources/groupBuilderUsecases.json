@@ -49,7 +49,7 @@
     "Storage" : {
         "criteria": [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "storageByName"},
-            {"inputType": "*", "elements": "VirtualMachine:displayName:CONSUMES", "filterCategory": "entity", "filterType": "storageByVMs"},
+            {"inputType": "*", "elements": "VirtualMachine:displayName:CONSUMES:1", "filterCategory": "entity", "filterType": "storageByVMs"},
             {"inputType": "*", "elements": "PhysicalMachine:Cluster:CONSUMES", "filterCategory": "entity", "filterType": "storageByPMCluster"},
             {"inputType": "*", "elements": "Cluster", "filterCategory": "entity", "filterType": "storageByStorageCluster"},
             {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "storageByState"},
