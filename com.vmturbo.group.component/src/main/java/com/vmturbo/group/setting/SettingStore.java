@@ -271,8 +271,16 @@ public class SettingStore implements Diagnosable {
 
                     for (Setting existingSettingName : existingPolicy.getInfo().getSettingsList()) {
                         if (!newSettingNames.contains(existingSettingName.getSettingSpecName())) {
-                            throw new InvalidItemException("Illegal attempt to remove a " +
-                                "default setting.");
+                            /**
+                             * TODO (Marco, August 05 2018) OM-48940
+                             * ActionWorkflow and ActionScript settings are missing in the ui and
+                             * in the payload of the request due to OM-48950.
+                             * This workaround will be removed when OM-48950 will be fixed.
+                             */
+                            if (!existingSettingName.getSettingSpecName().contains(
+                                "ActionWorkflow") && !existingSettingName.getSettingSpecName().contains("ActionScript"))
+                                    throw new InvalidItemException("Illegal attempt to remove a " +
+                                    "default setting.");
                         }
                     }
                 }
