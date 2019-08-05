@@ -506,6 +506,20 @@ public final class ProtobufToAnalysis {
         }
     }
 
+    /**
+     * Populates the produces commodity map of a {@link Topology} from information in an
+     * {@link EndDiscoveredTopology} message.
+     *
+     * @param source The {@link EndDiscoveredTopology} message from which to get the map entries.
+     * @param destination destination The {@link Topology} to put the entries to.
+     */
+    public static void populateCommodityProducesDependancyMap(@NonNull EndDiscoveredTopology source,
+                                               @NonNull Topology destination) {
+        source.getProducesEntryList().forEach(entry ->
+                destination.addToModifiableCommodityProducesDependencyMap(entry.getBaseCommodityType(),
+                                                                          entry.getCoDependantCommoditiesTypeList()));
+    }
+
     public static void commToAdjustOverhead (@NonNull EndDiscoveredTopology source,
                                               @NonNull Topology destination) {
         for (CommoditySpecificationTO csTO : source.getCommToAllowOverheadInCloneList()) {

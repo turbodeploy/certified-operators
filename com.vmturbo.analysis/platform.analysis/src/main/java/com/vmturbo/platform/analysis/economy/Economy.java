@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import com.vmturbo.platform.analysis.utilities.M2Utils;
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -63,6 +64,9 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     // Map of commodity resize dependency calculation by commodity type.
     private final @NonNull Map<@NonNull Integer, @NonNull List<@NonNull CommodityResizeSpecification>>
         commodityResizeDependency_ = new HashMap<>();
+    // Map of commodity resize dependency calculation by commodity type.
+    private final @NonNull HashMap<@NonNull Integer, @NonNull List<@NonNull Integer>>
+            commodityProducesDependency_ = new HashMap<>();
     // Map of list of commodities that simulation of resize action based on historical value
     // should be skipped by commodity type.
     private final @NonNull Map<@NonNull Integer, @NonNull List<@NonNull Integer>>
@@ -155,6 +159,12 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     public @NonNull Map<@NonNull Integer, @NonNull List<@NonNull CommodityResizeSpecification>>
                                                     getModifiableCommodityResizeDependencyMap() {
         return commodityResizeDependency_;
+    }
+
+    @Pure
+    public void addToModifiableCommodityProducesDependencyMap(@NonNull Integer key,
+                                                              @NonNull List<@NonNull Integer> value) {
+        commodityProducesDependency_.put(key, value);
     }
 
     /**
@@ -314,6 +324,12 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     public @NonNull @ReadOnly List<@NonNull CommodityResizeSpecification>
                     getResizeDependency(@ReadOnly Economy this, int processedCommodityType) {
         return commodityResizeDependency_.get(processedCommodityType);
+    }
+
+    @Pure
+    public @NonNull @ReadOnly List<Integer>
+                    getResizeProducesDependencyEntry(@ReadOnly Economy this, int processedCommodityType) {
+        return commodityProducesDependency_.get(processedCommodityType);
     }
 
     /**

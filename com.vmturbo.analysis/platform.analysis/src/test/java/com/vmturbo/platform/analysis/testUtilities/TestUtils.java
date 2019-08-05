@@ -3,12 +3,10 @@
  */
 package com.vmturbo.platform.analysis.testUtilities;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
+import com.google.common.collect.ImmutableMap;
+import com.vmturbo.platform.analysis.actions.ResizeTest;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.collect.ImmutableList;
@@ -61,6 +59,8 @@ public class TestUtils {
     public static final int VAPP_TYPE = 7;
     public static final int POD_TYPE = 8;
     public static final int DBS_TYPE = 9;
+    public static final int APP_SERVER_TYPE = 10;
+    public static final int DB_TYPE = 11;
 
     public static final double FLOATING_POINT_DELTA = 1e-7;
     public static final double FlOATING_POINT_DELTA2 = 1e-15;
@@ -422,6 +422,16 @@ public class TestUtils {
         rawMaterialMap.put(TestUtils.VMEM.getType(), Arrays.asList(TestUtils.MEM.getType()));
         rawMaterialMap.put(TestUtils.DBMEM.getType(), Arrays.asList(TestUtils.VMEM.getType()));
         rawMaterialMap.put(TestUtils.HEAP.getType(), Arrays.asList(TestUtils.VMEM.getType()));
+    }
+
+    /**
+     * Sets up the raw material map for the economy passed in.
+     * VCPU's raw material is set up as CPU. VMEM's raw material is set up as MEM.
+     * @param economy - Economy for which you want to setup the raw commodity map.
+     */
+    public static void setupProducesDependancyMap(Economy economy) {
+        List<Integer> vMemCoDepMap = ImmutableList.of(TestUtils.DBMEM.getBaseType(), TestUtils.HEAP.getBaseType());
+        economy.addToModifiableCommodityProducesDependencyMap(TestUtils.VMEM.getBaseType(), vMemCoDepMap);
     }
 
     public static CostFunction setUpGP2CostFunction() {

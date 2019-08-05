@@ -28,7 +28,8 @@ import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 public class ResizerTest {
 
     TestCommon testEconomy;
-    Trader app, app1, app2;
+    Trader app, app1, app2, app3;
+    Trader appserver1, appserver2, dbserver1;
     Trader vm, vm1, vm2;
     Trader pm;
     Ledger ledger;
@@ -688,11 +689,114 @@ public class ResizerTest {
         economy.getSettings().setRightSizeUpper(economyRightSizeUpper);
         TestUtils.setupRawCommodityMap(economy);
         if(shouldSetupCommodityResizeDependencyMap){
+
             TestUtils.setupCommodityResizeDependencyMap(economy);
         }
         economy.populateMarketsWithSellers();
         ledger = new Ledger(economy);
         return economy;
+    }
+
+    /**
+     * There is a VM that is underutilized. This hosts appServers and dbServers that are over utilized.
+     * The VM tries to scale-down its vMem and the servers try to scale-up their heap and dbMem.
+     * calculateTotalEffectiveCapacityOnCoConsumersForResizeDown and calculateTotalEffectiveCapacityOnCoConsumersForResizeUp
+     * validates capacities and returns a value that prevents the resizes.
+     */
+    @Test
+    public void testResizesWithCoDependancies () {
+        double pmMemCapacity = 220;
+        double memUsedByVm = 65;
+        double vmVmemCapacity = 500;
+        double vmemUsedByAppServer1 = 50, vmemUsedByDbServer1 = 50;
+        double heapUsedByApp = 155;
+        double vmMinDesiredUtil = 0.65;
+        double vmMaxDesiredUtil = 0.75;
+        double economyRightSizeLower = 1;
+        double economyRightSizeUpper = 0.7;
+        double appServerHeapCapacity = 160, dbServerDbMemCapacity = 160;
+
+        Economy economy = new Economy();
+        pm = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0L),
+                Arrays.asList(TestUtils.MEM),
+                new double[]{pmMemCapacity}, false, false);
+        pm.setDebugInfoNeverUseInCode("PM1");
+        // Create VM and place on PM
+        vm = TestUtils.createTrader(economy, TestUtils.VM_TYPE,
+                Arrays.asList(0L), Arrays.asList(TestUtils.VMEM),
+                new double[]{vmVmemCapacity}, false, false);
+        vm.setDebugInfoNeverUseInCode("VM1");
+        TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.MEM), vm,
+                new double[]{memUsedByVm}, pm);
+        // Create APP_SERVER and place on VM
+        appserver1 = TestUtils.createTrader(economy, TestUtils.APP_SERVER_TYPE, Arrays.asList(0L),
+                Arrays.asList(TestUtils.HEAP),
+                new double[]{appServerHeapCapacity}, false, false);
+        appserver1.setDebugInfoNeverUseInCode("APPS1");
+        TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.VMEM), appserver1,
+                new double[]{vmemUsedByAppServer1}, vm);
+        // Create APP and place on APP_SERVER
+        app1 = TestUtils.createTrader(economy, TestUtils.APP_TYPE, Arrays.asList(0L),
+                Arrays.asList(),
+                new double[]{}, false, false);
+        app1.setDebugInfoNeverUseInCode("APP1");
+        TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.HEAP), app1,
+                new double[]{heapUsedByApp}, appserver1);
+        // Create APP_SERVER and place on VM
+        appserver2 = TestUtils.createTrader(economy, TestUtils.APP_SERVER_TYPE, Arrays.asList(0L),
+                Arrays.asList(TestUtils.HEAP),
+                new double[]{appServerHeapCapacity}, false, false);
+        appserver2.setDebugInfoNeverUseInCode("APPS2");
+        TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.VMEM), appserver2,
+                new double[]{vmemUsedByAppServer1}, vm);
+        // Create APP and place on APP_SERVER
+        app2 = TestUtils.createTrader(economy, TestUtils.APP_TYPE, Arrays.asList(0L),
+                Arrays.asList(),
+                new double[]{}, false, false);
+        app2.setDebugInfoNeverUseInCode("APP2");
+        TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.HEAP), app2,
+                new double[]{heapUsedByApp}, appserver2);
+        // Create DB_SERVER and place on VM
+        dbserver1 = TestUtils.createTrader(economy, TestUtils.DBS_TYPE, Arrays.asList(0L),
+                Arrays.asList(TestUtils.DBMEM),
+                new double[]{dbServerDbMemCapacity}, false, false);
+        dbserver1.setDebugInfoNeverUseInCode("DBS1");
+        TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.VMEM), dbserver1,
+                new double[]{vmemUsedByDbServer1}, vm);
+        // Create DB and place on DB_SERVER
+        app3 = TestUtils.createTrader(economy, TestUtils.APP_TYPE, Arrays.asList(0L),
+                Arrays.asList(),
+                new double[]{}, false, false);
+        app3.setDebugInfoNeverUseInCode("DB1");
+        TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.DBMEM), app3,
+                new double[]{heapUsedByApp}, dbserver1);
+
+        vm.getSettings().setMaxDesiredUtil(vmMaxDesiredUtil).setMinDesiredUtil(vmMinDesiredUtil);
+        appserver1.getSettings().setMaxDesiredUtil(vmMaxDesiredUtil).setMinDesiredUtil(vmMinDesiredUtil);
+        appserver2.getSettings().setMaxDesiredUtil(vmMaxDesiredUtil).setMinDesiredUtil(vmMinDesiredUtil);
+        dbserver1.getSettings().setMaxDesiredUtil(vmMaxDesiredUtil).setMinDesiredUtil(vmMinDesiredUtil);
+        economy.getSettings().setRightSizeLower(economyRightSizeLower);
+        economy.getSettings().setRightSizeUpper(economyRightSizeUpper);
+
+        TestUtils.setupRawCommodityMap(economy);
+        TestUtils.setupProducesDependancyMap(economy);
+        TestUtils.setupCommodityResizeDependencyMap(economy);
+
+        economy.populateMarketsWithSellers();
+        ledger = new Ledger(economy);
+
+        // VM tries resizing vMem down but this resize is prevented by the appServers cumulatively selling high heap/dbMem
+        // disallow appServer and dbServer resizes UPs when the resizes pushes the cumulative capacity over rawMaterialCap
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(0, actions.size());
     }
 
     /**

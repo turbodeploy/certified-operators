@@ -199,7 +199,7 @@ public class AnalysisServer implements AutoCloseable {
      * Populates {@link EconomySettings} by parsing {@link EndDiscoveredTopology}
      */
     private void parseEndDiscoveredTopology(AnalysisCommand message) {
-     // Finish topology
+        // Finish topology
         EndDiscoveredTopology endDiscMsg = message.getEndDiscoveredTopology();
         AnalysisInstanceInfo instInfoAfterDisc =
                         analysisInstanceInfoMap.get(message.getTopologyId());
@@ -208,6 +208,7 @@ public class AnalysisServer implements AutoCloseable {
         ProtobufToAnalysis.populateCommodityResizeDependencyMap(endDiscMsg,
                         currPartial);
         ProtobufToAnalysis.populateRawCommodityMap(endDiscMsg, currPartial);
+        ProtobufToAnalysis.populateCommodityProducesDependancyMap(endDiscMsg, currPartial);
         ProtobufToAnalysis.commToAdjustOverhead(endDiscMsg, currPartial);
 
         if (message.getMarketName().equals("Deploy")) {

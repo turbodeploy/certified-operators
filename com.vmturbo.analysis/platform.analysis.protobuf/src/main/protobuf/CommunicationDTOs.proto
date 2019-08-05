@@ -91,6 +91,14 @@ message EndDiscoveredTopology {
         repeated int32 rawCommodityType = 2;
     }
 
+    message ResizeProducesDependancyEntry {
+        // commodity that produces a list of dependant commodities
+        // eg, vMem will have an entry with heap and dbMem
+        optional int32 baseCommodityType = 1;
+        // vMem has heap and dbMem as the commodities it produces
+        repeated int32 coDependantCommoditiesType = 2;
+    }
+
     // A map from commodity specifications to functions to use when updating the quantities sold
     // of commodities with that specification when a customer moves in or out. No MapEntry.keys
     // should be the same.
@@ -121,6 +129,8 @@ message EndDiscoveredTopology {
     // This keeps the list of commodity dependencies that will be skipped when
     // simulating resize based on historical data
     repeated ResizeDependencySkipEntry skipListForHistoryBasedResize = 10;
+
+    repeated ResizeProducesDependancyEntry producesEntry = 11;
 }
 
 // A compound message to encapsulate any one of command messages.

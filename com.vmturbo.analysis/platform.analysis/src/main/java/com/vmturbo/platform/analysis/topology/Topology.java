@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.vmturbo.platform.analysis.utilities.M2Utils;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
@@ -185,6 +186,15 @@ public final class Topology implements Serializable {
     public @NonNull Map<@NonNull Integer, @NonNull List<@NonNull CommodityResizeSpecification>>
                                            getModifiableCommodityResizeDependencyMap() {
         return economy_.getModifiableCommodityResizeDependencyMap();
+    }
+
+    /**
+     *
+     * @return A modifiable map from commodity sold to the dependent commodities bought
+     *         that have to be changed in case of a resize.
+     */
+    public void addToModifiableCommodityProducesDependencyMap(@NonNull Integer key, @NonNull List<@NonNull Integer> value) {
+        economy_.addToModifiableCommodityProducesDependencyMap(key, value);
     }
 
     /**

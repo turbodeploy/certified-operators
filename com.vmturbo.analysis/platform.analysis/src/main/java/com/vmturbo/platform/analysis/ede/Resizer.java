@@ -2,10 +2,10 @@ package com.vmturbo.platform.analysis.ede;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.function.DoubleUnaryOperator;
 
+import com.vmturbo.platform.analysis.utilities.M2Utils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -52,6 +52,7 @@ public class Resizer {
         ConsistentResizer consistentResizer = new ConsistentResizer();
         float rateOfResize = economy.getSettings().getRateOfResize();
         for (Trader seller : economy.getTraders()) {
+
             ledger.calculateCommodityExpensesAndRevenuesForTrader(economy, seller);
             if (economy.getForceStop()) {
                 return actions;
@@ -111,7 +112,7 @@ public class Resizer {
                             Pair<CommoditySold, Trader> p = findSellerCommodityAndSupplier(economy,
                                 seller, soldIndex);
                             CommoditySold rawMaterial = (p != null) ? p.getFirst() : null;
-                            double newEffectiveCapacity = calculateEffectiveCapacity(seller,
+                            double newEffectiveCapacity = calculateEffectiveCapacity(economy, seller,
                                 resizedCommodity, desiredCapacity, commoditySold,
                                     rawMaterial, rateOfResize);
                             if (consistentResizing || Double.compare(newEffectiveCapacity,
@@ -207,6 +208,7 @@ public class Resizer {
      *
      * In all cases, the the new size is not permitted to exceed the capacity of the seller.
      *
+     * @param economy         The economy that the trader is a part of
      * @param seller          The seller whose commodity is being resized
      * @param commSpec        The commSpec being resized
      * @param desiredCapacity The calculated new desired effective capacity; may be greater or less than
@@ -217,10 +219,12 @@ public class Resizer {
      * @param rateOfRightSize The user configured rateOfRightSize from {@link EconomySettings}.
      * @return The recommended new capacity.
      */
-    private static double calculateEffectiveCapacity(Trader seller, CommoditySpecification commSpec, double desiredCapacity,
-                                             @NonNull CommoditySold resizeCommodity,
-                                             CommoditySold rawMaterial,
-                                             float rateOfRightSize) {
+    private static double calculateEffectiveCapacity(Economy economy, Trader seller,
+                                                     CommoditySpecification commSpec,
+                                                     double desiredCapacity,
+                                                     @NonNull CommoditySold resizeCommodity,
+                                                     CommoditySold rawMaterial,
+                                                     float rateOfRightSize) {
         checkArgument(rateOfRightSize > 0, "Expected rateOfRightSize to be > 0", rateOfRightSize);
 
         double currentCapacity = resizeCommodity.getEffectiveCapacity();
@@ -228,10 +232,10 @@ public class Resizer {
         double capacityIncrement = resizeCommodity.getSettings().getCapacityIncrement() * resizeCommodity.getSettings().getUtilizationUpperBound();
         double adjustment = 0;
         if (desiredCapacity > currentCapacity) {
-            adjustment = calculateResizeUpAmount(seller, commSpec, desiredAdjustment, resizeCommodity, rawMaterial, capacityIncrement, rateOfRightSize);
+            adjustment = calculateResizeUpAmount(economy, seller, commSpec, desiredAdjustment, resizeCommodity, rawMaterial, capacityIncrement, rateOfRightSize);
         } else {
             // "amount" values are always non-negative, hence we negate the arg and the result for a downward resize
-            adjustment = -calculateResizeDownAmount(seller, commSpec, -desiredAdjustment, resizeCommodity, rawMaterial, capacityIncrement, rateOfRightSize);
+            adjustment = -calculateResizeDownAmount(economy, seller, commSpec, -desiredAdjustment, resizeCommodity, rawMaterial, capacityIncrement, rateOfRightSize);
         }
         return currentCapacity + adjustment;
     }
@@ -243,16 +247,17 @@ public class Resizer {
      *
      * In addition, the amount is limited by available headroom in the seller.
      *
-     * @param seller the seller
-     * @param commSpec the commSpec being resized
-     * @param desiredAmount the desired capacity increase; must be non-negative
-     * @param resizeCommodity the {@link CommoditySold commodity} being resized.
-     * @param rawMaterial the source of raw material supplying the {@link CommoditySold commodity} being resized.
-     * @param capacityIncrement the capacity increment for the {@link CommoditySold commodity} being resized.
-     * @param rateOfRightSize the user configured rightsizing rate from {@link EconomySettings}.
-     * @return the recommended amount of increase for {@link CommoditySold commodity} being resized; always non-negative
+     * @param economy           The economy that the trader is a part of
+     * @param seller            The seller
+     * @param commSpec          The commSpec being resized
+     * @param desiredAmount     The desired capacity increase; must be non-negative
+     * @param resizeCommodity   The {@link CommoditySold commodity} being resized.
+     * @param rawMaterial       The source of raw material supplying the {@link CommoditySold commodity} being resized.
+     * @param capacityIncrement The capacity increment for the {@link CommoditySold commodity} being resized.
+     * @param rateOfRightSize   The user configured rightsizing rate from {@link EconomySettings}.
+     * @return                  The recommended amount of increase for {@link CommoditySold commodity} being resized; always non-negative
      */
-    private static double calculateResizeUpAmount(Trader seller, CommoditySpecification commSpec,
+    private static double calculateResizeUpAmount(Economy economy, Trader seller, CommoditySpecification commSpec,
                                                   double desiredAmount,
                                                   @NonNull CommoditySold resizeCommodity,
                                                   CommoditySold rawMaterial,
@@ -270,6 +275,7 @@ public class Resizer {
             }
             return 0;
         }
+
         // compute increments sufficient for desired amount
         int numIncrements = (int) Math.ceil(desiredAmount / (capacityIncrement * rateOfRightSize));
 
@@ -281,10 +287,109 @@ public class Resizer {
             if (headroom < numIncrements * capacityIncrement) {
                 numIncrements = (int) Math.floor(headroom / capacityIncrement);
             }
-            return numIncrements * capacityIncrement;
+            double desiredIncreament = numIncrements * capacityIncrement;
+            // in the case of heap resizing up, we make sure that the sum of all heapCapacities sold by allServers
+            // is less than the vMemSoldCapacity. This sum is not going to be same as vMemUsed and hence
+            // this check is different from the rawMaterial validation.
+            double totalEffCapOnConsumers = calculateTotalEffectiveCapacityOnCoConsumersForResizeUp(economy, commSpec, seller);
+            if (totalEffCapOnConsumers + desiredIncreament <= rawMaterial.getEffectiveCapacity()) {
+                return desiredIncreament;
+            } else {
+                logger.debug("The sum of the effCap sold by all the customers is {}. This is " +
+                        "much larger than the raw material {}'s effCap {} after resizing up by {} for {} on {}",
+                        totalEffCapOnConsumers, rawMaterial.getEffectiveCapacity(),
+                        desiredIncreament, commSpec.getDebugInfoNeverUseInCode(), seller.getDebugInfoNeverUseInCode());
+                return 0.0;
+            }
         } else {
             return 0.0;
         }
+    }
+
+    /**
+     * When a rawMaterial like vMem tries resizingUp, return the dependant commodity sold by the customers.
+     * These dependant commodities are heap and dbMem
+     *
+     * @param economy           The economy that the trader is a part of
+     * @param commSpec          The commSpec being resized
+     * @param seller            The seller
+     * @return                  Total effectiveCapacity of commoditySold across all customers
+     */
+    private static double calculateTotalEffectiveCapacityOnCoConsumersForResizeUp (Economy economy,
+                                                                                   CommoditySpecification commSpec,
+                                                                                   Trader seller) {
+        // co-dependant commodity capacity validation
+        // this means that there is a mapping for the commodity and the commodity is resizeUpAware
+        double totalEffCap = 0;
+        List<Integer> rawMaterials = economy.getRawMaterials(commSpec.getBaseType());
+        Set<ShoppingList> sls = economy.getMarketsAsBuyer(seller).keySet();
+        if (rawMaterials != null) {
+            for (int baseCommType : rawMaterials) {
+                // for dbMem scale up, vMem and dbCacheHitRate are in the rawMaterialsMap
+                // consider just the commodity that has an entry in the producesMap. Its just vMem that passes this
+                if (economy.getResizeProducesDependencyEntry(baseCommType) != null) {
+                    // check if the supplier has the related commodity in its basket
+                    Optional<Trader> optionalSupplier = sls.stream()
+                            .map(ShoppingList::getSupplier)
+                            .filter(Objects::nonNull)
+                            .filter(trader -> trader.getBasketSold().indexOfBaseType(baseCommType) != -1).findFirst();
+                    if (optionalSupplier.isPresent()) {
+                        // a VM can host both appServer and a dbServer. In this case, we need to sum the usage
+                        // of dbMemCap and heapCap sold by all customers
+                        if (economy.getResizeProducesDependencyEntry(baseCommType) != null) {
+                            for (int commType : economy.getResizeProducesDependencyEntry(baseCommType)) {
+                                totalEffCap += sumUpEffCapacitiesSoldByCustomersForCommodity(optionalSupplier.get(), commType);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return totalEffCap;
+    }
+
+    /**
+     * When a commodity like heap or dbMem tries resizingDown, return the sum of capacities of dependant commodity sold by the co-customers.
+     * These dependant commodities are heap and dbMem
+     *
+     * @param economy           The economy that the trader is a part of
+     * @param commSpec          The commSpec being resized
+     * @param seller            The seller
+     * @return                  Total effectiveCapacity of commoditySold across all customers
+     */
+    private static double calculateTotalEffectiveCapacityOnCoConsumersForResizeDown (Economy economy,
+                                                                                   CommoditySpecification commSpec,
+                                                                                   Trader seller) {
+        // co-dependant commodity capacity validation
+        // this means that there is a mapping for the commodity and the commodity is resizeUpAware
+        double totalEffCap = 0;
+        if (economy.getResizeProducesDependencyEntry(commSpec.getBaseType()) != null) {
+            // for vMem resizing down, the related commodities are heap or dbMem
+            for (Integer commType : economy.getResizeProducesDependencyEntry(commSpec.getBaseType())) {
+                // check if customer sells commType. eg, heap or dbMem in the case of an AppServer or dbServer respectively
+                // and sum up the resourceCapacities
+                totalEffCap += sumUpEffCapacitiesSoldByCustomersForCommodity(seller, commType);
+            }
+        }
+        return totalEffCap;
+    }
+
+    /**
+     * return the sum of effective capacities of commodity sold of a particular type sold by the customers of a seller.
+     *
+     * @param seller            The seller
+     * @param commType          Type of commodity being sold by the customers
+     * @return                  Total effectiveCapacity of commoditySold across all customers
+     */
+    private static double sumUpEffCapacitiesSoldByCustomersForCommodity(Trader seller,
+                                                                        Integer commType) {
+        // check if customer sells commType. eg, heap or dbMem in the case of an AppServer or dbServer respectively
+        // and sum up the resourceCapacities
+        return seller.getCustomers().stream().map(ShoppingList::getBuyer)
+                .filter(trader -> trader.getBasketSold().indexOfBaseType(commType) != -1)
+                .map(trader -> trader.getCommoditiesSold().get(trader.getBasketSold().indexOfBaseType(commType)))
+                .map(CommoditySold::getEffectiveCapacity)
+                .mapToDouble(Double::doubleValue).sum();
     }
 
     /**
@@ -300,6 +405,7 @@ public class Resizer {
      * <li>The capacity is not allowed to drop below a single capacity increment amount.</li>
      * </ul>
      *
+     * @param economy           The economy that the trader is a part of
      * @param seller            the seller whose commodity is being resized
      * @param commSpec          the commSpec which is being resized
      * @param desiredAmount     the desired capacity decrease; must be non-negative.
@@ -309,7 +415,7 @@ public class Resizer {
      * @param rateOfRightSize   the user configured rightsizing rate from {@link EconomySettings}.
      * @return the recommended amount of decrease for {@link CommoditySold commodity} being resized; always non-negative.
      */
-    private static double calculateResizeDownAmount(Trader seller, CommoditySpecification commSpec,
+    private static double calculateResizeDownAmount(Economy economy, Trader seller, CommoditySpecification commSpec,
                                                     double desiredAmount,
                                                     @NonNull CommoditySold resizeCommodity,
                                                     CommoditySold rawMaterial,
@@ -363,6 +469,15 @@ public class Resizer {
                         commSpec.getDebugInfoNeverUseInCode(), newCapacity,
                         rawMaterial.getEffectiveCapacity(), currentCapacity - amount);
             }
+        }
+        double totalEffectiveCapOnCoConsumers = calculateTotalEffectiveCapacityOnCoConsumersForResizeDown(economy, commSpec, seller);
+        // if the total capacity on all the consumers for the dependant commodities is much larger than the newCapacity, dont resize
+        if (totalEffectiveCapOnCoConsumers > currentCapacity - amount) {
+            logger.debug("The sum of the effCap sold by all the customers is {}. This is " +
+                            "much larger than {}'s effCap {} after resizing down by {} for {}",
+                             totalEffectiveCapOnCoConsumers, commSpec.getDebugInfoNeverUseInCode(), currentCapacity,
+                             amount, seller.getDebugInfoNeverUseInCode());
+            return 0;
         }
         return amount;
     }
