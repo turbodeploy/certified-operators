@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.rpc;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -57,9 +58,9 @@ import com.vmturbo.commons.forecasting.ForecastingContext;
 import com.vmturbo.commons.forecasting.ForecastingStrategyNotProvidedException;
 import com.vmturbo.commons.forecasting.InvalidForecastingDateRangeException;
 import com.vmturbo.commons.forecasting.RegressionForecastingStrategy;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
-import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.component.discount.DiscountNotFoundException;
 import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
@@ -111,6 +112,8 @@ public class CostRpcService extends CostServiceImplBase {
 
     private final TimeFrameCalculator timeFrameCalculator;
 
+    private final Clock clock;
+
     private ForecastingContext forecastingContext;
 
 
@@ -125,8 +128,8 @@ public class CostRpcService extends CostServiceImplBase {
                           @Nonnull final EntityCostStore costStoreHouse,
                           @Nonnull final ProjectedEntityCostStore projectedEntityCostStore,
                           @Nonnull final TimeFrameCalculator timeFrameCalculator,
-                          @Nonnull final BusinessAccountHelper businessAccountHelper) {
-
+                          @Nonnull final BusinessAccountHelper businessAccountHelper,
+                          @Nonnull final Clock clock) {
         this.discountStore = Objects.requireNonNull(discountStore);
         this.accountExpensesStore = Objects.requireNonNull(accountExpensesStore);
         this.entityCostStore = Objects.requireNonNull(costStoreHouse);
@@ -134,6 +137,7 @@ public class CostRpcService extends CostServiceImplBase {
         this.businessAccountHelper = Objects.requireNonNull(businessAccountHelper);
         this.timeFrameCalculator = Objects.requireNonNull(timeFrameCalculator);
         this.forecastingContext = new ForecastingContext(new RegressionForecastingStrategy());
+        this.clock = Objects.requireNonNull(clock);
     }
 
     /**
@@ -469,13 +473,19 @@ public class CostRpcService extends CostServiceImplBase {
                 Map<Long, Map<Long, EntityCost>> snapshotToEntityCostMap;
                 if (request.hasStartDate() && request.hasEndDate()) {
                     snapshotToEntityCostMap = entityCostStore.getEntityCosts(entityCostFilter);
-                    snapshotToEntityCostMap.put(
-                        request.getEndDate() + TimeUnit.HOURS.toMillis(PROJECTED_STATS_TIME_IN_FUTURE_HOURS),
-                        request.hasEntityFilter() ? projectedEntityCostStore.getProjectedEntityCosts(filterIds)
-                            : projectedEntityCostStore.getAllProjectedEntitiesCosts());
                 } else {
                     snapshotToEntityCostMap = entityCostStore.getLatestEntityCost(filterIds, entityTypeFilterIds);
                 }
+
+                if (request.getRequestProjected()) {
+                    final long projectedStatTime = (request.hasEndDate() ? request.getEndDate() : clock.millis())
+                        + TimeUnit.HOURS.toMillis(PROJECTED_STATS_TIME_IN_FUTURE_HOURS);
+                    snapshotToEntityCostMap.put(
+                        projectedStatTime,
+                        request.hasEntityFilter() ? projectedEntityCostStore.getProjectedEntityCosts(filterIds)
+                            : projectedEntityCostStore.getAllProjectedEntitiesCosts());
+                }
+
                 final List<CloudCostStatRecord> cloudStatRecords = Lists.newArrayList();
                 snapshotToEntityCostMap.forEach((time, costsByEntity) -> {
                             final List<CloudCostStatRecord.StatRecord> statRecords = Lists.newArrayList();

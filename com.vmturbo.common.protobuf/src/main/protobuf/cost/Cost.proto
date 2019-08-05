@@ -739,10 +739,18 @@ message GetCloudExpenseStatsRequest {
 // A request to get bottom up Cloud cost stats
 message GetCloudCostStatsRequest {
     // The start date of the request
+    // If the start date is set and the end date is not set, we will only get the latest stats.
     optional uint64 start_date = 1;
 
     // The end date of the request
+    // If the end date is set and the start date is not set, we will only get the latest stats.
     optional uint64 end_date = 2;
+
+    // Whether or not to request projected bottom-up costs.
+    //
+    // Note - this will add the projected stats to any historical stats specified by the
+    // start_date and end_date parameters. There is no way to get ONLY the projected stats.
+    optional bool request_projected = 7;
 
     // Entity ids filter, return all entities if not set
     optional EntityFilter entity_filter = 3;

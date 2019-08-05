@@ -263,6 +263,11 @@ public class StatsQueryExecutor {
             sb.append(relatedEntity.getUuid());
         }
 
+        // related entity type
+        if (statApiDTO.getRelatedEntityType() != null) {
+            sb.append(statApiDTO.getRelatedEntityType());
+        }
+
         // filters' values, sample filters: key, relation...
         List<StatFilterApiDTO> filters = statApiDTO.getFilters();
         if (filters != null) {

@@ -280,6 +280,10 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             builder.setEndDate(timeWindow.endTime());
         });
 
+        if (context.requestProjected()) {
+            builder.setRequestProjected(true);
+        }
+
         return costServiceRpc.getCloudCostStats(builder.build()).getCloudStatRecordList();
     }
 
