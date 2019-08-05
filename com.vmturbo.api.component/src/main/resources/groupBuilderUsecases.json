@@ -164,5 +164,15 @@
       "criteria" : [
         {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "storageTierByName"}
       ]
+    },
+    "Network": {
+        "criteria": [
+            {
+                "inputType": "*",
+                "elements": "displayName",
+                "filterCategory": "property",
+                "filterType": "netsByName"
+            }
+        ]
     }
 }
