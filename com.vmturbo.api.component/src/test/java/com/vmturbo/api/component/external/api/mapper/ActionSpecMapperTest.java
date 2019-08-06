@@ -57,6 +57,7 @@ import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -1304,6 +1305,13 @@ public class ActionSpecMapperTest {
         ActionSpec actionSpec = builder.build();
         com.vmturbo.api.enums.ActionState actionState = mapper.mapXlActionStateToApi(actionSpec.getActionState());
         assertThat(actionState, is(com.vmturbo.api.enums.ActionState.IN_PROGRESS));
+    }
+
+    @Test
+    public void testGetUserName(){
+        final String sampleUserUuid = "administrator(22222222222)";
+        assertEquals("administrator", mapper.getUserName(sampleUserUuid));
+        assertEquals(AuditLogUtils.SYSTEM, mapper.getUserName(AuditLogUtils.SYSTEM));
     }
 
     private ActionInfo getHostMoveActionInfo() {

@@ -423,7 +423,7 @@ public class ActionSpecMapper {
                         decision.getExecutionDecision();
                 final String decisionUserUUid = executionDecision.getUserUuid();
                 if (!StringUtils.isBlank(decisionUserUUid)) {
-                    actionApiDTO.setUserName(decisionUserUUid);
+                    actionApiDTO.setUserName(getUserName(decisionUserUUid));
                     // update actionMode based on decision uer id
                     updateActionMode(actionApiDTO, decisionUserUUid);
                 }
@@ -563,6 +563,20 @@ public class ActionSpecMapper {
             actionApiDTO.setActionMode(ActionMode.AUTOMATIC);
         } else {
             actionApiDTO.setActionMode(ActionMode.MANUAL);
+        }
+    }
+
+    /**
+     * Get the username from "decisionUserUuid" to be showed in UI.
+     * @param decisionUserUuid id could be either "SYSTEM" or "user" & UUID (e.g. administrator(22222222222))
+     * @return username, e.g. either "SYSTEM" or "administrator"
+     */
+    @VisibleForTesting
+    String getUserName(@Nonnull final String decisionUserUuid) {
+        if (AuditLogUtils.SYSTEM.equals(decisionUserUuid)) {
+            return decisionUserUuid;
+        } else {
+            return decisionUserUuid.substring(0, decisionUserUuid.indexOf("("));
         }
     }
 
