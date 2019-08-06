@@ -325,6 +325,14 @@ public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, Jour
                     this.providers, this.connectedFromEntities, this.connectedToEntities);
         }
 
+        private Builder(@Nonnull final TopologyEntity.Builder topoEntityBuilder) {
+            this(topoEntityBuilder.getEntityBuilder().clone());
+            this.consumers.addAll(topoEntityBuilder.consumers);
+            this.providers.addAll(topoEntityBuilder.providers);
+            this.connectedFromEntities.addAll(topoEntityBuilder.connectedFromEntities);
+            this.connectedToEntities.addAll(topoEntityBuilder.connectedToEntities);
+        }
+
         @Override
         public Builder addConsumer(@Nonnull final TopologyEntity.Builder consumer) {
             consumers.add(consumer.associatedTopologyEntity);
@@ -390,6 +398,15 @@ public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, Jour
 
         public ArrayList<TopologyEntity> getConsumers() {
             return consumers;
+        }
+
+        /**
+         * Create a deep copy of this {@link TopologyEntity.Builder}.
+         *
+         * @return a copy of this Builder
+         */
+        public TopologyEntity.Builder snapshot() {
+            return new TopologyEntity.Builder(this);
         }
 
         @Override
