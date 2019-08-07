@@ -356,7 +356,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 Preconditions.checkArgument(
                     riComputeCoveragePercent >= 0.0 && riComputeCoveragePercent <= 1.0);
                 final long regionId = entityInfoExtractor.getId(region);
-                recordVMSpotInstanceCost(regionId, computeTier, riComputeCoveragePercent, journal, computeConfig);
+                recordVMSpotInstance(regionId, computeTier, riComputeCoveragePercent, journal, computeConfig);
                 final OnDemandPriceTable onDemandPriceTable =
                     cloudCostData.getPriceTable().getOnDemandPriceByRegionIdMap().get(regionId);
                 if (onDemandPriceTable != null) {
@@ -375,7 +375,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                                 computePriceList, unitsBought);
                         }
                     }
-                    recordVMIpCost(entity, computeTier, onDemandPriceTable, journal);
+                    recordVMIpPrice(entity, computeTier, onDemandPriceTable, journal);
                 } else {
                     logger.warn("Global price table has no entry for region {}. This means there" +
                         " is some inconsistency between the topology and pricing data.", regionId);
@@ -429,8 +429,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
      * @param onDemandPriceTable PriceTable that contains the prices.
      * @param journal            Journal used to add the costs to.
      */
-    private void recordVMIpCost(ENTITY_CLASS entity, ENTITY_CLASS computeTier, OnDemandPriceTable onDemandPriceTable,
-                                CostJournal.Builder<ENTITY_CLASS> journal) {
+    private void recordVMIpPrice(ENTITY_CLASS entity, ENTITY_CLASS computeTier, OnDemandPriceTable onDemandPriceTable,
+                                 CostJournal.Builder<ENTITY_CLASS> journal) {
         entityInfoExtractor.getNetworkConfig(entity).ifPresent(networkConfigBought -> {
             Optional<ENTITY_CLASS> service = cloudTopology.getConnectedService(
                 entityInfoExtractor.getId(computeTier));
@@ -458,8 +458,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
      * @param journal                  Journal used to add the costs to.
      * @param computeConfig            Compute configuration of the computeTier.
      */
-    private void recordVMSpotInstanceCost(long regionId, ENTITY_CLASS computeTier, double riComputeCoveragePercent,
-                                          CostJournal.Builder<ENTITY_CLASS> journal, ComputeConfig computeConfig) {
+    private void recordVMSpotInstance(long regionId, ENTITY_CLASS computeTier, double riComputeCoveragePercent,
+                                      CostJournal.Builder<ENTITY_CLASS> journal, ComputeConfig computeConfig) {
         if (computeConfig.getBillingType() == VMBillingType.BIDDING) {
             final Pricing.SpotInstancePriceTable spotPriceTable =
                 cloudCostData.getPriceTable().getSpotPriceByRegionIdMap().get(regionId);

@@ -185,7 +185,7 @@ public class DiscoveredCloudCostUploader implements Diagnosable {
         // If the target is not in the probe type map yet, then no data will have been stored for it.
         final SDKProbeType probeType = probeTypesForTargetId.get(targetId);
         if (probeType != null) {
-            priceTableUploader.targetRemoved(probeType);
+            priceTableUploader.targetRemoved(targetId, probeType);
             probeTypesForTargetId.remove(targetId);
             long stamp = targetCostDataCacheLock.readLock();
             try {
@@ -225,7 +225,7 @@ public class DiscoveredCloudCostUploader implements Diagnosable {
                     stitchingContext, cloudEntitiesMap);
             riCostDataUploader.uploadRIData(costDataByTargetIdSnapshot, topologyInfo,
                     stitchingContext, cloudEntitiesMap);
-            priceTableUploader.checkForUpload(cloudEntitiesMap);
+            priceTableUploader.uploadPriceTables(cloudEntitiesMap);
         } finally {
             // there will be exceptions if cost component is not running, we should remove
             // ReservedInstance from topology regardless of whether cost component is started or

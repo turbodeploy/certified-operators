@@ -46,12 +46,35 @@ public class DiscoveredCloudCostUploaderTest {
             .setTopologyId(10L)
             .build();
 
+    private final String riLocalId1 = "aws::ap-south-1::RI::1";
+    private final String riLocalId2 = "aws::ap-south-1::RI::2";
+    private final StitchingEntityData ri1 = StitchingEntityData.newBuilder(
+            EntityDTO.newBuilder()
+                    .setEntityType(EntityType.RESERVED_INSTANCE)
+                    .setId("aws::ap-south-1::RI::1"))
+            .oid(1)
+            .build();
+    private final StitchingEntityData ri2 = StitchingEntityData.newBuilder(
+            EntityDTO.newBuilder()
+                    .setEntityType(EntityType.RESERVED_INSTANCE)
+                    .setId("aws::ap-south-1::RI::2"))
+            .oid(2)
+            .build();
+    private final Map<String, StitchingEntityData> localIdToEntityMap = ImmutableMap.of(
+            riLocalId1, ri1,
+            riLocalId2, ri2
+    );
+
     private DiscoveredCloudCostUploader cloudCostUploader;
 
     @Before
     public void setup() {
-        TopologyProcessorCostTestUtils utils = new TopologyProcessorCostTestUtils();
-        stitchingContext = utils.setupStitchingContext();
+        StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(2)
+            .setTargetStore(mock(TargetStore.class))
+            .setIdentityProvider(mock(IdentityProviderImpl.class));
+        stitchingContextBuilder.addEntity(ri1, localIdToEntityMap);
+        stitchingContextBuilder.addEntity(ri2, localIdToEntityMap);
+        stitchingContext = stitchingContextBuilder.build();
         cloudCostUploader = new DiscoveredCloudCostUploader(riCostDataUploader,
                 accountExpensesUploader, priceTableUploader, targetStore);
     }
