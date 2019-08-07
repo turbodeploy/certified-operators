@@ -44,23 +44,6 @@ public class EnvironmentTypeInjector {
         SDKProbeType.AZURE_COST,
         SDKProbeType.AZURE_STORAGE_BROWSE);
 
-    public static final Set<SDKProbeType> APP_CONTAINER_PROBES = ImmutableSet.of(
-        SDKProbeType.CLOUD_FOUNDRY,
-        SDKProbeType.PIVOTAL_OPSMAN,
-        SDKProbeType.DOCKER,
-        SDKProbeType.SNMP,
-        SDKProbeType.WMI,
-        SDKProbeType.APPDYNAMICS,
-        SDKProbeType.DYNATRACE,
-        SDKProbeType.NEWRELIC,
-        SDKProbeType.APPINSIGHTS,
-        SDKProbeType.DATADOG,
-        SDKProbeType.TOMCAT,
-        SDKProbeType.WEBSPHERE,
-        SDKProbeType.WEBLOGIC,
-        SDKProbeType.MSSQL,
-        SDKProbeType.MYSQL);
-
     private static final Logger logger = LogManager.getLogger();
 
     private final TargetStore targetStore;
@@ -91,11 +74,8 @@ public class EnvironmentTypeInjector {
         // Pre-compute the targets that produces containers/apps
         final Set<Long> appContainerTargetIds = targets.stream()
             .map(Target::getId)
-            .filter(targetId -> targetStore.getProbeTypeForTarget(targetId)
-                .map(APP_CONTAINER_PROBES::contains)
-                .orElse(false)
-                || targetStore.getProbeCategoryForTarget(targetId)
-                .map(ProbeCategory.CLOUD_NATIVE::equals)
+            .filter(targetId -> targetStore.getProbeCategoryForTarget(targetId)
+                .map(probeCategory -> ProbeCategory.isAppOrContainerCategory(probeCategory))
                 .orElse(false))
             .collect(Collectors.toSet());
         topologyGraph.entities().forEach(topoEntity -> {
