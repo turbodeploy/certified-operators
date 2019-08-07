@@ -85,12 +85,6 @@ http {
             return 301 https://$host$request_uri;
         }
 
-        location = /metrics {
-            set $api_servers $API;
-            proxy_pass         http://$api_servers:8080/metrics;
-            proxy_set_header   Host $http_host;
-        }
-
         # include any additional server config files for the insecure port
         include /etc/nginx/userconf/insecure/*.conf;
     }
@@ -104,22 +98,14 @@ http {
 
 
 	# swagger-ui paths without trailing slash do 302 redirect to add the slash
-	rewrite ^(/apidoc(/v2)?)$ $scheme://$host/$1/ redirect;
-	rewrite ^(/swagger(/external)?)$ $scheme://$host/$1/ redirect;
+	rewrite ^(/apidoc.*)$ $scheme://$host/swagger/ redirect;
+	rewrite ^(/swagger)$ $scheme://$host$1/ redirect;
 
 	# swagger-ui paths without index.html get it added on (internal, no redirect)
-	rewrite ^(/apidoc(/v2)?)/$ $1/index.html;
-	rewrite ^(/swagger(/external)?)/$ $1/index.html;
-
-	# all swagger-ui paths are routed to /swagger/external
-	rewrite ^/apidoc(/v2)?(.+)$ /swagger/external$2;
-	rewrite ^/swagger(/external)?(.+)$ /swagger/external$2;
-
-	# /api and /api/v2 paths route internally to /vmturbo/rest
-	rewrite ^/api(/v2)?(.+)$ /vmturbo/rest$2;
+	rewrite ^(/swagger)/$ $1/index.html;
 
 	# proxying default paths
-        location ~ (/$|/index|/app|/vmturbo(?!/messages)|/rest|/cgi-bin|/swagger) {
+        location ~ (/$|/api|/app|/vmturbo/rest|/swagger) {
             # we are using variables for the upstream servers instead of an upstream entry because
             # of the DNS caching problem -- only nginx plus will dynamically resolve the upstream
             # servers
