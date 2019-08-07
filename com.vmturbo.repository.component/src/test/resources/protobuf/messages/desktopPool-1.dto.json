@@ -1,0 +1,13 @@
+{
+  "entityType": 62,
+  "oid": 101,
+  "displayName": "SITE01-POD01-POOL01-FULL-LARGE-4VCPU-8GB",
+  "typeSpecificInfo": {
+    "desktopPool": {
+      "assignmentType": "DYNAMIC",
+      "cloneType": "FULL",
+      "provisionType": "ON_DEMAND",
+      "templateReferenceId": 105
+    }
+  }
+}

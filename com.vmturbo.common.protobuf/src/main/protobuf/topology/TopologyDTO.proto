@@ -30,6 +30,8 @@ message TypeSpecificInfo {
         DiskArrayInfo disk_array = 71;
         LogicalPoolInfo logical_pool = 72;
         StorageControllerInfo storage_controller = 73;
+        DesktopPoolInfo desktop_pool = 74;
+        BusinessUserInfo business_user = 75;
     }
 
     message ApplicationInfo {
@@ -170,6 +172,42 @@ message TypeSpecificInfo {
     message StorageControllerInfo {
         optional DiskTypeInfo disk_type_info = 1;
     }
+
+    //specific data for a desktop pools
+    message DesktopPoolInfo {
+
+        // how desktops are allocated to users
+        optional .common_dto.EntityDTO.DesktopPoolData.DesktopPoolAssignmentType assignment_type = 1;
+
+        // defines when the desktops are created
+        optional .common_dto.EntityDTO.DesktopPoolData.DesktopPoolProvisionType provision_type = 2;
+
+        // type (engine) of a desktop created in the pool
+        optional .common_dto.EntityDTO.DesktopPoolData.DesktopPoolCloneType clone_type = 3;
+
+        // Desktop pools give users remote access to virtual machine-based desktops.
+        // Desktop pools use a virtual machine template or snapshot
+        // to create a pool of identical virtual machines.
+        // A separate virtual machine is created for the user when connected to the desktop pool
+        // using a virtual machine template or snapshot.
+        oneof clone_source_reference {
+
+            // id of a virtual machine snapshot used to create a pool of identical virtual machines
+            int64 vm_reference_id = 4;
+
+            // id of a virtual machine template used to create a pool of identical virtual machines
+            int64 template_reference_id = 5;
+        }
+    }
+
+     // specific data for a business user
+    message BusinessUserInfo {
+
+        // Map of the VM id to the session duration
+        map<int64, int64> vm_oid_to_session_duration = 1;
+    }
+
+
 }
 
 // A batch of Partial Entities.

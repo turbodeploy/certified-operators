@@ -72,7 +72,7 @@ public abstract class StitchingIntegrationTest {
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(statsRpcSpy);
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         final StatsHistoryServiceBlockingStub statsServiceClient =
                 StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
         postStitchingOperationLibrary =

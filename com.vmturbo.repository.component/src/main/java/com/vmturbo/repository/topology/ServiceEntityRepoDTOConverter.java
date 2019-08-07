@@ -115,6 +115,10 @@ public class ServiceEntityRepoDTOConverter {
             typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getVirtualVolumeInfoRepoDTO();
         } else if (serviceEntityRepoDTO.getBusinessAccountInfoRepoDTO() != null) {
             typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getBusinessAccountInfoRepoDTO();
+        } else if (serviceEntityRepoDTO.getBusinessUserInfoRepoDTO() != null) {
+            typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getBusinessUserInfoRepoDTO();
+        } else if (serviceEntityRepoDTO.getDesktopPoolInfoRepoDTO() != null) {
+            typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getDesktopPoolInfoRepoDTO();
         }
 
         // if present, convert this RepoDTO type specific info into Topology TypeSpecificInfo oneof
