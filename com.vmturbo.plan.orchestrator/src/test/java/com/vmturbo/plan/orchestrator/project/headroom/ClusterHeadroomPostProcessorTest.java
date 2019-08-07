@@ -10,6 +10,7 @@ import java.text.SimpleDateFormat;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -105,56 +106,10 @@ public class ClusterHeadroomPostProcessorTest {
 
         when(repositoryServiceMole.retrieveTopology(RetrieveTopologyRequest.newBuilder()
                 .setTopologyId(projectedTopologyId)
-                .build())).thenReturn(
-                        Collections.singletonList(RetrieveTopologyResponse.newBuilder()
-                                // add 2 VMs
-                                .addEntities(TopologyEntityDTO.newBuilder()
-                                    .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                                    .addAllCommoditiesBoughtFromProviders(
-                                        ImmutableList.of(CommoditiesBoughtFromProvider.getDefaultInstance()))
-                                    .setOid(7))
-                                .addEntities(TopologyEntityDTO.newBuilder()
-                                    .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                                    .addAllCommoditiesBoughtFromProviders(
-                                        ImmutableList.of(CommoditiesBoughtFromProvider.getDefaultInstance()))
-                                    .setOid(99))
-                                // add PM
-                                .addEntities(TopologyEntityDTO.newBuilder()
-                                    .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                                    .setEntityState(EntityState.POWERED_ON)
-                                    .setOid(8)
-                                    .addAllCommoditySoldList(
-                                        ImmutableList.of(CommoditySoldDTO.newBuilder()
-                                            .setActive(true)
-                                            .setCommodityType(com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder()
-                                                            .setType(CommodityType.CPU_VALUE))
-                                            .setCapacity(100)
-                                            .setUsed(50)
-                                            .build(),
-                                             CommoditySoldDTO.newBuilder()
-                                            .setActive(true)
-                                            .setCommodityType(com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder()
-                                                            .setType(CommodityType.MEM_VALUE))
-                                            .setCapacity(200)
-                                            .setUsed(40)
-                                            .build())))
-                                // add Storage
-                                .addEntities(TopologyEntityDTO.newBuilder()
-                                    .setEntityType(EntityType.STORAGE_VALUE)
-                                    .setEntityState(EntityState.POWERED_ON)
-                                    .setOid(9)
-                                    .addAllCommoditySoldList(
-                                        ImmutableList.of(CommoditySoldDTO.newBuilder()
-                                            .setActive(true)
-                                            .setCommodityType(com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder()
-                                                            .setType(CommodityType.STORAGE_AMOUNT_VALUE))
-                                            .setCapacity(600)
-                                            .setUsed(100)
-                                            .build())))
-                                .build()));
+                .build())).thenReturn(getProjectedTopology());
 
         when(templatesDao.getTemplate(Mockito.anyLong()))
-        .thenReturn(Optional.of(getTemplateForHeadroom()));
+        .thenReturn(Optional.of(getTemplateForHeadroom(true)));
 
         processor.onPlanStatusChanged(PlanInstance.newBuilder()
                 .setPlanId(PLAN_ID)
@@ -199,6 +154,100 @@ public class ClusterHeadroomPostProcessorTest {
                 .setMonthlyVMGrowth(0) // (vmGrowth * daysInMonth) / PeakLookback days = (0 * 30)/7 = 0
                 .setHeadroom(2) // minimum of mem, cpu and storage headroom values : min(10, 4, 2)
                 .build());
+    }
+
+    private List<RetrieveTopologyResponse> getProjectedTopology() {
+        return Collections.singletonList(RetrieveTopologyResponse.newBuilder()
+                // add 2 VMs
+                .addEntities(TopologyEntityDTO.newBuilder()
+                    .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                    .addAllCommoditiesBoughtFromProviders(
+                        ImmutableList.of(CommoditiesBoughtFromProvider.getDefaultInstance()))
+                    .setOid(7))
+                .addEntities(TopologyEntityDTO.newBuilder()
+                    .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                    .addAllCommoditiesBoughtFromProviders(
+                        ImmutableList.of(CommoditiesBoughtFromProvider.getDefaultInstance()))
+                    .setOid(99))
+                // add PM
+                .addEntities(TopologyEntityDTO.newBuilder()
+                    .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                    .setEntityState(EntityState.POWERED_ON)
+                    .setOid(8)
+                    .addAllCommoditySoldList(
+                        ImmutableList.of(CommoditySoldDTO.newBuilder()
+                            .setActive(true)
+                            .setCommodityType(com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder()
+                                            .setType(CommodityType.CPU_VALUE))
+                            .setCapacity(100)
+                            .setUsed(50)
+                            .build(),
+                             CommoditySoldDTO.newBuilder()
+                            .setActive(true)
+                            .setCommodityType(com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder()
+                                            .setType(CommodityType.MEM_VALUE))
+                            .setCapacity(200)
+                            .setUsed(40)
+                            .build())))
+                // add Storage
+                .addEntities(TopologyEntityDTO.newBuilder()
+                    .setEntityType(EntityType.STORAGE_VALUE)
+                    .setEntityState(EntityState.POWERED_ON)
+                    .setOid(9)
+                    .addAllCommoditySoldList(
+                        ImmutableList.of(CommoditySoldDTO.newBuilder()
+                            .setActive(true)
+                            .setCommodityType(com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder()
+                                            .setType(CommodityType.STORAGE_AMOUNT_VALUE))
+                            .setCapacity(600)
+                            .setUsed(100)
+                            .build())))
+                .build());
+    }
+
+    @Test
+    public void testProjectedTopologyWithInvalidValuesInTemplate() {
+        when(groupRpcServiceMole.getGroup(GroupID.newBuilder().setId(CLUSTER_ID).build()))
+        .thenReturn(GetGroupResponse.newBuilder().setGroup(Group.newBuilder().setId(CLUSTER_ID)).build());
+
+        final ClusterHeadroomPlanPostProcessor processor =
+                spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, CLUSTER.getId(),
+                        grpcTestServer.getChannel(), grpcTestServer.getChannel(),
+                        planDao, grpcTestServer.getChannel(), templatesDao));
+        final long projectedTopologyId = 100;
+
+        when(repositoryServiceMole.retrieveTopology(RetrieveTopologyRequest.newBuilder()
+                .setTopologyId(projectedTopologyId)
+                .build())).thenReturn(getProjectedTopology());
+
+        // Return template with zero Values for Storage
+        when(templatesDao.getTemplate(Mockito.anyLong()))
+        .thenReturn(Optional.of(getTemplateForHeadroom(false)));
+
+        processor.onPlanStatusChanged(PlanInstance.newBuilder()
+                .setPlanId(PLAN_ID)
+                .setStatus(PlanStatus.WAITING_FOR_RESULT)
+                .setProjectedTopologyId(projectedTopologyId)
+                .build());
+        verify(historyServiceMole).saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
+                        .setClusterId(CLUSTER_ID)
+                        .setNumVMs(0L)
+                        .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
+                            .setHeadroom(10)
+                            .setCapacity(20)
+                            .setDaysToExhaustion(MORE_THAN_A_YEAR))
+                        .setMemHeadroomInfo(CommodityHeadroom.newBuilder()
+                            .setCapacity(5)
+                            .setHeadroom(4)
+                            .setDaysToExhaustion(MORE_THAN_A_YEAR))
+                         // Every thing same except for Storage headroom because storage commodities had zero usage.
+                        .setStorageHeadroomInfo(CommodityHeadroom.getDefaultInstance())
+                        .setNumHosts(0)
+                        .setNumVMs(0)
+                        .setNumStorages(0)
+                        .setMonthlyVMGrowth(0) // (vmGrowth * daysInMonth) / PeakLookback days = (0 * 30)/7 = 0
+                        .setHeadroom(0) // minimum of mem, cpu and storage headroom values : min(10, 4, 0)
+                        .build());
     }
 
     @Test
@@ -333,7 +382,7 @@ public class ClusterHeadroomPostProcessorTest {
         verify(onCompleteHandler).accept(processor);
     }
 
-    private Template getTemplateForHeadroom() {
+    private Template getTemplateForHeadroom(boolean setValidValues) {
         return Template.newBuilder().setTemplateInfo(
                         TemplateInfo.newBuilder()
                         .setName("AVG:Cluster")
@@ -349,11 +398,10 @@ public class ClusterHeadroomPostProcessorTest {
                                 .build(),
                            TemplateResource.newBuilder()
                                 .setCategory(ResourcesCategory.newBuilder().setName(ResourcesCategoryName.Storage))
-                                .addFields(TemplateField.newBuilder().setName(SystemLoadCalculatedProfile.DISK_SIZE).setValue("200"))
+                                .addFields(TemplateField.newBuilder().setName(SystemLoadCalculatedProfile.DISK_SIZE).setValue(setValidValues ? "200" : "0"))
                                 .addFields(TemplateField.newBuilder().setName(SystemLoadCalculatedProfile.DISK_CONSUMED_FACTOR).setValue("1"))
                                 .build())))
                         .setId(1234)
                         .build();
     }
-
 }

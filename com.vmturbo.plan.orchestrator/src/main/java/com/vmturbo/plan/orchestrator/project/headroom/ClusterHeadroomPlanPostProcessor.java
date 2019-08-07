@@ -198,11 +198,6 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                                     .filter(entity -> HEADROOM_ENTITY_TYPE.contains(entity.getEntityType()))
                                     .collect(Collectors.groupingBy(e -> e.getEntityType()));
 
-                // In a headroom plan only the clones are unplaced, and nothing else changes. Therefore
-                // the number of unplaced VMs = the number of unplaced clones.
-                final long unplacedClones = headroomEntities.get(EntityType.VIRTUAL_MACHINE_VALUE).stream()
-                                .filter(vm -> !TopologyDTOUtil.isPlaced(vm))
-                                .count();
                 final ImmutableEntityCountData entityCounts = getHeadroomEntitesCount();
 
                 Optional<Template> template = templatesDao
@@ -515,6 +510,13 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 headroomCapacity = Math.floor(capacity / templateCommodityUsed);
                 commHeadroomAvailable.put(commType, headroomAvailable);
                 commHeadroomCapacity.put(commType, headroomCapacity);
+            }
+
+            if (CollectionUtils.isEmpty(commHeadroomAvailable) ||
+                            CollectionUtils.isEmpty(commHeadroomCapacity)) {
+                logger.error("Template has used value 0 for some commodities in cluster : " +
+                    cluster.getCluster().getDisplayName() +" and id "+ cluster.getId());
+                return CommodityHeadroom.getDefaultInstance();
             }
 
             final double headroomAvailableForCurrentEntity = commHeadroomAvailable.values().stream().min(Double::compare).get();

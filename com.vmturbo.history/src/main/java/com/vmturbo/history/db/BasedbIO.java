@@ -832,7 +832,9 @@ public abstract class BasedbIO {
             return execute(query, conn);
         }
         catch (DataAccessException e) {
-            print(query);
+            logger.error("Exception during query execution : " +
+                query.getSQL(false) +  " with cause : "+
+                e.getCause());
             throw new VmtDbException(VmtDbException.SQL_EXEC_ERR, e);
         }
         finally {
