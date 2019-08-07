@@ -100,6 +100,7 @@ metadata:
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
   type: LoadBalancer
+  externalTrafficPolicy: Local
   ports:
   - name: https-nginx
     port: 443
