@@ -618,7 +618,7 @@ public enum EntitySettingSpecs {
     CollectionTimeUtilization("collectionTimeUtilization", "Collection Time Utilization",
             Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.APPLICATION, EntityType.APPLICATION_SERVER),
-            numeric(10f, 100f, 10f), true),
+            numeric(1f, 100f, 10f), true),
 
     IgnoreDirectories("ignoreDirectories", "Directories to ignore",
         Collections.emptyList(),
