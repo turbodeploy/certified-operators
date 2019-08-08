@@ -354,7 +354,9 @@ public class Resizer {
             amount = Math.ceil(deltaToRawMaterialCapacity / capacityIncrement) * capacityIncrement;
             // Do not decrement by the full capacity. This can happen in case the capacityIncrement
             // is bigger than the raw material capacity. In such a case, do not resize.
-            amount = (amount >= currentCapacity) ? 0 : amount;
+            // Also don't decrease by an amount bigger than numDecrements * capacityIncrement
+            amount = ((amount >= currentCapacity) || (amount > numDecrements * capacityIncrement)) ? 0 : amount;
+
             if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
                 logger.debug("New resized capacity for {}/{} is {}. But this is above rawMaterial " +
                                 "capacity {}. Changing newCapacity to {}" , seller.getDebugInfoNeverUseInCode(),
