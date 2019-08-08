@@ -45,6 +45,7 @@ public class ConvertToTopologyDTOTest {
     private static final Float TEST_STORAGE_ACCESS_CAPACITY = 3.141f;
     private static final RedundancyType TEST_REDUNDANCY_TYPE = RedundancyType.LRS;
     private static final long TEST_DESKTOP_VM_REFERENCE_ID = 200L;
+    private static final String TEST_DESKTOP_CLONE_SNAPSHOT = "/Clone Snapshot";
     private static final ImmutableMap<Long, Long> TEST_BUSINESS_USER_VM_OID_TO_SESSION_DURATION =
             ImmutableMap.of(100L, 1000000L, 200L, 2000000L);
 
@@ -143,6 +144,7 @@ public class ConvertToTopologyDTOTest {
                 buildTestServiceEntityRepoDTO(EntityType.DESKTOP_POOL_VALUE);
         final DesktopPoolInfoRepoDTO desktopPoolInfoRepoDTO = new DesktopPoolInfoRepoDTO();
         desktopPoolInfoRepoDTO.setVmReferenceId(TEST_DESKTOP_VM_REFERENCE_ID);
+        desktopPoolInfoRepoDTO.setSnapshot(TEST_DESKTOP_CLONE_SNAPSHOT);
         desktopPoolInfoRepoDTO.setProvisionType(DesktopPoolProvisionType.ON_DEMAND);
         desktopPoolInfoRepoDTO.setCloneType(DesktopPoolCloneType.LINKED);
         desktopPoolInfoRepoDTO.setAssignmentType(DesktopPoolAssignmentType.DYNAMIC);
@@ -155,7 +157,8 @@ public class ConvertToTopologyDTOTest {
         assertTrue(resultTopoEntityDTO.getTypeSpecificInfo().hasDesktopPool());
         final DesktopPoolInfo desktopPoolInfo =
                 resultTopoEntityDTO.getTypeSpecificInfo().getDesktopPool();
-        Assert.assertEquals(desktopPoolInfo.getVmReferenceId(), TEST_DESKTOP_VM_REFERENCE_ID);
+        Assert.assertEquals(desktopPoolInfo.getVmWithSnapshot().getVmReferenceId(), TEST_DESKTOP_VM_REFERENCE_ID);
+        Assert.assertEquals(desktopPoolInfo.getVmWithSnapshot().getSnapshot(), TEST_DESKTOP_CLONE_SNAPSHOT);
         Assert.assertEquals(desktopPoolInfo.getAssignmentType(), DesktopPoolAssignmentType.DYNAMIC);
         Assert.assertEquals(desktopPoolInfo.getCloneType(), DesktopPoolCloneType.LINKED);
         Assert.assertEquals(desktopPoolInfo.getProvisionType(), DesktopPoolProvisionType.ON_DEMAND);

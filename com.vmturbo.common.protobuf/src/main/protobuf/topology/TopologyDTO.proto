@@ -192,11 +192,21 @@ message TypeSpecificInfo {
         // using a virtual machine template or snapshot.
         oneof clone_source_reference {
 
-            // id of a virtual machine snapshot used to create a pool of identical virtual machines
-            int64 vm_reference_id = 4;
+            // reference to the virtual machine used to create a pool of identical virtual machines
+            VmWithSnapshot vm_with_snapshot = 4;
 
             // id of a virtual machine template used to create a pool of identical virtual machines
             int64 template_reference_id = 5;
+        }
+
+        // reference to the virtual machine used to create a pool of identical virtual machines
+        message VmWithSnapshot {
+
+            // id of a virtual machine snapshot used to create a pool of identical virtual machines
+            required int64 vm_reference_id = 1;
+
+            // reference to a snapshot used to create desktops
+            optional string snapshot = 2;
         }
     }
 

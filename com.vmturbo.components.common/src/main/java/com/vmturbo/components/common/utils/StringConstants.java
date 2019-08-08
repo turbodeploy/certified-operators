@@ -299,6 +299,8 @@ public class StringConstants {
     public static final String CLOUD_ASPECT_NAME = "cloudAspect";
     public static final String VM_ASPECT_NAME = "virtualMachineAspect";
     public static final String VIRTUAL_VOLUME_ASPECT_NAME = "virtualDisksAspect";
+    public static final String DESKTOP_POOL_ASPECT_NAME = "desktopPoolAspect";
+    public static final String MASTER_IMAGE_ASPECT_NAME = "masterImageAspect";
 
     public static final String UNKNOWN = "Unknown";
 

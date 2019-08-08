@@ -9,6 +9,7 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo.VmWithSnapshot;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DesktopPoolData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DesktopPoolData.DesktopPoolAssignmentType;
@@ -22,6 +23,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualDatacenterData
  */
 public class DesktopPoolInfoMapperTest {
 
+    private static final String SNAPSHOT = "/Clone Snapshot";
     private static final String MASTER_IMAGE = "123";
     private static final long MASTER_IMAGE_OID = 123L;
 
@@ -36,6 +38,7 @@ public class DesktopPoolInfoMapperTest {
                 .setAssignmentType(DesktopPoolAssignmentType.DYNAMIC)
                 .setProvisionType(DesktopPoolProvisionType.UPFRONT)
                 .setCloneType(DesktopPoolCloneType.FULL)
+                .setSnapshot(SNAPSHOT)
                 .setMasterImage(MASTER_IMAGE).build();
 
         final VirtualDatacenterData vdcData =
@@ -47,13 +50,16 @@ public class DesktopPoolInfoMapperTest {
                 .setEntityType(EntityType.DESKTOP_POOL).build();
 
         TypeSpecificInfo expected = TypeSpecificInfo.newBuilder()
-                        .setDesktopPool(
-                                DesktopPoolInfo.newBuilder()
-                                .setAssignmentType(DesktopPoolAssignmentType.DYNAMIC)
-                                .setProvisionType(DesktopPoolProvisionType.UPFRONT)
-                                .setCloneType(DesktopPoolCloneType.FULL)
-                                .setVmReferenceId(MASTER_IMAGE_OID).build())
-                        .build();
+                .setDesktopPool(DesktopPoolInfo.newBuilder()
+                        .setAssignmentType(DesktopPoolAssignmentType.DYNAMIC)
+                        .setProvisionType(DesktopPoolProvisionType.UPFRONT)
+                        .setCloneType(DesktopPoolCloneType.FULL)
+                        .setVmWithSnapshot(VmWithSnapshot.newBuilder()
+                                .setVmReferenceId(MASTER_IMAGE_OID)
+                                .setSnapshot(SNAPSHOT)
+                                .build())
+                        .build())
+                .build();
         final DesktopPoolInfoMapper testBuilder = new DesktopPoolInfoMapper();
 
         // act

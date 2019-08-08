@@ -15,9 +15,11 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.DatabaseAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.DesktopPoolAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.DiskArrayAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.LogicalPoolAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.MasterImageEntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.PhysicalMachineAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.PortsAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.StorageAspectMapper;
@@ -227,7 +229,28 @@ public class MapperConfig {
 
     @Bean
     public VirtualMachineAspectMapper virtualMachineMapper() {
-        return new VirtualMachineAspectMapper();
+        return new VirtualMachineAspectMapper(communicationConfig.repositoryApi());
+    }
+
+    /**
+     * Get the {@link DesktopPoolAspectMapper}.
+     *
+     * @return the {@link DesktopPoolAspectMapper}
+     */
+    @Bean
+    public DesktopPoolAspectMapper desktopPoolAspectMapper() {
+        return new DesktopPoolAspectMapper(communicationConfig.repositoryApi(),
+                communicationConfig.groupRpcService());
+    }
+
+    /**
+     * Get the {@link MasterImageEntityAspectMapper}.
+     *
+     * @return the {@link MasterImageEntityAspectMapper}
+     */
+    @Bean
+    public MasterImageEntityAspectMapper masterImageEntityAspectMapper() {
+        return new MasterImageEntityAspectMapper(communicationConfig.repositoryApi());
     }
 
     @Bean
@@ -263,7 +286,8 @@ public class MapperConfig {
     @Bean
     public EntityAspectMapper entityAspectMapper() {
         return new EntityAspectMapper(storageTierAspectMapper(), virtualVolumeAspectMapper(),
-            cloudAspectMapper(), virtualMachineMapper(), physicalMachineAspectMapper(),
+            cloudAspectMapper(), virtualMachineMapper(), desktopPoolAspectMapper(),
+            masterImageEntityAspectMapper(), physicalMachineAspectMapper(),
             storageAspectMapper(), diskArrayAspectMapper(), logicalPoolAspectMapper(),
             storageControllerAspectMapper(), portsAspectMapper(), databaseAspectMapper());
     }

@@ -10,6 +10,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo.VmWithSnapshot;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo.VmWithSnapshot.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DesktopPoolData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DesktopPoolData.DesktopPoolAssignmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DesktopPoolData.DesktopPoolCloneType;
@@ -47,7 +49,12 @@ public class DesktopPoolInfoMapper extends TypeSpecificInfoMapper {
             // the vm oid should be resolved at this point
             if (NumberUtils.isParsable(dpData.getMasterImage())) {
                 final long vmOid = Long.parseLong(dpData.getMasterImage());
-                desktopInfoBuilder.setVmReferenceId(vmOid);
+                final Builder vmWithSnapshotBuilder = VmWithSnapshot.newBuilder();
+                vmWithSnapshotBuilder.setVmReferenceId(vmOid);
+                if (dpData.hasSnapshot()) {
+                    vmWithSnapshotBuilder.setSnapshot(dpData.getSnapshot());
+                }
+                desktopInfoBuilder.setVmWithSnapshot(vmWithSnapshotBuilder.build());
             } else {
                 logger.debug("Master Image {} has not been resolved to a VM OID." +
                         " It is possible that this is a template UID" +

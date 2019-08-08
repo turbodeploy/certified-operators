@@ -9,6 +9,8 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo.VmWithSnapshot;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo.VmWithSnapshot.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DesktopPoolData.DesktopPoolAssignmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DesktopPoolData.DesktopPoolCloneType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DesktopPoolData.DesktopPoolProvisionType;
@@ -24,6 +26,7 @@ public class DesktopPoolInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     private DesktopPoolProvisionType provisionType;
     private Long vmReferenceId;
     private Long templateReferenceId;
+    private String snapshot;
 
     @Override
     public void fillFromTypeSpecificInfo(@Nonnull TypeSpecificInfo typeSpecificInfo,
@@ -41,8 +44,13 @@ public class DesktopPoolInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         if (desktopPoolInfo.hasProvisionType()) {
             setProvisionType(desktopPoolInfo.getProvisionType());
         }
-        setVmReferenceId(
-                desktopPoolInfo.hasVmReferenceId() ? desktopPoolInfo.getVmReferenceId() : null);
+        if (desktopPoolInfo.hasVmWithSnapshot()) {
+            final VmWithSnapshot vmWithSnapshot = desktopPoolInfo.getVmWithSnapshot();
+            setVmReferenceId(vmWithSnapshot.getVmReferenceId());
+            if (vmWithSnapshot.hasSnapshot()) {
+                setSnapshot(vmWithSnapshot.getSnapshot());
+            }
+        }
         setTemplateReferenceId(desktopPoolInfo.hasTemplateReferenceId() ?
                 desktopPoolInfo.getTemplateReferenceId() : null);
         serviceEntityRepoDTO.setDesktopPoolInfoRepoDTO(this);
@@ -65,7 +73,12 @@ public class DesktopPoolInfoRepoDTO implements TypeSpecificInfoRepoDTO {
             builder.setTemplateReferenceId(getTemplateReferenceId());
         }
         if (getVmReferenceId() != null) {
-            builder.setVmReferenceId(getVmReferenceId());
+            final Builder vmWithSnapshotBuilder = VmWithSnapshot.newBuilder();
+            vmWithSnapshotBuilder.setVmReferenceId(getVmReferenceId());
+            if (getSnapshot() != null) {
+                vmWithSnapshotBuilder.setSnapshot(getSnapshot());
+            }
+            builder.setVmWithSnapshot(vmWithSnapshotBuilder.build());
         }
         return TypeSpecificInfo.newBuilder().setDesktopPool(builder).build();
     }
@@ -110,6 +123,14 @@ public class DesktopPoolInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         this.templateReferenceId = templateReferenceId;
     }
 
+    public String getSnapshot() {
+        return snapshot;
+    }
+
+    public void setSnapshot(String snapshot) {
+        this.snapshot = snapshot;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -123,20 +144,21 @@ public class DesktopPoolInfoRepoDTO implements TypeSpecificInfoRepoDTO {
                 Objects.equals(cloneType, that.cloneType) &&
                 Objects.equals(provisionType, that.provisionType) &&
                 Objects.equals(vmReferenceId, that.vmReferenceId) &&
-                Objects.equals(templateReferenceId, that.templateReferenceId);
+                Objects.equals(templateReferenceId, that.templateReferenceId) &&
+                Objects.equals(snapshot, that.snapshot);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(assignmentType, cloneType, provisionType, vmReferenceId,
-                templateReferenceId);
+                templateReferenceId, snapshot);
     }
 
     @Override
     public String toString() {
-        return DesktopPoolInfoRepoDTO.class.getSimpleName() + '{' + "assignmentType='" +
-                assignmentType + '\'' + ", cloneType='" + cloneType + '\'' + ", provisionType='" +
-                provisionType + '\'' + ", vmReferenceId=" + vmReferenceId +
-                ", templateReferenceId=" + templateReferenceId + '}';
+        return  DesktopPoolInfoRepoDTO.class.getSimpleName() + '{' + "assignmentType='" + assignmentType + '\'' +
+                ", cloneType='" + cloneType + '\'' + ", provisionType='" + provisionType + '\'' +
+                ", vmReferenceId=" + vmReferenceId + ", templateReferenceId=" +
+                templateReferenceId + ", snapshot='" + snapshot + '\'' + '}';
     }
 }

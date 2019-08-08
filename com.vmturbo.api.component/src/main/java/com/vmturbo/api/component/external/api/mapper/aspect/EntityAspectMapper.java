@@ -30,6 +30,8 @@ public class EntityAspectMapper {
                               @Nonnull final VirtualVolumeAspectMapper virtualVolumeAspectMapper,
                               @Nonnull final CloudAspectMapper cloudAspectMapper,
                               @Nonnull final VirtualMachineAspectMapper virtualMachineMapper,
+                              @Nonnull final DesktopPoolAspectMapper desktopPoolAspectMapper,
+                              @Nonnull final MasterImageEntityAspectMapper masterImageEntityAspectMapper,
                               @Nonnull final PhysicalMachineAspectMapper physicalMachineAspectMapper,
                               @Nonnull final StorageAspectMapper storageAspectMapper,
                               @Nonnull final DiskArrayAspectMapper diskArrayAspectMapper,
@@ -70,7 +72,12 @@ public class EntityAspectMapper {
             .put(EntityType.VIRTUAL_MACHINE_VALUE, ImmutableList.of(
                 virtualMachineMapper,
                 cloudAspectMapper,
-                virtualVolumeAspectMapper))
+                virtualVolumeAspectMapper,
+                desktopPoolAspectMapper,
+                masterImageEntityAspectMapper))
+            .put(EntityType.DESKTOP_POOL_VALUE, ImmutableList.of(
+                desktopPoolAspectMapper,
+                masterImageEntityAspectMapper))
             .build();
     }
 
