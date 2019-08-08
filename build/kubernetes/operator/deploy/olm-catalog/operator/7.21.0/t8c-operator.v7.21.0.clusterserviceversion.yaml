@@ -104,6 +104,13 @@ spec:
                 - '*'
               verbs:
                 - '*'
+            - apiGroups:
+                - networking.istio.io
+              resources:
+                - gateways
+                - virtualservices
+              verbs:
+                - '*'
           serviceAccountName: t8c-operator
     strategy: deployment
   installModes:
