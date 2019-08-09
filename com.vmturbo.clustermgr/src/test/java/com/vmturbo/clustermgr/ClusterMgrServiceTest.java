@@ -159,8 +159,8 @@ public class ClusterMgrServiceTest {
 
         // fetch the values
         verify(consulServiceMock).getKeys(defaultPropertiesKeyStem);
-        verify(consulServiceMock, times(1)).getValues(defaultPropertiesKeyStem);
-        verifyNoMoreInteractions(consulServiceMock);
+        verify(consulServiceMock).getValues(defaultPropertiesKeyStem);
+        verify(consulServiceMock).getValueAsString("c1-1/component.version");
     }
 
     @Test
