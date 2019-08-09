@@ -74,7 +74,7 @@ spec:
                     prefix: /vmturbo/messages
           route:
               - destination:
-                    host: api.turbonomic.svc.cluster.local
+                    host: api.{{ .Release.Namespace }}.svc.cluster.local
                     port:
                         number: 8080
           websocketUpgrade: true
