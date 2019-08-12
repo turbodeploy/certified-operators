@@ -75,7 +75,6 @@ public class EntitySettingsApplicator {
                     } else {
                         logger.warn("Unknown setting {} for entity {}",
                                 setting.getSettingSpecName(), entity.getOid());
-                        return;
                     }
                 }
 
