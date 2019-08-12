@@ -9,6 +9,10 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 
+persistence:
+  logsize: 30Gi
+  auditsize: 30Gi
+
 resources: {}
 
 nodeSelector: {}
