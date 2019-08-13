@@ -58,6 +58,7 @@ import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.SearchOrderBy;
@@ -395,13 +396,14 @@ public class SearchService implements ISearchService {
     public SearchPaginationResponse getMembersBasedOnFilter(String query,
                                                             GroupApiDTO inputDTO,
                                                             SearchPaginationRequest paginationRequest)
-                throws OperationFailedException {
+        throws OperationFailedException, InvalidOperationException {
         // the query input is called a GroupApiDTO even though this search can apply to any type
         // what sort of search is this
         final List<? extends BaseApiDTO> result;
         if (StringConstants.GROUP.equals(inputDTO.getClassName())) {
             // this is a search for a group
-            result = groupsService.getGroupsByFilter(inputDTO.getCriteriaList());
+            return groupsService.getPaginatedGroupApiDTOS(inputDTO.getCriteriaList(),
+                paginationRequest);
         } else if (CLUSTER.equals(inputDTO.getClassName())) {
             // this is a search for a compute Cluster of physical machines
             result = groupsService.getClusters(ClusterInfo.Type.COMPUTE, inputDTO.getScope(),

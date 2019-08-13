@@ -98,6 +98,26 @@ public class SeverityPopulator {
     }
 
     /**
+     * Calculate the severities for the given entities.
+     *
+     * @param topologyContextId The ID of the topology context from which to retrieve the severity.
+     * @param entityOids        The set of entity OIDs.
+     * @return a mapping between entity id and corresponding severity.
+     */
+    @Nonnull
+    public Map<Long, Severity> calculateSeverities(final long topologyContextId,
+                                                @Nonnull final Collection<Long> entityOids) {
+            return severityService.getEntitySeverities(
+                MultiEntityRequest.newBuilder()
+                    .setTopologyContextId(topologyContextId)
+                    .addAllEntityIds(entityOids)
+                    .build())
+                .getEntitySeverityList().stream()
+                .collect(Collectors.toMap(EntitySeverity::getEntityId,
+                    EntitySeverity::getSeverity));
+    }
+
+    /**
      * Calculate the highest severity for the passed in entity OIDs.
      * TODO: to improve performance, move the calculation to Group component, and cache results.
      * TODO: Created OM-43416 for this change.

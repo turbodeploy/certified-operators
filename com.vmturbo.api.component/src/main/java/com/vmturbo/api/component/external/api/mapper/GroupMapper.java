@@ -493,6 +493,48 @@ public class GroupMapper {
     }
 
     /**
+     * Converts from {@link GroupAndMembers} to {@link GroupApiDTO} without setting the active
+     * entities count.
+     *
+     * @param groupAndMembers The {@link GroupAndMembers} object (get it from {@link GroupExpander})
+     *                        describing the XL group and its members.
+     * @param environmentType The environment type of the group.
+     * @return The {@link GroupApiDTO} object.
+     */
+    @Nonnull
+    public GroupApiDTO toGroupApiDtoWithoutActiveEntities(@Nonnull final GroupAndMembers groupAndMembers,
+                                     @Nonnull final EnvironmentType environmentType) {
+        final GroupApiDTO outputDTO;
+        final Group group = groupAndMembers.group();
+        switch (group.getType()) {
+            case GROUP:
+                outputDTO = createGroupApiDto(groupAndMembers.group());
+                break;
+            case CLUSTER:
+                outputDTO = createClusterApiDto(groupAndMembers.group());
+                break;
+            case TEMP_GROUP:
+                outputDTO = createTempGroupApiDTO(groupAndMembers.group());
+                break;
+            case NESTED_GROUP:
+                outputDTO = createNestedGroupApiDTO(groupAndMembers.group());
+                break;
+            default:
+                throw new IllegalArgumentException("Unrecognized group type: " + group.getType());
+        }
+        outputDTO.setDisplayName(GroupProtoUtil.getGroupDisplayName(groupAndMembers.group()));
+        outputDTO.setUuid(Long.toString(groupAndMembers.group().getId()));
+        outputDTO.setMembersCount(groupAndMembers.members().size());
+        outputDTO.setMemberUuidList(groupAndMembers.members().stream()
+            .map(oid -> Long.toString(oid))
+            .collect(Collectors.toList()));
+        outputDTO.setEnvironmentType(getEnvironmentTypeForTempGroup(environmentType));
+        outputDTO.setEntitiesCount(groupAndMembers.entities().size());
+
+        return outputDTO;
+    }
+
+    /**
      * Converts from {@link GroupAndMembers} to {@link GroupApiDTO}.
      *
      * @param groupAndMembers The {@link GroupAndMembers} object (get it from {@link GroupExpander})
@@ -536,7 +578,14 @@ public class GroupMapper {
         return outputDTO;
     }
 
-    private int getActiveEntitiesCount(@Nonnull final GroupAndMembers groupAndMembers) {
+    /**
+     * Get the number of active entities from a {@link GroupAndMembers}.
+     *
+     * @param groupAndMembers The {@link GroupAndMembers} object (get it from {@link GroupExpander})
+     *                        describing the XL group and its members.
+     * @return The number of active entities
+     */
+    public int getActiveEntitiesCount(@Nonnull final GroupAndMembers groupAndMembers) {
         // Set the active entities count.
         final Group group = groupAndMembers.group();
         try {

@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.service;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +50,12 @@ import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMemberOrderBy;
+import com.vmturbo.api.pagination.SearchOrderBy;
+import com.vmturbo.api.pagination.SearchPaginationRequest;
+import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
@@ -905,21 +912,6 @@ public class GroupsService implements IGroupsService {
     }
 
     /**
-     * Fetch groups based on a list of {@link FilterApiDTO} criteria.
-     *
-     * If the list of criteria is empty, return all groups
-     *
-     * @param filterList the list of filter criteria to apply
-     * @return a list of groups that match
-     */
-    List<GroupApiDTO> getGroupsByFilter(List<FilterApiDTO> filterList) {
-        return getGroupApiDTOS(getGroupsRequestForFilters(filterList)
-            .addTypeFilter(Type.GROUP)
-            .addTypeFilter(Type.NESTED_GROUP)
-            .build(), true);
-    }
-
-    /**
      * Get the groups matching a {@link GetGroupsRequest} from the group component, and convert
      * them to the associated {@link GroupApiDTO} format.
      *
@@ -949,6 +941,37 @@ public class GroupsService implements IGroupsService {
     }
 
     /**
+     * Get the groups matching a {@link GetGroupsRequest} from the group component, convert
+     * them to the associated {@link GroupApiDTO} format and paginate them.
+     *
+     * @param filterList the list of filter criteria to apply.
+     * @param paginationRequest Contains the limit, the order and a potential cursor
+     *
+     * @return The list of {@link GroupApiDTO} objects.
+     * @throws InvalidOperationException When the cursor is invalid.
+     */
+    @Nonnull
+    public SearchPaginationResponse getPaginatedGroupApiDTOS(final List<FilterApiDTO> filterList,
+                                                             final SearchPaginationRequest paginationRequest)
+        throws InvalidOperationException {
+
+        final GetGroupsRequest groupsRequest = getGroupsRequestForFilters(filterList)
+            .addTypeFilter(Type.GROUP)
+            .addTypeFilter(Type.NESTED_GROUP)
+            .build();
+
+        final List<GroupAndMembers> groupsWithMembers =
+            groupExpander.getGroupsWithMembers(groupsRequest).collect(Collectors.toList());
+
+        Map<String, GroupAndMembers> idToGroupAndMembers = new HashMap<>();
+
+        groupsWithMembers.stream()
+            .forEach((group) -> idToGroupAndMembers.put(Long.toString(group.group().getId()), group));
+
+        return nextGroupPage(groupsWithMembers, idToGroupAndMembers, paginationRequest);
+    }
+
+    /**
      * Create a GetGroupsRequest based on the given filterList.
      *
      * @param filterList a list of FilterApiDTO to be applied to this group; only "groupsByName" is
@@ -966,6 +989,151 @@ public class GroupsService implements IGroupsService {
                 .forEach(groupPropertyFilterListBuilder::addPropertyFilters);
         return
             GetGroupsRequest.newBuilder().setPropertyFilters(groupPropertyFilterListBuilder.build());
+    }
+
+    /**
+     * Get a mapping between a group id and its corresponding severity.
+     *
+     * @param groupsWithMembers a list of groups with their respective members
+     * @return a Map containing a group id and its corresponding severity
+     */
+    private Map<Long, Severity> getGroupsSeverities(List<GroupAndMembers> groupsWithMembers) {
+        final Map<Long, Severity> groupSeverity = new HashMap();
+        Map<Long, Severity> entitiesSeverityMap =
+            severityPopulator.calculateSeverities(realtimeTopologyContextId,
+                groupsWithMembers.stream().flatMap(groupAndMembers -> groupAndMembers.entities().stream())
+                    .collect(Collectors.toSet()));
+
+        groupsWithMembers.stream().forEach(groupAndMembers -> {
+            groupSeverity.put(groupAndMembers.group().getId(), groupAndMembers.entities().stream()
+                .map(entitiesSeverityMap::get)
+                .filter(Objects::nonNull)
+                .reduce(Severity.NORMAL, (first, second)
+                    -> first.getNumber() > second.getNumber() ? first : second));
+        });
+        return groupSeverity;
+    }
+
+    /**
+     * Return a List of {@link GroupApiDTO} with groups containing essential information
+     * for the ordering.
+     *
+     * @param groupsWithMembers The groups to populate with information.
+     * @param searchOrderBy Contains the parameters for the ordering.
+     * @return An ordered list of {@link GroupApiDTO}.
+     */
+    private List<GroupApiDTO> setPrePaginationGroupsInformation(List<GroupAndMembers> groupsWithMembers,
+                                                           SearchOrderBy searchOrderBy) {
+        final boolean populateSeverity = searchOrderBy == SearchOrderBy.SEVERITY;
+        // We only populate severity BEFORE pagination if we are ordering by severity for
+        // pagination.
+        final Map<Long, Severity> groupSeverities =
+            populateSeverity ?
+                getGroupsSeverities(groupsWithMembers) : new HashMap<>();
+
+        return groupsWithMembers.stream()
+            .filter(groupWithMembers -> !isHiddenGroup(groupWithMembers.group()))
+            .map(groupAndMembers -> {
+                GroupApiDTO groupApiDTO = groupMapper.toGroupApiDtoWithoutActiveEntities(groupAndMembers,
+                    EnvironmentType.ONPREM);
+                if (populateSeverity) {
+                    groupApiDTO.setSeverity(groupSeverities.get(groupAndMembers.group().getId()).name());
+                }
+                return groupApiDTO;
+        }).collect(Collectors.toList());
+    }
+
+    /**
+     * Return a List of {@link BaseApiDTO} containing groups that contains all the missing
+     * information
+     * after being ordered.
+     *
+     * @param groupApiDTOs The groups to populate with information.
+     * @param searchOrderBy Contains the parameters for the ordering.
+     * @param idToGroupAndMembers contains a mapping from a group id to its members.
+     * @return An ordered list of {@link BaseApiDTO}.
+     */
+    private List<BaseApiDTO> setPostPaginationGroupsInformation(List<GroupApiDTO> groupApiDTOs,
+                                                     SearchOrderBy searchOrderBy, Map<String,
+        GroupAndMembers> idToGroupAndMembers ) {
+
+        if (searchOrderBy != SearchOrderBy.SEVERITY) {
+            List<GroupAndMembers> limitedGroupsWithMembers =
+                groupApiDTOs.stream().map(groupApiDTO -> idToGroupAndMembers.get(groupApiDTO.getUuid())).collect(Collectors.toList());
+            final Map<Long, Severity> limitedGroupSeverities  =
+                getGroupsSeverities(limitedGroupsWithMembers);
+            groupApiDTOs.forEach(groupApiDTO -> {
+                groupApiDTO.setSeverity(limitedGroupSeverities.get(Long.parseLong(groupApiDTO.getUuid())).name());
+            });
+        }
+        List<BaseApiDTO> retList = groupApiDTOs.stream().map(groupApiDTO -> {
+            groupApiDTO.setActiveEntitiesCount(groupMapper.getActiveEntitiesCount(idToGroupAndMembers.get(groupApiDTO.getUuid())));
+            return groupApiDTO;
+        }).collect(Collectors.toList());
+        return retList;
+    }
+
+    /**
+     * Return a SearchPaginationResponse containing groups ordered and limited according to the
+     * paginationRequest parameters.
+     *
+     * @param groupsWithMembers The groups to populate and order.
+     * @param idToGroupAndMembers A mapping from a group id to the group with its members.
+     * @param paginationRequest Contains the parameters for the pagination.
+     * @return The {@link SearchPaginationResponse} containing the groups.
+     * @throws InvalidOperationException When the cursor is invalid.
+     */
+    private SearchPaginationResponse nextGroupPage(final List<GroupAndMembers> groupsWithMembers,
+                                                         final Map<String, GroupAndMembers> idToGroupAndMembers,
+                                                         final SearchPaginationRequest paginationRequest) throws InvalidOperationException {
+        // In this function get information about groups and order them. Since it's an expensive
+        // call we need to make sure to retrieve information for all of groups only if they are
+        // needed for the sorting. For example, if we sort by severity, we need to fetch and set
+        // the severities to the groups before ordering them. If instead we order by name, we can
+        // fetch and set the severities only for the groups we are paginating. For this reason
+        // two functions that dynamically get the correct information based on the ordering are
+        // used: setPrePaginationGroupsInformation and setPostPaginationGroupsInformation.
+
+        final long skipCount;
+        if (paginationRequest.getCursor().isPresent()) {
+            try {
+                skipCount = Long.parseLong(paginationRequest.getCursor().get());
+                if (skipCount < 0) {
+                    throw new InvalidOperationException("Illegal cursor: " +
+                        skipCount + ". Must be be a positive integer");
+                }
+            } catch (InvalidOperationException e) {
+                throw new InvalidOperationException("Cursor " + paginationRequest.getCursor() +
+                    " is invalid. Should be a number.");
+            }
+
+        } else {
+            skipCount = 0;
+        }
+
+        final List<GroupApiDTO> groupApiDTOs =
+            setPrePaginationGroupsInformation(groupsWithMembers, paginationRequest.getOrderBy());
+
+        final List<GroupApiDTO> paginatedGroupApiDTOs =
+            groupApiDTOs.stream()
+                .sorted(SearchOrderBy.fromString(
+                    paginationRequest.getOrderBy().name()).getComparator(paginationRequest.isAscending()))
+                .skip(skipCount)
+                .limit(paginationRequest.getLimit())
+                .collect(Collectors.toList());
+
+        final List<BaseApiDTO> retList = setPostPaginationGroupsInformation(paginatedGroupApiDTOs,
+            paginationRequest.getOrderBy(), idToGroupAndMembers);
+
+        Long nextCursor = skipCount + groupApiDTOs.size();
+        if (nextCursor == idToGroupAndMembers.values().size()) {
+            return paginationRequest.finalPageResponse(retList);
+        }
+        if (nextCursor > idToGroupAndMembers.values().size()) {
+            logger.warn("Illegal cursor: the value is bigger than the total amount of groups");
+            return paginationRequest.finalPageResponse(retList);
+        }
+        return paginationRequest.nextPageResponse(retList, Long.toString(nextCursor));
     }
 
     /**
