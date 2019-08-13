@@ -12,7 +12,7 @@ spec:
   - ReadWriteOnce
   resources:
     requests:
-      storage: 50Gi
+      storage: {{ .Values.persistence.size }}
 ---
 apiVersion: apps/v1
 kind: Deployment
