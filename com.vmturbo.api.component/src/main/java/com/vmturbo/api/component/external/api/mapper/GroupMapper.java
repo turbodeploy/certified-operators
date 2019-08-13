@@ -873,7 +873,8 @@ public class GroupMapper {
             searchFilters.addAll(processToken(filter, entityType, iterator, useCase.getInputType(), firstToken));
         }
         if (!StringUtils.isEmpty(nameQuery)) {
-            searchFilters.add(SearchProtoUtil.searchFilterProperty(SearchProtoUtil.nameFilterExact(nameQuery)));
+            searchFilters.add(SearchProtoUtil.searchFilterProperty(
+                SearchProtoUtil.nameFilterRegex(".*" + nameQuery + ".*")));
         }
         parametersBuilder.addAllSearchFilter(searchFilters.build());
         parametersBuilder.setSourceFilterSpecs(toFilterSpecs(filter));
