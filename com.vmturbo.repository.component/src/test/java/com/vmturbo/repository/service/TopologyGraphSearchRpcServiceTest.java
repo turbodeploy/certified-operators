@@ -215,6 +215,7 @@ public class TopologyGraphSearchRpcServiceTest {
         when(e1.getEnvironmentType()).thenReturn(EnvironmentType.ON_PREM);
         when(e1.getTags()).thenReturn(ImmutableMap.of(String.valueOf(oid), Collections.singletonList(String.valueOf(oid))));
         when(e1.getTopologyEntity()).thenReturn(createTestEntity(oid));
+        when(e1.getDiscoveringTargetIds()).thenAnswer(invocation -> Stream.empty());
         return e1;
     }
 

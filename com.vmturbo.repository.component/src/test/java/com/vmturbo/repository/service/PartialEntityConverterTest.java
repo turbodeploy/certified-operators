@@ -102,6 +102,7 @@ public class PartialEntityConverterTest {
         assertThat(minEntity.getEnvironmentType(), is(ENTITY.getEnvironmentType()));
         assertThat(minEntity.getDisplayName(), is(ENTITY.getDisplayName()));
         assertThat(minEntity.getEntityType(), is(ENTITY.getEntityType()));
+        assertThat(minEntity.getDiscoveringTargetIdsList(), contains(TARGET_ID));
     }
 
     @Test
@@ -147,6 +148,7 @@ public class PartialEntityConverterTest {
         assertThat(minEntity.getEnvironmentType(), is(graphEntity.getEnvironmentType()));
         assertThat(minEntity.getDisplayName(), is(graphEntity.getDisplayName()));
         assertThat(minEntity.getEntityType(), is(graphEntity.getEntityType()));
+        assertThat(minEntity.getDiscoveringTargetIdsList(), contains(TARGET_ID));
     }
 
     @Test

@@ -28,6 +28,8 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.util.JsonFormat;
 
 import io.grpc.stub.StreamObserver;
 
@@ -43,6 +45,8 @@ import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTableSegment.ProbeRISp
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstanceSpecPrice;
 import com.vmturbo.common.protobuf.cost.Pricing.UploadPriceTablesResponse;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceStub;
+import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.OnDemandPriceTableByRegionEntry;
@@ -64,7 +68,7 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  * Because price data is expected to change infrequently, we will do a checksum comparison with the
  * latest price table checksum from the cost component before initiating a new upload.
  */
-public class PriceTableUploader {
+public class PriceTableUploader implements Diagnosable {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -124,13 +128,17 @@ public class PriceTableUploader {
         sourcePriceTableByProbeType.put(probeType, priceTable);
     }
 
+    @Nonnull
+    Map<SDKProbeType, PricingDTO.PriceTable> getSourcePriceTables() {
+        return Collections.unmodifiableMap(sourcePriceTableByProbeType);
+    }
+
     /**
      * When a target is removed, we will clear the cached price table for it's probe type.
      *
-     * @param targetId the ID of a target that was just removed
      * @param probeType the probe type of the removed target
      */
-    public void targetRemoved(long targetId, @Nonnull SDKProbeType probeType) {
+    public void targetRemoved(@Nonnull SDKProbeType probeType) {
         if (probeType.getProbeCategory() != ProbeCategory.COST) {
             return;
         }
@@ -146,49 +154,30 @@ public class PriceTableUploader {
     }
 
     /**
+     * Will first check if something has changed according to the hash.
+     * Then build a list of ProbePriceData based on the {@link CloudEntitiesMap}.
      * Upload whatever price tables we have gathered, into the cost component.
      *
      * @param cloudEntitiesMap the {@link CloudEntitiesMap} containing local id's to oids
      */
-    public void uploadPriceTables(@Nonnull CloudEntitiesMap cloudEntitiesMap) {
+    public void checkForUpload(@Nonnull CloudEntitiesMap cloudEntitiesMap) {
 
-        // calculate a hashcode for the new data being assembled so we can see if we even need to
-        // update the price tables. We'll create a new hash code based on the source price tables
-        // and cloud entities map, since if those two are the same then the resulting upload data
-        // should also be the same.
         DataMetricTimer timer = PRICE_TABLE_HASH_CALCULATION_TIME.startTimer();
+        // Calculate a hashcode for the new data being assembled based on the source price tables
+        // and cloud entities map.
         final long newHashcode = cloudEntitiesMap.hashCode() * 31
                         + sourcePriceTableByProbeType.hashCode();
         double hashCalculationSecs = timer.observe();
         logger.debug("Price table hash code calculation took {} secs", hashCalculationSecs);
-
-        // check if the data has changed since our last upload by comparing the new hash against
-        // the hash of the last successfully saved price table from the cost component
-        CompletableFuture<Long> lastConfirmedHashFuture = new CompletableFuture<>();
-        priceServiceClient.getPriceTableChecksum(
-                GetPriceTableChecksumRequest.getDefaultInstance(),
-                new StreamObserver<GetPriceTableChecksumResponse>() {
-                    @Override
-                    public void onNext(final GetPriceTableChecksumResponse getPriceTableChecksumResponse) {
-                        lastConfirmedHashFuture.complete(getPriceTableChecksumResponse.getPriceTableChecksum());
-                    }
-
-                    @Override
-                    public void onError(final Throwable throwable) {
-                        lastConfirmedHashFuture.completeExceptionally(throwable);
-                    }
-
-                    @Override
-                    public void onCompleted() {}
-                });
-
         long lastConfirmedHashCode;
         try {
-            lastConfirmedHashCode = lastConfirmedHashFuture.get();
+            // Get new hashcode checksum
+            lastConfirmedHashCode = getCheckSum();
         } catch (ExecutionException | InterruptedException e) {
             logger.error("Could not retrieve last persisted price table hash. Will not proceed with price table upload.", e);
             return;
         }
+        // See if we even need to update the price tables.
         if (newHashcode == lastConfirmedHashCode) {
             logger.info("Last processed upload hash is the same as this one [{}], skipping this upload.",
                     Long.toUnsignedString(newHashcode));
@@ -196,16 +185,43 @@ public class PriceTableUploader {
         }
         logger.info("Price table upload hash check: new upload {} last upload {}. We will upload.",
                 Long.toUnsignedString(newHashcode), Long.toUnsignedString(lastConfirmedHashCode));
+        final List<ProbePriceData> probePricesList = buildPricesToUpload(cloudEntitiesMap);
+        uploadPrices(probePricesList, newHashcode);
+    }
 
-        // build a new set of price objects to upload.
+    private long getCheckSum() throws ExecutionException, InterruptedException {
+        // Check if the data has changed since our last upload by comparing the new hash against
+        // the hash of the last successfully saved price table from the cost component
+        CompletableFuture<Long> lastConfirmedHashFuture = new CompletableFuture<>();
+        priceServiceClient.getPriceTableChecksum(
+            GetPriceTableChecksumRequest.getDefaultInstance(),
+            new StreamObserver<GetPriceTableChecksumResponse>() {
+                @Override
+                public void onNext(final GetPriceTableChecksumResponse getPriceTableChecksumResponse) {
+                    lastConfirmedHashFuture.complete(getPriceTableChecksumResponse.getPriceTableChecksum());
+                }
+
+                @Override
+                public void onError(final Throwable throwable) {
+                    lastConfirmedHashFuture.completeExceptionally(throwable);
+                }
+
+                @Override
+                public void onCompleted() {}
+            });
+        return lastConfirmedHashFuture.get();
+    }
+
+    @VisibleForTesting
+    List<ProbePriceData> buildPricesToUpload(@Nonnull CloudEntitiesMap cloudEntitiesMap) {
+        // Build a new set of price objects to upload.
         DataMetricTimer buildTimer = CLOUD_COST_UPLOAD_TIME.labels(CLOUD_COST_PRICES_SECTION,
-                UPLOAD_REQUEST_BUILD_STAGE).startTimer();
+            UPLOAD_REQUEST_BUILD_STAGE).startTimer();
         List<ProbePriceData> probePricesList = new ArrayList<>();
         synchronized (sourcePriceTableByProbeType) {
             sourcePriceTableByProbeType.forEach((probeType, priceTable) -> {
                 ProbePriceData probePriceData = new ProbePriceData();
                 probePriceData.probeType = probeType.getProbeType();
-
                 // convert the price table for this probe type
                 probePriceData.priceTable = priceTableToCostPriceTable(priceTable, cloudEntitiesMap, probeType);
                 // add the RI price table for this probe type
@@ -215,13 +231,17 @@ public class PriceTableUploader {
         }
         buildTimer.observe();
         logger.debug("Build of {} price tables took {} secs", sourcePriceTableByProbeType.size(),
-                buildTimer.getTimeElapsedSecs());
+            buildTimer.getTimeElapsedSecs());
+        return probePricesList;
+    }
 
+    @VisibleForTesting
+    void uploadPrices(List<ProbePriceData> probePricesList, long newHashcode) {
         DataMetricTimer uploadTimer = CLOUD_COST_UPLOAD_TIME.labels(CLOUD_COST_PRICES_SECTION,
-                UPLOAD_REQUEST_UPLOAD_STAGE).startTimer();
+            UPLOAD_REQUEST_UPLOAD_STAGE).startTimer();
         try {
-            logger.info("Uploading price tables for {} probe types", probePricesList.size());
-            // since we want this to be a synchronous upload, we will wait for the upload to complete
+            logger.info("Uploading price tables for {} probe types", probePricesList.size());          // upload the data
+            // Since we want this to be a synchronous upload, we will wait for the upload to complete
             // in this thread.
             CountDownLatch uploadLatch = new CountDownLatch(1);
             ProbePriceDataSender priceDataSender = new ProbePriceDataSender(priceServiceClient.updatePriceTables(new StreamObserver<UploadPriceTablesResponse>() {
@@ -248,9 +268,8 @@ public class PriceTableUploader {
         }
         uploadTimer.observe();
         logger.info("Upload of {} price tables took {} secs",
-                sourcePriceTableByProbeType.size(), uploadTimer.getTimeElapsedSecs() );
+            sourcePriceTableByProbeType.size(), uploadTimer.getTimeElapsedSecs() );
     }
-
     /**
      * Build an XL protobuf price table based on the price table received from a probe.
      * Note that we are modifying the price table that is passed in, and if an
@@ -277,7 +296,7 @@ public class PriceTableUploader {
         // structure to track missing tiers - we want to log about this but not spam the log.
         Multimap<String, String> missingTiers = ArrayListMultimap.create();
 
-        // the price tables are demselves broken up into tables within the table, with one table per
+        // The price tables are themselves broken up into tables within the table, with one table per
         // type of "good" (on-demand, spot instance, license) per region.
         for (OnDemandPriceTableByRegionEntry onDemandPriceTableForRegion : sourcePriceTable.getOnDemandPriceTableList()) {
             // find the region oid assigned by the TP
@@ -398,8 +417,8 @@ public class PriceTableUploader {
      * @param cloudEntitiesMap The probe local id -> oid map
      * @return a list of {@link ReservedInstanceSpecPrice} based on the source price table
      */
-    private static List<ReservedInstanceSpecPrice> getRISpecPrices(@Nonnull PricingDTO.PriceTable sourcePriceTable,
-                                                                   @Nonnull final Map<String, Long>  cloudEntitiesMap) {
+    static List<ReservedInstanceSpecPrice> getRISpecPrices(@Nonnull PricingDTO.PriceTable sourcePriceTable,
+                                                           @Nonnull final Map<String, Long> cloudEntitiesMap) {
 
         // keep a map of spec info's to prices we've visited so far
         Map<ReservedInstanceSpecInfo, ReservedInstancePrice> riPricesBySpec = new HashMap<>();
@@ -473,6 +492,58 @@ public class PriceTableUploader {
                             + "kept for each RI Spec.", numConflictingPrices);
         }
         return retVal;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Nonnull
+    @Override
+    public List<String> collectDiags() throws DiagnosticsException {
+        final List<String> retList = new ArrayList<>(sourcePriceTableByProbeType.size() * 2);
+        synchronized (sourcePriceTableByProbeType) {
+            final JsonFormat.Printer printer = JsonFormat.printer().omittingInsignificantWhitespace();
+            sourcePriceTableByProbeType.forEach((probeType, priceTable) -> {
+                try {
+                    final String priceTableStr = printer.print(priceTable);
+                    retList.add(probeType.getProbeType());
+                    retList.add(priceTableStr);
+                } catch (InvalidProtocolBufferException e) {
+                    logger.error("Failed to serialize price table for probe: {}. Error: {}", probeType, e.getMessage());
+                }
+            });
+        }
+        return retList;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        if (collectedDiags.size() % 2 != 0) {
+            throw new DiagnosticsException("Unexpected diags - should be even length.");
+        }
+
+        synchronized (sourcePriceTableByProbeType) {
+            final JsonFormat.Parser parser = JsonFormat.parser().ignoringUnknownFields();
+            for (int i = 0; i + 2 <= collectedDiags.size(); i += 2) {
+                String probeType = collectedDiags.get(i);
+                String priceTableStr = collectedDiags.get(i + 1);
+                SDKProbeType sdkProbeType = SDKProbeType.create(probeType);
+                if (sdkProbeType == null) {
+                    logger.error("Failed to find SDK probe type for probe type: {}", probeType);
+                } else {
+                    PricingDTO.PriceTable.Builder priceTableBldr = PricingDTO.PriceTable.newBuilder();
+                    try {
+                        parser.merge(priceTableStr, priceTableBldr);
+                        sourcePriceTableByProbeType.put(sdkProbeType, priceTableBldr.build());
+                    } catch (InvalidProtocolBufferException e) {
+                        logger.error("Failed to deserialize price table for probe: {}. Error: {}", probeType, e.getMessage());
+                    }
+                }
+            }
+        }
     }
 
     /**

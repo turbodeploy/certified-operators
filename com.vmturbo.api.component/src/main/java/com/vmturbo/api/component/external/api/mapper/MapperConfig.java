@@ -161,7 +161,8 @@ public class MapperConfig {
             communicationConfig.repositoryApi(),
             communicationConfig.topologyProcessor(),
             communicationConfig.planRpcService(),
-            communicationConfig.groupRpcService());
+            communicationConfig.groupRpcService(),
+            communicationConfig.groupExpander());
     }
 
     @Bean

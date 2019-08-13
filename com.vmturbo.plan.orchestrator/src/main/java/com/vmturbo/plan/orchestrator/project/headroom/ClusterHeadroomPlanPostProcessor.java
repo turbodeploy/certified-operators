@@ -1,6 +1,9 @@
 package com.vmturbo.plan.orchestrator.project.headroom;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,8 +20,6 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.commons.collections.MapUtils;
-import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
@@ -31,6 +32,7 @@ import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
@@ -102,8 +104,13 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      */
     private static final int PEAK_LOOKBACK_DAYS = 7;
 
+    /**
+     * A constant holding a big number of days when exhaustion days is infinite
+     */
+    private static final int MORE_THAN_A_YEAR = 3650;
+
     // Milliseconds in a day
-    final long dayMilliSecs = TimeUnit.DAYS.toMillis(1);
+    public static long DAY_MILLI_SECS = TimeUnit.DAYS.toMillis(1);
 
     /**
      * List of entities relevant for headroom calculation.
@@ -191,11 +198,6 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                                     .filter(entity -> HEADROOM_ENTITY_TYPE.contains(entity.getEntityType()))
                                     .collect(Collectors.groupingBy(e -> e.getEntityType()));
 
-                // In a headroom plan only the clones are unplaced, and nothing else changes. Therefore
-                // the number of unplaced VMs = the number of unplaced clones.
-                final long unplacedClones = headroomEntities.get(EntityType.VIRTUAL_MACHINE_VALUE).stream()
-                                .filter(vm -> !TopologyDTOUtil.isPlaced(vm))
-                                .count();
                 final ImmutableEntityCountData entityCounts = getHeadroomEntitesCount();
 
                 Optional<Template> template = templatesDao
@@ -272,31 +274,61 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * @param currentVMsInCluster VMs in cluster currently.
      * @return newly added VMs since past PEAK_LOOKBACK_DAYS.
      */
-    private long getVMGrowth(Set<Long> currentVMsInCluster) {
+    @VisibleForTesting
+    public long getVMGrowth(Set<Long> currentVMsInCluster) {
         EntityStatsScope.Builder scope = EntityStatsScope.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
 
         // calculate date peakLookBackDays behind
-        Long currentTime = System.currentTimeMillis();
-        Long oneWeekduration = Long.valueOf(dayMilliSecs * PEAK_LOOKBACK_DAYS);
-        Long timeOneWeekAgo = currentTime - oneWeekduration;
-        Long timeTwoWeeksAgo = timeOneWeekAgo - oneWeekduration;
+        final long currentTime = System.currentTimeMillis();
+        final long oneWeekduration = Long.valueOf(DAY_MILLI_SECS * PEAK_LOOKBACK_DAYS);
+        final long timeOneWeekAgo = currentTime - oneWeekduration;
+        final long timeFiftyWeeksAgo = timeOneWeekAgo - 49 * oneWeekduration;
 
-        // This is a way around to fetch VMs from history since currently we don't populate
-        // Cluster_Members table (legacy uses this table to get required VMs).
+        // Find from when we have data. 2 weeks of data are enough, otherwise if we have
+        // less data we use that
         GetEntityStatsRequest entityStatsRequest = GetEntityStatsRequest.newBuilder()
-                        .setScope(scope)
-                        .setFilter(StatsFilter.newBuilder()
-                            .setStartDate(timeTwoWeeksAgo).setEndDate(timeOneWeekAgo))
-                        .build();
+                .setFilter(StatsFilter.newBuilder()
+                        .setStartDate(timeFiftyWeeksAgo).setEndDate(currentTime))
+                .setScope(scope)
+                .build();
 
         GetEntityStatsResponse response = statsHistoryService.getEntityStats(entityStatsRequest);
+
+        // Calculate the earlier day in the past we have data (not earlier than 2 weeks)
+        Long startTime = currentTime;
+        for (EntityStats stats : response.getEntityStatsList()) {
+            long snapshotTime = stats.getStatSnapshots(0).getSnapshotDate();
+            if (snapshotTime < startTime) {
+                startTime = snapshotTime;
+            }
+        }
+
+        // We will use 2 * daysNo days of data for the calculation of VM growth
+        int daysNo = (int) (Math.floor((currentTime - startTime) / (2 * DAY_MILLI_SECS)));
+
+        final long timeOneIntervalAgo;
+
+        if (daysNo == 0) {
+            // We don't have data at all
+            logger.info("We don't have enough data to calculate VM growth for cluster {}", cluster.getId());
+            return 0;
+        } else if (daysNo >= PEAK_LOOKBACK_DAYS) {
+            // We have data for 2 weeks
+            daysNo = PEAK_LOOKBACK_DAYS;
+            timeOneIntervalAgo = timeOneWeekAgo;
+        } else {
+            // We have data for less than 2 weeks
+            timeOneIntervalAgo = currentTime - daysNo * DAY_MILLI_SECS;
+        }
+
         final Set<Long> vmOidsFromHistory = response.getEntityStatsList().stream()
-                        .map(entity -> entity.getOid())
-                        .collect(Collectors.toSet());
+                    .filter(entity -> entity.getStatSnapshots(0).getSnapshotDate() < timeOneIntervalAgo)
+                    .map(entity -> entity.getOid())
+                    .collect(Collectors.toSet());
         return currentVMsInCluster.stream()
         .filter(currentVM -> !vmOidsFromHistory.contains(currentVM))
-        .count();
+        .count() / daysNo;     // Normalize VM growth for 1 day
     }
 
     /**
@@ -480,6 +512,13 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 commHeadroomCapacity.put(commType, headroomCapacity);
             }
 
+            if (CollectionUtils.isEmpty(commHeadroomAvailable) ||
+                            CollectionUtils.isEmpty(commHeadroomCapacity)) {
+                logger.error("Template has used value 0 for some commodities in cluster : " +
+                    cluster.getCluster().getDisplayName() +" and id "+ cluster.getId());
+                return CommodityHeadroom.getDefaultInstance();
+            }
+
             final double headroomAvailableForCurrentEntity = commHeadroomAvailable.values().stream().min(Double::compare).get();
             final double headroomCapacityForCurrentEntity = commHeadroomCapacity.values().stream().min(Double::compare).get();
 
@@ -501,9 +540,9 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
     }
 
     /**
-     * Calculate days to exhaustion by using vmGrowth rate in past PEAK_LOOKBACK_DAYS
+     * Calculate days to exhaustion by using vmGrowth rate
      * and current headroom availability.
-     * @param vmGrowth growth of VMs in past PEAK_LOOKBACK_DAYS
+     * @param vmGrowth growth of VMs in one day
      * @param headroomAvailable current headroom availability.
      * @return days to exhaustion.
      */
@@ -514,9 +553,9 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         }
         //if headroom is infinite OR VM Growth is 0  - exhaustion time is infinite
         if (headroomAvailable == Long.MAX_VALUE || vmGrowth == 0) {
-            return Long.MAX_VALUE;
+            return MORE_THAN_A_YEAR;
         }
-        return (long)Math.floor(((float)headroomAvailable / vmGrowth) * PEAK_LOOKBACK_DAYS);
+        return (long)Math.floor((float)headroomAvailable / vmGrowth);
     }
 
     /**

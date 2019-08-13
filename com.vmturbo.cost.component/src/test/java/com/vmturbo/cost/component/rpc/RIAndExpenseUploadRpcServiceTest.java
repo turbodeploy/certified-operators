@@ -11,6 +11,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -53,6 +54,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupBy
 import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
+import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
@@ -212,13 +214,15 @@ public class RIAndExpenseUploadRpcServiceTest {
     public ProjectedEntityCostStore projectedEntityCostStore = mock(ProjectedEntityCostStore.class);
     public BusinessAccountHelper businessAccountHelper = new BusinessAccountHelper();
     private TimeFrameCalculator timeFrameCalculator = mock(TimeFrameCalculator.class);
+
+    private Clock clock = new MutableFixedClock(1_000_000);
     private CostRpcService costRpcService;
 
     @Before
     public void setUp() {
         businessAccountHelper.storeTargetMapping(2, 2);
         costRpcService = new CostRpcService(discountStore, accountExpenseStore, entityCostStore,
-                projectedEntityCostStore, timeFrameCalculator, businessAccountHelper);
+                projectedEntityCostStore, timeFrameCalculator, businessAccountHelper, clock);
     }
 
     @Test
@@ -681,9 +685,10 @@ public class RIAndExpenseUploadRpcServiceTest {
     @Test
     public void testGetCloudCostStatsWithWorkload() throws Exception {
         final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
-                .setStartDate(1l)
-                .setEndDate(1l)
-                .build();
+            .setStartDate(1l)
+            .setEndDate(1l)
+            .setRequestProjected(true)
+            .build();
 
 
         final StreamObserver<GetCloudCostStatsResponse> mockObserver =
@@ -710,10 +715,11 @@ public class RIAndExpenseUploadRpcServiceTest {
     @Test
     public void testGetCloudCostStatsWithWorkloadWithEntityTypeFilter() throws Exception {
         final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
-                .setStartDate(1l)
-                .setEndDate(1l)
-                .setEntityTypeFilter(EntityTypeFilter.newBuilder().build())
-                .build();
+            .setStartDate(1l)
+            .setEndDate(1l)
+            .setRequestProjected(true)
+            .setEntityTypeFilter(EntityTypeFilter.newBuilder().build())
+            .build();
 
         final StreamObserver<GetCloudCostStatsResponse> mockObserver =
                 mock(StreamObserver.class);
@@ -760,9 +766,10 @@ public class RIAndExpenseUploadRpcServiceTest {
     @Test
     public void testGetCloudCostStatsWithWorkloadMultipleCategories() throws Exception {
         final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
-                .setStartDate(1l)
-                .setEndDate(1000l)
-                .build();
+            .setStartDate(1l)
+            .setEndDate(1000l)
+            .setRequestProjected(true)
+            .build();
 
 
         final StreamObserver<GetCloudCostStatsResponse> mockObserver =

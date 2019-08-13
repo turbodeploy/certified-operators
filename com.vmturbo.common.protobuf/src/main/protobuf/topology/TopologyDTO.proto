@@ -213,6 +213,8 @@ message PartialEntity {
         optional int32 entity_type = 3;
 
         optional .common.EnvironmentType environment_type = 4;
+
+        repeated int64 discovering_target_ids = 5;
     }
 
     // Contains the fields required by the action orchestrator to calculate action modes.
@@ -789,6 +791,11 @@ message CommodityBoughtDTO {
     repeated string aggregates = 9;
 
     optional double reserved_capacity = 10 [default = 0.0];
+
+    // Collection of commodity utilization points. The collection contains series of usage points
+    // with given timestamp and interval between points.
+    // Certain probes may send more than one point per discovery request.
+    optional UtilizationData utilizationData = 11;
 }
 
 message CommoditySoldDTO {

@@ -40,15 +40,6 @@
                   "enumSettingValue" : { "value" : "DISABLED" }
                 }
               }
-            },
-            {
-              "settingOverride" : {
-                "setting" : {
-                  "settingSpecName" : "shop",
-                  "enumSettingValue" : { "value" : "ENABLED" }
-                },
-                "entity_type" : 2
-              }
             }
           ]
         }

@@ -1,7 +1,8 @@
 package com.vmturbo.topology.processor.group.policy.application;
 
-import java.util.HashMap;
 import java.util.List;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -41,14 +42,25 @@ public class BindToComplementaryGroupPolicyApplication extends PlacementPolicyAp
                     final Group providerGroup = policy.getProviderPolicyEntities().getGroup();
                     final Group consumerGroup = policy.getConsumerPolicyEntities().getGroup();
                     // Resolve the relevant groups
-                    final Set<Long> providers = Sets.union(groupResolver.resolve(providerGroup,
+                    Set<Long> providers = Sets.union(groupResolver.resolve(providerGroup,
                         topologyGraph), policy.getProviderPolicyEntities().getAdditionalEntities());
                     final Set<Long> consumers = Sets.union(groupResolver.resolve(consumerGroup,
                         topologyGraph), policy.getConsumerPolicyEntities().getAdditionalEntities());
 
                     final int providerType = GroupProtoUtil.getEntityType(providerGroup);
+                    // if providers have been replaced, add them to the list of providers so as to skip them
+                    Set<Long> replacedProviders = new HashSet<>();
+                    providers.forEach(providerId -> topologyGraph.getEntity(providerId)
+                        .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                        .ifPresent(provider -> {
+                            if (provider.hasEdit() && provider.getEdit().hasReplaced()) {
+                                replacedProviders.add(provider.getEditBuilder().getReplaced().getReplacementId());
+                            }
+                        }));
+
                     // Add the commodity to the appropriate entities
-                    addCommoditySoldToComplementaryProviders(providers, providerType, commoditySold(policy));
+                    addCommoditySoldToComplementaryProviders(Sets.union(providers, replacedProviders),
+                            providerType, commoditySold(policy));
                     addCommodityBought(consumers, providerType, commodityBought(policy));
                 } catch (GroupResolutionException e) {
                     errors.put(policy, new PolicyApplicationException(e));

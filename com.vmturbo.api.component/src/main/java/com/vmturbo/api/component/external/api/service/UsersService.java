@@ -298,7 +298,7 @@ public class UsersService implements IUsersService {
         } catch (RuntimeException e) {
             // Intercept the possible exception for auditing
             AuditLog.newEntry(AuditAction.CREATE_USER,
-                String.format("Failed to create user s%", userApiDTO.getUsername()), false)
+                String.format("Failed to create user %s", userApiDTO.getUsername()), false)
                 .targetName(userApiDTO.getUsername())
                 .audit();
             // rethrowing it

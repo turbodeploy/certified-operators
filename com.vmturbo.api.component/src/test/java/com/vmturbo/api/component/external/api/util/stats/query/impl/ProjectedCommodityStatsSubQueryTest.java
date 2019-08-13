@@ -31,6 +31,7 @@ import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
@@ -45,6 +46,9 @@ public class ProjectedCommodityStatsSubQueryTest {
     private final StatsMapper statsMapper = mock(StatsMapper.class);
 
     private final StatsHistoryServiceMole backend = spy(StatsHistoryServiceMole.class);
+
+    private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
+
 
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(backend);
@@ -98,7 +102,8 @@ public class ProjectedCommodityStatsSubQueryTest {
         final StatsQueryContext context = mock(StatsQueryContext.class);
         when(context.getScope()).thenReturn(scope);
         when(context.requestProjected()).thenReturn(true);
-
+        when(context.getSessionContext()).thenReturn(userSessionContext);
+        when(userSessionContext.isUserScoped()).thenReturn(false);
         assertThat(query.applicableInContext(context), is(true));
     }
 
@@ -154,5 +159,4 @@ public class ProjectedCommodityStatsSubQueryTest {
         assertThat(ret.keySet(), containsInAnyOrder(timeWindow.endTime()));
         assertThat(ret.get(timeWindow.endTime()), is(mappedSnapshot.getStatistics()));
     }
-
 }

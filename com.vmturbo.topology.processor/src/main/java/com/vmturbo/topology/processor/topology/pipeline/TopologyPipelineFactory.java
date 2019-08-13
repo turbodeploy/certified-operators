@@ -3,7 +3,9 @@ package com.vmturbo.topology.processor.topology.pipeline;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -36,14 +38,15 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
-import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
 import com.vmturbo.topology.processor.topology.HistoricalEditor;
+import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
-import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ApplyClusterCommodityStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.CacheWritingConstructTopologyFromStitchingContextStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.CachingConstructTopologyFromStitchingContextStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ChangeAppCommodityKeyOnVMAndAppStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.CommoditiesEditStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ConstructTopologyFromStitchingContextStage;
@@ -54,9 +57,9 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.ExtractTopologyGr
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.HistoricalUtilizationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.IgnoreConstraintsStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.PlanScopingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PostStitchingStage;
-import com.vmturbo.topology.processor.topology.pipeline.Stages.PlanScopingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ReservationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ScanDiscoveredSettingPoliciesStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ScopeResolutionStage;
@@ -68,7 +71,6 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SupplyChainValidationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyAcquisitionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyEditStage;
-import com.vmturbo.topology.processor.topology.pipeline.Stages.ProbeActionCapabilitiesApplicatorStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadCloudCostDataStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadGroupsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadTemplatesStage;
@@ -135,6 +137,8 @@ public class TopologyPipelineFactory {
     private final HistoricalEditor historicalEditor;
 
     private final MatrixInterface matrix;
+
+    private final CachedTopology constructTopologyStageCache = new CachedTopology();
 
     public TopologyPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                    @Nonnull final PolicyManager policyManager,
@@ -225,7 +229,7 @@ public class TopologyPipelineFactory {
                 .addStage(new UploadCloudCostDataStage(discoveredCloudCostUploader))
                 .addStage(new ScanDiscoveredSettingPoliciesStage(discoveredSettingPolicyScanner,
                     discoveredGroupUploader))
-                .addStage(new ConstructTopologyFromStitchingContextStage())
+                .addStage(new CacheWritingConstructTopologyFromStitchingContextStage(constructTopologyStageCache))
                 .addStage(new UploadGroupsStage(discoveredGroupUploader))
                 .addStage(new UploadWorkflowsStage(discoveredWorkflowUploader))
                 .addStage(new UploadTemplatesStage(discoveredTemplateDeploymentProfileNotifier))
@@ -276,11 +280,19 @@ public class TopologyPipelineFactory {
             @Nonnull final StitchingJournalFactory journalFactory) {
         final TopologyPipelineContext context =
                 new TopologyPipelineContext(new GroupResolver(searchResolver), topologyInfo);
-        return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
-                .addStage(new StitchingStage(stitchingManager, journalFactory))
-                // TODO: We should fixup stitched groups but cannot because doing so would
-                // for the plan would also affect the live broadcast. See OM-31747.
-                .addStage(new ConstructTopologyFromStitchingContextStage())
+        final TopologyPipeline.Builder topoPipelineBuilder =
+            TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context);
+        // if the constructed topology is already in the cache from the realtime topology, just
+        // add the stage that will read it from the cache, otherwise add the stitching stage
+        // and the construct topology stage so we can build the topology
+        if (constructTopologyStageCache.isEmpty()) {
+            topoPipelineBuilder.addStage(new StitchingStage(stitchingManager, journalFactory))
+                .addStage(new ConstructTopologyFromStitchingContextStage());
+        } else {
+            topoPipelineBuilder.addStage(
+                new CachingConstructTopologyFromStitchingContextStage(constructTopologyStageCache));
+        }
+        return topoPipelineBuilder
                 .addStage(new ReservationStage(reservationManager))
                 // TODO: Move the ToplogyEditStage after the GraphCreationStage
                 // That way the editstage can work on the graph instead of a
@@ -337,5 +349,46 @@ public class TopologyPipelineFactory {
                 // policies/settings.
                 .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager)))
                 .build();
+    }
+
+    /**
+     * Class for caching the constructed topology from the live topology broadcast pipeline so it
+     * can be used by the plan over live topology pipeline.
+     */
+    public class CachedTopology {
+        /**
+         * Holds a copy of the result from the most recent constructed topology stage run by the
+         * live topology broadcast or null if none have run successfully yet.
+         */
+        private Map<Long, TopologyEntity.Builder> cachedMap;
+
+        /**
+         * Cache the result of the construct topology stage.
+         *
+         * @param newMap Topology map to be cached.
+         */
+        public synchronized void updateTopology(@Nonnull Map<Long, TopologyEntity.Builder> newMap) {
+            cachedMap = newMap.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().snapshot()));
+        }
+
+        /**
+         * Return a deep copy of the cached topology.
+         *
+         * @return the most recently cached topology.
+         */
+        public synchronized Map<Long, TopologyEntity.Builder> getTopology() {
+            return cachedMap.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().snapshot()));
+        }
+
+        /**
+         * Return true if no topology has been cached yet.
+         *
+         * @return boolean indicating if the cache is empty or not.
+         */
+        public synchronized boolean isEmpty() {
+            return cachedMap == null || cachedMap.isEmpty();
+        }
     }
 }

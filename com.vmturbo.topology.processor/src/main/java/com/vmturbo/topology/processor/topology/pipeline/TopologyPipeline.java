@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -15,7 +16,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CaseFormat;
 import com.google.common.base.Preconditions;
 
-import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -464,6 +464,10 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
 
         public PipelineStageException(@Nonnull final String error) {
             super(error);
+        }
+
+        public PipelineStageException(@Nonnull final String error, @Nullable final Throwable cause) {
+            super(error, cause);
         }
     }
 

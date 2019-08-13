@@ -56,7 +56,8 @@ public class CostConfig {
                 entityCostConfig.entityCostStore(),
                 entityCostConfig.projectedEntityCostStore(),
                 reservedInstanceConfig.timeFrameCalculator(),
-                businessAccountHelper());
+                businessAccountHelper(),
+                Clock.systemUTC());
     }
 
     @Bean

@@ -7,11 +7,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
+
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 
 import org.apache.commons.collections4.ListUtils;
 import org.junit.Before;
@@ -28,6 +32,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Reserv
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -40,27 +45,35 @@ public class EnvironmentTypeInjectorTest {
 
     private static final long AWS_TARGET_ID = 1L;
     private static final long VC_TARGET_ID = 2L;
-
+    private static final long K8S_TARGET_ID = 3L;
+    private static final long WMI_TARGET_ID = 4L;
     private static final long ENTITY_OID = 7L;
+    private static final long ENTITY_OID_2 = 8L;
+
 
     private TargetStore targetStore = mock(TargetStore.class);
 
     private EnvironmentTypeInjector environmentTypeInjector =
-            new EnvironmentTypeInjector(targetStore);
+        new EnvironmentTypeInjector(targetStore);
 
     @Before
     public void setup() {
-        addFakeTarget(AWS_TARGET_ID, SDKProbeType.AWS);
-        addFakeTarget(VC_TARGET_ID, SDKProbeType.VCENTER);
+        addFakeTarget(AWS_TARGET_ID, SDKProbeType.AWS, ProbeCategory.CLOUD_MANAGEMENT);
+        addFakeTarget(VC_TARGET_ID, SDKProbeType.VCENTER, ProbeCategory.HYPERVISOR);
+        //The probe type of k8s is not static, it's a generated value with kubernetes as prefix
+        //The only static part is the probe category, and we should use the category as criteria
+        addFakeTarget(K8S_TARGET_ID, SDKProbeType.VCD, ProbeCategory.CLOUD_NATIVE);
+        addFakeTarget(WMI_TARGET_ID, SDKProbeType.WMI, ProbeCategory.GUEST_OS_PROCESSES);
     }
 
     @Test
     public void testDiscoveredCloudEntity() {
         final TopologyGraph<TopologyEntity> graph = oneEntityGraph(builder -> builder.setOrigin(Origin.newBuilder()
-                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                        .addDiscoveringTargetIds(AWS_TARGET_ID))));
+            .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                .addDiscoveringTargetIds(AWS_TARGET_ID))));
 
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
+
 
         assertTrue(graph.getEntity(ENTITY_OID).isPresent());
         assertThat(graph.getEntity(ENTITY_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
@@ -73,8 +86,8 @@ public class EnvironmentTypeInjectorTest {
     @Test
     public void testDiscoveredOnPremEntity() {
         final TopologyGraph<TopologyEntity> graph = oneEntityGraph(builder -> builder.setOrigin(Origin.newBuilder()
-                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                        .addDiscoveringTargetIds(VC_TARGET_ID))));
+            .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                .addDiscoveringTargetIds(VC_TARGET_ID))));
 
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
 
@@ -84,6 +97,75 @@ public class EnvironmentTypeInjectorTest {
         assertThat(injectionSummary.getConflictingTypeCount(), is(0));
         assertThat(injectionSummary.getUnknownCount(), is(0));
         assertThat(injectionSummary.getEnvTypeCounts(), is(ImmutableMap.of(EnvironmentType.ON_PREM, 1)));
+    }
+
+    @Test
+    public void testDiscoveredStitchToCloudEntity() {
+        Map<Long, Builder> topologyEntitiesMap = new HashMap<>();
+        TopologyEntity.Builder vm1 = TopologyEntity
+            .newBuilder(TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(ENTITY_OID)
+                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin
+                    .newBuilder().addDiscoveringTargetIds(AWS_TARGET_ID))));
+        TopologyEntity.Builder container1 = TopologyEntity
+            .newBuilder(TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.CONTAINER_VALUE)
+                .setOid(ENTITY_OID_2)
+                .addCommoditiesBoughtFromProviders(TopologyEntityDTO.CommoditiesBoughtFromProvider
+                    .newBuilder().setProviderId(vm1.getOid()))
+                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin
+                    .newBuilder().addDiscoveringTargetIds(K8S_TARGET_ID))));
+        topologyEntitiesMap.put(vm1.getOid(), vm1);
+        topologyEntitiesMap.put(container1.getOid(), container1);
+        TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topologyEntitiesMap);
+        final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
+
+        assertTrue(graph.getEntity(ENTITY_OID).isPresent());
+        assertTrue(graph.getEntity(ENTITY_OID_2).isPresent());
+
+        assertThat(graph.getEntity(ENTITY_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
+        assertThat(graph.getEntity(ENTITY_OID_2).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
+
+        assertThat(injectionSummary.getConflictingTypeCount(), is(0));
+        assertThat(injectionSummary.getUnknownCount(), is(0));
+        assertThat(injectionSummary.getEnvTypeCounts(), is(ImmutableMap.of(EnvironmentType.CLOUD, 2)));
+
+    }
+
+    @Test
+    public void testDiscoveredStitchToOnPremEntity() {
+        Map<Long, TopologyEntity.Builder> topologyEntitiesMap = new HashMap<>();
+        TopologyEntity.Builder vm1 = TopologyEntity
+            .newBuilder(TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(ENTITY_OID)
+                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin
+                    .newBuilder().addDiscoveringTargetIds(VC_TARGET_ID))));
+        TopologyEntity.Builder container1 = TopologyEntity
+            .newBuilder(TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.CONTAINER_VALUE)
+                .setOid(ENTITY_OID_2)
+                .addConnectedEntityList(TopologyEntityDTO.ConnectedEntity.newBuilder()
+                    .setConnectedEntityId(ENTITY_OID)
+                    .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
+                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin
+                    .newBuilder().addDiscoveringTargetIds(K8S_TARGET_ID))));
+        topologyEntitiesMap.put(vm1.getOid(), vm1);
+        topologyEntitiesMap.put(container1.getOid(), container1);
+        TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topologyEntitiesMap);
+        final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
+
+        assertTrue(graph.getEntity(ENTITY_OID).isPresent());
+        assertTrue(graph.getEntity(ENTITY_OID_2).isPresent());
+
+        assertThat(graph.getEntity(ENTITY_OID).get().getEnvironmentType(), is(EnvironmentType.ON_PREM));
+        assertThat(graph.getEntity(ENTITY_OID_2).get().getEnvironmentType(), is(EnvironmentType.ON_PREM));
+
+        assertThat(injectionSummary.getConflictingTypeCount(), is(0));
+        assertThat(injectionSummary.getUnknownCount(), is(0));
+        assertThat(injectionSummary.getEnvTypeCounts(), is(ImmutableMap.of(EnvironmentType.ON_PREM, 2)));
+
     }
 
     @Test
@@ -139,7 +221,7 @@ public class EnvironmentTypeInjectorTest {
             builder.setEnvironmentType(EnvironmentType.UNKNOWN_ENV);
             builder.setOrigin(Origin.newBuilder()
                 .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                        .addDiscoveringTargetIds(AWS_TARGET_ID)));
+                    .addDiscoveringTargetIds(AWS_TARGET_ID)));
         });
 
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
@@ -159,8 +241,8 @@ public class EnvironmentTypeInjectorTest {
         final TopologyGraph<TopologyEntity> graph = oneEntityGraph(builder -> {
             builder.setEnvironmentType(EnvironmentType.ON_PREM);
             builder.setOrigin(Origin.newBuilder()
-                    .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                            .addDiscoveringTargetIds(targetId)));
+                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                    .addDiscoveringTargetIds(targetId)));
         });
 
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
@@ -178,19 +260,20 @@ public class EnvironmentTypeInjectorTest {
     @Nonnull
     private TopologyGraph<TopologyEntity> oneEntityGraph(final Consumer<TopologyEntityDTO.Builder> entityCustomizer) {
         final TopologyEntityDTO.Builder entityBuilder = TopologyEntityDTO.newBuilder()
-                .setOid(ENTITY_OID)
-                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
+            .setOid(ENTITY_OID)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
         entityCustomizer.accept(entityBuilder);
         final TopologyEntity.Builder entity = TopologyEntity.newBuilder(entityBuilder);
         return TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(ENTITY_OID, entity));
     }
 
-    private void addFakeTarget(final long targetId, final SDKProbeType probeType) {
+    private void addFakeTarget(final long targetId, final SDKProbeType probeType, final ProbeCategory probeCategory) {
         List<Target> curFakeTargets = ListUtils.emptyIfNull(targetStore.getAll());
         final Target newFakeTarget = mock(Target.class);
         when(newFakeTarget.getId()).thenReturn(targetId);
         when(targetStore.getProbeTypeForTarget(targetId)).thenReturn(Optional.of(probeType));
+        when(targetStore.getProbeCategoryForTarget(targetId)).thenReturn(Optional.of(probeCategory));
         when(targetStore.getAll()).thenReturn(
-                ListUtils.union(Collections.singletonList(newFakeTarget), curFakeTargets));
+            ListUtils.union(Collections.singletonList(newFakeTarget), curFakeTargets));
     }
 }

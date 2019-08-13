@@ -241,4 +241,40 @@ public class StatsQueryScopeExpanderTest {
         assertThat(expandedScope.getEntities(), is(Collections.singleton(1L)));
     }
 
+    @Test
+    public void testExpandDcRelatedToDc() throws OperationFailedException {
+        // The UI sometimes requests stats for DC entities w/related entity "DataCenter". And even
+        // though the related entity type is "DataCenter", we expect the final entity type to be
+        // that of a PhysicalMachine.
+        ApiId scope = mock(ApiId.class);
+        when(scope.oid()).thenReturn(DC.getOid());
+        when(scope.isRealtimeMarket()).thenReturn(false);
+        when(scope.isGroup()).thenReturn(false);
+        when(scope.isTarget()).thenReturn(false);
+        when(scope.isPlan()).thenReturn(false);
+        when(scope.isEntity()).thenReturn(true);
+
+        final SupplyChainNodeFetcherBuilder fetcherBuilder = ApiTestUtils.mockNodeFetcherBuilder(
+                ImmutableMap.of(
+                        UIEntityType.DATACENTER.apiStr(),
+                        SupplyChainNode.newBuilder()
+                                .putMembersByState(UIEntityState.ACTIVE.toEntityState().getNumber(), MemberList.newBuilder()
+                                        .addMemberOids(DC.getOid())
+                                        .build())
+                                .build()));
+        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(fetcherBuilder);
+        when(supplyChainFetcherFactory.expandScope(Collections.singleton(DC.getOid()),
+                Collections.singletonList(UIEntityType.DATACENTER.apiStr()))).thenReturn(Collections.singleton(1L));
+
+        final StatApiInputDTO inputStat = new StatApiInputDTO();
+        inputStat.setName("foo");
+        inputStat.setRelatedEntityType(UIEntityType.DATACENTER.apiStr());
+
+        StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.singletonList(inputStat));
+
+        assertThat(expandedScope.isAll(), is(false));
+        // We should still land on a PM oid even though the related type "DC" was requested.
+        assertThat(expandedScope.getEntities(), is(Collections.singleton(1L)));
+    }
+
 }

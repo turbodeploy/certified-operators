@@ -90,6 +90,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 
@@ -106,6 +107,10 @@ public class ScenarioMapper {
      * reason.
      */
     private static final String CUSTOM_SCENARIO_TYPE = "CUSTOM";
+
+    private static final String DECOMMISSION_HOST_SCENARIO_TYPE = "DECOMMISSION_HOST";
+
+    private static final String DISABLED = "DISABLED";
 
     /**
      * The string constant the UI uses to identify a plan scoped to the global environment.
@@ -217,6 +222,8 @@ public class ScenarioMapper {
         infoBuilder.addAllChanges(getConfigChanges(dto.getConfigChanges()));
         infoBuilder.addAllChanges(getPolicyChanges(dto.getConfigChanges()));
         infoBuilder.addAllChanges(getLoadChanges(dto.getLoadChanges()));
+        // check the scenario and add default automation settings if necessary
+        infoBuilder.addAllChanges(checkAndCreateDefaultAutomationSettingsForPlan(dto));
         getScope(dto.getScope()).ifPresent(infoBuilder::setScope);
         // TODO (gabriele, Oct 27 2017) We need to extend the Plan Orchestrator with support
         // for the other types of changes: time based topology, load and config
@@ -285,7 +292,7 @@ public class ScenarioMapper {
                 .setSetting(Setting.newBuilder()
                     .setSettingSpecName(spec.getSettingName())
                     .setEnumSettingValue(EnumSettingValue.newBuilder()
-                        .setValue("DISABLED"))))
+                        .setValue(DISABLED))))
             .build();
     }
 
@@ -625,7 +632,6 @@ public class ScenarioMapper {
                 settingsManagerMapping.convertFromPlanSetting(settingsList);
         final Map<String, Setting> settingProtoOverrides =
                 settingsMapper.toProtoSettings(convertedSettingOverrides);
-
         final ImmutableList.Builder<ScenarioChange> retChanges = ImmutableList.builder();
         convertedSettingOverrides.forEach(apiDto -> {
             Setting protoSetting = settingProtoOverrides.get(apiDto.getUuid());
@@ -741,6 +747,55 @@ public class ScenarioMapper {
                         .setGroupUuid(Long.parseLong(constraint.getTarget().getUuid()))
                         .build())
                 .build();
+    }
+    /**
+     * Check if storage suspension and host provision exist in the ScenarioApiDTO. If not, creating a
+     * default setting for storage suspension disabled in all plans and a default setting for host
+     * provision disabled in decommission host plans.
+     *
+     * @param dto The ScenarioApiDTO given by UI
+     * @return a list of ScenarioChanges created to represent the default automation settings
+     */
+
+    @Nonnull
+    private List<ScenarioChange> checkAndCreateDefaultAutomationSettingsForPlan(@Nonnull final ScenarioApiDTO dto) {
+        boolean hasStorageSuspendSetting = false;
+        boolean hasPMProvisionSetting = false;
+        final ImmutableList.Builder<ScenarioChange> changes = ImmutableList.builder();
+        if (dto.getConfigChanges() != null && dto.getConfigChanges().getAutomationSettingList() != null) {
+            List<SettingApiDTO<String>> automationSettingList = dto.getConfigChanges().getAutomationSettingList();
+            for(SettingApiDTO setting : automationSettingList) {
+                if (setting.getEntityType() != null && setting.getUuid() != null
+                                && UIEntityType.fromString(setting.getEntityType()).typeNumber() == EntityType.STORAGE_VALUE
+                                && setting.getUuid().equalsIgnoreCase(EntitySettingSpecs.Suspend.name())) {
+                    hasStorageSuspendSetting = true;
+                }
+                if (setting.getEntityType() != null && setting.getUuid() != null
+                                && UIEntityType.fromString(setting.getEntityType()).typeNumber() == EntityType.PHYSICAL_MACHINE_VALUE
+                                && setting.getUuid().equalsIgnoreCase(EntitySettingSpecs.Provision.getSettingName())) {
+                    hasPMProvisionSetting = true;
+                }
+            }
+        }
+        // DECOMMISSION HOST plan should have host provision disabled as default
+        if (!hasPMProvisionSetting && dto.getType() != null && dto.getType().equalsIgnoreCase(DECOMMISSION_HOST_SCENARIO_TYPE)) {
+            final SettingOverride.Builder settingOverride = SettingOverride.newBuilder()
+                    .setSetting(Setting.newBuilder()
+                            .setSettingSpecName(EntitySettingSpecs.Provision.getSettingName())
+                            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(DISABLED)))
+                    .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE);
+            changes.add(ScenarioChange.newBuilder().setSettingOverride(settingOverride).build());
+        }
+        // All plans will have storage suspension disabled as default
+        if (!hasStorageSuspendSetting) {
+            final SettingOverride.Builder settingOverride = SettingOverride.newBuilder()
+                    .setSetting(Setting.newBuilder()
+                            .setSettingSpecName(EntitySettingSpecs.Suspend.getSettingName())
+                            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(DISABLED)))
+                    .setEntityType(EntityType.STORAGE_VALUE);
+           changes.add(ScenarioChange.newBuilder().setSettingOverride(settingOverride).build());
+        }
+        return changes.build();
     }
 
     @Nonnull

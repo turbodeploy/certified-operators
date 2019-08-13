@@ -199,7 +199,7 @@ public class ActionSpecMappingContextFactory {
         if (topologyContextId == realtimeTopologyContextId) {
             return new ActionSpecMappingContext(entitiesById, policies.get(), Collections.emptyMap(),
                 Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-                buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper);
+                buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, false);
         }
 
         // fetch more info for plan actions
@@ -245,7 +245,7 @@ public class ActionSpecMappingContextFactory {
         }
         return new ActionSpecMappingContext(entitiesById, policies.get(), zoneIdToRegion,
             volumesAspectsByVM, cloudAspects, vmAspects, buyRIIdToRIBoughtandRISpec, datacenterById,
-            serviceEntityMapper);
+            serviceEntityMapper, true);
     }
 
     /**
@@ -334,13 +334,19 @@ public class ActionSpecMappingContextFactory {
         final Set<Long> projEntities = new HashSet<>();
         final Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(actions);
 
-        // getInvolvedEntityIds doesn't return the IDs of provisioned sellers (representations
-        // of entities provisioned by the market), since those aren't "real" entities, and are
-        // not relevant in most places. However, they ARE relevant when displaying action details
-        // to the user, so we get them here.
-        for (Action action : actions) {
-            if (action.getInfo().getProvision().hasProvisionedSeller()) {
-                involvedEntities.add(action.getInfo().getProvision().getProvisionedSeller());
+        // In plans, we also want to retrieve the provisioned sellers, because we will show and
+        // interpret actions that interact with them (e.g. provision host X, move vm Y onto host X).
+        // In realtime, we don't show those second-order moves, and the provisioned sellers are
+        // not in the projected topology, so no point looking for them.
+        if (contextId != realtimeTopologyContextId) {
+            // getInvolvedEntityIds doesn't return the IDs of provisioned sellers (representations
+            // of entities provisioned by the market), since those aren't "real" entities, and are
+            // not relevant in most places. However, they ARE relevant when displaying action details
+            // to the user, so we get them here.
+            for (Action action : actions) {
+                if (action.getInfo().getProvision().hasProvisionedSeller()) {
+                    involvedEntities.add(action.getInfo().getProvision().getProvisionedSeller());
+                }
             }
         }
 
@@ -475,6 +481,8 @@ public class ActionSpecMappingContextFactory {
 
         private final Map<Long, ApiPartialEntity> oidToDatacenter;
 
+        private final boolean isPlan;
+
         ActionSpecMappingContext(@Nonnull Map<Long, ApiPartialEntity> topologyEntityDTOs,
                                  @Nonnull Map<Long, PolicyDTO.Policy> policies,
                                  @Nonnull Map<Long, ApiPartialEntity> zoneIdToRegion,
@@ -484,7 +492,8 @@ public class ActionSpecMappingContextFactory {
                                  @Nonnull Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>>
                                          buyRIIdToRIBoughtandRISpec,
                                  @Nonnull Map<Long, ApiPartialEntity> oidToDatacenter,
-                                 @Nonnull ServiceEntityMapper serviceEntityMapper) {
+                                 @Nonnull ServiceEntityMapper serviceEntityMapper,
+                                 final boolean isPlan) {
             this.topologyEntityDTOs = topologyEntityDTOs;
             this.serviceEntityApiDTOs = topologyEntityDTOs.entrySet().stream()
                 .collect(Collectors.toMap(Entry::getKey, entry ->
@@ -496,6 +505,7 @@ public class ActionSpecMappingContextFactory {
             this.vmAspects = Objects.requireNonNull(vmAspects);
             this.buyRIIdToRIBoughtandRISpec = buyRIIdToRIBoughtandRISpec;
             this.oidToDatacenter = oidToDatacenter;
+            this.isPlan = isPlan;
         }
 
         PolicyDTO.Policy getPolicy(long id) {
@@ -559,6 +569,10 @@ public class ActionSpecMappingContextFactory {
 
         public Map<Long, ServiceEntityApiDTO> getServiceEntityApiDTOs() {
             return Collections.unmodifiableMap(serviceEntityApiDTOs);
+        }
+
+        public boolean isPlan() {
+            return isPlan;
         }
     }
 }

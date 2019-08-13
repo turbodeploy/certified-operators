@@ -33,6 +33,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
+import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.PostStitchingOperation;
 import com.vmturbo.stitching.StitchingScope;
@@ -77,7 +78,7 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
     /**
      * ConcurrentMap which stores the mapping from {EntityId,CommidtyType} -> MaxValue.
      */
-    private ConcurrentMap<EntityCommodityKey, CommodityMaxValue> entityCommodityToMaxQuantitiesMap =
+    private ConcurrentMap<EntityCommodityReference, CommodityMaxValue> entityCommodityToMaxQuantitiesMap =
         new ConcurrentHashMap<>();
 
     /**
@@ -247,10 +248,10 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
     private class LoadMaxValuesFromDBTask implements Runnable {
 
         private final StatsHistoryServiceBlockingStub statsClient;
-        private ConcurrentMap<EntityCommodityKey, CommodityMaxValue> maxValuesMap;
+        private ConcurrentMap<EntityCommodityReference, CommodityMaxValue> maxValuesMap;
 
         LoadMaxValuesFromDBTask(@Nonnull StatsHistoryServiceBlockingStub statsClient,
-                                @Nonnull ConcurrentMap<EntityCommodityKey, CommodityMaxValue> maxValuesMap) {
+                                @Nonnull ConcurrentMap<EntityCommodityReference, CommodityMaxValue> maxValuesMap) {
             this.statsClient = statsClient;
             this.maxValuesMap = maxValuesMap;
         }
@@ -281,7 +282,7 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
                         .forEachRemaining(entityCommodityMaxValues -> {
                             entityCommodityMaxValues.getCommodityMaxValuesList()
                                 .forEach(dbMaxValue -> {
-                                    EntityCommodityKey key =
+                                    EntityCommodityReference key =
                                         createEntityCommodityKey(entityCommodityMaxValues.getOid(),
                                             dbMaxValue.getCommodityType());
                                     // Atomically set the values as the background thread may be concurrently mutating the map.
@@ -350,7 +351,7 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
                 if (excludedCommodities.contains(commoditySoldDTO.getCommodityType().getType())) {
                     continue;
                 }
-                EntityCommodityKey key = createEntityCommodityKey(entityOid, commoditySoldDTO.getCommodityType());
+                EntityCommodityReference key = createEntityCommodityKey(entityOid, commoditySoldDTO.getCommodityType());
                 if (commoditySoldDTO.getUsed() < 0)  {
                     logger.warn("Commodity has -ve used value : {}", commoditySoldDTO);
                 }
@@ -411,8 +412,8 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
                     / entityCommodityToMaxQuantitiesMap.size()) * 100);
     }
 
-    private EntityCommodityKey createEntityCommodityKey(long entityOid, TopologyDTO.CommodityType commodityType) {
-        return new EntityCommodityKey(entityOid, commodityType);
+    private EntityCommodityReference createEntityCommodityKey(long entityOid, TopologyDTO.CommodityType commodityType) {
+        return new EntityCommodityReference(entityOid, commodityType, null);
     }
 
     private CommodityMaxValue createCommodityMaxValue(ValueSource valSource, double maxValue) {
@@ -423,47 +424,6 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
             maxValue = 0;
         }
         return new CommodityMaxValue(valSource, maxValue);
-    }
-
-    private class EntityCommodityKey {
-
-        private final long entityOid;
-
-        private final TopologyDTO.CommodityType commodityType;
-
-        public EntityCommodityKey(long entityOid, TopologyDTO.CommodityType commodityType) {
-            this.entityOid = entityOid;
-            this.commodityType = commodityType;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(entityOid, commodityType);
-        }
-
-        @Override
-        public boolean equals(final Object obj) {
-            if (obj instanceof EntityCommodityKey) {
-                final EntityCommodityKey other = (EntityCommodityKey) obj;
-                return (entityOid == other.entityOid
-                            && (commodityType.equals(other.commodityType)));
-            } else {
-                return false;
-            }
-        }
-
-        @Override
-        public String toString() {
-            return new StringBuilder()
-                    .append("oid=")
-                    .append(this.entityOid)
-                    .append(", commodityType=(type=")
-                    .append(this.commodityType.getType())
-                    .append(",key=")
-                    .append(this.commodityType.getKey())
-                    .append(")")
-                    .toString();
-        }
     }
 
     private enum ValueSource {

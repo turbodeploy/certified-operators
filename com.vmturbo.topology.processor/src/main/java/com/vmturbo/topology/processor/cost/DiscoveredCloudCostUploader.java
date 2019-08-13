@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.cost;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,8 +17,13 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.NonMarketDTO.CostDataDTO;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
@@ -33,7 +40,7 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * This class is responsible for extracting the cloud cost data and
  * sending it to the Cost Component.
  */
-public class DiscoveredCloudCostUploader {
+public class DiscoveredCloudCostUploader implements Diagnosable {
     private static final Logger logger = LogManager.getLogger();
 
     public static final long MILLIS_PER_YEAR = 31536000000L; // ms per year
@@ -93,8 +100,7 @@ public class DiscoveredCloudCostUploader {
      *
      * @param costData the TargetCostData instance to add
      */
-    @VisibleForTesting
-    public void cacheCostData(@Nonnull final TargetCostData costData) {
+    private void cacheCostData(@Nonnull final TargetCostData costData) {
         logger.trace("Getting read lock for target cost data map");
         long stamp = targetCostDataCacheLock.readLock();
         logger.trace("Got read lock for target cost data map");
@@ -106,12 +112,18 @@ public class DiscoveredCloudCostUploader {
         }
     }
 
+    @VisibleForTesting
+    Map<Long, SDKProbeType> getProbeTypesForTargetId() {
+        return Collections.unmodifiableMap(probeTypesForTargetId);
+    }
+
     /**
      * Get an immutable snapshot of the cost data map in it's current state
      *
      * @return an {@link ImmutableMap} of the cost data objects, by target id.
      */
-    public Map<Long, TargetCostData> getCostDataByTargetIdSnapshot() {
+    @VisibleForTesting
+    Map<Long, TargetCostData> getCostDataByTargetIdSnapshot() {
         logger.trace("Getting write lock for target cost data map");
         long stamp = targetCostDataCacheLock.writeLock();
         logger.trace("Got write lock for target cost data map");
@@ -173,7 +185,7 @@ public class DiscoveredCloudCostUploader {
         // If the target is not in the probe type map yet, then no data will have been stored for it.
         final SDKProbeType probeType = probeTypesForTargetId.get(targetId);
         if (probeType != null) {
-            priceTableUploader.targetRemoved(targetId, probeType);
+            priceTableUploader.targetRemoved(probeType);
             probeTypesForTargetId.remove(targetId);
             long stamp = targetCostDataCacheLock.readLock();
             try {
@@ -213,7 +225,7 @@ public class DiscoveredCloudCostUploader {
                     stitchingContext, cloudEntitiesMap);
             riCostDataUploader.uploadRIData(costDataByTargetIdSnapshot, topologyInfo,
                     stitchingContext, cloudEntitiesMap);
-            priceTableUploader.uploadPriceTables(cloudEntitiesMap);
+            priceTableUploader.checkForUpload(cloudEntitiesMap);
         } finally {
             // there will be exceptions if cost component is not running, we should remove
             // ReservedInstance from topology regardless of whether cost component is started or
@@ -223,6 +235,57 @@ public class DiscoveredCloudCostUploader {
                     .getEntitiesOfType(EntityType.RESERVED_INSTANCE)
                     .collect(Collectors.toList());
             riEntitiesToRemove.forEach(stitchingContext::removeEntity);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Nonnull
+    @Override
+    public List<String> collectDiags() throws DiagnosticsException {
+        final Map<Long, String> strProbeTypesForTargetId = probeTypesForTargetId.entrySet().stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getProbeType()));
+
+        // 1 row for the type -> targets map, and 1 row for each cost data.
+        final List<String> retList = new ArrayList<>(1 + costDataByTargetId.size());
+
+        final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
+
+        retList.add(gson.toJson(strProbeTypesForTargetId));
+
+        costDataByTargetId.values().stream()
+            .map(gson::toJson)
+            .forEach(retList::add);
+        return retList;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        if (collectedDiags.isEmpty()) {
+            logger.info("Empty diags - not restoring anything.");
+            return;
+        }
+
+        final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
+
+        final Map<Long, String> strProbeTypesForTargetId =
+            gson.fromJson(collectedDiags.get(0), new TypeToken<Map<Long, String>>() {}.getType());
+        strProbeTypesForTargetId.forEach((targetId, probeType) -> {
+            final SDKProbeType sdkProbeType = SDKProbeType.create(probeType);
+            if (sdkProbeType != null) {
+                probeTypesForTargetId.put(targetId, sdkProbeType);
+            } else {
+                logger.error("Failed to restore SDK probe type mapping for probe type: {}", probeType);
+            }
+        });
+
+        for (int i = 1; i < collectedDiags.size(); ++i) {
+            final TargetCostData costData = gson.fromJson(collectedDiags.get(i), TargetCostData.class);
+            costDataByTargetId.put(costData.targetId, costData);
         }
     }
 

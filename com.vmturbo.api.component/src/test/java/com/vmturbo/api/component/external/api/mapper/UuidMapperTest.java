@@ -14,6 +14,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.Optional;
 
 import org.junit.Before;
@@ -24,8 +25,11 @@ import io.grpc.Status;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
@@ -57,6 +61,8 @@ public class UuidMapperTest {
 
     private MagicScopeGateway magicScopeGateway = mock(MagicScopeGateway.class);
 
+    private GroupExpander groupExpander = mock(GroupExpander.class);
+
     @Rule
     public GrpcTestServer grpcServer =
         GrpcTestServer.newServer(groupServiceBackend, planServiceMole);
@@ -70,7 +76,8 @@ public class UuidMapperTest {
             repositoryApi,
             topologyProcessor,
             PlanServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+            GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            groupExpander);
 
         when(magicScopeGateway.enter(any(String.class))).thenAnswer(invocation -> invocation.getArgumentAt(0, String.class));
     }
@@ -229,6 +236,12 @@ public class UuidMapperTest {
 
     @Test
     public void testGroupId() throws OperationFailedException {
+        when(groupExpander.getMembersForGroup(any())).thenReturn(
+            ImmutableGroupAndMembers.builder().group(Group.newBuilder().build())
+                .members(Collections.emptyList()).entities(Collections.emptyList()).build());
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReqEmpty();
+        when(repositoryApi.entitiesRequest(any())).thenReturn(req);
+
         doReturn(GetGroupResponse.newBuilder()
             .setGroup(Group.newBuilder()
                 .setId(123)
@@ -276,6 +289,12 @@ public class UuidMapperTest {
 
     @Test
     public void testGroupIdError() throws OperationFailedException {
+        when(groupExpander.getMembersForGroup(any())).thenReturn(
+            ImmutableGroupAndMembers.builder().group(Group.newBuilder().build())
+                .members(Collections.emptyList()).entities(Collections.emptyList()).build());
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReqEmpty();
+        when(repositoryApi.entitiesRequest(any())).thenReturn(req);
+
         GroupID groupID = GroupID.newBuilder()
             .setId(123)
             .build();

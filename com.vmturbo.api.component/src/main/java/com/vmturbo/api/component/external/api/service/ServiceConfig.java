@@ -35,6 +35,7 @@ import com.vmturbo.api.component.external.api.util.stats.query.impl.NumClustersS
 import com.vmturbo.api.component.external.api.util.stats.query.impl.PlanCommodityStatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.ProjectedCommodityStatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.RIStatsSubQuery;
+import com.vmturbo.api.component.external.api.util.stats.query.impl.ScopedUserCountStatsSubQuery;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.serviceinterfaces.ISAMLService;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
@@ -606,6 +607,16 @@ public class ServiceConfig {
             new PlanCommodityStatsSubQuery(mapperConfig.statsMapper(), communicationConfig.historyRpcService());
         statsQueryExecutor().addSubquery(planCommodityStatsSubQuery);
         return planCommodityStatsSubQuery;
+    }
+
+    @Bean
+    public ScopedUserCountStatsSubQuery scopedUserCountStatsSubQuery() {
+        final ScopedUserCountStatsSubQuery scopedUserCountStatsSubQuery =
+            new ScopedUserCountStatsSubQuery(Duration.ofSeconds(liveStatsRetrievalWindowSeconds),
+                userSessionContext(),
+                communicationConfig.repositoryApi());
+        statsQueryExecutor().addSubquery(scopedUserCountStatsSubQuery);
+        return scopedUserCountStatsSubQuery;
     }
 
     @Bean

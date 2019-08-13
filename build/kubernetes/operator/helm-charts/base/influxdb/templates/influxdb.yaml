@@ -12,7 +12,7 @@ spec:
   - ReadWriteOnce
   resources:
     requests:
-      storage: 128Gi
+      storage: {{ .Values.persistence.auditsize }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

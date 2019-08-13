@@ -41,6 +41,7 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.IStitchingJournal.StitchingMetrics;
 import com.vmturbo.stitching.journal.TopologyEntitySemanticDiffer;
@@ -92,6 +93,7 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Pipelin
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.StageResult;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Status;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory.CachedTopology;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 
 /**
@@ -387,6 +389,64 @@ public class Stages {
             return StageResult.withResult(topology)
                 .andStatus(Status.success("Constructed topology of size " + topology.size() +
                     " from context of size " + stitchingContext.size()));
+        }
+    }
+
+    /**
+     * This stage carries out the same function as ConstructTopologyFromStitchingContextStage, with
+     * the additional feature that it writes out the result of its execution to a shared cache
+     * fed in by the TopologyPipelineFactory.  This cache can be used by plan over live topology
+     * pipelines to avoid having to run this stage.
+     */
+    public static class CacheWritingConstructTopologyFromStitchingContextStage extends
+        ConstructTopologyFromStitchingContextStage {
+
+        /**
+         * Shared cache to write result into so it can be read from cache reading stage.
+         */
+        private final CachedTopology resultCache;
+
+        public CacheWritingConstructTopologyFromStitchingContextStage(
+            @Nonnull CachedTopology resultCache) {
+            this.resultCache = Objects.requireNonNull(resultCache);
+        }
+
+        @Nonnull
+        @Override
+        public StageResult<Map<Long, Builder>> execute(@Nonnull final StitchingContext stitchingContext) {
+            StageResult<Map<Long, Builder>> stageResult = super.execute(stitchingContext);
+            if (stageResult.status().getType() == Status.success().getType()) {
+                resultCache.updateTopology(stageResult.getResult());
+            }
+            return stageResult;
+        }
+    }
+
+    /**
+     * This stage uses a cached result from {@link CacheWritingConstructTopologyFromStitchingContextStage}
+     * to avoid having to redo the expensive operations of {@link StitchingStage} and
+     * {@link ConstructTopologyFromStitchingContextStage} when running a plan over live topology.
+     * This stage is only added to pipelines after checking that the cache is not empty.
+     */
+    public static class CachingConstructTopologyFromStitchingContextStage
+        extends Stage<EntityStore, Map<Long, TopologyEntity.Builder>> {
+
+        /**
+         * Cache that will be filled by CacheWritingConstructTopologyFromStitchingContextStage
+         */
+        private final CachedTopology resultCache;
+
+        public CachingConstructTopologyFromStitchingContextStage(
+            @Nonnull final CachedTopology resultCache) {
+            this.resultCache = Objects.requireNonNull(resultCache);
+        }
+
+        @Nonnull
+        @Override
+        public StageResult<Map<Long, Builder>> execute(@Nonnull final EntityStore entityStore) {
+            final Map<Long, TopologyEntity.Builder> topology = resultCache.getTopology();
+            return StageResult.withResult(topology)
+                .andStatus(Status.success("Using cached topology of size " + topology.size()));
         }
     }
 

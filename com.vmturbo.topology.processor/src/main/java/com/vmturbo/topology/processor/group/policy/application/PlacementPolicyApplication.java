@@ -142,7 +142,8 @@ public abstract class PlacementPolicyApplication {
         providers.forEach(providerId -> topologyGraph.getEntity(providerId)
             .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .ifPresent(provider -> {
-                addCommoditySold(providerId, segmentationCommodity);
+                recordCommodityAddition(segmentationCommodity.getCommodityType().getType());
+                provider.addCommoditySoldList(segmentationCommodity);
                 // add segmentation comm on replaced entity
                 if (provider.hasEdit() && provider.getEdit().hasReplaced()) {
                     addCommoditySold(provider.getEdit().getReplaced().getReplacementId(),
@@ -191,6 +192,11 @@ public abstract class PlacementPolicyApplication {
                     provider.getOid(), consumerGroupIds, policy);
                 recordCommodityAddition(segmentationCommodity.getCommodityType().getType());
                 provider.addCommoditySoldList(segmentationCommodity);
+                // add comm on replaced entity
+                if (provider.hasEdit() && provider.getEdit().hasReplaced()) {
+                    addCommoditySold(provider.getEdit().getReplaced().getReplacementId(),
+                            segmentationCommodity);
+                }
             }));
     }
 
@@ -212,6 +218,11 @@ public abstract class PlacementPolicyApplication {
             .forEach(provider -> {
                 recordCommodityAddition(segmentationCommodity.getCommodityType().getType());
                 provider.addCommoditySoldList(segmentationCommodity);
+                // add comm on replaced entity
+                if (provider.hasEdit() && provider.getEdit().hasReplaced()) {
+                    addCommoditySold(provider.getEdit().getReplaced().getReplacementId(),
+                            segmentationCommodity);
+                }
             });
     }
 

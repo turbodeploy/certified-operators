@@ -14,6 +14,7 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -96,6 +97,10 @@ public class MustNotRunTogetherPolicyTest {
         topologyMap.put(6L, topologyEntity(6L, EntityType.VIRTUAL_MACHINE, 2, 3));
         topologyMap.put(7L, topologyEntity(7L, EntityType.VIRTUAL_MACHINE, 2, 3));
         topologyMap.put(8L, topologyEntity(8L, EntityType.VIRTUAL_MACHINE, 2));
+        // replacement from template
+        topologyMap.put(9L, topologyEntity(9L, EntityType.PHYSICAL_MACHINE));
+        topologyMap.get(2L).getEntityBuilder().getEditBuilder().setReplaced(
+                TopologyDTO.TopologyEntityDTO.Replaced.newBuilder().setPlanId(7777L).setReplacementId(9L).build());
 
         TopologyGraph<TopologyEntity> topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         PolicyMatcher policyMatcher = new PolicyMatcher(topologyGraph);
@@ -110,6 +115,8 @@ public class MustNotRunTogetherPolicyTest {
         assertThat(topologyGraph.getEntity(1L).get(),
                 not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(2L).get(),
+                not(policyMatcher.hasProviderSegment(POLICY_ID)));
+        assertThat(topologyGraph.getEntity(9L).get(),
                 not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(3L).get(),
                 not(policyMatcher.hasProviderSegment(POLICY_ID)));
@@ -136,6 +143,10 @@ public class MustNotRunTogetherPolicyTest {
         topologyMap.put(6L, topologyEntity(6L, EntityType.VIRTUAL_MACHINE, 2, 3));
         topologyMap.put(7L, topologyEntity(7L, EntityType.VIRTUAL_MACHINE, 2, 3));
         topologyMap.put(8L, topologyEntity(8L, EntityType.VIRTUAL_MACHINE, 2));
+        // replacement from template
+        topologyMap.put(9L, topologyEntity(9L, EntityType.PHYSICAL_MACHINE));
+        topologyMap.get(2L).getEntityBuilder().getEditBuilder().setReplaced(
+                TopologyDTO.TopologyEntityDTO.Replaced.newBuilder().setPlanId(7777L).setReplacementId(9L).build());
 
         TopologyGraph<TopologyEntity> topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         PolicyMatcher policyMatcher = new PolicyMatcher(topologyGraph);
@@ -162,6 +173,9 @@ public class MustNotRunTogetherPolicyTest {
                 policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, 1.0f));
         assertThat(topologyGraph.getEntity(2L).get(),
                 policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, 1.0f));
+        // check if replaced host sells segment with capacity 1.0
+        assertThat(topologyGraph.getEntity(9L).get(),
+                policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, 1.0f));
         // storages should not sell it
         assertThat(topologyGraph.getEntity(3L).get(),
                 not(policyMatcher.hasProviderSegment(POLICY_ID)));
@@ -180,6 +194,10 @@ public class MustNotRunTogetherPolicyTest {
         topologyMap.put(6L, topologyEntity(6L, EntityType.VIRTUAL_MACHINE, 2, 3));
         topologyMap.put(7L, topologyEntity(7L, EntityType.VIRTUAL_MACHINE, 2, 3));
         topologyMap.put(8L, topologyEntity(8L, EntityType.VIRTUAL_MACHINE, 2));
+        // replacement from template
+        topologyMap.put(9L, topologyEntity(9L, EntityType.PHYSICAL_MACHINE));
+        topologyMap.get(2L).getEntityBuilder().getEditBuilder().setReplaced(
+                TopologyDTO.TopologyEntityDTO.Replaced.newBuilder().setPlanId(7777L).setReplacementId(9L).build());
 
         TopologyGraph<TopologyEntity> topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         PolicyMatcher policyMatcher = new PolicyMatcher(topologyGraph);
@@ -205,6 +223,9 @@ public class MustNotRunTogetherPolicyTest {
         assertThat(topologyGraph.getEntity(1L).get(),
                 not(policyMatcher.hasProviderSegment(POLICY_ST_ID)));
         assertThat(topologyGraph.getEntity(2L).get(),
+                not(policyMatcher.hasProviderSegment(POLICY_ST_ID)));
+        // assert if replaced host sells segment
+        assertThat(topologyGraph.getEntity(9L).get(),
                 not(policyMatcher.hasProviderSegment(POLICY_ST_ID)));
         // all the storages need to sell a segmentation commodity with capacity 1
         assertThat(topologyGraph.getEntity(3L).get(),

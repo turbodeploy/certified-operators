@@ -6,6 +6,7 @@ import static com.vmturbo.api.MarketNotificationDTO.StatusNotification.Status.RU
 import static com.vmturbo.api.MarketNotificationDTO.StatusNotification.Status.STOPPED;
 import static com.vmturbo.api.MarketNotificationDTO.StatusNotification.Status.SUCCEEDED;
 
+import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -16,6 +17,7 @@ import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
 import com.vmturbo.api.MarketNotificationDTO.StatusNotification;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
+import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
@@ -44,13 +46,14 @@ public class MarketMapper {
 
         final ScenarioApiDTO scenarioApiDTO =
                 scenarioMapper.toScenarioApiDTO(instance.getScenario());
+
+        UserApiDTO userApiDTO = new UserApiDTO();
+        userApiDTO.setUuid(instance.getCreatedByUser());
+        scenarioApiDTO.setOwners(Collections.singletonList(userApiDTO));
         retDto.setScenario(scenarioApiDTO);
 
-        // TODO: in legacy, the plan owner's userid is part of the constructed displayName, e.g.
-        //       "CUSTOM_administrator_1518690461426"
-        // in XL when we have the owner information we should add it to the displayName here.
-        retDto.setDisplayName(String.format("%s_%d", scenarioApiDTO.getType(),
-                instance.getPlanId()));
+        retDto.setDisplayName(String.format("%s_%d_%s", scenarioApiDTO.getType(),
+                instance.getPlanId(), instance.getCreatedByUser()));
 
         retDto.setSaved(true);
         if (instance.hasStartTime()) {

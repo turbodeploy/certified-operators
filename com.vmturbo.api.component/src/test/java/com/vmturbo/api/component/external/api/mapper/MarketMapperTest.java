@@ -30,6 +30,8 @@ public class MarketMapperTest {
 
     private static final long END_TIME = 100000;
 
+    private static final String CREATED_BY_USER = "12345";
+
     private static final String SCENARIO_TYPE = "SCENARIO_TYPE";
 
     private static final PlanInstance BASE = PlanInstance.newBuilder()
@@ -52,6 +54,7 @@ public class MarketMapperTest {
 
     private static final PlanInstance IN_PROGRESS_INSTANCE = BASE.toBuilder()
             .setStatus(PlanStatus.CONSTRUCTING_TOPOLOGY)
+            .setCreatedByUser(CREATED_BY_USER)
             .build();
 
     private static final PlanInstance FAILED_INSTANCE = BASE.toBuilder()
@@ -89,8 +92,9 @@ public class MarketMapperTest {
         Assert.assertNull(inProgressDto.getRunCompleteDate());
         Assert.assertEquals(Long.toString(SCENARIO_ID), inProgressDto.getScenario().getUuid());
         Assert.assertEquals(SCENARIO_NAME, inProgressDto.getScenario().getDisplayName());
-        String compositePlanName = String.format("%s_%d", SCENARIO_TYPE, PLAN_ID);
+        String compositePlanName = String.format("%s_%d_%s", SCENARIO_TYPE, PLAN_ID, CREATED_BY_USER);
         Assert.assertEquals(compositePlanName, inProgressDto.getDisplayName());
+        Assert.assertEquals(CREATED_BY_USER, inProgressDto.getScenario().getOwners().get(0).getUuid());
     }
 
     @Test

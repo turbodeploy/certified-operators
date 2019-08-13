@@ -269,7 +269,7 @@ public enum EntitySettingSpecs {
     TargetBand("targetBand", "Diameter",
             //path is needed for the UI to display this setting in a separate category
             Arrays.asList("advanced", "utilTarget"),
-            SettingTiebreaker.BIGGER, /*this is related to the center setting. biggger diameter is more conservative*/
+            SettingTiebreaker.BIGGER, /*this is related to the center setting. bigger diameter is more conservative*/
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0.0f/*min*/, 100.0f/*max*/, 10.0f/*default*/), true),
 
     /**
@@ -278,8 +278,9 @@ public enum EntitySettingSpecs {
     ResizeTargetUtilizationVcpu("resizeTargetUtilizationVcpu", "Scaling Target VCPU Utilization",
             //path is needed for the UI to display this setting in a separate category
             Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
-            numeric(0.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER, EntityType.DATABASE,
+                    EntityType.DATABASE_SERVER),
+            numeric(1.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
 
     /**
      * Resize target Utilization for VMEM.
@@ -287,8 +288,9 @@ public enum EntitySettingSpecs {
     ResizeTargetUtilizationVmem("resizeTargetUtilizationVmem", "Scaling Target VMEM Utilization",
             //path is needed for the UI to display this setting in a separate category
             Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
-            numeric(0.0f/*min*/, 100.0f/*max*/, 90.0f/*default*/), true),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER, EntityType.DATABASE,
+                    EntityType.DATABASE_SERVER),
+            numeric(1.0f/*min*/, 100.0f/*max*/, 90.0f/*default*/), true),
 
     /**
      * IOPS capacity to set on the entity.
@@ -616,7 +618,7 @@ public enum EntitySettingSpecs {
     CollectionTimeUtilization("collectionTimeUtilization", "Collection Time Utilization",
             Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.APPLICATION, EntityType.APPLICATION_SERVER),
-            numeric(10f, 100f, 10f), true),
+            numeric(1f, 100f, 10f), true),
 
     IgnoreDirectories("ignoreDirectories", "Directories to ignore",
         Collections.emptyList(),

@@ -305,8 +305,7 @@ public class MustNotRunTogetherPolicyApplication extends PlacementPolicyApplicat
             .forEach(provider -> {
                 final CommoditySoldDTO segmentationCommodity = commoditySold(SEGM_CAPACITY_VALUE_SINGLE_CONSUMER,
                     provider.getOid(), consumers, policy);
-                recordCommodityAddition(segmentationCommodity.getCommodityType().getType());
-                provider.addCommoditySoldList(segmentationCommodity);
+                addCommoditySold(Collections.singleton(provider.getOid()), segmentationCommodity);
             });
 
         try {

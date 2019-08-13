@@ -18,7 +18,6 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -76,7 +75,6 @@ public class EntitySettingsApplicator {
                     } else {
                         logger.warn("Unknown setting {} for entity {}",
                                 setting.getSettingSpecName(), entity.getOid());
-                        return;
                     }
                 }
 
@@ -155,6 +153,10 @@ public class EntitySettingsApplicator {
 
         private SingleSettingApplicator(@Nonnull EntitySettingSpecs setting) {
             this.setting = Objects.requireNonNull(setting);
+        }
+
+        protected EntitySettingSpecs getEntitySettingSpecs() {
+            return setting;
         }
 
         protected abstract void apply(@Nonnull final TopologyEntityDTO.Builder entity,
@@ -620,8 +622,8 @@ public class EntitySettingsApplicator {
 
         @Override
         public void apply(@Nonnull Builder entity, @Nonnull Setting setting) {
-            if (ImmutableSet.of(EntityType.VIRTUAL_MACHINE_VALUE, EntityType.DATABASE_VALUE,
-                    EntityType.DATABASE_SERVER_VALUE, EntityType.CONTAINER_VALUE).contains(entity.getEntityType())) {
+            final EntityType entityType = EntityType.forNumber(entity.getEntityType());
+            if (entityType != null && getEntitySettingSpecs().getEntityTypeScope().contains(entityType)) {
                 final float settingValue = setting.getNumericSettingValue().getValue();
                 entity.getCommoditySoldListBuilderList().stream()
                         .filter(commodity -> commodity.getCommodityType().getType() ==

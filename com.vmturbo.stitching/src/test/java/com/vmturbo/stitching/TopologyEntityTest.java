@@ -106,6 +106,20 @@ public class TopologyEntityTest {
         assertFalse(lp.getTopologyEntityDtoBuilder() == snapshotCopy.getTopologyEntityDtoBuilder());
     }
 
+    @Test
+    public void testBuilderSnapshot() {
+        final TopologyEntity.Builder diskArray = makeStorageEntity(1122, EntityType.DISK_ARRAY,
+            Optional.empty());
+        final TopologyEntity.Builder logicalPool = makeStorageEntity(2211, EntityType.LOGICAL_POOL, Optional.of(diskArray));
+        final TopologyEntity.Builder snapShot = logicalPool.snapshot();
+        final TopologyEntity logicalPoolBuilt = logicalPool.build();
+        final TopologyEntity snapShotBuilt = snapShot.build();
+        assertEquals(logicalPoolBuilt.getProviders(), snapShotBuilt.getProviders());
+        assertEquals(logicalPoolBuilt.getOid(), snapShotBuilt.getOid());
+        assertFalse(logicalPoolBuilt.getTopologyEntityDtoBuilder() ==
+            snapShotBuilt.getTopologyEntityDtoBuilder());
+    }
+
     private TopologyEntity.Builder makeStorageEntity(final long oid, @Nonnull final EntityType type,
                                                      @Nonnull final Optional<TopologyEntity.Builder> provider) {
         final CommoditySoldDTO storageAccessSold = makeCommoditySold(CommodityType.STORAGE_ACCESS);

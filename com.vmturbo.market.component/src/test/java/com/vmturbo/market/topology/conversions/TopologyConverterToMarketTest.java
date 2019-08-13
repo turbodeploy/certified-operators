@@ -737,6 +737,19 @@ public class TopologyConverterToMarketTest {
     }
 
     @Test
+    public void testGetResizedCapacityForCloud_ZeroResizeTargetUtil_NoException() {
+        double used = 70;
+        double peak = 80;
+        double max = 90;
+        final double commSoldCap = 200;
+        final double commSoldRtu = 0;
+        getResizedCapacityForCloud(EntityType.DATABASE_SERVER_VALUE,
+                CommodityDTO.CommodityType.CPU_VALUE,
+                CommodityDTO.CommodityType.VCPU_VALUE, used, peak, max, commSoldCap, commSoldRtu);
+        // Expects no exception with a zero resize target util
+    }
+
+    @Test
     public void testGetResizedCapacityForCloud_ResizeDown() {
         double used = 70;
         double peak = 80;

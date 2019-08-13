@@ -14,7 +14,7 @@ spec:
   - ReadWriteOnce
   resources:
     requests:
-      storage: 30Gi
+      storage: {{ .Values.persistence.auditsize }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -30,7 +30,7 @@ spec:
   - ReadWriteOnce
   resources:
     requests:
-      storage: 30Gi
+      storage: {{ .Values.persistence.logsize }}
 ---
 apiVersion: apps/v1
 kind: Deployment

@@ -127,9 +127,6 @@ public class CostJournal<ENTITY_CLASS> {
                     logger.trace("Aggregating hourly costs for category {}", category);
                     for (JournalEntry<ENTITY_CLASS> journalEntry : priceEntries) {
                         aggregateHourly += journalEntry.calculateHourlyCost(infoExtractor, discountApplicator)
-                            // TODO (roman, Sept 22 2018): Handle currency conversion when aggregating
-                            // hourly costs - or accept the desired currency as a parameter in this function,
-                            // and convert all currencies to that.
                             .getAmount();
                     }
                     logger.trace("Aggregated hourly cost for category {} is {}", category, aggregateHourly);
@@ -503,9 +500,8 @@ public class CostJournal<ENTITY_CLASS> {
     /**
      * Builder for the {@link CostJournal}.
      *
-     * TODO (roman, Aug 16th 2018): The intention is to have the cost journal be
-     * immutable once constructed, but in reality it  may be better to have the cost journal
-     * be mutable (append-only), and track operations on it.
+     * The intention is to have the cost journal be immutable once constructed, but in reality it
+     * may be better to have the cost journal be mutable (append-only), and track operations on it.
      *
      * @param <ENTITY_CLASS_> The class used to represent entities in the topology. For example,
      *                      {@link TopologyEntityDTO} for the realtime topology. Extra _ at the
