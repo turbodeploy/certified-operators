@@ -65,6 +65,7 @@ import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
@@ -250,7 +251,7 @@ public class StatsHistoryRpcServiceTest {
             newStatRecord(SNAPSHOT_TIME, 2, "c2", "c2-subtype"),
             newStatRecord(SNAPSHOT_TIME, 3, "c3", "c3-subtype"));
         when(mockLivestatsreader.getFullMarketStatsRecords(reqStatsBuilder.build(),
-                Optional.empty()))
+            GlobalFilter.getDefaultInstance()))
                 .thenReturn(statsRecordsList);
 
         // act

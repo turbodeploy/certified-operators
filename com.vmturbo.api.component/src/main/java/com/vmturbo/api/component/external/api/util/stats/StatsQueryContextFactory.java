@@ -122,6 +122,8 @@ public class StatsQueryContextFactory {
     public static class StatsQueryContext {
         private final ApiId scope;
 
+        private final StatsQueryScope queryScope;
+
         private final Set<StatApiInputDTO> requestedStats;
 
         private final long curTime;
@@ -133,8 +135,6 @@ public class StatsQueryContextFactory {
         private final List<ThinTargetInfo> targets;
 
         private Optional<PlanInstance> planInstance = null;
-
-        private final Set<Long> scopeEntities;
 
         private final boolean requestProjected;
 
@@ -155,7 +155,7 @@ public class StatsQueryContextFactory {
             this.timeWindow = timeWindow;
             this.userSessionContext = userSessionContext;
             this.targets = targets;
-            this.scopeEntities = expandedScope.getEntities();
+            this.queryScope = expandedScope;
             this.requestProjected = requestProjected;
         }
 
@@ -169,9 +169,22 @@ public class StatsQueryContextFactory {
             }
         }
 
+        /**
+         * The input scope is the scope that was given by the API user. It's always a single
+         * {@link ApiId} indicating some object in the system.
+         */
         @Nonnull
-        public ApiId getScope() {
+        public ApiId getInputScope() {
             return scope;
+        }
+
+        /**
+         * The query scope is the expansion of the input scope, and specifies which entities
+         * to get stats from to fulfill the query.
+         */
+        @Nonnull
+        public StatsQueryScope getQueryScope() {
+            return queryScope;
         }
 
         @Nonnull
@@ -218,11 +231,6 @@ public class StatsQueryContextFactory {
                 this.planInstance = scope.getPlanInstance();
             }
             return this.planInstance;
-        }
-
-        @Nonnull
-        public Set<Long> getScopeEntities() {
-            return scopeEntities;
         }
 
         @Nonnull

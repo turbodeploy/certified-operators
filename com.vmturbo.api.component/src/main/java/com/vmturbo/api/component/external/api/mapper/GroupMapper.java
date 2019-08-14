@@ -75,6 +75,7 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirect
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -334,12 +335,10 @@ public class GroupMapper {
                         .addAllStaticMemberOids(groupMembers))
                 .setName(apiDTO.getDisplayName())
                 .setIsGlobalScopeGroup(isGlobalScopeGroup);
-        if (apiDTO.getEnvironmentType() != null &&
-                apiDTO.getEnvironmentType() != EnvironmentType.HYBRID) {
-            tempGroupBuilder.setEnvironmentType(
-                apiDTO.getEnvironmentType() == EnvironmentType.CLOUD ?
-                    EnvironmentTypeEnum.EnvironmentType.CLOUD :
-                    EnvironmentTypeEnum.EnvironmentType.ON_PREM);
+        final EnvironmentType uiEnvType = getEnvironmentTypeForTempGroup(apiDTO.getEnvironmentType());
+        if (uiEnvType != null && uiEnvType != EnvironmentType.HYBRID) {
+            tempGroupBuilder.setEnvironmentType(uiEnvType == EnvironmentType.CLOUD ?
+                EnvironmentTypeEnum.EnvironmentType.CLOUD : EnvironmentTypeEnum.EnvironmentType.ON_PREM);
         }
         return tempGroupBuilder.build();
     }

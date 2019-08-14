@@ -26,11 +26,6 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.ImmutableBiMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Multimap;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
@@ -41,7 +36,14 @@ import org.jooq.Result;
 import org.jooq.Select;
 import org.jooq.Table;
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
+
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
+import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
@@ -385,13 +387,13 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
      * startTime and endTime.
      *
      * @param statsFilter The filter to use to get the stats.
-     * @param relatedEntityType optional of entity type
+     * @param globalFilter The global filter to apply to all returned stats.
      * @return an ImmutableList of DB Stats Records containing the result from searching all the stats tables
      * for the given time range and commodity names
      * @throws VmtDbException if there's an exception querying the data
      */
     public @Nonnull List<Record> getFullMarketStatsRecords(@Nonnull final StatsFilter statsFilter,
-                                                 @Nonnull Optional<String> relatedEntityType)
+                                                 @Nonnull GlobalFilter globalFilter)
             throws VmtDbException {
         final Optional<TimeRange> timeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter,
             Optional.empty(), Optional.empty(), Optional.empty());
@@ -430,10 +432,14 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
         commodityRequestsCond.ifPresent(whereConditions::add);
 
         // if a related entity type provided, add a where clause to restrict to that entityType
-        Optional<Condition> entityTypeCond =
-            relatedEntityType.flatMap(type ->
-                StatsQueryFactory.DefaultStatsQueryFactory.entityTypeCond(type, table));
+        final Optional<Condition> entityTypeCond = statsQueryFactory.entityTypeCond(
+            Sets.newHashSet(globalFilter.getRelatedEntityTypeList()), table);
         entityTypeCond.ifPresent(whereConditions::add);
+
+        if (globalFilter.hasEnvironmentType()) {
+            statsQueryFactory.environmentTypeCond(globalFilter.getEnvironmentType(), table)
+                .ifPresent(whereConditions::add);
+        }
 
         // Format the query.
         // No need to order or group by anything, since when preparing the response

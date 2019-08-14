@@ -48,7 +48,6 @@ import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
-import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
@@ -407,31 +406,6 @@ public class StatsMapper {
     }
 
     /**
-     * Create a {@link GetAveragedEntityStatsRequest} for a group of UUIDs.
-     *
-     * @param entityIds gather stats for the entities with these IDs.
-     * @param statApiInput a {@link StatApiInputDTO} specifying query options for this /stats query
-     * @param globalTempGroupEntityType a optional entity type of a global temp group. if present, means
-     *                            it will query stats from market stats table to speed up query.
-     * @return a new instance of {@link GetAveragedEntityStatsRequest} protobuf with fields set from the given statApiInput
-     */
-    @Nonnull
-    public GetAveragedEntityStatsRequest toAveragedEntityStatsRequest(
-                final Set<Long> entityIds,
-                @Nullable final StatPeriodApiInputDTO statApiInput,
-                @Nonnull final Optional<Integer> globalTempGroupEntityType) {
-        final GetAveragedEntityStatsRequest.Builder entityStatsRequest =
-            GetAveragedEntityStatsRequest.newBuilder()
-                .setFilter(newPeriodStatsFilter(statApiInput, globalTempGroupEntityType));
-        if (entityIds != null && !entityIds.isEmpty()) {
-            entityStatsRequest.addAllEntities(entityIds);
-        }
-        globalTempGroupEntityType.ifPresent(entityType ->
-            entityStatsRequest.setRelatedEntityType(UIEntityType.fromType(entityType).apiStr()));
-        return entityStatsRequest.build();
-    }
-
-    /**
      * Create a {@link GetEntityStatsRequest}.
      *
      * @param entityStatsScope The {@link EntityStatsScope} for the request.
@@ -446,7 +420,7 @@ public class StatsMapper {
             @Nullable final StatPeriodApiInputDTO statApiInput,
             @Nonnull final EntityStatsPaginationRequest paginationRequest) {
         return GetEntityStatsRequest.newBuilder()
-                .setFilter(newPeriodStatsFilter(statApiInput, Optional.empty()))
+                .setFilter(newPeriodStatsFilter(statApiInput))
                 .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
                 .setScope(entityStatsScope)
                 .build();
@@ -492,14 +466,11 @@ public class StatsMapper {
      *
      * @param statApiInput a {@link StatPeriodApiInputDTO} specifying query options for
      *                     this /stats query.
-     * @param globalTempGroupEntityType a optional represent the entity type of global temporary group.
      * @return a new instance of {@link StatsFilter} protobuf with fields set from the
      *        given statApiInput
      */
     @Nonnull
-    public StatsFilter newPeriodStatsFilter(
-            @Nullable final StatPeriodApiInputDTO statApiInput,
-            @Nonnull final Optional<Integer> globalTempGroupEntityType) {
+    public StatsFilter newPeriodStatsFilter(@Nullable final StatPeriodApiInputDTO statApiInput) {
         final StatsFilter.Builder filterRequestBuilder = StatsFilter.newBuilder();
         if (statApiInput != null) {
 
@@ -539,22 +510,7 @@ public class StatsMapper {
                     if (stat.getGroupBy() != null && !stat.getGroupBy().isEmpty()) {
                         commodityRequestBuilder.addAllGroupBy(stat.getGroupBy());
                     }
-                    globalTempGroupEntityType.ifPresent(globalType ->
-                        commodityRequestBuilder.setRelatedEntityType(
-                            UIEntityType.fromType(globalType).apiStr()));
                     if (stat.getRelatedEntityType() != null) {
-                        if (commodityRequestBuilder.hasRelatedEntityType()
-                            && !areRelatedEntityTypesCompatible(
-                            commodityRequestBuilder.getRelatedEntityType(),
-                            stat.getRelatedEntityType())) {
-                            logger.error(
-                                "Api input related entity type: {} is not consistent with "
-                                        + "group entity type: {}",
-                                    stat.getRelatedEntityType(),
-                                    UIEntityType.fromType(globalTempGroupEntityType.get()).apiStr());
-                            throw new IllegalArgumentException(
-                                "Related entity type is not same as group entity type");
-                        }
                         commodityRequestBuilder.setRelatedEntityType(stat.getRelatedEntityType());
                     }
                     filterRequestBuilder.addCommodityRequests(commodityRequestBuilder.build());
@@ -631,7 +587,7 @@ public class StatsMapper {
             @Nullable final StatPeriodApiInputDTO inputDto) {
         return ClusterStatsRequest.newBuilder()
                 .setClusterId(Long.parseLong(uuid))
-                .setStats(newPeriodStatsFilter(inputDto, Optional.empty()))
+                .setStats(newPeriodStatsFilter(inputDto))
                 .build();
     }
 

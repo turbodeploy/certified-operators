@@ -50,7 +50,7 @@ public class ComponentHealthCheckTest {
     public void setup() throws Exception {
         System.setProperty(BaseVmtComponent.PROP_COMPONENT_TYPE, "SimpleTestComponent");
         System.setProperty(BaseVmtComponent.PROP_STANDALONE, "true");
-        System.setProperty(BaseVmtComponent.PROP_serverHttpPort, "8080");
+        System.setProperty(BaseVmtComponent.PROP_serverHttpPort, "8282");
         System.setProperty(BaseVmtComponent.PROP_INSTANCE_ID, "instance");
         System.setProperty("serverGrpcPort", "9001");
         System.setProperty("consul_host", "consul");

@@ -100,7 +100,7 @@ public class StatsQueryExecutor {
         final StatsQueryScope expandedScope = scopeExpander.expandScope(scope, inputDTO.getStatistics());
 
         // Check if there is anything in the scope.
-        if (!expandedScope.isAll() && expandedScope.getEntities().isEmpty()) {
+        if (!expandedScope.getGlobalScope().isPresent() && expandedScope.getEntities().isEmpty()) {
             return Collections.emptyList();
         }
 

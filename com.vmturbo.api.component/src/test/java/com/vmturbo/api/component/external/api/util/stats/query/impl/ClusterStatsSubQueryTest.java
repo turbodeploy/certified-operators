@@ -59,7 +59,7 @@ public class ClusterStatsSubQueryTest {
         when(scope.getGroupType()).thenReturn(Optional.of(Type.CLUSTER));
 
         final StatsQueryContext context = mock(StatsQueryContext.class);
-        when(context.getScope()).thenReturn(scope);
+        when(context.getInputScope()).thenReturn(scope);
         assertThat(query.applicableInContext(context), is(true));
     }
 
@@ -69,7 +69,7 @@ public class ClusterStatsSubQueryTest {
         when(scope.getGroupType()).thenReturn(Optional.of(Type.GROUP));
 
         final StatsQueryContext context = mock(StatsQueryContext.class);
-        when(context.getScope()).thenReturn(scope);
+        when(context.getInputScope()).thenReturn(scope);
         assertThat(query.applicableInContext(context), is(false));
     }
 
@@ -79,7 +79,7 @@ public class ClusterStatsSubQueryTest {
         when(scope.getGroupType()).thenReturn(Optional.empty());
 
         final StatsQueryContext context = mock(StatsQueryContext.class);
-        when(context.getScope()).thenReturn(scope);
+        when(context.getInputScope()).thenReturn(scope);
         assertThat(query.applicableInContext(context), is(false));
     }
 
@@ -94,7 +94,7 @@ public class ClusterStatsSubQueryTest {
         periodInputDto.setStartDate("123");
 
         final StatsQueryContext context = mock(StatsQueryContext.class);
-        when(context.getScope()).thenReturn(scope);
+        when(context.getInputScope()).thenReturn(scope);
         when(context.newPeriodInputDto(any())).thenReturn(periodInputDto);
 
         final ClusterStatsRequest clusterStatsRequest = ClusterStatsRequest.newBuilder()

@@ -8,6 +8,17 @@ import "common/Pagination.proto";
 import "group/GroupDTO.proto";
 import "setting/Setting.proto";
 import "topology/TopologyDTO.proto";
+import "common/EnvironmentTypeEnum.proto";
+
+// Restricts all commodities returned by a request.
+message GlobalFilter {
+    // If non-empty, return only statistics related to the specified entity types.
+    repeated string related_entity_type = 1;
+
+    // If present, return only statistics related to this specific environment type.
+    // If not present or UNKNOWN, return statistics related to all environment types.
+    optional .common.EnvironmentType environment_type = 2;
+}
 
 message GetAveragedEntityStatsRequest {
     // The entities to gather stats for. These could be the IDs of individual entities, a plan,
@@ -17,8 +28,9 @@ message GetAveragedEntityStatsRequest {
     // The filter to apply to the stats. If not set, retrieve all stats.
     optional StatsFilter filter = 2;
 
-    // The entity type to restrict stats to; if not set, include all entity types
-    optional string relatedEntityType = 3;
+    // The global filter to apply to all commodities in the request.
+    // This is only relevant when the input is the entire market.
+    optional GlobalFilter global_filter = 3;
 }
 
 // The scope for an entity stats query.

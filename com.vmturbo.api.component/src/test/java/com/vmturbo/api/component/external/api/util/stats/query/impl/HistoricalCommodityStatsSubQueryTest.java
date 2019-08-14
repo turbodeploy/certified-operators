@@ -26,8 +26,10 @@ import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.stats.ImmutableGlobalScope;
 import com.vmturbo.api.component.external.api.util.stats.ImmutableTimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
 import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
@@ -36,7 +38,9 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
@@ -94,9 +98,9 @@ public class HistoricalCommodityStatsSubQueryTest {
             StatsHistoryServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
             userSessionContext);
 
-        when(context.getScope()).thenReturn(vmGroupScope);
+        when(context.getInputScope()).thenReturn(vmGroupScope);
 
-        when(statsMapper.newPeriodStatsFilter(any(), any())).thenReturn(FILTER);
+        when(statsMapper.newPeriodStatsFilter(any())).thenReturn(FILTER);
 
         when(statsMapper.toStatSnapshotApiDTO(HISTORY_STAT_SNAPSHOT)).thenReturn(MAPPED_STAT_SNAPSHOT);
 
@@ -114,7 +118,7 @@ public class HistoricalCommodityStatsSubQueryTest {
         when(scope.isPlan()).thenReturn(true);
 
         final StatsQueryContext context = mock(StatsQueryContext.class);
-        when(context.getScope()).thenReturn(scope);
+        when(context.getInputScope()).thenReturn(scope);
 
         assertThat(query.applicableInContext(context), is(false));
     }
@@ -125,7 +129,7 @@ public class HistoricalCommodityStatsSubQueryTest {
         when(scope.isPlan()).thenReturn(false);
 
         final StatsQueryContext context = mock(StatsQueryContext.class);
-        when(context.getScope()).thenReturn(scope);
+        when(context.getInputScope()).thenReturn(scope);
 
         assertThat(query.applicableInContext(context), is(true));
     }
@@ -142,19 +146,20 @@ public class HistoricalCommodityStatsSubQueryTest {
         when(context.includeCurrent()).thenReturn(false);
 
         // These entities in the scope.
-        when(context.getScopeEntities()).thenReturn(Collections.singleton(1L));
+        final StatsQueryScope queryScope = StatsQueryScope.some(Collections.singleton(1L));
+        when(context.getQueryScope()).thenReturn(queryScope);
 
         // ACT
         final Map<Long, List<StatApiDTO>> ret = query.getAggregateStats(REQ_STATS, context);
 
         verify(context).newPeriodInputDto(REQ_STATS);
-        verify(statsMapper).newPeriodStatsFilter(NEW_PERIOD_INPUT_DTO, Optional.empty());
+        verify(statsMapper).newPeriodStatsFilter(NEW_PERIOD_INPUT_DTO);
 
         verify(backend).getAveragedEntityStats(reqCaptor.capture());
         final GetAveragedEntityStatsRequest req = reqCaptor.getValue();
         assertThat(req.getFilter(), is(FILTER));
         assertThat(req.getEntitiesList(), containsInAnyOrder(1L));
-        assertThat(req.hasRelatedEntityType(), is(false));
+        assertThat(req.getGlobalFilter(), is(GlobalFilter.getDefaultInstance()));
 
         assertThat(ret.keySet(), containsInAnyOrder(MILLIS));
         assertThat(ret.get(MILLIS), is(MAPPED_STAT_SNAPSHOT.getStatistics()));
@@ -172,14 +177,18 @@ public class HistoricalCommodityStatsSubQueryTest {
         when(context.includeCurrent()).thenReturn(false);
 
         // These entities in the scope.
-        when(context.getScopeEntities()).thenReturn(Collections.singleton(1L));
+        final StatsQueryScope queryScope = StatsQueryScope.all(ImmutableGlobalScope.builder()
+            .addEntityTypes(UIEntityType.VIRTUAL_MACHINE)
+            .environmentType(EnvironmentType.CLOUD)
+            .build());
+        when(context.getQueryScope()).thenReturn(queryScope);
 
         // ACT
         final Map<Long, List<StatApiDTO>> ret = query.getAggregateStats(REQ_STATS, context);
 
         verify(context).newPeriodInputDto(REQ_STATS);
         // We should pass the global type to the stats mapper.
-        verify(statsMapper).newPeriodStatsFilter(NEW_PERIOD_INPUT_DTO, Optional.of(UIEntityType.VIRTUAL_MACHINE.typeNumber()));
+        verify(statsMapper).newPeriodStatsFilter(NEW_PERIOD_INPUT_DTO);
 
         verify(backend).getAveragedEntityStats(reqCaptor.capture());
         final GetAveragedEntityStatsRequest req = reqCaptor.getValue();
@@ -187,7 +196,8 @@ public class HistoricalCommodityStatsSubQueryTest {
         // No entities, because it's a global temp group.
         assertThat(req.getEntitiesList(), is(Collections.emptyList()));
         // The type of the scope group.
-        assertThat(req.getRelatedEntityType(), is(UIEntityType.VIRTUAL_MACHINE.apiStr()));
+        assertThat(req.getGlobalFilter().getRelatedEntityTypeList(), containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE.apiStr()));
+        assertThat(req.getGlobalFilter().getEnvironmentType(), is(EnvironmentType.CLOUD));
 
         assertThat(ret.keySet(), containsInAnyOrder(MILLIS));
         assertThat(ret.get(MILLIS), is(MAPPED_STAT_SNAPSHOT.getStatistics()));
@@ -205,21 +215,22 @@ public class HistoricalCommodityStatsSubQueryTest {
         when(context.includeCurrent()).thenReturn(false);
 
         // These entities in the scope.
-        when(context.getScopeEntities()).thenReturn(Collections.singleton(1L));
+        final StatsQueryScope queryScope = StatsQueryScope.some(Collections.singleton(1L));
+        when(context.getQueryScope()).thenReturn(queryScope);
 
         // ACT
         final Map<Long, List<StatApiDTO>> ret = query.getAggregateStats(REQ_STATS, context);
 
         verify(context).newPeriodInputDto(REQ_STATS);
         // Shouldn't treat it as a GLOBAL temp group.
-        verify(statsMapper).newPeriodStatsFilter(NEW_PERIOD_INPUT_DTO, Optional.empty());
+        verify(statsMapper).newPeriodStatsFilter(NEW_PERIOD_INPUT_DTO);
 
         verify(backend).getAveragedEntityStats(reqCaptor.capture());
         final GetAveragedEntityStatsRequest req = reqCaptor.getValue();
         assertThat(req.getFilter(), is(FILTER));
         // Shouldn't treat it as a GLOBAL temp group.
         assertThat(req.getEntitiesList(), containsInAnyOrder(1L));
-        assertThat(req.hasRelatedEntityType(), is(false));
+        assertThat(req.getGlobalFilter(), is(GlobalFilter.getDefaultInstance()));
 
         assertThat(ret.keySet(), containsInAnyOrder(MILLIS));
         assertThat(ret.get(MILLIS), is(MAPPED_STAT_SNAPSHOT.getStatistics()));
@@ -242,19 +253,20 @@ public class HistoricalCommodityStatsSubQueryTest {
             .build()));
 
         // These entities in the scope.
-        when(context.getScopeEntities()).thenReturn(Collections.singleton(1L));
+        final StatsQueryScope queryScope = StatsQueryScope.some(Collections.singleton(1L));
+        when(context.getQueryScope()).thenReturn(queryScope);
 
         // ACT
         final Map<Long, List<StatApiDTO>> ret = query.getAggregateStats(REQ_STATS, context);
 
         verify(context).newPeriodInputDto(REQ_STATS);
-        verify(statsMapper).newPeriodStatsFilter(NEW_PERIOD_INPUT_DTO, Optional.empty());
+        verify(statsMapper).newPeriodStatsFilter(NEW_PERIOD_INPUT_DTO);
 
         verify(backend).getAveragedEntityStats(reqCaptor.capture());
         final GetAveragedEntityStatsRequest req = reqCaptor.getValue();
         assertThat(req.getFilter(), is(FILTER));
         assertThat(req.getEntitiesList(), containsInAnyOrder(1L));
-        assertThat(req.hasRelatedEntityType(), is(false));
+        assertThat(req.getGlobalFilter(), is(GlobalFilter.getDefaultInstance()));
 
         assertThat(ret.keySet(), containsInAnyOrder(MILLIS, MILLIS * 2));
         assertThat(ret.get(MILLIS), is(MAPPED_STAT_SNAPSHOT.getStatistics()));

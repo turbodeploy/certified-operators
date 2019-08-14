@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.Before;
@@ -18,6 +19,7 @@ import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
@@ -26,6 +28,7 @@ import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
@@ -69,13 +72,49 @@ public class StatsQueryScopeExpanderTest {
 
     @Test
     public void testExpandUnscopedMarket() throws OperationFailedException {
-        ApiId scope = mock(ApiId.class);
+        final ApiId scope = mock(ApiId.class);
         when(scope.isRealtimeMarket()).thenReturn(true);
         when(userSessionContext.isUserScoped()).thenReturn(false);
 
-        StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.emptyList());
-        assertThat(expandedScope.isAll(), is(true));
+        final StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.emptyList());
+        assertThat(expandedScope.getGlobalScope(), is(Optional.of(ImmutableGlobalScope.builder()
+            .build())));
+    }
 
+    @Test
+    public void testExpandMarketRelatedEntityType() throws OperationFailedException {
+        final ApiId scope = mock(ApiId.class);
+        when(scope.isRealtimeMarket()).thenReturn(true);
+        when(userSessionContext.isUserScoped()).thenReturn(false);
+
+        List<StatApiInputDTO> input = Collections.singletonList(new StatApiInputDTO());
+        input.get(0).setRelatedEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        final StatsQueryScope expandedScope = scopeExpander.expandScope(scope, input);
+        assertThat(expandedScope.getEntities(), is(Collections.emptySet()));
+        assertThat(expandedScope.getGlobalScope(), is(Optional.of(ImmutableGlobalScope.builder()
+            .addEntityTypes(UIEntityType.VIRTUAL_MACHINE)
+            .build())));
+    }
+
+    @Test
+    public void testExpandMarketGlobalTempGroup() throws OperationFailedException {
+        final ApiId scope = mock(ApiId.class);
+        when(scope.isRealtimeMarket()).thenReturn(false);
+        when(scope.isGlobalTempGroup()).thenReturn(true);
+
+        final CachedGroupInfo groupInfo = mock(CachedGroupInfo.class);
+        when(groupInfo.isGlobalTempGroup()).thenReturn(true);
+        when(groupInfo.getEntityType()).thenReturn(UIEntityType.VIRTUAL_MACHINE);
+        when(groupInfo.getGlobalEnvType()).thenReturn(Optional.of(EnvironmentType.CLOUD));
+
+        when(scope.getCachedGroupInfo()).thenReturn(Optional.of(groupInfo));
+
+        final StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.emptyList());
+        assertThat(expandedScope.getEntities(), is(Collections.emptySet()));
+        assertThat(expandedScope.getGlobalScope(), is(Optional.of(ImmutableGlobalScope.builder()
+            .addEntityTypes(UIEntityType.VIRTUAL_MACHINE)
+            .environmentType(EnvironmentType.CLOUD)
+            .build())));
     }
 
     @Test
@@ -90,7 +129,7 @@ public class StatsQueryScopeExpanderTest {
         when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
 
         StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.emptyList());
-        assertThat(expandedScope.isAll(), is(false));
+        assertThat(expandedScope.getGlobalScope(), is(Optional.empty()));
         assertThat(expandedScope.getEntities(), is(Collections.singleton(1L)));
     }
 
@@ -105,7 +144,7 @@ public class StatsQueryScopeExpanderTest {
 
         StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.emptyList());
 
-        assertThat(expandedScope.isAll(), is(false));
+        assertThat(expandedScope.getGlobalScope(), is(Optional.empty()));
         assertThat(expandedScope.getEntities(), is(Collections.singleton(1L)));
     }
 
@@ -123,7 +162,7 @@ public class StatsQueryScopeExpanderTest {
 
         StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.emptyList());
 
-        assertThat(expandedScope.isAll(), is(false));
+        assertThat(expandedScope.getGlobalScope(), is(Optional.empty()));
         assertThat(expandedScope.getEntities(), is(Collections.singleton(1L)));
     }
 
@@ -150,7 +189,7 @@ public class StatsQueryScopeExpanderTest {
 
         StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.emptyList());
 
-        assertThat(expandedScope.isAll(), is(false));
+        assertThat(expandedScope.getGlobalScope(), is(Optional.empty()));
         assertThat(expandedScope.getEntities(), is(Collections.singleton(1L)));
     }
 
@@ -166,7 +205,7 @@ public class StatsQueryScopeExpanderTest {
 
         StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.emptyList());
 
-        assertThat(expandedScope.isAll(), is(false));
+        assertThat(expandedScope.getGlobalScope(), is(Optional.empty()));
         assertThat(expandedScope.getEntities(), is(Collections.singleton(7L)));
     }
 
@@ -191,7 +230,7 @@ public class StatsQueryScopeExpanderTest {
 
         StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.emptyList());
 
-        assertThat(expandedScope.isAll(), is(false));
+        assertThat(expandedScope.getGlobalScope(), is(Optional.empty()));
         assertThat(expandedScope.getEntities(), is(Collections.singleton(1L)));
     }
 
@@ -211,7 +250,7 @@ public class StatsQueryScopeExpanderTest {
 
         StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.emptyList());
 
-        assertThat(expandedScope.isAll(), is(false));
+        assertThat(expandedScope.getGlobalScope(), is(Optional.empty()));
         assertThat(expandedScope.getEntities(), is(Collections.singleton(DC.getOid())));
     }
 
@@ -237,7 +276,7 @@ public class StatsQueryScopeExpanderTest {
         verify(supplyChainFetcherFactory).expandScope(Collections.singleton(7L),
             Collections.singletonList(UIEntityType.PHYSICAL_MACHINE.apiStr()));
 
-        assertThat(expandedScope.isAll(), is(false));
+        assertThat(expandedScope.getGlobalScope(), is(Optional.empty()));
         assertThat(expandedScope.getEntities(), is(Collections.singleton(1L)));
     }
 
@@ -272,7 +311,7 @@ public class StatsQueryScopeExpanderTest {
 
         StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.singletonList(inputStat));
 
-        assertThat(expandedScope.isAll(), is(false));
+        assertThat(expandedScope.getGlobalScope(), is(Optional.empty()));
         // We should still land on a PM oid even though the related type "DC" was requested.
         assertThat(expandedScope.getEntities(), is(Collections.singleton(1L)));
     }

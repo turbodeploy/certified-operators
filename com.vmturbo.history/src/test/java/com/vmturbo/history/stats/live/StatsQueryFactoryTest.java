@@ -90,13 +90,13 @@ public class StatsQueryFactoryTest {
         final String X_TEST =
                 DSL.trueCondition()
                         .and(MARKET_STATS_LATEST.PROPERTY_TYPE.eq("X"))
-                        .and(MARKET_STATS_LATEST.ENTITY_TYPE.eq("VirtualMachine"))
+                        .and(MARKET_STATS_LATEST.ENTITY_TYPE.in("VirtualMachine"))
                         .and(MARKET_STATS_LATEST.RELATION.eq(RelationType.COMMODITIESBOUGHT)).toString()
                         .replaceAll("\n", "")
                         .replaceAll(" ", "");
         final String Y_TEST = DSL.trueCondition()
                 .and(MARKET_STATS_LATEST.PROPERTY_TYPE.eq("Y"))
-                .and(MARKET_STATS_LATEST.ENTITY_TYPE.eq("PhysicalMachine")).toString()
+                .and(MARKET_STATS_LATEST.ENTITY_TYPE.in("PhysicalMachine")).toString()
                 .replaceAll("\n", "")
                 .replaceAll(" ", "");
 

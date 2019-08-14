@@ -122,10 +122,10 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
 
         final PlanInstance planInstance = planInstanceOpt.get();
 
-        final long planTopologyContextId = context.getScope().oid();
+        final long planTopologyContextId = context.getInputScope().oid();
 
         // find plan scope ids
-        Set<Long> scopes = context.getScopeEntities();
+        Set<Long> scopes = context.getQueryScope().getEntities();
         // return two snapshot, one for before plan, one for after plan
         List<StatApiDTO> statsBeforePlan = new ArrayList<>();
         List<StatApiDTO> statsAfterPlan = new ArrayList<>();

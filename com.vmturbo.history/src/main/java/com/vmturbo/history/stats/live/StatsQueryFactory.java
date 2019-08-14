@@ -26,9 +26,11 @@ import static org.jooq.impl.DSL.max;
 import static org.jooq.impl.DSL.min;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -47,7 +49,6 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.PropertyValueFilter;
 import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.jooq.JooqUtils;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsLatest;
 import com.vmturbo.history.utils.HistoryStatsUtils;
@@ -60,6 +61,28 @@ public interface StatsQueryFactory {
      * Indicate an aggregation style for this query; defined in legacy.
      */
     enum AGGREGATE {NO_AGG, AVG_ALL, AVG_MIN_MAX}
+
+    /**
+     * Create a Jooq conditional clause to filter on entity type if it is present.
+     *
+     * @param entityType entity types need to filter on.
+     * @param table the DB table from which these stats will be collected
+     * @return an {@link Optional} containing the Jooq condition to filter on entity type.
+     *         an empty {@link Optional} if the table does not contain an entity type field.
+     */
+    Optional<Condition> entityTypeCond(@Nonnull final Set<String> entityType,
+                                       @Nonnull final Table<?> table);
+
+    /**
+     * Create a Jooq conditional clause to filter on environment type if it is present.
+     *
+     * @param environmentType environment type need to filter on.
+     * @param table the DB table from which these stats will be collected
+     * @return an {@link Optional} containing the Jooq condition to filter on environment type.
+     *         an empty {@link Optional} if the table does not contain an environment type field.
+     */
+    Optional<Condition> environmentTypeCond(@Nonnull final EnvironmentType environmentType,
+                                            @Nonnull final Table<?> table);
 
     /**
      * Formulate a query string for commodities of a given entity.
@@ -116,21 +139,25 @@ public interface StatsQueryFactory {
             this.historydbIO = Objects.requireNonNull(historydbIO);
         }
 
-        /**
-         * Create a Jooq conditional clause to filter on entity type if it is present.
-         *
-         * @param entityType entity type need to filter on.
-         * @param table the DB table from which these stats will be collected
-         * @return an {@link Optional} containing the Jooq condition to filter on entity type.
-         *         an empty {@link Optional} if the table does not contain an entity type field.
-         */
-        public static Optional<Condition> entityTypeCond(
-                @Nonnull final String entityType, @Nonnull final Table<?> table) {
+        @Override
+        public Optional<Condition> entityTypeCond(@Nonnull final Set<String> entityType,
+                                                  @Nonnull final Table<?> table) {
             // Only the market stats tables will have an entity type field,
             // but the query factory is used with potentially any stats table.
             // Therefore we need an explicit check for the presence of the field.
-            if (table.field(ENTITY_TYPE) != null) {
-                return Optional.of(str(dField(table, ENTITY_TYPE)).eq(entityType));
+            if (!entityType.isEmpty() && table.field(ENTITY_TYPE) != null) {
+                return Optional.of(str(dField(table, ENTITY_TYPE)).in(entityType));
+            } else {
+                return Optional.empty();
+            }
+        }
+
+        @Override
+        public Optional<Condition> environmentTypeCond(@Nonnull final EnvironmentType environmentType, @Nonnull final Table<?> table) {
+            // We only record the environment type in the database for the aggregate
+            // market stats tables.
+            if (HistoryStatsUtils.isMarketStatsTable(table)) {
+                return Optional.of(envType(dField(table, MarketStatsLatest.MARKET_STATS_LATEST.ENVIRONMENT_TYPE.getName())).eq(environmentType));
             } else {
                 return Optional.empty();
             }
@@ -247,7 +274,7 @@ public interface StatsQueryFactory {
                 }
                 if (commodityRequest.hasRelatedEntityType()) {
                     Optional<Condition> entityTypeCond =
-                        entityTypeCond(commodityRequest.getRelatedEntityType(), table);
+                        entityTypeCond(Collections.singleton(commodityRequest.getRelatedEntityType()), table);
                     if (entityTypeCond.isPresent()) {
                         commodityTest = commodityTest.and(entityTypeCond.get());
                     }
@@ -266,14 +293,11 @@ public interface StatsQueryFactory {
                         case ENVIRONMENT_TYPE:
                             // We only record the environment type in the database for the aggregate
                             // market stats tables.
-                            if (HistoryStatsUtils.isMarketStatsTable(table)) {
-                                final Optional<EnvironmentType> envType = UIEnvironmentType.fromString(
-                                    propertyValueFilter.getValue()).toEnvType();
-                                if (envType.isPresent()) {
-                                    commodityTest = commodityTest.and(
-                                        envType(dField(table, MarketStatsLatest.MARKET_STATS_LATEST.ENVIRONMENT_TYPE.getName())).
-                                            eq(envType.get()));
-                                }
+                            Optional<Condition> envTypeCond = UIEnvironmentType.fromString(
+                                propertyValueFilter.getValue()).toEnvType()
+                                .flatMap(envType -> environmentTypeCond(envType, table));
+                            if (envTypeCond.isPresent()) {
+                                commodityTest = commodityTest.and(envTypeCond.get());
                             } else {
                                 // For "regular" tables we rely on the API component to only
                                 // target the entities in the proper environment type.

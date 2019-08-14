@@ -1,6 +1,5 @@
 package com.vmturbo.history.stats.live;
 
-import static com.vmturbo.components.common.utils.StringConstants.UUID;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
@@ -28,7 +27,6 @@ import java.util.function.Consumer;
 
 import org.jooq.Condition;
 import org.jooq.DSLContext;
-import org.jooq.Field;
 import org.jooq.Query;
 import org.jooq.Record;
 import org.jooq.Result;
@@ -40,9 +38,12 @@ import org.mockito.stubbing.Answer;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
+import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
@@ -282,6 +283,8 @@ public class LiveStatsReaderTest {
         final Condition condition = mock(Condition.class);
         when(statsQueryFactory.createCommodityRequestsCond(any(), any()))
             .thenReturn(Optional.of(condition));
+        when(statsQueryFactory.entityTypeCond(any(), any())).thenReturn(Optional.empty());
+        when(statsQueryFactory.environmentTypeCond(any(), any())).thenReturn(Optional.empty());
 
         final Result result = mock(Result.class);
         when(mockHistorydbIO.execute(eq(Style.FORCED), isA(Query.class))).thenReturn(result);
@@ -294,7 +297,10 @@ public class LiveStatsReaderTest {
 
         // ACT
         final List<Record> records = liveStatsReader.getFullMarketStatsRecords(statsFilter,
-            Optional.of(StringConstants.PHYSICAL_MACHINE));
+            GlobalFilter.newBuilder()
+                .addRelatedEntityType(StringConstants.PHYSICAL_MACHINE)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .build());
 
         // ASSERT
         // Verify the individual steps - this should help track down what failed if the final
@@ -306,6 +312,8 @@ public class LiveStatsReaderTest {
         verify(statsQueryFactory)
             .createCommodityRequestsCond(statsFilterWithCounts.getCommodityRequestsList(),
                 Tables.MARKET_STATS_LATEST);
+        verify(statsQueryFactory).environmentTypeCond(EnvironmentType.CLOUD, Tables.MARKET_STATS_LATEST);
+        verify(statsQueryFactory).entityTypeCond(Sets.newHashSet(StringConstants.PHYSICAL_MACHINE), Tables.MARKET_STATS_LATEST);
         verify(mockHistorydbIO).execute(eq(Style.FORCED), isA(Query.class));
         verify(ratioProcessor).processResults(result);
 

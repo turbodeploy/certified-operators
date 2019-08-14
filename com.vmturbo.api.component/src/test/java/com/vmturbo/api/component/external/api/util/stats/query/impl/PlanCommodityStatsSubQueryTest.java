@@ -13,7 +13,6 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -39,6 +38,7 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
@@ -53,7 +53,7 @@ public class PlanCommodityStatsSubQueryTest {
     private static final GetAveragedEntityStatsRequest MAPPED_REQUEST =
         GetAveragedEntityStatsRequest.newBuilder()
             // Some value for uniqueness.
-            .setRelatedEntityType("foo")
+            .addEntities(1231)
             .build();
 
     private static final StatsFilter FILTER = StatsFilter.newBuilder()
@@ -106,9 +106,9 @@ public class PlanCommodityStatsSubQueryTest {
 
         when(scope.oid()).thenReturn(SCOPE_ID);
 
-        when(context.getScope()).thenReturn(scope);
+        when(context.getInputScope()).thenReturn(scope);
 
-        when(statsMapper.newPeriodStatsFilter(any(), any())).thenReturn(FILTER);
+        when(statsMapper.newPeriodStatsFilter(any())).thenReturn(FILTER);
 
         when(statsMapper.toStatSnapshotApiDTO(HISTORY_STAT_SNAPSHOT)).thenReturn(MAPPED_STAT_SNAPSHOT);
 
@@ -124,7 +124,7 @@ public class PlanCommodityStatsSubQueryTest {
         when(scope.isPlan()).thenReturn(true);
 
         final StatsQueryContext context = mock(StatsQueryContext.class);
-        when(context.getScope()).thenReturn(scope);
+        when(context.getInputScope()).thenReturn(scope);
 
         assertThat(query.applicableInContext(context), is(true));
     }
@@ -135,7 +135,7 @@ public class PlanCommodityStatsSubQueryTest {
         when(scope.isPlan()).thenReturn(false);
 
         final StatsQueryContext context = mock(StatsQueryContext.class);
-        when(context.getScope()).thenReturn(scope);
+        when(context.getInputScope()).thenReturn(scope);
 
         assertThat(query.applicableInContext(context), is(false));
     }
@@ -150,9 +150,9 @@ public class PlanCommodityStatsSubQueryTest {
 
         assertThat(req.getEntitiesList(), containsInAnyOrder(SCOPE_ID));
         assertThat(req.getFilter(), is(FILTER));
-        assertThat(req.hasRelatedEntityType(), is(false));
+        assertThat(req.getGlobalFilter(), is(GlobalFilter.getDefaultInstance()));
 
-        verify(statsMapper).newPeriodStatsFilter(NEW_PERIOD_INPUT_DTO, Optional.empty());
+        verify(statsMapper).newPeriodStatsFilter(NEW_PERIOD_INPUT_DTO);
 
         verify(context).newPeriodInputDto(finalApiReqCaptor.capture());
         final Set<StatApiInputDTO> finalApiReq = finalApiReqCaptor.getValue();
@@ -171,9 +171,9 @@ public class PlanCommodityStatsSubQueryTest {
 
         assertThat(req.getEntitiesList(), containsInAnyOrder(SCOPE_ID));
         assertThat(req.getFilter(), is(FILTER));
-        assertThat(req.hasRelatedEntityType(), is(false));
+        assertThat(req.getGlobalFilter(), is(GlobalFilter.getDefaultInstance()));
 
-        verify(statsMapper).newPeriodStatsFilter(NEW_PERIOD_INPUT_DTO, Optional.empty());
+        verify(statsMapper).newPeriodStatsFilter(NEW_PERIOD_INPUT_DTO);
 
         verify(context).newPeriodInputDto(finalApiReqCaptor.capture());
         final Set<StatApiInputDTO> finalApiReq = finalApiReqCaptor.getValue();
@@ -193,9 +193,9 @@ public class PlanCommodityStatsSubQueryTest {
 
         assertThat(req.getEntitiesList(), containsInAnyOrder(SCOPE_ID));
         assertThat(req.getFilter(), is(FILTER));
-        assertThat(req.hasRelatedEntityType(), is(false));
+        assertThat(req.getGlobalFilter(), is(GlobalFilter.getDefaultInstance()));
 
-        verify(statsMapper).newPeriodStatsFilter(NEW_PERIOD_INPUT_DTO, Optional.empty());
+        verify(statsMapper).newPeriodStatsFilter(NEW_PERIOD_INPUT_DTO);
 
         verify(context).newPeriodInputDto(finalApiReqCaptor.capture());
         final Set<StatApiInputDTO> finalApiReq = finalApiReqCaptor.getValue();

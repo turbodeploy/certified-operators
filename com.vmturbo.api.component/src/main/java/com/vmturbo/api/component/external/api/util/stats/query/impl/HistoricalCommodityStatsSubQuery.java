@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -11,6 +12,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.GlobalScope;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
@@ -20,6 +22,7 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
@@ -43,7 +46,7 @@ public class HistoricalCommodityStatsSubQuery implements StatsSubQuery {
 
     @Override
     public boolean applicableInContext(@Nonnull final StatsQueryContext context) {
-        return !context.getScope().isPlan();
+        return !context.getInputScope().isPlan();
     }
 
     @Override
@@ -111,21 +114,21 @@ public class HistoricalCommodityStatsSubQuery implements StatsSubQuery {
     @Nonnull
     private GetAveragedEntityStatsRequest toAveragedEntityStatsRequest(@Nonnull final Set<StatApiInputDTO> requestedStats,
                                                                @Nonnull final StatsQueryContext context) {
-        final Optional<Integer> globalTempGroupEntityType =
-            (!userSessionContext.isUserScoped() && context.getScope().isGlobalTempGroup()) ?
-                context.getScope().getScopeType().map(UIEntityType::typeNumber) :
-                Optional.empty();
-
         final GetAveragedEntityStatsRequest.Builder entityStatsRequest =
             GetAveragedEntityStatsRequest.newBuilder()
-                .setFilter(statsMapper.newPeriodStatsFilter(context.newPeriodInputDto(requestedStats), globalTempGroupEntityType));
+                .setFilter(statsMapper.newPeriodStatsFilter(context.newPeriodInputDto(requestedStats)));
 
-        if (!globalTempGroupEntityType.isPresent()) {
-            entityStatsRequest.addAllEntities(context.getScopeEntities());
+        final Optional<GlobalScope> queryGlobalScope = context.getQueryScope().getGlobalScope()
+            .filter(globalScope -> !userSessionContext.isUserScoped());
+        if (queryGlobalScope.isPresent()) {
+            GlobalFilter.Builder globalFilter = GlobalFilter.newBuilder();
+            queryGlobalScope.get().environmentType().ifPresent(globalFilter::setEnvironmentType);
+            queryGlobalScope.get().entityTypes().forEach(type -> globalFilter.addRelatedEntityType(type.apiStr()));
+            entityStatsRequest.setGlobalFilter(globalFilter);
+        } else {
+            entityStatsRequest.addAllEntities(context.getQueryScope().getEntities());
         }
 
-        globalTempGroupEntityType.ifPresent(entityType ->
-            entityStatsRequest.setRelatedEntityType(UIEntityType.fromType(entityType).apiStr()));
         return entityStatsRequest.build();
     }
 }
