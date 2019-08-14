@@ -772,7 +772,8 @@ service SettingPolicyService {
     // Store the Entities and their associated Settings
     // karthikt : Should we stream this from the client instead of sending in
     // one request as the number of entites could be huge?
-    rpc UploadEntitySettings(UploadEntitySettingsRequest) returns (UploadEntitySettingsResponse);
+    rpc UploadEntitySettings(stream UploadEntitySettingsRequest) returns
+    (UploadEntitySettingsResponse);
 
     // Retrieve settings associated with a selection of entities.
     // Returns a NOT_FOUND status if there is no setting information for the selected topology.

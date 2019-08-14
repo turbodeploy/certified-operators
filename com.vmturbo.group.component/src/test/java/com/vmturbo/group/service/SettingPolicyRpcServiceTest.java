@@ -15,6 +15,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -651,8 +652,12 @@ public class SettingPolicyRpcServiceTest {
         final StreamObserver<UploadEntitySettingsResponse> responseObserver =
                 (StreamObserver<UploadEntitySettingsResponse>)mock(StreamObserver.class);
 
-        settingPolicyService.uploadEntitySettings(UploadEntitySettingsRequest.newBuilder()
-                .build(), responseObserver);
+        StreamObserver<UploadEntitySettingsRequest> requestObserver =
+            settingPolicyService.uploadEntitySettings(responseObserver);
+        requestObserver.onNext(UploadEntitySettingsRequest.newBuilder()
+           .build()
+        );
+        settingPolicyService.uploadEntitySettings(responseObserver);
 
         final ArgumentCaptor<StatusException> exceptionCaptor =
                 ArgumentCaptor.forClass(StatusException.class);
@@ -686,17 +691,118 @@ public class SettingPolicyRpcServiceTest {
 
         long topologyId = 1111;
         long topologyContexId = 7777;
-        UploadEntitySettingsRequest.Builder request =
-            UploadEntitySettingsRequest.newBuilder()
-                .setTopologyId(topologyId)
-                .setTopologyContextId(topologyContexId)
-                .addAllEntitySettings(esList);
 
         final ArgumentCaptor<UploadEntitySettingsResponse> responseCaptor =
                 ArgumentCaptor.forClass(UploadEntitySettingsResponse.class);
-        settingPolicyService.uploadEntitySettings(request.build(), responseObserver);
+        StreamObserver<UploadEntitySettingsRequest> requestObserver =
+            settingPolicyService.uploadEntitySettings(responseObserver);
+
+        requestObserver.onNext(UploadEntitySettingsRequest.newBuilder()
+            .setTopologyId(topologyId)
+            .setTopologyContextId(topologyContexId)
+            .addAllEntitySettings(esList).build()
+        );
+        requestObserver.onCompleted();
         verify(responseObserver).onNext(responseCaptor.capture());
         verify(responseObserver).onCompleted();
+
+    }
+
+    /**
+     * Test receiving and processing multiple chunks.
+     */
+    @Test
+    public void testUploadEntitySettingsMultipleChunks() {
+        final StreamObserver<UploadEntitySettingsResponse> responseObserver =
+            (StreamObserver<UploadEntitySettingsResponse>)mock(StreamObserver.class);
+
+        EntitySettings es1 =
+            EntitySettings.newBuilder()
+                .setEntityOid(1234)
+                .build();
+
+        EntitySettings es2 =
+            EntitySettings.newBuilder()
+                .setEntityOid(4567)
+                .build();
+
+        EntitySettings es3 =
+            EntitySettings.newBuilder()
+                .setEntityOid(8910)
+                .build();
+
+        List<EntitySettings> esList = new LinkedList<>();
+        esList.add(es1);
+        esList.add(es2);
+        esList.add(es3);
+
+        long topologyId = 1111;
+        long topologyContexId = 7777;
+
+        final ArgumentCaptor<UploadEntitySettingsResponse> responseCaptor =
+            ArgumentCaptor.forClass(UploadEntitySettingsResponse.class);
+        StreamObserver<UploadEntitySettingsRequest> requestObserver =
+            settingPolicyService.uploadEntitySettings(responseObserver);
+        for (EntitySettings entity : esList) {
+            requestObserver.onNext(UploadEntitySettingsRequest.newBuilder()
+                .setTopologyId(topologyId)
+                .setTopologyContextId(topologyContexId)
+                .addAllEntitySettings(Arrays.asList(entity)).build()
+            );
+        }
+        requestObserver.onCompleted();
+        verify(responseObserver, times(esList.size())).onNext(responseCaptor.capture());
+        verify(responseObserver).onCompleted();
+    }
+
+    /**
+     * Test failure of processing a chunk.
+     */
+    @Test
+    public void testUploadEntitySettingsFailingChunk() {
+        final StreamObserver<UploadEntitySettingsResponse> responseObserver =
+            (StreamObserver<UploadEntitySettingsResponse>)mock(StreamObserver.class);
+
+        EntitySettings es1 =
+            EntitySettings.newBuilder()
+                .setEntityOid(1234)
+                .build();
+
+        EntitySettings es2 =
+            EntitySettings.newBuilder()
+                .setEntityOid(4567)
+                .build();
+
+        List<EntitySettings> esList = new LinkedList<>();
+        esList.add(es1);
+        esList.add(es2);
+
+        long topologyId = 1111;
+        long topologyContexId = 7777;
+
+        final ArgumentCaptor<UploadEntitySettingsResponse> responseCaptor =
+            ArgumentCaptor.forClass(UploadEntitySettingsResponse.class);
+        StreamObserver<UploadEntitySettingsRequest> requestObserver =
+            settingPolicyService.uploadEntitySettings(responseObserver);
+        for (EntitySettings entity : esList) {
+            requestObserver.onNext(UploadEntitySettingsRequest.newBuilder()
+                .setTopologyId(topologyId)
+                .setTopologyContextId(topologyContexId)
+                .addAllEntitySettings(Arrays.asList(entity)).build()
+            );
+        }
+        EntitySettings es3 =
+            EntitySettings.newBuilder()
+                .setEntityOid(8910)
+                .build();
+
+        requestObserver.onNext(UploadEntitySettingsRequest.newBuilder()
+            .setTopologyContextId(topologyContexId)
+            .addAllEntitySettings(Arrays.asList(es3)).build());
+
+        requestObserver.onCompleted();
+        verify(responseObserver, times(esList.size())).onNext(responseCaptor.capture());
+        verify(responseObserver).onError(any());
     }
 
     @Test

@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -335,25 +334,55 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
 
 
     /**
-     * {@inheritDoc}
+     * Handles receiving and storing the entity settings.
+     * @param responseObserver Let the topology processor know when all the entity settings have
+     *                         been read or if an error occurred.
+     * @return A stream of {@link UploadEntitySettingsRequest} containing chunks of the entity
+     * settings request.
      */
-    @Override
-    public void uploadEntitySettings(final UploadEntitySettingsRequest request,
-                                     final StreamObserver<UploadEntitySettingsResponse> responseObserver) {
-        if (!request.hasTopologyId() || !request.hasTopologyContextId()) {
-            logger.error("Missing topologId {} or topologyContexId argument {}",
-                    request.hasTopologyId(), request.hasTopologyContextId());
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription("Missing topologyId and/or topologyContexId argument!")
-                    .asException());
-            return;
+    public StreamObserver<UploadEntitySettingsRequest> uploadEntitySettings(
+        final StreamObserver<UploadEntitySettingsResponse> responseObserver) {
+        return new EntitySettingsRequest(responseObserver);
+    }
+
+    /**
+     * Get an EntitySettingsRequest that contains the logic to write chunks of the request in the
+     * StreamObserver.
+     **/
+    private class EntitySettingsRequest implements StreamObserver<UploadEntitySettingsRequest> {
+
+        StreamObserver<UploadEntitySettingsResponse> responseObserver;
+
+        EntitySettingsRequest(StreamObserver<UploadEntitySettingsResponse> responseObserver) {
+            this.responseObserver = responseObserver;
         }
 
-        entitySettingStore.storeEntitySettings(request.getTopologyContextId(),
+        @Override
+        public void onNext(final UploadEntitySettingsRequest request) {
+            if (!request.hasTopologyId() || !request.hasTopologyContextId()) {
+                logger.error("Missing topologyId {} or topologyContextId argument {}",
+                    request.hasTopologyId(), request.hasTopologyContextId());
+                responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Missing topologyId and/or topologyContextId argument!")
+                    .asException());
+                return;
+            }
+            entitySettingStore.storeEntitySettings(request.getTopologyContextId(),
                 request.getTopologyId(), request.getEntitySettingsList().stream());
+            responseObserver.onNext(UploadEntitySettingsResponse.newBuilder().build());
+        }
 
-        responseObserver.onNext(UploadEntitySettingsResponse.newBuilder().build());
-        responseObserver.onCompleted();
+        @Override
+        public void onError(final Throwable t) {
+            logger.error("Error in processing UploadEntitySettingsRequest ");
+        }
+
+        @Override
+        public void onCompleted() {
+            logger.info("Finished receiving EntitySettings map to group component");
+            responseObserver.onCompleted();
+
+        }
     }
 
     /**
