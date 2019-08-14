@@ -98,14 +98,14 @@ http {
 
 
 	# swagger-ui paths without trailing slash do 302 redirect to add the slash
-	rewrite ^(/apidoc.*)$ $scheme://$host/swagger/ redirect;
-	rewrite ^(/swagger)$ $scheme://$host$1/ redirect;
+	rewrite ^(/apidoc.*)$ $scheme://$host/swagger/index.html redirect;
+	rewrite ^(/swagger(/|/external)?)$ $scheme://$host/swagger/index.html redirect;
 
 	# swagger-ui paths without index.html get it added on (internal, no redirect)
-	rewrite ^(/swagger)/$ $1/index.html;
+	rewrite ^/swagger(/external)?(.+)$ /swagger/external$2;
 
 	# proxying default paths
-        location ~ (/$|/api|/app|/vmturbo/rest|/swagger) {
+        location ~ (/$|/api|/app|/vmturbo/rest|/swagger/external) {
             # we are using variables for the upstream servers instead of an upstream entry because
             # of the DNS caching problem -- only nginx plus will dynamically resolve the upstream
             # servers
