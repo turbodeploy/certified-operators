@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.store;
 
 import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -24,6 +25,7 @@ import com.google.common.collect.Sets;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
@@ -66,6 +68,8 @@ public class LiveActionStore implements ActionStore {
 
     private final LiveActions actions;
 
+    private final ActionHistoryDao actionHistoryDao;
+
     /**
      * Lock protecting population of the store. Within a single "population" of the store we may
      * want to hold and release the actions lock, but we don't want to allow other "population"
@@ -92,6 +96,10 @@ public class LiveActionStore implements ActionStore {
     private final ActionTranslator actionTranslator;
 
     private final UserSessionContext userSessionContext;
+
+    private final Clock clock;
+
+    private static final int queryTimeWindowForLastExecutedActionsMins = 60;
 
     /**
      * A mutable (real-time) action is considered visible (from outside the Action Orchestrator's perspective)
@@ -125,6 +133,8 @@ public class LiveActionStore implements ActionStore {
         this.actionTargetSelector = actionTargetSelector;
         this.probeCapabilityCache = probeCapabilityCache;
         this.entitySettingsCache = entitySettingsCache;
+        this.actionHistoryDao = actionHistoryDao;
+        this.clock = clock;
         this.actions = new LiveActions(actionHistoryDao, clock, userSessionContext);
         this.actionsStatistician = Objects.requireNonNull(liveActionsStatistician);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
@@ -203,9 +213,6 @@ public class LiveActionStore implements ActionStore {
             RecommendationTracker recommendations = new RecommendationTracker();
 
             // Apply addition and removal to the internal store atomically.
-            // It is generally not safe to call synchronized on a complex object not dedicated
-            // to the purpose of locking because of the possibility of deadlock, but
-            // SynchronizedCollections are an exception to this rule.
             final List<ActionView> completedSinceLastPopulate = new ArrayList<>();
             final List<Long> actionsToRemove = new ArrayList<>();
 
@@ -229,6 +236,7 @@ public class LiveActionStore implements ActionStore {
                         actionsToRemove.add(action.getId());
                 }
             });
+
 
             // We are still holding the population lock, so
             // the actions map shouldn't get modified in the meantime.
@@ -355,8 +363,44 @@ public class LiveActionStore implements ActionStore {
             // it is cheap, so we do it to be safe.
             probeCapabilityCache.fullRefresh();
 
+            // Remove actions which have been already executed recently. Executed actions could be re-recommended by market,
+            // if the discovery has not happened and TP broadcasts the old topology.
+            // NOTE: A corner case which is not handled: If the discovery is delayed for a long time, then just looking at the last n minutes
+            // in the action_history DB may not be enough. We need to know the "freshness" of the discovered results. But this facility is
+            // not currently available. So we don't handle this case.
+            final LocalDateTime startDate = LocalDateTime.now(clock).minusMinutes(queryTimeWindowForLastExecutedActionsMins);
+            final LocalDateTime endDate = LocalDateTime.now(clock);
+            List<ActionView> lastSuccessfullyExecutedActions = new ArrayList<>();
+            try {
+                lastSuccessfullyExecutedActions = actionHistoryDao.getActionHistoryByDate(startDate, endDate);
+            } catch (DataAccessException dae) {
+                // We continue on DB exception as we don't want to block actions.
+                logger.warn("Error while fetching last executed actions from action history", dae);
+            }
+
+            RecommendationTracker lastExecutedRecommendationsTracker  = new RecommendationTracker();
+            lastSuccessfullyExecutedActions.stream()
+                    .filter(actionView -> actionView.getState().equals(ActionState.SUCCEEDED))
+                    .forEach(actionView ->
+                        lastExecutedRecommendationsTracker.add(actionFactory.newAction(
+                            actionView.getRecommendation(), actionView.getActionPlanId())));
+            List<ActionDTO.Action> newActions =
+                    actionPlan.getActionList()
+                            .stream()
+                            .filter(action -> {
+                                Optional<Action> filteredAction =
+                                        lastExecutedRecommendationsTracker.take(action.getInfo());
+                                if (filteredAction.isPresent()) {
+                                    logger.debug("Skipping action: {} as it has already been executed", action);
+                                    return false;
+                                } else {
+                                    return true;
+                                }
+                            })
+                            .collect(Collectors.toList());
+
             final Map<Long, ActionTargetInfo> actionAndTargetInfo =
-                actionTargetSelector.getTargetsForActions(actionPlan.getActionList().stream(),
+                actionTargetSelector.getTargetsForActions(newActions.stream(),
                     Optional.of(partialEntityMap));
 
             // Increment the relevant counters.
@@ -372,7 +416,7 @@ public class LiveActionStore implements ActionStore {
                 Metrics.SUPPORT_LEVELS.labels(supportLevel.name()).setData((double)numActions);
             });
 
-            return Collections2.transform(actionPlan.getActionList(), action -> {
+            return Collections2.transform(newActions, action -> {
                 final SupportLevel supportLevel = Optional.ofNullable(
                     actionAndTargetInfo.get(action.getId()))
                     .map(ActionTargetInfo::supportingLevel)

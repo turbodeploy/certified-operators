@@ -18,6 +18,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -41,6 +42,7 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
@@ -532,6 +534,42 @@ public class LiveActionStoreTest {
                 .map(spec -> spec.getRecommendation().getId())
                 .collect(Collectors.toList()),
             containsInAnyOrder(firstMove.getId(), secondMove.getId()));
+    }
+
+
+    @Test
+    public void testPopulateRecommendedActionsRemoveExecutedActions() throws Exception {
+        ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
+        ActionDTO.Action.Builder secondMove = move(vm2, hostB, vmType, hostC, vmType);
+        ActionDTO.Action.Builder thirdMove = move(vm3, hostC, vmType, hostA, vmType);
+
+        ActionPlan plan = ActionPlan.newBuilder()
+                .setInfo(ActionPlanInfo.newBuilder()
+                        .setMarket(MarketActionPlanInfo.newBuilder()
+                                .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                                        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                                        .setTopologyId(topologyId))))
+                .setId(firstPlanId)
+                .addAction(firstMove)
+                .addAction(secondMove)
+                .addAction(thirdMove)
+                .build();
+
+        final EntitiesAndSettingsSnapshot snapshot =
+                entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(plan.getActionList()),
+                        TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+
+        Action filteredActionSpy = spy(new Action(secondMove.build(), 1L, actionModeCalculator));
+        when(filteredActionSpy.getState()).thenReturn(ActionState.SUCCEEDED);
+        when(actionHistoryDao.getActionHistoryByDate(any(), any()))
+                .thenReturn(Collections.singletonList(filteredActionSpy));
+        actionStore.populateRecommendedActions(plan);
+        assertEquals(2, actionStore.size());
+        assertThat(actionStore.getActionViews().getAll()
+                        .map(spec -> spec.getRecommendation().getInfo())
+                        .collect(Collectors.toList()),
+                containsInAnyOrder(firstMove.getInfo(), thirdMove.getInfo()));
     }
 
     @Test
