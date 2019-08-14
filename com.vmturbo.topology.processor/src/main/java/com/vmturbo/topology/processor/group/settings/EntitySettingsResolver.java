@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.group.settings;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.util.stream.Collectors.groupingBy;
 
 import java.time.Instant;
 import java.util.Collection;
@@ -11,6 +12,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -23,12 +26,14 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
-import io.grpc.StatusRuntimeException;
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
@@ -37,6 +42,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsResponse;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -68,19 +74,29 @@ public class EntitySettingsResolver {
 
     private final SettingServiceBlockingStub settingServiceClient;
 
+    private final SettingPolicyServiceStub settingPolicyServiceAsyncStub;
+
+    private final int chunkSize;
+
     /**
      * Create a new settings manager.
      *
      * @param settingPolicyServiceClient The service to use to retrieve setting policy definitions.
      * @param groupServiceClient The service to use to retrieve group definitions.
      * @param settingServiceClient The service to use to retrieve setting service definitions.
+     * @param settingPolicyServiceAsyncStub The service to use to retrieve setting service
+     *                                      definitions asynchronously.
      */
     public EntitySettingsResolver(@Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceClient,
                                   @Nonnull final GroupServiceBlockingStub groupServiceClient,
-                                  @Nonnull final SettingServiceBlockingStub settingServiceClient) {
+                                  @Nonnull final SettingServiceBlockingStub settingServiceClient,
+                                  @Nonnull final SettingPolicyServiceStub settingPolicyServiceAsyncStub,
+                                  @Nonnull final int chunkSize) {
         this.settingPolicyServiceClient = Objects.requireNonNull(settingPolicyServiceClient);
         this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
         this.settingServiceClient = Objects.requireNonNull(settingServiceClient);
+        this.settingPolicyServiceAsyncStub = Objects.requireNonNull(settingPolicyServiceAsyncStub);
+        this.chunkSize = Objects.requireNonNull(chunkSize);
     }
 
     /**
@@ -469,21 +485,76 @@ public class EntitySettingsResolver {
      */
     public void sendEntitySettings(@Nonnull final TopologyInfo topologyInfo,
                                    @Nonnull final Collection<EntitySettings> entitiesSettings) {
+        final CountDownLatch finishLatch = new CountDownLatch(1);
         // For now, don't upload settings for non-realtime topologies.
-        if (topologyInfo.getTopologyType().equals(TopologyType.REALTIME)) {
-            final UploadEntitySettingsRequest.Builder request =
-                UploadEntitySettingsRequest.newBuilder()
-                    .setTopologyId(topologyInfo.getTopologyId())
-                    .setTopologyContextId(topologyInfo.getTopologyContextId())
-                    .addAllEntitySettings(entitiesSettings);
+        StreamObserver<UploadEntitySettingsResponse> responseObserver =
+            new StreamObserver<UploadEntitySettingsResponse>() {
 
+                @Override
+                public void onNext(final UploadEntitySettingsResponse value) {
+
+                }
+
+                @Override
+                public void onError(final Throwable t) {
+                    Status status = Status.fromThrowable(t);
+                    logger.error("Failed to upload EntitySettings map to group component"
+                        + " for topology {}, due to {}", topologyInfo, status);
+                    finishLatch.countDown();
+
+                }
+
+                @Override
+                public void onCompleted() {
+                    logger.warn("Finished uploading EntitySettings map to group component"
+                        + " for topology {}.", topologyInfo);
+                    finishLatch.countDown();
+                }
+            };
+
+        if (topologyInfo.getTopologyType().equals(TopologyType.REALTIME)) {
+            StreamObserver<UploadEntitySettingsRequest> requestObserver =
+                    settingPolicyServiceAsyncStub.uploadEntitySettings(responseObserver);
             try {
-                settingPolicyServiceClient.uploadEntitySettings(request.build());
-            } catch (StatusRuntimeException sre) {
-                logger.error("Failed to upload EntitySettings map to group component"
-                    + " for topology {}.", topologyInfo, sre);
+                streamEntitySettingsRequest(topologyInfo, entitiesSettings, requestObserver);
+            } catch (RuntimeException e) {
+                // Cancel RPC
+                requestObserver.onError(e);
+                throw e;
+            }
+            requestObserver.onCompleted();
+            try {
+                // block until we get a response or an exception occurs.
+                finishLatch.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();  // set interrupt flag
+                logger.error("Interrupted while waiting for response", e);
             }
         }
+    }
+
+    /**
+     * Stream an EntitySettingsRequest over a StreamObserver.
+     *
+     * @param topologyInfo The information about the topology which was used to resolve
+     *                    the settings.
+     * @param entitiesSettings List of EntitySettings messages
+     *
+     * @param requestObserver Stream observer on which to write the entity settings
+     */
+    @VisibleForTesting
+    void streamEntitySettingsRequest(@Nonnull final TopologyInfo topologyInfo,
+                              @Nonnull final Collection<EntitySettings> entitiesSettings,
+                              @Nonnull final StreamObserver<UploadEntitySettingsRequest> requestObserver) {
+        AtomicInteger counter = new AtomicInteger();
+        entitiesSettings.stream()
+            .collect(groupingBy(x -> counter.getAndIncrement() / chunkSize))
+            .values()
+            .forEach(chunk -> requestObserver.onNext(UploadEntitySettingsRequest.newBuilder()
+                .setTopologyId(topologyInfo.getTopologyId())
+                .setTopologyContextId(topologyInfo.getTopologyContextId())
+                .addAllEntitySettings(chunk).build()
+            ));
     }
 
     /**

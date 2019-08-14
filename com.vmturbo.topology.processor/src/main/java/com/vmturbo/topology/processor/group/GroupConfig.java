@@ -14,6 +14,7 @@ import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
@@ -54,6 +55,12 @@ public class GroupConfig {
     @Value("${discoveredGroupUploadIntervalSeconds}")
     private long discoveredGroupUploadIntervalSeconds;
 
+    /**
+     * Size of chunks for uploading entity settings to the group component.
+     */
+    @Value("${entitySettingsChunksSize}")
+    private int entitySettingsChunksSize;
+
     @Bean
     public PolicyServiceBlockingStub policyRpcService() {
         return PolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
@@ -85,6 +92,15 @@ public class GroupConfig {
     @Bean
     public SettingServiceBlockingStub settingServiceClient() {
         return SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
+    }
+
+    /**
+     * Async stub for the setting policy.
+     * @return Async Setting Policy Service client.
+     */
+    @Bean
+    public SettingPolicyServiceStub settingServiceClientAsync() {
+        return SettingPolicyServiceGrpc.newStub(groupClientConfig.groupChannel());
     }
 
     @Bean
@@ -123,7 +139,9 @@ public class GroupConfig {
     public EntitySettingsResolver settingsManager() {
         return new EntitySettingsResolver(settingPolicyServiceClient(),
                     groupServiceBlockingStub(),
-                    settingServiceClient());
+                    settingServiceClient(),
+                    settingServiceClientAsync(),
+                    entitySettingsChunksSize);
     }
 
     @Bean
