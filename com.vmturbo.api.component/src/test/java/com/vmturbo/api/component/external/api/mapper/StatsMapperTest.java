@@ -485,12 +485,12 @@ public class StatsMapperTest {
         // Stats for a data center will be collected with a group entity type of PHYSICAL_MACHINE
         StatsFilter filter =
             localStatsMapper.newPeriodStatsFilter(statPeriodApiInputDTO);
-        // All resulting commodity requests should have the related entity type of DATACENTER,
+        // All resulting commodity requests should have the related entity type of PHYSICAL_MACHINE,
         // expressed in the API format
         filter.getCommodityRequestsList().stream()
             .filter(CommodityRequest::hasRelatedEntityType)
             .map(CommodityRequest::getRelatedEntityType)
-            .forEach(relatedEntityType -> assertEquals(UIEntityType.DATACENTER.apiStr(), relatedEntityType));
+            .forEach(relatedEntityType -> assertEquals(UIEntityType.PHYSICAL_MACHINE.apiStr(), relatedEntityType));
     }
 
     @Test

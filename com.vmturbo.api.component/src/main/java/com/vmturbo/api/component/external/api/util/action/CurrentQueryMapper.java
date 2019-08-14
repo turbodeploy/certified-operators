@@ -210,7 +210,10 @@ class CurrentQueryMapper {
                     .collect(Collectors.toSet());
             }
 
-            final Set<Long> entitiesInUserScope = userScope.filter(allEntitiesInScope);
+            // if there are grouping entity like DataCenter, we should expand it to PMs to show
+            // all actions for PMs in this DataCenter
+            final Set<Long> entitiesInUserScope = userScope.filter(
+                supplyChainFetcherFactory.expandGroupingServiceEntities(allEntitiesInScope));
             return EntityScope.newBuilder()
                 .addAllOids(entitiesInUserScope)
                 .build();

@@ -183,6 +183,10 @@ public class HistoricalCommodityStatsSubQueryTest {
             .build());
         when(context.getQueryScope()).thenReturn(queryScope);
 
+        // normalize vm to vm
+        when(statsMapper.normalizeRelatedType(UIEntityType.VIRTUAL_MACHINE.apiStr())).thenReturn(
+            UIEntityType.VIRTUAL_MACHINE.apiStr());
+
         // ACT
         final Map<Long, List<StatApiDTO>> ret = query.getAggregateStats(REQ_STATS, context);
 

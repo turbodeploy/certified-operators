@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.util.action;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -96,8 +95,10 @@ public class ActionSearchUtil {
         }
 
         // create filter
-        final ActionQueryFilter filter =
-            actionSpecMapper.createActionFilter(inputDto, Optional.of(expandedScope));
+        final ActionQueryFilter filter = actionSpecMapper.createActionFilter(inputDto,
+            // if there are grouping entity like DataCenter, we should expand it to PMs to show
+            // all actions for PMs in this DataCenter
+            Optional.of(supplyChainFetcherFactory.expandGroupingServiceEntities(expandedScope)));
 
         // call the service and retrieve results
         final FilteredActionResponse response =

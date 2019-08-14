@@ -511,7 +511,11 @@ public class StatsMapper {
                         commodityRequestBuilder.addAllGroupBy(stat.getGroupBy());
                     }
                     if (stat.getRelatedEntityType() != null) {
-                        commodityRequestBuilder.setRelatedEntityType(stat.getRelatedEntityType());
+                        // since we've expanded DC to PMs, we should also set related entity type
+                        // of commodity request to PhysicalMachine, otherwise history component
+                        // will not return required data
+                        commodityRequestBuilder.setRelatedEntityType(
+                            normalizeRelatedType(stat.getRelatedEntityType()));
                     }
                     filterRequestBuilder.addCommodityRequests(commodityRequestBuilder.build());
                 }
