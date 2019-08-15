@@ -587,7 +587,7 @@ public class AuthProvider {
                     throw new AuthenticationException("AUDIT::NEGATIVE: Account is locked");
                 }
                 if (AuthUserDTO.PROVIDER.LOCAL.equals(info.provider)) {
-                    if (!CryptoFacility.checkSecureHash(info.passwordHash, password)) {
+                    if (!HashAuthUtils.checkSecureHash(info.passwordHash, password)) {
                         logger_.warn("AUDIT::FAILURE:AUTH: Invalid credentials provided for user: " + userName);
                         throw new AuthenticationException("AUDIT::NEGATIVE: The User Name or Password is Incorrect");
                     }
@@ -640,7 +640,7 @@ public class AuthProvider {
                     throw new AuthenticationException("AUDIT::NEGATIVE: Account is locked");
                 }
                 if (AuthUserDTO.PROVIDER.LOCAL.equals(info.provider)) {
-                    if (!CryptoFacility.checkSecureHash(info.passwordHash, password)) {
+                    if (!HashAuthUtils.checkSecureHash(info.passwordHash, password)) {
                         // removed "Hash mismatch" to avoid leaking internal authentication algorithm
                         logger_.warn("AUDIT::FAILURE:AUTH: Invalid credentials provided for user: " + userName);
                         throw new AuthenticationException("AUDIT::NEGATIVE: " +
@@ -781,7 +781,7 @@ public class AuthProvider {
             info.provider = provider;
             info.userName = userName;
             if (AuthUserDTO.PROVIDER.LOCAL.equals(provider)) {
-                info.passwordHash = CryptoFacility.secureHash(password);
+                info.passwordHash = HashAuthUtils.secureHash(password);
             }
             info.uuid = String.valueOf(IdentityGenerator.next());
             info.unlocked = true;
@@ -884,14 +884,14 @@ public class AuthProvider {
             UserInfo info = GSON.fromJson(jsonData, UserInfo.class);
             // Check the authentication.
             // We add this bypass, since MT does not provide the existing password.
-            if (password != null && !CryptoFacility.checkSecureHash(info.passwordHash, password)) {
+            if (password != null && !HashAuthUtils.checkSecureHash(info.passwordHash, password)) {
                 throw new SecurityException("AUDIT::NEGATIVE: Password mismatch");
             }
             // Update password if necessary.
             if (passwordNew.isEmpty()) {
                 throw new SecurityException("Empty new password");
             }
-            info.passwordHash = CryptoFacility.secureHash(passwordNew);
+            info.passwordHash = HashAuthUtils.secureHash(passwordNew);
             // Update KV store.
             putKVValue(composeUserInfoKey(AuthUserDTO.PROVIDER.LOCAL, userName), GSON.toJson(info));
             logger_.info("AUDIT::SUCCESS: Success modifying user: " + userName);

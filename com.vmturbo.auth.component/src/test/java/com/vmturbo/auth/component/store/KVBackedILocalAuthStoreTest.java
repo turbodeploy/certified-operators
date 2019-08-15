@@ -155,7 +155,7 @@ public class KVBackedILocalAuthStoreTest {
         AuthProvider.UserInfo
                 info = GSON.fromJson(jsonData.get(), AuthProvider.UserInfo.class);
 
-        Assert.assertTrue(CryptoFacility.checkSecureHash(info.passwordHash, "password0"));
+        Assert.assertTrue(HashAuthUtils.checkSecureHash(info.passwordHash, "password0"));
         Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
         Assert.assertEquals(ImmutableList.of(1L), info.scopeGroups);
     }
@@ -232,7 +232,7 @@ public class KVBackedILocalAuthStoreTest {
         AuthProvider.UserInfo
                 info = GSON.fromJson(jsonData.get(), AuthProvider.UserInfo.class);
 
-        Assert.assertTrue(CryptoFacility.checkSecureHash(info.passwordHash, "password0"));
+        Assert.assertTrue(HashAuthUtils.checkSecureHash(info.passwordHash, "password0"));
         Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
         Assert.assertEquals(ImmutableList.of(1L), info.scopeGroups);
 
@@ -256,7 +256,7 @@ public class KVBackedILocalAuthStoreTest {
         AuthProvider.UserInfo
                 info = GSON.fromJson(jsonData.get(), AuthProvider.UserInfo.class);
 
-        Assert.assertTrue(CryptoFacility.checkSecureHash(info.passwordHash, "password0"));
+        Assert.assertTrue(HashAuthUtils.checkSecureHash(info.passwordHash, "password0"));
         Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
         Assert.assertEquals(ImmutableList.of(1L), info.scopeGroups);
 
@@ -365,7 +365,7 @@ public class KVBackedILocalAuthStoreTest {
         AuthProvider.UserInfo
                 info = GSON.fromJson(jsonData.get(), AuthProvider.UserInfo.class);
 
-        Assert.assertTrue(CryptoFacility.checkSecureHash(info.passwordHash, "password1"));
+        Assert.assertTrue(HashAuthUtils.checkSecureHash(info.passwordHash, "password1"));
         Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
         Assert.assertEquals(ImmutableList.of(1L), info.scopeGroups);
     }
@@ -390,7 +390,7 @@ public class KVBackedILocalAuthStoreTest {
         AuthProvider.UserInfo
                 info = GSON.fromJson(jsonData.get(), AuthProvider.UserInfo.class);
 
-        Assert.assertTrue(CryptoFacility.checkSecureHash(info.passwordHash, "password0"));
+        Assert.assertTrue(HashAuthUtils.checkSecureHash(info.passwordHash, "password0"));
         Assert.assertEquals(ImmutableList.of("ADMIN2", "USER2"), info.roles);
         Assert.assertEquals(ImmutableList.of(2L), info.scopeGroups);
     }
@@ -466,7 +466,7 @@ public class KVBackedILocalAuthStoreTest {
         AuthProvider.UserInfo
                 info = GSON.fromJson(jsonData.get(), AuthProvider.UserInfo.class);
 
-        Assert.assertTrue(CryptoFacility.checkSecureHash(info.passwordHash, "password0"));
+        Assert.assertTrue(HashAuthUtils.checkSecureHash(info.passwordHash, "password0"));
         Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
 
         Assert.assertNotNull(store.authenticate("user0", "password0"));
@@ -493,7 +493,7 @@ public class KVBackedILocalAuthStoreTest {
         AuthProvider.UserInfo
                 info = GSON.fromJson(jsonData.get(), AuthProvider.UserInfo.class);
 
-        Assert.assertTrue(CryptoFacility.checkSecureHash(info.passwordHash, "password0"));
+        Assert.assertTrue(HashAuthUtils.checkSecureHash(info.passwordHash, "password0"));
         Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
 
         Assert.assertNotNull(store.authenticate("user0", "password0"));
