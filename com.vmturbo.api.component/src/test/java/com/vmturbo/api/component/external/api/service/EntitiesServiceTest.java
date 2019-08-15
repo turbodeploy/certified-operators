@@ -29,7 +29,6 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
@@ -40,6 +39,7 @@ import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
+import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -110,6 +110,8 @@ public class EntitiesServiceTest {
             mock(SupplyChainFetcherFactory.class);
 
     private RepositoryApi repositoryApi = mock(RepositoryApi.class);
+
+    private EntitySettingQueryExecutor entitySettingQueryExecutor = mock(EntitySettingQueryExecutor.class);
 
     // gRPC servers
     @Rule
@@ -213,10 +215,9 @@ public class EntitiesServiceTest {
                 uuidMapper,
                 StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                SettingServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 mock(SettingsMapper.class),
                 actionSearchUtil,
-                repositoryApi);
+                repositoryApi, entitySettingQueryExecutor);
     }
 
     /**

@@ -9,6 +9,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -42,14 +43,14 @@ import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRespo
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup.SettingPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingToPolicyName;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
@@ -744,14 +745,72 @@ public class SettingPolicyRpcServiceTest {
         verify(responseObserver).onCompleted();
 
         final GetEntitySettingsResponse response = respCaptor.getValue();
-        final List<SettingsForEntity> settingList = response.getSettingsList();
-        assertEquals(1, settingList.size());
-        final SettingsForEntity settingsForEntity = settingList.get(0);
-        assertEquals(7L, settingsForEntity.getEntityId());
-        assertThat(settingsForEntity.getSettingsList().stream()
-                        .map(SettingToPolicyName::getSetting)
-                        .collect(Collectors.toList()),
-                containsInAnyOrder(settingToPolicyId.getSetting()));
+        final List<EntitySettingGroup> settingGroupList = response.getSettingGroupList();
+        assertEquals(1, settingGroupList.size());
+        final EntitySettingGroup settingGroup = settingGroupList.get(0);
+        assertThat(settingGroup.getSetting(), is(settingToPolicyId.getSetting()));
+        assertThat(settingGroup.hasPolicyId(), is(false));
+        assertThat(settingGroup.getEntityOidsList(), containsInAnyOrder(7L));
+    }
+
+    @Test
+    public void testGetEntitySettingsWithPolicy() throws NoSettingsForTopologyException {
+        final StreamObserver<GetEntitySettingsResponse> responseObserver =
+            (StreamObserver<GetEntitySettingsResponse>)mock(StreamObserver.class);
+
+        final TopologySelection topologyFilter = TopologySelection.newBuilder()
+            .setTopologyId(7L)
+            .setTopologyContextId(8L)
+            .build();
+
+        final EntitySettingFilter settingsFilter = EntitySettingFilter.newBuilder()
+            .addEntities(7L)
+            .build();
+
+        final Setting setting = Setting.newBuilder()
+            .setSettingSpecName("name")
+            .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+            .build();
+
+        final SettingToPolicyId settingToPolicyId = SettingToPolicyId.newBuilder()
+            .setSetting(setting)
+            .setSettingPolicyId(1L)
+            .build();
+
+        when(entitySettingStore.getEntitySettings(eq(topologyFilter), eq(settingsFilter)))
+            .thenReturn(ImmutableMap.of(7L, Collections.singletonList(settingToPolicyId)));
+
+        when(settingStore.getSettingPolicies(any())).thenReturn(
+            Stream.of(SettingPolicy.newBuilder()
+                .setId(1L)
+                .setSettingPolicyType(Type.DISCOVERED)
+                .setInfo(SettingPolicyInfo.newBuilder()
+                    .setName("Test-SP")
+                    .build())
+                .build()));
+
+        settingPolicyService.getEntitySettings(GetEntitySettingsRequest.newBuilder()
+            .setTopologySelection(topologyFilter)
+            .setSettingFilter(settingsFilter)
+            .setIncludeSettingPolicies(true)
+            .build(), responseObserver);
+
+        final ArgumentCaptor<GetEntitySettingsResponse> respCaptor =
+            ArgumentCaptor.forClass(GetEntitySettingsResponse.class);
+        verify(responseObserver).onNext(respCaptor.capture());
+        verify(responseObserver).onCompleted();
+
+        final GetEntitySettingsResponse response = respCaptor.getValue();
+        final List<EntitySettingGroup> settingGroupList = response.getSettingGroupList();
+        assertEquals(1, settingGroupList.size());
+        final EntitySettingGroup settingGroup = settingGroupList.get(0);
+        assertThat(settingGroup.getSetting(), is(settingToPolicyId.getSetting()));
+        assertThat(settingGroup.getPolicyId(), is(SettingPolicyId.newBuilder()
+            .setPolicyId(1L)
+            .setDisplayName("Test-SP")
+            .setType(Type.DISCOVERED)
+            .build()));
+        assertThat(settingGroup.getEntityOidsList(), containsInAnyOrder(7L));
     }
 
     @Test
@@ -769,17 +828,8 @@ public class SettingPolicyRpcServiceTest {
                 .setSettingFilter(settingsFilter)
                 .build(), responseObserver);
 
-        final ArgumentCaptor<GetEntitySettingsResponse> respCaptor =
-                ArgumentCaptor.forClass(GetEntitySettingsResponse.class);
-        verify(responseObserver).onNext(respCaptor.capture());
+        verify(responseObserver, never()).onNext(any());
         verify(responseObserver).onCompleted();
-
-        final GetEntitySettingsResponse response = respCaptor.getValue();
-        final List<SettingsForEntity> settingList = response.getSettingsList();
-        assertEquals(1, settingList.size());
-        final SettingsForEntity settingsForEntity = settingList.get(0);
-        assertEquals(7L, settingsForEntity.getEntityId());
-        assertTrue(settingsForEntity.getSettingsList().isEmpty());
     }
 
     @Test

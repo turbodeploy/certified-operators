@@ -53,6 +53,7 @@ import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers
 import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
+import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
@@ -162,6 +163,9 @@ public class GroupsServiceTest {
     private ThinTargetCache targetCache;
 
     @Mock
+    private EntitySettingQueryExecutor entitySettingQueryExecutor;
+
+    @Mock
     private SupplyChainFetcherFactory supplyChainFetcherFactory;
 
     @Captor
@@ -215,7 +219,7 @@ public class GroupsServiceTest {
                 actionSearchUtil,
                 settingPolicyServiceBlockingStub,
                 settingsMapper,
-                targetCache);
+                targetCache, entitySettingQueryExecutor);
 
         groupFilterApiDTO.setFilterType(GROUP_FILTER_TYPE);
         groupFilterApiDTO.setExpVal(GROUP_TEST_PATTERN);

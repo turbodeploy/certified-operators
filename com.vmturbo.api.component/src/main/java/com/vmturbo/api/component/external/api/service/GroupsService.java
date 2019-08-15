@@ -49,11 +49,10 @@ import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
-import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMemberOrderBy;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
+import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -80,6 +79,7 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest;
+import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMemberOrderBy;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMembersPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
@@ -123,13 +123,17 @@ import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlock
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupResponse;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Service implementation of Groups functionality.
@@ -195,6 +199,8 @@ public class GroupsService implements IGroupsService {
 
     private final ThinTargetCache thinTargetCache;
 
+    private final EntitySettingQueryExecutor entitySettingQueryExecutor;
+
     private final Logger logger = LogManager.getLogger();
 
     GroupsService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
@@ -213,7 +219,8 @@ public class GroupsService implements IGroupsService {
                   @Nonnull final ActionSearchUtil actionSearchUtil,
                   @Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub,
                   @Nonnull final SettingsMapper settingsMapper,
-                  @Nonnull final ThinTargetCache thinTargetCache) {
+                  @Nonnull final ThinTargetCache thinTargetCache,
+                  @Nonnull final EntitySettingQueryExecutor entitySettingQueryExecutor) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.groupMapper = Objects.requireNonNull(groupMapper);
@@ -231,6 +238,7 @@ public class GroupsService implements IGroupsService {
         this.actionSearchUtil = Objects.requireNonNull(actionSearchUtil);
         this.settingsMapper = Objects.requireNonNull(settingsMapper);
         this.thinTargetCache = Objects.requireNonNull(thinTargetCache);
+        this.entitySettingQueryExecutor = entitySettingQueryExecutor;
     }
 
     /**
@@ -379,39 +387,10 @@ public class GroupsService implements IGroupsService {
 
     @Override
     public List<SettingsManagerApiDTO> getSettingsByGroupUuid(String uuid, boolean includePolicies) throws Exception {
-        Long groupId = null;
-
-        try {
-            groupId = Long.parseLong(uuid);
-        } catch (NumberFormatException e) {
-            // UUID is not a number.
-            // FIXME There is a UI bug that sends in "GROUP-PhysicalMachineByCluster". (OM-30275)
-            // If value is "GROUP-PhysicalMachineByCluster", ignore the request by returning an empty array.
-            // Otherwise, throw exception.
-            if (CLUSTER_HEADROOM_GROUP_UUID.equals(uuid)) {
-                return new ArrayList<>();
-            } else {
-                throw new IllegalArgumentException("Cluster uuid is invalid: " + uuid, e);
-            }
-        }
-
-        Group group = groupServiceRpc.getGroup(GroupID.newBuilder()
-                .setId(groupId)
-                .build()).getGroup();
-
-        if (group.getType().equals(Type.CLUSTER)) {
-            // Group is a cluster.  Return the cluster headroom template as a setting, wrapped in
-            // the SettingsManagerApiDTO data structure.
-            SettingsManagerInfo managerInfo = settingsManagerMapping
-                    .getManagerInfo(CLUSTER_HEADROOM_SETTINGS_MANAGER)
-                    .orElseThrow(() -> new UnknownObjectException("Settings manager with uuid "
-                            + uuid + " is not found."));
-
-            return getHeadroomSettingsMangerApiDTO(managerInfo, getTemplateSetting(group));
-        } else {
-            // TODO: OM-23672
-            return new ArrayList<>();
-        }
+        final ApiId id = uuidMapper.fromUuid(uuid);
+        final List<SettingsManagerApiDTO> mgrs =
+            entitySettingQueryExecutor.getEntitySettings(id, includePolicies);
+        return mgrs;
     }
 
     /**
@@ -732,11 +711,29 @@ public class GroupsService implements IGroupsService {
     }
 
     @Override
-    public List<ServiceEntityApiDTO> getSettingsPolicyEntitiesBySetting(String uuid,
+    public List<ServiceEntityApiDTO> getSettingsPolicyEntitiesBySetting(String groupUuid,
                                                                         String automationManagerUuid,
                                                                         String settingUuid,
                                                                         String settingPolicyUuid) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        // TODO (roman, Aug 8 2019): Modify the entity settings RPC to allow putting in a group
+        // UUID directly.
+        final Set<Long> groupMembers = groupExpander.expandUuid(groupUuid);
+
+        final Set<Long> entitiesInGroupAffectedByPolicy = SettingDTOUtil.flattenEntitySettings(
+            settingPolicyServiceBlockingStub.getEntitySettings(GetEntitySettingsRequest.newBuilder()
+                .setSettingFilter(EntitySettingFilter.newBuilder()
+                    // Restrict to entities in the group
+                    .addAllEntities(groupMembers)
+                    // Affected by the specific policy
+                    .setPolicyId(Long.parseLong(settingPolicyUuid))
+                    // For a specific setting (note - this is just to reduce the size of the
+                    // response).
+                    .addSettingName(StringUtils.strip(settingUuid)))
+                .build()))
+                .flatMap(settingGroup -> settingGroup.getEntityOidsList().stream())
+            .collect(Collectors.toSet());
+
+        return repositoryApi.entitiesRequest(entitiesInGroupAffectedByPolicy).getSEList();
     }
 
     @Override

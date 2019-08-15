@@ -2,6 +2,8 @@ package com.vmturbo.components.common.setting;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -16,17 +18,21 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
@@ -38,8 +44,60 @@ import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
  */
 public final class SettingDTOUtil {
 
+    private static final Logger logger = LogManager.getLogger();
+
 
     private SettingDTOUtil() {
+    }
+
+    /**
+     * Arrange the settings represented by a set of {@link EntitySettingGroup} by entity
+     * and setting spec name. This is useful if you need to look up settings for specific
+     * entities.
+     *
+     * @param settingGroups A stream of {@link EntitySettingGroup} objects.
+     * @return A map of (entity id) -> (setting spec name) -> (setting for that entity and spec name).
+     */
+    @Nonnull
+    public static Map<Long, Map<String, Setting>> indexSettingsByEntity(
+            @Nonnull final Stream<EntitySettingGroup> settingGroups) {
+        final Map<Long, Map<String, Setting>> settingsByEntityAndName = new HashMap<>();
+        final Map<Long, Set<String>> entitiesWithMultipleSettings = new HashMap<>();
+        settingGroups.forEach(settingGroup -> {
+            final Setting setting = settingGroup.getSetting();
+            settingGroup.getEntityOidsList().forEach(entityId -> {
+                final Map<String, Setting> settingsForEntity =
+                    settingsByEntityAndName.computeIfAbsent(entityId, k -> new HashMap<>());
+                final Setting existingSetting = settingsForEntity.putIfAbsent(
+                    setting.getSettingSpecName(), setting);
+                if (existingSetting != null) {
+                    entitiesWithMultipleSettings.computeIfAbsent(entityId, k -> new HashSet<>())
+                        .add(setting.getSettingSpecName());
+                }
+            });
+        });
+
+        if (!entitiesWithMultipleSettings.isEmpty()) {
+            logger.warn("The following entities had some settings with multiple values." +
+                " We always chose the first encountered value. {}", entitiesWithMultipleSettings);
+        }
+
+        return settingsByEntityAndName;
+    }
+
+    /**
+     * Convert an iterator over {@link GetEntitySettingsResponse} objects (returned by a gRPC call)
+     * to a stream of the contained {@link EntitySettingGroup} objects.
+     *
+     * @param settingsResponseIterator The iterator returned by the gRPC call.
+     * @return A stream of {@link EntitySettingGroup} objects returned by the server.
+     */
+    @Nonnull
+    public static Stream<EntitySettingGroup> flattenEntitySettings(
+            @Nonnull final Iterator<GetEntitySettingsResponse> settingsResponseIterator) {
+        final Iterable<GetEntitySettingsResponse> it = () -> settingsResponseIterator;
+        return StreamSupport.stream(it.spliterator(), false)
+            .flatMap(resp -> resp.getSettingGroupList().stream());
     }
 
     /**
@@ -167,21 +225,6 @@ public final class SettingDTOUtil {
             .filter(sp -> sp.hasInfo() && sp.getInfo().hasEntityType())
             .collect(Collectors.toMap(sp -> sp.getInfo().getEntityType(), Function.identity()));
 
-    }
-
-    /**
-     * Convert an iterator over {@link GetEntitySettingsResponse} objects (returned by
-     * a gRPC call) to a stream of the contained {@link SettingsForEntity} objects.
-     *
-     * @param iterator The iterator returned by the gRPC call - represents the server stream.
-     * @return A stream of {@link SettingsForEntity} objects returned by the server.
-     */
-    @Nonnull
-    public static Stream<SettingsForEntity> flattenEntitySettings(
-            @Nonnull final Iterator<GetEntitySettingsResponse> iterator) {
-        final Iterable<GetEntitySettingsResponse> respIt = () -> iterator;
-        return StreamSupport.stream(respIt.spliterator(), false)
-            .flatMap(resp -> resp.getSettingsList().stream());
     }
 
     /**

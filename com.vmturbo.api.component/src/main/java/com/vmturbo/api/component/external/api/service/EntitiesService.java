@@ -14,7 +14,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
@@ -47,6 +46,7 @@ import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
+import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.api.constraints.ConstraintApiDTO;
 import com.vmturbo.api.constraints.ConstraintApiInputDTO;
 import com.vmturbo.api.controller.GroupsController;
@@ -82,14 +82,8 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingToPolicyName;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
-import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
@@ -102,7 +96,6 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTOREST.GroupDTO.ConstraintType;
 
 public class EntitiesService implements IEntitiesService {
@@ -141,13 +134,13 @@ public class EntitiesService implements IEntitiesService {
 
     private final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub;
 
-    private final SettingServiceBlockingStub settingServiceBlockingStub;
-
     private final SettingsMapper settingsMapper;
 
     private final ActionSearchUtil actionSearchUtil;
 
     private final RepositoryApi repositoryApi;
+
+    private final EntitySettingQueryExecutor entitySettingQueryExecutor;
 
     // Entity types which are not part of Host or Storage Cluster.
     private static final ImmutableSet<String> NON_CLUSTER_ENTITY_TYPES =
@@ -190,29 +183,27 @@ public class EntitiesService implements IEntitiesService {
                     UIEntityType.PHYSICAL_MACHINE.apiStr()));
 
     public EntitiesService(
-            @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
-            @Nonnull final ActionSpecMapper actionSpecMapper,
-            final long realtimeTopologyContextId,
-            @Nonnull final SupplyChainFetcherFactory supplyChainFetcher,
-            @Nonnull final GroupServiceBlockingStub groupServiceClient,
-            @Nonnull final EntityAspectMapper entityAspectMapper,
-            @Nonnull final SeverityPopulator severityPopulator,
-            @Nonnull final StatsService statsService,
-            @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
-            @Nonnull final UuidMapper uuidMapper,
-            @Nonnull final StatsHistoryServiceBlockingStub statsHistoryService,
-            @Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub,
-            @Nonnull final SettingServiceBlockingStub settingServiceBlockingStub,
-            @Nonnull final SettingsMapper settingsMapper,
-            @Nonnull final ActionSearchUtil actionSearchUtil,
-            @Nonnull final RepositoryApi repositoryApi) {
+        @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
+        @Nonnull final ActionSpecMapper actionSpecMapper,
+        final long realtimeTopologyContextId,
+        @Nonnull final SupplyChainFetcherFactory supplyChainFetcher,
+        @Nonnull final GroupServiceBlockingStub groupServiceClient,
+        @Nonnull final EntityAspectMapper entityAspectMapper,
+        @Nonnull final SeverityPopulator severityPopulator,
+        @Nonnull final StatsService statsService,
+        @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
+        @Nonnull final UuidMapper uuidMapper,
+        @Nonnull final StatsHistoryServiceBlockingStub statsHistoryService,
+        @Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub,
+        @Nonnull final SettingsMapper settingsMapper,
+        @Nonnull final ActionSearchUtil actionSearchUtil,
+        @Nonnull final RepositoryApi repositoryApi, final EntitySettingQueryExecutor entitySettingQueryExecutor) {
         this.actionOrchestratorRpcService = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.supplyChainFetcher = Objects.requireNonNull(supplyChainFetcher);
         this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
         this.settingPolicyServiceBlockingStub = Objects.requireNonNull(settingPolicyServiceBlockingStub);
-        this.settingServiceBlockingStub = Objects.requireNonNull(settingServiceBlockingStub);
         this.entityAspectMapper = Objects.requireNonNull(entityAspectMapper);
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.statsService = Objects.requireNonNull(statsService);
@@ -222,6 +213,7 @@ public class EntitiesService implements IEntitiesService {
         this.settingsMapper = Objects.requireNonNull(settingsMapper);
         this.actionSearchUtil = Objects.requireNonNull(actionSearchUtil);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
+        this.entitySettingQueryExecutor = entitySettingQueryExecutor;
     }
 
     @Override
@@ -410,40 +402,10 @@ public class EntitiesService implements IEntitiesService {
      */
     @Override
     public List<SettingsManagerApiDTO> getSettingsByEntityUuid(String uuid, boolean includePolicies) throws Exception {
-        GetEntitySettingsRequest request =
-                GetEntitySettingsRequest.newBuilder()
-                        .setSettingFilter(EntitySettingFilter.newBuilder()
-                                .addEntities(Long.valueOf(uuid))
-                                .setIncludeSettingPolicies(includePolicies)
-                                .build())
-                        .build();
-
-        final Optional<SettingsForEntity> entitySettings = SettingDTOUtil.flattenEntitySettings(
-            settingPolicyServiceBlockingStub.getEntitySettings(request))
-                .filter(settingsForEntity -> settingsForEntity.hasEntityId()
-                    && settingsForEntity.getEntityId()==Long.valueOf(uuid))
-                .findFirst();
-
-        if (!entitySettings.isPresent()) {
-            return Collections.emptyList();
-        }
-
-        // Mapping from SettingSpecName -> List of settings of that spec type.
-        Map<String, List<SettingToPolicyName>> settingSpecNameToSettingsMap =
-                entitySettings.get().getSettingsList()
-                        .stream()
-                        .collect(Collectors.groupingBy(settingToPolicyName ->
-                                settingToPolicyName.getSetting().getSettingSpecName()));
-
-        final Iterable<SettingSpec> specIt = () -> settingServiceBlockingStub.searchSettingSpecs(
-                SearchSettingSpecsRequest.newBuilder()
-                        .addAllSettingSpecName(settingSpecNameToSettingsMap.keySet())
-                        .build());
-
-        final Map<String, SettingSpec> specs = StreamSupport.stream(specIt.spliterator(), false)
-                .collect(Collectors.toMap(SettingSpec::getName, Function.identity()));
-
-        return settingsMapper.toManagerDtos(settingSpecNameToSettingsMap, specs);
+        final ApiId id = uuidMapper.fromUuid(uuid);
+        final List<SettingsManagerApiDTO> retMgrs =
+            entitySettingQueryExecutor.getEntitySettings(id, includePolicies);
+        return retMgrs;
     }
 
     @Override
