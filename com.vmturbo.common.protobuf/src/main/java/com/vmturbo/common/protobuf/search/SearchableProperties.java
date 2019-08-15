@@ -40,5 +40,9 @@ public class SearchableProperties {
 
     public static final String PM_INFO_TIMEZONE = "timezone";
 
+    public static final String DS_INFO_REPO_DTO_PROPERTY_NAME = "storageInfoRepoDTO";
+
+    public static final String DS_LOCAL = "local";
+
     private SearchableProperties() {}
 }
