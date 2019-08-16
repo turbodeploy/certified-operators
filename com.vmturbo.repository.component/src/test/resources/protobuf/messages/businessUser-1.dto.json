@@ -1,0 +1,13 @@
+{
+  "entityType": 17,
+  "oid": 102,
+  "displayName": "corp.vmturbo.com\\horizon-user-01",
+  "typeSpecificInfo": {
+    "businessUser": {
+      "vmOidToSessionDuration": {
+        "101": 1000000,
+        "102": 2000000
+      }
+    }
+  }
+}

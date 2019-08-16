@@ -65,6 +65,8 @@ public class ServiceEntityRepoDTO {
     private VirtualMachineInfoRepoDTO virtualMachineInfoRepoDTO;
     private VirtualVolumeInfoRepoDTO virtualVolumeInfoRepoDTO;
     private BusinessAccountInfoRepoDTO businessAccountInfoRepoDTO;
+    private DesktopPoolInfoRepoDTO desktopPoolInfoRepoDTO;
+    private BusinessUserInfoRepoDTO businessUserInfoRepoDTO;
 
     public String getUuid() {
         return uuid;
@@ -282,6 +284,22 @@ public class ServiceEntityRepoDTO {
         this.entityPipelineErrorsRepoDTO = entityPipelineErrorsRepoDTO;
     }
 
+    public DesktopPoolInfoRepoDTO getDesktopPoolInfoRepoDTO() {
+        return desktopPoolInfoRepoDTO;
+    }
+
+    public void setDesktopPoolInfoRepoDTO(DesktopPoolInfoRepoDTO desktopPoolInfoRepoDTO) {
+        this.desktopPoolInfoRepoDTO = desktopPoolInfoRepoDTO;
+    }
+
+    public BusinessUserInfoRepoDTO getBusinessUserInfoRepoDTO() {
+        return businessUserInfoRepoDTO;
+    }
+
+    public void setBusinessUserInfoRepoDTO(BusinessUserInfoRepoDTO businessUserInfoRepoDTO) {
+        this.businessUserInfoRepoDTO = businessUserInfoRepoDTO;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
@@ -313,7 +331,9 @@ public class ServiceEntityRepoDTO {
                 Objects.equals(storageControllerInfoRepoDTO, that.storageControllerInfoRepoDTO) &&
                 Objects.equals(virtualMachineInfoRepoDTO, that.virtualMachineInfoRepoDTO) &&
                 Objects.equals(virtualVolumeInfoRepoDTO, that.virtualVolumeInfoRepoDTO) &&
-                Objects.equals(businessAccountInfoRepoDTO, that.businessAccountInfoRepoDTO);
+                Objects.equals(businessAccountInfoRepoDTO, that.businessAccountInfoRepoDTO) &&
+                Objects.equals(desktopPoolInfoRepoDTO, that.desktopPoolInfoRepoDTO) &&
+                Objects.equals(businessUserInfoRepoDTO, that.businessUserInfoRepoDTO);
     }
 
     @Override
@@ -324,7 +344,8 @@ public class ServiceEntityRepoDTO {
             targetIds, applicationInfoRepoDTO, databaseInfoRepoDTO, computeTierInfoRepoDTO,
             physicalMachineInfoRepoDTO, storageInfoRepoDTO, diskArrayInfoRepoDTO,
             logicalPoolInfoRepoDTO, storageControllerInfoRepoDTO, virtualMachineInfoRepoDTO,
-            virtualVolumeInfoRepoDTO, businessAccountInfoRepoDTO);
+            virtualVolumeInfoRepoDTO, businessAccountInfoRepoDTO, desktopPoolInfoRepoDTO,
+            businessUserInfoRepoDTO);
     }
 
     @Override
@@ -356,6 +377,8 @@ public class ServiceEntityRepoDTO {
                 ", virtualMachineInfoRepoDTO=" + virtualMachineInfoRepoDTO +
                 ", virtualVolumeInfoRepoDTO=" + virtualVolumeInfoRepoDTO +
                 ", businessAccountInfoRepoDTO=" + businessAccountInfoRepoDTO +
+                ", businessUserInfoRepoDTO=" + businessUserInfoRepoDTO +
+                ", desktopPoolInfoRepoDTO=" + desktopPoolInfoRepoDTO +
                 ", entityPipelineErrorsRepoDTO=" + entityPipelineErrorsRepoDTO +
                 '}';
     }
