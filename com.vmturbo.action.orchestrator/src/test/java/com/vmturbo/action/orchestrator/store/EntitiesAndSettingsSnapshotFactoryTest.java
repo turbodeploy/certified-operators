@@ -33,10 +33,9 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingToPolicyName;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
@@ -101,12 +100,10 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
                         .addEntities(ENTITY_ID))
                 .build()))
             .thenReturn(Collections.singletonList(GetEntitySettingsResponse.newBuilder()
-                    .addSettings(SettingsForEntity.newBuilder()
-                            .setEntityId(ENTITY_ID)
-                            .addSettings(SettingToPolicyName.newBuilder()
-                                    .setSetting(setting)
-                                    .build()))
-                    .build()));
+                .addSettingGroup(EntitySettingGroup.newBuilder()
+                    .setSetting(setting)
+                    .addEntityOids(ENTITY_ID))
+                .build()));
 
         when(restTemplate.exchange(anyString(), eq(HttpMethod.POST), eq(httpEntity), eq(type)))
                 .thenReturn(ResponseEntity.ok(Collections.singletonList(entityDto)));

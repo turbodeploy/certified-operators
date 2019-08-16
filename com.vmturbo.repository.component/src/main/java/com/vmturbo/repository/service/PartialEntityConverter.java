@@ -1,8 +1,15 @@
 package com.vmturbo.repository.service;
 
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
@@ -13,8 +20,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPart
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.TypeSpecificPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 
 /**
@@ -22,6 +33,8 @@ import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
  * appropriate detail levels.
  */
 public class PartialEntityConverter {
+
+    private final Logger logger = LogManager.getLogger();
 
     /**
      * Create a {@link PartialEntity} from a {@link RepoGraphEntity}.
@@ -59,6 +72,14 @@ public class PartialEntityConverter {
                         actionEntityBldr.addCommoditySold(comm);
                     }
                 });
+                List<Integer> providerEntityTypes = repoGraphEntity.getProviders().stream()
+                    .map(RepoGraphEntity::getEntityType).collect(Collectors.toList());
+                Optional<Integer> primaryProviderIndex = TopologyDTOUtil.getPrimaryProviderIndex(
+                    repoGraphEntity.getEntityType(), repoGraphEntity.getOid(), providerEntityTypes);
+                primaryProviderIndex.ifPresent(index -> {
+                    long providerId = repoGraphEntity.getProviders().get(index).getOid();
+                    actionEntityBldr.setPrimaryProviderId(providerId);
+                });
                 partialEntityBldr.setAction(actionEntityBldr);
                 break;
             case API:
@@ -82,6 +103,15 @@ public class PartialEntityConverter {
                     apiBldr.addProviders(relatedEntity(provider));
                 });
                 partialEntityBldr.setApi(apiBldr);
+                break;
+            case TYPE_SPECIFIC:
+                final TypeSpecificPartialEntity.Builder typeSpecificBuilder =
+                    TypeSpecificPartialEntity.newBuilder()
+                        .setOid(repoGraphEntity.getOid())
+                        .setDisplayName(repoGraphEntity.getDisplayName())
+                        .setEntityType(repoGraphEntity.getEntityType())
+                        .setTypeSpecificInfo(repoGraphEntity.getTypeSpecificInfo());
+                partialEntityBldr.setTypeSpecific(typeSpecificBuilder);
                 break;
             default:
                 throw new IllegalArgumentException("Invalid partial entity type: " + type);
@@ -129,6 +159,15 @@ public class PartialEntityConverter {
                     .filter(comm -> ActionDTOUtil.NON_DISRUPTIVE_SETTING_COMMODITIES.contains(
                         comm.getCommodityType().getType()))
                     .forEach(actionEntityBldr::addCommoditySold);
+                List<Integer> providerEntityTypes = topoEntity.getCommoditiesBoughtFromProvidersList().stream()
+                    .map(commBoughtFromProvider -> commBoughtFromProvider.getProviderEntityType())
+                    .collect(Collectors.toList());
+                Optional<Integer> primaryProviderIndex = TopologyDTOUtil.getPrimaryProviderIndex(
+                    topoEntity.getEntityType(), topoEntity.getOid(), providerEntityTypes);
+                primaryProviderIndex.ifPresent(index -> {
+                    long primaryProviderId = topoEntity.getCommoditiesBoughtFromProvidersList().get(index).getProviderId();
+                    actionEntityBldr.setPrimaryProviderId(primaryProviderId);
+                });
                 partialEntityBldr.setAction(actionEntityBldr);
                 break;
             case API:
@@ -155,6 +194,15 @@ public class PartialEntityConverter {
                         .build());
                 });
                 partialEntityBldr.setApi(apiBldr);
+                break;
+            case TYPE_SPECIFIC:
+                final TypeSpecificPartialEntity.Builder typeSpecificBuilder =
+                    TypeSpecificPartialEntity.newBuilder()
+                        .setOid(topoEntity.getOid())
+                        .setDisplayName(topoEntity.getDisplayName())
+                        .setEntityType(topoEntity.getEntityType())
+                        .setTypeSpecificInfo(topoEntity.getTypeSpecificInfo());
+                partialEntityBldr.setTypeSpecific(typeSpecificBuilder);
                 break;
             default:
                 throw new IllegalArgumentException("Invalid partial entity type: " + type);

@@ -58,7 +58,7 @@ public class RIStatsSubQuery implements StatsSubQuery {
     public boolean applicableInContext(@Nonnull final StatsQueryContext context) {
         // Doesn't seem like it should support plan, because the backend doesn't allow specifying
         // the plan ID.
-        return !context.getScope().isPlan() &&
+        return !context.getInputScope().isPlan() &&
             // Right now we don't support retrieving "latest" RI stats - we expect the UI/API
             // to pass in some values.
             context.getTimeWindow().isPresent();
@@ -115,9 +115,9 @@ public class RIStatsSubQuery implements StatsSubQuery {
                 reqBuilder.setEndDate(timeWindow.endTime());
             });
 
-            if (context.getScope().getScopeType().isPresent()) {
-                final UIEntityType type = context.getScope().getScopeType().get();
-                final Set<Long> scopeEntities = context.getScopeEntities();
+            if (context.getInputScope().getScopeType().isPresent()) {
+                final UIEntityType type = context.getInputScope().getScopeType().get();
+                final Set<Long> scopeEntities = context.getQueryScope().getEntities();
                 if (type == UIEntityType.REGION) {
                     reqBuilder.setRegionFilter(RegionFilter.newBuilder()
                         .addAllRegionId(scopeEntities));
@@ -147,9 +147,9 @@ public class RIStatsSubQuery implements StatsSubQuery {
                 reqBuilder.setEndDate(timeWindow.endTime());
             });
 
-            if (context.getScope().getScopeType().isPresent()) {
-                final UIEntityType type = context.getScope().getScopeType().get();
-                final Set<Long> scopeEntities = context.getScopeEntities();
+            if (context.getInputScope().getScopeType().isPresent()) {
+                final UIEntityType type = context.getInputScope().getScopeType().get();
+                final Set<Long> scopeEntities = context.getQueryScope().getEntities();
                 if (type == UIEntityType.REGION) {
                     reqBuilder.setRegionFilter(RegionFilter.newBuilder()
                         .addAllRegionId(scopeEntities));

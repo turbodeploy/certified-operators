@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
 @Configuration
@@ -14,8 +15,11 @@ public class ActionTranslationConfig {
     @Autowired
     private TopologyProcessorClientConfig tpClientConfig;
 
+    @Autowired
+    private RepositoryClientConfig repositoryClientConfig;
+
     @Bean
     public ActionTranslator actionTranslator() {
-        return new ActionTranslator(tpClientConfig.topologyProcessorChannel());
+        return new ActionTranslator(repositoryClientConfig.repositoryChannel());
     }
 }

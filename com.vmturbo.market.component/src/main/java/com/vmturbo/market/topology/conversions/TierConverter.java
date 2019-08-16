@@ -3,10 +3,6 @@ package com.vmturbo.market.topology.conversions;
 import java.util.Map;
 import java.util.Set;
 
-import javax.annotation.Nonnull;
-
-import org.apache.commons.collections4.map.UnmodifiableMap;
-
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;

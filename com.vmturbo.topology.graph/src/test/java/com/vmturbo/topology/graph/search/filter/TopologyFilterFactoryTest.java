@@ -37,6 +37,8 @@ import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
@@ -1064,6 +1066,45 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter8.test(entity));
         assertFalse(filter9.test(entity));
         assertTrue(filter10.test(entity));
+    }
+
+    @Test
+    public void testSearchFilterForStorageLocalSupport() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.DS_INFO_REPO_DTO_PROPERTY_NAME)
+                .setObjectFilter(ObjectFilter.newBuilder()
+                    .addFilters(Search.PropertyFilter.newBuilder()
+                        .setPropertyName("local")
+                        .setStringFilter(StringFilter.newBuilder()
+                            .setStringPropertyRegex("true")))))
+            .build();
+
+        final TestGraphEntity vmEntity =
+            TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE).build();
+        final TestGraphEntity pmEntity =
+            TestGraphEntity.newBuilder(2345L, UIEntityType.PHYSICAL_MACHINE).build();
+        final TestGraphEntity storageEntityMatching =
+            TestGraphEntity.newBuilder(3456L, UIEntityType.STORAGE)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setStorage(StorageInfo.newBuilder().setIsLocal(true))
+                    .build())
+                .build();
+        final TestGraphEntity storageEntityNotMatching =
+        TestGraphEntity.newBuilder(4567L, UIEntityType.STORAGE)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setStorage(StorageInfo.newBuilder().setIsLocal(false))
+                    .build())
+                .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        assertFalse(propertyFilter.test(vmEntity));
+        assertFalse(propertyFilter.test(pmEntity));
+        assertTrue(propertyFilter.test(storageEntityMatching));
+        assertFalse(propertyFilter.test(storageEntityNotMatching));
     }
 
     private PropertyFilter<TestGraphEntity> makeDiscoveringTargetFilter(StringFilter stringFilter) {

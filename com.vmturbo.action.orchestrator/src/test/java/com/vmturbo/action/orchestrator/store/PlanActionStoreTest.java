@@ -117,7 +117,7 @@ public class PlanActionStoreTest {
     private final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
     private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
 
-    private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
+    private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
 
     @Before
     public void setup() throws Exception {

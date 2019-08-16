@@ -186,4 +186,9 @@ public class ReservedInstanceConfig {
         repositoryClientConfig.repository().addListener(PlanProjectedRICoverageAndUtilStore);
         return PlanProjectedRICoverageAndUtilStore;
     }
+
+    @Bean
+    public ActionContextRIBuyStore actionContextRIBuyStore() {
+        return new ActionContextRIBuyStore(databaseConfig.dsl());
+    }
 }

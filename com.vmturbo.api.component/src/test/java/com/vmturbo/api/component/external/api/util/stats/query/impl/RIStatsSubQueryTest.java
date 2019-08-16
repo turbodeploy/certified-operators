@@ -29,6 +29,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.stats.ImmutableTimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext.TimeWindow;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
 import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.RIStatsSubQuery.RIStatsMapper;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
@@ -81,8 +82,9 @@ public class RIStatsSubQueryTest {
             ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(testServer.getChannel()),
             mapper);
 
-        when(context.getScope()).thenReturn(scope);
-        when(context.getScopeEntities()).thenReturn(SCOPE_ENTITIES);
+        when(context.getInputScope()).thenReturn(scope);
+        StatsQueryScope queryScope = StatsQueryScope.some(SCOPE_ENTITIES);
+        when(context.getQueryScope()).thenReturn(queryScope);
     }
 
     @Test

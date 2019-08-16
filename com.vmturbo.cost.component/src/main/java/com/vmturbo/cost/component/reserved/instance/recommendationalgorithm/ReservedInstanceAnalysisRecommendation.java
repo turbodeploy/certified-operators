@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.reserved.instance.recommendationalgorithm;
 
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.StringJoiner;
 
@@ -23,6 +24,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -119,6 +121,12 @@ public class ReservedInstanceAnalysisRecommendation {
     private ReservedInstanceBoughtInfo riBoughtInfo;
 
     private final ReservedInstanceSpec riSpec;
+
+    /*
+     How much hourly demand each template had for a week based on which this RI Buy recommendation
+     was generated.
+    */
+    private Map<TopologyEntityDTO, Float[]> templateTypeHourlyDemand;
 
     public ReservedInstanceAnalysisRecommendation(@Nonnull String logTag,
                                                   @Nonnull String actionGoal,
@@ -310,6 +318,14 @@ public class ReservedInstanceAnalysisRecommendation {
 
     public long getBuyRiId() {
         return buyRiId;
+    }
+
+    public Map<TopologyEntityDTO, Float[]> getTemplateTypeHourlyDemand() {
+        return templateTypeHourlyDemand;
+    }
+
+    public void setTemplateTypeHourlyDemand(final Map<TopologyEntityDTO, Float[]> templateTypeHourlyDemand) {
+        this.templateTypeHourlyDemand = templateTypeHourlyDemand;
     }
 
     /**

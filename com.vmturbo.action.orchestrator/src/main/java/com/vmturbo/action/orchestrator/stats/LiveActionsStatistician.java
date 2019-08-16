@@ -42,7 +42,6 @@ import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatCleanupScheduler;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -74,8 +73,6 @@ public class LiveActionsStatistician {
 
     private final List<ActionAggregatorFactory<? extends ActionAggregator>> aggregatorFactories;
 
-    private final ActionTranslator actionTranslator;
-
     private final ActionStatRollupScheduler actionStatRollupScheduler;
 
     private final ActionStatCleanupScheduler actionStatCleanupScheduler;
@@ -87,7 +84,6 @@ public class LiveActionsStatistician {
             @Nonnull final StatsActionViewFactory snapshotFactory,
             @Nonnull final List<ActionAggregatorFactory<? extends ActionAggregator>> aggregatorFactories,
             @Nonnull final Clock clock,
-            @Nonnull final ActionTranslator actionTranslator,
             @Nonnull final ActionStatRollupScheduler rollupScheduler,
             @Nonnull final ActionStatCleanupScheduler cleanupScheduler) {
         this.dslContext = Objects.requireNonNull(dsl);
@@ -97,7 +93,6 @@ public class LiveActionsStatistician {
         this.snapshotFactory = Objects.requireNonNull(snapshotFactory);
         this.clock = Objects.requireNonNull(clock);
         this.aggregatorFactories = Objects.requireNonNull(aggregatorFactories);
-        this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.actionStatRollupScheduler = Objects.requireNonNull(rollupScheduler);
         this.actionStatCleanupScheduler = Objects.requireNonNull(cleanupScheduler);
     }
@@ -152,18 +147,17 @@ public class LiveActionsStatistician {
         // user always sees translated actions, so if any changes occur during translation - for
         // example, dropping invalid actions - the counts should reflect them.
         try (DataMetricTimer timer = Metrics.ACTION_STAT_RECORD_SNAPSHOT_TIME.startTimer()) {
-            actionTranslator.translate(actionStream)
-                    .map(actionView -> {
-                        try {
-                            return snapshotFactory.newStatsActionView(actionView);
-                        } catch (UnsupportedActionException e) {
-                            logger.error("Attempting to record stats for unsupported action: " +
-                                    e.getLocalizedMessage());
-                            return null;
-                        }
-                    })
-                    .filter(Objects::nonNull)
-                    .forEach(snapshotBuilder::addActions);
+            actionStream.map(actionView -> {
+                try {
+                        return snapshotFactory.newStatsActionView(actionView);
+                    } catch (UnsupportedActionException e) {
+                        logger.error("Attempting to record stats for unsupported action: " +
+                                e.getLocalizedMessage());
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .forEach(snapshotBuilder::addActions);
         }
 
         // We build the snapshot before running the aggregators because the aggregators can take

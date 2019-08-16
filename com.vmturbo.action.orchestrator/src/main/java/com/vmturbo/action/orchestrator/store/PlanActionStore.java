@@ -393,40 +393,36 @@ public class PlanActionStore implements ActionStore {
      * @return A list of translated actions and their descriptions.
      */
     private List<ActionAndDescription> translatePlanActions(@Nonnull final List<ActionDTO.Action> actions,
-                                       @Nonnull final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData) {
+                                                            @Nonnull final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData) {
+        final Set<Long> entitiesToRetrieve = new HashSet<>();
+        final Set<ActionTypeCase> unsupportedActionTypes = new HashSet<>();
+
+        entitiesToRetrieve.addAll(ActionDTOUtil.getInvolvedEntityIds(actions));
+        // snapshot object will contain the entities information that is required to
+        // form the actions descriptions
+        final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
+            entitiesToRetrieve, planData.getTopologyContextId(), planData.getTopologyId());
+
         final Stream<Action> translatedActions = actionTranslator.translate(actions.stream()
             .map(recommendedAction -> {
                 final Action action;
                 action = actionFactory.newAction(recommendedAction, planData.getId());
                 return action;
             })
-            .filter(Objects::nonNull));
+            .filter(Objects::nonNull), snapshot);
 
-        final Set<Long> entitiesToRetrieve = new HashSet<>();
-        final Set<ActionTypeCase> unsupportedActionTypes = new HashSet<>();
         final List<Action> translatedActionsToAdd = new ArrayList<>();
 
         translatedActions.forEach(action -> {
-            try {
-                // Ignoring actions with failed translation
-                if (action.getActionTranslation().getTranslationStatus() != TranslationStatus.TRANSLATION_FAILED) {
-                    translatedActionsToAdd.add(action);
-                    entitiesToRetrieve.addAll(ActionDTOUtil.getInvolvedEntityIds(
-                        action.getActionTranslation().getTranslationResultOrOriginal()));
-                }
-            } catch (UnsupportedActionException e) {
-                unsupportedActionTypes.add(e.getActionType());
+            // Ignoring actions with failed translation
+            if (action.getActionTranslation().getTranslationStatus() != TranslationStatus.TRANSLATION_FAILED) {
+                translatedActionsToAdd.add(action);
             }
         });
 
         if (!unsupportedActionTypes.isEmpty()) {
             logger.error("Action plan contained unsupported action types: {}", unsupportedActionTypes);
         }
-
-        // snapshot object will contain the entities information that is required to
-        // form the actions descriptions
-        final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
-            entitiesToRetrieve, planData.getTopologyContextId(), planData.getTopologyId());
 
         // Forming the actions descriptions
         return translatedActionsToAdd.stream().map(action -> {

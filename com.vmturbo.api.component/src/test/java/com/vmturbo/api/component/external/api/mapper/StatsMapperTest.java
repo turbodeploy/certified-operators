@@ -18,7 +18,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -60,7 +59,6 @@ import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
-import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
@@ -72,7 +70,6 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 /**
  * Unit tests for the static Mapper utility functions for the {@link StatsService}.
@@ -441,7 +438,7 @@ public class StatsMapperTest {
     @Test
     public void testClusterStatsRequest() {
         final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
-        when(statsMapper.newPeriodStatsFilter(period, Optional.empty())).thenReturn(STATS_FILTER);
+        when(statsMapper.newPeriodStatsFilter(period)).thenReturn(STATS_FILTER);
         final ClusterStatsRequest clusterStatsRequest =
                 statsMapper.toClusterStatsRequest("7", period);
         assertThat(clusterStatsRequest.getClusterId(), is(7L));
@@ -451,119 +448,11 @@ public class StatsMapperTest {
     @Test
     public void testClusterStatsRequestWithNullPeriod() {
         final StatPeriodApiInputDTO period = null;
-        when(statsMapper.newPeriodStatsFilter(period, Optional.empty())).thenReturn(STATS_FILTER);
+        when(statsMapper.newPeriodStatsFilter(period)).thenReturn(STATS_FILTER);
         final ClusterStatsRequest clusterStatsRequest =
                 statsMapper.toClusterStatsRequest("7", period);
         assertThat(clusterStatsRequest.getClusterId(), is(7L));
         assertThat(clusterStatsRequest.getStats(), is(STATS_FILTER));
-    }
-
-    @Test
-    public void testAveragedEntityStatsRequestNoTempGroupType() {
-        final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
-        when(statsMapper.newPeriodStatsFilter(period, Optional.empty())).thenReturn(STATS_FILTER);
-
-        final Set<Long> uuids = Sets.newHashSet(1L, 2L);
-
-        final GetAveragedEntityStatsRequest request =
-                statsMapper.toAveragedEntityStatsRequest(uuids, period, Optional.empty());
-        assertThat(request.getEntitiesList(), containsInAnyOrder(uuids.toArray()));
-        assertThat(request.getFilter(), is(STATS_FILTER));
-        assertTrue(request.getRelatedEntityType().isEmpty());
-    }
-
-    @Test
-    public void testAveragedEntityStatsRequestWithTempGroupType() {
-        final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
-        final Optional<Integer> tempGroupType = Optional.of(10);
-        when(statsMapper.newPeriodStatsFilter(period, tempGroupType)).thenReturn(STATS_FILTER);
-
-        final Set<Long> uuids = Sets.newHashSet(1L, 2L);
-
-        final GetAveragedEntityStatsRequest request =
-                statsMapper.toAveragedEntityStatsRequest(uuids, period, tempGroupType);
-        assertTrue(request.getEntitiesList().containsAll(uuids));
-        assertEquals(2, request.getEntitiesCount());
-        assertThat(request.getFilter(), is(STATS_FILTER));
-        assertEquals(
-            UIEntityType.fromType(tempGroupType.get()).apiStr(), request.getRelatedEntityType());
-    }
-
-    @Test
-    public void testAveragedEntityStatsRequestWithNullPeriod() {
-        final Optional<Integer> tempGroupType = Optional.of(10);
-        when(statsMapper.newPeriodStatsFilter(null, tempGroupType)).thenReturn(STATS_FILTER);
-
-        final Set<Long> uuids = Sets.newHashSet(1L, 2L);
-
-        final GetAveragedEntityStatsRequest request =
-                statsMapper.toAveragedEntityStatsRequest(uuids, null, tempGroupType);
-        assertTrue(request.getEntitiesList().containsAll(uuids));
-        assertThat(request.getFilter(), is(STATS_FILTER));
-        assertThat(request.getRelatedEntityType(), is(VIRTUAL_MACHINE));
-    }
-
-    @Test
-    public void testAverageEntityStatsRequestWithMultipleEntityTypes() {
-        final StatPeriodApiInputDTO periodApiInputDTO = new StatPeriodApiInputDTO();
-        final StatApiInputDTO apiInputDTO1 = new StatApiInputDTO();
-        final StatApiInputDTO apiInputDTO2 = new StatApiInputDTO();
-        periodApiInputDTO.setStatistics(ImmutableList.of(apiInputDTO1, apiInputDTO2));
-        apiInputDTO1.setRelatedEntityType(UIEntityType.APPLICATION.apiStr());
-        apiInputDTO1.setName("name1");
-        apiInputDTO2.setRelatedEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
-        apiInputDTO2.setName("name2");
-        final GetAveragedEntityStatsRequest request =
-            statsMapper.toAveragedEntityStatsRequest(
-                Collections.emptySet(), periodApiInputDTO, Optional.empty());
-        assertEquals(2, request.getFilter().getCommodityRequestsCount());
-        assertEquals(
-            UIEntityType.APPLICATION.apiStr(),
-            request.getFilter().getCommodityRequests(0).getRelatedEntityType());
-        assertEquals(
-            UIEntityType.VIRTUAL_MACHINE.apiStr(),
-            request.getFilter().getCommodityRequests(1).getRelatedEntityType());
-    }
-
-    @Test
-    public void testAveragedEntityStatsRequestWithStatistics() {
-        final StatPeriodApiInputDTO statPeriodApiInputDTO = new StatPeriodApiInputDTO();
-        StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
-        statApiInputDTO.setRelatedEntityType(VIRTUAL_MACHINE);
-        statPeriodApiInputDTO.setStatistics(Lists.newArrayList(statApiInputDTO));
-        final GetAveragedEntityStatsRequest request =
-            statsMapper.toAveragedEntityStatsRequest(new HashSet<>(), statPeriodApiInputDTO,
-                Optional.empty());
-        assertTrue(request.getEntitiesList().isEmpty());
-        assertEquals(
-            UIEntityType.VIRTUAL_MACHINE.apiStr(),
-            request.getFilter().getCommodityRequests(0).getRelatedEntityType());
-        assertFalse(request.hasRelatedEntityType());
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void testAveragedEntityStatsNotMatchingRelatedEntityTypes() {
-        final StatPeriodApiInputDTO statPeriodApiInputDTO = new StatPeriodApiInputDTO();
-        StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
-        statApiInputDTO.setRelatedEntityType(VIRTUAL_MACHINE);
-        statPeriodApiInputDTO.setStatistics(Lists.newArrayList(statApiInputDTO));
-        statsMapper.toAveragedEntityStatsRequest(
-            new HashSet<>(), statPeriodApiInputDTO, Optional.of(UIEntityType.PHYSICAL_MACHINE.ordinal()));
-    }
-
-    @Test
-    public void testAveragedEntityStatsRequestWithoutRelatedEntityType() {
-        final StatPeriodApiInputDTO statPeriodApiInputDTO = new StatPeriodApiInputDTO();
-        when(statsMapper.newPeriodStatsFilter(statPeriodApiInputDTO,
-            Optional.empty())).thenReturn(STATS_FILTER);
-        StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
-        statPeriodApiInputDTO.setStatistics(Lists.newArrayList(statApiInputDTO));
-        final GetAveragedEntityStatsRequest request =
-            statsMapper.toAveragedEntityStatsRequest(new HashSet<>(), statPeriodApiInputDTO,
-                Optional.empty());
-        assertTrue(request.getEntitiesList().isEmpty());
-        assertThat(request.getFilter(), is(STATS_FILTER));
-        assertTrue(request.getRelatedEntityType().isEmpty());
     }
 
     /**
@@ -576,7 +465,7 @@ public class StatsMapperTest {
         StatsMapper localStatsMapper = new StatsMapper(new PaginationMapper());
         StatPeriodApiInputDTO statPeriodApiInputDTO = new StatPeriodApiInputDTO();
         statPeriodApiInputDTO.setEndDate("1M");
-        StatsFilter filter = localStatsMapper.newPeriodStatsFilter(statPeriodApiInputDTO, Optional.empty());
+        StatsFilter filter = localStatsMapper.newPeriodStatsFilter(statPeriodApiInputDTO);
         assertTrue(filter.hasEndDate());
     }
 
@@ -594,15 +483,14 @@ public class StatsMapperTest {
             UIEntityType.DATACENTER.apiStr(), null, null));
         statPeriodApiInputDTO.setStatistics(statistics);
         // Stats for a data center will be collected with a group entity type of PHYSICAL_MACHINE
-        Optional<Integer> groupEntityType = Optional.of(EntityType.PHYSICAL_MACHINE.getValue());
         StatsFilter filter =
-            localStatsMapper.newPeriodStatsFilter(statPeriodApiInputDTO, groupEntityType);
-        // All resulting commodity requests should have the related entity type of DATACENTER,
+            localStatsMapper.newPeriodStatsFilter(statPeriodApiInputDTO);
+        // All resulting commodity requests should have the related entity type of PHYSICAL_MACHINE,
         // expressed in the API format
         filter.getCommodityRequestsList().stream()
             .filter(CommodityRequest::hasRelatedEntityType)
             .map(CommodityRequest::getRelatedEntityType)
-            .forEach(relatedEntityType -> assertEquals(UIEntityType.DATACENTER.apiStr(), relatedEntityType));
+            .forEach(relatedEntityType -> assertEquals(UIEntityType.PHYSICAL_MACHINE.apiStr(), relatedEntityType));
     }
 
     @Test

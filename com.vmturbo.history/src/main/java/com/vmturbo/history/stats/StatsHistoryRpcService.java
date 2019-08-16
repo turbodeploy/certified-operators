@@ -19,7 +19,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
@@ -31,6 +30,7 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -56,6 +56,7 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityIdToEntityTypeMappingRes
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
@@ -248,11 +249,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                         filter.getCommodityRequestsList());
             } else {
                 // read from live topologies
-                Optional<String> relatedEntityType = (request.hasRelatedEntityType())
-                        ? Optional.of(request.getRelatedEntityType())
-                        : Optional.empty();
                 returnLiveMarketStats(responseObserver, filter,
-                        entitiesList, relatedEntityType);
+                        entitiesList, request.getGlobalFilter());
             }
 
             timer.observeDuration();
@@ -693,26 +691,22 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * @param statsFilter The stats filter to apply.
      * @param entities A list of service entity OIDs; an empty list implies full market, which
      *                 may be filtered based on relatedEntityType
-     * @param relatedEntityType optional of entityType to sample if entities list is empty;
-     *                          or all entity types if null; not used if the 'entities' list is
-     *                          not empty.
+     * @param globalFilter The global filter to apply to all commodities requested by the filter.
      * @throws VmtDbException if error writing to the db.
      */
     private void returnLiveMarketStats(@Nonnull StreamObserver<StatSnapshot> responseObserver,
                                        @Nonnull final StatsFilter statsFilter,
                                        @Nonnull Collection<Long> entities,
-                                       @Nonnull Optional<String> relatedEntityType) throws VmtDbException {
-
+                                       @Nonnull GlobalFilter globalFilter) throws VmtDbException {
         // get a full list of stats that satisfy this request, depending on the entity request
         final List<Record> statDBRecords;
         final boolean fullMarket = entities.isEmpty();
         if (fullMarket) {
-            statDBRecords = liveStatsReader.getFullMarketStatsRecords(statsFilter, relatedEntityType);
+            statDBRecords = liveStatsReader.getFullMarketStatsRecords(statsFilter, globalFilter);
         } else {
-            if (relatedEntityType.isPresent() &&
-                    !StringUtils.isEmpty(relatedEntityType.get())) {
-                logger.warn("'relatedEntityType' ({}) is ignored when specific entities listed",
-                        relatedEntityType);
+            if (!globalFilter.equals(GlobalFilter.getDefaultInstance())) {
+                logger.warn("'global filter' ({}) is ignored when specific entities listed",
+                        globalFilter);
             }
             statDBRecords = liveStatsReader.getRecords(
                     entities.stream()

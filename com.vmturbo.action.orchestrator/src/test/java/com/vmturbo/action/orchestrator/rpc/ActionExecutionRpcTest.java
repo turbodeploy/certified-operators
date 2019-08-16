@@ -75,6 +75,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -93,7 +94,7 @@ public class ActionExecutionRpcTest {
     // Have the translator pass-through translate all actions.
     private final ActionTranslator actionTranslator = passthroughTranslator();
 
-    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
+    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
     private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
     private final IActionStoreFactory actionStoreFactory = mock(IActionStoreFactory.class);
     private final IActionStoreLoader actionStoreLoader = mock(IActionStoreLoader.class);
@@ -354,40 +355,6 @@ public class ActionExecutionRpcTest {
     }
 
     @Test
-    public void testExecutionUsesTranslation() throws Exception {
-        final long targetId = 7777;
-        final ActionDTO.Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
-        final ActionDTO.Action translationResult = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID + 1);
-        assertNotEquals(recommendation, translationResult);
-
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
-        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
-
-        final ActionPlan plan = actionPlan(recommendation);
-        final SingleActionRequest acceptActionContext = SingleActionRequest.newBuilder()
-            .setActionId(ACTION_ID)
-            .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
-            .build();
-
-        actionStorehouse.storeActions(plan);
-        when(actionTargetSelector.getTargetForAction(Mockito.eq(recommendation))).thenReturn(
-            ImmutableActionTargetInfo.builder()
-                .supportingLevel(SupportLevel.SUPPORTED)
-                .targetId(targetId)
-                .build());
-        // Have the action translator act as a passthrough.
-        doAnswer(invocation -> {
-            final Action action = (Action)invocation.getArguments()[0];
-            action.getActionTranslation().setTranslationSuccess(translationResult);
-            return true;
-        }).when(actionTranslator).translate(any(Action.class));
-
-        actionOrchestratorServiceClient.acceptAction(acceptActionContext);
-        Mockito.verify(actionExecutor).execute(eq(targetId), eq(translationResult),
-                eq(EMPTY_WORKFLOW_OPTIONAL));
-    }
-
-    @Test
     public void testTranslationError() throws Exception {
         final long targetId = 7777;
         final ActionDTO.Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
@@ -407,11 +374,12 @@ public class ActionExecutionRpcTest {
         // actionOrchestratorServiceClient, LiveActionStore
         final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(new TranslationExecutor() {
             @Override
-            public <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream) {
+            public <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream,
+                                                              @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
                 return actionStream;
             }
         }));
-        ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
+        ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
         final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
                 executor, actionStoreLoader, actionModeCalculator);
         final ActionsRpcService actionsRpcService =
@@ -442,8 +410,7 @@ public class ActionExecutionRpcTest {
                 .supportingLevel(SupportLevel.SUPPORTED)
                 .targetId(targetId)
                 .build());
-        doReturn(false).when(actionTranslator).translate(any(Action.class));
-        AcceptActionResponse response =  actionOrchestratorServiceClient.acceptAction(acceptActionContext);
+        AcceptActionResponse response = actionOrchestratorServiceClient.acceptAction(acceptActionContext);
         assertThat(response.getError(), CoreMatchers.containsString("Unauthorized to accept action in mode RECOMMEND"));
         grpcServer.close();
     }

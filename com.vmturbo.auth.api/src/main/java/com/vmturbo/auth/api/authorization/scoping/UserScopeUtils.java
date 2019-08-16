@@ -10,7 +10,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.security.access.AccessDeniedException;
@@ -46,7 +45,7 @@ public class UserScopeUtils {
         }
         // if no user, check if there is something in the grpc context.
         List<Long> grpcContextScopeGroups = SecurityConstant.USER_SCOPE_GROUPS_KEY.get();
-        return (CollectionUtils.isNotEmpty(grpcContextScopeGroups));
+        return (grpcContextScopeGroups != null && !grpcContextScopeGroups.isEmpty());
     }
 
     /**
@@ -59,7 +58,7 @@ public class UserScopeUtils {
      */
     public static boolean containsSharedRole(List<String> roles) {
 
-        if (CollectionUtils.isEmpty(roles)) {
+        if (roles == null || roles.isEmpty()) {
             // no roles found -- assuming not shared.
             // TODO: Once we have a reliable "system user" as part of OM-44445, we should consider
             // treating this as a security errors, since at that point all users should have some

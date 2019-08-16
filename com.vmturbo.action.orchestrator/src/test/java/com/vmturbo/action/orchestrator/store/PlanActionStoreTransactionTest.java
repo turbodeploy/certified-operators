@@ -107,7 +107,8 @@ public class PlanActionStoreTransactionTest {
     public static ActionTranslator passThroughTranslator() {
         return Mockito.spy(new ActionTranslator(new TranslationExecutor() {
             @Override
-            public <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream) {
+            public <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream,
+                                                              @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
                 return actionStream.peek(action -> action.getActionTranslation().setPassthroughTranslationSuccess());
             }
         }));

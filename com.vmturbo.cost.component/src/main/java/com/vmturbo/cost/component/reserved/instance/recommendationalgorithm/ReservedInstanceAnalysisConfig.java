@@ -78,7 +78,8 @@ public class ReservedInstanceAnalysisConfig {
                 computeTierDemandStatsConfig.riDemandStatsStore(),
                 topologyListenerConfig.cloudTopologyFactory(),
                 reservedInstanceActionsSenderConfig.actionSender(),
-                reservedInstanceConfig.buyReservedInstanceStore());
+                reservedInstanceConfig.buyReservedInstanceStore(),
+                reservedInstanceConfig.actionContextRIBuyStore());
     }
 
 }

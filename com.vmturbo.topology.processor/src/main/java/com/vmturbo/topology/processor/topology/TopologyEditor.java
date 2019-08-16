@@ -373,12 +373,7 @@ public class TopologyEditor {
 
         long cloneId = identityProvider.getCloneId(entity);
         cloneBuilder.getCommoditySoldListBuilderList().stream()
-             // for each commodity sold for clone, update utilization to 0
-            .map(commSold -> {
-                commSold.setUsed(0d);
-                commSold.setPeak(0d);
-                return commSold;
-            })
+            // Do not set the utilization to 0. The usage of clone should exactly be like the original.
             .filter(commSold -> AnalysisUtil.DSPM_OR_DATASTORE.contains(commSold.getCommodityType().getType()))
             .forEach(bicliqueCommSold -> {
                 // Set commodity sold for storage/host in case of a DSPM/DATASTORE commodity.

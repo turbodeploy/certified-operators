@@ -58,12 +58,6 @@ public class AutomatedActionExecutor {
     private final ActionExecutor actionExecutor;
 
     /**
-     * To translate an action from the market's domain-agnostic form to the domain-specific form
-     * relevant for execution and display in the real world.
-     */
-    private final ActionTranslator actionTranslator;
-
-    /**
      * To schedule actions for asynchronous execution
      */
     private final ExecutorService executionService;
@@ -81,19 +75,15 @@ public class AutomatedActionExecutor {
     /**
      * @param actionExecutor to execute actions (by sending them to Topology Processor)
      * @param executorService to schedule actions for asynchronous execution
-     * @param translator to translate an action from the market's domain-agnostic form to the
-     *                   domain-specific form relevant for execution and display in the real world.
      * @param workflowStore to determine if any workflows should be used to execute actions
      * @param actionTargetSelector to select which target/probe to execute each action against
      */
     public AutomatedActionExecutor(@Nonnull final ActionExecutor actionExecutor,
                                    @Nonnull final ExecutorService executorService,
-                                   @Nonnull final ActionTranslator translator,
                                    @Nonnull final WorkflowStore workflowStore,
                                    @Nonnull final ActionTargetSelector actionTargetSelector) {
         this.actionExecutor = Objects.requireNonNull(actionExecutor);
         this.executionService = Objects.requireNonNull(executorService);
-        this.actionTranslator = Objects.requireNonNull(translator);
         this.workflowStore = Objects.requireNonNull(workflowStore);
         this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
     }
@@ -213,7 +203,6 @@ public class AutomatedActionExecutor {
                         action.receive(new PrepareExecutionEvent());
                         // Allows the action to begin execution, if a PRE workflow is not running
                         action.receive(new BeginExecutionEvent());
-                        actionTranslator.translate(action);
                         Optional<ActionDTO.Action> translated =
                             action.getActionTranslation().getTranslatedRecommendation();
                         if (translated.isPresent()) {

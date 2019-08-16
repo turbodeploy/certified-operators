@@ -68,10 +68,7 @@ public class ActionOrchestratorDiagnosticsTest {
     private final ActionStorehouse actionStorehouse = mock(ActionStorehouse.class);
     private final ActionStore actionStore = mock(ActionStore.class);
     private final EntitySeverityCache severityCache = mock(EntitySeverityCache.class);
-
-    private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
-    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
-
+    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
     private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
     private final IActionStoreFactory storeFactory = mock(IActionStoreFactory.class);
     private final DiagnosticsWriter diagnosticsWriter = Mockito.spy(new DiagnosticsWriter());
@@ -279,7 +276,9 @@ public class ActionOrchestratorDiagnosticsTest {
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, action);
 
+        action.getActionTranslation().setPassthroughTranslationSuccess();
         action.refreshAction(snapshot);
+
         if (actionModifier != null) {
             actionModifier.accept(action);
         }

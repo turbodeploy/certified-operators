@@ -651,7 +651,8 @@ public class GroupMapperTest {
         assertEquals(PRODUCES_ST, byName.getSearchFilter(1));
         assertEquals(PRODUCES_ONE_HOP, byName.getSearchFilter(2));
         assertEquals(SearchProtoUtil.searchFilterProperty(TYPE_IS_VM), byName.getSearchFilter(3));
-        assertEquals(DISPLAYNAME_IS_BAR, byName.getSearchFilter(4));
+        assertEquals(SearchProtoUtil.searchFilterProperty(SearchProtoUtil.nameFilterRegex(".*" + BAR + ".*")),
+            byName.getSearchFilter(4));
     }
 
     @Test

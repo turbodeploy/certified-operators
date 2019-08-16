@@ -54,8 +54,7 @@ public class ActionStateUpdaterTest {
     private final WorkflowStore workflowStoreMock = mock(WorkflowStore.class);
     private final FailedCloudVMGroupProcessor failedCloudVMGroupProcessor = mock(FailedCloudVMGroupProcessor.class);
     private final long realtimeTopologyContextId = 0;
-    private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
-    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
+    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
     private final ActionStateUpdater actionStateUpdater =
             new ActionStateUpdater(actionStorehouse, notificationSender, actionHistoryDao, actionExecutorMock, workflowStoreMock, realtimeTopologyContextId, failedCloudVMGroupProcessor);
 
@@ -79,6 +78,7 @@ public class ActionStateUpdaterTest {
             .thenReturn(makeActionModeSetting(ActionMode.MANUAL));
         testAction = new Action(recommendation, 4, actionModeCalculator);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entitySettingsCache, testAction);
+        testAction.getActionTranslation().setPassthroughTranslationSuccess();
         testAction.refreshAction(entitySettingsCache);
         when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(Optional.of(actionStore));
         when(actionStore.getAction(eq(actionId))).thenReturn(Optional.of(testAction));

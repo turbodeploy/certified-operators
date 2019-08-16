@@ -40,7 +40,7 @@ public class ProjectedCommodityStatsSubQuery implements StatsSubQuery {
 
     @Override
     public boolean applicableInContext(@Nonnull final StatsQueryContext context) {
-        return context.requestProjected() && !context.getScope().isPlan();
+        return context.requestProjected() && !context.getInputScope().isPlan();
     }
 
     @Override
@@ -53,7 +53,7 @@ public class ProjectedCommodityStatsSubQuery implements StatsSubQuery {
     public Map<Long, List<StatApiDTO>> getAggregateStats(@Nonnull final Set<StatApiInputDTO> stats,
                                                          @Nonnull final StatsQueryContext context) throws OperationFailedException {
         final ProjectedStatsRequest.Builder builder = ProjectedStatsRequest.newBuilder()
-            .addAllEntities(context.getScopeEntities());
+            .addAllEntities(context.getQueryScope().getEntities());
         stats.forEach(statApiInputDTO -> {
             // If necessary we can add support for other parts of the StatPeriodApiInputDTO,
             // and extend the Projected Stats API to serve the additional functionality.

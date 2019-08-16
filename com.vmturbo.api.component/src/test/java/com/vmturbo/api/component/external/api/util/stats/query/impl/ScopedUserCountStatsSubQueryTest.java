@@ -25,6 +25,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.stats.ImmutableTimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext.TimeWindow;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
 import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -55,7 +56,7 @@ public class ScopedUserCountStatsSubQueryTest {
         final ApiId scope = mock(ApiId.class);
         when(scope.isPlan()).thenReturn(true);
         final StatsQueryContext context = mock(StatsQueryContext.class);
-        when(context.getScope()).thenReturn(scope);
+        when(context.getInputScope()).thenReturn(scope);
         when(userSessionContext.isUserScoped()).thenReturn(true);
 
         assertThat(query.applicableInContext(context), is(false));
@@ -68,7 +69,7 @@ public class ScopedUserCountStatsSubQueryTest {
         when(scope.isPlan()).thenReturn(false);
 
         when(userSessionContext.isUserScoped()).thenReturn(false);
-        when(context.getScope()).thenReturn(scope);
+        when(context.getInputScope()).thenReturn(scope);
 
         assertThat(query.applicableInContext(context), is(false));
     }
@@ -82,10 +83,9 @@ public class ScopedUserCountStatsSubQueryTest {
         final StatsQueryContext context = mock(StatsQueryContext.class);
         final HashSet<Long> entities = new HashSet<>(Arrays.asList(1L));
         long millis=System.currentTimeMillis();
-        when(context.getScopeEntities()).thenReturn(Collections.singleton(1L));
         when(context.getTimeWindow()).thenReturn(Optional.of(timeWindow));
         when(userSessionContext.isUserScoped()).thenReturn(true);
-        when(context.getScopeEntities()).thenReturn(entities);
+        when(context.getQueryScope()).thenReturn(StatsQueryScope.some(entities));
         when(context.getSessionContext()).thenReturn(userSessionContext);
         when(context.requestProjected()).thenReturn(true);
         when(context.getCurTime()).thenReturn(millis);

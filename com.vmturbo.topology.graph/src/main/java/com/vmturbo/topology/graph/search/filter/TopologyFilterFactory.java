@@ -529,6 +529,32 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                                 filter.getPropertyName() + " on " + propertyName);
                 }
 
+            case SearchableProperties.DS_INFO_REPO_DTO_PROPERTY_NAME:
+                filters = objectCriteria.getFiltersList();
+                if (filters.size() != 1) {
+                    throw new IllegalArgumentException("Expecting one PropertyFilter for " +
+                        propertyName + ", but got " + filters.size() + ": " + filters);
+                }
+
+                filter = objectCriteria.getFilters(0);
+                switch (filter.getPropertyName()) {
+                    case SearchableProperties.DS_LOCAL:
+                        if (filter.getPropertyTypeCase() != PropertyTypeCase.STRING_FILTER) {
+                            throw new IllegalArgumentException("Expecting StringFilter for " +
+                                filter.getPropertyName() + ", but got " + filter);
+                        }
+                        StringFilter stringFilter = filter.getStringFilter();
+                        return new PropertyFilter<>(entity -> hasStorageInfoPredicate().test(entity) &&
+                            stringPredicate(stringFilter.getStringPropertyRegex(), topologyEntity ->
+                                    String.valueOf(topologyEntity.getTypeSpecificInfo()
+                                        .getStorage().getIsLocal()),
+                                !stringFilter.getPositiveMatch(),
+                                stringFilter.getCaseSensitive()).test(entity));
+                    default:
+                        throw new IllegalArgumentException("Unknown property: " +
+                            filter.getPropertyName() + " on " + propertyName);
+                }
+
             default:
                 throw new IllegalArgumentException("Unknown object property: " + propertyName
                         + " with criteria: " + objectCriteria);
@@ -683,5 +709,9 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
 
     private Predicate<E> hasPhysicalMachineInfoPredicate() {
         return entity -> entity.getTypeSpecificInfo().hasPhysicalMachine();
+    }
+
+    private Predicate<E> hasStorageInfoPredicate() {
+        return entity -> entity.getTypeSpecificInfo().hasStorage();
     }
 }

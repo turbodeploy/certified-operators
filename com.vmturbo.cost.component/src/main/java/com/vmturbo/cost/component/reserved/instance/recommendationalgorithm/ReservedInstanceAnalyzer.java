@@ -61,6 +61,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
+import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore;
 import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
@@ -136,6 +137,8 @@ public class ReservedInstanceAnalyzer {
     // A counter used to generate unique tags for log entries
     static private AtomicInteger logTagCounter = new AtomicInteger();
 
+    private ActionContextRIBuyStore actionContextRIBuyStore;
+
     /**
      *
      * Construct an analyzer.
@@ -158,7 +161,8 @@ public class ReservedInstanceAnalyzer {
                                     @Nonnull ComputeTierDemandStatsStore computeTierDemandStatsStore,
                                     @Nonnull TopologyEntityCloudTopologyFactory cloudTopologyFactory,
                                     @Nonnull ReservedInstanceActionsSender actionsSender,
-                                    @Nonnull BuyReservedInstanceStore buyRiStore) {
+                                    @Nonnull BuyReservedInstanceStore buyRiStore,
+                                    @Nonnull ActionContextRIBuyStore actionContextRIBuyStore) {
         this.settingsServiceClient = Objects.requireNonNull(settingsServiceClient);
         this.riBoughtStore = Objects.requireNonNull(riBoughtStore);
         this.riSpecStore = Objects.requireNonNull(riSpecStore);
@@ -168,6 +172,7 @@ public class ReservedInstanceAnalyzer {
         this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
         this.actionsSender = Objects.requireNonNull(actionsSender);
         this.buyRiStore = Objects.requireNonNull(buyRiStore);
+        this.actionContextRIBuyStore = Objects.requireNonNull(actionContextRIBuyStore);
     }
 
     public void runRIAnalysisAndSendActions(final long planId,
@@ -262,7 +267,7 @@ public class ReservedInstanceAnalyzer {
                 ReservedInstanceAnalysisResult result =
                         new ReservedInstanceAnalysisResult(scope, purchaseConstraints, recommendations,
                                 planId, analysisStartTime.getTime(),
-                                (new Date()).getTime(), numContextsAnalyzed, buyRiStore);
+                                (new Date()).getTime(), numContextsAnalyzed, buyRiStore, actionContextRIBuyStore);
 
                 logger.info("process {} Analyzer clusters for {} recommendations, in time: {} ms",
                         map.size(), recommendations.size(), overallTime.elapsed(TimeUnit.MILLISECONDS));
@@ -421,9 +426,23 @@ public class ReservedInstanceAnalyzer {
             // Compute computeTier to buy RIs for.  If compute tier is flexible,
             // it must be the smallest compute tier for this family.
             TopologyEntityDTO buyProfile = regionalContext.getComputeTier();
+
+            Map<ReservedInstanceZonalContext, float[]> dBDemand = getDemandFromDB(scope, contexts, demandDataType);
+
+            /**
+             * We are doing a deep copy here because the original map gets modified in subsequent
+             * steps (through normalization). dBDemandDeepCopy is going to be used for RI
+             * Buy graph where we want to show values from the DB (in terms of NFU's) rather than
+             * the normalized values.
+             */
+            final Map<ReservedInstanceZonalContext, float[]> dBDemandDeepCopy = dBDemand.entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(e -> e.getKey(), e -> Arrays.copyOf(e.getValue(),
+                            e.getValue().length)));
+
             // get the historical demand for each RI context
             Map<ReservedInstanceZonalContext, float[]> riContextDemand =
-                    getDemand(scope, contexts, regionalContext, demandDataType, logTag);
+                    getDemand(dBDemand, regionalContext, logTag);
             // apply zonal RIs
             float [] normalizedDemand =
                     applyZonalRIsToCluster(riContextDemand, regionalContext,
@@ -463,6 +482,32 @@ public class ReservedInstanceAnalyzer {
                     riSpecLookupMap);
             if (recommendation != null) {
                 recommendations.add(recommendation);
+                if (recommendation.getCount() > 0) {
+                    final Map<TopologyEntityDTO, Float[]> templateTypeHourlyDemand = new HashMap<>();
+                    for (Entry<ReservedInstanceZonalContext, float[]> e : dBDemandDeepCopy.entrySet()) {
+                        final ReservedInstanceZonalContext zonalContext = e.getKey();
+                        final float[] currentDemandInWorkLoad = e.getValue();
+
+                        final TopologyEntityDTO computeTier = zonalContext.getComputeTier();
+                        final int numberOfCoupons = computeTier.getTypeSpecificInfo()
+                                .getComputeTier().getNumCoupons();
+
+                        Float[] demandInCoupons = templateTypeHourlyDemand.get(computeTier);
+                        if (demandInCoupons == null) {
+                            demandInCoupons = new Float[currentDemandInWorkLoad.length];
+                            Arrays.fill(demandInCoupons, 0f);
+                        }
+
+                        // Add the current demand to the existing demand for the same template type.
+                        // Also convert the '-1' demand to 0 for the context.
+                        for (int i = 0; i < demandInCoupons.length; i++) {
+                            demandInCoupons[i] = demandInCoupons[i] + Math.max(0, (currentDemandInWorkLoad[i]
+                                    * numberOfCoupons));
+                        }
+                        templateTypeHourlyDemand.put(computeTier, demandInCoupons);
+                    }
+                    recommendation.setTemplateTypeHourlyDemand(templateTypeHourlyDemand);
+                }
             }
         }
         return recommendations;
@@ -597,6 +642,24 @@ public class ReservedInstanceAnalyzer {
             return normalizedDemand;
         }
         return subtractCouponsFromDemand(normalizedDemand, normalizedCoupons);
+    }
+
+    /** Returns a mapping of zonal contexts with their demand from the DB.
+     *
+     * @param scope
+     * @param zonalContexts a list of zonal contexts associated with the regional context.
+     * @param demandDataType
+     * @return A mapping of zonal contexts with their demand from the DB.
+     */
+    private Map<ReservedInstanceZonalContext, float[]> getDemandFromDB(ReservedInstanceAnalysisScope scope,
+                                                                       List<ReservedInstanceZonalContext> zonalContexts,
+                                                                       ReservedInstanceHistoricalDemandDataType demandDataType) {
+        Map<ReservedInstanceZonalContext, float[]> demands = new HashMap<>();
+        for (ReservedInstanceZonalContext context : zonalContexts) {
+            float[] demand = getDemand(scope, context, demandDataType);
+            demands.put(context, demand);
+        }
+        return demands;
     }
 
     /**
@@ -790,20 +853,18 @@ public class ReservedInstanceAnalyzer {
      * number of coupons normalized to 8.
      * Constraint: context.getInstanceType().getNumberOfCoupons() >=profile.getNumberOfCoupons()
      *
-     * @param zonalContexts a list of zonal contexts associated with the regional context.
      * @param regionalContext  the scope of analysis, a regional context
      * @return a map of reserved instance contexts and array of demands.
      */
-    Map<ReservedInstanceZonalContext, float[]> getDemand(ReservedInstanceAnalysisScope scope,
-                                                         List<ReservedInstanceZonalContext> zonalContexts,
+    Map<ReservedInstanceZonalContext, float[]> getDemand(Map<ReservedInstanceZonalContext, float[]> dBDemand,
                                                          ReservedInstanceRegionalContext regionalContext,
-                                                         ReservedInstanceHistoricalDemandDataType demandDataType,
                                                          String logTag) {
 
         Map<ReservedInstanceZonalContext, float[]> demands = new HashMap<>();
         int regionCoupons = regionalContext.getComputeTier().getTypeSpecificInfo().getComputeTier().getNumCoupons();
-        for (ReservedInstanceZonalContext context : zonalContexts) {
-            float[] demand = getDemand(scope, context, demandDataType);
+        for (Entry<ReservedInstanceZonalContext, float[]> entry : dBDemand.entrySet()) {
+            float[] demand = entry.getValue();
+            ReservedInstanceZonalContext context = entry.getKey();
             int normalizedCoupons = 1;
             int zonalCoupons = context.getComputeTier().getTypeSpecificInfo().getComputeTier().getNumCoupons();
             if (regionCoupons <= 0 || zonalCoupons < regionCoupons) {

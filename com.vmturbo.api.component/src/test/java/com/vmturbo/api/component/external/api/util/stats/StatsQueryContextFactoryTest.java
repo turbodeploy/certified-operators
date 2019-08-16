@@ -66,8 +66,8 @@ public class StatsQueryContextFactoryTest {
 
         final StatsQueryContext context = factory.newContext(scope, expandedScope, inputDTO);
 
-        assertThat(context.getScope(), is(scope));
-        assertThat(context.getScopeEntities(), is(Collections.singleton(1L)));
+        assertThat(context.getInputScope(), is(scope));
+        assertThat(context.getQueryScope().getEntities(), is(Collections.singleton(1L)));
         assertThat(context.getTimeWindow(), is(Optional.of(ImmutableTimeWindow.builder()
             .startTime(clock.millis() - 5000)
             .endTime(clock.millis() + 5000)

@@ -117,6 +117,7 @@ public class CurrentQueryMapperTest {
         final Set<Long> expandedScope = Sets.newHashSet(3L, 4L);
 
         when(groupExpander.expandOids(originalScope)).thenReturn(expandedScope);
+        when(supplyChainFetcherFactory.expandGroupingServiceEntities(expandedScope)).thenReturn(expandedScope);
 
         final EntityScope entityScope = scopeFactory.createEntityScope(
             originalScope, Collections.emptySet(), Optional.empty(), userScope);
@@ -145,6 +146,7 @@ public class CurrentQueryMapperTest {
                     .build())
                 .build()));
         when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(nodeFetcherBuilder);
+        when(supplyChainFetcherFactory.expandGroupingServiceEntities(relatedVms)).thenReturn(relatedVms);
 
         final EntityScope entityScope = scopeFactory.createEntityScope(originalScope,
             relatedTypes,

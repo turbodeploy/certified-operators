@@ -63,9 +63,7 @@ public class ActionTest {
     private Action reconfigureAction;
     private EntitiesAndSettingsSnapshot entitySettingsCache = mock(EntitiesAndSettingsSnapshot.class);
 
-    private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
-
-    private ActionModeCalculator actionModeCalculator = spy(new ActionModeCalculator(actionTranslator));
+    private ActionModeCalculator actionModeCalculator = spy(new ActionModeCalculator());
 
     @Before
     public void setup() {
@@ -87,19 +85,25 @@ public class ActionTest {
 
         setEntitiesOIDs();
         moveAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator);
+        moveAction.getActionTranslation().setPassthroughTranslationSuccess();
         moveAction.refreshAction(entitySettingsCache);
         resizeAction = new Action(resizeRecommendation, actionPlanId, actionModeCalculator);
+        resizeAction.getActionTranslation().setPassthroughTranslationSuccess();
         resizeAction.refreshAction(entitySettingsCache);
         deactivateAction = new Action(deactivateRecommendation, actionPlanId, actionModeCalculator);
+        deactivateAction.getActionTranslation().setPassthroughTranslationSuccess();
         deactivateAction.refreshAction(entitySettingsCache);
         activateAction = new Action(activateRecommendation, actionPlanId, actionModeCalculator);
+        activateAction.getActionTranslation().setPassthroughTranslationSuccess();
         activateAction.refreshAction(entitySettingsCache);
         storageMoveAction =
                 new Action(storageMoveRecommendation, actionPlanId, actionModeCalculator);
+        storageMoveAction.getActionTranslation().setPassthroughTranslationSuccess();
         storageMoveAction.refreshAction(entitySettingsCache);
         reconfigureAction =
                 new Action(reconfigureRecommendation, actionPlanId, actionModeCalculator);
         reconfigureAction.refreshAction(entitySettingsCache);
+        reconfigureAction.getActionTranslation().setPassthroughTranslationSuccess();
     }
 
     public void setEntitiesOIDs() {

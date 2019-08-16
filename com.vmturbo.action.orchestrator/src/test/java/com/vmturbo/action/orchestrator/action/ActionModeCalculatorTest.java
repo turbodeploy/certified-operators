@@ -59,9 +59,7 @@ public class ActionModeCalculatorTest {
         .setSupportingLevel(SupportLevel.SUPPORTED)
         .setDeprecatedImportance(0);
 
-    private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
-
-    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
+    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
 
     private static final EnumSettingValue DISABLED = EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()).build();
     private static final EnumSettingValue AUTOMATIC = EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.name()).build();
@@ -87,6 +85,7 @@ public class ActionModeCalculatorTest {
                                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
+        aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         // Should use the value from settings.
         assertThat(actionModeCalculator.calculateActionMode(aoAction, entitiesCache),
                 is(ActionMode.AUTOMATIC));
@@ -106,6 +105,7 @@ public class ActionModeCalculatorTest {
                                 .setType(EntityType.PHYSICAL_MACHINE_VALUE)))))
                 .build();
         Action aoAction = new Action(action, 1L, actionModeCalculator);
+        aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
                 is(ActionMode.valueOf(EntitySettingSpecs.Move.getSettingSpec().getEnumSettingValueType().getDefault())));
     }
@@ -131,6 +131,7 @@ public class ActionModeCalculatorTest {
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
         Action aoAction = new Action(action, 1L, actionModeCalculator);
+        aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         // Should use the value from settings.
         assertThat(actionModeCalculator.calculateActionMode(aoAction, entitiesCache),
                 is(ActionMode.AUTOMATIC));
@@ -188,6 +189,7 @@ public class ActionModeCalculatorTest {
                                         .setValue(ActionMode.MANUAL.name()))
                                 .build()));
         Action aoAction = new Action(action, 1L, actionModeCalculator);
+        aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         // Should choose the more conservative one.
         assertThat(actionModeCalculator.calculateActionMode(aoAction, entitiesCache),
                 is(ActionMode.MANUAL));
@@ -238,6 +240,7 @@ public class ActionModeCalculatorTest {
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
         Action aoAction = new Action(action, 1L, actionModeCalculator);
+        aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionMode(aoAction, entitiesCache),
                 is(ActionMode.AUTOMATIC));
     }
@@ -251,6 +254,7 @@ public class ActionModeCalculatorTest {
                                 .setType(1))))
                 .build();
         Action aoAction = new Action(action, 1L, actionModeCalculator);
+        aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
             is(ActionMode.valueOf(EntitySettingSpecs.Resize.getSettingSpec().getEnumSettingValueType().getDefault())));
     }
@@ -271,6 +275,7 @@ public class ActionModeCalculatorTest {
                                             .setValue(ActionMode.AUTOMATIC.name()))
                             .build()));
         Action aoAction = new Action(action, 1L, actionModeCalculator);
+        aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionMode(aoAction, entitiesCache),
                 is(ActionMode.AUTOMATIC));
     }
@@ -304,6 +309,7 @@ public class ActionModeCalculatorTest {
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
         Action aoAction = new Action(action, 1L, actionModeCalculator);
+        aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionMode(aoAction, entitiesCache),
                 is(ActionMode.AUTOMATIC));
     }
@@ -317,6 +323,7 @@ public class ActionModeCalculatorTest {
                                 .setType(1))))
                 .build();
         Action aoAction = new Action(action, 1L, actionModeCalculator);
+        aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
                 is(ActionMode.valueOf(EntitySettingSpecs.Provision.getSettingSpec().getEnumSettingValueType().getDefault())));
     }
@@ -337,6 +344,7 @@ public class ActionModeCalculatorTest {
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
         Action aoAction = new Action(action, 1L, actionModeCalculator);
+        aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionMode(aoAction, entitiesCache),
                 is(ActionMode.AUTOMATIC));
     }
@@ -350,6 +358,7 @@ public class ActionModeCalculatorTest {
                                 .setType(1))))
                 .build();
         Action aoAction = new Action(action, 1L, actionModeCalculator);
+        aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
                 is(ActionMode.valueOf(EntitySettingSpecs.Activate.getSettingSpec().getEnumSettingValueType().getDefault())));
     }
@@ -370,6 +379,8 @@ public class ActionModeCalculatorTest {
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
         Action aoAction = new Action(action, 1L, actionModeCalculator);
+        aoAction.getActionTranslation().setPassthroughTranslationSuccess();
+        aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionMode(aoAction, entitiesCache),
                 is(ActionMode.AUTOMATIC));
     }
@@ -383,6 +394,7 @@ public class ActionModeCalculatorTest {
                     .setType(1))))
             .build();
         Action aoAction = new Action(action, 1L, actionModeCalculator);
+        aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
             is(ActionMode.valueOf(EntitySettingSpecs.Suspend.getSettingSpec().getEnumSettingValueType().getDefault())));
     }
@@ -403,6 +415,7 @@ public class ActionModeCalculatorTest {
                         .setValue(ActionMode.AUTOMATIC.name()))
                     .build()));
         Action aoAction = new Action(action, 1L, actionModeCalculator);
+        aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionMode(aoAction, entitiesCache),
             is(ActionMode.AUTOMATIC));
     }
@@ -701,6 +714,7 @@ public class ActionModeCalculatorTest {
                 .setNewCapacity(2)))
             .build();
         Action action = new Action(recommendation, 1L, actionModeCalculator);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
         return action;
     }
 
@@ -726,6 +740,7 @@ public class ActionModeCalculatorTest {
                     .setNewCapacity(4)))
                 .build();
         Action action = new Action(recommendation, 1L, actionModeCalculator);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
         return action;
     }
 

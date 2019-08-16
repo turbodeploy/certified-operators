@@ -16,6 +16,7 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -73,7 +74,7 @@ public class StatsQueryExecutorTest {
     public void testGetStatsEmptyScope() throws OperationFailedException {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
 
-        when(expandedScope.isAll()).thenReturn(false);
+        when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
         when(expandedScope.getEntities()).thenReturn(Collections.emptySet());
 
         assertThat(executor.getAggregateStats(scope, period), is(Collections.emptyList()));
@@ -83,7 +84,7 @@ public class StatsQueryExecutorTest {
     public void testGetStatsRequestAll() throws OperationFailedException {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
 
-        when(expandedScope.isAll()).thenReturn(false);
+        when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
         when(expandedScope.getEntities()).thenReturn(Collections.singleton(1L));
 
         // One of the queries is applicable.
@@ -112,7 +113,7 @@ public class StatsQueryExecutorTest {
     public void testGetStatsRequestMergeQueryStats() throws OperationFailedException {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
 
-        when(expandedScope.isAll()).thenReturn(false);
+        when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
         when(expandedScope.getEntities()).thenReturn(Collections.singleton(1L));
 
         // Both queries applicable
@@ -148,7 +149,7 @@ public class StatsQueryExecutorTest {
         period.setStatistics(Lists.newArrayList(fooInput, barInput));
         when(statsQueryContext.getRequestedStats()).thenReturn(new HashSet<>(period.getStatistics()));
 
-        when(expandedScope.isAll()).thenReturn(false);
+        when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
         when(expandedScope.getEntities()).thenReturn(Collections.singleton(1L));
 
         // Both queries applicable
@@ -192,7 +193,7 @@ public class StatsQueryExecutorTest {
         period.setStatistics(Lists.newArrayList(fooInput, barInput));
         when(statsQueryContext.getRequestedStats()).thenReturn(new HashSet<>(period.getStatistics()));
 
-        when(expandedScope.isAll()).thenReturn(false);
+        when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
         when(expandedScope.getEntities()).thenReturn(Collections.singleton(1L));
 
         // Both queries applicable
@@ -231,7 +232,7 @@ public class StatsQueryExecutorTest {
     public void testGetStatsRequestSameStatNameDifferentRelatedEntity() throws OperationFailedException {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
 
-        when(expandedScope.isAll()).thenReturn(false);
+        when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
         when(expandedScope.getEntities()).thenReturn(Collections.singleton(1L));
 
         // Both queries applicable
@@ -260,7 +261,7 @@ public class StatsQueryExecutorTest {
     public void testGetStatsRequestSameStatNameDifferentKey() throws OperationFailedException {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
 
-        when(expandedScope.isAll()).thenReturn(false);
+        when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
         when(expandedScope.getEntities()).thenReturn(Collections.singleton(1L));
 
         // Both queries applicable
@@ -289,7 +290,7 @@ public class StatsQueryExecutorTest {
     public void testCoolingPowerStatsRequestAll() throws OperationFailedException {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
 
-        when(expandedScope.isAll()).thenReturn(false);
+        when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
         when(expandedScope.getEntities()).thenReturn(Collections.singleton(1L));
 
         // One of the queries is applicable.

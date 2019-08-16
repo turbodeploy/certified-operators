@@ -48,12 +48,9 @@ public class CurrentActionStatReaderTest {
 
     private ActionStorehouse actionStorehouse = mock(ActionStorehouse.class);
 
-    private ActionTranslator actionTranslator = mock(ActionTranslator.class);
-
     private CurrentActionStatReader statReader = new CurrentActionStatReader(queryInfoFactory,
         statsBucketsFactory,
-        actionStorehouse,
-        actionTranslator);
+        actionStorehouse);
 
     private static final Action ACTION = Action.newBuilder()
         .setId(1)
@@ -174,9 +171,6 @@ public class CurrentActionStatReaderTest {
         when(actionStore2.getVisibilityPredicate()).thenReturn(visibilityPredicate2);
         when(actionStorehouse.getStore(context1)).thenReturn(Optional.of(actionStore1));
         when(actionStorehouse.getStore(context2)).thenReturn(Optional.of(actionStore2));
-
-        doAnswer(invocation -> invocation.getArgumentAt(0, Stream.class))
-            .when(actionTranslator).translate(isA(Stream.class));
 
         final ActionView actionView1 = mock(ActionView.class);
         final ActionView actionView2 = mock(ActionView.class);

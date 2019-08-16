@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.BuyRIActionPlanInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore;
 import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore;
 
 /**
@@ -35,6 +36,8 @@ public class ReservedInstanceAnalysisResult {
 
     // Buy RI store
     private final BuyReservedInstanceStore buyRiStore;
+
+    private final ActionContextRIBuyStore actionContextRIBuyStore;
 
     /**
      * This class describes the context of the recommended actions, to aid in understanding the
@@ -115,7 +118,8 @@ public class ReservedInstanceAnalysisResult {
                           long analysisStartTime,
                           long analysisCompletionTime,
                           int contextsAnalyzed,
-                          @Nonnull BuyReservedInstanceStore buyRiStore) {
+                          @Nonnull BuyReservedInstanceStore buyRiStore,
+                          @Nonnull ActionContextRIBuyStore actionContextRIBuyStore) {
 
         Objects.requireNonNull(analysisScope);
         Objects.requireNonNull(purchaseConstraints);
@@ -124,6 +128,7 @@ public class ReservedInstanceAnalysisResult {
                 purchaseConstraints, topologyId, contextsAnalyzed);
         this.recommendations = ImmutableList.copyOf(recommendations);
         this.buyRiStore = buyRiStore;
+        this.actionContextRIBuyStore = actionContextRIBuyStore;
     }
 
     @Nonnull
@@ -203,8 +208,10 @@ public class ReservedInstanceAnalysisResult {
 
     /**
      * Creates RI Bought from the RI recommendations.
+     * Also insert RI Buy recommendations into action_context_ri_buy table.
      */
     public void persistResults() {
         buyRiStore.udpateBuyReservedInstances(recommendations, manifest.getTopologyContextId());
+        actionContextRIBuyStore.insertIntoActionContextRIBuy(recommendations, manifest.getTopologyContextId());
     }
 }

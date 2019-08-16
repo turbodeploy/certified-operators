@@ -39,7 +39,6 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -70,21 +69,16 @@ public class ActionModeCalculator {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final ActionTranslator actionTranslator;
-
     private final RangeAwareSpecCalculator rangeAwareSpecCalculator;
 
-    public ActionModeCalculator(@Nonnull ActionTranslator actionTranslator) {
-        this.actionTranslator = actionTranslator;
+    public ActionModeCalculator() {
         this.rangeAwareSpecCalculator = new RangeAwareSpecCalculator();
     }
 
     // This is present in case we want to test just ActionModeCalculator without
     // rangeAwareSpecCalculator. In that case, it cane be mocked if needed.
     @VisibleForTesting
-    ActionModeCalculator(@Nonnull ActionTranslator actionTranslator,
-                                @Nonnull RangeAwareSpecCalculator rangeAwareSpecCalculator) {
-        this.actionTranslator = actionTranslator;
+    ActionModeCalculator(@Nonnull RangeAwareSpecCalculator rangeAwareSpecCalculator) {
         this.rangeAwareSpecCalculator = rangeAwareSpecCalculator;
     }
 
@@ -196,10 +190,6 @@ public class ActionModeCalculator {
     @Nonnull
     private ActionMode getNonWorkflowActionMode(@Nonnull final ActionView action,
                 @Nullable final EntitiesAndSettingsSnapshot entitiesCache) {
-        final boolean translationSuccess = actionTranslator.translate(action);
-        if (!translationSuccess){
-            return ActionMode.RECOMMEND;
-        }
         Optional<ActionDTO.Action> translatedRecommendation = action.getActionTranslation()
                 .getTranslatedRecommendation();
         if (translatedRecommendation.isPresent()) {
@@ -249,7 +239,7 @@ public class ActionModeCalculator {
                 return ActionMode.RECOMMEND;
             }
         } else {
-            logger.error("Action {} has no translated recommendation despite successful translation.", action.getId());
+            logger.error("Action {} has no translated recommendation.", action.getId());
             return ActionMode.RECOMMEND;
         }
     }

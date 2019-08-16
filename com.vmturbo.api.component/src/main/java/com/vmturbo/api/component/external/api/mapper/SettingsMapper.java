@@ -66,7 +66,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingToPolicyName;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
@@ -287,43 +286,6 @@ public class SettingsMapper {
                             .orElseThrow(() -> new IllegalStateException("Manager ID " +
                                     entry.getKey() + " not found despite being in the mappings earlier."));
                     return createMgrDto(entry.getKey(), entityType, info, entry.getValue());
-                })
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Convert a collection of {@link SettingSpec} objects into the {@link SettingsManagerApiDTO}
-     * that will represent these settings to the UI.
-     *
-     * @param settingSpecNameToSettingsMap
-     * @param settingSpecNameToSettingSpecMap
-     * @return The {@link SettingsManagerApiDTO}s.
-     */
-    public List<SettingsManagerApiDTO> toManagerDtos(
-            @Nonnull final Map<String, List<SettingToPolicyName>> settingSpecNameToSettingsMap,
-            @Nonnull final Map<String, SettingSpec> settingSpecNameToSettingSpecMap) {
-
-        final Map<String, List<SettingToPolicyName>> settingMgrToSettingsMap = new HashMap<>();
-        settingSpecNameToSettingsMap.entrySet().forEach(entry -> {
-            Optional<String> managerUuid = managerMapping.getManagerUuid(entry.getKey());
-            if (!managerUuid.isPresent()) {
-               logger.warn("No setting manager id found for spec:{}, setting: {}." +
-                               "Filtering out from result.",
-                       entry.getKey(), entry.getValue());
-               return;
-            }
-            settingMgrToSettingsMap.computeIfAbsent(managerUuid.get(),
-                    k -> new ArrayList<>()).addAll(entry.getValue());
-        });
-
-        return settingMgrToSettingsMap.entrySet().stream()
-                // Don't return the specs that don't have a Manager mapping
-                .map(entry -> {
-                    final SettingsManagerInfo info = managerMapping.getManagerInfo(entry.getKey())
-                            .orElseThrow(() -> new IllegalStateException("Manager ID " +
-                                    entry.getKey() + " not found despite being in the mappings earlier."));
-                    return createMgrDto(entry.getKey(), info, entry.getValue(),
-                            settingSpecNameToSettingSpecMap);
                 })
                 .collect(Collectors.toList());
     }
@@ -654,69 +616,6 @@ public class SettingsMapper {
     }
 
     /**
-     * Create a {@link SettingsManagerApiDTO} containing information about settings, but not their
-     * values. This will be a "thicker" manager than the one created by
-     * {@link DefaultSettingPolicyMapper#createValMgrDto(String, SettingsManagerInfo, String, Collection)},
-     * but none of the settings will have values (since this is only a description of what the
-     * settings are).
-     *
-     * @param mgrId The ID of the manager.
-     * @param info  The information about the manager.
-     * @param settings The {@link Setting}s managed by this manager. This function assumes all
-     *              the settings belong to the manager.
-     * @param settingSpecNameToSettingSpecMap Mapping from SettingSpecName to SettingSpec.
-     * @return The {@link SettingsManagerApiDTO}.
-     */
-    @Nonnull
-    private SettingsManagerApiDTO createMgrDto(@Nonnull final String mgrId,
-                                               @Nonnull final SettingsManagerInfo info,
-                                               @Nonnull final Collection<SettingToPolicyName> settings,
-                                               @Nonnull final Map<String, SettingSpec> settingSpecNameToSettingSpecMap) {
-
-        final SettingsManagerApiDTO mgrApiDto = info.newApiDTO(mgrId);
-
-        mgrApiDto.setSettings(settings.stream()
-                .map(setting ->
-                        settingSpecMapper.settingSpecToApi(
-                                Optional.of(settingSpecNameToSettingSpecMap.get(
-                                        setting.getSetting().getSettingSpecName())),
-                                Optional.of(setting.getSetting())))
-                .flatMap(settingPossibilities -> settingPossibilities.getAll().stream())
-                .collect(Collectors.toList()));
-
-        Map<String, String> settingNameToSettingPolicyName =
-                settings.stream()
-                        .collect(Collectors.toMap(settingPolicyName ->
-                                        settingPolicyName.getSetting().getSettingSpecName(),
-                                SettingToPolicyName::getSettingPolicyName));
-
-        // We don't want to query the repository to just get the entityType. And it's not used
-        // in the UI anyway. There can be many entities with the same spec. So we keep only one
-        // spec type.
-        Set<String> haveSeenSpec = new HashSet<>();
-        // configure UI presentation information
-        final List<SettingApiDTO<?>> apiDtos = new ArrayList<>();
-        for (SettingApiDTO apiDto : mgrApiDto.getSettings()) {
-            String specName = apiDto.getUuid();
-            if (haveSeenSpec.contains(specName)) {
-               continue;
-            }
-            haveSeenSpec.add(specName);
-            apiDto.setSourceGroupName(settingNameToSettingPolicyName.get(specName));
-             // uncomment out the entityType as we don't need it and we don't want to
-            // set the wrong one as we pick any one of the setting value.
-            apiDto.setEntityType("");
-            settingSpecStyleMapping.getStyleInfo(specName)
-                    .ifPresent(styleInfo ->
-                            apiDto.setRange(styleInfo.getRange().getRangeApiDTO()));
-            apiDtos.add(apiDto);
-        }
-
-        mgrApiDto.setSettings(apiDtos);
-        return mgrApiDto;
-    }
-
-    /**
      * A functional interface to allow separate testing for the actual conversion, and the
      * code preceding the conversion (e.g. getting the involved groups).
      */
@@ -993,6 +892,12 @@ public class SettingsMapper {
             logger.warn("Could not find setting spec for setting {}", setting.getSettingSpecName());
         }
         return settingSpecMapper.settingSpecToApi(settingSpec, Optional.of(setting));
+    }
+
+    @Nonnull
+    public SettingApiDTOPossibilities toSettingApiDto(@Nonnull final Setting setting,
+                                                      @Nonnull final SettingSpec settingSpec) {
+        return settingSpecMapper.settingSpecToApi(Optional.of(settingSpec), Optional.of(setting));
     }
 
     /**

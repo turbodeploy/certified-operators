@@ -44,6 +44,9 @@ public enum UIEntityType {
     VIRTUAL_VOLUME("VirtualVolume", EntityType.VIRTUAL_VOLUME),
     PROCESSOR_POOL("ProcessorPool", EntityType.PROCESSOR_POOL),
     HYPERVISOR_SERVER("Hypervisor Server", EntityType.HYPERVISOR_SERVER),
+    VIEW_POD("ViewPod", EntityType.VIEW_POD),
+    DESKTOP_POOL("DesktopPool", EntityType.DESKTOP_POOL),
+    BUSINESS_USER("BusinessUser", EntityType.BUSINESS_USER),
     UNKNOWN("Unknown", EntityType.UNKNOWN);
 
     private final String uiStr;

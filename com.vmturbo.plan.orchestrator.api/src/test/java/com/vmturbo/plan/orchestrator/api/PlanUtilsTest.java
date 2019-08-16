@@ -3,9 +3,10 @@ package com.vmturbo.plan.orchestrator.api;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Collections;
+
 import com.google.common.collect.ImmutableList;
 
-import org.apache.commons.collections4.CollectionUtils;
 import org.junit.After;
 import org.junit.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -40,7 +41,7 @@ public class PlanUtilsTest {
                 new AuthUserDTO(null, "admin", "pass", "10.10.10.10",
                         "1", "token", ImmutableList.of("Administrator"), null),
                 "admin000",
-                CollectionUtils.emptyCollection());
+                Collections.emptySet());
         SecurityContextHolder.getContext().setAuthentication(auth);
         assertTrue(PlanUtils.canCurrentUserAccessPlan(planInstance));
     }
@@ -58,7 +59,7 @@ public class PlanUtilsTest {
                 new AuthUserDTO(null, "nonadmin", "pass", "10.10.10.10",
                         "1", "token", ImmutableList.of("NOT_ADMIN"), null),
                 "admin000",
-                CollectionUtils.emptyCollection());
+                Collections.emptySet());
         SecurityContextHolder.getContext().setAuthentication(auth);
         assertTrue(PlanUtils.canCurrentUserAccessPlan(planInstance));
     }
@@ -76,7 +77,7 @@ public class PlanUtilsTest {
                 new AuthUserDTO(null, "nonadmin", "pass", "10.10.10.10",
                         "2", "token", ImmutableList.of("NOT_ADMIN"), null),
                 "admin000",
-                CollectionUtils.emptyCollection());
+                Collections.emptySet());
         SecurityContextHolder.getContext().setAuthentication(auth);
         assertFalse(PlanUtils.canCurrentUserAccessPlan(planInstance));
     }
@@ -93,7 +94,7 @@ public class PlanUtilsTest {
                 new AuthUserDTO(null, "nonadmin", "pass", "10.10.10.10",
                         "1", "token", ImmutableList.of("NOT_ADMIN"), null),
                 "admin000",
-                CollectionUtils.emptyCollection());
+                Collections.emptySet());
         SecurityContextHolder.getContext().setAuthentication(auth);
         assertTrue(PlanUtils.canCurrentUserAccessPlan(planInstance));
     }

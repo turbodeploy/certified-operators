@@ -205,6 +205,8 @@ public class UuidMapper {
 
         private final boolean globalTempGroup;
 
+        private final Optional<EnvironmentType> globalTempGroupEnv;
+
         private final Type groupType;
 
         private final UIEntityType entityType;
@@ -221,14 +223,22 @@ public class UuidMapper {
             this.groupType = group.getType();
             this.name = GroupProtoUtil.getGroupName(group);
             this.discoveringTargetIds = discoveringTargetIds;
+            this.globalTempGroupEnv = group.getTempGroup().hasEnvironmentType() ?
+                Optional.of(group.getTempGroup().getEnvironmentType()) : Optional.empty();
         }
 
         public boolean isGlobalTempGroup() {
             return globalTempGroup;
         }
 
+        @Nonnull
         public UIEntityType getEntityType() {
             return entityType;
+        }
+
+        @Nonnull
+        public Optional<EnvironmentType> getGlobalEnvType() {
+            return globalTempGroupEnv;
         }
 
         public Type getGroupType() {

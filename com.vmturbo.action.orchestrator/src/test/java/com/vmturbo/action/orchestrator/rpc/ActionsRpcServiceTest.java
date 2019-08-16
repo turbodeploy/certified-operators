@@ -38,13 +38,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateRespons
  */
 public class ActionsRpcServiceTest {
     private static final long ACTION_PLAN_ID = 9876;
-    private ActionTranslator actionTranslator = mock(ActionTranslator.class);
-    private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
-
-    @Before
-    public void setup() {
-        when(actionTranslator.translate(any(ActionView.class))).thenReturn(true);
-    }
+    private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
 
     @Test
     public void testGetActionCountsByDateResponseBuilder() throws Exception {

@@ -24,6 +24,7 @@ import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
+import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander;
@@ -231,10 +232,9 @@ public class ServiceConfig {
                 mapperConfig.uuidMapper(),
                 communicationConfig.historyRpcService(),
                 communicationConfig.settingPolicyRpcService(),
-                communicationConfig.settingRpcService(),
                 mapperConfig.settingsMapper(),
                 actionSearchUtil(),
-                communicationConfig.repositoryApi());
+                communicationConfig.repositoryApi(), entitySettingQueryExecutor());
     }
 
     @Bean
@@ -256,7 +256,8 @@ public class ServiceConfig {
                 actionSearchUtil(),
                 communicationConfig.settingPolicyRpcService(),
                 mapperConfig.settingsMapper(),
-                communicationConfig.thinTargetCache());
+                communicationConfig.thinTargetCache(),
+            entitySettingQueryExecutor());
     }
 
     @Bean
@@ -646,5 +647,14 @@ public class ServiceConfig {
             communicationConfig.supplyChainFetcher(),
             communicationConfig.groupExpander(),
             communicationConfig.getRealtimeTopologyContextId());
+    }
+
+    @Bean
+    public EntitySettingQueryExecutor entitySettingQueryExecutor() {
+        return new EntitySettingQueryExecutor(communicationConfig.settingPolicyRpcService(),
+            communicationConfig.settingRpcService(),
+            communicationConfig.groupExpander(),
+            mapperConfig.settingsMapper(),
+            mapperConfig.settingManagerMappingLoader().getMapping());
     }
 }

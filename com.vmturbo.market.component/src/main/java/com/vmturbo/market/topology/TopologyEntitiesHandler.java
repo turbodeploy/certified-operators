@@ -1,6 +1,7 @@
 package com.vmturbo.market.topology;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -13,7 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.collect.ImmutableMap;
-
+import com.google.common.collect.Lists;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.AnalysisUtil;
@@ -26,18 +27,21 @@ import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Activate;
+import com.vmturbo.platform.analysis.actions.ProvisionBase;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomySettings;
+import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.ledger.PriceStatement;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
 import com.vmturbo.platform.analysis.topology.Topology;
@@ -46,6 +50,7 @@ import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
+
 
 /**
  * Handle the entities received by the listener.
@@ -207,14 +212,37 @@ public class TopologyEntitiesHandler {
                     action instanceof ProvisionBySupply ||
                     action instanceof Activate))
                 .collect(Collectors.toList()));
+            List<Trader> provisionedTraders = Lists.newArrayList();
 
             for (Action action : secondRoundActions) {
                 final ActionTO actionTO = AnalysisToProtobuf.actionTO(
                     action, topology.getTraderOids(), topology.getShoppingListOids(), topology);
                 if (actionTO != null) {
                     builder.addActions(actionTO);
+                    // After action is added, find the provisioned trader
+                    // to be added later in analysis results
+                    Trader provisionedTrader = null;
+                    if (action instanceof ProvisionBase) {
+                        provisionedTrader = ((ProvisionBase)action).getProvisionedSeller();
+                        provisionedTraders.add(provisionedTrader);
+                    } else if (action instanceof Activate) {
+                       /** Update state of traderTO that was already created
+                         * because this is an existing entity.
+                         * We are relying on index of economy and corresponding entry
+                         * in the projected TraderTO in the builder.
+                         * If someone skips some Trader in economy for converting it
+                         * to TraderTO, this assumption will break.
+                         */
+                        builder.getProjectedTopoEntityTOBuilder(
+                                        action.getActionTarget().getEconomyIndex())
+                                        .setState(TraderStateTO.ACTIVE);
+                    }
                 }
             }
+
+            // Before building the results, generate traderTOs for provisioned traders from second round
+            // If Action DTO is added, check if we need to add provisioned traderTO as well
+            addProvisionedTraderToBuilder(builder, provisionedTraders, economy, topology);
             results = builder.build();
 
             // Update replay actions
@@ -237,6 +265,29 @@ public class TopologyEntitiesHandler {
         logger.info("Completed analysis, with {} actions, and a projected topology of {} traders",
                 results.getActionsCount(), results.getProjectedTopoEntityTOCount());
         return results;
+    }
+
+    /**
+     * Create TraderTOs from provisioned traders from second round
+     * of real time analysis
+     * @param analysisResultsBuilder    Analysis results builder to be updated
+     * @param provisionedTraders        {@link List} of traders provisioned by market
+     * @param economy                   {@link Economy}
+     * @param topology                  {@link Topology}
+     */
+    private static void addProvisionedTraderToBuilder(
+                    AnalysisResults.Builder analysisResultsBuilder, List<Trader> provisionedTraders,
+                    Economy economy, Topology topology) {
+        for (Trader provisionedTrader : provisionedTraders) {
+            TraderTO pTraderTO = AnalysisToProtobuf.traderTO(economy, provisionedTrader,
+                            topology.getTraderOids(), topology.getShoppingListOids(),
+                            Collections.emptySet());
+            if (pTraderTO != null) {
+                analysisResultsBuilder.addProjectedTopoEntityTO(pTraderTO);
+                logger.trace("Provisioned trader {}, added to returned traderTOs from market",
+                                provisionedTrader.getDebugInfoNeverUseInCode());
+            }
+        }
     }
 
     /**

@@ -14,7 +14,6 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -136,7 +135,8 @@ public class UserSessionContext implements AutoCloseable {
 
         // check the fast and most common path for unscoped users.
         List<Long> currentUserScopeGroups = UserScopeUtils.getUserScopeGroups();
-        if (CollectionUtils.isEmpty(currentUserScopeGroups)) {
+
+        if (currentUserScopeGroups == null || currentUserScopeGroups.isEmpty()) {
             return EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE;
         }
 

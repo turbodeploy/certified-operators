@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,6 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -404,13 +406,51 @@ public class EntitySettingStore {
         public Map<Long, Collection<SettingToPolicyId>> getFilteredSettings(final EntitySettingFilter filter) {
             final Set<Long> ids = filter.getEntitiesList().isEmpty() ?
                     settingsByEntity.keySet() : Sets.newHashSet(filter.getEntitiesList());
-            return ids.stream()
-                    .collect(Collectors.toMap(Function.identity(),
-                            this::getEntitySettings));
+            final Set<String> targetSettings = filter.getSettingNameList().isEmpty() ? Collections.emptySet() : new HashSet<>(filter.getSettingNameList());
+            final Predicate<SettingToPolicyId> namePredicate =
+                s -> targetSettings.isEmpty() || targetSettings.contains(s.getSetting().getSettingSpecName());
+
+            final Map<Long, Collection<SettingToPolicyId>> retMap = new HashMap<>();
+            for (Long id : ids) {
+                if (filter.hasPolicyId()) {
+                    retMap.put(id, getEntitySettingsFromPolicy(id, filter.getPolicyId(), namePredicate));
+                } else {
+                    retMap.put(id, getEntitySettings(id, namePredicate));
+                }
+            }
+            return retMap;
+        }
+
+        private Collection<SettingToPolicyId> getEntitySettingsFromPolicy(@Nonnull final Long id,
+                                                                          final long policyId,
+                                                                          @Nonnull final Predicate<SettingToPolicyId> namePredicate) {
+            final EntitySettings userSettings = settingsByEntity.get(id);
+            if (userSettings == null) {
+                return Collections.emptyList();
+            }
+
+            if (policyId == userSettings.getDefaultSettingPolicyId()) {
+                Set<String> excludedSettings = userSettings.getUserSettingsList().stream()
+                    .filter(namePredicate)
+                    .map(settingToPolicy -> settingToPolicy.getSetting().getSettingSpecName())
+                    .collect(Collectors.toSet());
+
+                return getDefaultSettingPolicySettings(policyId)
+                    .filter(namePredicate)
+                    .filter(settingToPolicy ->
+                        !excludedSettings.contains(settingToPolicy.getSetting().getSettingSpecName()))
+                    .collect(Collectors.toList());
+            }
+
+            return userSettings.getUserSettingsList().stream()
+                .filter(settingToPolicy -> settingToPolicy.getSettingPolicyId() == policyId)
+                .filter(namePredicate)
+                .collect(Collectors.toList());
         }
 
         @Nonnull
-        private Collection<SettingToPolicyId> getEntitySettings(@Nonnull final Long id) {
+        private Collection<SettingToPolicyId> getEntitySettings(@Nonnull final Long id,
+                                                                @Nonnull final Predicate<SettingToPolicyId> namePredicate) {
             final EntitySettings userSettings = settingsByEntity.get(id);
             if (userSettings == null) {
                 return Collections.emptyList();
@@ -419,7 +459,9 @@ public class EntitySettingStore {
             final List<SettingToPolicyId> settings = new ArrayList<>();
 
             // First add all user settings
-            settings.addAll(userSettings.getUserSettingsList());
+            userSettings.getUserSettingsList().stream()
+                .filter(namePredicate)
+                .forEach(settings::add);
             final Set<String> specsPresent = settings.stream()
                     .map(SettingToPolicyId::getSetting)
                     .map(Setting::getSettingSpecName)
@@ -427,21 +469,29 @@ public class EntitySettingStore {
 
             // Fill in default settings, if any.
             if (userSettings.hasDefaultSettingPolicyId()) {
-                final SettingPolicy defaultSettingPolicy =
-                    defaultPolicies.get(userSettings.getDefaultSettingPolicyId());
-                if (defaultSettingPolicy != null) {
-                    defaultSettingPolicy.getInfo().getSettingsList().stream()
-                        .filter(setting -> !specsPresent.contains(setting.getSettingSpecName()))
-                        .forEach(setting -> settings.add(acquireSettingToPolicyId(defaultSettingPolicy, setting)));
-                } else {
-                    // This shouldn't happen, because we checked that the default setting policy
-                    // exists when constructing the snapshot.
-                    LOGGER.error("Default setting policy {} somehow missing from snapshot.",
-                        userSettings.getDefaultSettingPolicyId());
-                }
+                getDefaultSettingPolicySettings(userSettings.getDefaultSettingPolicyId())
+                    .filter(namePredicate)
+                    // Check to make sure we don't override the one from user settings.
+                    .filter(settingToPolicyId -> !specsPresent.contains(settingToPolicyId.getSetting().getSettingSpecName()))
+                    .forEach(settings::add);
             }
 
             return settings;
+        }
+
+        @Nonnull
+        private Stream<SettingToPolicyId> getDefaultSettingPolicySettings(final long policyId) {
+            final SettingPolicy defaultSettingPolicy = defaultPolicies.get(policyId);
+            if (defaultSettingPolicy != null) {
+                return defaultSettingPolicy.getInfo().getSettingsList().stream()
+                    .map(setting -> acquireSettingToPolicyId(defaultSettingPolicy, setting));
+            } else {
+                // This shouldn't happen, because we checked that the default setting policy
+                // exists when constructing the snapshot.
+                LOGGER.error("Default setting policy {} somehow missing from snapshot.",
+                    policyId);
+                return Stream.empty();
+            }
         }
 
         // Build flyweight map to avoid creating new default setting to PolicyId every time.

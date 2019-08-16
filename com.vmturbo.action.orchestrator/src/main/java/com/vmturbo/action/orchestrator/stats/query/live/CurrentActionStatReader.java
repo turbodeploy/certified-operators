@@ -29,7 +29,6 @@ import com.vmturbo.action.orchestrator.stats.query.live.CombinedStatsBuckets.Com
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter.ScopeCase;
@@ -58,15 +57,11 @@ public class CurrentActionStatReader {
 
     private final ActionStorehouse actionStorehouse;
 
-    private final ActionTranslator actionTranslator;
-
     public CurrentActionStatReader(final long realtimeContextId,
-                                   @Nonnull final ActionStorehouse actionStorehouse,
-                                   @Nonnull final ActionTranslator actionTranslator) {
+                                   @Nonnull final ActionStorehouse actionStorehouse) {
         this(new QueryInfoFactory(realtimeContextId),
             new CombinedStatsBucketsFactory(),
-            actionStorehouse,
-            actionTranslator);
+            actionStorehouse);
     }
 
     /**
@@ -75,12 +70,10 @@ public class CurrentActionStatReader {
     @VisibleForTesting
     CurrentActionStatReader(@Nonnull final QueryInfoFactory queryInfoFactory,
                             @Nonnull final CombinedStatsBucketsFactory statsBucketsFactory,
-                            @Nonnull final ActionStorehouse actionStorehouse,
-                            @Nonnull final ActionTranslator actionTranslator) {
+                            @Nonnull final ActionStorehouse actionStorehouse) {
         this.queryInfoFactory = Objects.requireNonNull(queryInfoFactory);
         this.statsBucketsFactory = Objects.requireNonNull(statsBucketsFactory);
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
-        this.actionTranslator = Objects.requireNonNull(actionTranslator);
     }
 
     /**

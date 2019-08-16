@@ -53,7 +53,7 @@ public class ClusterStatsSubQuery implements StatsSubQuery {
     @Override
     public boolean applicableInContext(@Nonnull final StatsQueryContext context) {
         // Supports queries on clusters.
-        return context.getScope().getGroupType()
+        return context.getInputScope().getGroupType()
             .filter(type -> type == Type.CLUSTER)
             .isPresent();
     }
@@ -68,7 +68,7 @@ public class ClusterStatsSubQuery implements StatsSubQuery {
     public Map<Long, List<StatApiDTO>> getAggregateStats(@Nonnull final Set<StatApiInputDTO> requestedStats,
                                                          @Nonnull final StatsQueryContext context) throws OperationFailedException {
         final ClusterStatsRequest clusterStatsRequest = statsMapper.toClusterStatsRequest(
-            context.getScope().uuid(),
+            context.getInputScope().uuid(),
             context.newPeriodInputDto(requestedStats));
 
         Map<Long, List<StatApiDTO>> stats = new HashMap<>();

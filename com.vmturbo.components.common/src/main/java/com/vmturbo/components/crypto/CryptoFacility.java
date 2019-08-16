@@ -10,6 +10,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.crypto.Cipher;
@@ -19,9 +20,10 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
+import com.google.common.io.BaseEncoding;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bouncycastle.util.encoders.Base64;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 
 /**
@@ -157,7 +159,7 @@ public class CryptoFacility {
             throw new SecurityException("Null ciphertext.");
         }
         try {
-            byte[] cipherData = Base64.decode(ciphertext.getBytes(CHARSET_CRYPTO));
+            final byte[] cipherData = BaseEncoding.base64().decode(ciphertext);
             return new String(decrypt(keySplitValue, cipherData), CHARSET_CRYPTO);
         } catch (UnsupportedEncodingException e) {
             throw new RuntimeException("Unable to decode.", e);
@@ -282,7 +284,7 @@ public class CryptoFacility {
             System.arraycopy(seedData, 0, finalSalt, 0, seedData.length);
             System.arraycopy(salt, 0, finalSalt, seedData.length, salt.length);
             byte[] siteSecretBytes = getEncryptionKeyForVMTurboInstance();
-            String siteSecret = new String(Base64.encode(siteSecretBytes), CHARSET_CRYPTO);
+            String siteSecret = BaseEncoding.base64().encode(siteSecretBytes);
             KeySpec specs = new PBEKeySpec(siteSecret.toCharArray(),
                                            finalSalt,
                                            PBKDF2_ITERATIONS,
@@ -333,7 +335,7 @@ public class CryptoFacility {
             throws SecurityException {
         try {
             byte[] encryptedBytes = encrypt(keySplitValue, plaintext.getBytes(CHARSET_CRYPTO));
-            return new String(Base64.encode(encryptedBytes), CHARSET_CRYPTO);
+            return BaseEncoding.base64().encode(encryptedBytes);
         } catch (UnsupportedEncodingException e) {
             throw new RuntimeException("Unable to decode.", e);
         }

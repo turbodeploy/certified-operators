@@ -96,7 +96,7 @@ public class ActionStoreConfig {
 
     @Bean
     public ActionModeCalculator actionModeCalculator() {
-        return new ActionModeCalculator(actionTranslationConfig.actionTranslator());
+        return new ActionModeCalculator();
     }
 
     @Bean
@@ -108,7 +108,6 @@ public class ActionStoreConfig {
     public AutomatedActionExecutor automatedActionExecutor() {
         return new AutomatedActionExecutor(actionExecutionConfig.actionExecutor(),
                 automatedActionThreadpool(),
-                actionTranslationConfig.actionTranslator(),
                 workflowConfig.workflowStore(),
                 actionExecutionConfig.actionTargetSelector());
     }

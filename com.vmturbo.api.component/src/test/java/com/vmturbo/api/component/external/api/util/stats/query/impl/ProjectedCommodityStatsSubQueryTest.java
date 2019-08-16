@@ -3,7 +3,6 @@ package com.vmturbo.api.component.external.api.util.stats.query.impl;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
-
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -27,6 +26,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.stats.ImmutableTimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext.TimeWindow;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
 import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -89,7 +89,7 @@ public class ProjectedCommodityStatsSubQueryTest {
         final ApiId scope = mock(ApiId.class);
         when(scope.isPlan()).thenReturn(true);
         final StatsQueryContext context = mock(StatsQueryContext.class);
-        when(context.getScope()).thenReturn(scope);
+        when(context.getInputScope()).thenReturn(scope);
         when(context.requestProjected()).thenReturn(true);
 
         assertThat(query.applicableInContext(context), is(false));
@@ -100,7 +100,7 @@ public class ProjectedCommodityStatsSubQueryTest {
         final ApiId scope = mock(ApiId.class);
         when(scope.isPlan()).thenReturn(false);
         final StatsQueryContext context = mock(StatsQueryContext.class);
-        when(context.getScope()).thenReturn(scope);
+        when(context.getInputScope()).thenReturn(scope);
         when(context.requestProjected()).thenReturn(true);
         when(context.getSessionContext()).thenReturn(userSessionContext);
         when(userSessionContext.isUserScoped()).thenReturn(false);
@@ -112,7 +112,7 @@ public class ProjectedCommodityStatsSubQueryTest {
         final ApiId scope = mock(ApiId.class);
         when(scope.isPlan()).thenReturn(false);
         final StatsQueryContext context = mock(StatsQueryContext.class);
-        when(context.getScope()).thenReturn(scope);
+        when(context.getInputScope()).thenReturn(scope);
 
         // Request did not include projected stats.
         when(context.requestProjected()).thenReturn(false);
@@ -127,7 +127,7 @@ public class ProjectedCommodityStatsSubQueryTest {
             .endTime(3_000)
             .build();
         final StatsQueryContext context = mock(StatsQueryContext.class);
-        when(context.getScopeEntities()).thenReturn(Collections.singleton(1L));
+        when(context.getQueryScope()).thenReturn(StatsQueryScope.some(Collections.singleton(1L)));
         when(context.getTimeWindow()).thenReturn(Optional.of(timeWindow));
 
         // Just something unique

@@ -25,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -51,7 +52,9 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
@@ -60,6 +63,17 @@ import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
  * A factory class for various {@link SupplychainFetcher}s.
  */
 public class SupplyChainFetcherFactory {
+
+    private static final Logger logger = LogManager.getLogger();
+
+    /**
+     * Map Entity types to be expanded to the RelatedEntityType to retrieve. For example,
+     * replace requests for stats for a DATACENTER entity with the PHYSICAL_MACHINEs
+     * in that DATACENTER.
+     */
+    private static final Map<UIEntityType, UIEntityType> ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
+        UIEntityType.DATACENTER, UIEntityType.PHYSICAL_MACHINE
+    );
 
     private final SupplyChainServiceBlockingStub supplyChainRpcService;
 
@@ -124,6 +138,75 @@ public class SupplyChainFetcherFactory {
                     entityUuids.stream().map(Object::toString).collect(Collectors.toList()))
                 .entityTypes(relatedEntityTypes)
                 .fetchEntityIds();
+    }
+
+    /**
+     * Replace specific types of ServiceEntities with "constituents". For example, a DataCenter SE
+     * is replaced by the PhysicalMachine SE's related to that DataCenter.
+     *<p>
+     * ServiceEntities of other types not to be expanded are copied to the output result set.
+     *<p>
+     * See 6.x method SupplyChainUtils.getUuidsFromScopesByRelatedType() which uses the
+     * marker interface EntitiesProvider to determine which Service Entities to expand.
+     *<p>
+     * Errors fetching the supply chain are logged and ignored - the input OID will be copied
+     * to the output in case of an error or missing relatedEntityType info in the supply chain.
+     *<p>
+     * First, it will fetch entities which need to expand, then check if any input entity oid
+     * belongs to those entities. Because if input entity set is large, it will cost a lot time to
+     * fetch huge entity from Repository. Instead, if first fetch those entities which need to expand
+     * , the amount will be much less than the input entity set size since right now only DataCenter
+     * could expand.
+     *
+     * @param entityOidsToExpand a set of ServiceEntity OIDs to examine
+     * @return a set of ServiceEntity OIDs with types that should be expanded replaced by the
+     * "constituent" ServiceEntity OIDs as computed by the supply chain.
+     */
+    public Set<Long> expandGroupingServiceEntities(Collection<Long> entityOidsToExpand) {
+        // Early return if the input is empty, to prevent making
+        // the initial RPC call.
+        if (entityOidsToExpand.isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        final Set<Long> expandedEntityOids = Sets.newHashSet();
+        // get all service entities which need to expand.
+        final Map<Long, MinimalEntity> expandServiceEntities = ENTITY_TYPES_TO_EXPAND.keySet().stream()
+            .flatMap(entityType -> repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
+                SearchProtoUtil.entityTypeFilter(entityType)).build())
+                .getMinimalEntities())
+            .collect(Collectors.toMap(MinimalEntity::getOid, Function.identity()));
+
+        // go through each entity and check if it needs to expand.
+        for (Long oidToExpand : entityOidsToExpand) {
+            try {
+                // if expandServiceEntityMap contains oid, it means current oid entity needs to expand.
+                if (expandServiceEntities.containsKey(oidToExpand)) {
+                    final MinimalEntity expandEntity = expandServiceEntities.get(oidToExpand);
+                    final String relatedEntityType =
+                        ENTITY_TYPES_TO_EXPAND.get(UIEntityType.fromType(expandEntity.getEntityType())).apiStr();
+                    // fetch the supply chain map:  entity type -> SupplyChainNode
+                    Map<String, SupplyChainNode> supplyChainMap = newNodeFetcher()
+                        .entityTypes(Collections.singletonList(relatedEntityType))
+                        .addSeedUuid(Long.toString(expandEntity.getOid()))
+                        .fetch();
+                    SupplyChainNode relatedEntities = supplyChainMap.get(relatedEntityType);
+                    if (relatedEntities != null) {
+                        expandedEntityOids.addAll(RepositoryDTOUtil.getAllMemberOids(relatedEntities));
+                    } else {
+                        logger.warn("RelatedEntityType {} not found in supply chain for {}; " +
+                            "the entity is discarded", relatedEntityType, expandEntity.getOid());
+                    }
+                } else {
+                    expandedEntityOids.add(oidToExpand);
+                }
+            } catch (OperationFailedException e) {
+                logger.warn("Error fetching supplychain for {}: ", oidToExpand, e.getMessage());
+                // include the OID unexpanded
+                expandedEntityOids.add(oidToExpand);
+            }
+        }
+        return expandedEntityOids;
     }
 
     /**

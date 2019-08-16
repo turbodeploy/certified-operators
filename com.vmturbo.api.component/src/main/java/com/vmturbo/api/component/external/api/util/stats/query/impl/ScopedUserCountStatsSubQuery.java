@@ -47,7 +47,7 @@ public class ScopedUserCountStatsSubQuery implements StatsSubQuery {
 
     @Override
     public boolean applicableInContext(@Nonnull final StatsQueryContext context) {
-        return userSessionContext.isUserScoped() && !context.getScope().isPlan();
+        return userSessionContext.isUserScoped() && !context.getInputScope().isPlan();
     }
 
     @Override
@@ -100,7 +100,7 @@ public class ScopedUserCountStatsSubQuery implements StatsSubQuery {
             .collect(Collectors.toList());
 
         final Map<Integer, Long> entityTypeCount =
-            repositoryApi.entitiesRequest(context.getScopeEntities())
+            repositoryApi.entitiesRequest(context.getQueryScope().getEntities())
                 .restrictTypes(entityTypes)
                 .getMinimalEntities()
                 .map(MinimalEntity::getEntityType)

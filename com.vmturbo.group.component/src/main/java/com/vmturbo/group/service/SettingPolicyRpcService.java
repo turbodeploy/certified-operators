@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -31,14 +32,14 @@ import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyReque
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup.SettingPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingToPolicyName;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupResponse.GroupSettingPolicies;
@@ -366,50 +367,74 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
                     request.getTopologySelection(),
                     request.getSettingFilter());
 
-            final Map<Long, String> settingPolicyIdToNameMap = new HashMap<>();
+            if (request.getIncludeSettingPolicies()) {
+                final SettingPolicyFilter.Builder settingPolicyFilter = SettingPolicyFilter.newBuilder()
+                    .withType(Type.USER)
+                    .withType(Type.DISCOVERED)
+                    .withType(Type.DEFAULT);
 
-            if (request.getSettingFilter().hasIncludeSettingPolicies() &&
-                    request.getSettingFilter().hasIncludeSettingPolicies()) {
-                Set<Long> settingPolicyIds = results.values().stream()
-                        .flatMap(settingToPolicyIds -> settingToPolicyIds.stream())
-                        .map(SettingToPolicyId::getSettingPolicyId)
-                        .collect(Collectors.toSet());
+                results.values().stream()
+                    .flatMap(Collection::stream)
+                    .map(SettingToPolicyId::getSettingPolicyId)
+                    .forEach(settingPolicyFilter::withId);
 
-                SettingPolicyFilter.Builder settingPolicyFilter = SettingPolicyFilter.newBuilder()
-                        .withType(Type.USER)
-                        .withType(Type.DISCOVERED)
-                        .withType(Type.DEFAULT);
+                final Map<Long, SettingPolicyId> settingPolicyById =
+                    settingStore.getSettingPolicies(settingPolicyFilter.build())
+                        .collect(Collectors.toMap(SettingPolicy::getId,
+                            policy -> SettingPolicyId.newBuilder()
+                                .setPolicyId(policy.getId())
+                                .setDisplayName(policy.getInfo().getName())
+                                .setType(policy.getSettingPolicyType())
+                                .build()));
 
-                settingPolicyIds.forEach(settingPolicyId -> settingPolicyFilter.withId(settingPolicyId));
-                settingStore.getSettingPolicies(settingPolicyFilter.build())
-                        .forEach(settingPolicy -> settingPolicyIdToNameMap.put(settingPolicy.getId(),
-                                settingPolicy.getInfo().getName()));
+                final Map<SettingToPolicyId, Set<Long>> entitiesBySettingAndPolicy = new HashMap<>();
+                results.forEach((entityId, settingsForEntity) -> {
+                    settingsForEntity.forEach(settingToPolicyId -> {
+                        final Set<Long> entitiesByPolicy = entitiesBySettingAndPolicy.computeIfAbsent(
+                            settingToPolicyId, k -> new HashSet<>());
+                        entitiesByPolicy.add(entityId);
+                    });
+                });
+
+                Iterators.partition(entitiesBySettingAndPolicy.entrySet().iterator(), entitySettingsResponseChunkSize)
+                    .forEachRemaining(settingGroupChunk -> {
+                        final GetEntitySettingsResponse.Builder chunkResponse =
+                            GetEntitySettingsResponse.newBuilder();
+                        settingGroupChunk.forEach(settingGroup -> {
+                            final long settingPolicyId = settingGroup.getKey().getSettingPolicyId();
+                            final SettingPolicyId identifier = settingPolicyById.get(settingPolicyId);
+                            if (identifier != null) {
+                                chunkResponse.addSettingGroup(EntitySettingGroup.newBuilder()
+                                    .setSetting(settingGroup.getKey().getSetting())
+                                    .setPolicyId(identifier)
+                                    .addAllEntityOids(settingGroup.getValue()));
+                            }
+                        });
+                        responseObserver.onNext(chunkResponse.build());
+                    });
+            } else {
+                final Map<Setting, Set<Long>> entitiesBySetting = new HashMap<>();
+                results.forEach((entityId, settingsForEntity) -> {
+                    settingsForEntity.forEach(settingToPolicyId -> {
+                        final Set<Long> entitiesByPolicy = entitiesBySetting.computeIfAbsent(
+                            settingToPolicyId.getSetting(), k -> new HashSet<>());
+                        entitiesByPolicy.add(entityId);
+                    });
+                });
+
+                Iterators.partition(entitiesBySetting.entrySet().iterator(), entitySettingsResponseChunkSize)
+                    .forEachRemaining(settingGroupChunk -> {
+                        final GetEntitySettingsResponse.Builder chunkResponse =
+                            GetEntitySettingsResponse.newBuilder();
+                        settingGroupChunk.forEach(settingAndEntities -> {
+                            chunkResponse.addSettingGroup(EntitySettingGroup.newBuilder()
+                                .setSetting(settingAndEntities.getKey())
+                                .addAllEntityOids(settingAndEntities.getValue()));
+                        });
+                        responseObserver.onNext(chunkResponse.build());
+                    });
             }
 
-            Iterators.partition(results.entrySet().iterator(), entitySettingsResponseChunkSize)
-                .forEachRemaining(entityChunk -> {
-                    final GetEntitySettingsResponse.Builder chunkResponse =
-                        GetEntitySettingsResponse.newBuilder();
-                    entityChunk.forEach(entry -> {
-                        final Long oid = entry.getKey();
-                        Collection<SettingToPolicyId> settings = entry.getValue();
-                        chunkResponse.addSettings(SettingsForEntity.newBuilder()
-                            .setEntityId(oid)
-                            .addAllSettings(settings.stream()
-                                .map(setting -> {
-                                    SettingToPolicyName.Builder settingToPolicyName =
-                                        SettingToPolicyName.newBuilder()
-                                            .setSetting(setting.getSetting());
-                                    String name = settingPolicyIdToNameMap.get(setting.getSettingPolicyId());
-                                    if (name != null) {
-                                        settingToPolicyName.setSettingPolicyName(name);
-                                    }
-                                    return settingToPolicyName.build();
-                                })
-                                .collect(Collectors.toList())));
-                    });
-                    responseObserver.onNext(chunkResponse.build());
-                });
             responseObserver.onCompleted();
         } catch (NoSettingsForTopologyException e) {
             logger.error("Topology not found for entity settings request: {}", e.getMessage());

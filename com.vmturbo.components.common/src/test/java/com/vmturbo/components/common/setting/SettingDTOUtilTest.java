@@ -16,20 +16,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup.SettingPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.AllEntityType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath.SettingCategoryPathNode;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
@@ -41,6 +48,80 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
  * Unit tests for {@link SettingDTOUtil}.
  */
 public class SettingDTOUtilTest {
+
+    @Test
+    public void testIndexSettingsByEntity() {
+        final Setting setting1 = Setting.newBuilder()
+            .setSettingSpecName("name1")
+            .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+            .build();
+        final Setting setting2 = Setting.newBuilder()
+            .setSettingSpecName("name2")
+            .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+            .build();
+        final Setting setting3 = Setting.newBuilder()
+            .setSettingSpecName("name3")
+            .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+            .build();
+
+        EntitySettingGroup group1 = EntitySettingGroup.newBuilder()
+            .addEntityOids(1L)
+            .addEntityOids(2L)
+            .setSetting(setting1)
+            .build();
+
+        EntitySettingGroup group2 = EntitySettingGroup.newBuilder()
+            .addEntityOids(3L)
+            .setSetting(setting2)
+            .setPolicyId(SettingPolicyId.newBuilder()
+                .setDisplayName("foo")
+                .setPolicyId(123))
+            .build();
+
+        EntitySettingGroup group3 = EntitySettingGroup.newBuilder()
+            .addEntityOids(4L)
+            .setSetting(setting3)
+            .setPolicyId(SettingPolicyId.newBuilder()
+                .setDisplayName("bar")
+                .setPolicyId(456))
+            .build();
+
+        final Map<Long, Map<String, Setting>> result =
+            SettingDTOUtil.indexSettingsByEntity(Stream.of(group1, group2, group3));
+        assertThat(result.keySet(), containsInAnyOrder(1L, 2L, 3L, 4L));
+        assertThat(result.get(1L).keySet(), containsInAnyOrder("name1"));
+        assertThat(result.get(1L).get("name1"), is(setting1));
+        assertThat(result.get(2L).keySet(), containsInAnyOrder("name1"));
+        assertThat(result.get(2L).get("name1"), is(setting1));
+        assertThat(result.get(3L).keySet(), containsInAnyOrder("name2"));
+        assertThat(result.get(3L).get("name2"), is(setting2));
+        assertThat(result.get(4L).keySet(), containsInAnyOrder("name3"));
+        assertThat(result.get(4L).get("name3"), is(setting3));
+
+    }
+
+    @Test
+    public void testFlattenIterator() {
+        EntitySettingGroup group1 = EntitySettingGroup.newBuilder()
+            .addEntityOids(1L)
+            .build();
+
+        EntitySettingGroup group2 = EntitySettingGroup.newBuilder()
+            .addEntityOids(2L)
+            .build();
+        GetEntitySettingsResponse response1 = GetEntitySettingsResponse.newBuilder()
+            .addSettingGroup(group1)
+            .build();
+        GetEntitySettingsResponse response2 = GetEntitySettingsResponse.newBuilder()
+            .addSettingGroup(group2)
+            .build();
+
+        List<EntitySettingGroup> flattened = SettingDTOUtil.flattenEntitySettings(
+            ImmutableList.of(response1, response2).iterator())
+                .collect(Collectors.toList());
+
+        assertThat(flattened, containsInAnyOrder(group1, group2));
+    }
 
     @Test
     public void testInvolvedGroups() {

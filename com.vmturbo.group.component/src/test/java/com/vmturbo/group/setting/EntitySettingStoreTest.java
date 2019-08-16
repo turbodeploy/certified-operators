@@ -384,6 +384,146 @@ public class EntitySettingStoreTest {
     }
 
     @Test
+    public void testSettingSnapshotFilterByDefaultPolicy() {
+        final Setting setting = Setting.newBuilder()
+            .setSettingSpecName("name1")
+            .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+            .build();
+        final Setting setting2 = Setting.newBuilder()
+            .setSettingSpecName("name2")
+            .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+            .build();
+        final long defaultPolicyId = 1L;
+
+        final SettingToPolicyId userSetting =
+            SettingToPolicyId.newBuilder()
+                .setSetting(setting2)
+                .setSettingPolicyId(1111L)
+                .build();
+
+        final EntitySettings id1Settings = EntitySettings.newBuilder()
+            .setEntityOid(1L)
+            .addUserSettings(userSetting)
+            .setDefaultSettingPolicyId(defaultPolicyId)
+            .build();
+
+        final SettingPolicy defaultSettingPolicy = SettingPolicy.newBuilder()
+            .setInfo(SettingPolicyInfo.newBuilder()
+                .addSettings(setting)
+                .addSettings(setting2))
+            .build();
+
+        final EntitySettingSnapshot snapshot = new EntitySettingSnapshot(
+            Stream.of(id1Settings), Collections.singletonMap(defaultPolicyId, defaultSettingPolicy));
+        final Map<Long, Collection<SettingToPolicyId>> results =
+            snapshot.getFilteredSettings(EntitySettingFilter.newBuilder()
+                .setPolicyId(defaultPolicyId)
+                .build());
+        assertTrue(results.containsKey(id1Settings.getEntityOid()));
+        // Should only have the setting that's unique to the default policy. Not the user.
+        assertThat(getSettings(results.get(id1Settings.getEntityOid())), containsInAnyOrder(setting));
+    }
+
+    @Test
+    public void testSettingSnapshotFilterByUserPolicy() {
+        final Setting setting = Setting.newBuilder()
+            .setSettingSpecName("name1")
+            .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+            .build();
+        final long defaultPolicyId = 1L;
+
+        final SettingToPolicyId userSetting =
+            SettingToPolicyId.newBuilder()
+                .setSetting(Setting.newBuilder()
+                    .setSettingSpecName("name2")
+                    .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance()))
+                .setSettingPolicyId(1111L)
+                .build();
+        final SettingToPolicyId otherUserSetting =
+            SettingToPolicyId.newBuilder()
+                .setSetting(Setting.newBuilder()
+                    .setSettingSpecName("name3")
+                    .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance()))
+                .setSettingPolicyId(2222L)
+                .build();
+
+        final EntitySettings id1Settings = EntitySettings.newBuilder()
+            .setEntityOid(1L)
+            .addUserSettings(userSetting)
+            .addUserSettings(otherUserSetting)
+            .setDefaultSettingPolicyId(defaultPolicyId)
+            .build();
+
+        final SettingPolicy defaultSettingPolicy = SettingPolicy.newBuilder()
+            .setInfo(SettingPolicyInfo.newBuilder()
+                .addSettings(setting))
+            .build();
+
+        final EntitySettingSnapshot snapshot = new EntitySettingSnapshot(
+            Stream.of(id1Settings), Collections.singletonMap(defaultPolicyId, defaultSettingPolicy));
+        final Map<Long, Collection<SettingToPolicyId>> results =
+            snapshot.getFilteredSettings(EntitySettingFilter.newBuilder()
+                .setPolicyId(userSetting.getSettingPolicyId())
+                .build());
+        assertTrue(results.containsKey(id1Settings.getEntityOid()));
+
+        // Should only have the setting from the specific user policy. Not the other user policy,
+        // and not the default.
+        assertThat(getSettings(results.get(id1Settings.getEntityOid())),
+            containsInAnyOrder(userSetting.getSetting()));
+    }
+
+    @Test
+    public void testSettingSnapshotFilterRestrictName() {
+        final Setting setting = Setting.newBuilder()
+            .setSettingSpecName("name1")
+            .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+            .build();
+        final long defaultPolicyId = 1L;
+
+        final SettingToPolicyId userSetting =
+            SettingToPolicyId.newBuilder()
+                .setSetting(Setting.newBuilder()
+                    .setSettingSpecName("name2")
+                    .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance()))
+                .setSettingPolicyId(1111L)
+                .build();
+        final SettingToPolicyId otherUserSetting =
+            SettingToPolicyId.newBuilder()
+                .setSetting(Setting.newBuilder()
+                    .setSettingSpecName("name3")
+                    .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance()))
+                .setSettingPolicyId(2222L)
+                .build();
+
+        final EntitySettings id1Settings = EntitySettings.newBuilder()
+            .setEntityOid(1L)
+            .addUserSettings(userSetting)
+            .addUserSettings(otherUserSetting)
+            .setDefaultSettingPolicyId(defaultPolicyId)
+            .build();
+
+        final SettingPolicy defaultSettingPolicy = SettingPolicy.newBuilder()
+            .setInfo(SettingPolicyInfo.newBuilder()
+                .addSettings(setting))
+            .build();
+
+        final EntitySettingSnapshot snapshot = new EntitySettingSnapshot(
+            Stream.of(id1Settings), Collections.singletonMap(defaultPolicyId, defaultSettingPolicy));
+        final Map<Long, Collection<SettingToPolicyId>> results =
+            snapshot.getFilteredSettings(EntitySettingFilter.newBuilder()
+                .addSettingName(setting.getSettingSpecName())
+                .addSettingName(userSetting.getSetting().getSettingSpecName())
+                .build());
+        assertTrue(results.containsKey(id1Settings.getEntityOid()));
+
+        // Should only have the setting from the specific user policy and the default policy.
+        // Not the other user policy.
+        assertThat(getSettings(results.get(id1Settings.getEntityOid())),
+            containsInAnyOrder(setting, userSetting.getSetting()));
+    }
+
+    @Test
     public void testSettingSnapshotFilterByNonExistingId() {
         final EntitySettingSnapshot snapshot = new EntitySettingSnapshot(
                 Stream.empty(), Collections.emptyMap());

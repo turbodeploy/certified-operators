@@ -4,7 +4,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -62,7 +61,7 @@ public class PlanCommodityStatsSubQuery implements StatsSubQuery {
 
     @Override
     public boolean applicableInContext(@Nonnull final StatsQueryContext context) {
-        return context.getScope().isPlan();
+        return context.getInputScope().isPlan();
     }
 
     @Override
@@ -143,10 +142,10 @@ public class PlanCommodityStatsSubQuery implements StatsSubQuery {
 
             final GetAveragedEntityStatsRequest.Builder entityStatsRequest =
                 GetAveragedEntityStatsRequest.newBuilder()
-                    .setFilter(statsMapper.newPeriodStatsFilter(context.newPeriodInputDto(finalRequestedStats), Optional.empty()));
+                    .setFilter(statsMapper.newPeriodStatsFilter(context.newPeriodInputDto(finalRequestedStats)));
 
             // Note - we do not support sub-scopes within the plan.
-            entityStatsRequest.addEntities(context.getScope().oid());
+            entityStatsRequest.addEntities(context.getInputScope().oid());
 
             return entityStatsRequest.build();
         }

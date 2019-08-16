@@ -46,6 +46,8 @@ import com.vmturbo.action.orchestrator.stats.query.live.FailedActionQueryExcepti
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionException;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
@@ -60,6 +62,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
@@ -683,7 +686,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             action.receive(new PrepareExecutionEvent());
             // Allows the action to begin execution, if a PRE workflow is not running
             action.receive(new BeginExecutionEvent());
-            actionTranslator.translate(action);
             final Optional<ActionDTO.Action> translatedRecommendation =
                     action.getActionTranslation().getTranslatedRecommendation();
             if (translatedRecommendation.isPresent()) {
@@ -803,8 +805,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     }
 
     /**
-     * Utility method to query actions from an action store and apply translation. We need to
-     * do this for all actions that go out to the user.
+     * Utility method to query actions from an action store. We need to do this for all actions
+     * that go out to the user.
      *
      * @param requestFilter An {@link Optional} containing the filter for actions.
      * @param actionStore   The action store to query.
@@ -815,9 +817,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     private Stream<ActionView> filteredTranslatedActionViews(Optional<ActionQueryFilter> requestFilter,
                                                              ActionStore actionStore) {
         QueryableActionViews actionViews = actionStore.getActionViews();
-        return actionTranslator.translate(requestFilter
-                .map(actionViews::get)
-                .orElseGet(actionViews::getAll));
+        return requestFilter.map(actionViews::get).orElseGet(actionViews::getAll);
     }
 
     private static Map<ActionType, Long> getActionsByType(@Nonnull final Stream<ActionView> actionViewStream) {
@@ -856,7 +856,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                 .setActionSpec(spec)
                 .build();
     }
-
     /**
      *  A helper class for accumulating the stats for each action category.
      */

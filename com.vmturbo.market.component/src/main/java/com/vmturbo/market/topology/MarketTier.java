@@ -5,8 +5,6 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.collections4.map.UnmodifiableMap;
-
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
 /**

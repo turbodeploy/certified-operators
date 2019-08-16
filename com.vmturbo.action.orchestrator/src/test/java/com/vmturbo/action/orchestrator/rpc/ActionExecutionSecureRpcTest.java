@@ -111,7 +111,7 @@ public class ActionExecutionSecureRpcTest {
 
     // Have the translator pass-through translate all actions.
     private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
-    private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
+    private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
     private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
     private final IActionStoreFactory actionStoreFactory = mock(IActionStoreFactory.class);
     private final IActionStoreLoader actionStoreLoader = mock(IActionStoreLoader.class);
@@ -135,6 +135,8 @@ public class ActionExecutionSecureRpcTest {
     private final Clock clock = new MutableFixedClock(1_000_000);
 
     private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
+
+    private final EntitiesAndSettingsSnapshotFactory snapshotFactory = mock(EntitiesAndSettingsSnapshotFactory.class);
 
     private final ActionsRpcService actionsRpcService =
         new ActionsRpcService(clock,

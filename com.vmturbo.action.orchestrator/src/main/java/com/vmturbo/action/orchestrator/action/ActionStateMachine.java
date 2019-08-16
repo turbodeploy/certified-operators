@@ -185,12 +185,22 @@ public class ActionStateMachine {
                                       @Nonnull final ActionState postState,
                                       @Nonnull final ActionEvent event,
                                       boolean performedTransition) {
-        logger.info("Action {} {} event {} ({} -> {})",
-            actionId,
-            performedTransition ? "handled" : "dropped",
-            event,
-            preState,
-            postState
-        );
+        if (event instanceof ActionEvent.NotRecommendedEvent) {
+            logger.trace("Action {} {} event {} ({} -> {})",
+                    actionId,
+                    performedTransition ? "handled" : "dropped",
+                    event,
+                    preState,
+                    postState
+            );
+        } else {
+            logger.info("Action {} {} event {} ({} -> {})",
+                    actionId,
+                    performedTransition ? "handled" : "dropped",
+                    event,
+                    preState,
+                    postState
+            );
+        }
     }
 }

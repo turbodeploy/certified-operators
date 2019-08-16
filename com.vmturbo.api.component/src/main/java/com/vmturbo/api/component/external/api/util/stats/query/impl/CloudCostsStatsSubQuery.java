@@ -27,9 +27,8 @@ import com.google.common.collect.Sets;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.GlobalScope;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -54,6 +53,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * Sub-query responsible for getting top down and bottom-up costs from the cost component.
@@ -125,7 +126,19 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     }
 
     public boolean applicableInContext(@Nonnull final StatsQueryContext context) {
-        return !context.getScope().isPlan();
+        if (context.getInputScope().isPlan()) {
+            return false;
+        }
+
+        // If the query scope is going to be a non-CLOUD global group, we don't need to run
+        // this sub-query.
+        final Optional<EnvironmentType> globalScopeEnvType = context.getQueryScope().getGlobalScope()
+            .flatMap(GlobalScope::environmentType);
+        if (globalScopeEnvType.isPresent() && globalScopeEnvType.get() != EnvironmentType.CLOUD) {
+            return false;
+        }
+
+        return true;
     }
 
     @Override
@@ -173,13 +186,14 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                 .forEach(statSnapshot -> {
                     retStats.put(DateTimeUtil.parseTime(statSnapshot.getDate()), statSnapshot.getStatistics());
                 });
-        } else if (context.getScope().isRealtimeMarket() || context.getScope().isPlan() || context.getScope().isCloudEntity()) {
+        } else if (context.getInputScope().isRealtimeMarket() || context.getInputScope().isPlan() || context.getInputScope().isCloudEntity()) {
             final Set<Long> cloudEntityOids;
-            if (context.getScope().isPlan()) {
-                cloudEntityOids = supplyChainFetcherFactory.expandScope(context.getScopeEntities(), ENTITY_TYPES_COUNTED_AS_WORKLOAD);
+            if (context.getInputScope().isPlan()) {
+                cloudEntityOids = supplyChainFetcherFactory.expandScope(context.getQueryScope().getEntities(),
+                    ENTITY_TYPES_COUNTED_AS_WORKLOAD);
             } else {
                 // Do we need to get the related workload entities here too?
-                cloudEntityOids = context.getScopeEntities();
+                cloudEntityOids = context.getQueryScope().getEntities();
             }
             List<CloudCostStatRecord> cloudCostStatRecords = getCloudStatRecordList(requestedStats,
                 cloudEntityOids, requestGroupBySet, context);
@@ -228,7 +242,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
      */
     private List<StatApiDTO> getNumWorkloadStatSnapshot(@Nonnull final Set<StatApiInputDTO> statsFilters,
                                                         @Nonnull final StatsQueryContext context) throws OperationFailedException {
-        final Set<Long> scopeIds = context.getScopeEntities();
+        final Set<Long> scopeIds = context.getQueryScope().getEntities();
         List<StatApiDTO> stats = Lists.newArrayList();
         for (StatApiInputDTO statApiInputDTO : statsFilters) {
             List<String> entityTypes = WORKLOAD_NAME_TO_ENTITY_TYPES.get(statApiInputDTO.getName());
