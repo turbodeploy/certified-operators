@@ -29,11 +29,11 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
     private DiscoveryContextDTO discoveryContext = null;
     private static final AwsProbe AWS_PROBE = new AwsProbe();
 
-    private static final String AWS_ENGINEERING_FILE_PATH =
-            "src/test/resources/data/aws_engineering.aws.amazon.com.txt";
+    private static final String AWS_ENGINEERING_FILE_PATH = AwsConversionProbeTest.class
+        .getClassLoader().getResource("data/aws_engineering.aws.amazon.com.txt").getPath();
 
-    private static final String AWS_ADVENG_FILE_PATH =
-            "src/test/resources/data/aws_adveng.aws.amazon.com.txt";
+    private static final String AWS_ADVENG_FILE_PATH = AwsConversionProbeTest.class
+        .getClassLoader().getResource("data/aws_adveng.aws.amazon.com.txt").getPath();
 
     private static final Set<TemplateDTO> AWS_PROBE_SUPPLY_CHAIN =
             AWS_PROBE.getSupplyChainDefinition();

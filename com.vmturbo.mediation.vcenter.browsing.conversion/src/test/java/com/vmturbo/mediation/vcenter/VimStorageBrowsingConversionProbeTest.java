@@ -27,8 +27,9 @@ public class VimStorageBrowsingConversionProbeTest {
     private VimAccount vimAccount = Mockito.mock(VimAccount.class);
     private DiscoveryContextDTO discoveryContext = null;
 
-    private static final String STORAGE_BROWSING_PATH =
-            "src/test/resources/data/vCenter_Storage_Browsing_vsphere_dc7.eng.vmturbo.com.txt";
+    private static final String STORAGE_BROWSING_PATH = VimStorageBrowsingConversionProbeTest.class
+        .getClassLoader().getResource("data/vCenter_Storage_Browsing_vsphere_dc7.eng.vmturbo.com.txt")
+        .getPath();
 
     /**
      * Used captured data from a discovery of vsphere-dc7.eng.vmturbo.com to ensure that the

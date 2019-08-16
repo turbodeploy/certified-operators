@@ -20,11 +20,14 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 
 public class AddVirtualVolumeDiscoveryConverterTest {
 
-    private static final String SIMPLE_TEST_CASE = "src/test/resources/data/OneStorageOneVM";
+    private static final String SIMPLE_TEST_CASE = AddVirtualVolumeDiscoveryConverterTest.class
+        .getClassLoader().getResource("data/OneStorageOneVM").getPath();
 
-    private static final String STORAGE_ONLY_TEST_CASE = "src/test/resources/data/OneStorage";
+    private static final String STORAGE_ONLY_TEST_CASE = AddVirtualVolumeDiscoveryConverterTest.class
+        .getClassLoader().getResource("data/OneStorage").getPath();
 
-    private static final String VM_ONLY_TEST_CASE = "src/test/resources/data/OneVM";
+    private static final String VM_ONLY_TEST_CASE = AddVirtualVolumeDiscoveryConverterTest.class
+        .getClassLoader().getResource("data/OneVM").getPath();
 
     @Test
     public void testNormalCase() {

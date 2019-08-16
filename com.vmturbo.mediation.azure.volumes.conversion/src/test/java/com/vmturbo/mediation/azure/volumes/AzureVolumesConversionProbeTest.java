@@ -22,7 +22,8 @@ public class AzureVolumesConversionProbeTest {
     private AzureAccount azureAccount = Mockito.mock(AzureAccount.class);
 
     private static final String AZURE_ENGINEERING_WASTED_VOLUMES_FILE_PATH =
-            "src/test/resources/data/azure_wasted_volumes_engineering.management.core.windows.net.txt";
+        AzureVolumesConversionProbeTest.class.getClassLoader().getResource(
+        "data/azure_wasted_volumes_engineering.management.core.windows.net.txt").getPath();
 
     @Test
     public void testEngineering() throws Exception {

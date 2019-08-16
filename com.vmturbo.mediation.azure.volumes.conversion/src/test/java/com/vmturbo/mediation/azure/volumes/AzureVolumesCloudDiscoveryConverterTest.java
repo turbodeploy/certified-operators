@@ -25,8 +25,9 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 public class AzureVolumesCloudDiscoveryConverterTest {
 
-    private static final String AZURE_ENGINEERING_FILE_PATH =
-            "src/test/resources/data/azure_wasted_volumes_engineering.management.core.windows.net.txt";
+    private static final String AZURE_ENGINEERING_FILE_PATH = AzureVolumesCloudDiscoveryConverterTest
+        .class.getClassLoader().getResource(
+            "data/azure_wasted_volumes_engineering.management.core.windows.net.txt").getPath();
 
     private static AzureVolumesCloudDiscoveryConverter azureVolumesConverter;
 

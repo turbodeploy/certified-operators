@@ -28,11 +28,13 @@ public class AzureConversionProbeTest extends AzureConversionProbe {
     private DiscoveryContextDTO discoveryContext = null;
     private static final AzureProbe AZURE_PROBE = new AzureProbe();
 
-    private static final String AZURE_ENGINEERING_FILE_PATH =
-            "src/test/resources/data/azure_engineering.management.core.windows.net.txt";
+    private static final String AZURE_ENGINEERING_FILE_PATH = AzureConversionProbeTest.class
+        .getClassLoader().getResource("data/azure_engineering.management.core.windows.net.txt")
+        .getPath();
 
-    private static final String AZURE_PRODUCTMGMT_FILE_PATH =
-            "src/test/resources/data/azure_productmgmt.management.core.windows.net.txt";
+    private static final String AZURE_PRODUCTMGMT_FILE_PATH = AzureConversionProbeTest.class
+        .getClassLoader().getResource("data/azure_productmgmt.management.core.windows.net.txt")
+        .getPath();
 
     private static final Set<TemplateDTO> AZURE_PROBE_SUPPLY_CHAIN =
             AZURE_PROBE.getSupplyChainDefinition();
