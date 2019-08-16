@@ -2,7 +2,6 @@ package com.vmturbo.platform.analysis.drivers;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -30,8 +29,7 @@ import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.Deactivate;
-import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
-import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
+import com.vmturbo.platform.analysis.actions.ProvisionBase;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomySettings;
@@ -424,40 +422,40 @@ public class AnalysisServer implements AutoCloseable {
                 @NonNull List<Action> secondRoundActions = new ArrayList<>();
                 AnalysisResults.Builder builder = results.toBuilder();
                 economy.getSettings().setResizeDependentCommodities(false);
-                secondRoundActions.addAll(ede.generateActions(economy, instInfo.isClassifyActions(),
-                    true, true, false, true, false, mktData).stream()
-                        .filter(action -> action instanceof ProvisionByDemand
-                                || action instanceof ProvisionBySupply
-                                || action instanceof Activate
-                                // Extract resizes that explicitly set extractAction to true as part
-                                // of resizeThroughSupplier provision actions.
-                            || (action instanceof Resize && action.isExtractAction()))
+                secondRoundActions.addAll(ede
+                                .generateActions(economy, instInfo.isClassifyActions(), true, true,
+                                                false, true, false, mktData)
+                                .stream().filter(action -> action instanceof ProvisionBase
+                                                || action instanceof Activate
+                                                // Extract resizes that explicitly set extractAction to true as part
+                                                // of resizeThroughSupplier provision actions.
+                                                || (action instanceof Resize
+                                                                && action.isExtractAction()))
                                 .collect(Collectors.toList()));
                 for (Action action : secondRoundActions) {
-                    ActionTO actionTO = AnalysisToProtobuf
-                                    .actionTO(action, lastComplete.getTraderOids(),
-                                                    lastComplete.getShoppingListOids(), lastComplete);
+                    ActionTO actionTO = AnalysisToProtobuf.actionTO(action,
+                                    lastComplete.getTraderOids(),
+                                    lastComplete.getShoppingListOids(), lastComplete);
                     if (actionTO != null) {
                         builder.addActions(actionTO);
                     }
                 }
-                builder.addAllNewShoppingListToBuyerEntry(AnalysisToProtobuf
-                                                    .createNewShoppingListToBuyerMap(lastComplete));
+                builder.addAllNewShoppingListToBuyerEntry(
+                                AnalysisToProtobuf.createNewShoppingListToBuyerMap(lastComplete));
 
                 // Recreate TraderTO in order to send back the updated TraderTO after actions from
                 // this provision round may have updated the trader.
-		Set<Trader> preferentialTraders = economy.getPreferentialShoppingLists().stream()
-		    .map(sl -> sl.getBuyer())
-		    .collect(Collectors.toSet());
+                Set<Trader> preferentialTraders = economy.getPreferentialShoppingLists().stream()
+                                .map(sl -> sl.getBuyer()).collect(Collectors.toSet());
 
                 for (Trader trader : secondRoundActions.stream().map(Action::getActionTarget)
-                                                                .collect(Collectors.toSet())) {
+                                .collect(Collectors.toSet())) {
                     if (!trader.isClone()) {
                         builder.setProjectedTopoEntityTO(trader.getEconomyIndex(),
                                         AnalysisToProtobuf.traderTO(economy, trader,
-                                                            lastComplete.getTraderOids(),
-								    lastComplete.getShoppingListOids(),
-								    preferentialTraders));
+                                                        lastComplete.getTraderOids(),
+                                                        lastComplete.getShoppingListOids(),
+                                                        preferentialTraders));
                     }
                 }
                 results = builder.build();

@@ -14,7 +14,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.google.common.hash.Hashing;
@@ -34,15 +33,11 @@ import com.vmturbo.platform.analysis.economy.TraderState;
  * An action to provision a new {@link Trader seller} using another {@link Trader buyer} as the
  * template.
  */
-public class ProvisionByDemand extends ActionImpl {
+public class ProvisionByDemand extends ProvisionBase implements Action {
 
     // Fields
     private static final Logger logger = LogManager.getLogger();
-    private final @NonNull Economy economy_;
     private final @NonNull ShoppingList modelBuyer_; // TODO: also add source market? Desired state?
-    private final @NonNull Trader modelSeller_;
-    private @Nullable Trader provisionedSeller_;
-    private long oid_;
     // a map from commodity base type to its new capacity which will satisfy the demand
     private @NonNull Map<@NonNull Integer, @NonNull Double> commodityNewCapacityMap_ =
                     new HashMap<>();
@@ -58,24 +53,15 @@ public class ProvisionByDemand extends ActionImpl {
      */
     public ProvisionByDemand(@NonNull Economy economy, @NonNull ShoppingList modelBuyer,
                     @NonNull Trader modelSeller) {
-        economy_ = economy;
-        modelBuyer_ = modelBuyer;
         // provisionByDemand means create an copy of modelSeller and increase capacity of certain
         // commodities, in case the modelSeller is itself a clone, go all the way back to the
         // original modelSeller to simplify action handling by entities outside M2 that are not
         // necessarily aware of cloned traders
-        modelSeller_ = economy.getCloneOfTrader(modelSeller);
+        super(economy, economy.getCloneOfTrader(modelSeller));
+        modelBuyer_ = modelBuyer;
     }
 
     // Methods
-
-    /**
-     * Returns the economy in which the new seller will be added.
-     */
-    @Pure
-    public @NonNull Economy getEconomy(@ReadOnly ProvisionByDemand this) {
-        return economy_;
-    }
 
     /**
      * Returns the model buyer that should be satisfied by the new seller.
@@ -83,18 +69,6 @@ public class ProvisionByDemand extends ActionImpl {
     @Pure
     public @NonNull ShoppingList getModelBuyer(@ReadOnly ProvisionByDemand this) {
         return modelBuyer_;
-    }
-
-    /**
-     * Returns the seller that was added as a result of taking {@code this} action.
-     *
-     * <p>
-     *  It will be {@code null} before the action is taken and/or after it is rolled back.
-     * </p>
-     */
-    @Pure
-    public @Nullable Trader getProvisionedSeller(@ReadOnly ProvisionByDemand this) {
-        return provisionedSeller_;
     }
 
     /**
@@ -106,13 +80,6 @@ public class ProvisionByDemand extends ActionImpl {
        return subsequentActions_;
     }
 
-    /**
-     * Returns the seller that is used as a model in taking {@code this} action.
-     */
-    @Pure
-    public @Nullable Trader getModelSeller(@ReadOnly ProvisionByDemand this) {
-        return modelSeller_;
-    }
 
     /**
      * Returns the modifiable map from the commodity base type to its new capacity after generating
@@ -140,29 +107,30 @@ public class ProvisionByDemand extends ActionImpl {
         Map<Trader, Set<ShoppingList>> allSlsSponsoredByGuaranteedBuyer = GuaranteedBuyerHelper
                         .getAllSlsSponsoredByGuaranteedBuyer(getEconomy(), guaranteedBuyerSlsOnModelSeller);
         Basket basketSold = getModelSeller().getBasketSold();
-        provisionedSeller_ = getEconomy().addTraderByModelSeller(getModelSeller(), TraderState.ACTIVE,
-                                        basketSold, getModelSeller().getCliques());
-        provisionedSeller_.setCloneOf(modelSeller_);
+        setProvisionedSeller(getEconomy().addTraderByModelSeller(getModelSeller(), TraderState.ACTIVE,
+                                        basketSold, getModelSeller().getCliques()));
+        getProvisionedSeller().setCloneOf(getModelSeller());
         // traders cloned through provisionByDemand are marked non-cloneable by default
-        provisionedSeller_.getSettings().setSuspendable(getModelSeller().getSettings().isSuspendable());
-        provisionedSeller_.getSettings().setMinDesiredUtil(getModelSeller().getSettings().getMinDesiredUtil());
-        provisionedSeller_.getSettings().setMaxDesiredUtil(getModelSeller().getSettings().getMaxDesiredUtil());
-        provisionedSeller_.getSettings().setGuaranteedBuyer(getModelSeller().getSettings().isGuaranteedBuyer());
-        provisionedSeller_.getSettings().setProviderMustClone(getModelSeller().getSettings().isProviderMustClone());
+        TraderSettings copySettings = getProvisionedSeller().getSettings();
+        copySettings.setSuspendable(getModelSeller().getSettings().isSuspendable());
+        copySettings.setMinDesiredUtil(getModelSeller().getSettings().getMinDesiredUtil());
+        copySettings.setMaxDesiredUtil(getModelSeller().getSettings().getMaxDesiredUtil());
+        copySettings.setGuaranteedBuyer(getModelSeller().getSettings().isGuaranteedBuyer());
+        copySettings.setProviderMustClone(getModelSeller().getSettings().isProviderMustClone());
 
         // adding commodities to be bought by the provisionedSeller and resizing them
         // TODO: we don't have a case for provisionByDemand a trader with mandatory seller as supplier
         // maybe we need to handle it in future
-        getEconomy().getMarketsAsBuyer(modelSeller_).keySet().forEach(shoppingList -> {
+        getEconomy().getMarketsAsBuyer(getModelSeller()).keySet().forEach(shoppingList -> {
             // Note that because we are cloning, this does not require that we populate a new market
             // with sellers. There must be an existing market for sellers.
-            ShoppingList sl = getEconomy().addBasketBought(provisionedSeller_, shoppingList
+            ShoppingList sl = getEconomy().addBasketBought(getProvisionedSeller(), shoppingList
                 .getBasket());
             // Copy movable attribute
             sl.setMovable(shoppingList.isMovable());
         });
 
-        List<CommoditySold> commSoldList = provisionedSeller_.getCommoditiesSold();
+        List<CommoditySold> commSoldList = getProvisionedSeller().getCommoditiesSold();
         for (CommoditySpecification cs : basketSold) {
             // retrieve dependent commodities to be resized
             List<CommodityResizeSpecification> typeOfCommsBought = getEconomy().getResizeDependency
@@ -171,7 +139,7 @@ public class ProvisionByDemand extends ActionImpl {
                 continue;
             }
 
-            getEconomy().getMarketsAsBuyer(provisionedSeller_).keySet().forEach(sl -> {
+            getEconomy().getMarketsAsBuyer(getProvisionedSeller()).keySet().forEach(sl -> {
                 for (CommodityResizeSpecification typeOfCommBought : typeOfCommsBought) {
                     int boughtIndex = sl.getBasket().indexOfBaseType(typeOfCommBought
                         .getCommodityType());
@@ -194,7 +162,7 @@ public class ProvisionByDemand extends ActionImpl {
         for (CommoditySpecification commSpec : getModelBuyer().getBasket()) {
             int indexOfCommSold = basketSold.indexOf(commSpec.getType());
             int indexOfCommBought = getModelBuyer().getBasket().indexOf(commSpec);
-            CommoditySold modelCommSold = modelSeller_.getCommoditiesSold().get(indexOfCommSold);
+            CommoditySold modelCommSold = getModelSeller().getCommoditiesSold().get(indexOfCommSold);
             double initialCapSold = modelCommSold.getCapacity();
             double overhead = Utility.calculateCommodityOverhead(getModelSeller(), commSpec,
                             getEconomy());
@@ -212,7 +180,7 @@ public class ProvisionByDemand extends ActionImpl {
                                 .containsKey(baseType) ? Math.max(commodityNewCapacityMap_
                                                 .get(baseType), newCapacity) : newCapacity);
             }
-            CommoditySold provCommSold = provisionedSeller_.getCommoditiesSold().get(indexOfCommSold);
+            CommoditySold provCommSold = getProvisionedSeller().getCommoditiesSold().get(indexOfCommSold);
             provCommSold.setCapacity(newCapacity);
             provCommSold.setQuantity(modelCommSold.getQuantity());
             provCommSold.getSettings().setUtilizationUpperBound(modelCommSold.getSettings()
@@ -230,8 +198,8 @@ public class ProvisionByDemand extends ActionImpl {
         for (CommoditySpecification commSpec : getModelSeller().getBasketSold()) {
             if (!getModelBuyer().getBasket().contains(commSpec)) {
                 int indexOfCommSold = basketSold.indexOf(commSpec.getType());
-                CommoditySold modelCommSold = modelSeller_.getCommoditiesSold().get(indexOfCommSold);
-                CommoditySold provCommSold = provisionedSeller_.getCommoditiesSold().get(indexOfCommSold);
+                CommoditySold modelCommSold = getModelSeller().getCommoditiesSold().get(indexOfCommSold);
+                CommoditySold provCommSold = getProvisionedSeller().getCommoditiesSold().get(indexOfCommSold);
                 provCommSold.setCapacity(modelCommSold.getCapacity());
             }
         }
@@ -239,25 +207,25 @@ public class ProvisionByDemand extends ActionImpl {
         // Generate Capacity Resize actions on resizeThroughSupplier traders whose Provider is
         // cloning.
         try {
-            modelSeller_.getCustomers().stream()
+            getModelSeller().getCustomers().stream()
                 .map(ShoppingList::getBuyer)
             .filter(trader -> trader.getSettings().isResizeThroughSupplier())
             .forEach(trader -> {
-                    economy_.getMarketsAsBuyer(trader).keySet().stream()
-                        .filter(shoppingList -> shoppingList.getSupplier() == modelSeller_)
+                    getEconomy().getMarketsAsBuyer(trader).keySet().stream()
+                        .filter(shoppingList -> shoppingList.getSupplier() == getModelSeller())
                         .forEach(sl -> {
                             // Generate the resize actions for matching commodities between
                             // the model seller and the resizeThroughSupplier trader.
                             getSubsequentActions().addAll(Utility.resizeCommoditiesOfTrader(
                                                                                     getEconomy(),
-                                                                                    modelSeller_,
+                                                                                    getModelSeller(),
                                                                                     sl));
                 });
             });
         } catch (Exception e) {
             logger.error("Error in ProvisionByDemand for resizeThroughSupplier Trader Capacity "
                             + "Resize when provisioning "
-                                + modelSeller_.getDebugInfoNeverUseInCode(), e);
+                                + getModelSeller().getDebugInfoNeverUseInCode(), e);
         }
 
         Utility.adjustOverhead(getModelSeller(), getProvisionedSeller(), getEconomy());
@@ -266,7 +234,7 @@ public class ProvisionByDemand extends ActionImpl {
         if (guaranteedBuyerSlsOnModelSeller.size() != 0) {
             List<BuyerInfo> guaranteedBuyerInfoList = GuaranteedBuyerHelper
                             .storeGuaranteedbuyerInfo(guaranteedBuyerSlsOnModelSeller, allSlsSponsoredByGuaranteedBuyer,
-                                                      provisionedSeller_);
+                                                      getProvisionedSeller());
             GuaranteedBuyerHelper.processGuaranteedbuyerInfo(getEconomy(), guaranteedBuyerInfoList);
         }
         getProvisionedSeller().setDebugInfoNeverUseInCode(
@@ -276,7 +244,7 @@ public class ProvisionByDemand extends ActionImpl {
         );
         // traders provisioned by demand should NOT be cloneable. They exist to handle cases where
         // none of the sellers has enough capacity to satisfy a particular demand
-        provisionedSeller_.getSettings().setCloneable(false);
+        getProvisionedSeller().getSettings().setCloneable(false);
         return this;
     }
 
@@ -284,18 +252,16 @@ public class ProvisionByDemand extends ActionImpl {
     public @NonNull Action rollback() {
         super.rollback();
         GuaranteedBuyerHelper.removeShoppingListForGuaranteedBuyers(getEconomy(),
-                provisionedSeller_);
-        getEconomy().removeTrader(provisionedSeller_);
+                getProvisionedSeller());
+        getEconomy().removeTrader(getProvisionedSeller());
         getSubsequentActions().forEach(a -> {
-            if (a instanceof ProvisionBySupply) {
-                getEconomy().removeTrader(((ProvisionBySupply)a).getProvisionedSeller());
-            } else if (a instanceof ProvisionByDemand) {
-                getEconomy().removeTrader(((ProvisionByDemand)a).getProvisionedSeller());
+            if (a instanceof ProvisionBase) {
+                getEconomy().removeTrader(((ProvisionBase)a).getProvisionedSeller());
             } else if (a instanceof Resize && a.isExtractAction()) {
                 a.rollback();
             }
         });
-        provisionedSeller_ = null;
+        setProvisionedSeller(null);
         commodityNewCapacityMap_.clear();
         return this;
     }
@@ -363,24 +329,6 @@ public class ProvisionByDemand extends ActionImpl {
                         .putInt(getProvisionedSeller() == null ? 0
                                         : getProvisionedSeller().hashCode())
                         .hash().asInt();
-    }
-
-    /**
-     * Save the oid of the provisioned trader for use in replaying action
-     *
-     * @param oid The oid of the provisioned trader
-     */
-    public void setOid(@NonNull Long oid) {
-        oid_ = oid;
-    }
-
-    /**
-     * Return the saved oid for the provisioned trader
-     *
-     * @return oid of the provisioned trader
-     */
-    public Long getOid() {
-        return oid_;
     }
 
     @Override

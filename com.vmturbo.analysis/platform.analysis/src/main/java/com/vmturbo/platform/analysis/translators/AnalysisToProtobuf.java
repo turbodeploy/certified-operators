@@ -20,8 +20,6 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.collect.BiMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
@@ -425,7 +423,7 @@ public final class AnalysisToProtobuf {
             builder.setDeactivate(DeactivateTO.newBuilder()
                             .setTraderToDeactivate(traderOid.get(deactivate.getTarget()))
                             .addAllTriggeringBasket(specificationTOs(deactivate.getSourceMarket() != null ?
-                                            deactivate.getSourceMarket().getBasket() : new Basket(Collections.EMPTY_LIST))));
+                                            deactivate.getSourceMarket().getBasket() : new Basket(Collections.emptyList()))));
         } else if (input instanceof ProvisionByDemand) {
             ProvisionByDemand provDemand = (ProvisionByDemand)input;
             ProvisionByDemandTO.Builder provDemandTO = ProvisionByDemandTO.newBuilder()

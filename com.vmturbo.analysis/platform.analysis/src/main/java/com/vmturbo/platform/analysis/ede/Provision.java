@@ -15,6 +15,7 @@ import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
+import com.vmturbo.platform.analysis.actions.ProvisionBase;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
@@ -98,7 +99,7 @@ public class Provision {
         List<@NonNull Action> allActions = new ArrayList<>();
         if (economy.getSettings().isEstimatesEnabled()) {
             EstimateSupply es = new EstimateSupply(economy, ledger, true);
-            
+
             allActions.addAll(es.getActions());
             allActions.addAll(Placement.runPlacementsTillConverge(economy, ledger,
                     EconomyConstants.PROVISION_PHASE).getActions());
@@ -210,11 +211,8 @@ public class Provision {
                     actions.addAll(subActions);
                     ledger.addTraderIncomeStatement(provisionedTrader);
                     subActions.forEach(action -> {
-                        if (action instanceof ProvisionBySupply) {
-                            ledger.addTraderIncomeStatement(((ProvisionBySupply)action)
-                                    .getProvisionedSeller());
-                        } else if (action instanceof ProvisionByDemand) {
-                            ledger.addTraderIncomeStatement(((ProvisionByDemand)action)
+                        if (action instanceof ProvisionBase) {
+                            ledger.addTraderIncomeStatement(((ProvisionBase)action)
                                     .getProvisionedSeller());
                         }
                     });
@@ -445,10 +443,8 @@ public class Provision {
         // remove IncomeStatement from ledger and rollback actions
         if (provisionAction instanceof ProvisionBySupply) {
             Lists.reverse(((ProvisionBySupply)provisionAction).getSubsequentActions()).forEach(action -> {
-                if (action instanceof ProvisionBySupply) {
-                    ledger.removeTraderIncomeStatement(((ProvisionBySupply)action).getProvisionedSeller());
-                } else if (action instanceof ProvisionByDemand) {
-                    ledger.removeTraderIncomeStatement(((ProvisionByDemand)action).getProvisionedSeller());
+                if (action instanceof ProvisionBase) {
+                    ledger.removeTraderIncomeStatement(((ProvisionBase)action).getProvisionedSeller());
                 }
             });
             ledger.removeTraderIncomeStatement(provisionedTrader);

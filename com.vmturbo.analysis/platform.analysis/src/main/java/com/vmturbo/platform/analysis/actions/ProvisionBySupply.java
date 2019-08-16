@@ -28,6 +28,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ede.BootstrapSupply;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
@@ -36,16 +37,12 @@ import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
  * An action to provision a new {@link Trader seller} using another {@link Trader seller} as the
  * template.
  */
-public class ProvisionBySupply extends ActionImpl {
+public class ProvisionBySupply extends ProvisionBase implements Action {
 
     // Fields
     private static final Logger logger = LogManager.getLogger();
-    private final @NonNull Economy economy_;
-    private final @NonNull Trader modelSeller_;
-    private @Nullable Trader provisionedSeller_;
     private @NonNull Map<CommoditySpecification, CommoditySpecification> commSoldToReplaceMap_;
     private @NonNull CommoditySpecification reasonCommodity;
-    private long oid_;
     // a list of actions triggered by taking provisionBySupply action
     private List<@NonNull Action> subsequentActions_ = new ArrayList<>();
     // TODO: may need to add a 'triggering buyer' for debugReason...
@@ -61,11 +58,10 @@ public class ProvisionBySupply extends ActionImpl {
      */
     public ProvisionBySupply(@NonNull Economy economy, @NonNull Trader modelSeller,
                     @Nullable CommoditySpecification commCausingProvision) {
-        economy_ = economy;
         // provisionBySupply means create an exact copy of modelSeller, in case the modelSeller
         // is itself a clone, go all the way back to the original modelSeller to simplify action
         // handling by entities outside M2 that are not necessarily aware of cloned traders
-        modelSeller_ = economy.getCloneOfTrader(modelSeller);
+        super(economy, economy.getCloneOfTrader(modelSeller));
         commSoldToReplaceMap_ = new HashMap<>();
         reasonCommodity = commCausingProvision;
     }
@@ -80,43 +76,14 @@ public class ProvisionBySupply extends ActionImpl {
     public ProvisionBySupply(@NonNull Economy economy, @NonNull Trader modelSeller,
                     Map<CommoditySpecification, CommoditySpecification> commToReplaceMap,
                     CommoditySpecification mostProfitableCommoditySpecification) {
-        economy_ = economy;
         // provisionBySupply means create an exact copy of modelSeller, in case the modelSeller
         // is itself a clone, go all the way back to the original modelSeller to simplify action
         // handling by entities outside M2 that are not necessarily aware of cloned traders
-        modelSeller_ = economy.getCloneOfTrader(modelSeller);
+        super(economy, economy.getCloneOfTrader(modelSeller));
         commSoldToReplaceMap_ = commToReplaceMap;
         reasonCommodity = mostProfitableCommoditySpecification;
     }
     // Methods
-
-    /**
-     * Returns the economy in which the new seller will be added.
-     */
-    @Pure
-    public @NonNull Economy getEconomy(@ReadOnly ProvisionBySupply this) {
-        return economy_;
-    }
-
-    /**
-     * Returns the model buyer that should be satisfied by the new seller.
-     */
-    @Pure
-    public @NonNull Trader getModelSeller(@ReadOnly ProvisionBySupply this) {
-        return modelSeller_;
-    }
-
-    /**
-     * Returns the seller that was added as a result of taking {@code this} action.
-     *
-     * <p>
-     *  It will be {@code null} before the action is taken and/or after it is rolled back.
-     * </p>
-     */
-    @Pure
-    public @Nullable Trader getProvisionedSeller(@ReadOnly ProvisionBySupply this) {
-        return provisionedSeller_;
-    }
 
     /**
      * Returns the actions that was triggered after taking {@code this} action
@@ -148,19 +115,20 @@ public class ProvisionBySupply extends ActionImpl {
         Map<Trader, Set<ShoppingList>> allSlsSponsoredByGuaranteedBuyer = GuaranteedBuyerHelper
                         .getAllSlsSponsoredByGuaranteedBuyer(getEconomy(),
                                                              slBetweenModelSellerAndGuaranteedBuyer);
-        provisionedSeller_ = getEconomy()
+        setProvisionedSeller(getEconomy()
                         .addTraderByModelSeller(getModelSeller(), TraderState.ACTIVE,
                                                 Utility.transformBasket(commSoldToReplaceMap_,
-                                                                        modelSeller_.getBasketSold()),
-                                                getModelSeller().getCliques());
-        provisionedSeller_.setCloneOf(modelSeller_);
+                                                                        getModelSeller().getBasketSold()),
+                                                getModelSeller().getCliques()));
+        getProvisionedSeller().setCloneOf(getModelSeller());
         // Copy trader settings
-        provisionedSeller_.getSettings().setCloneable(getModelSeller().getSettings().isCloneable());
-        provisionedSeller_.getSettings().setSuspendable(getModelSeller().getSettings().isSuspendable());
-        provisionedSeller_.getSettings().setMinDesiredUtil(getModelSeller().getSettings().getMinDesiredUtil());
-        provisionedSeller_.getSettings().setMaxDesiredUtil(getModelSeller().getSettings().getMaxDesiredUtil());
-        provisionedSeller_.getSettings().setGuaranteedBuyer(getModelSeller().getSettings().isGuaranteedBuyer());
-        provisionedSeller_.getSettings().setProviderMustClone(getModelSeller().getSettings().isProviderMustClone());
+        TraderSettings copySettings = getProvisionedSeller().getSettings();
+        copySettings.setCloneable(getModelSeller().getSettings().isCloneable());
+        copySettings.setSuspendable(getModelSeller().getSettings().isSuspendable());
+        copySettings.setMinDesiredUtil(getModelSeller().getSettings().getMinDesiredUtil());
+        copySettings.setMaxDesiredUtil(getModelSeller().getSettings().getMaxDesiredUtil());
+        copySettings.setGuaranteedBuyer(getModelSeller().getSettings().isGuaranteedBuyer());
+        copySettings.setProviderMustClone(getModelSeller().getSettings().isProviderMustClone());
 
         List<Trader> unPlacedClones = new ArrayList<>();
         // Add basket(s) bought
@@ -214,7 +182,7 @@ public class ProvisionBySupply extends ActionImpl {
             } else {
                 // If the new clone does not need its provider to clone and it is movable,
                 // add it to unPlacedClones set and run bootstrap to place it.
-                unPlacedClones.add(provisionedSeller_);
+                unPlacedClones.add(getProvisionedSeller());
             }
 
             // Copy movable attribute, it has to be set since bootstrap checks it
@@ -225,34 +193,34 @@ public class ProvisionBySupply extends ActionImpl {
         // Generate Capacity Resize actions on resizeThroughSupplier traders whose Provider is
         // cloning.
         try {
-            modelSeller_.getCustomers().stream()
+            getModelSeller().getCustomers().stream()
                 .map(ShoppingList::getBuyer)
             .filter(trader -> trader.getSettings().isResizeThroughSupplier())
             .forEach(trader -> {
-                    economy_.getMarketsAsBuyer(trader).keySet().stream()
-                        .filter(shoppingList -> shoppingList.getSupplier() == modelSeller_)
+                    getEconomy().getMarketsAsBuyer(trader).keySet().stream()
+                        .filter(shoppingList -> shoppingList.getSupplier() == getModelSeller())
                         .forEach(sl -> {
                             // Generate the resize actions for matching commodities between
                             // the model seller and the resizeThroughtSupplier trader.
                             getSubsequentActions().addAll(Utility.resizeCommoditiesOfTrader(
                                                                                     getEconomy(),
-                                                                                    modelSeller_,
+                                                                                    getModelSeller(),
                                                                                     sl));
                 });
             });
         } catch (Exception e) {
             logger.error("Error in ProvisionBySupply for resizeThroughSupplier Trader Capacity "
                             + "Resize when provisioning "
-                                + modelSeller_.getDebugInfoNeverUseInCode(), e);
+                                + getModelSeller().getDebugInfoNeverUseInCode(), e);
         }
 
         // Update commodities sold
-        for (int i = 0 ; i < modelSeller_.getBasketSold().size() ; ++i) {
+        for (int i = 0 ; i < getModelSeller().getBasketSold().size() ; ++i) {
             // TODO: also copy overhead
             int indexOfProvisionedSellerCommSold;
-            CommoditySpecification modelCommSpec = modelSeller_.getBasketSold().get(i);
+            CommoditySpecification modelCommSpec = getModelSeller().getBasketSold().get(i);
             if (commSoldToReplaceMap_.containsKey(modelCommSpec)) {
-                indexOfProvisionedSellerCommSold = provisionedSeller_.getBasketSold()
+                indexOfProvisionedSellerCommSold = getProvisionedSeller().getBasketSold()
                                 .indexOf(commSoldToReplaceMap_.get(modelCommSpec));
             } else {
                 indexOfProvisionedSellerCommSold = i;
@@ -293,7 +261,7 @@ public class ProvisionBySupply extends ActionImpl {
             List<BuyerInfo> guaranteedBuyerInfoList = GuaranteedBuyerHelper
                             .storeGuaranteedbuyerInfo(slBetweenModelSellerAndGuaranteedBuyer,
                                                       allSlsSponsoredByGuaranteedBuyer,
-                                                      provisionedSeller_);
+                                                      getProvisionedSeller());
             GuaranteedBuyerHelper.processGuaranteedbuyerInfo(getEconomy(), guaranteedBuyerInfoList);
         }
 
@@ -343,21 +311,18 @@ public class ProvisionBySupply extends ActionImpl {
     public @NonNull Action rollback() {
         super.rollback();
         GuaranteedBuyerHelper.removeShoppingListForGuaranteedBuyers(getEconomy(),
-                provisionedSeller_);
-        getEconomy().removeTrader(provisionedSeller_);
+                getProvisionedSeller());
+        getEconomy().removeTrader(getProvisionedSeller());
         getSubsequentActions().forEach(a -> {
-            if (a instanceof ProvisionBySupply) {
-                getEconomy().removeTrader(((ProvisionBySupply)a).getProvisionedSeller());
-            } else if (a instanceof ProvisionByDemand) {
-                getEconomy().removeTrader(((ProvisionByDemand)a).getProvisionedSeller());
+            if (a instanceof ProvisionBase) {
+                getEconomy().removeTrader(((ProvisionBase)a).getProvisionedSeller());
             } else if (a instanceof Resize && a.isExtractAction()) {
                 a.rollback();
             }
         });
         commSoldToReplaceMap_.clear();
         subsequentActions_.clear();
-        provisionedSeller_ = null;
-
+        setProvisionedSeller(null);
         return this;
     }
 
@@ -422,14 +387,6 @@ public class ProvisionBySupply extends ActionImpl {
                         .putInt(getProvisionedSeller() == null ? 0
                                         : getProvisionedSeller().hashCode())
                         .hash().asInt();
-    }
-
-    public void setOid(@NonNull Long oid) {
-        oid_ = oid;
-    }
-
-    public Long getOid() {
-        return oid_;
     }
 
     @Override

@@ -141,18 +141,17 @@ public class ActionCollapse {
             // If the list ends with a Deactivate then
             if (!list.isEmpty() && list.get(list.size() - 1).getType() == ActionType.DEACTIVATE) {
                 Action firstAction = list.get(0);
-                List<Action> remove = (firstAction.getType() == ActionType.ACTIVATE
-                                || firstAction.getType() == ActionType.PROVISION_BY_SUPPLY
-                                || firstAction.getType() == ActionType.PROVISION_BY_DEMAND)
-                                                // If the list starts with an Activate, ProvisionByDemand or
-                                                // ProvisionBySupply remove all the actions,
-                                                // including the Activate and the Deactivate
-                                                ? Lists.newArrayList(list)
-                                                // If the list doesn't start with an Activate ProvisionByDemand or
-                                                // ProvisionBySupply then remove everything
-                                                // but keep the Deactivate
-                                                : Lists.newArrayList(
-                                                                list.subList(0, list.size() - 1));
+                List<Action> remove = (firstAction instanceof Activate
+                                || firstAction instanceof ProvisionBase)
+                                        // If the list starts with an Activate, ProvisionByDemand or
+                                        // ProvisionBySupply remove all the actions,
+                                        // including the Activate and the Deactivate
+                                        ? Lists.newArrayList(list)
+                                        // If the list doesn't start with an Activate ProvisionByDemand or
+                                        // ProvisionBySupply then remove everything
+                                        // but keep the Deactivate
+                                        : Lists.newArrayList(
+                                                        list.subList(0, list.size() - 1));
                 result.removeAll(remove);
                 list.removeAll(remove);
             }
