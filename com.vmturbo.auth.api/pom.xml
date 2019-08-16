@@ -63,5 +63,10 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.group.api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>

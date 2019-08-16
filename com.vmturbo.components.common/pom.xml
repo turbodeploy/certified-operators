@@ -93,10 +93,6 @@
             <groupId>org.immutables</groupId>
             <artifactId>value</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.bouncycastle</groupId>
-            <artifactId>bcprov-jdk15on</artifactId>
-        </dependency>
         <!-- Required for testing, because ProtobufHttpMessageConverter has a
              dependency on protobuf-java-format -->
         <dependency>

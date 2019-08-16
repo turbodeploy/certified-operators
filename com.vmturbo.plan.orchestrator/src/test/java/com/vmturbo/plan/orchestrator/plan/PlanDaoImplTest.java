@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -23,7 +24,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 
-import org.apache.commons.collections4.CollectionUtils;
 import org.jooq.DSLContext;
 import org.jooq.Result;
 import org.junit.After;
@@ -121,7 +121,7 @@ public class PlanDaoImplTest {
         Authentication auth = new UsernamePasswordAuthenticationToken(
                 new AuthUserDTO(null, "creator", "pass", "10.10.10.10",
                         "11111", "token", ImmutableList.of("NotAdmin"), null),
-                "creator", CollectionUtils.emptyCollection());
+                "creator", Collections.emptySet());
         // put the test auth info into the spring security context
         SecurityContextHolder.getContext().setAuthentication(auth);
 
@@ -164,7 +164,7 @@ public class PlanDaoImplTest {
         Authentication auth = new UsernamePasswordAuthenticationToken(
                 new AuthUserDTO(null, "admin", "pass", "10.10.10.10",
                         "11111", "token", ImmutableList.of("ADMIN"), null),
-                "admin000", CollectionUtils.emptyCollection());
+                "admin000", Collections.emptySet());
         // put the test auth info into the spring security context
         SecurityContextHolder.getContext().setAuthentication(auth);
 
@@ -187,7 +187,7 @@ public class PlanDaoImplTest {
         Authentication creator = new UsernamePasswordAuthenticationToken(
                 new AuthUserDTO(null, "admin", "pass", "10.10.10.10",
                         "11111", "token", ImmutableList.of("ADMIN"), null),
-                "admin000", CollectionUtils.emptyCollection());
+                "admin000", Collections.emptySet());
         SecurityContextHolder.getContext().setAuthentication(creator);
 
         PlanInstance beautifulPlan = planDao.createPlanInstance(CreatePlanRequest.newBuilder()
@@ -198,7 +198,7 @@ public class PlanDaoImplTest {
         Authentication angryMob = new UsernamePasswordAuthenticationToken(
                 new AuthUserDTO(null, "admin", "pass", "10.10.10.10",
                         "22222", "token", ImmutableList.of("ADMIN"), null),
-                "admin000", CollectionUtils.emptyCollection());
+                "admin000", Collections.emptySet());
         SecurityContextHolder.getContext().setAuthentication(angryMob);
 
         // verify the plan can't be deleted by the angry mob -- should throw an exception
