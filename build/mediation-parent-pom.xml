@@ -94,6 +94,7 @@
                             </goals>
                             <phase>prepare-package</phase>
                             <configuration>
+                                <includeScope>compile</includeScope>
                                 <outputDirectory>${project.build.directory}/lib</outputDirectory>
                                 <useBaseVersion>false</useBaseVersion>
                             </configuration>
