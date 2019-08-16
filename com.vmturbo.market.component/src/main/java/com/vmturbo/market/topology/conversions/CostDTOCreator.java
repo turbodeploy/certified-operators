@@ -2,18 +2,20 @@ package com.vmturbo.market.topology.conversions;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.ComputePrice;
@@ -28,6 +30,7 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ComputeTierData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
@@ -88,7 +91,6 @@ public class CostDTOCreator {
      */
     public CostDTO createComputeTierCostDTO(TopologyEntityDTO tier, TopologyEntityDTO region, Set<TopologyEntityDTO> businessAccountDTOs) {
         ComputeTierCostDTO.Builder computeTierDTOBuilder = ComputeTierCostDTO.newBuilder();
-        //createComputeResourceDependency(tier); TODO: add it once dto has proper field to store
         ComputePriceBundle priceBundle = marketPriceTable.getComputePriceBundle(tier.getOid(), region.getOid());
         if (priceBundle == null) {
             logger.warn("Failed to get pricing information for tier {} on region {}",
@@ -141,6 +143,9 @@ public class CostDTOCreator {
                                 .toMarketCommodityId(licenseCommodity), price));
             }
         }
+        Optional<ComputeResourceDependency> dependency = createComputeResourceDependency(tier);
+        dependency.map(computeResourceDependency -> computeTierDTOBuilder.addComputeResourceDepedency(computeResourceDependency));
+
         return CostDTO.newBuilder()
                 .setComputeTierCost(computeTierDTOBuilder
                         .setLicenseCommodityBaseType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
@@ -217,7 +222,7 @@ public class CostDTOCreator {
                                     .toMarketCommodityId(licenseCommodity))
                                 .setPrice(price));
             }
-            // price when license isnt available
+            // price when license isn't available
             dbTierDTOBuilder
                     .addCostTupleList(CostTuple.newBuilder()
                                     .setBusinessAccountId(baOid)
@@ -307,28 +312,61 @@ public class CostDTOCreator {
      * @param tier the compute tier topology entity DTO
      * @return ComputeResourceDependency
      */
-    public ComputeResourceDependency createComputeResourceDependency(TopologyEntityDTO tier) {
-        ComputeResourceDependency.Builder dependency = ComputeResourceDependency.newBuilder();
-        // if the compute tier has dedicated storage network state as configured disabled or not supported,
-        // the sum of netTpUsed and ioTpUsed should be within the netTpSold capacity so we populate a
-        // ComputeResourceDependencyDTO to represent the netTpUsed and ioTpUsed constraint
-        if (tier.getTypeSpecificInfo().hasComputeTier()
-                && (tier.getTypeSpecificInfo().getComputeTier().getDedicatedStorageNetworkState()
-                == CommonDTO.EntityDTO.ComputeTierData.DedicatedStorageNetworkState.CONFIGURED_DISABLED
-                || tier.getTypeSpecificInfo().getComputeTier().getDedicatedStorageNetworkState()
-                == CommonDTO.EntityDTO.ComputeTierData.DedicatedStorageNetworkState.NOT_SUPPORTED)) {
-            List<CommoditySoldDTO> netThruPut = tier.getCommoditySoldListList().stream()
-                    .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE)
-                    .collect(Collectors.toList());
-            List<CommoditySoldDTO> ioThruPut = tier.getCommoditySoldListList().stream()
-                            .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE)
-                            .collect(Collectors.toList());
-            if (netThruPut.size() == 1 && ioThruPut.size() == 1) {
-                dependency.setBaseResourceType(commodityConverter.commoditySpecification(netThruPut.get(0).getCommodityType()))
-                        .setDependentResourceType(commodityConverter.commoditySpecification(ioThruPut.get(0).getCommodityType()))
-                        .build();
+    public Optional<ComputeResourceDependency> createComputeResourceDependency(TopologyEntityDTO tier) {
+        if (tier.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
+            // if the compute tier has dedicated storage network state as configured disabled or not supported,
+            // the sum of netTpUsed and ioTpUsed should be within the netTpSold capacity so we populate a
+            // ComputeResourceDependencyDTO to represent the netTpUsed and ioTpUsed constraint
+            String tierDisplayName = tier.getDisplayName();
+            if (tier.hasTypeSpecificInfo() && tier.getTypeSpecificInfo().hasComputeTier()) {
+                ComputeTierInfo computeTierInfo = tier.getTypeSpecificInfo().getComputeTier();
+                if (computeTierInfo.hasDedicatedStorageNetworkState()) {
+                    ComputeTierData.DedicatedStorageNetworkState tierNetworkState =
+                            computeTierInfo.getDedicatedStorageNetworkState();
+                    if (CommonDTO.EntityDTO.ComputeTierData.DedicatedStorageNetworkState.CONFIGURED_DISABLED
+                            == tierNetworkState
+                            || CommonDTO.EntityDTO.ComputeTierData.DedicatedStorageNetworkState.NOT_SUPPORTED
+                            == tierNetworkState) {
+
+                        Map<Integer, List<CommoditySoldDTO>> typeToCommodities =
+                                tier.getCommoditySoldListList()
+                                        .stream()
+                                        .collect(Collectors.groupingBy(c -> c.getCommodityType().getType()));
+
+                        List<CommoditySoldDTO> netThruPut =
+                                typeToCommodities.get(CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE);
+
+                        List<CommoditySoldDTO> ioThruPut =
+                                typeToCommodities.get(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE);
+
+                        if (netThruPut.size() == 1 && ioThruPut.size() == 1) {
+                            ComputeResourceDependency.Builder dependency =
+                                    ComputeResourceDependency.newBuilder();
+                            dependency.setBaseResourceType(
+                                    commodityConverter.commoditySpecification(
+                                            netThruPut.get(0).getCommodityType()))
+                                    .setDependentResourceType(
+                                            commodityConverter.commoditySpecification(
+                                                    ioThruPut.get(0).getCommodityType()));
+                            return Optional.of(dependency.build());
+                        } else {
+                            logger.warn("Expected one commodity each of IOThroughput" +
+                                    " and NetThroughput, Found zero/multiple for {}", tierDisplayName);
+                        }
+                    } else {
+                        logger.trace("No dependency added since" +
+                                " dedicated storage network is enabled for {}. ", tierDisplayName);
+                    }
+                } else {
+                    logger.debug("No dependency added since" +
+                                    " dedicated storage network information not available {}",
+                            tierDisplayName);
+                }
+            } else {
+                logger.debug("No compute tier associated with {} ", tierDisplayName);
             }
         }
-        return dependency.build();
+        return Optional.empty();
     }
+
 }
