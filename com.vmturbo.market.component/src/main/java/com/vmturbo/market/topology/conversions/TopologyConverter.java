@@ -513,7 +513,7 @@ public class TopologyConverter {
                     .collect(Collectors.toMap(PriceIndexMessagePayload::getOid, Function.identity()));
             Map<Long, EconomyDTOs.TraderTO> projTraders =
                     projectedTraders.stream().collect(Collectors.toMap(t -> t.getOid(), Function.identity()));
-            logger.info("Converting projectedTraders to topologyEntityDTOs");
+            logger.info("Converting {} projectedTraders to topologyEntityDTOs", projectedTraders.size());
             projectedTraders.forEach(t -> oidToProjectedTraderTOMap.put(t.getOid(), t));
             relinquishCoupons(projectedTraders, cloudCostData);
             final Map<Long, TopologyDTO.ProjectedTopologyEntity> projectedTopologyEntities = new HashMap<>(
@@ -876,12 +876,13 @@ public class TopologyConverter {
             // the shopping list might not exist in shoppingListOidToInfos, because it might be
             // created inside M2 via a provision by demand or provision by supply action
             if (shoppingListOidToInfos.get(sl.getOid()) == null) {
+                TraderTO supplier = projTraders.get(sl.getSupplier());
+                logger.trace("Adding shopping list {} of trader {} having a supplier {} into the sl-info map",
+                                sl.getOid(), traderTO.getDebugInfoNeverUseInCode(),
+                                supplier != null ? supplier.getDebugInfoNeverUseInCode() : null);
                 ShoppingListInfo slInfo = new ShoppingListInfo(sl.getOid(), traderTO.getOid(),
-                        sl.getSupplier(), null,
-                        projTraders.get(sl.getSupplier()) != null
-                        ? projTraders.get(sl.getSupplier()).getType()
-                        : null,
-                        commList);
+                                sl.getSupplier(), null,
+                                supplier != null ? supplier.getType() : null, commList);
                 shoppingListOidToInfos.put(sl.getOid(), slInfo);
             }
             topoDTOCommonBoughtGrouping.add(createCommoditiesBoughtFromProvider(sl, commList));
