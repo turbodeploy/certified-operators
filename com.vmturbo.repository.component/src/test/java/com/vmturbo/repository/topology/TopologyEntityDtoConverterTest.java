@@ -16,7 +16,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import org.assertj.core.util.Lists;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -27,8 +26,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessUserInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
@@ -36,12 +33,10 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.CommodityDTO.CommodityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
-import com.vmturbo.repository.dto.BusinessUserInfoRepoDTO;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.CommodityBoughtRepoDTO;
 import com.vmturbo.repository.dto.CommoditySoldRepoDTO;
 import com.vmturbo.repository.dto.ConnectedEntityRepoDTO;
-import com.vmturbo.repository.dto.DesktopPoolInfoRepoDTO;
 import com.vmturbo.repository.dto.GuestOSRepoDTO;
 import com.vmturbo.repository.dto.IpAddressRepoDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
@@ -60,8 +55,6 @@ public class TopologyEntityDtoConverterTest {
     private TopologyEntityDTO dsTopoDTO;
     private TopologyEntityDTO vdcTopoDTO;
     private TopologyEntityDTO networkTopoDTO;
-    private TopologyEntityDTO desktopPoolTopoDTO;
-    private TopologyEntityDTO businessUserTopoDTO;
     private ServiceEntityRepoDTO vmServiceEntity = new ServiceEntityRepoDTO();
 
     @Before
@@ -71,8 +64,6 @@ public class TopologyEntityDtoConverterTest {
         dsTopoDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/ds-1.dto.json");
         vdcTopoDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/vdc-1.dto.json");
         networkTopoDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/network-1.dto.json");
-        desktopPoolTopoDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/desktopPool-1.dto.json");
-        businessUserTopoDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/businessUser-1.dto.json");
         buildVMServiceEntityRepoDTO(vmServiceEntity);
     }
 
@@ -156,12 +147,10 @@ public class TopologyEntityDtoConverterTest {
 
     @Test
     public void testConvertDTOs() {
-        assertEquals(0,
-                TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.emptyList())
-                        .size());
-        assertEquals(7, TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(
-                Arrays.asList(vmTopoDTO, pmTopoDTO, dsTopoDTO, vdcTopoDTO, networkTopoDTO,
-                        desktopPoolTopoDTO, businessUserTopoDTO)).size());
+        assertEquals(0, TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.emptyList()).size());
+
+        assertEquals(1, TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(vmTopoDTO)).size());
+        assertEquals(5, TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Arrays.asList(vmTopoDTO, pmTopoDTO, dsTopoDTO, vdcTopoDTO, networkTopoDTO)).size());
     }
 
     @Test
@@ -185,14 +174,6 @@ public class TopologyEntityDtoConverterTest {
         ServiceEntityRepoDTO networkRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(networkTopoDTO))
                 .iterator().next();
         verifySE(networkTopoDTO, networkRepoDTO);
-
-        ServiceEntityRepoDTO desktopPoolRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(desktopPoolTopoDTO))
-                .iterator().next();
-        verifySE(desktopPoolTopoDTO, desktopPoolRepoDTO);
-
-        ServiceEntityRepoDTO businessUserRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(businessUserTopoDTO))
-                .iterator().next();
-        verifySE(businessUserTopoDTO, businessUserRepoDTO);
     }
 
     @Test
@@ -216,14 +197,6 @@ public class TopologyEntityDtoConverterTest {
         ServiceEntityRepoDTO networkRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(networkTopoDTO))
                 .iterator().next();
         verifyCommodityBought(networkTopoDTO, networkRepoDTO);
-
-        ServiceEntityRepoDTO desktopPoolRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(desktopPoolTopoDTO))
-                .iterator().next();
-        verifyCommodityBought(desktopPoolTopoDTO, desktopPoolRepoDTO);
-
-        ServiceEntityRepoDTO businessUserRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(businessUserTopoDTO))
-                .iterator().next();
-        verifyCommodityBought(businessUserTopoDTO, businessUserRepoDTO);
     }
 
     @Test
@@ -243,10 +216,6 @@ public class TopologyEntityDtoConverterTest {
         ServiceEntityRepoDTO dsRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(dsTopoDTO))
                 .iterator().next();
         verifyCommoditySold(dsTopoDTO, dsRepoDTO);
-
-        ServiceEntityRepoDTO desktopPoolRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(desktopPoolTopoDTO))
-                .iterator().next();
-        verifyCommoditySold(desktopPoolTopoDTO, desktopPoolRepoDTO);
     }
 
     @Test
@@ -304,27 +273,6 @@ public class TopologyEntityDtoConverterTest {
                                                 ipAddressInfo.getIsElastic() ==
                                                         ipAddressRepoDTO.getElastic())));
             }
-        }
-
-        // compare desktop pool info
-        final DesktopPoolInfoRepoDTO desktopPoolInfoRepoDTO = seRepoDTO.getDesktopPoolInfoRepoDTO();
-        if (desktopPoolInfoRepoDTO != null) {
-            Assert.assertTrue(seTopoDTO.hasTypeSpecificInfo());
-            Assert.assertTrue(seTopoDTO.getTypeSpecificInfo().hasDesktopPool());
-            final DesktopPoolInfo desktopPool = seTopoDTO.getTypeSpecificInfo().getDesktopPool();
-            Assert.assertEquals(desktopPoolInfoRepoDTO.getAssignmentType(), desktopPool.getAssignmentType());
-            Assert.assertEquals(desktopPoolInfoRepoDTO.getCloneType(), desktopPool.getCloneType());
-            Assert.assertEquals(desktopPoolInfoRepoDTO.getProvisionType(), desktopPool.getProvisionType());
-            Assert.assertEquals(desktopPoolInfoRepoDTO.getTemplateReferenceId(), (Long)desktopPool.getTemplateReferenceId());
-        }
-
-        // compare business user info
-        final BusinessUserInfoRepoDTO businessUserInfoRepoDTO = seRepoDTO.getBusinessUserInfoRepoDTO();
-        if (businessUserInfoRepoDTO != null) {
-            Assert.assertTrue(seTopoDTO.hasTypeSpecificInfo());
-            Assert.assertTrue(seTopoDTO.getTypeSpecificInfo().hasBusinessUser());
-            final BusinessUserInfo businessUser = seTopoDTO.getTypeSpecificInfo().getBusinessUser();
-            Assert.assertEquals(businessUserInfoRepoDTO.getVmOidToSessionDuration(), businessUser.getVmOidToSessionDurationMap());
         }
 
         // check connected entity list

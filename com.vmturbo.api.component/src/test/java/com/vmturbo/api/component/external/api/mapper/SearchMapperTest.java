@@ -31,8 +31,7 @@ public class SearchMapperTest {
             "Container", "ContainerPod", "VPod", "DPod", "StorageController", "IOModule", "Switch", "Chassis",
             "Network", "LogicalPool", "Database", "DatabaseServer", "LoadBalancer",
             "BusinessAccount", "CloudService", "ComputeTier", "StorageTier", "DatabaseTier",
-            "DatabaseServerTier", "AvailabilityZone", "Region", "VirtualVolume", "ProcessorPool",
-            "ViewPod", "DesktopPool", "BusinessUser");
+            "DatabaseServerTier", "AvailabilityZone", "Region", "VirtualVolume", "ProcessorPool");
         assertThat(SearchMapper.SEARCH_ALL_TYPES, containsInAnyOrder(EXPECTED_TYPES.toArray()));
     }
 
