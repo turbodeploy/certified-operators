@@ -38,8 +38,9 @@ RUN chown arangodb:arangodb /etc/arangodb3/arangod.conf
 # Initialization
 # The presense of /tmp/init_007 indicates the the fact that arangoDB went through the setup,
 # but never started yet. Will be removed on first startup.
-RUN mkdir -p /var/lib/arangodb3 && mkdir -p /var/lib/arangodb3-apps && mkdir -p /home/arangodb/arangodb-dump && chown -R arangodb /var/lib/arangodb3 && chown -R arangodb /var/lib/arangodb3-apps && \
-chown -R arangodb /home/arangodb && ARANGODB_DEFAULT_ROOT_PASSWORD="root" /usr/sbin/arango-init-database && touch /tmp/init_007 && chown arangodb /tmp/init_007
+RUN mkdir -p /var/lib/arangodb3 && mkdir -p /var/lib/arangodb3-apps && mkdir -p /home/arangodb/arangodb-dump && \
+    chown -R arangodb /var/lib/arangodb3 && chown -R arangodb /var/lib/arangodb3-apps && chown -R arangodb /home/arangodb && \
+    ARANGODB_DEFAULT_ROOT_PASSWORD="root" /usr/sbin/arango-init-database
 
 # rsyslog
 ADD rsyslog.conf /etc

@@ -31,40 +31,6 @@ if [[ -f "/var/lib/arangodb3/LOCK" ]]; then
 fi
 
 if [ "$1" = 'arangod' ]; then
-	if [ -f /tmp/init_007 ]; then
-	    rm -f /tmp/init_007
-        echo "Initializing database...Hang on..." 2>&1 | $LOGGER_COMMAND
-        arangod --server.endpoint unix:///tmp/arangodb-tmp.sock \
-                --server.authentication false \
-                --log.file /tmp/init-log \
-                --log.foreground-tty false &
-		pid="$!"
-
-		counter=0
-		ARANGO_UP=0
-		while [ "$ARANGO_UP" = "0" ];do
-		    if [ $counter -gt 0 ];then
-			    sleep 1
-		    fi
-
-		    if [ "$counter" -gt 100 ];then
-			    echo "ArangoDB didn't start correctly during init" 2>&1 | $LOGGER_COMMAND
-			    cat /tmp/init-log | $LOGGER_COMMAND
-			    exit 1
-		    fi
-		        let counter=counter+1
-		    ARANGO_UP=1
-            echo "db._version()" | arangosh --server.endpoint=unix:///tmp/arangodb-tmp.sock 2>&1 > /dev/null || ARANGO_UP=0
-		done
-
-		if ! kill -s TERM "$pid" || ! wait "$pid"; then
-            echo 'ArangoDB Init failed.' 2>&1 | $LOGGER_COMMAND
-            exit 1
-		fi
-
-        echo "Database initialized...Starting System..." 2>&1 | $LOGGER_COMMAND
-	fi
-
 	# Test if arangoDB config file is missing and needs to be placed
 	 if [[ ! -f $ARANGO_CONF ]] ; then
 	    echo "Copying default arangodb config file from $DEFAULT_ARANGO_CONF to $ARANGO_CONF (initial setup)" | $LOGGER_COMMAND
