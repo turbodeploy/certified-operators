@@ -317,6 +317,7 @@
                 <module>../com.vmturbo.mediation.azure.volumes.conversion</module>
                 <module>../com.vmturbo.mediation.azure.volumes.component</module>
                 <module>../com.vmturbo.mediation.azure.cost.component</module>
+                <module>../com.vmturbo.mediation.azure.ea.component</module>
                 <module>../com.vmturbo.mediation.client</module>
                 <module>../com.vmturbo.mediation.client.bootstrap</module>
                 <module>../com.vmturbo.mediation.conversion</module>
@@ -561,6 +562,7 @@
                 <module>../com.vmturbo.mediation.azure.conversion</module>
                 <module>../com.vmturbo.mediation.azure.component</module>
                 <module>../com.vmturbo.mediation.azure.cost.component</module>
+                <module>../com.vmturbo.mediation.azure.ea.component</module>
             </modules>
         </profile>
 
@@ -939,6 +941,7 @@
                 <module>../com.vmturbo.mediation.azure.component</module>
                 <module>../com.vmturbo.mediation.azure.volumes.component</module>
                 <module>../com.vmturbo.mediation.azure.cost.component</module>
+                <module>../com.vmturbo.mediation.azure.ea.component</module>
                 <module>../com.vmturbo.mediation.cloudfoundry.component</module>
                 <module>../com.vmturbo.mediation.compellent.component</module>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>

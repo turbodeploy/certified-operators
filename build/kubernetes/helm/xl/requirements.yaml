@@ -163,6 +163,10 @@ dependencies:
     repository: file://../probes/mediation-azurevolumes
     version: 0.1.0
     condition: azure.enabled
+ - name: mediation-azureea
+   repository: file://../probes/mediation-azureea
+   version: 0.1.0
+   condition: azure.enabled
   - name: mediation-cloudfoundry
     repository: file://../probes/mediation-cloudfoundry
     version: 0.1.0
