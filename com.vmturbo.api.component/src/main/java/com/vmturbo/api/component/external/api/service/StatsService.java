@@ -29,6 +29,7 @@ import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
+import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -447,6 +448,12 @@ public class StatsService implements IStatsService {
         // NOTE: if headroom stats are being requested, we expect that all uuids are clusters,
         // since these stats are only relevant for clusters. If any non-clusters are detected,
         // a warning will be logged and that entry will not be included in the results.
+
+        if (inputDto.getScopes().isEmpty() || inputDto.getScopes().stream()
+                .anyMatch(scope -> scope.equals(MarketMapper.MARKET))) {
+            throw new IllegalArgumentException("Request with invalid scope : " +
+                (inputDto.getScopes().isEmpty() ? "empty" :  MarketMapper.MARKET));
+        }
 
         final Iterator<Group> groups = groupServiceRpc.getGroups(GetGroupsRequest.newBuilder()
                 .addAllId(inputDto.getScopes().stream()
