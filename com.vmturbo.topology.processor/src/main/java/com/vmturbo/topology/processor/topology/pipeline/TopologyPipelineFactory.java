@@ -41,6 +41,7 @@ import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
 import com.vmturbo.topology.processor.topology.HistoricalEditor;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
+import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ApplyClusterCommodityStage;
@@ -60,6 +61,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.IgnoreConstraints
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PlanScopingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PostStitchingStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.ProbeActionCapabilitiesApplicatorStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ReservationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ScanDiscoveredSettingPoliciesStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ScopeResolutionStage;
@@ -140,6 +142,8 @@ public class TopologyPipelineFactory {
 
     private final CachedTopology constructTopologyStageCache = new CachedTopology();
 
+    private final ProbeActionCapabilitiesApplicatorEditor applicatorEditor;
+
     public TopologyPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                    @Nonnull final PolicyManager policyManager,
                                    @Nonnull final StitchingManager stitchingManager,
@@ -165,7 +169,8 @@ public class TopologyPipelineFactory {
                                    @Nonnull final CommoditiesEditor commoditiesEditor,
                                    @Nonnull final PlanTopologyScopeEditor planTopologyScopeEditor,
                                    @Nonnull final HistoricalEditor historicalEditor,
-                                   @Nonnull final MatrixInterface matrix) {
+                                   @Nonnull final MatrixInterface matrix,
+                                   @Nonnull final ProbeActionCapabilitiesApplicatorEditor applicatorEditor) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -192,6 +197,7 @@ public class TopologyPipelineFactory {
         this.planTopologyScopeEditor = planTopologyScopeEditor;
         this.historicalEditor = Objects.requireNonNull(historicalEditor);
         this.matrix = Objects.requireNonNull(matrix);
+        this.applicatorEditor = Objects.requireNonNull(applicatorEditor);
     }
 
     /**
@@ -249,6 +255,7 @@ public class TopologyPipelineFactory {
                 .addStage(new SupplyChainValidationStage(supplyChainValidator))
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new HistoricalUtilizationStage(historicalEditor))
+                .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
                 .addStage(new BroadcastStage(managers))
                 .build();
     }

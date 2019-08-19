@@ -32,7 +32,6 @@ import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidationConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.template.TemplateConfig;
-import com.vmturbo.topology.processor.topology.pipeline.Stages.PlanScopingStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
 import com.vmturbo.topology.processor.workflow.WorkflowConfig;
 
@@ -193,7 +192,8 @@ public class TopologyConfig {
                 commoditiesEditor(),
                 planTopologyScopeEditor(),
                 historicalEditor(),
-                matrixInterface()
+                matrixInterface(),
+                probeActionCapabilitiesApplicatorEditor()
         );
     }
 
@@ -229,5 +229,10 @@ public class TopologyConfig {
     @Bean
     public HistoricalEditor historicalEditor() {
         return new HistoricalEditor(historicalUtilizationDatabase(), Executors.newSingleThreadExecutor());
+    }
+
+    @Bean
+    public ProbeActionCapabilitiesApplicatorEditor probeActionCapabilitiesApplicatorEditor() {
+        return new ProbeActionCapabilitiesApplicatorEditor(targetConfig.targetStore());
     }
 }

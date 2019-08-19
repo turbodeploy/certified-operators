@@ -1,71 +1,97 @@
 package com.vmturbo.topology.processor.topology;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider.Builder;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionCapability;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionPolicyElement;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
 
 /**
- * It's removed from {@link com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory},
- * due to Probes currently don't send action capabilities with "NOT_SUPPORTED". Without this stage, XL have to
- * live with workarounds in Market, e.g. in Topologyconverter#createShoppingList.
- * For long-term solution, XL should find a single place to deal with action capabilities regarding movable,
- * cloneable, suspendable and controllable. And this editor could potentially be re-enable with adjustments.
+ * This editor updates Movable, Cloneable, and Suspendable properties of an entity based on probes'
+ * action capabilities specified in ActionPolicyDTO.ActionCapability for an entity type.
  *
- * Editor to update following properties based on probes' action capabilities.
- * 1. movable:
- * a. When entity type is VM:
- * i. if provider is PM and action type is MOVE, set movable to true unless capability is set to NOT_SUPPORTED.
- * ii. if provider is Storage and action type is CHANGE, set movable to true unless capability is set to NOT_SUPPORTED.
- * iii. set movable to false for all other providers.
- * b. For all other entity types, set movable to true unless capability is set to NOT_SUPPORTED.
- * 2. cloneable:
- * cloneable is set to false, if there is no probe that can support the provision action
- * (all the probes/target for that entity have not supported for provision).
- * 3. suspendable:
- * suspendable is set to false, same as cloneable but for suspend action.
- * TODO: controllable
- * <p>
- * Special case when DTO is discovered by more than one probe.
- * a. If all probes don't support an action for an entity type, disable the action
- * for that entity (with same type).
- * b. If at least one probe doesn't have NOT_SUPPORT on an action for an entity type,
- * enable the action for that entity (with same type), except the action is disabled by user.
- * c. If at least one probe doesn't have action capabilities, handle the same ways as b.
+ * <p>The action capabilities here are used for market analysis, not for execution.
+ *
+ * <p>An entity may be discovered by more than one probe, the current resolution strategy is:
+ * From the list of probes that discover the entity with proper action capabilities set,
+ * - If all probes have specified NOT_SUPPORTED capability for the same entity and action type, then
+ *   disable the action for this entity.
+ * - Otherwise, enable the action for this entity, unless the action is disabled in the user policy
+ *   settings. This includes the cases where:
+ *   - the action capability is not set by the probe, then it is treated as NOT_EXECUTABLE
+ *     (see the definition in ActionPolicyDTO protocol)
+ *   - the action capability is set to either SUPPORTED, or NOT_EXECUTABLE
+ *
+ * <p>TODO: The above resolution strategy is not enough to cover all use cases, as it is performed
+ *     at entity type level. In some cases, we want to handle resolution at individual entity
+ *     level. For example, in a kubernetes cluster, even though in general ContainerPods are
+ *     movable, there are certain pods that belong to DaemonSet which are deployed on every node
+ *     in the cluster, and should NOT be movable.
+ *     To support these use cases, we need to introduce action capability at entity level. During
+ *     stitching, if an entity has entity level action capability from multiple probes, they need
+ *     to be combined based on predefined rules.
+ *     The final action capability of an entity should be determined from the following inputs:
+ *     - Probe defined action capabilities at individual entity level (after stitching)
+ *     - Probe defined action capabilities at the entity type level
+ *     - User defined action policies
+ *     - Default action policies
+ *     - Other data in an entity including controllable, and overall state of an entity
+ *
+ * <p>TODO: Resize, Controllable
+ *
+ * <p>NOTE: This stage requires probes to provide correct action capabilities for specific entity
+ * types. In particular, if an action type is not supported for an entity type, the probe must
+ * specify NOT_SUPPORTED in the ActionCapability. Currently not all probes are doing this.
+ *
+ * <p>As a result, this stage is currently only enabled for entities coming from Cloud Native
+ * targets, which do send correct action capabilities. For all other targets, we are still
+ * using workaround in Market, e.g. in TopologyConverter#createShoppingList. It is expected
+ * that once all probes provide proper action capabilities at both entity type and individual
+ * entity level, we will enhance this stage to resolve action capabilities for all entities.
  */
 public class ProbeActionCapabilitiesApplicatorEditor {
+    // TARGET_PROBE_HAS_ACTION_CAPABILITIES is a predicate to determine if the probe that
+    // a target is attached to has provided the required action capabilities in the
+    // ActionPolicyDTO.ActionCapability protocol
+    // A probe must specify correct action capabilities for specific entity types in order
+    // for this editor to determine the correct action capabilities of entities discovered by
+    // that probe. Currently, only Cloud Native target probes are confirmed to provide these
+    // information. Cloud Native targets have probe types prefixed with "Kubernetes", for example:
+    // "Kubernetes-1848268059"
+    // In the future, when more probes start to provide proper capabilities, this predicate
+    // can be modified to include those probes. When all probes start to provide proper
+    // capabilities, this predicate can be removed
+    private static final Predicate<Target> TARGET_PROBE_HAS_ACTION_CAPABILITIES =
+            target -> target.getProbeInfo().getProbeType().startsWith("Kubernetes");
 
-    private static final Logger logger = LogManager.getLogger();
-    // Does action capability set to NOT_SUPPORTED?
-    private final static Predicate<ActionPolicyElement> IS_NOT_SUPPORTED =
-        element -> element.getActionCapability() == ActionCapability.NOT_SUPPORTED;
-    private final ProbeStore probeStore;
+    // IS_NOT_SUPPORTED_ACTION is a predicate to determine if an action can be enabled
+    // for market analysis
+    private static final Predicate<ActionPolicyElement> IS_NOT_SUPPORTED_ACTION =
+            element -> element.getActionCapability() == ActionCapability.NOT_SUPPORTED;
+
     private final TargetStore targetStore;
 
-    ProbeActionCapabilitiesApplicatorEditor(@Nonnull final ProbeStore probeStore,
-                                            @Nonnull final TargetStore targetStore) {
-        this.probeStore = Objects.requireNonNull(probeStore);
+    ProbeActionCapabilitiesApplicatorEditor(@Nonnull final TargetStore targetStore) {
         this.targetStore = Objects.requireNonNull(targetStore);
     }
 
@@ -75,238 +101,168 @@ public class ProbeActionCapabilitiesApplicatorEditor {
      * @param graph The topology graph which contains all the SEs.
      */
     public EditorSummary applyPropertiesEdits(@Nonnull final TopologyGraph<TopologyEntity> graph) {
-        final Multimap<Long, UnsupportedAction> targetToProbeCapabilities =
-            targetIdToEntityTypeMap(targetStore, probeStore);
-        final EditorSummary editorSummary = new EditorSummary();
-        graph.entities().forEach(entity -> {
-                editMovable(graph, targetToProbeCapabilities, editorSummary, entity);
-                editCloneable(targetToProbeCapabilities, editorSummary, entity);
-                editSuspendable(targetToProbeCapabilities, editorSummary, entity);
-            }
-        );
-        return editorSummary;
+        final Context context = new Context(targetStore);
+        // Only edit action capabilities when there are at least one target probe in the system
+        // that has proper action capabilities provided
+        if (!context.targetsWithActionCapabilities.isEmpty()) {
+            graph.entities().forEach(entity -> this.editActionCapabilities(entity, context));
+        }
+        return context.editorSummary;
+    }
+
+    private void editActionCapabilities(@Nonnull final TopologyEntity entity,
+                                        @Nonnull final Context context) {
+        List<Long> discoveryingTargets =
+                entity.getDiscoveringTargetIds()
+                        .filter(context.targetsWithActionCapabilities::contains)
+                        .collect(Collectors.toList());
+        if (discoveryingTargets.isEmpty()) {
+            // None of the probes that discover this entity has action capabilities set
+            return;
+        }
+        editMovable(entity, discoveryingTargets, context);
+        editCloneable(entity, discoveryingTargets, context);
+        editSuspendable(entity, discoveryingTargets, context);
     }
 
     // edit cloneable
-    private void editCloneable(@Nonnull final Multimap<Long, UnsupportedAction> targetToProbeCapabilities,
-                               @Nonnull final EditorSummary editorSummary,
-                               @Nonnull final TopologyEntity entity) {
-        final AnalysisSettings.Builder builder = entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder();
-        updateProperty(entity, targetToProbeCapabilities, ActionType.PROVISION,
-            (isCloneable) -> {
-                if (isCloneable) {
-                    // at least one probe say it's cloneable, but if it's set already,
-                    // e.g. user doesn't want to provision it, keep it as is.
-                    if (!builder.hasCloneable()) {
-                        builder.setCloneable(true);
-                        editorSummary.increaseCloneableToTrueCount();
+    private void editCloneable(@Nonnull final TopologyEntity entity,
+                               @Nonnull final List<Long> discoveryingTargets,
+                               @Nonnull final Context context) {
+        final AnalysisSettings.Builder builder =
+                entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder();
+        updateProperty(entity, ActionType.PROVISION, discoveryingTargets, context,
+                (isCloneable) -> {
+                    if (isCloneable) {
+                        // at least one probe say it's cloneable, but if it's set already,
+                        // e.g. user doesn't want to provision it, keep it as is.
+                        if (!builder.hasCloneable()) {
+                            builder.setCloneable(true);
+                            context.editorSummary.increaseCloneableToTrueCount();
+                        }
+                    } else { // probes all say "No" to "isCloneable", so set it to "false"
+                        builder.setCloneable(false);
+                        context.editorSummary.increaseCloneableToFalseCount();
                     }
-                } else { // probes all say "No" to "isCloneable", so set it to "false"
-                    builder.setCloneable(false);
-                    editorSummary.increaseCloneableToFalseCount();
-                }
-            });
+                });
     }
 
     // edit suspendable
-    private void editSuspendable(@Nonnull final Multimap<Long, UnsupportedAction> targetToProbeCapabilities,
-                                 @Nonnull final EditorSummary editorSummary,
-                                 @Nonnull final TopologyEntity entity) {
-        final AnalysisSettings.Builder builder = entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder();
-        updateProperty(entity, targetToProbeCapabilities, ActionType.SUSPEND,
-            (isSuspendable) -> {
-                if (isSuspendable) {
-                    // at least one probe say it's suspendable, but if it's set already,
-                    // e.g. user doesn't want to suspend it,  keep it as is.
-                    if (!builder.hasSuspendable()) {
-                        builder.setSuspendable(true);
-                        editorSummary.increaseSuspendableToTrueCount();
+    private void editSuspendable(@Nonnull final TopologyEntity entity,
+                                 @Nonnull final List<Long> discoveryingTargets,
+                                 @Nonnull final Context context) {
+        final AnalysisSettings.Builder builder =
+                entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder();
+        updateProperty(entity, ActionType.SUSPEND, discoveryingTargets, context,
+                (isSuspendable) -> {
+                    if (isSuspendable) {
+                        // at least one probe say it's suspendable, but if it's set already,
+                        // e.g. user doesn't want to suspend it,  keep it as is.
+                        if (!builder.hasSuspendable()) {
+                            builder.setSuspendable(true);
+                            context.editorSummary.increaseSuspendableToTrueCount();
+                        }
+                    } else { // probes all say "No" to "suspendable", so set it to "false"
+                        builder.setSuspendable(false);
+                        context.editorSummary.increaseSuspendableToFalseCount();
                     }
-                } else { // probes all say "No" to "suspendable", so set it to "false"
-                    builder.setSuspendable(false);
-                    editorSummary.increaseSuspendableToFalseCount();
-                }
-            });
+                });
     }
 
     // edit movable
-    private void editMovable(@Nonnull final TopologyGraph<TopologyEntity> graph,
-                             @Nonnull final Multimap<Long, UnsupportedAction> targetToProbeCapabilities,
-                             @Nonnull final EditorSummary editorSummary,
-                             @Nonnull final TopologyEntity entity) {
+    private void editMovable(@Nonnull final TopologyEntity entity,
+                             @Nonnull final List<Long> discoveryingTargets,
+                             @Nonnull final Context context) {
         entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersBuilderList()
-            .forEach(commoditiesBoughtFromProvider -> {
-                    updateMovableBasedOnProbesCapabilities(commoditiesBoughtFromProvider, entity, graph,
-                        targetToProbeCapabilities, editorSummary);
-                }
-            );
-    }
-
-    /**
-     * Build a target capability map which store targetId -> (entityType, actionType).
-     * The presence of the entry in the map would indicate the movable capability is not_supported.
-     */
-    private Multimap<Long, UnsupportedAction> targetIdToEntityTypeMap(@Nonnull final TargetStore targetStore,
-                                                                      @Nonnull final ProbeStore probeStore) {
-        final Multimap<Long, UnsupportedAction> targetIdToEntityTypeMap = ArrayListMultimap.create();
-        targetStore.getAll().stream().forEach(target -> probeStore.getProbe(target.getProbeId()).ifPresent(
-            probeInfo -> probeInfo.getActionPolicyList().stream()
-                .filter(actionPolicyDTO -> actionPolicyDTO.hasEntityType())
-                .forEach(
-                    actionPolicyDTO -> actionPolicyDTO.getPolicyElementList().stream()
-                        .filter(IS_NOT_SUPPORTED)
-                        .forEach(actionPolicyElement -> targetIdToEntityTypeMap
-                            .put(target.getId(), ImmutableUnsupportedAction.builder()
-                                .entityType(actionPolicyDTO.getEntityType())
-                                .actionType(actionPolicyElement.getActionType())
-                                .build()))
-                )));
-        return targetIdToEntityTypeMap;
-    }
-
-    /**
-     * 1. When entity type is VM:
-     * a. if provider is PM and action type is MOVE, set movable to true unless capability is set to NOT_SUPPORTED
-     * b. if provider is Storage and action type is CHANGE, set movable to true unless capability is set to NOT_SUPPORTED
-     * c. set movable to false for all other providers
-     * 2. For all other entity types, set movable to true unless capability is set to NOT_SUPPORTED
-     *
-     * @param builder                 commodityBoughtFromProviderBuilder builder
-     * @param entity                  topology entity
-     * @param graph                   topology graph
-     * @param targetIdToEntityTypeMap targetId to entityType and actionType map. The presence of the
-     *                                entry in the map would indicate the movable capability is not_supported.
-     * @param editorSummary           object to keep track how many movables are set to true and false.
-     */
-    private void updateMovableBasedOnProbesCapabilities(@Nonnull final Builder builder,
-                                                        @Nonnull final TopologyEntity entity,
-                                                        @Nonnull final TopologyGraph<TopologyEntity> graph,
-                                                        @Nonnull final Multimap<Long, UnsupportedAction> targetIdToEntityTypeMap,
-                                                        @Nonnull final EditorSummary editorSummary) {
-        // Special case for VM
-        if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-            final Optional<TopologyEntity> topologyEntity = graph.getEntity(builder.getProviderId());
-            if (topologyEntity.isPresent()) {
-                updateMovableForVM(builder, entity, targetIdToEntityTypeMap, topologyEntity.get(), editorSummary);
-            } else {
-                updateMovable(builder, true, editorSummary);
-            }
-        } else {
-            updateProperty(entity, targetIdToEntityTypeMap, ActionType.MOVE,
-                (isMovable) -> {
-                    if (isMovable) {
-                        // at least one probe say it's movable, but if it's set already,
-                        // e.g. user doesn't want to move it, keep it as is.
-                        if (!builder.hasMovable()) {
-                            builder.setMovable(true);
-                            editorSummary.increaseMovableToTrueCount();
-                        }
-                    } else { // probes all say "No" to "movable", so set it to "false"
-                        builder.setMovable(false);
-                        editorSummary.increaseMovableToFalseCount();
-                    }
-                }
-            );
-        }
+                .forEach(builder ->
+                        updateProperty(entity, ActionType.MOVE, discoveryingTargets, context,
+                                (isMovable) -> {
+                                    if (isMovable) {
+                                        // at least one probe say it's movable, but if it's set already,
+                                        // e.g. user doesn't want to move it, keep it as is.
+                                        if (!builder.hasMovable()) {
+                                            builder.setMovable(true);
+                                            context.editorSummary.increaseMovableToTrueCount();
+                                        }
+                                    } else { // probes all say "No" to "movable", so set it to "false"
+                                        builder.setMovable(false);
+                                        context.editorSummary.increaseMovableToFalseCount();
+                                    }
+                                }
+                        ));
     }
 
     /*
-     * Update properties:
-     * a. If all probes don't support an action for an entity type, disable the action
-     * for that entity (with same type).
-     * b. If at least one probe doesn't have NOT_SUPPORT on an action for an entity type,
-     * enable the action for that entity (with same type), except the action is disabled by user.
-     * c. If at least one probe doesn't have action capabilities, handle the same ways as b.
+     * Update action capabilities for an entity.
+     * From the list of probes that discover this entity with proper action capabilities set:
+     * a. If all probes have specified NOT_SUPPORTED for the same entity and action type, then
+     *    disable the action for this entity.
+     * b. Otherwise, enable the action for this entity, unless the action is disabled in the user
+     *    policy settings.
      */
     private void updateProperty(@Nonnull final TopologyEntity entity,
-                                @Nonnull final Multimap<Long, UnsupportedAction> targetIdToEntityTypeMap,
                                 @Nonnull final ActionType actionType,
+                                @Nonnull final List<Long> discoveryingTargets,
+                                @Nonnull final Context context,
                                 @Nonnull final Consumer<Boolean> editPropertyConsumer) {
-        final boolean hasAtLeastOneTargetSupportCapability = entity.getDiscoveringTargetIds().anyMatch(id -> {
-                if (targetIdToEntityTypeMap.containsKey(id)) {
-                    // if there exists an action policy doesn't support action with matched entityType
-                    // then this target doesn't support this action.
-                    return !targetIdToEntityTypeMap.get(id).stream()
-                        .anyMatch(unsupportedAction ->
-                            unsupportedAction.entityType().getNumber() == entity.getEntityType()
-                                && unsupportedAction.actionType() == actionType);
-                } else { // if this target didn't specific the action, the it can execute.
-                    return true;
-                }
-            }
-        );
-        // If no target support this action, then setting the action to false
-        if (!hasAtLeastOneTargetSupportCapability) {
+        if (discoveryingTargets.stream().allMatch(id ->
+                context.unsupportedActions.get(id).stream()
+                        .anyMatch(action ->
+                                action.entityType().getNumber() == entity.getEntityType() &&
+                                        action.actionType() == actionType))) {
+            // All probes that discover this entity have specified NOT_SUPPORTED for the same
+            // entity and action type
             editPropertyConsumer.accept(false);
-        } else {
-            editPropertyConsumer.accept(true);
+            return;
         }
-    }
-
-    // When entity type is VM:
-    // a. if provider is PM and action type is MOVE, set movable to true unless capability is set to NOT_SUPPORTED
-    // b. if provider is Storage and action type is CHANGE, set movable to true unless capability is set to NOT_SUPPORTED
-    // c. set movable to false for all other providers
-    private void updateMovableForVM(@Nonnull final Builder commodity,
-                                    @Nonnull final TopologyEntity entity,
-                                    @Nonnull final Multimap<Long, UnsupportedAction> targetIdToEntityTypeMap,
-                                    @Nonnull final TopologyEntity provider,
-                                    @Nonnull final EditorSummary movableEditSummary) {
-        // for PM and Storage providers, check action capability
-        if (provider.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
-            updateMovable(commodity, entity, targetIdToEntityTypeMap, movableEditSummary, ActionType.MOVE);
-
-        } else if (provider.getEntityType() == EntityType.STORAGE_VALUE) {
-            updateMovable(commodity, entity, targetIdToEntityTypeMap, movableEditSummary, ActionType.CHANGE);
-        } else {
-            updateMovable(commodity, false, movableEditSummary);
-        }
-    }
-
-    private void updateMovable(@Nonnull final Builder commodity,
-                               @Nonnull final TopologyEntity entity,
-                               @Nonnull final Multimap<Long, UnsupportedAction> targetIdToEntityTypeMap,
-                               @Nonnull final EditorSummary movableEditSummary,
-                               @Nonnull final ActionType actionType) {
-        final boolean hasAtLeastOneTargetSupportCapability = entity.getDiscoveringTargetIds().anyMatch(id -> {
-                if (targetIdToEntityTypeMap.containsKey(id)) {
-                    // if there exists an action policy doesn't support action with matched entityType
-                    // then this target doesn't support this action.
-                    return !targetIdToEntityTypeMap.get(id).stream()
-                        .anyMatch(unsupportedAction ->
-                            unsupportedAction.entityType() == EntityType.VIRTUAL_MACHINE &&
-                                unsupportedAction.actionType() == actionType);
-                } else { // if this target didn't specific the action, the it can execute.
-                    return true;
-                }
-            }
-        );
-        // If no target support move, then setting the "move" to false
-        if (!hasAtLeastOneTargetSupportCapability) {
-            updateMovable(commodity, false, movableEditSummary);
-        } else {
-            updateMovable(commodity, true, movableEditSummary);
-        }
-    }
-
-    // update movable and add the change to summary
-    private void updateMovable(@Nonnull final Builder commoditiesBoughtFromProvider,
-                               final boolean isMovable,
-                               @Nonnull final EditorSummary editorSummary) {
-        commoditiesBoughtFromProvider.setMovable(isMovable);
-        if (isMovable) {
-            editorSummary.increaseMovableToTrueCount();
-        } else {
-            editorSummary.increaseMovableToFalseCount();
-        }
+        editPropertyConsumer.accept(true);
     }
 
     // Value object to hold action capabilities for EntityType and ActionType in a target.
     @Value.Immutable
-    interface UnsupportedAction {
+    interface ProbeAction {
         EntityType entityType();
 
         ActionType actionType();
+    }
+
+    private static class Context {
+        // targetsWithActionCapabilities stores a list of targets whose probes have proper action
+        // capabilities set as determined by the TARGET_PROBE_HAS_ACTION_CAPABILITIES predicate
+        private final List<Long> targetsWithActionCapabilities = new ArrayList<>();
+
+        // unsupportedActions stores unsupported actions (as determined by the IS_NOT_SUPPORTED_ACTION
+        // predicate) based on target ID: targetId -> (entityType, actionType)
+        private final Multimap<Long, ProbeAction> unsupportedActions = ArrayListMultimap.create();
+
+        private final EditorSummary editorSummary = new EditorSummary();
+        private final TargetStore targetStore;
+
+        private Context(@Nonnull final TargetStore targetStore) {
+            this.targetStore = targetStore;
+            cacheTargetsAndProbeActionCapabilities();
+        }
+
+        /**
+         * Build a probe action capability map by target which store targetId -> (entityType, actionType).
+         */
+        private void cacheTargetsAndProbeActionCapabilities() {
+            targetStore.getAll().stream().filter(TARGET_PROBE_HAS_ACTION_CAPABILITIES)
+                    .forEach(target -> {
+                                targetsWithActionCapabilities.add(target.getId());
+                                target.getProbeInfo().getActionPolicyList().stream()
+                                        .filter(ActionPolicyDTO::hasEntityType)
+                                        .forEach(actionPolicyDTO ->
+                                                actionPolicyDTO.getPolicyElementList().stream()
+                                                        .filter(IS_NOT_SUPPORTED_ACTION)
+                                                        .forEach(e -> unsupportedActions
+                                                                .put(target.getId(), ImmutableProbeAction.builder()
+                                                                        .entityType(actionPolicyDTO.getEntityType())
+                                                                        .actionType(e.getActionType())
+                                                                        .build())));
+                            }
+                    );
+        }
     }
 
     public static class EditorSummary {

@@ -341,6 +341,15 @@ public class Target {
     }
 
     /**
+     * Retrieve the probe info the target is attached to.
+     * @return The probe info.
+     */
+    @Nonnull
+    public ProbeInfo getProbeInfo() {
+        return probeInfo;
+    }
+
+    /**
      * Retrieve the account values used to connect to the target. These account values are necessary
      * for all operations on the target (discovery, action execution, validation).  If there is a
      * group scope defined, return the list of account values with the group scope parameters
