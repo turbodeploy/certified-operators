@@ -85,11 +85,6 @@
 			<artifactId>websocket-server</artifactId>
 			<scope>test</scope>
 		</dependency>
-		<!-- To run websockets client -->
-		<dependency>
-			<groupId>org.eclipse.jetty.websocket</groupId>
-			<artifactId>websocket-client</artifactId>
-		</dependency>
 		<dependency>
 			<groupId>org.eclipse.jetty.websocket</groupId>
 			<artifactId>javax-websocket-server-impl</artifactId>
