@@ -85,10 +85,6 @@
             <groupId>io.projectreactor</groupId>
             <artifactId>reactor-core</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.immutables</groupId>
-            <artifactId>value</artifactId>
-        </dependency>
         <!-- Required for testing, because ProtobufHttpMessageConverter has a
              dependency on protobuf-java-format -->
         <dependency>
