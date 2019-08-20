@@ -16,7 +16,6 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.collect.ImmutableSet;
 import com.google.protobuf.InvalidProtocolBufferException;
 
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.HistoricalInfo.HistoricalInfoDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -363,24 +362,64 @@ public class HistoricalEditor {
 
         // Check if histCommBought exists in historical data structure.
         // If not, add it. Otherwise, add new commodities and match the existing ones.
-        if (topoEntity.getEnvironmentType() != EnvironmentType.CLOUD) {
-            HistoricalServiceEntityInfo histSeInfo = historicalInfo.get(topoEntity.getOid());
-            if (histSeInfo == null) {
-                logger.error("A HistoricalServiceEntityInfo data structure is missing for the service entity {}", topoEntity.getOid());
-            } else if (histSeInfo.getHistoricalCommodityBought().size() == 0) {
-                // Add all the bought commodities info
-                List<HistoricalCommodityInfo> histBoughtInfoList = new ArrayList<>();
-                for (CommoditiesBoughtFromProvider.Builder commBoughtProvider : entityBuilder.getCommoditiesBoughtFromProvidersBuilderList()) {
-                    long sourceId = -1;
-                    if (commBoughtProvider.hasVolumeId()) {
-                        sourceId = commBoughtProvider.getVolumeId();
-                    } else if (commBoughtProvider.hasProviderId()) {
-                        sourceId = commBoughtProvider.getProviderId();
-                    } else {
-                        logger.error("No volumeId or providerId exists for a bought commodity");
+        HistoricalServiceEntityInfo histSeInfo = historicalInfo.get(topoEntity.getOid());
+        if (histSeInfo == null) {
+            logger.error("A HistoricalServiceEntityInfo data structure is missing for the service entity {}", topoEntity.getOid());
+        } else if (histSeInfo.getHistoricalCommodityBought().size() == 0) {
+            // Add all the bought commodities info
+            List<HistoricalCommodityInfo> histBoughtInfoList = new ArrayList<>();
+            for (CommoditiesBoughtFromProvider.Builder commBoughtProvider : entityBuilder.getCommoditiesBoughtFromProvidersBuilderList()) {
+                long sourceId = -1;
+                if (commBoughtProvider.hasVolumeId()) {
+                    sourceId = commBoughtProvider.getVolumeId();
+                } else if (commBoughtProvider.hasProviderId()) {
+                    sourceId = commBoughtProvider.getProviderId();
+                } else {
+                    logger.error("No volumeId or providerId exists for a bought commodity");
+                }
+                for (CommodityBoughtDTO.Builder commBought : commBoughtProvider.getCommodityBoughtBuilderList()) {
+                    if (useHistoricalValues(commBought.getCommodityType().getType())) {
+                        HistoricalCommodityInfo histBoughtInfo = new HistoricalCommodityInfo();
+                        histBoughtInfo.setCommodityTypeAndKey(commBought.getCommodityType());
+                        histBoughtInfo.setHistoricalUsed(-1.0f);
+                        histBoughtInfo.setHistoricalPeak(-1.0f);
+                        histBoughtInfo.setSourceId(sourceId);
+                        histBoughtInfo.setMatched(false);
+                        histBoughtInfo.setExisting(false);
+                        histBoughtInfoList.add(histBoughtInfo);
                     }
-                    for (CommodityBoughtDTO.Builder commBought : commBoughtProvider.getCommodityBoughtBuilderList()) {
-                        if (useHistoricalValues(commBought.getCommodityType().getType())) {
+                }
+            }
+            histSeInfo.setHistoricalCommodityBought(histBoughtInfoList);
+            historicalInfo.replace(topoEntity.getOid(), histSeInfo);
+        } else {
+            // Add new bought commodities info, match the old ones
+            for (CommoditiesBoughtFromProvider.Builder commBoughtProvider : entityBuilder.getCommoditiesBoughtFromProvidersBuilderList()) {
+                long sourceId = -1;
+                if (commBoughtProvider.hasVolumeId()) {
+                    sourceId = commBoughtProvider.getVolumeId();
+                } else if (commBoughtProvider.hasProviderId()) {
+                    sourceId = commBoughtProvider.getProviderId();
+                } else {
+                    logger.error("No volumeId or providerId exists for a bought commodity");
+                }
+                for (CommodityBoughtDTO.Builder commBought : commBoughtProvider.getCommodityBoughtBuilderList()) {
+                    if (useHistoricalValues(commBought.getCommodityType().getType())) {
+                        boolean isMatched = false;
+                        List<HistoricalCommodityInfo> histBoughtInfoList = histSeInfo.getHistoricalCommodityBought();
+                        for (int i = 0; i < histBoughtInfoList.size(); i++) {
+                            HistoricalCommodityInfo histBoughtInfo = histBoughtInfoList.get(i);
+                            if (histBoughtInfo.getCommodityTypeAndKey().equals(commBought.getCommodityType()) &&
+                                    (histBoughtInfo.getSourceId() == sourceId) &&
+                                    !histBoughtInfo.getMatched()) {
+                                histBoughtInfo.setMatched(true);
+                                histBoughtInfoList.set(i, histBoughtInfo);
+                                histSeInfo.setHistoricalCommodityBought(histBoughtInfoList);
+                                isMatched = true;
+                                break;
+                            }
+                        }
+                        if (!isMatched) {
                             HistoricalCommodityInfo histBoughtInfo = new HistoricalCommodityInfo();
                             histBoughtInfo.setCommodityTypeAndKey(commBought.getCommodityType());
                             histBoughtInfo.setHistoricalUsed(-1.0f);
@@ -389,55 +428,12 @@ public class HistoricalEditor {
                             histBoughtInfo.setMatched(false);
                             histBoughtInfo.setExisting(false);
                             histBoughtInfoList.add(histBoughtInfo);
+                            histSeInfo.setHistoricalCommodityBought(histBoughtInfoList);
                         }
                     }
                 }
-                histSeInfo.setHistoricalCommodityBought(histBoughtInfoList);
-                historicalInfo.replace(topoEntity.getOid(), histSeInfo);
-            } else {
-                // Add new bought commodities info, match the old ones
-                for (CommoditiesBoughtFromProvider.Builder commBoughtProvider : entityBuilder.getCommoditiesBoughtFromProvidersBuilderList()) {
-                    long sourceId = -1;
-                    if (commBoughtProvider.hasVolumeId()) {
-                        sourceId = commBoughtProvider.getVolumeId();
-                    } else if (commBoughtProvider.hasProviderId()) {
-                        sourceId = commBoughtProvider.getProviderId();
-                    } else {
-                        logger.error("No volumeId or providerId exists for a bought commodity");
-                    }
-                    for (CommodityBoughtDTO.Builder commBought : commBoughtProvider.getCommodityBoughtBuilderList()) {
-                        if (useHistoricalValues(commBought.getCommodityType().getType())) {
-                            boolean isMatched = false;
-                            List<HistoricalCommodityInfo> histBoughtInfoList = histSeInfo.getHistoricalCommodityBought();
-                            for (int i = 0; i < histBoughtInfoList.size(); i++) {
-                                HistoricalCommodityInfo histBoughtInfo = histBoughtInfoList.get(i);
-                                if (histBoughtInfo.getCommodityTypeAndKey().equals(commBought.getCommodityType()) &&
-                                    (histBoughtInfo.getSourceId() == sourceId) &&
-                                    !histBoughtInfo.getMatched()) {
-                                    histBoughtInfo.setMatched(true);
-                                    histBoughtInfoList.set(i, histBoughtInfo);
-                                    histSeInfo.setHistoricalCommodityBought(histBoughtInfoList);
-                                    isMatched = true;
-                                    break;
-                                }
-                            }
-                            if (!isMatched) {
-                                HistoricalCommodityInfo histBoughtInfo = new HistoricalCommodityInfo();
-                                histBoughtInfo.setCommodityTypeAndKey(commBought.getCommodityType());
-                                histBoughtInfo.setHistoricalUsed(-1.0f);
-                                histBoughtInfo.setHistoricalPeak(-1.0f);
-                                histBoughtInfo.setSourceId(sourceId);
-                                histBoughtInfo.setMatched(false);
-                                histBoughtInfo.setExisting(false);
-                                histBoughtInfoList.add(histBoughtInfo);
-                                histSeInfo.setHistoricalCommodityBought(histBoughtInfoList);
-                            }
-                        }
-                    }
-                }
-                historicalInfo.replace(topoEntity.getOid(), histSeInfo);
             }
-
+            historicalInfo.replace(topoEntity.getOid(), histSeInfo);
         }
 
         for (CommoditiesBoughtFromProvider.Builder commBoughtProvider : entityBuilder.getCommoditiesBoughtFromProvidersBuilderList()) {
@@ -454,8 +450,7 @@ public class HistoricalEditor {
         logger.trace("Entity={}, Bought commodity={}, Used from mediation={}, Peak from mediation={}", topoEntity.getOid(),
                 topoCommBought.getCommodityType().getType(), usedQuantity, peakQuantity);
 
-        if ((!(topoEntity.getEnvironmentType() == EnvironmentType.CLOUD)) &&
-                (useHistoricalValues(topoCommBought.getCommodityType().getType()))) {
+        if (useHistoricalValues(topoCommBought.getCommodityType().getType())) {
             // Using historical values in calculation of used and peak
             HistoricalServiceEntityInfo histSeInfo = historicalInfo.get(topoEntity.getOid());
             if (histSeInfo == null) {
