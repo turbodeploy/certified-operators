@@ -71,6 +71,9 @@ public class StatsMapper {
     @VisibleForTesting
     public static final String RELATION_FILTER_TYPE = "relation";
 
+    private static final String BYTE_PER_SEC = "Byte/sec";
+    private static final String BIT_PER_SEC = "bit/sec";
+
     public static final String FILTER_NAME_KEY = "key";
     private final ConcurrentHashMap<Long, TargetApiDTO> uuidToTargetApiDtoMap = new ConcurrentHashMap<>();
 
@@ -294,58 +297,63 @@ public class StatsMapper {
      */
     @Nonnull
     private StatApiDTO toStatApiDto(StatRecord statRecord) {
+        // for some records, we want to convert the units before returning them
+        // in particular, data transfer records may be coming in Byte/sec (or multiples)
+        // but we want to send them in bit/sec (or multiples)
+        final StatRecord convertedStatRecord = convertUnitsIfNeeded(statRecord);
+
         final StatApiDTO statApiDTO = new StatApiDTO();
-        if (statRecord.getName().startsWith(StringConstants.STAT_PREFIX_CURRENT)) {
+        if (convertedStatRecord.getName().startsWith(StringConstants.STAT_PREFIX_CURRENT)) {
             // The UI requires the name for both before and after plan values to be the same.
             // Remove the prefix "current".  e.g. currentNumVMs => numVMs
             statApiDTO.setName(CaseFormat.UPPER_CAMEL.to(CaseFormat.LOWER_CAMEL,
-                    statRecord.getName().substring(StringConstants.STAT_PREFIX_CURRENT.length())));
+                    convertedStatRecord.getName().substring(StringConstants.STAT_PREFIX_CURRENT.length())));
         } else {
-            statApiDTO.setName(statRecord.getName());
+            statApiDTO.setName(convertedStatRecord.getName());
         }
 
-        if (statRecord.hasProviderUuid() || statRecord.hasProviderDisplayName()) {
+        if (convertedStatRecord.hasProviderUuid() || convertedStatRecord.hasProviderDisplayName()) {
             final BaseApiDTO provider = new BaseApiDTO();
-            provider.setDisplayName(statRecord.getProviderDisplayName());
-            provider.setUuid(statRecord.getProviderUuid());
+            provider.setDisplayName(convertedStatRecord.getProviderDisplayName());
+            provider.setUuid(convertedStatRecord.getProviderUuid());
             statApiDTO.setRelatedEntity(provider);
         }
 
-        if (statRecord.hasRelatedEntityType()) {
-            statApiDTO.setRelatedEntityType(statRecord.getRelatedEntityType());
+        if (convertedStatRecord.hasRelatedEntityType()) {
+            statApiDTO.setRelatedEntityType(convertedStatRecord.getRelatedEntityType());
         }
 
-        statApiDTO.setUnits(statRecord.getUnits());
+        statApiDTO.setUnits(convertedStatRecord.getUnits());
         // Only add capacity and reservation values when the stat is NOT a metric (ie when it is
         // a commodity)
-        if (!METRIC_NAMES.contains(statRecord.getName())) {
-            statApiDTO.setCapacity(toStatValueApiDTO(statRecord.getCapacity()));
-            statApiDTO.setReserved(buildStatDTO(statRecord.getReserved()));
+        if (!METRIC_NAMES.contains(convertedStatRecord.getName())) {
+            statApiDTO.setCapacity(toStatValueApiDTO(convertedStatRecord.getCapacity()));
+            statApiDTO.setReserved(buildStatDTO(convertedStatRecord.getReserved()));
         }
 
         // Set display name for this stat
-        statApiDTO.setDisplayName(buildStatDiplayName(statRecord));
+        statApiDTO.setDisplayName(buildStatDiplayName(convertedStatRecord));
 
         // The "values" should be equivalent to "used".
-        statApiDTO.setValues(toStatValueApiDTO(statRecord.getUsed()));
-        statApiDTO.setValue(statRecord.getUsed().getAvg());
+        statApiDTO.setValues(toStatValueApiDTO(convertedStatRecord.getUsed()));
+        statApiDTO.setValue(convertedStatRecord.getUsed().getAvg());
 
         // Build filters
         final List<StatFilterApiDTO> filters = new ArrayList<>();
-        if (statRecord.hasRelation()) {
-            relationFilter(statRecord.getRelation()).ifPresent(filters::add);
+        if (convertedStatRecord.hasRelation()) {
+            relationFilter(convertedStatRecord.getRelation()).ifPresent(filters::add);
         }
-        if (statRecord.getName().startsWith(StringConstants.STAT_PREFIX_CURRENT)) {
+        if (convertedStatRecord.getName().startsWith(StringConstants.STAT_PREFIX_CURRENT)) {
             StatFilterApiDTO resultsTypeFilter = new StatFilterApiDTO();
             resultsTypeFilter.setType(com.vmturbo.components.common.utils.StringConstants.RESULTS_TYPE);
             resultsTypeFilter.setValue(com.vmturbo.components.common.utils.StringConstants.BEFORE_PLAN);
             filters.add(resultsTypeFilter);
         }
 
-        if (statRecord.hasStatKey()) {
+        if (convertedStatRecord.hasStatKey()) {
             StatFilterApiDTO keyFilter = new StatFilterApiDTO();
             keyFilter.setType(FILTER_NAME_KEY);
-            keyFilter.setValue(statRecord.getStatKey());
+            keyFilter.setValue(convertedStatRecord.getStatKey());
             filters.add(keyFilter);
         }
 
@@ -732,5 +740,62 @@ public class StatsMapper {
                 })
                 .collect(Collectors.toList()));
         return dto;
+    }
+
+    /**
+     * Convert units in a {@link StatRecord}.
+     * <p/>
+     * Used to change data-transfer units from Byte/sec to bit/sec,
+     * because the UI does not expect Byte/sec values.
+     * Other conversions may be added here as necessary.
+     *
+     * @param statRecord a {@link StatRecord} whose units are to be converted.
+     * @return an equivalent {@link StatRecord} with the units converted.
+     */
+    @Nonnull
+    private StatRecord convertUnitsIfNeeded(@Nonnull StatRecord statRecord) {
+        if (StringUtils.isEmpty(statRecord.getUnits())
+                || !statRecord.getUnits().contains(BYTE_PER_SEC)) {
+            return statRecord;
+        }
+
+        // convert units from Byte/sec to bit/sec (resp. KByte/sec to Kbit/sec etc.)
+        final StatRecord.Builder resultBuilder =
+                StatRecord.newBuilder(statRecord)
+                    .setUnits(statRecord.getUnits().replace(BYTE_PER_SEC, BIT_PER_SEC));
+        if (statRecord.hasCurrentValue()) {
+            resultBuilder.setCurrentValue(statRecord.getCurrentValue() * 8);
+        }
+        if (statRecord.hasCapacity()) {
+            resultBuilder.setCapacity(bytesToBits(statRecord.getCapacity()));
+        }
+        if (statRecord.hasUsed()) {
+            resultBuilder.setUsed(bytesToBits(statRecord.getUsed()));
+        }
+        if (statRecord.hasPeak()) {
+            resultBuilder.setPeak(bytesToBits(statRecord.getPeak()));
+        }
+        if (statRecord.hasValues()) {
+            resultBuilder.setValues(bytesToBits(statRecord.getValues()));
+        }
+        return resultBuilder.build();
+    }
+
+    @Nonnull
+    private StatValue bytesToBits(@Nonnull StatValue statValue) {
+        final StatValue.Builder resultBuilder = StatValue.newBuilder();
+        if (statValue.hasAvg()) {
+            resultBuilder.setAvg(statValue.getAvg() * 8);
+        }
+        if (statValue.hasMax()) {
+            resultBuilder.setMax(statValue.getMax() * 8);
+        }
+        if (statValue.hasMin()) {
+            resultBuilder.setMin(statValue.getMin() * 8);
+        }
+        if (statValue.hasTotal()) {
+            resultBuilder.setTotal(statValue.getTotal() * 8);
+        }
+        return resultBuilder.build();
     }
 }

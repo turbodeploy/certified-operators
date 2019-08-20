@@ -82,7 +82,6 @@ public class StatsMapperTest {
     public static final String CSP = "CSP";
     public static final String AWS = "AWS";
     public static final String COST_COMPONENT = "costComponent";
-    private static final String VIRTUAL_MACHINE = "VirtualMachine";
 
     private PaginationMapper paginationMapper = mock(PaginationMapper.class);
 
@@ -149,6 +148,7 @@ public class StatsMapperTest {
         assertThat(filter.getType(), is(StatsMapper.FILTER_NAME_KEY));
         assertThat(filter.getValue(), is(statKey));
     }
+
     @Test
     public void testMetricsDoNotIncludeCapacityOrReserved() throws Exception {
         // Price index is a metric and metrics should not include capacities or reserved
@@ -162,6 +162,36 @@ public class StatsMapperTest {
         final StatApiDTO dto = statsMapper.toStatSnapshotApiDTO(snapshot).getStatistics().get(0);
         assertNull(dto.getCapacity());
         assertNull(dto.getReserved());
+    }
+
+    /**
+     * When a {@link StatRecord} is given in data transfer units that are multiples of
+     * Byte/sec (i.e., KByte/sec, MByte/sec, GByte/sec), the method
+     * {@link StatsMapper#toStatSnapshotApiDTO} should perform a correct conversion
+     * of all the values to multiples of bit/sec.
+     */
+    @Test
+    public void testDataTransferConversionUnit() {
+        final String originalUnits = "KByte/sec";
+        final String expectedUnits = "Kbit/sec";
+        final float epsilon = 0.01f;
+        final StatRecord statRecord = makeStatRecordBuilder(0, "", RelationType.COMMODITIES.getLiteral())
+                                          .setUnits(originalUnits)
+                                          .build();
+        final StatSnapshot snapshot = StatSnapshot.newBuilder().addStatRecords(statRecord).build();
+
+        final StatApiDTO dto = statsMapper.toStatSnapshotApiDTO(snapshot).getStatistics().get(0);
+
+        Assert.assertEquals(expectedUnits, dto.getUnits());
+        Assert.assertEquals(dto.getValues().getAvg(), dto.getValue(), epsilon);
+        Assert.assertEquals(statRecord.getCapacity().getMax() * 8, dto.getCapacity().getMax(), epsilon);
+        Assert.assertEquals(statRecord.getCapacity().getAvg() * 8, dto.getCapacity().getAvg(), epsilon);
+        Assert.assertEquals(statRecord.getCapacity().getMin() * 8, dto.getCapacity().getMin(), epsilon);
+        Assert.assertEquals(statRecord.getCapacity().getTotal() * 8, dto.getCapacity().getTotal(), epsilon);
+        Assert.assertEquals(statRecord.getUsed().getMax() * 8, dto.getValues().getMax(), epsilon);
+        Assert.assertEquals(statRecord.getUsed().getAvg() * 8, dto.getValues().getAvg(), epsilon);
+        Assert.assertEquals(statRecord.getUsed().getMin() * 8, dto.getValues().getMin(), epsilon);
+        Assert.assertEquals(statRecord.getUsed().getTotal() * 8, dto.getValues().getTotal(), epsilon);
     }
 
     @Test
@@ -840,7 +870,7 @@ public class StatsMapperTest {
     private List<StatRecord> buildStatRecords(String[] postfixes, String[] relations) {
         List<StatRecord> records = new ArrayList<>();
         for (int i = 0; i < postfixes.length; i++) {
-            records.add(buildStatRecord(i, postfixes[i], relations[i]));
+            records.add(makeStatRecordBuilder(i, postfixes[i], relations[i]).build());
         }
         return records;
     }
@@ -859,14 +889,15 @@ public class StatsMapperTest {
     }
 
     /**
-     * Create a test StatRecord populated with values based on the postfix for string fields and the index for
-     * numeric fields.
+     * Create a test {@link StatRecord.Builder} populated with values based
+     * on the postfix for string fields and the index for numeric fields.
      *
      * @param index an ascending index to be used to salt numeric fields.
      * @param postfix a string postfix to be added to string-based fields.
-     * @return a newly initialized StatRecord initialized based on the input index and postfix.
+     * @param relation a string to be used as the {@code relation} field of the new record.
+     * @return a newly initialized {@link StatRecord.Builder} initialized based on the input index and postfix.
      */
-    private StatRecord buildStatRecord(int index, String postfix, String relation) {
+    private StatRecord.Builder makeStatRecordBuilder(int index, String postfix, String relation) {
         return StatRecord.newBuilder()
             .setName("name-" + postfix)
             .setProviderUuid(PUID + postfix)
@@ -877,8 +908,7 @@ public class StatsMapperTest {
             .setPeak(buildStatValue(index))
             .setUsed(buildStatValue(index + 100))
             .setValues(buildStatValue(index + 200))
-            .setRelation(relation)
-            .build();
+            .setRelation(relation);
     }
 
     private static StatValue buildStatValue(int seed) {
