@@ -10,6 +10,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 public enum UICommodityType {
     ACTION_PERMIT("ActionPermit", CommodityType.ACTION_PERMIT),
+    ACTIVE_SESSIONS("ActiveSessions", CommodityType.ACTIVE_SESSIONS),
     APPLICATION("ApplicationCommodity", CommodityType.APPLICATION),
     BALLOONING("Ballooning", CommodityType.BALLOONING),
     BUFFER_COMMODITY("BufferCommodity", CommodityType.BUFFER_COMMODITY),
@@ -35,6 +36,9 @@ public enum UICommodityType {
     FLOW_ALLOCATION("FlowAllocation", CommodityType.FLOW_ALLOCATION),
     HEAP("Heap", CommodityType.HEAP),
     HOST_LUN_ACCESS("HOST_LUN_ACCESS", CommodityType.HOST_LUN_ACCESS),
+    IMAGE_CPU("ImageCPU", CommodityType.IMAGE_CPU),
+    IMAGE_MEM("ImageMem", CommodityType.IMAGE_MEM),
+    IMAGE_STORAGE("ImageStorage", CommodityType.IMAGE_STORAGE),
     IO_THROUGHPUT("IOThroughput", CommodityType.IO_THROUGHPUT),
     LICENSE_ACCESS("LICENSE_ACCESS", CommodityType.LICENSE_ACCESS),
     MEM("Mem", CommodityType.MEM),
@@ -43,6 +47,9 @@ public enum UICommodityType {
     MEM_PROVISIONED("MemProvisioned", CommodityType.MEM_PROVISIONED),
     NET_THROUGHPUT("NetThroughput", CommodityType.NET_THROUGHPUT),
     NETWORK("NetworkCommodity", CommodityType.NETWORK),
+    POOL_CPU("PoolCPU", CommodityType.POOL_CPU),
+    POOL_MEM("PoolMem", CommodityType.POOL_MEM),
+    POOL_STORAGE("PoolStorage", CommodityType.POOL_STORAGE),
     PORT_CHANEL("PORT_CHANEL", CommodityType.PORT_CHANEL),
     POWER("Power", CommodityType.POWER),
     Q16_VCPU("Q16VCPU", CommodityType.Q16_VCPU),

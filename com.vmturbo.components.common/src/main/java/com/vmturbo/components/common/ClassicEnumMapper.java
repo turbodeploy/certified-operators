@@ -154,6 +154,7 @@ public class ClassicEnumMapper {
      * We didn't want to include the 'db' project here.
      **/
     public  enum CommodityTypeUnits {
+        ACTIVE_SESSIONS("ActiveSessions", ""),
         BALLOONING("Ballooning", "KB"),
         COLLECTION_TIME("CollectionTime", "%"),
         CONNECTION("Connection", "Connections"),
@@ -170,6 +171,9 @@ public class ClassicEnumMapper {
         FLOW("Flow", "Bytes"),
         FLOW_ALLOCATION("FlowAllocation", "Bytes"),
         HEAP("Heap", "KB"),
+        IMAGE_CPU("ImageCPU", "MHz"),
+        IMAGE_MEM("ImageMem", "KB"),
+        IMAGE_STORAGE("ImageStorage", "MB"),
         IO_THROUGHPUT("IOThroughput", "KByte/sec"),
         MEM("Mem", "KB"),
         MEM_ALLOCATION("MemAllocation", "KB"),
@@ -182,6 +186,9 @@ public class ClassicEnumMapper {
         NUM_SOCKETS("numSockets", ""),
         NUM_CORES("numCores", ""),
         NUM_VCPUS("numVCPUs", ""),
+        POOL_CPU("PoolCPU", "MHz"),
+        POOL_MEM("PoolMem", "KB"),
+        POOL_STORAGE("PoolStorage", "MB"),
         POWER("Power", "W"),
         PRODUCES("Produces", ""),
         SPACE("Space", ""),
