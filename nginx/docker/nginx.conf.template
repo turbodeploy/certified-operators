@@ -94,7 +94,7 @@ http {
         ssl on;
         ssl_certificate /tmp/certs/cert.pem;
         ssl_certificate_key /tmp/certs/cert.key;
-        ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+        ssl_protocols TLSv1.2;
 
 
 	# swagger-ui paths without trailing slash do 302 redirect to add the slash
