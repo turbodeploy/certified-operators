@@ -14,6 +14,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -42,15 +43,19 @@ public class PlanTopologyScopeEditor {
 
     private final GroupServiceBlockingStub groupServiceClient;
 
+    // a set of entity type that represent cloud service tiers
     private static final Set<EntityType> serviceTiers = new HashSet<>(Arrays
             .asList(EntityType.DATABASE_TIER, EntityType.DATABASE_SERVER_TIER,
                     EntityType.COMPUTE_TIER, EntityType.STORAGE_TIER));
+    // a set of on-prem application entity type
     private static final Set<Integer> applicationEntityTypes = new HashSet<>(Arrays
                     .asList(EntityType.APPLICATION_VALUE, EntityType.APPLICATION_SERVER_VALUE,
                             EntityType.BUSINESS_APPLICATION_VALUE, EntityType.DATABASE_SERVER_VALUE,
                             EntityType.DATABASE_VALUE, EntityType.CONTAINER_VALUE,
                             EntityType.CONTAINER_POD_VALUE));
-
+    // a set of entity type which indicates the entities to be preserved in scope
+    private static final Set<Integer> inScopeConnectedEntityTypes = new HashSet<>(Arrays
+            .asList(EntityType.VIRTUAL_VOLUME_VALUE));
     // The overlapping entity type in infrastructure and application layer. Currently, VM is
     // used to find application entities if user scoped in infrastructure layer, or is used
     // to find infrastructure entities if user scoped in application layer.
@@ -494,8 +499,6 @@ public class PlanTopologyScopeEditor {
      * @param alreadyIncludedSubsetIds the list of ids of subsets that has been populated into
      *                                 resultEntityMap. The content of this map can be changed
      *                                 in this method.
-     * @param resultEntityMap the map of entity oid to {@link TopologyEntity.Builder}. The content
-     *                        of this map can be changed in this method.
      */
     private Map<Long, TopologyEntity> populateResultMap(@Nonnull final Set<TopologyEntity> ent,
                                     @Nonnull final Map<Integer, Set<TopologyEntity>> entitySubsetMap,
@@ -519,10 +522,11 @@ public class PlanTopologyScopeEditor {
         return resultEntityMap;
     }
     /**
-     * Parse entities into a list of entity sets. Entities in each set will have provider or consumer
-     * relationship between each other. An entity in one set does not have provider or consumer
-     * relationship with an entity from another set, no matter such relationship is a direct connection
-     * between them or indirect connection via some other entities.
+     * Parse entities into a list of entity sets. Entities in each set will have a provider/consumer
+     * relationship between each other, or have a connectedTo/connectedFrom relationship if the entity
+     * type exists in inScopeConnectedEntityTypes set. An entity in one set does not have provider
+     * or consumer relationship with an entity from another set, no matter such relationship is a
+     * direct association or an indirect association.
      *
      * @param entitySet the set of entities to be parsed
      * @return a list of subsets
@@ -558,6 +562,14 @@ public class PlanTopologyScopeEditor {
                 List<TopologyEntity> connectedEntities = new ArrayList<TopologyEntity>();
                 connectedEntities.addAll(currentNode.getConsumers());
                 connectedEntities.addAll(currentNode.getProviders());
+                // we want to keep entities that are connectedTo/connectedFrom current node
+                // if the entity type present in inScopeConnectedEntityTypes. Typically,
+                // a virtual volume is not a consumer nor a provider, yet it is referenced
+                // during move action interpretation, that is why we need to include it in scope.
+                connectedEntities.addAll(Stream.concat(currentNode.getConnectedFromEntities().stream(),
+                        currentNode.getConnectedToEntities().stream())
+                        .filter(e -> inScopeConnectedEntityTypes.contains(e.getEntityType()))
+                        .collect(Collectors.toSet()));
                 connectedEntities.forEach(c -> {
                     if (!visitedEntity.contains(c) && entitySet.contains(c)) {
                         queue.add(c);

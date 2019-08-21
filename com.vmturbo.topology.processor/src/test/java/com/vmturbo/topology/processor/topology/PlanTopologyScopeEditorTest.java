@@ -120,7 +120,10 @@ public class PlanTopologyScopeEditorTest {
                                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider
                                         .newBuilder().setProviderId(pm1InDC1.getOid()))
                                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider
-                                        .newBuilder().setProviderId(st1.getOid())));
+                                        .newBuilder().setProviderId(st1.getOid()))
+                                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                                        .setConnectedEntityId(100001L)
+                                        .setConnectedEntityType(EntityType.VIRTUAL_VOLUME_VALUE)));
     TopologyEntity.Builder vm2InDC1 = TopologyEntity
                     .newBuilder(TopologyEntityDTO.newBuilder()
                                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -181,6 +184,16 @@ public class PlanTopologyScopeEditorTest {
                                         .newBuilder().setProviderId(as1.getOid()))
                                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider
                                         .newBuilder().setProviderId(as2.getOid())));
+    TopologyEntity.Builder virtualVolume = TopologyEntity
+                    .newBuilder(TopologyEntityDTO.newBuilder()
+                                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                                .setOid(100001L)
+                                .setDisplayName("vv1")
+                                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin
+                                        .newBuilder().addDiscoveringTargetIds(1l)))
+                                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                                        .setConnectedEntityId(30001L)
+                                        .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)));
     ImmutableMap<Long, TopologyEntity.Builder> topologyEntitiesMap = ImmutableMap.<Long, TopologyEntity.Builder>builder()
                     .put(app1.getOid(), app1)
                     .put(vm1InDC1.getOid(), vm1InDC1)
@@ -197,6 +210,7 @@ public class PlanTopologyScopeEditorTest {
                     .put(ba1.getOid(), ba1)
                     .put(as1.getOid(), as1)
                     .put(as2.getOid(), as2)
+                    .put(virtualVolume.getOid(), virtualVolume)
                     .build();
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceClient);
@@ -364,7 +378,7 @@ public class PlanTopologyScopeEditorTest {
                                 .setScopeObjectOid(90001L).setDisplayName("PM cluster/DC1").build()).build();
         TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
                 .scopeOnPremTopology(topologyInfo, graph, planScope, groupResolver,  new ArrayList<ScenarioChange>());
-        assertTrue(result.size() == 10);
+        assertTrue(result.size() == 11);
     }
 
     @Test
@@ -377,7 +391,7 @@ public class PlanTopologyScopeEditorTest {
                                 .setScopeObjectOid(80001L).setDisplayName("BusinessApplication1").build()).build();
         TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
                 .scopeOnPremTopology(topologyInfo, graph, planScope, groupResolver,  new ArrayList<ScenarioChange>());
-        assertTrue(result.size() == 15);
+        assertTrue(result.size() == 16);
     }
 
     @Test
@@ -405,6 +419,6 @@ public class PlanTopologyScopeEditorTest {
         TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
                 .scopeOnPremTopology(topologyInfo, graph, planScope, groupResolver,  new ArrayList<ScenarioChange>());
         result.entities().forEach(e -> System.out.println(e.getOid() + " "));
-        assertTrue(result.size() == 10);
+        assertTrue(result.size() == 11);
     }
 }
