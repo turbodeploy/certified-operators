@@ -2,6 +2,7 @@ package com.vmturbo.components.common.utils;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
@@ -16,6 +17,7 @@ import org.junit.contrib.java.lang.system.EnvironmentVariables;
 @NotThreadSafe // must not be run in parallel
 public class EnvironmentUtilsTest {
 
+    public static final String TEST_KEY1 = "test-key1";
     // Save System Properties before each test, and restore afterwards
     @Rule
     public final EnvironmentVariables environmentVariables = new EnvironmentVariables();
@@ -66,6 +68,22 @@ public class EnvironmentUtilsTest {
             return;
         }
         Assert.fail("expected a NumberFormatException");
+    }
+
+    @Test
+    public void testParseBooleanFromProperty() throws Exception {
+        environmentVariables.set(TEST_KEY1, "true");
+        boolean value = EnvironmentUtils.parseBooleanFromEnv(TEST_KEY1);
+        assertTrue(value);
+        environmentVariables.set(TEST_KEY1, "false");
+        value = EnvironmentUtils.parseBooleanFromEnv("test-key");
+        assertFalse(value);
+        environmentVariables.set(TEST_KEY1, "");
+        value = EnvironmentUtils.parseBooleanFromEnv("test-key");
+        assertFalse(value);
+        environmentVariables.set(TEST_KEY1, "others");
+        value = EnvironmentUtils.parseBooleanFromEnv("test-key");
+        assertFalse(value);
     }
 
 }

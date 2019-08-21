@@ -1,5 +1,6 @@
 package com.vmturbo.reports.component;
 
+import java.sql.SQLException;
 import java.time.Duration;
 
 import javax.annotation.PreDestroy;
@@ -8,7 +9,8 @@ import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.jooq.conf.MappedSchema;
 import org.jooq.impl.DefaultConfiguration;
-import org.mariadb.jdbc.MySQLDataSource;
+import org.mariadb.jdbc.MariaDbDataSource;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -39,11 +41,15 @@ public class ReportingTestDbConfig extends TestSQLDatabaseConfig {
 
     @Bean
     public DataSource reportingDatasource() {
-        final MySQLDataSource dataSource = new MySQLDataSource();
-        dataSource.setUrl(getDbUrl() + '/' + testSchemaName());
-        dataSource.setUser("root");
-        dataSource.setPassword("vmturbo");
-        return dataSource;
+        final MariaDbDataSource dataSource = new MariaDbDataSource();
+        try {
+            dataSource.setUrl(getDbUrl() + '/' + testSchemaName());
+            dataSource.setUser("root");
+            dataSource.setPassword("vmturbo");
+            return dataSource;
+        } catch (SQLException e) {
+            throw new BeanCreationException("Failed to initialize bean: " + e.getMessage());
+        }
     }
 
     @Bean

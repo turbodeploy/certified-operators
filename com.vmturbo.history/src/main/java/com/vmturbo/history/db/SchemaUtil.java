@@ -16,7 +16,7 @@ import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
 import org.jooq.SQLDialect;
 import org.jooq.exception.DataAccessException;
-import org.mariadb.jdbc.MySQLDataSource;
+import org.mariadb.jdbc.MariaDbDataSource;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
@@ -111,9 +111,9 @@ public class SchemaUtil {
      * Uses less migration-lookup paths. Intended to be an easy way to initialize
      * databases in development and not used in production.
      */
-    public static void devInitDb() {
+    public static void devInitDb() throws SQLException {
         Flyway fway = new Flyway();
-        fway.setDataSource(defualtDataSource());
+        fway.setDataSource(defaultDataSource());
         fway.setLocations(locations().toArray(new String[]{}));
         fway.clean();
         fway.migrate();
@@ -204,7 +204,7 @@ public class SchemaUtil {
 
     public static Connection rootConnection() throws SQLException {
         try {
-            return SchemaUtil.defualtDataSource().getConnection();
+            return SchemaUtil.defaultDataSource().getConnection();
         } catch (SQLException e) {
             logger.error("Unable to retrieve root connection", e);
             throw e;
@@ -214,10 +214,9 @@ public class SchemaUtil {
     /**
      * Returns a newly created DataSource using default values.
      */
-    private static DataSource defualtDataSource() {
-        MySQLDataSource mysqlDS = new MySQLDataSource();
-        String url = BasedbIO.instance().getMySQLConnectionUrl();
-        mysqlDS.setURL(url);
+    private static DataSource defaultDataSource() throws SQLException {
+        final String url = BasedbIO.instance().getMySQLConnectionUrl();
+        final MariaDbDataSource mysqlDS = new MariaDbDataSource(url);
         mysqlDS.setUser(DEFAULT_USER_NAME);
         mysqlDS.setPassword(BasedbIO.instance().getRootPassword());
         return mysqlDS;

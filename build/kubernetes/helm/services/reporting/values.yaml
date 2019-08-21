@@ -42,6 +42,8 @@ env:
     value: kafka:9092
   - name: report.files.output.dir
     value: /home/turbonomic/data
+  - name: enableSecureDBConnection
+    value: "true"
 
 resources:
   limits:

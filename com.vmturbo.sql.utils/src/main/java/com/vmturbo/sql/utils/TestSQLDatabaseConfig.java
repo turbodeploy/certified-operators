@@ -1,5 +1,6 @@
 package com.vmturbo.sql.utils;
 
+import java.sql.SQLException;
 import java.time.Instant;
 
 import javax.annotation.Nonnull;
@@ -15,7 +16,8 @@ import org.jooq.impl.DataSourceConnectionProvider;
 import org.jooq.impl.DefaultConfiguration;
 import org.jooq.impl.DefaultDSLContext;
 import org.jooq.impl.DefaultExecuteListenerProvider;
-import org.mariadb.jdbc.MySQLDataSource;
+import org.mariadb.jdbc.MariaDbDataSource;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -106,13 +108,16 @@ public class TestSQLDatabaseConfig {
     @Bean
     @Primary
     public DataSource dataSource() {
-        MySQLDataSource dataSource = new MySQLDataSource();
+        final MariaDbDataSource dataSource = new MariaDbDataSource();
 
-        dataSource.setUrl(getDbUrl());
-        dataSource.setUser("root");
-        dataSource.setPassword("vmturbo");
-
-        return dataSource;
+        try {
+            dataSource.setUrl(getDbUrl());
+            dataSource.setUser("root");
+            dataSource.setPassword("vmturbo");
+            return dataSource;
+        } catch (SQLException e) {
+            throw new BeanCreationException("Failed to initialize bean: " + e.getMessage()) ;
+        }
     }
 
     @Bean

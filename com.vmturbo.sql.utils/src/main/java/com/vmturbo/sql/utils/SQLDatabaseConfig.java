@@ -1,5 +1,6 @@
 package com.vmturbo.sql.utils;
 
+import java.sql.SQLException;
 import java.time.Duration;
 
 import javax.annotation.Nonnull;
@@ -16,7 +17,8 @@ import org.jooq.impl.DataSourceConnectionProvider;
 import org.jooq.impl.DefaultConfiguration;
 import org.jooq.impl.DefaultDSLContext;
 import org.jooq.impl.DefaultExecuteListenerProvider;
-import org.mariadb.jdbc.MySQLDataSource;
+import org.mariadb.jdbc.MariaDbDataSource;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,6 +30,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
+import com.vmturbo.components.common.utils.EnvironmentUtils;
 
 /**
  * Configuration for interaction with database.
@@ -38,6 +41,11 @@ import com.vmturbo.auth.api.db.DBPasswordUtil;
 @Configuration
 @EnableTransactionManagement
 public class SQLDatabaseConfig {
+    private static final String ENABLE_SECURE_DB_CONNECTION = "enableSecureDBConnection" ;
+
+    private final boolean isSecureDBConnectionRequested =
+        EnvironmentUtils.parseBooleanFromEnv(ENABLE_SECURE_DB_CONNECTION);
+
     @Value("${dbHost}")
     private String dbHost;
 
@@ -67,15 +75,17 @@ public class SQLDatabaseConfig {
     @Bean
     @Primary
     public DataSource dataSource() {
-        MySQLDataSource dataSource = new MySQLDataSource();
+        MariaDbDataSource dataSource = new MariaDbDataSource();
         DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort,
-                authRetryDelaySecs);
-
-        dataSource.setUrl(getDbUrl());
-        dataSource.setUser(dbUsername);
-        dataSource.setPassword(dbPasswordUtil.getSqlDbRootPassword());
-
-        return dataSource;
+            authRetryDelaySecs);
+        try {
+            dataSource.setUrl(getDbUrl());
+            dataSource.setUser(dbUsername);
+            dataSource.setPassword(dbPasswordUtil.getSqlDbRootPassword());
+            return dataSource;
+        } catch (SQLException e) {
+            throw new BeanCreationException("Failed to initialize bean: " + e.getMessage());
+        }
     }
 
     @Bean
@@ -133,18 +143,25 @@ public class SQLDatabaseConfig {
     }
 
     /**
-     * Returns database connection URL.
+     * Returns database connection URL. If "enableSecureDBConnection" environment variable is set to
+     * true, connection URL includes "?useSSL=true&trustServerCertificate=true".
+     * TODO (Gary Zeng, Aug 20, 2019) remove parameter "trustServerCertificate=true".
      *
      * @return DB connection URL
      */
     @Nonnull
     protected String getDbUrl() {
-        return UriComponentsBuilder.newInstance()
-                .scheme("jdbc:mysql")
-                .host(dbHost)
-                .port(dbPort)
-                .build()
-                .toUriString();
+        final UriComponentsBuilder urlBuilder = UriComponentsBuilder.newInstance()
+            .scheme("jdbc:mysql")
+            .host(dbHost)
+            .port(dbPort);
+        if (isSecureDBConnectionRequested) {
+            logger.info("Enabling secure DB connection.");
+        }
+        return isSecureDBConnectionRequested ? urlBuilder
+            .queryParam("useSSL", "true")
+            .queryParam("trustServerCertificate", "true")
+            .build().toUriString() : urlBuilder.build().toUriString();
     }
 }
 

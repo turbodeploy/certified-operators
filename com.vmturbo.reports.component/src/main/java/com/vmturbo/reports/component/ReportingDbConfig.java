@@ -1,11 +1,13 @@
 package com.vmturbo.reports.component;
 
+import java.sql.SQLException;
 import java.time.Duration;
 
 import javax.sql.DataSource;
 
 import org.flywaydb.core.Flyway;
-import org.mariadb.jdbc.MySQLDataSource;
+import org.mariadb.jdbc.MariaDbDataSource;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -43,14 +45,17 @@ public class ReportingDbConfig extends SQLDatabaseConfig {
 
     @Bean
     public DataSource reportingDatasource() {
-        final MySQLDataSource dataSource = new MySQLDataSource();
-        DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort,
+        final MariaDbDataSource dataSource = new MariaDbDataSource();
+        final DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort,
                 authRetryDelaySecs);
-
-        dataSource.setUrl(getDbUrl() + '/' + vmtDbSchema);
-        dataSource.setUser(dbUsername);
-        dataSource.setPassword(dbPasswordUtil.getSqlDbRootPassword());
-        return dataSource;
+        try {
+            dataSource.setUrl(getDbUrl() + '/' + vmtDbSchema);
+            dataSource.setUser(dbUsername);
+            dataSource.setPassword(dbPasswordUtil.getSqlDbRootPassword());
+            return dataSource;
+        } catch (SQLException e) {
+            throw new BeanCreationException("Failed to initialize bean: " + e.getMessage()) ;
+        }
     }
 
     @Bean

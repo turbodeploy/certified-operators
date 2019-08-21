@@ -40,6 +40,8 @@ env:
         fieldPath: status.podIP
   - name: kafkaServers
     value: kafka:9092
+  - name: enableSecureDBConnection
+    value: "false"
 
 resources:
   limits:

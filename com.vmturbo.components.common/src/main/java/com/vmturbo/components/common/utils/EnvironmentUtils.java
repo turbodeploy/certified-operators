@@ -25,6 +25,20 @@ public class EnvironmentUtils {
     }
 
     /**
+     * Simple utility to fetch a value from the java Environment and convert to a boolean.
+     *
+     * @param propKeyToFetch the key for the value to fetch from the Java env
+     * @return the boolean value of the string corresponding to the given 'propKeyToFetch'
+     * @throws NumberFormatException if the string fetched from the Java env cannot be converted
+     *                               to an int
+     */
+    public static boolean parseBooleanFromEnv(String propKeyToFetch) {
+        return getOptionalEnvProperty(propKeyToFetch)
+            .map(Boolean::parseBoolean)
+            .orElse(false);
+    }
+
+    /**
      * Returns environment variable value.
      *
      * @param propertyName environment variable name
