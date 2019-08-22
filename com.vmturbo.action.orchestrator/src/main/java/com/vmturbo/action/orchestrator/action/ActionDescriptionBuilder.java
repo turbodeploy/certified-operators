@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.WordUtils;
 import org.apache.logging.log4j.LogManager;
@@ -58,10 +59,6 @@ public class ActionDescriptionBuilder {
     private static final String OF = " of ";
     private static final String DEFAULT_ERROR_MSG = "Unsupported action type ";
     private static final String ENTITY_NOT_FOUND_WARN_MSG = "Entity {0} doesn't exist in the entities snapshot";
-
-    private static final Set<String> TIER_VALUES = ImmutableSet.of(
-        UIEntityType.COMPUTE_TIER.apiStr(), UIEntityType.DATABASE_SERVER_TIER.apiStr(),
-        UIEntityType.DATABASE_TIER.apiStr(), UIEntityType.STORAGE_TIER.apiStr());
 
     // Commodities in actions mapped to their default units.
     // For example, vMem commodity has its default capacity unit as KB.
@@ -226,12 +223,10 @@ public class ActionDescriptionBuilder {
             long sourceEntityId = primaryChange.getSource().getId();
             ActionPartialEntity currentEntityDTO = entitiesSnapshot.getEntityFromOid(
                 sourceEntityId).get();
-            String sourceType = EntityType.forNumber(
-                currentEntityDTO.getEntityType()).getDescriptorForType().getFullName();
-            String destinationType = EntityType.forNumber(
-                newEntityDTO.getEntityType()).getDescriptorForType().getFullName();
-            String verb = TIER_VALUES.contains(destinationType)
-                && TIER_VALUES.contains(sourceType) ? SCALE : MOVE;
+            int sourceType = currentEntityDTO.getEntityType();
+            int destinationType = newEntityDTO.getEntityType();
+            String verb = TopologyDTOUtil.isTierEntityType(destinationType)
+                && TopologyDTOUtil.isTierEntityType(sourceType) ? SCALE : MOVE;
             String resource = "";
             if (primaryChange.hasResource()) {
                 Optional<ActionPartialEntity> resourceEntity = entitiesSnapshot.getEntityFromOid(

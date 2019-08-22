@@ -38,6 +38,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public class ActionDescriptionBuilderTest {
 
     private ActionDTO.Action moveRecommendation;
+    private ActionDTO.Action scaleRecommendation;
     private ActionDTO.Action resizeRecommendation;
     private ActionDTO.Action resizeMemRecommendation;
     private ActionDTO.Action deactivateRecommendation;
@@ -55,6 +56,8 @@ public class ActionDescriptionBuilderTest {
     private final String PM_DESTINATION_DISPLAY_NAME = "pm_destination_test";
     private final Long ST_SOURCE_ID = 44L;
     private final String ST_SOURCE_DISPLAY_NAME = "storage_source_test";
+    private final Long ST_DESTINATION_ID = 55L;
+    private final String ST_DESTINATION_DISPLAY_NAME = "storage_destination_test";
     private final Long COMPUTE_TIER_ID = 100L;
     private final String COMPUTE_TIER_DISPLAY_NAME = "tier_t1";
     private final Long MASTER_ACCOUNT_ID = 101L;
@@ -71,6 +74,10 @@ public class ActionDescriptionBuilderTest {
                 makeRec(makeMoveInfo(VM1_ID, PM_SOURCE_ID, EntityType.PHYSICAL_MACHINE.getNumber(),
                     PM_DESTINATION_ID, EntityType.PHYSICAL_MACHINE.getNumber()),
                             SupportLevel.SUPPORTED).build();
+        scaleRecommendation =
+                makeRec(makeMoveInfo(VM1_ID, ST_SOURCE_ID, EntityType.STORAGE_TIER.getNumber(),
+                        ST_DESTINATION_ID, EntityType.STORAGE_TIER.getNumber()),
+                        SupportLevel.SUPPORTED).build();
         resizeRecommendation = makeRec(makeResizeInfo(VM1_ID), SupportLevel.SUPPORTED).build();
         resizeMemRecommendation = makeRec(makeResizeMemInfo(VM1_ID), SupportLevel.SUPPORTED).build();
         deactivateRecommendation =
@@ -220,6 +227,29 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, moveRecommendation);
         Assert.assertEquals(description, "Move Virtual Machine vm1_test from pm_source_test to pm_destination_test");
+    }
+
+    @Test
+    public void testBuildScaleActionDescription() {
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
+                .thenReturn((createEntity(VM1_ID,
+                        EntityType.VIRTUAL_MACHINE.getNumber(),
+                        VM1_DISPLAY_NAME)));
+
+        when(entitySettingsCache.getEntityFromOid(eq(ST_SOURCE_ID)))
+                .thenReturn((createEntity(ST_SOURCE_ID,
+                        EntityType.STORAGE_TIER.getNumber(),
+                        ST_SOURCE_DISPLAY_NAME)));
+
+        when(entitySettingsCache.getEntityFromOid(eq(ST_DESTINATION_ID)))
+                .thenReturn((createEntity(ST_DESTINATION_ID,
+                        EntityType.STORAGE_TIER.getNumber(),
+                        ST_DESTINATION_DISPLAY_NAME)));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, scaleRecommendation);
+        Assert.assertEquals(description,
+            "Scale Virtual Machine vm1_test from storage_source_test to storage_destination_test");
     }
 
     @Test
