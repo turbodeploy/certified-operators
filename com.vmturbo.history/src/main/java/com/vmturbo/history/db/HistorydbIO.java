@@ -30,6 +30,7 @@ import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.RETENTION_POLICIES;
 import static com.vmturbo.history.schema.abstraction.Tables.SCENARIOS;
+import static org.jooq.impl.DSL.avg;
 import static org.jooq.impl.DSL.row;
 
 import java.sql.Connection;
@@ -814,22 +815,27 @@ public class HistorydbIO extends BasedbIO {
         }
 
         // This call adds the seek pagination parameters to the list of conditions.
-        seekPaginationCursor.toCondition(table, paginationParams.isAscending()).ifPresent(conditions::add);
+        seekPaginationCursor.toCondition(table, paginationParams).ifPresent(conditions::add);
 
         final Field<String> uuidField = (Field<String>) dField(table, UUID);
-        final Field<Double> valueField = getValueField(paginationParams, table);
+        final Field<Double> valueField = seekPaginationCursor.getValueField(paginationParams,table);
 
         if (!requestedIdSet.isEmpty()) {
             conditions.add(uuidField.in(requestedIdSet));
         }
-
+        // Given an entity id, a commodity type and a time snapshot, we might have multiple
+        // entries in the db. We want to group them by the fields just mentioned and calculate the
+        // average of their utilization. This average utilization is the parameter that is going to
+        // be used to order each entity.
         try (Connection conn = transConnection()) {
             final Result<Record2<String, Double>> results = using(conn)
                 .select(uuidField, valueField)
                 .from(table)
                 // The pagination is enforced by the conditions (see above).
                 .where(conditions)
-                .orderBy(paginationParams.isAscending() ? valueField.asc().nullsLast() : valueField.desc().nullsLast(),
+                .groupBy((Field<String>) dField(table, UUID))
+                .orderBy(paginationParams.isAscending() ? avg(valueField).asc().nullsLast() :
+                        avg(valueField).desc().nullsLast(),
                     paginationParams.isAscending() ? uuidField.asc() : uuidField.desc())
                 // Add one to the limit so we can tests to see if there are more results.
                 .limit(paginationParams.getLimit() + 1)
@@ -1562,15 +1568,20 @@ public class HistorydbIO extends BasedbIO {
      * last value and ID:
      * (https://blog.jooq.org/2013/10/26/faster-sql-paging-with-jooq-using-the-seek-method/)
      */
-    private static class SeekPaginationCursor {
+    @VisibleForTesting
+    static class SeekPaginationCursor {
         private final Optional<String> lastId;
 
         private final Optional<Double> lastValue;
 
         /**
          * Do not use the constructor - use the helper methods!
+         * @param lastId Last id in a set of results.
+         * @param lastValue Last value in a set of results.
          */
-        private SeekPaginationCursor(final Optional<String> lastId, final Optional<Double> lastValue) {
+        @VisibleForTesting
+        SeekPaginationCursor(final Optional<String> lastId,
+                                   final Optional<Double> lastValue) {
             this.lastId = lastId;
             this.lastValue = lastValue;
         }
@@ -1609,7 +1620,7 @@ public class HistorydbIO extends BasedbIO {
         /**
          * Create the cursor to access the next page of results.
          *
-         * @param lastId    The last ID in the current page of results.
+         * @param lastId The last ID in the current page of results.
          * @param lastValue The last value in the current page of results.
          * @return The {@link SeekPaginationCursor} object.
          */
@@ -1633,24 +1644,42 @@ public class HistorydbIO extends BasedbIO {
         }
 
         /**
+         * Return the value field used in sort by.
+         * For princeIndex, sort by the average value, because it's a compound metrics already.
+         * For others commodity, sort by the average/capacity value, because the average value
+         * is from "used", so divided by "capacity" to be utilization.
+         * @param paginationParams Parameters for pagination.
+         * @param table The table containing the results.
+         * @return A {@link Field} containing the value field.
+         */
+        @VisibleForTesting
+        static Field<Double> getValueField(@Nonnull final EntityStatsPaginationParams paginationParams,
+                                    @Nonnull final Table<?> table) {
+            final Field<Double> avgValueField = (doubl(dField(table, AVG_VALUE)));
+            return paginationParams.getSortCommodity().equals(PRICE_INDEX)
+                ? avgValueField : avgValueField.divide((doubl(dField(table, CAPACITY))));
+        }
+
+        /**
          * Create the condition that will apply this cursor to the results in the database.
          *
-         * @param table       The table we're paginating through.
-         * @param isAscending Whether or not the sort order is ascending.
-         *                    TODO (roman, June 28 2018): We should encode the sort order into the
-         *                    cursor, and return an error if the sort order changes between
-         *                    calls.
+         * @param table            The table we're paginating through.
+         * @param paginationParams The parameters for pagination.
+         *                         TODO (roman, June 28 2018): We should encode the sort order into the
+         *                         cursor, and return an error if the sort order changes between
+         *                         calls.
          * @return An {@link Optional} containing the condition to insert into the query to get
          * the next page of results, or an empty optional if the cursor is empty (i.e.
          * we just want the first page of results).
          */
-        public Optional<Condition> toCondition(final Table<?> table, final boolean isAscending) {
+        public Optional<Condition> toCondition(final Table<?> table, @Nonnull final EntityStatsPaginationParams paginationParams) {
             if (lastId.isPresent() && lastValue.isPresent()) {
                 // See: https://blog.jooq.org/2013/10/26/faster-sql-paging-with-jooq-using-the-seek-method/
-                if (isAscending) {
-                    return Optional.of(row((Field<Double>) dField(table, AVG_VALUE), (Field<String>) dField(table, UUID)).gt(lastValue.get(), lastId.get()));
+                if (paginationParams.isAscending()) {
+                    return Optional.of(row(getValueField(paginationParams, table),
+                        (Field<String>) dField(table, UUID)).gt(lastValue.get(), lastId.get()));
                 } else {
-                    return Optional.of(row((Field<Double>) dField(table, AVG_VALUE), (Field<String>) dField(table, UUID)).lt(lastValue.get(), lastId.get()));
+                    return Optional.of(row(getValueField(paginationParams, table), (Field<String>) dField(table, UUID)).lt(lastValue.get(), lastId.get()));
                 }
             } else {
                 return Optional.empty();
