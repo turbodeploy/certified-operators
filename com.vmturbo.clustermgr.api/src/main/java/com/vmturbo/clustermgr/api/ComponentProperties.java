@@ -1,4 +1,4 @@
-package com.vmturbo.clustermgr;
+package com.vmturbo.clustermgr.api;
 
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;

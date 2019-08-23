@@ -13,7 +13,9 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
+import com.vmturbo.clustermgr.api.ClusterConfiguration;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
+import com.vmturbo.clustermgr.api.ComponentProperties;
 
 /**
  * Test services for {@link ClusterService}
@@ -38,8 +40,8 @@ public class ClusterServiceTest {
 
     @Test
     public void testGetClusterConfiguration() {
-        ClusterConfigurationDTO clusterConfigurationDTO = new ClusterConfigurationDTO();
-        ComponentPropertiesDTO propertiesDTO = new ComponentPropertiesDTO();
+        final ClusterConfiguration clusterConfigurationDTO = new ClusterConfiguration();
+        final ComponentProperties propertiesDTO = new ComponentProperties();
         // arrango password
         propertiesDTO.put(ARANGODB_PASS, "root");
         propertiesDTO.put(USER_PASSWORD, "root");
@@ -59,7 +61,7 @@ public class ClusterServiceTest {
 
     @Test
     public void testGetDefaultPropertiesForComponentType() {
-        ComponentPropertiesDTO propertiesDTO = new ComponentPropertiesDTO();
+        final ComponentProperties propertiesDTO = new ComponentProperties();
         // arrango password
         propertiesDTO.put(ARANGODB_PASS, "root");
         propertiesDTO.put(USER_PASSWORD, "root");
@@ -91,8 +93,8 @@ public class ClusterServiceTest {
     @Test
     public void testSetClusterConfiguration() {
         // given
-        ClusterConfigurationDTO originalClusterConfigurationDTO = new ClusterConfigurationDTO();
-        ComponentPropertiesDTO propertiesDTO = new ComponentPropertiesDTO();
+        final ClusterConfiguration originalClusterConfigurationDTO = new ClusterConfiguration();
+        final ComponentProperties propertiesDTO = new ComponentProperties();
         propertiesDTO.put(ARANGODB_PASS, "root");
         propertiesDTO.put(USER_PASSWORD, "root");
         propertiesDTO.put(DB_HOST, "DB");
@@ -107,8 +109,8 @@ public class ClusterServiceTest {
         newPropertiesDTO.put(USERNAME, "tester"); //no change
         newClusterConfigurationDTO.addComponentType(GROUP, newPropertiesDTO);
 
-        ClusterConfigurationDTO mergedClusterConfigurationDTO = new ClusterConfigurationDTO();
-        ComponentPropertiesDTO mergedPropertiesDTO = new ComponentPropertiesDTO();
+        final  ClusterConfiguration mergedClusterConfigurationDTO = new ClusterConfiguration();
+        final ComponentProperties mergedPropertiesDTO = new ComponentProperties();
         mergedPropertiesDTO.put(ARANGODB_PASS, "root"); //should replace the "*****" with original password
         mergedPropertiesDTO.put(USER_PASSWORD, "newPassword"); //should update to new password
         mergedPropertiesDTO.put(DB_HOST, "newValue"); // should udpate to new value

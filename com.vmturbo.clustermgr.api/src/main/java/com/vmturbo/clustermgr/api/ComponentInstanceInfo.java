@@ -1,4 +1,6 @@
-package com.vmturbo.clustermgr;
+package com.vmturbo.clustermgr.api;
+
+import java.util.Objects;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -44,5 +46,24 @@ public class ComponentInstanceInfo {
 
     public ComponentProperties getProperties() {
         return properties;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+
+        if (!(o instanceof ComponentInstanceInfo)) {
+            return false;
+        }
+
+        final ComponentInstanceInfo that = (ComponentInstanceInfo)o;
+
+        return Objects.equals(node, that.node) &&
+                Objects.equals(componentType, that.componentType) &&
+                Objects.equals(properties, that.properties);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(node, componentType, properties);
     }
 }

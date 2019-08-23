@@ -222,6 +222,11 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.api</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
             <artifactId>sql-utils</artifactId>
         </dependency>
         <dependency>
