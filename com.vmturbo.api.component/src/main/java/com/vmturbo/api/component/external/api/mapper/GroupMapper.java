@@ -113,6 +113,15 @@ public class GroupMapper {
     public static final Set<String> GROUP_TAG_FILTER_TYPES =
         Collections.singleton(CLUSTERS_BY_TAGS_FILTER_TYPE);
 
+    /**
+     * The set of probe types whose environment type should be treated as CLOUD. This is different
+     * from the target category "CLOUD MANAGEMENT". This is also defined in classic in
+     * DiscoveryConfigService#cloudTargetTypes.
+     */
+    public static final Set<String> CLOUD_ENVIRONMENT_PROBE_TYPES = ImmutableSet.of(
+            SDKProbeType.AWS.getProbeType(), SDKProbeType.AZURE.getProbeType(), SDKProbeType.AZURE_EA.getProbeType(),
+            SDKProbeType.AZURE_SERVICE_PRINCIPAL.getProbeType());
+
     // For normal criteria, user just need to provide a string (like a display name). But for
     // some criteria, UI allow user to choose from list of available options (like tags, state and
     // account id for now). These special criteria are hardcoded in UI side (see
@@ -222,14 +231,6 @@ public class GroupMapper {
         filterTypesToProcessors.put(CONNECTED_TO, traversalFilterProcessor);
         FILTER_TYPES_TO_PROCESSORS = filterTypesToProcessors.build();
     }
-
-    /**
-     * The set of probe types whose environment type should be treated as CLOUD. This is different
-     * from the target category "CLOUD MANAGEMENT". This is also defined in classic in
-     * DiscoveryConfigService#cloudTargetTypes.
-     */
-    private static final Set<String> CLOUD_ENVIRONMENT_PROBE_TYPES = ImmutableSet.of(
-        SDKProbeType.AWS.getProbeType(), SDKProbeType.AZURE.getProbeType());
 
     private static StoppingCondition.Builder buildStoppingCondition(String currentToken) {
         return StoppingCondition.newBuilder().setStoppingPropertyFilter(

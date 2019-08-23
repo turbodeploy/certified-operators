@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.validation.constraints.NotNull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -38,6 +39,7 @@ import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification.TargetStat
 import com.vmturbo.api.component.communication.ApiComponentTargetListener;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -238,19 +240,16 @@ public class TargetsService implements ITargetsService {
     @Override
     public List<TargetApiDTO> getTargets(@Nullable final EnvironmentType environmentType) {
         logger.debug("Get all targets");
-        // No Cloud target supported yet, if the user ask for only Cloud, return empty
-        if (environmentType != null && environmentType == EnvironmentType.CLOUD) {
-            return new ArrayList<>();
-        }
-        return getAllTargets(false);
+        return getAllTargets(environmentType);
     }
 
     @Nonnull
-    public List<TargetApiDTO> getAllTargets(final boolean includeHidden) {
+    public List<TargetApiDTO> getAllTargets(@Nullable final EnvironmentType environmentType) {
         try {
             final Set<TargetInfo> targets = topologyProcessor.getAllTargets();
             final List<TargetApiDTO> answer = targets.stream()
-                .filter(target -> includeHidden || !target.isHidden())
+                .filter(target -> environmentTypeFilter(target, environmentType))
+                .filter(target -> !target.isHidden())
                 .map(targetInfo -> {
                     try {
                         return mapTargetInfoToDTO(targetInfo);
@@ -262,6 +261,24 @@ public class TargetsService implements ITargetsService {
             return answer;
         } catch (CommunicationException e) {
             throw new RuntimeException("Error getting targets list", e);
+        }
+    }
+
+    private boolean environmentTypeFilter(final TargetInfo target, EnvironmentType envType) {
+        try {
+            if (envType != null && envType != EnvironmentType.HYBRID) {
+                // gather the other info for this target, based on the related probe
+                final long probeId = target.getProbeId();
+                final Map<Long, ProbeInfo> probeMap = getProbeIdToProbeInfoMap();
+                final ProbeInfo probeInfo = probeMap.get(probeId);
+                // check if public cloud
+                boolean isPublicCloud = GroupMapper.CLOUD_ENVIRONMENT_PROBE_TYPES.contains(probeInfo.getType());
+                return isPublicCloud && envType == EnvironmentType.CLOUD;
+            } else {
+                return true;
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Error setting environment filters", e);
         }
     }
 
