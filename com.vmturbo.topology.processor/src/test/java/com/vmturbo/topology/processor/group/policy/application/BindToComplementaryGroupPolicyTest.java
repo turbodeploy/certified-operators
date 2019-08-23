@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.group.policy.application;
 import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchParametersCollection;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.connectedTopologyEntity;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Matchers.eq;
@@ -16,6 +17,7 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -146,6 +148,9 @@ public class BindToComplementaryGroupPolicyTest {
         assertThat(topologyGraph.getEntity(1L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(2L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
         assertThat(topologyGraph.getEntity(13L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
+        // making sure that we add just 1 segmentationCommodity
+        assertThat(topologyGraph.getEntity(13L).get().getTopologyEntityDtoBuilder().getCommoditySoldListList().stream().filter(comm -> comm.getCommodityType().getType()
+                == CommonDTO.CommodityDTO.CommodityType.SEGMENTATION_VALUE).count(), is(1L));
         assertThat(topologyGraph.getEntity(5L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
         assertThat(topologyGraph.getEntity(6L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
     }

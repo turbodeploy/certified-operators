@@ -218,11 +218,6 @@ public abstract class PlacementPolicyApplication {
             .forEach(provider -> {
                 recordCommodityAddition(segmentationCommodity.getCommodityType().getType());
                 provider.addCommoditySoldList(segmentationCommodity);
-                // add comm on replaced entity
-                if (provider.hasEdit() && provider.getEdit().hasReplaced()) {
-                    addCommoditySold(provider.getEdit().getReplaced().getReplacementId(),
-                            segmentationCommodity);
-                }
             });
     }
 
