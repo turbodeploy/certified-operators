@@ -8,11 +8,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.orbitz.consul.model.health.HealthCheck;
-
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -24,9 +19,12 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.vmturbo.clustermgr.api.ClusterConfiguration;
-import com.vmturbo.clustermgr.api.ComponentProperties;
-import com.vmturbo.clustermgr.api.HttpProxyConfig;
+import com.orbitz.consul.model.health.HealthCheck;
+
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+
+import com.vmturbo.api.dto.admin.HttpProxyDTO;
 
 /**
  * REST endpoint for ClusterMgr, exposing APIs for component status, component configuration, node configuration.
@@ -393,7 +391,7 @@ public class ClusterMgrController {
 
     /**
      * Export XL diagnostics to upload.vmturbo.com
-     * @param httpProxyConfig value object to hold http proxy information
+     * @param httpProxyDTO value object to hold http proxy information
      * @return true if diagnostics is uploaded successfully; false otherwise
      */
     @ApiOperation("Export XL diagnostics to upload.vmturbo.com.")
@@ -404,8 +402,8 @@ public class ClusterMgrController {
     @ResponseBody
     @SuppressWarnings("unused")
     public Boolean exportDiagnotics(
-        @RequestBody HttpProxyConfig httpProxyConfig) {
-        return clusterMgrService.exportDiagnostics(httpProxyConfig);
+        @RequestBody HttpProxyDTO httpProxyDTO) {
+        return clusterMgrService.exportDiagnostics(httpProxyDTO);
     }
 
 }

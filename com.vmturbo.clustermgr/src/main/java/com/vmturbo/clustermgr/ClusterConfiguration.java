@@ -1,11 +1,10 @@
-package com.vmturbo.clustermgr.api;
-
-import java.util.HashMap;
-import java.util.Map;
-
-import javax.annotation.Nonnull;
+package com.vmturbo.clustermgr;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+
+import javax.annotation.Nonnull;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Capture the configuration of an Ops Manager cluster: nodes / components/ config properties; and
@@ -41,27 +40,4 @@ public class ClusterConfiguration {
         instances.put(instanceId, new ComponentInstanceInfo(componentType, componentVersion, node, instanceConfiguration));
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        final ClusterConfiguration that = (ClusterConfiguration)o;
-
-        if (!instances.equals(that.instances)) {
-            return false;
-        }
-        return defaults.equals(that.defaults);
-    }
-
-    @Override
-    public int hashCode() {
-        int result = instances.hashCode();
-        result = 31 * result + defaults.hashCode();
-        return result;
-    }
 }

@@ -12,8 +12,6 @@ import org.junit.Test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import com.vmturbo.clustermgr.api.ClusterConfiguration;
-
 public class ClusterConfigurationTest {
 
     private final Logger logger = LogManager.getLogger();
@@ -23,8 +21,7 @@ public class ClusterConfigurationTest {
         // Arrange
         InputStream clusterConfigJson = getClass().getClassLoader().getResourceAsStream("clusterConfigurationTest.json");
         // Act
-        ClusterConfiguration
-                testValue = new ObjectMapper().readValue(clusterConfigJson, ClusterConfiguration.class);
+        ClusterConfiguration testValue = new ObjectMapper().readValue(clusterConfigJson, ClusterConfiguration.class);
         // Assert
         // test the "defaults" section first
         assertThat(testValue.getDefaults().getComponentNames().size(), is(2));

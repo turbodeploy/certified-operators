@@ -2,7 +2,6 @@ package com.vmturbo.api.component.external.api.service;
 
 import java.io.OutputStream;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 
@@ -11,13 +10,9 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
-import com.vmturbo.api.dto.cluster.ComponentInstanceDTO;
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
 import com.vmturbo.api.serviceinterfaces.IClusterService;
-import com.vmturbo.clustermgr.api.ClusterConfiguration;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
-import com.vmturbo.clustermgr.api.ComponentInstanceInfo;
-import com.vmturbo.clustermgr.api.ComponentProperties;
 
 /**
  * Implementation for the Cluster Manager Service API calls.
@@ -106,8 +101,7 @@ public class ClusterService implements IClusterService {
     @Nonnull
     @Override
     public ClusterConfigurationDTO getClusterConfiguration() {
-        final ClusterConfigurationDTO clusterConfiguration =
-                convert(clusterMgrApi.getClusterConfiguration());
+        final ClusterConfigurationDTO clusterConfiguration = clusterMgrApi.getClusterConfiguration();
         clusterConfiguration.getDefaults().values().forEach(dto -> {
             sensitiveKeySet.forEach((key -> {
                 if (dto.containsKey(key)) dto.put(key, ASTERISKS);
@@ -127,8 +121,9 @@ public class ClusterService implements IClusterService {
     @Nonnull
     @Override
     public ClusterConfigurationDTO setClusterConfiguration(ClusterConfigurationDTO newConfiguration) {
-        final Map<String, ComponentProperties> originalComponentPropertiesDTOMap =
-                clusterMgrApi.getClusterConfiguration().getDefaults().getComponents();
+        final Map<String, ComponentPropertiesDTO> originalComponentPropertiesDTOMap = clusterMgrApi
+                .getClusterConfiguration()
+                .getDefaults();
         Map<String, ComponentPropertiesDTO> newComponentPropertiesDTOMap = newConfiguration.getDefaults();
         newComponentPropertiesDTOMap.forEach((k, v) -> {
             sensitiveKeySet.forEach((key -> {
@@ -136,7 +131,7 @@ public class ClusterService implements IClusterService {
                     v.put(key, originalComponentPropertiesDTOMap.get(k).get(key));
             }));
         });
-        return convert(clusterMgrApi.setClusterConfiguration(convert(newConfiguration)));
+        return clusterMgrApi.setClusterConfiguration(newConfiguration);
     }
 
     @Override
@@ -158,8 +153,7 @@ public class ClusterService implements IClusterService {
      */
     @Override
     public ComponentPropertiesDTO getDefaultPropertiesForComponentType(String componentType) {
-        final ComponentPropertiesDTO dto =
-                convert(clusterMgrApi.getDefaultPropertiesForComponentType(componentType));
+        ComponentPropertiesDTO dto = clusterMgrApi.getDefaultPropertiesForComponentType(componentType);
         sensitiveKeySet.forEach((key -> {
             if (dto.containsKey(key)) dto.put(key, ASTERISKS);
         }));
@@ -168,15 +162,12 @@ public class ClusterService implements IClusterService {
 
     @Override
     public ComponentPropertiesDTO getComponentInstanceProperties(String componentType, String componentInstanceId) {
-        return convert(
-                clusterMgrApi.getComponentInstanceProperties(componentType, componentInstanceId));
+        return clusterMgrApi.getComponentInstanceProperties(componentType, componentInstanceId);
     }
 
     @Override
     public ComponentPropertiesDTO putComponentInstanceProperties(String componentType, String componentInstanceId, ComponentPropertiesDTO updatedProperties) {
-        return convert(
-                clusterMgrApi.putComponentInstanceProperties(componentType, componentInstanceId,
-                        convert(updatedProperties)));
+        return clusterMgrApi.putComponentInstanceProperties(componentType, componentInstanceId, updatedProperties);
     }
 
     /**
@@ -198,58 +189,5 @@ public class ClusterService implements IClusterService {
     @Override
     public String getComponentInstanceProperty(String componentType, String componentInstanceId, String propertyName) {
         return clusterMgrApi.getComponentInstanceProperty(componentType, componentInstanceId, propertyName);
-    }
-
-    @Nonnull
-    private ComponentProperties convert(@Nonnull ComponentPropertiesDTO src) {
-        final ComponentProperties result = new ComponentProperties();
-        result.putAll(src);
-        return result;
-    }
-
-    @Nonnull
-    private ComponentPropertiesDTO convert(@Nonnull ComponentProperties src) {
-        final ComponentPropertiesDTO result = new ComponentPropertiesDTO();
-        result.putAll(src);
-        return result;
-    }
-
-    @Nonnull
-    private ComponentInstanceInfo convert(@Nonnull ComponentInstanceDTO src) {
-        return new ComponentInstanceInfo(src.getComponentType(), src.getComponentVersion(),
-                src.getNode(), convert(src.getProperties()));
-    }
-
-    @Nonnull
-    private ComponentInstanceDTO convert(@Nonnull ComponentInstanceInfo src) {
-        return new ComponentInstanceDTO(src.getComponentType(), src.getComponentVersion(),
-                src.getNode(), convert(src.getProperties()));
-    }
-
-    @Nonnull
-    private ClusterConfiguration convert(@Nonnull ClusterConfigurationDTO src) {
-        final ClusterConfiguration result = new ClusterConfiguration();
-        for (Entry<String, ComponentInstanceDTO> entry : src.getInstances().entrySet()) {
-            result.getInstances().put(entry.getKey(), convert(entry.getValue()));
-        }
-        for (Entry<String, ComponentPropertiesDTO> entry : src.getDefaults().entrySet()) {
-            result.addComponentType(entry.getKey(), convert(entry.getValue()));
-        }
-        return result;
-    }
-
-    @Nonnull
-    private ClusterConfigurationDTO convert(@Nonnull ClusterConfiguration src) {
-        Objects.requireNonNull(src);
-        final ClusterConfigurationDTO result = new ClusterConfigurationDTO();
-        for (Entry<String, ComponentInstanceInfo> entry : src.getInstances().entrySet()) {
-            result.getInstances().put(entry.getKey(), convert(entry.getValue()));
-        }
-        for (Entry<String, ComponentProperties> entry : src.getDefaults()
-                .getComponents()
-                .entrySet()) {
-            result.getDefaults().put(entry.getKey(), convert(entry.getValue()));
-        }
-        return result;
     }
 }

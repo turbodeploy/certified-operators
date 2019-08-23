@@ -14,10 +14,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
-import com.google.gson.Gson;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.springframework.http.HttpMethod;
@@ -25,6 +21,12 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
 
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import com.google.gson.Gson;
+
+import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
+import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 
 /**
@@ -67,13 +69,13 @@ public class ClusterMgrRestClientTest {
     public void testGetClusterConfiguration() throws Exception {
         // Arrange
         String expectedUri = baseTestURL;
-        ClusterConfiguration testResponse = new ClusterConfiguration();
+        ClusterConfigurationDTO testResponse = new ClusterConfigurationDTO();
         String testResponseString = gson.toJson(testResponse);
         mockServer.expect(requestTo(expectedUri))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess(testResponseString, MediaType.APPLICATION_JSON_UTF8));
         // Act
-        ClusterConfiguration result = testRestClient.getClusterConfiguration();
+        ClusterConfigurationDTO result = testRestClient.getClusterConfiguration();
         // Assert
         mockServer.verify();
         assertThat(result, is(testResponse));
@@ -84,15 +86,15 @@ public class ClusterMgrRestClientTest {
 
         // Arrange
         String expectedUri = baseTestURL;
-        ClusterConfiguration postMockDTO = new ClusterConfiguration();
-        ClusterConfiguration testResponse = new ClusterConfiguration();
+        ClusterConfigurationDTO postMockDTO = new ClusterConfigurationDTO();
+        ClusterConfigurationDTO testResponse = new ClusterConfigurationDTO();
         String testPostString = gson.toJson(postMockDTO);
         String testResponseString = gson.toJson(testResponse);
         mockServer.expect(requestTo(expectedUri))
                 .andExpect(method(HttpMethod.PUT))
                 .andRespond(withSuccess(testResponseString, MediaType.APPLICATION_JSON_UTF8));
         // Act
-        ClusterConfiguration result = testRestClient.setClusterConfiguration(postMockDTO);
+        ClusterConfigurationDTO result = testRestClient.setClusterConfiguration(postMockDTO);
         // Assert
         mockServer.verify();
         assertThat(result, is(testResponse));
@@ -216,13 +218,13 @@ public class ClusterMgrRestClientTest {
     public void testGetDefaultPropertiesForComponentType() throws Exception {
         // Arrange
         String expectedUri = baseTestURL + "/components/test-type/defaults";
-        ComponentProperties testResponse = new ComponentProperties();
+        ComponentPropertiesDTO testResponse = new ComponentPropertiesDTO();
         String testResponseString = gson.toJson(testResponse);
         mockServer.expect(requestTo(expectedUri))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess(testResponseString, MediaType.APPLICATION_JSON_UTF8));
         // Act
-        ComponentProperties result = testRestClient.getDefaultPropertiesForComponentType("test-type");
+        ComponentPropertiesDTO result = testRestClient.getDefaultPropertiesForComponentType("test-type");
         // Assert
         mockServer.verify();
         assertThat(result, is(testResponse));
@@ -231,8 +233,8 @@ public class ClusterMgrRestClientTest {
     @Test
     public void testPutDefaultPropertiesForComponentType() throws Exception {
         // Arrange
-        ComponentProperties newValue = new ComponentProperties();
-        ComponentProperties testResponse = new ComponentProperties();
+        ComponentPropertiesDTO newValue = new ComponentPropertiesDTO();
+        ComponentPropertiesDTO testResponse = new ComponentPropertiesDTO();
         String testResponseString = gson.toJson(testResponse);
         String expectedUri = baseTestURL + "/components/test-type/defaults";
         mockServer.expect(requestTo(expectedUri))
@@ -240,7 +242,7 @@ public class ClusterMgrRestClientTest {
                 .andExpect(content().string(testResponseString))
                 .andRespond(withSuccess(testResponseString, MediaType.APPLICATION_JSON_UTF8));
         // Act
-        ComponentProperties result = testRestClient.putComponentDefaultProperties("test-type",
+        ComponentPropertiesDTO result = testRestClient.putComponentDefaultProperties("test-type",
                 testResponse);
         // Assert
         mockServer.verify();
@@ -250,15 +252,14 @@ public class ClusterMgrRestClientTest {
     @Test
     public void testGetComponentInstanceProperties() throws Exception {
         // Arrange
-        ComponentProperties testResponse = new ComponentProperties();
+        ComponentPropertiesDTO testResponse = new ComponentPropertiesDTO();
         String testResponseString = gson.toJson(testResponse);
         String expectedUri = baseTestURL + "/components/test-type/instances/test-instance/properties";
         mockServer.expect(requestTo(expectedUri))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess(testResponseString, MediaType.APPLICATION_JSON_UTF8));
         // Act
-        ComponentProperties
-                result = testRestClient.getComponentInstanceProperties("test-type", "test-instance");
+        ComponentPropertiesDTO result = testRestClient.getComponentInstanceProperties("test-type", "test-instance");
         // Assert
         mockServer.verify();
         assertThat(result, is(testResponse));
@@ -267,9 +268,9 @@ public class ClusterMgrRestClientTest {
     @Test
     public void testPutComponentInstanceProperties() throws Exception {
         // Arrange
-        ComponentProperties newValue = new ComponentProperties();
+        ComponentPropertiesDTO newValue = new ComponentPropertiesDTO();
         String newValueString = gson.toJson(newValue);
-        ComponentProperties testResponse = new ComponentProperties();
+        ComponentPropertiesDTO testResponse = new ComponentPropertiesDTO();
         String testResponseString = gson.toJson(testResponse);
         String expectedUri = baseTestURL + "/components/test-type/instances/test-instance/properties";
         mockServer.expect(requestTo(expectedUri))
@@ -277,8 +278,7 @@ public class ClusterMgrRestClientTest {
                 .andExpect(content().string(testResponseString))
                 .andRespond(withSuccess(testResponseString, MediaType.APPLICATION_JSON_UTF8));
         // Act
-        ComponentProperties
-                result = testRestClient.putComponentInstanceProperties("test-type", "test-instance", testResponse);
+        ComponentPropertiesDTO result = testRestClient.putComponentInstanceProperties("test-type", "test-instance", testResponse);
         // Assert
         mockServer.verify();
         assertThat(result, is(testResponse));

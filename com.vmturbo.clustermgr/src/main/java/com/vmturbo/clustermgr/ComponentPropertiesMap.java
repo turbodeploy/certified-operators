@@ -1,12 +1,12 @@
-package com.vmturbo.clustermgr.api;
-
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+package com.vmturbo.clustermgr;
 
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Capture the configuration properties of a set of named Components. The component name, i.e. the primary key,
@@ -37,22 +37,5 @@ public class ComponentPropertiesMap {
     @JsonAnySetter
     public void addComponentConfiguration(String componentName, ComponentProperties componentProperties) {
         components.put(componentName, componentProperties);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (!(o instanceof ComponentPropertiesMap)) {
-            return false;
-        }
-        final ComponentPropertiesMap that = (ComponentPropertiesMap)o;
-        return components.equals(that.components);
-    }
-
-    @Override
-    public int hashCode() {
-        return components.hashCode();
     }
 }

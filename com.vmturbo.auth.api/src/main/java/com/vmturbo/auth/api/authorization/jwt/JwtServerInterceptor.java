@@ -11,8 +11,12 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import io.grpc.Context;
 import io.grpc.Contexts;
+import io.grpc.ForwardingServerCall;
 import io.grpc.ForwardingServerCallListener.SimpleForwardingServerCallListener;
 import io.grpc.Metadata;
 import io.grpc.ServerCall;
@@ -22,9 +26,7 @@ import io.grpc.Status;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
+import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.auth.api.JWTKeyCodec;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
