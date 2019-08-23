@@ -11,6 +11,8 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.ws.rs.core.UriBuilder;
 
+import com.google.common.io.ByteStreams;
+
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -24,11 +26,6 @@ import org.springframework.web.client.RequestCallback;
 import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.client.RestTemplate;
 
-import com.google.common.io.ByteStreams;
-
-import com.vmturbo.api.dto.admin.HttpProxyDTO;
-import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
-import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.ComponentRestClient;
 
@@ -153,25 +150,25 @@ public class ClusterMgrRestClient extends ComponentRestClient {
      * values.
      */
     @Nonnull
-    public ClusterConfigurationDTO getClusterConfiguration() {
-        return new RestGetRequestor<ClusterConfigurationDTO>(CLUSTER_CONFIG_URI, ClusterConfigurationDTO.class)
+    public ClusterConfiguration getClusterConfiguration() {
+        return new RestGetRequestor<ClusterConfiguration>(CLUSTER_CONFIG_URI, ClusterConfiguration.class)
                 .invoke();
     }
 
     /**
      * Replace the entire Cluster Configuration.
-     * This includes the <strong>default properties</strong> {@link ComponentPropertiesDTO}
+     * This includes the <strong>default properties</strong> {@link ComponentProperties}
      * (component-type -> default properties)
-     * and the <strong>instance properties</strong> {@link ComponentPropertiesDTO}
+     * and the <strong>instance properties</strong> {@link ComponentProperties}
      * (instance-id -> instance properties)
      *
-     * @param newConfiguration an {@link ClusterConfigurationDTO} to completely replace the current configuration.
+     * @param newConfiguration an {@link ClusterConfiguration} to completely replace the current configuration.
      * @return the new configuration, read back from the Consul key/value store.
      */
     @Nonnull
-    public ClusterConfigurationDTO setClusterConfiguration(@Nonnull ClusterConfigurationDTO newConfiguration) {
-        return new RestPutRequestor<ClusterConfigurationDTO, ClusterConfigurationDTO>(CLUSTER_CONFIG_URI,
-                    ClusterConfigurationDTO.class)
+    public ClusterConfiguration setClusterConfiguration(@Nonnull ClusterConfiguration newConfiguration) {
+        return new RestPutRequestor<ClusterConfiguration, ClusterConfiguration>(CLUSTER_CONFIG_URI,
+                    ClusterConfiguration.class)
                 .invoke(newConfiguration);
     }
 
@@ -268,11 +265,12 @@ public class ClusterMgrRestClient extends ComponentRestClient {
     /**
      * Export diagnostics file.
      *
-     * @param httpProxyDTO the value object with http proxy settings
+     * @param httpProxyConfig the value object with http proxy settings
+     * @return whether diagnostics has been successfully exported
      */
-    public boolean exportComponentDiagnostics(@Nonnull HttpProxyDTO httpProxyDTO) {
-        return new RestPostRequestor<Boolean, HttpProxyDTO>(uriBase + DIAGNOSTICS_URI,
-            Boolean.class).invoke(httpProxyDTO);
+    public boolean exportComponentDiagnostics(@Nonnull HttpProxyConfig httpProxyConfig) {
+        return new RestPostRequestor<Boolean, HttpProxyConfig>(uriBase + DIAGNOSTICS_URI,
+            Boolean.class).invoke(httpProxyConfig);
     }
 
     /**
@@ -306,51 +304,51 @@ public class ClusterMgrRestClient extends ComponentRestClient {
     }
 
     /**
-     * Return the default {@link ComponentPropertiesDTO} for the given component type.
+     * Return the default {@link ComponentProperties} for the given component type.
      *
      * @param componentType the component type for which to fetch the default ComponentProperties
-     * @return a {@link ComponentPropertiesDTO} object containing all default configuration properties for the given
+     * @return a {@link ComponentProperties} object containing all default configuration properties for the given
      * component type.
      */
     @Nonnull
-    public ComponentPropertiesDTO getDefaultPropertiesForComponentType(String componentType) {
-        return new RestGetRequestor<ComponentPropertiesDTO>(COMPONENT_TYPE_DEFAULTS_URI, ComponentPropertiesDTO.class)
+    public ComponentProperties getDefaultPropertiesForComponentType(String componentType) {
+        return new RestGetRequestor<ComponentProperties>(COMPONENT_TYPE_DEFAULTS_URI, ComponentProperties.class)
                 .invoke(componentType);
     }
 
     /**
-     * Return the {@link ComponentPropertiesDTO} for the given component instance / type. The result
+     * Return the {@link ComponentProperties} for the given component instance / type. The result
      * map of properties is a merge of default values (came from component type) and specific values
      * (came from instance itself) with the priority of instance-level values.
      *
      * @param componentType type for the given component instance.
      * @param componentInstanceId unique id for the given component instance
-     * @return a {@link ComponentPropertiesDTO} object containing all of the configuration properties for the given
+     * @return a {@link ComponentProperties} object containing all of the configuration properties for the given
      * component instance.
      */
-    public ComponentPropertiesDTO getComponentInstanceProperties(String componentType,
+    public ComponentProperties getComponentInstanceProperties(String componentType,
                                                                  String componentInstanceId) {
-        return new RestGetRequestor<ComponentPropertiesDTO>(COMPONENT_INSTANCE_PROPERTIES_URI, ComponentPropertiesDTO.class)
+        return new RestGetRequestor<ComponentProperties>(COMPONENT_INSTANCE_PROPERTIES_URI, ComponentProperties.class)
                 .invoke(componentType, componentInstanceId);
     }
 
     /**
-     * Replace the {@link ComponentPropertiesDTO} for the given component instance / type.
-     * Return the updated {@link ComponentPropertiesDTO}. The properties will replace current
+     * Replace the {@link ComponentProperties} for the given component instance / type.
+     * Return the updated {@link ComponentProperties}. The properties will replace current
      * set of properties for the instance. So, if empty map of properties is specified, this will
      * remove all the properties of this instance.
      *
      * @param componentType type for the given component instance.
      * @param componentInstanceId unique id for the given component instance
      * @param updatedProperties the new configuration property values to be saved.
-     * @return a {@link ComponentPropertiesDTO} object containing all of the configuration properties for the given
+     * @return a {@link ComponentProperties} object containing all of the configuration properties for the given
      * component instance.
      */
-    public ComponentPropertiesDTO putComponentInstanceProperties(String componentType,
+    public ComponentProperties putComponentInstanceProperties(String componentType,
                                                                  String componentInstanceId,
-                                                                 ComponentPropertiesDTO updatedProperties) {
-        return new RestPutRequestor<ComponentPropertiesDTO, ComponentPropertiesDTO>(
-                COMPONENT_INSTANCE_PROPERTIES_URI, ComponentPropertiesDTO.class)
+                                                                 ComponentProperties updatedProperties) {
+        return new RestPutRequestor<ComponentProperties, ComponentProperties>(
+                COMPONENT_INSTANCE_PROPERTIES_URI, ComponentProperties.class)
                 .invoke(updatedProperties, componentType, componentInstanceId);
     }
 
@@ -399,10 +397,10 @@ public class ClusterMgrRestClient extends ComponentRestClient {
      *                          previous configuration properties will all be replaced.
      * @return the newly updated default configuration properties for this component type
      */
-    public ComponentPropertiesDTO putComponentDefaultProperties(String componentType,
-                                                                ComponentPropertiesDTO updatedProperties) {
-        return new RestPutRequestor<ComponentPropertiesDTO, ComponentPropertiesDTO>(
-                COMPONENT_TYPE_DEFAULTS_URI, ComponentPropertiesDTO.class)
+    public ComponentProperties putComponentDefaultProperties(String componentType,
+                                                                ComponentProperties updatedProperties) {
+        return new RestPutRequestor<ComponentProperties, ComponentProperties>(
+                COMPONENT_TYPE_DEFAULTS_URI, ComponentProperties.class)
                 .invoke(updatedProperties, componentType);
     }
 

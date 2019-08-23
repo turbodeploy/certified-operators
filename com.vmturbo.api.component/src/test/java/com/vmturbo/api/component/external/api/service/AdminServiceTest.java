@@ -42,6 +42,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.api.component.external.api.mapper.LoggingMapper;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.dto.admin.HttpProxyDTO;
 import com.vmturbo.api.dto.admin.LoggingApiDTO;
@@ -57,7 +58,6 @@ import com.vmturbo.common.protobuf.logging.Logging.LogLevel;
 import com.vmturbo.common.protobuf.logging.Logging.SetLogLevelsRequest;
 import com.vmturbo.common.protobuf.logging.Logging.SetLogLevelsResponse;
 import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController.LogConfigurationServiceResponse;
-import com.vmturbo.components.common.utils.LoggingUtils;
 import com.vmturbo.kvstore.KeyValueStore;
 
 /**
@@ -287,7 +287,7 @@ public class AdminServiceTest {
         when(restTemplate.postForObject(builder.build().toString(),
             new HttpEntity<>(SetLogLevelsRequest.newBuilder()
                 .putLogLevels(LogManager.ROOT_LOGGER_NAME,
-                    LoggingUtils.apiLogLevelToProtoLogLevel(logLevel)).build()),
+                    LoggingMapper.apiLogLevelToProtoLogLevel(logLevel)).build()),
             LogConfigurationServiceResponse.class)).thenReturn(response);
     }
 

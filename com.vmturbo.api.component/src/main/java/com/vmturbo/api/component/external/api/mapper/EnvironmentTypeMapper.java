@@ -1,4 +1,4 @@
-package com.vmturbo.components.common.mapping;
+package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.Optional;
 

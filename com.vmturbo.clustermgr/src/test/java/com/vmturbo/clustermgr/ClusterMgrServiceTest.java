@@ -20,7 +20,6 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -44,11 +43,11 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 import org.springframework.test.context.web.WebAppConfiguration;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Optional;
 import com.orbitz.consul.model.kv.Value;
 
-import com.vmturbo.api.dto.admin.HttpProxyDTO;
+import com.vmturbo.clustermgr.api.ComponentProperties;
+import com.vmturbo.clustermgr.api.HttpProxyConfig;
 
 /**
  * test for ClusterMgr Service
@@ -263,22 +262,19 @@ public class ClusterMgrServiceTest {
 
     @Test
     public void testGetCurlArgs() {
-        HttpProxyDTO dto = new HttpProxyDTO();
-        dto.setProxyHost("10.10.10.10");
-        dto.setProxyPortNumber(1080);
+        HttpProxyConfig dto = new HttpProxyConfig(false, "10.10.10.10", 1080, null, null);
         String[] curlArgs = clusterMgrService.getCurlArgs("/home/turbonomic/data/turbonomic-diags-_111.zip", dto);
         String[] expectedArgs = {"-F", "ufile=@/home/turbonomic/data/turbonomic-diags-_111.zip",
             UPLOAD_VMTURBO_COM_URL};
         // since proxy is not enabled, so proxy settings should be ignored
         assertArrayEquals(expectedArgs, curlArgs);
-        dto.setIsProxyEnabled(true);
-        dto.setUserName("user");
-        curlArgs = clusterMgrService.getCurlArgs("/home/turbonomic/data/turbonomic-diags-_111.zip", dto);
+        final HttpProxyConfig dto2 = new HttpProxyConfig(true, "10.10.10.10", 1080, "user", null);
+        curlArgs = clusterMgrService.getCurlArgs("/home/turbonomic/data/turbonomic-diags-_111.zip", dto2);
         String[] expectedArgsWithProxy = {"-F", "ufile=@/home/turbonomic/data/turbonomic-diags-_111.zip",
             UPLOAD_VMTURBO_COM_URL, "-x", "10.10.10.10:1080" };
         assertArrayEquals(expectedArgsWithProxy, curlArgs);
-        dto.setPassword("password");
-        curlArgs = clusterMgrService.getCurlArgs("/home/turbonomic/data/turbonomic-diags-_111.zip", dto);
+        final HttpProxyConfig dto3 = new HttpProxyConfig(true, "10.10.10.10", 1080, "user", "password");
+        curlArgs = clusterMgrService.getCurlArgs("/home/turbonomic/data/turbonomic-diags-_111.zip", dto3);
         String[] expectedArgsWithSecureProxy = {"-F", "ufile=@/home/turbonomic/data/turbonomic-diags-_111.zip",
             UPLOAD_VMTURBO_COM_URL, "-x", "user:password@10.10.10.10:1080"};
         assertArrayEquals(expectedArgsWithSecureProxy, curlArgs);

@@ -11,6 +11,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
+import com.vmturbo.clustermgr.api.ComponentProperties;
 import com.vmturbo.components.common.OsCommandProcessRunner;
 
 /**

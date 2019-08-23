@@ -57,9 +57,9 @@ import io.prometheus.client.exporter.MetricsServlet;
 import io.prometheus.client.hotspot.DefaultExports;
 import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
-import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
 import com.vmturbo.clustermgr.api.ClusterMgrClient;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
+import com.vmturbo.clustermgr.api.ComponentProperties;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.tracing.Tracing;
@@ -712,7 +712,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             @Nonnull final ClusterMgrRestClient clusterMgrClient, Properties defaultProperties) {
         logger.info("Sending the default configuration for this component to ClusterMgr");
         // now loop forever trying to call the clustermgr client to store those default properties
-        final ComponentPropertiesDTO defaultComponentProperties = new ComponentPropertiesDTO();
+        final ComponentProperties defaultComponentProperties = new ComponentProperties();
         defaultProperties.forEach((defaultKey, defaultValue) ->
             defaultComponentProperties.put(defaultKey.toString(), defaultValue.toString()));
         int tryCount = 1;
@@ -771,7 +771,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                 instanceId, componentType);
         do {
             try {
-                ComponentPropertiesDTO componentProperties =
+                final ComponentProperties componentProperties =
                         clusterMgrClient.getComponentInstanceProperties(componentType, instanceId);
                 componentProperties.forEach((configKey, configValue) -> {
                     logger.info("       {} = >{}<", configKey, configValue);

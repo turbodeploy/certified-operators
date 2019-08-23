@@ -9,7 +9,7 @@ import javax.annotation.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
+import com.vmturbo.clustermgr.api.ComponentProperties;
 import com.vmturbo.components.common.BaseVmtComponent;
 
 /**
@@ -38,7 +38,7 @@ public class ComponentBasedTargetDumpingSettings implements TargetDumpingSetting
     // time (milliseconds since epoch) of last fetch
     private long lastFetchTime = 0L;
     // property values from most recent fetch
-    private ComponentPropertiesDTO componentProperties;
+    private ComponentProperties componentProperties;
 
     public ComponentBasedTargetDumpingSettings(String componentType, String componentId) {
         this.componentType = componentType;

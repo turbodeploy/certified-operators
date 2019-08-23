@@ -33,6 +33,7 @@ import com.google.gson.Gson;
 import com.vmturbo.api.ExportNotificationDTO.ExportNotification;
 import com.vmturbo.api.ExportNotificationDTO.ExportStatusNotification;
 import com.vmturbo.api.ExportNotificationDTO.ExportStatusNotification.ExportStatus;
+import com.vmturbo.api.component.external.api.mapper.LoggingMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.dto.admin.HttpProxyDTO;
@@ -46,6 +47,7 @@ import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.serviceinterfaces.IAdminService;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
+import com.vmturbo.clustermgr.api.HttpProxyConfig;
 import com.vmturbo.common.protobuf.logging.Logging.GetLogLevelsRequest;
 import com.vmturbo.common.protobuf.logging.Logging.GetLogLevelsResponse;
 import com.vmturbo.common.protobuf.logging.Logging.LogLevel;
@@ -154,8 +156,9 @@ public class AdminService implements IAdminService {
             if (component.equals(apiHost)) {
                 // no need for rest call for API component since we are in API component
                 final LoggerContext logContext = (LoggerContext) LogManager.getContext(false);
-                componentLoggingLevels.put(apiHost, LoggingUtils.protoLogLevelToApiLogLevel(
-                    LoggingUtils.log4jLevelToProtoLogLevel(logContext.getRootLogger().getLevel())));
+                componentLoggingLevels.put(apiHost, LoggingMapper.protoLogLevelToApiLogLevel(
+                        LoggingUtils.log4jLevelToProtoLogLevel(
+                                logContext.getRootLogger().getLevel())));
             } else {
                 getLoggingLevel(component).ifPresent(loggingLevel ->
                     componentLoggingLevels.put(component, loggingLevel));
@@ -182,7 +185,7 @@ public class AdminService implements IAdminService {
                 logger.info("Setting root logging level to: {}", newLoggingLevel);
                 // no need for rest call for API component since we are in API component
                 Configurator.setRootLevel(LoggingUtils.protoLogLevelToLog4jLevel(
-                    LoggingUtils.apiLogLevelToProtoLogLevel(newLoggingLevel)));
+                    LoggingMapper.apiLogLevelToProtoLogLevel(newLoggingLevel)));
                 newLoggingLevelsByComponent.put(component, newLoggingLevel);
             } else {
                 setLoggingLevel(component, newLoggingLevel).ifPresent(level ->
@@ -226,7 +229,7 @@ public class AdminService implements IAdminService {
                 logger.error("Root logging level is not defined for component {}", component);
                 return Optional.empty();
             }
-            return Optional.of(LoggingUtils.protoLogLevelToApiLogLevel(rootLogLevel));
+            return Optional.of(LoggingMapper.protoLogLevelToApiLogLevel(rootLogLevel));
         } catch (ResourceAccessException e) {
             // component may be down
             logger.warn("Unable to get logging levels for component {}", component, e);
@@ -257,7 +260,7 @@ public class AdminService implements IAdminService {
         try {
             final SetLogLevelsRequest setLogLevelsRequest = SetLogLevelsRequest.newBuilder()
                 .putLogLevels(LogManager.ROOT_LOGGER_NAME,
-                    LoggingUtils.apiLogLevelToProtoLogLevel(newloggingLevel))
+                    LoggingMapper.apiLogLevelToProtoLogLevel(newloggingLevel))
                 .build();
             LogConfigurationServiceResponse logConfigResponse = restTemplate.postForObject(
                 builder.build().toUriString(), new HttpEntity<>(setLogLevelsRequest),
@@ -281,13 +284,20 @@ public class AdminService implements IAdminService {
         return true;
     }
 
+    @Nonnull
+    private static HttpProxyConfig convert(HttpProxyDTO src) {
+        return new HttpProxyConfig(src.getIsProxyEnabled(), src.getProxyHost(),
+                src.getProxyPortNumber(), src.getUserName(), src.getPassword());
+    }
+
     @VisibleForTesting
     Future<Boolean> invokeSchedulerToExportDiags() {
         return scheduler.schedule(
             () -> {
                 boolean exportedSucceed;
                 try {
-                    exportedSucceed = clusterMgrApi.exportComponentDiagnostics(retrieveProxyInfoFrom());
+                    exportedSucceed = clusterMgrApi.exportComponentDiagnostics(
+                            convert(retrieveProxyInfoFrom()));
                 } catch (RuntimeException e) {
                     logger.error("Failed to export diagnostics files with exception: ", e);
                     apiWebsocketHandler.broadcastDiagsExportNotification(FAILED_TO_EXPORT_DIAGNOSTICS_FAILED);

@@ -22,6 +22,8 @@ import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.servlet.DispatcherServlet;
 
+import com.vmturbo.clustermgr.api.ClusterConfiguration;
+import com.vmturbo.clustermgr.api.ComponentInstanceInfo;
 import com.vmturbo.clustermgr.kafka.KafkaConfigurationService;
 import com.vmturbo.clustermgr.kafka.KafkaConfigurationServiceConfig;
 

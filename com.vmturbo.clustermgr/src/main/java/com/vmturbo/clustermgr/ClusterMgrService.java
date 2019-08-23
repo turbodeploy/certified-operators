@@ -33,6 +33,14 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.ws.rs.NotFoundException;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Splitter;
+import com.google.common.collect.Lists;
+import com.google.common.net.InetAddresses;
+import com.google.common.net.InternetDomainName;
+import com.orbitz.consul.model.health.HealthCheck;
+import com.orbitz.consul.model.kv.Value;
+
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpEntity;
@@ -48,15 +56,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.http.MediaType;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Splitter;
-import com.google.common.collect.Lists;
-import com.google.common.net.InetAddresses;
-import com.google.common.net.InternetDomainName;
-import com.orbitz.consul.model.health.HealthCheck;
-import com.orbitz.consul.model.kv.Value;
-
-import com.vmturbo.api.dto.admin.HttpProxyDTO;
+import com.vmturbo.clustermgr.api.ClusterConfiguration;
+import com.vmturbo.clustermgr.api.ComponentInstanceInfo;
+import com.vmturbo.clustermgr.api.ComponentProperties;
+import com.vmturbo.clustermgr.api.HttpProxyConfig;
 import com.vmturbo.components.common.OsCommandProcessRunner;
 import com.vmturbo.components.common.utils.Strings;
 
@@ -1266,10 +1269,10 @@ public class ClusterMgrService {
      * Note: this method is synchronized because they are resources intensive operations, e.g.
      * the diagnostics file could be very big.
      * TODO: integration test
-     * @param httpProxyDTO value object with proxy settings
+     * @param httpProxyConfig value object with proxy settings
      * @return true if export is successful
      */
-    public synchronized boolean exportDiagnostics(final HttpProxyDTO httpProxyDTO) {
+    public synchronized boolean exportDiagnostics(final HttpProxyConfig httpProxyConfig) {
         // export the diags file to /home/turbonomic/data/turbonomic-diags-_xxx.zip
         // xxx is current system time epoch.
         final String fileName = String.format(HOME_TURBONOMIC_DATA_TURBO_FILE_ZIP,
@@ -1282,7 +1285,7 @@ public class ClusterMgrService {
             // curl -x 10.10.172.84:3128 -F ufile=@test.log  http://10.10.168.175/cgi-bin/vmturboupload.cgi
             try {
                 // this runner blocks until the process completes
-                osCommandProcessRunner.runOsCommandProcess(CURL_COMMAND, getCurlArgs(fileName, httpProxyDTO));
+                osCommandProcessRunner.runOsCommandProcess(CURL_COMMAND, getCurlArgs(fileName, httpProxyConfig));
                 // delete the file
                 if (diagsFile.delete()) {
                     log.debug("Successfully deleted diagnostic file: " + diagsFile.getName());
@@ -1330,7 +1333,7 @@ public class ClusterMgrService {
     // get curl command based on if proxy is available or not
     @VisibleForTesting
     String[] getCurlArgs(@Nonnull final String fileName,
-                         @Nonnull final HttpProxyDTO httpProxyDTO) {
+                         @Nonnull final HttpProxyConfig httpProxyDTO) {
         final List <String> argsList = Lists.newArrayList("-F", "ufile=@" + fileName,
             UPLOAD_VMTURBO_COM_URL);
         // it's mainly not writing proxy password to log file.
