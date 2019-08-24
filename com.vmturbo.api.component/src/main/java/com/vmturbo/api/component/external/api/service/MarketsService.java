@@ -7,7 +7,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -27,10 +26,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.CollectionUtils;
 
-import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
@@ -49,8 +46,6 @@ import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
@@ -150,8 +145,9 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * Service implementation of Markets.
@@ -209,9 +205,12 @@ public class MarketsService implements IMarketsService {
     private final ThinTargetCache thinTargetCache;
 
     // Exclude request for price index for commodities of real market not saved in DB
-    private final Set<Integer> notSavedEntityTypes = ImmutableSet.of(EntityDTO.EntityType.NETWORK.getValue(),
-            EntityDTO.EntityType.INTERNET.getValue(),
-            EntityDTO.EntityType.VIRTUAL_VOLUME.getValue());
+    private final Set<Integer> notSavedEntityTypes = ImmutableSet.of(
+        EntityType.NETWORK_VALUE,
+        EntityType.INTERNET_VALUE,
+        EntityType.VIRTUAL_VOLUME_VALUE,
+        EntityType.HYPERVISOR_SERVER_VALUE
+    );
 
     public MarketsService(@Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final UuidMapper uuidMapper,
@@ -437,50 +436,14 @@ public class MarketsService implements IMarketsService {
             serviceEntityApiDTOs = repositoryApi.entitiesRequest(Collections.emptySet())
                 .allowGetAll()
                 .getSEList();
-
-            // Reading the price indices for the entities of real market
-            final Multimap<Integer, Long> entityTypesToOids = ArrayListMultimap.create();
-            for (ServiceEntityApiDTO entityDTO : serviceEntityApiDTOs) {
-                entityTypesToOids.put(UIEntityType.fromString(entityDTO.getClassName()).typeNumber(),
-                    Long.parseLong(entityDTO.getUuid()));
-            }
-
-            final List<EntityStats> entityStats = new ArrayList<>();
-            for (Entry<Integer, Long> entry : entityTypesToOids.entries()) {
-                if (notSavedEntityTypes.contains(entry.getKey())) {
-                    continue;
-                }
-                String cursor = "0";
-                do {
-                    final GetEntityStatsResponse entityStatsResponse =
-                        statsHistory.getEntityStats(
-                            GetEntityStatsRequest.newBuilder()
-                                .setScope(
-                                    EntityStatsScope.newBuilder()
-                                        .setEntityList(EntityList.newBuilder().addAllEntities(entityTypesToOids.get(entry.getKey()))).build())
-                                .setFilter(
-                                    StatsFilter.newBuilder()
-                                        .addCommodityRequests(
-                                            CommodityRequest.newBuilder()
-                                                .setCommodityName(EntitiesService.PRICE_INDEX_COMMODITY).build())
-                                        .build())
-                                .setPaginationParams(PaginationParameters.newBuilder()
-                                    .setCursor(cursor))
-                                .build());
-                    cursor = entityStatsResponse.getPaginationResponse().getNextCursor();
-                    entityStats.addAll(entityStatsResponse.getEntityStatsList());
-                } while (!StringUtils.isEmpty(cursor));
-
-            }
-
-            for (EntityStats stat : entityStats) {
+            final List<EntityStats> priceIndexStats = fetchPriceIndexStats(serviceEntityApiDTOs);
+            for (EntityStats stat : priceIndexStats) {
                 if (stat.getStatSnapshotsCount() > 0) {
                     long oid = stat.getOid();
                     float priceIndex = stat.getStatSnapshots(0).getStatRecords(0).getUsed().getMax();
                     idsToPriceIndices.put(oid, priceIndex);
                 }
             }
-
         } else {
             OptionalPlanInstance planResponse = planRpcService.getPlan(PlanId.newBuilder()
                     .setPlanId(Long.valueOf(uuid))
@@ -530,7 +493,7 @@ public class MarketsService implements IMarketsService {
                     idsToPriceIndices.put(oid, priceIndex);
                 }
             }
-       }
+        }
 
         List<Long> entities = new ArrayList<>();
         for (ServiceEntityApiDTO serviceEntityApiDTO : serviceEntityApiDTOs) {
@@ -550,6 +513,55 @@ public class MarketsService implements IMarketsService {
         }
 
         return setPriceIndexAndSeverity(serviceEntityApiDTOs, idsToPriceIndices, idsToSeverities);
+    }
+
+    /**
+     * Fetch the priceIndex stats for the given list of entities. If an entity doesn't have
+     * priceIndex or error when fetching stats in history component, it will not be included in the
+     * result.
+     *
+     * @param serviceEntityApiDTOs the list of entities to get priceIndex stats for
+     * @return list of priceIndex stats in the form of EntityStats
+     */
+    private List<EntityStats> fetchPriceIndexStats(@Nonnull List<ServiceEntityApiDTO> serviceEntityApiDTOs) {
+        // grouping entities by entity type, so it can get pagination stats for each type of
+        // entities, note: we don't support pagination across entity types for now
+        final Map<Integer, Set<Long>> entityTypesToOids = serviceEntityApiDTOs.stream()
+            .collect(Collectors.groupingBy(se ->
+                    UIEntityType.fromString(se.getClassName()).typeNumber(),
+                Collectors.mapping(s -> Long.parseLong(s.getUuid()), Collectors.toSet())));
+        // fetch price index stats of real market from history component
+        final List<EntityStats> entityStats = new ArrayList<>();
+        entityTypesToOids.entrySet().stream()
+            // filter out entities which don't have price index
+            .filter(entry -> !notSavedEntityTypes.contains(entry.getKey()))
+            .forEach(entry -> {
+                try {
+                    // build scope and filter outside while loop, since only cursor changes
+                    GetEntityStatsRequest.Builder request = GetEntityStatsRequest.newBuilder()
+                        .setScope(EntityStatsScope.newBuilder()
+                            .setEntityList(EntityList.newBuilder()
+                                .addAllEntities(entry.getValue())))
+                        .setFilter(StatsFilter.newBuilder()
+                            .addCommodityRequests(CommodityRequest.newBuilder()
+                                .setCommodityName(
+                                    EntitiesService.PRICE_INDEX_COMMODITY)));
+                    String cursor = "";
+                    do {
+                        final GetEntityStatsResponse entityStatsResponse =
+                            statsHistory.getEntityStats(request.setPaginationParams(
+                                PaginationParameters.newBuilder()
+                                    .setCursor(cursor))
+                                .build());
+                        cursor = entityStatsResponse.getPaginationResponse().getNextCursor();
+                        entityStats.addAll(entityStatsResponse.getEntityStatsList());
+                    } while (!StringUtils.isEmpty(cursor));
+                } catch (StatusRuntimeException e) {
+                    logger.error("Error while fetching priceIndex for entities {} of type {}: ",
+                        entry.getValue(), UIEntityType.fromType(entry.getKey()).apiStr(), e);
+                }
+            });
+        return entityStats;
     }
 
     /**

@@ -5,6 +5,8 @@ import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -73,11 +75,11 @@ import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.controller.MarketsController;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
@@ -123,9 +125,11 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositorySe
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Unit test for {@link MarketsService}.
@@ -338,15 +342,34 @@ public class MarketsServiceTest {
      */
     @Test
     public void testRetrieveTopologyEntities() throws Exception {
-
         final MarketsService marketService = testConfig.marketsService();
+        final RepositoryApi repositoryApi = testConfig.repositoryApi();
 
         ApiTestUtils.mockRealtimeId("Market", REALTIME_PLAN_ID, testConfig.uuidMapper());
 
+        final List<ServiceEntityApiDTO> seList = new ArrayList<>();
+        ServiceEntityApiDTO se1 = new ServiceEntityApiDTO();
+        se1.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        se1.setUuid("1");
+        ServiceEntityApiDTO se2 = new ServiceEntityApiDTO();
+        se2.setClassName(UIEntityType.PHYSICAL_MACHINE.apiStr());
+        se2.setUuid("2");
+        ServiceEntityApiDTO se3 = new ServiceEntityApiDTO();
+        se3.setClassName(UIEntityType.PHYSICAL_MACHINE.apiStr());
+        se3.setUuid("3");
+        seList.add(se1);
+        seList.add(se2);
+        seList.add(se3);
+        MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(seList);
+        when(repositoryApi.entitiesRequest(any())).thenReturn(req);
+
+        // act
         marketService.getEntitiesByMarketUuid("Market");
 
-        Mockito.verify(testConfig.repositoryApi()).entitiesRequest(any());
-
+        // verify
+        Mockito.verify(repositoryApi).entitiesRequest(any());
+        // check it fires stats request twice, one for VM, the other one for PM
+        verify(testConfig.statsHistoryService(), times(2)).getEntityStats(any());
     }
 
     /**
@@ -587,10 +610,16 @@ public class MarketsServiceTest {
         }
 
         @Bean
+        public StatsHistoryServiceMole statsHistoryService() {
+            return spy(new StatsHistoryServiceMole());
+        }
+
+        @Bean
         public GrpcTestServer grpcTestServer() {
             try {
-                final GrpcTestServer testServer = GrpcTestServer.newServer(planService(), entitySeverityService(),
-                        groupService(), settingServiceMole(), repositoryService());
+                final GrpcTestServer testServer = GrpcTestServer.newServer(planService(),
+                    entitySeverityService(), groupService(), settingServiceMole(),
+                    repositoryService(), statsHistoryService());
                 testServer.start();
                 return testServer;
             } catch (IOException e) {
