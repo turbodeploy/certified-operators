@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
 import org.apache.logging.log4j.LogManager;
@@ -31,6 +32,7 @@ import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ComputeTierData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
@@ -43,6 +45,23 @@ public class CostDTOCreator {
         this.commodityConverter = commodityConverter;
         this.marketPriceTable = marketPriceTable;
     }
+
+    // A mapping between the os type indicated by the license access commodity key which is the
+    // "name" field of com.vmturbo.mediation.hybrid.cloud.utils#OSType and the CloudCostDTO.OSType.
+    public static ImmutableMap<String, CloudCostDTO.OSType> OSTypeMapping = ImmutableMap.<String, CloudCostDTO.OSType>builder()
+            .put("Linux", CloudCostDTO.OSType.LINUX)
+            .put("RHEL", CloudCostDTO.OSType.RHEL)
+            .put("SUSE", CloudCostDTO.OSType.SUSE)
+            .put("UNKNOWN", CloudCostDTO.OSType.UNKNOWN_OS)
+            .put("Windows", CloudCostDTO.OSType.WINDOWS)
+            .put("Windows_SQL_Standard", CloudCostDTO.OSType.WINDOWS_WITH_SQL_STANDARD)
+            .put("Windows_SQL_Web", CloudCostDTO.OSType.WINDOWS_WITH_SQL_WEB)
+            .put("Windows_SQL_Server_Enterprise", CloudCostDTO.OSType.WINDOWS_WITH_SQL_ENTERPRISE)
+            .put("Windows_Bring_your_own_license", CloudCostDTO.OSType.WINDOWS_BYOL)
+            .put("Linux_SQL_Server_Enterprise", OSType.LINUX_WITH_SQL_ENTERPRISE)
+            .put("Linux_SQL_Standard", CloudCostDTO.OSType.LINUX_WITH_SQL_STANDARD)
+            .put("Linux_SQL_Web", CloudCostDTO.OSType.LINUX_WITH_SQL_WEB)
+            .build();
 
     /**
      * Create CostDTO for a given tier and region based traderDTO.
@@ -72,7 +91,7 @@ public class CostDTOCreator {
      */
     public CostDTO createComputeTierCostDTO(TopologyEntityDTO tier, TopologyEntityDTO region, Set<TopologyEntityDTO> businessAccountDTOs) {
         ComputeTierCostDTO.Builder computeTierDTOBuilder = ComputeTierCostDTO.newBuilder();
-        ComputePriceBundle priceBundle = marketPriceTable.getComputePriceBundle(tier, region.getOid());
+        ComputePriceBundle priceBundle = marketPriceTable.getComputePriceBundle(tier.getOid(), region.getOid());
         if (priceBundle == null) {
             logger.warn("Failed to get pricing information for tier {} on region {}",
                     tier.getDisplayName(), region.getDisplayName());
@@ -96,7 +115,7 @@ public class CostDTOCreator {
             for (CommodityType licenseCommodity : licenseCommoditySet) {
                 double price = Double.POSITIVE_INFINITY;
                 if (pricesForBa != null) {
-                    OSType osType = MarketPriceTable.OS_TYPE_MAP.get(licenseCommodity.getKey());
+                    OSType osType = OSTypeMapping.get(licenseCommodity.getKey());
                     if (osType != null) {
                         ComputePrice computePrice = pricesForBa.get(osType);
                         if (computePrice != null) {

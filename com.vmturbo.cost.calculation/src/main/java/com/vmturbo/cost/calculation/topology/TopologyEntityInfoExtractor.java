@@ -81,7 +81,7 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
             return Optional.empty();
         }
         final ComputeTierInfo tierInfo = entity.getTypeSpecificInfo().getComputeTier();
-        return Optional.of(new ComputeTierConfig(tierInfo.getNumCoupons(), tierInfo.getNumCores()));
+        return Optional.of(new ComputeTierConfig(tierInfo.getNumCoupons()));
     }
 
     @Override

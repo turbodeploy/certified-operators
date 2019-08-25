@@ -14,7 +14,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
@@ -26,7 +25,6 @@ import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
-import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceByOsEntry;
 import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceByOsEntry.LicensePrice;
 
@@ -78,27 +76,6 @@ public interface CloudCostDataProvider {
         private final Map<OSType, Map<Integer, Optional<LicensePrice>>>
                     licensePriceByOsTypeByNumCores = Maps.newHashMap();
 
-        /**
-         * This map specifies which is the base OS for each OS type.
-         * It is used for license price calculation in case that the OS doesn't have an entry in the
-         * price adjustment list (in which case we will search for the base OSs price adjustment.
-         */
-        public static final Map<OSType, Optional<OSType>> OS_TO_BASE_OS = ImmutableMap.<OSType, Optional<OSType>>builder()
-            .put(OSType.UNKNOWN_OS, Optional.empty())
-            .put(OSType.LINUX, Optional.empty())
-            .put(OSType.WINDOWS, Optional.empty())
-            .put(OSType.WINDOWS_BYOL, Optional.empty())
-            .put(OSType.SUSE, Optional.of(OSType.LINUX))
-            .put(OSType.RHEL, Optional.of(OSType.LINUX))
-            .put(OSType.LINUX_WITH_SQL_ENTERPRISE, Optional.of(OSType.LINUX))
-            .put(OSType.LINUX_WITH_SQL_STANDARD, Optional.of(OSType.LINUX))
-            .put(OSType.LINUX_WITH_SQL_WEB, Optional.of(OSType.LINUX))
-            .put(OSType.WINDOWS_SERVER, Optional.of(OSType.WINDOWS))
-            .put(OSType.WINDOWS_SERVER_BURST, Optional.of(OSType.WINDOWS))
-            .put(OSType.WINDOWS_WITH_SQL_ENTERPRISE, Optional.of(OSType.WINDOWS))
-            .put(OSType.WINDOWS_WITH_SQL_STANDARD, Optional.of(OSType.WINDOWS))
-            .put(OSType.WINDOWS_WITH_SQL_WEB, Optional.of(OSType.WINDOWS)).build();
-
         public CloudCostData(@Nonnull final PriceTable priceTable,
                              @Nonnull final Map<Long, Discount> discountsByAccount,
                              @Nonnull final Map<Long, EntityReservedInstanceCoverage> riCoverageByEntityId,
@@ -144,7 +121,7 @@ public interface CloudCostDataProvider {
          * @param numCores VM number of CPUs
          * @return the matching license price
          */
-        private Optional<LicensePrice> getExplicitLicensePrice(OSType os, int numCores) {
+        public Optional<LicensePrice> getLicensePrice(OSType os, int numCores) {
             List<LicensePrice> prices = licensePrices.get(os);
             if (prices == null) {
                 return Optional.empty();
@@ -153,90 +130,8 @@ public interface CloudCostDataProvider {
             Map<Integer, Optional<LicensePrice>> perOsEntry =
                 licensePriceByOsTypeByNumCores.computeIfAbsent(os, key -> Maps.newHashMap());
             return perOsEntry.computeIfAbsent(numCores, n -> prices.stream()
-                .filter(license -> license.getNumberOfCores() >= n)
-                .min(Comparator.comparing(LicensePrice::getNumberOfCores)));
-        }
-
-        /**
-         * <p>Return the license price that matches the OS for a specific template.
-         *
-         * <p>The license price can be constructed in 3 different ways:
-         * <p>1) Price adjustment only (explicit price).
-         * <ul>
-         *  <li>e.g: In Azure, when the OS is Windows.
-         *  <li>In AWS, all OSs besides the base OS.
-         * </ul>
-         * <p>2) License price only (implicit price)
-         * <ul>
-         * <li>e.g: The OS is based on Linux (such as RHEL).
-         * <li>RHEL doesn't have an entry in the price adjustment lists in Azure templates.
-         * <li>Since RHEL is based on Linux (which is the base OS) we will not find a
-         * <li>price adjustments for Linux, so we'll consider only the price from
-         * <li>Price Table's LicensePrices list.
-         * </ul>
-         * <p>3) Price adjustment + license price (from the Price Table's LicensePrices list)
-         * <ul>
-         *  <li>e.g: The OS is based on Windows (such as Windows SQL Enterprise).
-         *  <li>Windows SQL Enterprise doesn't have an entry in the price adjustment lists in
-         *  <li>Azure templates.
-         *  <li>The price is the sum of:
-         *  <ul>
-         *      <li>- Windows price taken from the price adjustment.
-         *      <li>- Windows SQL Enterprise price taken from the Price Table's LicensePrices list.
-         *  </ul>
-         * </ul>
-         *
-         * @param os the OS for which we want to get the price of for the template
-         * @param numOfCores the number of cores of that template
-         * @param computePriceList all compute prices for this specific template
-         * @return the matching license price
-         */
-        @Nonnull
-        public LicensePriceTuple getLicensePriceForOS(OSType os,
-                                                      int numOfCores,
-                                                      ComputeTierPriceList computePriceList) {
-            LicensePriceTuple licensePrice = new LicensePriceTuple();
-
-            // calculate the implicit price by getting the price adjustment of the current OS.
-            // if not present, get the price adjustment for the base OS.
-            // the current OS is the same as the base OS, no need to add explicit price
-            if (os != computePriceList.getBasePrice().getGuestOsType()) {
-                licensePrice.setImplicitLicensePrice(
-                    getOsPriceAdjustment(os, computePriceList)
-                        .map(computeTierConfigPrice -> computeTierConfigPrice.getPricesList()
-                            .get(0).getPriceAmount().getAmount())
-                        .orElseGet(() ->
-                            OS_TO_BASE_OS.get(os)
-                                .map(baseOS -> getOsPriceAdjustment(baseOS, computePriceList)
-                                    .map(baseComputeTierConfigPrice ->
-                                        baseComputeTierConfigPrice.getPricesList().get(0)
-                                            .getPriceAmount().getAmount())
-                                    .orElse(0.0))
-                                .orElse(0.0)));
-            }
-
-            // add the price of the license itself as the explicit price
-            getExplicitLicensePrice(os, numOfCores)
-                .ifPresent(licenseExplicitPrice -> licensePrice
-                    .setExplicitLicensePrice(licenseExplicitPrice.getPrice()
-                        .getPriceAmount().getAmount()));
-
-            return licensePrice;
-        }
-
-        /**
-         * This method gets the price adjustment of the given OS from ComputeTierPriceList,
-         * and if exists, sets it as implicit LicensePrice.
-         * @param os The OS for which we want to get the price
-         * @param computePriceList all compute prices for this specific template
-         * @return the relevant price adjustment
-         */
-        private Optional<ComputeTierPriceList.ComputeTierConfigPrice> getOsPriceAdjustment(OSType os,
-                                                    ComputeTierPriceList computePriceList) {
-            return computePriceList.getPerConfigurationPriceAdjustmentsList()
-                .stream()
-                .filter(computeTierConfigPrice -> computeTierConfigPrice.getGuestOsType() == os)
-                .findAny();
+                    .filter(license -> license.getNumberOfCores() >= n)
+                    .min(Comparator.comparing(LicensePrice::getNumberOfCores)));
         }
 
         @Nonnull
@@ -358,64 +253,6 @@ public interface CloudCostDataProvider {
 
         public CloudCostDataRetrievalException(@Nonnull final Throwable cause) {
             super(cause);
-        }
-    }
-
-    /**
-     * This class represents a tuple of 2 types of license prices:
-     * Implicit price: a calculated license price
-     * Explicit price: a catalog license price
-     * A license price can be constructed of either just one of the above, or both.
-     */
-    class LicensePriceTuple {
-
-        public static final double NO_LICENSE_PRICE = 0.0d;
-
-        /**
-         * a calculated license price
-         */
-        private double implicitLicensePrice;
-
-        /**
-         * a catalog license price
-         */
-        private double explicitLicensePrice;
-
-        public LicensePriceTuple() {
-            implicitLicensePrice = NO_LICENSE_PRICE;
-            explicitLicensePrice = NO_LICENSE_PRICE;
-        }
-
-        /**
-         * Get the implicit license price
-         * @return the implicit license price of the tier
-         */
-        public double getImplicitLicensePrice() {
-            return implicitLicensePrice;
-        }
-
-        /**
-         * Get the explicit license price
-         * @return the explicit license price of the tier
-         */
-        public double getExplicitLicensePrice() {
-            return explicitLicensePrice;
-        }
-
-        /**
-         * Set the implicit license price
-         * @param implicitPrice the implicit license price (template specific)
-         */
-        public void setImplicitLicensePrice(double implicitPrice) {
-            implicitLicensePrice = implicitPrice;
-        }
-
-        /**
-         * Set the explicit license price
-         * @param explicitPrice the explicit license price (based on number of cores)
-         */
-        public void setExplicitLicensePrice(double explicitPrice) {
-            explicitLicensePrice = explicitPrice;
         }
     }
 }

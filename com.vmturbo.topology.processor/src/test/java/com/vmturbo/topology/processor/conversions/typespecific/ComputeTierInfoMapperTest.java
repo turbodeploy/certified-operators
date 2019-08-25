@@ -19,7 +19,6 @@ public class ComputeTierInfoMapperTest {
 
     public static final String FAMILY = "FAMILY";
     private static final int NUM_COUPONS = 42;
-    private static final int NUM_CORES = 64;
 
     @Test
     public void testExtractTypeSpecificInfo() {
@@ -29,14 +28,12 @@ public class ComputeTierInfoMapperTest {
                         .setFamily(FAMILY)
                         .setDedicatedStorageNetworkState(DedicatedStorageNetworkState.CONFIGURED_ENABLED)
                         .setNumCoupons(NUM_COUPONS)
-                        .setNumCores(NUM_CORES)
                         .build());
         TypeSpecificInfo expected = TypeSpecificInfo.newBuilder()
                 .setComputeTier(ComputeTierInfo.newBuilder()
                         .setFamily(FAMILY)
                         .setDedicatedStorageNetworkState(DedicatedStorageNetworkState.CONFIGURED_ENABLED)
                         .setNumCoupons(NUM_COUPONS)
-                        .setNumCores(NUM_CORES)
                         .build())
                 .build();
         final ComputeTierInfoMapper testBuilder = new ComputeTierInfoMapper();

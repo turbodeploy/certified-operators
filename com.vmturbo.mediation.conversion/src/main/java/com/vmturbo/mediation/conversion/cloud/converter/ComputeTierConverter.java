@@ -49,7 +49,6 @@ public class ComputeTierConverter implements IEntityConverter {
                 .setFamily(vmProfileDTO.getFamily())
                 .setDedicatedStorageNetworkState(vmProfileDTO.getDedicatedStorageNetworkState())
                 .setNumCoupons(vmProfileDTO.getNumberOfCoupons())
-                .setNumCores(vmProfileDTO.getNumVCPUs())
                 .build());
 
         // connect CT to Region, based on license

@@ -233,23 +233,12 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
          */
         private final int numCoupons;
 
-        /**
-         * The number of cores of this compute tier.
-         * See: {@link ComputeTierInfo#getNumCores()}
-         */
-        private final int numCores;
-
-        public ComputeTierConfig(final int numCoupons, final int numCores) {
+        public ComputeTierConfig(final int numCoupons) {
             this.numCoupons = numCoupons;
-            this.numCores = numCores;
         }
 
         public int getNumCoupons() {
             return numCoupons;
-        }
-
-        public int getNumCores() {
-            return numCores;
         }
     }
 

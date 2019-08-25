@@ -46,17 +46,7 @@ public class ReservedInstanceApplicatorTest {
     private ReservedInstanceApplicatorFactory<TestEntityClass> applicatorFactory =
             ReservedInstanceApplicator.newFactory();
 
-    private static final int ENTITY_ID = 7;
-
-    private static final int COMPUTE_TIER_ID = 17;
-
     private static final long RI_ID = 77;
-
-    private static final double FULL_COVERAGE_PERCENTAGE = 1.0;
-    private static final double NO_COVERAGE_PERCENTAGE = 0.0;
-
-    // the number of cores is set to 0 because it doesn't affect this test
-    private static final int DEFAULT_CORE_NUM = 0;
 
     private static final long RI_SPEC_ID = 777;
 
@@ -77,7 +67,7 @@ public class ReservedInstanceApplicatorTest {
                             .setUsageCostPerHour(CurrencyAmount.newBuilder()
                                     .setAmount(10)))
                     .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
-                            .setNumberOfCoupons(TOTAL_COUPONS_REQUIRED)))
+                            .setNumberOfCoupons(10)))
             .build();
 
     private static final ReservedInstanceSpec RI_SPEC = ReservedInstanceSpec.newBuilder()
@@ -90,13 +80,13 @@ public class ReservedInstanceApplicatorTest {
     @Test
     public void testApplyRi() {
         Map<Long, EntityReservedInstanceCoverage> topologyRiCoverage = new HashMap<>();
-        final TestEntityClass entity = TestEntityClass.newBuilder(ENTITY_ID)
+        final TestEntityClass entity = TestEntityClass.newBuilder(7)
                 .build(infoExtractor);
         topologyRiCoverage.put(entity.getId(), EntityReservedInstanceCoverage.newBuilder()
                 .putCouponsCoveredByRi(RI_ID, 5.0)
                 .build());
-        final TestEntityClass computeTier = TestEntityClass.newBuilder(COMPUTE_TIER_ID)
-                .setComputeTierConfig(new ComputeTierConfig(TOTAL_COUPONS_REQUIRED, DEFAULT_CORE_NUM))
+        final TestEntityClass computeTier = TestEntityClass.newBuilder(17)
+                .setComputeTierConfig(new ComputeTierConfig(TOTAL_COUPONS_REQUIRED))
                 .build(infoExtractor);
         final ReservedInstanceApplicator<TestEntityClass> applicator =
             applicatorFactory.newReservedInstanceApplicator(costJournal, infoExtractor,
@@ -123,13 +113,13 @@ public class ReservedInstanceApplicatorTest {
     @Test
     public void testApplyRiCoverageMoreThanRequired() {
         Map<Long, EntityReservedInstanceCoverage> topologyRiCoverage = new HashMap<>();
-        final TestEntityClass entity = TestEntityClass.newBuilder(ENTITY_ID)
+        final TestEntityClass entity = TestEntityClass.newBuilder(7)
                 .build(infoExtractor);
         topologyRiCoverage.put(entity.getId(), EntityReservedInstanceCoverage.newBuilder()
                 .putCouponsCoveredByRi(RI_ID, 100)
                 .build());
-        final TestEntityClass computeTier = TestEntityClass.newBuilder(COMPUTE_TIER_ID)
-                .setComputeTierConfig(new ComputeTierConfig(TOTAL_COUPONS_REQUIRED, DEFAULT_CORE_NUM))
+        final TestEntityClass computeTier = TestEntityClass.newBuilder(17)
+                .setComputeTierConfig(new ComputeTierConfig(10))
                 .build(infoExtractor);
         final ReservedInstanceApplicator<TestEntityClass> applicator =
                 applicatorFactory.newReservedInstanceApplicator(costJournal, infoExtractor,
@@ -141,7 +131,7 @@ public class ReservedInstanceApplicatorTest {
         when(cloudCostData.getExistingRiBoughtData(RI_ID)).thenReturn(Optional.of(riData));
 
         double coveredPercentage = applicator.recordRICoverage(computeTier);
-        assertThat(coveredPercentage, is(FULL_COVERAGE_PERCENTAGE));
+        assertThat(coveredPercentage, is(1.0));
 
         final ArgumentCaptor<CurrencyAmount> amountCaptor = ArgumentCaptor.forClass(CurrencyAmount.class);
         verify(costJournal).recordRiCost(eq(riData), eq(100.0), amountCaptor.capture());
@@ -160,14 +150,14 @@ public class ReservedInstanceApplicatorTest {
         final ReservedInstanceApplicator<TestEntityClass> applicator =
                 applicatorFactory.newReservedInstanceApplicator(costJournal, infoExtractor,
                         cloudCostData, topologyRiCoverage);
-        final TestEntityClass entity = TestEntityClass.newBuilder(ENTITY_ID)
+        final TestEntityClass entity = TestEntityClass.newBuilder(7)
                 .build(infoExtractor);
-        final TestEntityClass computeTier = TestEntityClass.newBuilder(COMPUTE_TIER_ID)
-                .setComputeTierConfig(new ComputeTierConfig(TOTAL_COUPONS_REQUIRED, DEFAULT_CORE_NUM))
+        final TestEntityClass computeTier = TestEntityClass.newBuilder(17)
+                .setComputeTierConfig(new ComputeTierConfig(10))
                 .build(infoExtractor);
         when(costJournal.getEntity()).thenReturn(entity);
         double coveredPercentage = applicator.recordRICoverage(computeTier);
-        assertThat(coveredPercentage, is(NO_COVERAGE_PERCENTAGE));
+        assertThat(coveredPercentage, is(0.0));
         verify(costJournal, never()).recordRiCost(any(), anyLong(), any());
     }
 
@@ -177,24 +167,24 @@ public class ReservedInstanceApplicatorTest {
         final ReservedInstanceApplicator<TestEntityClass> applicator =
                 applicatorFactory.newReservedInstanceApplicator(costJournal, infoExtractor,
                         cloudCostData, topologyRiCoverage);
-        final TestEntityClass entity = TestEntityClass.newBuilder(ENTITY_ID)
+        final TestEntityClass entity = TestEntityClass.newBuilder(7)
                 .build(infoExtractor);
-        final TestEntityClass computeTier = TestEntityClass.newBuilder(COMPUTE_TIER_ID)
+        final TestEntityClass computeTier = TestEntityClass.newBuilder(17)
                 // 0 coupons required - this would mainly happens if the coupon number is not set
                 // in the topology.
-                .setComputeTierConfig(new ComputeTierConfig(0, DEFAULT_CORE_NUM))
+                .setComputeTierConfig(new ComputeTierConfig(0))
                 .build(infoExtractor);
         when(costJournal.getEntity()).thenReturn(entity);
 
         double coveredPercentage = applicator.recordRICoverage(computeTier);
-        assertThat(coveredPercentage, is(NO_COVERAGE_PERCENTAGE));
+        assertThat(coveredPercentage, is(0.0));
         verify(costJournal, never()).recordRiCost(any(), anyLong(), any());
     }
 
     @Test
     public void testApplyRiNoRiData() {
         Map<Long, EntityReservedInstanceCoverage> topologyRiCoverage = new HashMap<>();
-        final TestEntityClass entity = TestEntityClass.newBuilder(ENTITY_ID)
+        final TestEntityClass entity = TestEntityClass.newBuilder(7)
                 .build(infoExtractor);
         topologyRiCoverage.put(entity.getId(), EntityReservedInstanceCoverage.newBuilder()
                 .putCouponsCoveredByRi(RI_ID, 5.0)
@@ -202,15 +192,15 @@ public class ReservedInstanceApplicatorTest {
         final ReservedInstanceApplicator<TestEntityClass> applicator =
                 applicatorFactory.newReservedInstanceApplicator(costJournal, infoExtractor,
                         cloudCostData, topologyRiCoverage);
-        final TestEntityClass computeTier = TestEntityClass.newBuilder(COMPUTE_TIER_ID)
-                .setComputeTierConfig(new ComputeTierConfig(TOTAL_COUPONS_REQUIRED, DEFAULT_CORE_NUM))
+        final TestEntityClass computeTier = TestEntityClass.newBuilder(17)
+                .setComputeTierConfig(new ComputeTierConfig(10))
                 .build(infoExtractor);
 
         when(costJournal.getEntity()).thenReturn(entity);
         when(cloudCostData.getExistingRiBoughtData(RI_ID)).thenReturn(Optional.empty());
 
         double coveredPercentage = applicator.recordRICoverage(computeTier);
-        assertThat(coveredPercentage, is(NO_COVERAGE_PERCENTAGE));
+        assertThat(coveredPercentage, is(0.0));
         verify(costJournal, never()).recordRiCost(any(), anyLong(), any());
     }
 }
