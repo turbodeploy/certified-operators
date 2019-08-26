@@ -2,8 +2,6 @@ package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.component.external.api.util.ApiUtils.isGlobalScope;
 
-import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -33,44 +31,27 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
-import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
-import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
-import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
-import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
-import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
-import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
-import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IReservedInstancesService;
-import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
-import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
-import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
-import com.vmturbo.common.protobuf.cost.Cost.EntityTypeFilter;
-import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
-import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
@@ -78,15 +59,10 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class ReservedInstancesService implements IReservedInstancesService {
-
-    private final Logger logger = LogManager.getLogger();
 
     private final ReservedInstanceBoughtServiceBlockingStub reservedInstanceService;
 
@@ -166,12 +142,14 @@ public class ReservedInstancesService implements IReservedInstancesService {
     public EntityStatsPaginationResponse getReservedInstancesStats(
                            @Nonnull StatScopesApiInputDTO inputDto,
                            final EntityStatsPaginationRequest paginationRequest) throws Exception {
-        if (!isValidInputArgument(inputDto)) {
-            throw new InvalidOperationException("Input dto data is not supported: " + inputDto);
-        }
+        validateArgument(inputDto);
+
         //TODO: support multiple scopes.
         final ApiId scope = uuidMapper.fromUuid(inputDto.getScopes().get(0));
-
+        if (!scope.isRealtimeMarket() && !scope.isGroup() && !scope.isEntity() && !scope.isTarget()) {
+            throw new UnknownObjectException(
+                "Object with id " + inputDto.getScopes().get(0) + " does not exist");
+        }
         final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
         entityStatsApiDTO.setUuid(scope.uuid());
         entityStatsApiDTO.setDisplayName(scope.getDisplayName());
@@ -274,30 +252,58 @@ public class ReservedInstancesService implements IReservedInstancesService {
     }
 
     /**
-     * Check if input dto is invalid or not.
+     * Checks if input dto is invalid or not. In case the input is invalid, throws an exception.
      *
      * @param inputDto {@link StatScopesApiInputDTO}.
-     * @return a true if it is valid, otherwise return false;
+     * @throws InvalidOperationException if the input has no scope or {@code "period"} field
      */
-    private boolean isValidInputArgument( @Nonnull StatScopesApiInputDTO inputDto) {
-        if (inputDto.getScopes() != null && inputDto.getScopes().size() > 0
-                && inputDto.getPeriod() != null && inputDto.getPeriod().getStatistics() != null) {
-            final List<StatApiInputDTO> statApiInputDTOS = inputDto.getPeriod().getStatistics();
-            if (statApiInputDTOS.size() == 1
-                    && statApiInputDTOS.get(0).getName().equals(StringConstants.NUM_RI)
-                    && statApiInputDTOS.get(0).getGroupBy() != null
-                    && statApiInputDTOS.get(0).getGroupBy().size() == 1
-                    && statApiInputDTOS.get(0).getGroupBy().get(0).equals(StringConstants.TEMPLATE)) {
-                return true;
-            }
-            if (statApiInputDTOS.size() == 1 &&
-                (statApiInputDTOS.get(0).getName().equals(StringConstants.RI_COUPON_UTILIZATION) ||
-                    statApiInputDTOS.get(0).getName().equals(StringConstants.RI_COUPON_COVERAGE) ||
-                    statApiInputDTOS.get(0).getName().equals(StringConstants.RI_COST))) {
-                return true;
-            }
+    private void validateArgument(@Nonnull StatScopesApiInputDTO inputDto)
+            throws InvalidOperationException {
+        // scope of the query should be defined
+        if (inputDto.getScopes() == null || inputDto.getScopes().isEmpty()) {
+            throw new InvalidOperationException("Input query does not specify a scope");
         }
-        return false;
+
+        // the query must inquire about exactly one statistic
+        if (inputDto.getPeriod() == null
+                || inputDto.getPeriod().getStatistics() == null
+                || inputDto.getPeriod().getStatistics().isEmpty()) {
+            throw new InvalidOperationException("Input query does not specify statistics");
+        }
+        if (inputDto.getPeriod().getStatistics().size() > 1) {
+            throw new InvalidOperationException("Input query specifies too many statistics");
+        }
+
+        // there should be a valid statistic requested
+        final StatApiInputDTO statApiInputDTO = inputDto.getPeriod().getStatistics().get(0);
+        if (statApiInputDTO.getName() == null) {
+            throw new InvalidOperationException("Missing requested statistic name");
+        }
+
+        // go through all statistics that can be requested and validate each case
+        switch (statApiInputDTO.getName()) {
+            case StringConstants.NUM_RI:
+                // this statistic should be grouped by template
+                if (statApiInputDTO.getGroupBy() == null || statApiInputDTO.getGroupBy().isEmpty()) {
+                    // add default grouping by template
+                    statApiInputDTO.setGroupBy(Collections.singletonList(StringConstants.TEMPLATE));
+                } else if (statApiInputDTO.getGroupBy().size() > 1
+                              || !statApiInputDTO.getGroupBy().get(0).equals(StringConstants.TEMPLATE)) {
+                    throw new InvalidOperationException("This query should be grouped by template");
+                }
+                return;
+
+            // these statistics are valid
+            case StringConstants.RI_COUPON_UTILIZATION:
+            case StringConstants.RI_COUPON_COVERAGE:
+            case StringConstants.RI_COST:
+                return;
+
+            default:
+                // this statistic is invalid / unknown
+                throw new InvalidOperationException(
+                    "Invalid statistic " + statApiInputDTO.getName() + " requested");
+        }
     }
 
     /**
