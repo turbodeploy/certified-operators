@@ -111,6 +111,10 @@ message TypeSpecificInfo {
         // In our internal mode, we defined the coupon to be NFU * 4. For example, "nano" has a NFU
         // of 0.25, so its coupon size is 0.25 * 4 = 1.
         optional int32 num_coupons = 3;
+
+        // Specifies the number of cores that the tier has
+        // This is used for license price calculation (since not all templates are used by VMs)
+        optional int32 num_cores = 4;
     }
 
     message DatabaseInfo {

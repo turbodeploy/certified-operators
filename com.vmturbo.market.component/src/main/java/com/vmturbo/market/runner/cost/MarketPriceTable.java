@@ -29,11 +29,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePriceTuple;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
@@ -59,7 +62,9 @@ public class MarketPriceTable {
 
     private final CloudTopology<TopologyEntityDTO> cloudTopology;
 
-    public static ImmutableMap<DatabaseEngine, String> DB_ENGINE_MAP = ImmutableMap.<DatabaseEngine, String>builder()
+    private final EntityInfoExtractor<TopologyEntityDTO> entityInfoExtractor;
+
+    public static final Map<DatabaseEngine, String> DB_ENGINE_MAP = ImmutableMap.<DatabaseEngine, String>builder()
             .put(DatabaseEngine.AURORA, "Aurora")
             .put(DatabaseEngine.MARIADB, "MariaDb")
             .put(DatabaseEngine.MYSQL, "MySql")
@@ -68,7 +73,7 @@ public class MarketPriceTable {
             .put(DatabaseEngine.SQL_SERVER, "SqlServer")
             .put(DatabaseEngine.UNKNOWN, "Unknown").build();
 
-    public static ImmutableMap<DatabaseEdition, String> DB_EDITION_MAP = ImmutableMap.<DatabaseEdition, String>builder()
+    public static final Map<DatabaseEdition, String> DB_EDITION_MAP = ImmutableMap.<DatabaseEdition, String>builder()
             .put(DatabaseEdition.ORACLE_ENTERPRISE, "Enterprise")
             .put(DatabaseEdition.ORACLE_STANDARD, "Standard")
             .put(DatabaseEdition.ORACLE_STANDARD_1, "Standard One")
@@ -78,15 +83,33 @@ public class MarketPriceTable {
             .put(DatabaseEdition.SQL_SERVER_WEB, "Web")
             .put(DatabaseEdition.SQL_SERVER_EXPRESS, "Express").build();
 
-    public static ImmutableMap<DeploymentType, String> DEPLOYMENT_TYPE_MAP = ImmutableMap.<DeploymentType, String>builder()
+    public static final Map<DeploymentType, String> DEPLOYMENT_TYPE_MAP = ImmutableMap.<DeploymentType, String>builder()
             .put(DeploymentType.MULTI_AZ, "MultiAz")
             .put(DeploymentType.SINGLE_AZ, "SingleAz").build();
 
-    public static ImmutableMap<LicenseModel, String> LICENSE_MODEL_MAP = ImmutableMap.<LicenseModel, String>builder()
+    public static final Map<LicenseModel, String> LICENSE_MODEL_MAP = ImmutableMap.<LicenseModel, String>builder()
             .put(LicenseModel.BRING_YOUR_OWN_LICENSE, "BringYourOwnLicense")
             .put(LicenseModel.LICENSE_INCLUDED, "LicenseIncluded")
             .put(LicenseModel.NO_LICENSE_REQUIRED, "NoLicenseRequired").build();
 
+    /**
+     * A mapping between the OS string indicated by the license access commodity key
+     * and the corresponding {@link CloudCostDTO.OSType}.
+     */
+    public static final Map<String, OSType> OS_TYPE_MAP = ImmutableMap.<String, CloudCostDTO.OSType>builder()
+            .put("Linux", OSType.LINUX)
+            .put("RHEL", OSType.RHEL)
+            .put("SUSE", OSType.SUSE)
+            .put("UNKNOWN", OSType.UNKNOWN_OS)
+            .put("Windows", OSType.WINDOWS)
+            .put("Windows_SQL_Standard", OSType.WINDOWS_WITH_SQL_STANDARD)
+            .put("Windows_SQL_Web", OSType.WINDOWS_WITH_SQL_WEB)
+            .put("Windows_SQL_Server_Enterprise", OSType.WINDOWS_WITH_SQL_ENTERPRISE)
+            .put("Windows_Bring_your_own_license", OSType.WINDOWS_BYOL)
+            .put("Linux_SQL_Server_Enterprise", OSType.LINUX_WITH_SQL_ENTERPRISE)
+            .put("Linux_SQL_Standard", OSType.LINUX_WITH_SQL_STANDARD)
+            .put("Linux_SQL_Web", OSType.LINUX_WITH_SQL_WEB)
+            .build();
 
     /**
      * The {@link DiscountApplicator}s associated with each business account in the cloud topology.
@@ -99,6 +122,7 @@ public class MarketPriceTable {
                             @Nonnull final DiscountApplicatorFactory<TopologyEntityDTO> discountApplicatorFactory) {
         this.cloudCostData = Objects.requireNonNull(cloudCostData);
         this.cloudTopology = Objects.requireNonNull(cloudTopology);
+        this.entityInfoExtractor = Objects.requireNonNull(entityInfoExtractor);
         this.discountsByBusinessAccount = Collections.unmodifiableMap(cloudTopology.getEntities().values().stream()
             .filter(entity -> entity.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE)
             .map(TopologyEntityDTO::getOid)
@@ -111,7 +135,7 @@ public class MarketPriceTable {
      * Get the {@link ComputePriceBundle} listing the possible configuration and account-dependent
      * prices for a compute tier in a specific region.
      *
-     * @param tierId The ID of the compute tier.
+     * @param tier The compute tier.
      * @param regionId The ID of the region.
      * @return A {@link ComputePriceBundle} of the different configurations available for this tier
      *         and region in the topology the {@link MarketPriceTable} was constructed with. If
@@ -119,7 +143,8 @@ public class MarketPriceTable {
      *         bundle.
      */
     @Nonnull
-    public ComputePriceBundle getComputePriceBundle(final long tierId, final long regionId) {
+    public ComputePriceBundle getComputePriceBundle(final TopologyEntityDTO tier, final long regionId) {
+        long tierId = tier.getOid();
         final ComputePriceBundle.Builder priceBuilder = ComputePriceBundle.newBuilder();
 
         OnDemandPriceTable regionPriceTable = getOnDemandPriceTable(tierId, regionId);
@@ -136,28 +161,30 @@ public class MarketPriceTable {
         }
 
         final OSType baseOsType = computeTierPrices.getBasePrice().getGuestOsType();
-        final Tenancy baseTenancy = computeTierPrices.getBasePrice().getTenancy();
         final double baseHourlyPrice =
                 computeTierPrices.getBasePrice().getPricesList().get(0).getPriceAmount().getAmount();
 
-        discountsByBusinessAccount.forEach((accountId, discountApplicator) -> {
-            // Add the base configuration price.
-            priceBuilder.addPrice(accountId, baseOsType,
-                    baseHourlyPrice * (1.0 - discountApplicator.getDiscountPercentage(tierId)), true);
+        entityInfoExtractor.getComputeTierConfig(tier).ifPresent(computeTierConfig -> {
+            discountsByBusinessAccount.forEach((accountId, discountApplicator) -> {
+                final double discount = (1.0 - discountApplicator.getDiscountPercentage(tierId));
+                final double basePriceWithDiscount = baseHourlyPrice * discount;
 
-            // Add the other configuration prices.
-            computeTierPrices.getPerConfigurationPriceAdjustmentsList().stream()
-                    // Ignore tenancy.
-                    .filter(configPrice -> configPrice.getTenancy() == baseTenancy)
-                    .filter(configPrice -> configPrice.getPricesCount() > 0)
-                    .forEach(configPrice -> {
-                        // For compute tiers, we assume there is exactly one price - the hourly
-                        // price.
-                        final double configHourlyPrice = baseHourlyPrice +
-                                configPrice.getPricesList().get(0).getPriceAmount().getAmount();
-                        priceBuilder.addPrice(accountId, configPrice.getGuestOsType(),
-                                configHourlyPrice * (1.0 - discountApplicator.getDiscountPercentage(tierId)), false);
+                // for each OS - calculate its license price and save its total price
+                tier.getCommoditySoldListList().stream()
+                    .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                    .map(CommoditySoldDTO::getCommodityType)
+                    .map(licenceCommodityType -> OS_TYPE_MAP.get(licenceCommodityType.getKey()))
+                    .forEach(osType -> {
+                        // let cost calculation component figure out the correct
+                        // license price that should be added to the base price
+                        final LicensePriceTuple licensePrice = cloudCostData.getLicensePriceForOS(osType,
+                            computeTierConfig.getNumCores(), computeTierPrices);
+                        final double totalLicensePrice = licensePrice.getImplicitLicensePrice() * discount
+                            + licensePrice.getExplicitLicensePrice();
+                        priceBuilder.addPrice(accountId, osType,
+                            basePriceWithDiscount + totalLicensePrice, osType == baseOsType);
                     });
+            });
         });
         return priceBuilder.build();
     }

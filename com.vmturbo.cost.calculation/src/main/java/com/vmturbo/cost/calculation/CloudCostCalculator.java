@@ -28,6 +28,7 @@ import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePriceTuple;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
@@ -35,6 +36,7 @@ import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseConf
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList;
@@ -371,7 +373,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                             // by on-demand coverage (i.e. 1 - % RI coverage).
                             final double unitsBought = 1 - riComputeCoveragePercent;
                             recordOnDemandVmCost(journal, unitsBought, basePrice, computeTier);
-                            recordVMLicenseCost(journal, computeTier, basePrice, computeConfig,
+                            recordVMLicenseCost(journal, computeTier, computeConfig,
                                 computePriceList, unitsBought);
                         }
                     }
@@ -389,30 +391,32 @@ public class CloudCostCalculator<ENTITY_CLASS> {
      *
      * @param journal                  Used to add the costs to.
      * @param computeTier              Compute Tier that we are calculating.
-     * @param basePrice                Base Price of the computeTier.
      * @param unitsBought              Amount of units bought.
      * @param computeConfig            Compute configuration of a the computeTier.
      * @param computePriceList         List that contains all the prices.
      */
     private void recordVMLicenseCost(CostJournal.Builder<ENTITY_CLASS> journal, ENTITY_CLASS computeTier,
-                                     ComputeTierConfigPrice basePrice, ComputeConfig computeConfig,
+                                     ComputeConfig computeConfig,
                                      ComputeTierPriceList computePriceList, double unitsBought) {
+        LicensePriceTuple licensePrice = cloudCostData.getLicensePriceForOS(computeConfig.getOs(),
+            computeConfig.getNumCores(), computePriceList);
+
         // Recording any price adjustments from the license base price
-        if (computeConfig.getOs() != basePrice.getGuestOsType()) {
-            computePriceList.getPerConfigurationPriceAdjustmentsList().stream()
-                .filter(computeConfig::matchesPriceTableConfig)
-                .findAny()
-                .ifPresent(priceAdjustmentConfig -> journal.recordOnDemandCost(
-                    CostCategory.LICENSE,
-                    computeTier,
-                    priceAdjustmentConfig.getPricesList().get(0), unitsBought));
+        if (licensePrice.getImplicitLicensePrice() != LicensePriceTuple.NO_LICENSE_PRICE) {
+            journal.recordOnDemandCost(CostCategory.LICENSE, computeTier,
+                Price.newBuilder().setPriceAmount(CurrencyAmount.newBuilder()
+                    .setAmount(licensePrice.getImplicitLicensePrice()).build())
+                    .build(), unitsBought);
         }
-        // Recording the license price according to os and number of cores (used for explicit cases)
-        cloudCostData.getLicensePrice(
-            computeConfig.getOs(), computeConfig.getNumCores())
-            .ifPresent(licensePrice -> journal.recordOnDemandCost(
-                CostCategory.LICENSE, computeTier,
-                licensePrice.getPrice(), 1.0));
+
+        // Recording the license price according to os and number of cores (used for explicit cases).
+        // Here the "unitsBought" is 1.0 since the RI discount does not apply on explicit price.
+        if (licensePrice.getExplicitLicensePrice() != LicensePriceTuple.NO_LICENSE_PRICE) {
+            journal.recordOnDemandCost(CostCategory.LICENSE, computeTier,
+                Price.newBuilder().setPriceAmount(CurrencyAmount.newBuilder()
+                    .setAmount(licensePrice.getExplicitLicensePrice()).build())
+                    .build(), 1.0);
+        }
     }
 
     private void recordOnDemandVmCost(CostJournal.Builder<ENTITY_CLASS> journal, double unitsBought,

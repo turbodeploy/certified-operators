@@ -527,9 +527,9 @@ public class TopologyEntitiesHandlerTest {
         Map<OSType, Double> m1MediumPrices = new HashMap<>();
         m1MediumPrices.put(OSType.LINUX, 4d);
         m1MediumPrices.put(OSType.RHEL, 2d);
-        when(marketPriceTable.getComputePriceBundle(m1Large.getOid(), region.getOid()))
+        when(marketPriceTable.getComputePriceBundle(m1Large, region.getOid()))
                         .thenReturn(mockComputePriceBundle(ba.getOid(), m1LargePrices));
-        when(marketPriceTable.getComputePriceBundle(m1Medium.getOid(), region.getOid()))
+        when(marketPriceTable.getComputePriceBundle(m1Medium, region.getOid()))
                         .thenReturn(mockComputePriceBundle(ba.getOid(), m1MediumPrices));
         when(ccd.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,

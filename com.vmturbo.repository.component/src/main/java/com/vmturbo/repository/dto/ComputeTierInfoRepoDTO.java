@@ -21,10 +21,14 @@ public class ComputeTierInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     private int numCoupons;
 
+    private int numCores;
+
     public ComputeTierInfoRepoDTO(@Nullable final String family,
-                                  int numCoupons) {
+                                  int numCoupons,
+                                  int numCores) {
         this.family = family;
         this.numCoupons = numCoupons;
+        this.numCores = numCores;
     }
 
     @Override
@@ -37,7 +41,7 @@ public class ComputeTierInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
         setFamily(computeTierInfo.hasFamily() ? computeTierInfo.getFamily() : null);
         setNumCoupons(computeTierInfo.hasNumCoupons() ? computeTierInfo.getNumCoupons() : 0);
-
+        setNumCores(computeTierInfo.hasNumCores() ? computeTierInfo.getNumCores() : 0);
         serviceEntityRepoDTO.setComputeTierInfoRepoDTO(this);
     }
 
@@ -59,6 +63,7 @@ public class ComputeTierInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     public ComputeTierInfoRepoDTO() {
         this.family = null;
         this.numCoupons = 0;
+        this.numCores = 0;
     }
 
     public String getFamily() {
@@ -69,12 +74,28 @@ public class ComputeTierInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         return numCoupons;
     }
 
+    /**
+     * Get the number of cores
+     * @return the number of cores
+     */
+    public int getNumCores() {
+        return numCores;
+    }
+
     public void setFamily(final String family) {
         this.family = family;
     }
 
     public void setNumCoupons(final int numCoupons) {
         this.numCoupons = numCoupons;
+    }
+
+    /**
+     * Set the number of cores
+     * @param numCores number of cores to set on the compute tier
+     */
+    public void setNumCores(final int numCores) {
+        this.numCores = numCores;
     }
 
     @Override
@@ -85,12 +106,13 @@ public class ComputeTierInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         final ComputeTierInfoRepoDTO that = (ComputeTierInfoRepoDTO) o;
 
         return (Objects.equals(family, that.getFamily())
-                && Objects.equals(numCoupons, that.getNumCoupons()));
+                && Objects.equals(numCoupons, that.getNumCoupons())
+                && Objects.equals(numCores, that.getNumCores()));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(family, numCoupons);
+        return Objects.hash(family, numCoupons, numCores);
     }
 
     @Override
@@ -98,6 +120,7 @@ public class ComputeTierInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         return "ComputeTierInfoRepoDTO{" +
                 "family='" + family + '\'' +
                 ", numCoupons=" + numCoupons +
+                ", numCores=" + numCores +
                 '}';
     }
 }

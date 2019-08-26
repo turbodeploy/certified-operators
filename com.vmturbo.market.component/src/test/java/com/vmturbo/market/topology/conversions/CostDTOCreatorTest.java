@@ -1,6 +1,6 @@
 package com.vmturbo.market.topology.conversions;
 
-import static com.vmturbo.market.topology.conversions.CostDTOCreator.OSTypeMapping;
+import com.vmturbo.market.runner.cost.MarketPriceTable;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -76,7 +76,7 @@ public class CostDTOCreatorTest {
     @Test
     public void testOSTypeMappings() {
         List<OSType> osWithoutMapping = new ArrayList<>();
-        Map<OSType, String> inversedOSTypeMapping = OSTypeMapping.entrySet().stream().collect(
+        Map<OSType, String> inversedOSTypeMapping = MarketPriceTable.OS_TYPE_MAP.entrySet().stream().collect(
                 Collectors.toMap(Entry::getValue, Entry::getKey));
         for (OSType os : OSType.values()) {
             if (os != OSType.WINDOWS_SERVER && os != OSType.WINDOWS_SERVER_BURST &&
@@ -117,8 +117,6 @@ public class CostDTOCreatorTest {
         ComputePriceBundle computeBundle = ComputePriceBundle.newBuilder()
                 .addPrice(BA_ID, OSType.LINUX, 0.5, true)
                 .build();
-        when(marketPriceTable.getComputePriceBundle(TIER_ID, REGION_ID))
-                .thenReturn(computeBundle);
 
         final TopologyDTO.CommoditySoldDTO topologyIoTpSold =
                 TopologyDTO.CommoditySoldDTO.newBuilder()
@@ -144,6 +142,9 @@ public class CostDTOCreatorTest {
                                 .build())
                         .build())
                 .build();
+
+        when(marketPriceTable.getComputePriceBundle(tier, REGION_ID))
+            .thenReturn(computeBundle);
         return tier;
     }
 
