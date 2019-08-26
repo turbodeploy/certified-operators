@@ -95,7 +95,7 @@ public class CommodityConverter {
      * @return a {@link CommoditySoldTO}
      */
     @Nonnull
-    private CommodityDTOs.CommoditySoldTO createCommonCommoditySoldTO(
+    CommodityDTOs.CommoditySoldTO createCommonCommoditySoldTO(
             @Nonnull final TopologyDTO.CommoditySoldDTO topologyCommSold,
             @Nonnull TopologyDTO.TopologyEntityDTO dto) {
         final CommodityType commodityType = topologyCommSold.getCommodityType();

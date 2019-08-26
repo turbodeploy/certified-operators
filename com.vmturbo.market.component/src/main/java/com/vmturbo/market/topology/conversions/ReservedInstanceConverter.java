@@ -3,16 +3,18 @@ package com.vmturbo.market.topology.conversions;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -107,8 +109,12 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
             @Nonnull final TopologyDTO.TopologyEntityDTO computeTier,
             @Nonnull TopologyEntityDTO region,
             @Nonnull RiDiscountedMarketTier marketTier) {
-        Collection<CommoditySoldTO> commoditiesSold = commodityConverter.commoditiesSoldList(computeTier);
-        commoditiesSold.addAll(super.commoditiesSoldFromTier(computeTier, region));
+        final Collection<CommoditySoldTO> commoditiesSold = new HashSet<>();
+        // Add compute tier related commodities
+        commoditiesSold.addAll(createCommoditySoldTO(computeTier, marketTier));
+        // Add region related commodities
+        commoditiesSold.addAll(commodityConverter.commoditiesSoldList(region));
+
         // create CouponComm
         float capacity = marketTier.getTotalNumberOfCouponsBought();
         float used = marketTier.getTotalNumberOfCouponsUsed();
@@ -132,6 +138,29 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
         commoditiesSold.add(commodityConverter.createCommoditySoldTO(commType, capacity, used,
                 emptyUf));
         return commoditiesSold;
+    }
+
+    private List<CommoditySoldTO> createCommoditySoldTO(TopologyEntityDTO computeTier,
+                                                  RiDiscountedMarketTier ri) {
+        return computeTier.getCommoditySoldListList().stream()
+                .filter(c -> shouldSellCommodity(c, ri))
+                .map(c -> commodityConverter.createCommonCommoditySoldTO(c, computeTier))
+                .collect(Collectors.toList());
+    }
+
+    private boolean shouldSellCommodity(CommoditySoldDTO commodity, RiDiscountedMarketTier ri) {
+        return !isLicenseCommodity(commodity) || shouldSellLicense(ri, commodity);
+    }
+
+    private boolean isLicenseCommodity(CommoditySoldDTO commoditySoldDTO) {
+        return commoditySoldDTO.getCommodityType().getType()
+                == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE;
+    }
+
+    private boolean shouldSellLicense(RiDiscountedMarketTier ri, CommoditySoldDTO commodityDto) {
+        final ReservedInstanceAggregate riAggregate = ri.getRiAggregate();
+        return riAggregate.isPlatformFlexible() || riAggregate.getRiKey().getOs().name()
+                .equalsIgnoreCase(commodityDto.getCommodityType().getKey());
     }
 
     /**

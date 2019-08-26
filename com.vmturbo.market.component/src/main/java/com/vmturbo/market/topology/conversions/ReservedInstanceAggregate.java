@@ -1,6 +1,5 @@
 package com.vmturbo.market.topology.conversions;
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -42,19 +41,23 @@ public class ReservedInstanceAggregate {
             PaymentOption.PARTIAL_UPFRONT, 2,
             PaymentOption.NO_UPFRONT, 3);
     // the object that uniquely identifies this RIAggregate
-    ReservedInstanceKey riKey;
+    private ReservedInstanceKey riKey;
 
     // list of bought RIs that have the same ReservedInstanceKey
-    Set<ReservedInstanceData> constituentRIs = new HashSet<>();
+    private Set<ReservedInstanceData> constituentRIs = new HashSet<>();
 
     // largest compute tier for in the family that this RI belongs to
-    TopologyEntityDTO largestTier = null;
+    private TopologyEntityDTO largestTier = null;
 
     // A map of the RI Bought id to the coupon usage information
     private final Map<Long, RICouponInfo> riCouponInfoMap = Maps.newHashMap();
 
+    private final boolean platformFlexible;
+
     public ReservedInstanceAggregate(ReservedInstanceData riData, Map<Long, TopologyEntityDTO> topology) {
         riKey = new ReservedInstanceKey(riData, topology);
+        platformFlexible = riData.getReservedInstanceSpec().getReservedInstanceSpecInfo()
+                .getPlatformFlexible();
     }
 
     public ReservedInstanceKey getRiKey() {
@@ -228,6 +231,10 @@ public class ReservedInstanceAggregate {
                         riId, riCoverageToRelinquish.getEntityId());
             }
         });
+    }
+
+    boolean isPlatformFlexible() {
+        return platformFlexible;
     }
 
     /**

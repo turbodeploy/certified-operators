@@ -153,6 +153,10 @@ message ReservedInstanceSpecInfo {
 
     // The region id of the reserved instance.
     optional int64 region_id = 5;
+
+    // The property that determines if the RI is applicable to workloads running any platform or to
+    // the workloads running the same platform as the RI's platform.
+    optional bool platform_flexible = 6 [default = false];
 }
 
 // The RI coverage of a particular entity and projected RI coverage after market.
