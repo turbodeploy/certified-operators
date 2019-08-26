@@ -82,7 +82,7 @@ public class AddVirtualVolumeDiscoveryConverter {
     /**
      * A prefix we attach to the beginning of the VirtualVolume ID.
      */
-    private static final String VIRTUAL_VOLUME_ID_PREFIX = "Vol-";
+    private static final String VIRTUAL_VOLUME_ID_PREFIX = "Volume-";
 
     /**
      * A suffix we add to the VirtualVolume ID for those virtual volumes representing wasted files.
