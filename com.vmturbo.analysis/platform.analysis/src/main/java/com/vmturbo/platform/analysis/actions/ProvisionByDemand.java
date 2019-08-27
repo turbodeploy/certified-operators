@@ -219,7 +219,7 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
                             getSubsequentActions().addAll(Utility.resizeCommoditiesOfTrader(
                                                                                     getEconomy(),
                                                                                     getModelSeller(),
-                                                                                    sl));
+                                                                                    sl, true));
                 });
             });
         } catch (Exception e) {

@@ -92,6 +92,9 @@ public final class ProtobufToAnalysis {
                 return PriceFunction.Cache
                                 .createSquaredReciprocalBoughtUtilizationPriceFunction(input
                                                 .getSquaredReciprocalBought().getWeight());
+            case REMAINING_CONSTANT:
+                return PriceFunction.Cache.createRemainingConstantPriceFunction(input
+                                                            .getRemainingConstant().getValue());
             case PRICEFUNCTIONTYPE_NOT_SET:
             default:
                 throw new IllegalArgumentException("input = " + input);

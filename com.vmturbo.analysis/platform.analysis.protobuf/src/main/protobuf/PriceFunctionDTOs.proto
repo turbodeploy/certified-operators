@@ -54,6 +54,11 @@ message PriceFunctionTO {
         optional float weight = 1 [default = 1.0]; // The 'w' in the above formula.
     }
 
+    // A constant function that remains constant regardless of utilization.
+    message RemainingConstant {
+        optional float value = 1;
+    }
+
     // Which one of the available functions this message contains.
     oneof price_function_type {
         StandardWeighted standard_weighted = 1;
@@ -64,5 +69,6 @@ message PriceFunctionTO {
         FiniteStandardWeighted finite_standard_weighted = 6;
         ExternalPriceFunction external_price_function = 7;
         SquaredReciprocalBought squared_reciprocal_bought = 8;
+        RemainingConstant remaining_constant = 9;
     }
 }

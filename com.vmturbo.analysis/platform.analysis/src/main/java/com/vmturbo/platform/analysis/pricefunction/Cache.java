@@ -89,6 +89,22 @@ class Cache {
     }
 
     /**
+     * A constant function that remains constant regardless of utilization.
+     *
+     * @param constant the value.
+     * @return The price function.
+     */
+     public static PriceFunction createRemainingConstantPriceFunction(double constant) {
+         String key = "RCPF-" + constant;
+         PriceFunction pf = pfMap.get(key);
+         if (pf == null) {
+             pf = (u, sl, seller, commSold, e) ->  Double.isNaN(u) ? Double.POSITIVE_INFINITY : constant;
+             pfMap.put(key, pf);
+         }
+         return pf;
+     }
+
+    /**
      * A step function.
      * The formula is P(u) = if u < stepAt then priceBelow else priceAbove, if u <= 1
      * and Double.POSITIVE_INFINITY for isInvalid(u).

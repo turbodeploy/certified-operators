@@ -19,6 +19,7 @@ import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper;
+import com.vmturbo.platform.analysis.actions.Utility;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -208,8 +209,19 @@ public class Suspension {
             return suspendActions;
         }
 
-        List<ShoppingList> customersOfSuspCandidate = new ArrayList<>();
+        boolean isProviderOfResizeThroughSupplier = Utility.isProviderOfResizeThroughSupplierTrader(trader);
+        Set<Trader> resizeThroughSuppliers = new HashSet<>();
+        Set<ShoppingList> resizeThroughSupplierCustomers = new HashSet<>();
+        if (isProviderOfResizeThroughSupplier) {
+            resizeThroughSuppliers = Utility.getResizeThroughSupplierTradersFromProvider(trader);
+            resizeThroughSupplierCustomers = resizeThroughSuppliers.stream()
+                                                        .flatMap(t -> t.getCustomers().stream())
+                                                                    .collect(Collectors.toSet());
+        }
+
+        Set<ShoppingList> customersOfSuspCandidate = new HashSet<>();
         customersOfSuspCandidate.addAll(getNonDaemonCustomers(trader));
+        customersOfSuspCandidate.addAll(resizeThroughSupplierCustomers);
 
         // Need to get this before doing the suspend, or the list will be empty.
         List<ShoppingList> guaranteedBuyerSls = GuaranteedBuyerHelper
@@ -266,6 +278,20 @@ public class Suspension {
                 }
             }
         }
+
+        if (isProviderOfResizeThroughSupplier) {
+            for (ShoppingList sl : resizeThroughSupplierCustomers) {
+                final @NonNull List<@NonNull Trader> sellers =
+                                economy.getMarket(sl).getActiveSellersAvailableForPlacement();
+                final QuoteMinimizer minimizer = sellers.stream()
+                                        .collect(() -> new QuoteMinimizer(economy, sl),
+                                                QuoteMinimizer::accept, QuoteMinimizer::combine);
+                if (Double.isInfinite(minimizer.getTotalBestQuote())) {
+                    return rollBackSuspends(suspendActions);
+                }
+            }
+        }
+
         updateSoleProviders(economy, trader);
         logger.info("{" + traderDebugInfo + "} was suspended.");
         if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {

@@ -6,6 +6,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -175,10 +176,11 @@ public final class Utility {
      * @param economy Economy of resizeThroughSupplier Trader
      * @param seller Seller providing to the resizeThroughSupplier Trader
      * @param buyerSL ShoppingList of the resizeThroughSupplier Trader
+     * @param up boolean for resize up or down
      * @return List of resize actions.
      */
     public static List<Resize> resizeCommoditiesOfTrader(Economy economy, Trader seller,
-                    ShoppingList buyerSL) {
+                    ShoppingList buyerSL, boolean up) {
         List<Resize> resizeList = new ArrayList<>();
         Trader resizeThroughSupplierTrader = buyerSL.getBuyer();
         buyerSL.getBasket().forEach(buyerCS -> {
@@ -190,7 +192,8 @@ public final class Utility {
                     buyerCommoditySold,
                     resizeThroughSupplierTrader.getBasketSold().indexOf(buyerCS),
                     buyerCommoditySold.getCapacity()
-                        + seller.getCommoditySold(buyerCS).getEffectiveCapacity());
+                        + (up ? seller.getCommoditySold(buyerCS).getEffectiveCapacity()
+                                : -seller.getCommoditySold(buyerCS).getEffectiveCapacity()));
                 resizeAction.take();
                 resizeAction.enableExtractAction();
                 resizeList.add(resizeAction);
@@ -343,5 +346,29 @@ public final class Utility {
             allActions.addAll(provisionAction.getSubsequentActions());
         }
         return provisionedSupply;
+    }
+
+    /**
+     * Check whether the trader is provider of ResizeThroughSupplier Trader.
+     *
+     * @param provider The trader to check.
+     * @return Whether the trader is provider of ResizeThroughSupplier Trader.
+     */
+    public static boolean isProviderOfResizeThroughSupplierTrader(Trader provider) {
+        return provider.getCustomers().stream().map(ShoppingList::getBuyer)
+            .anyMatch(trader -> trader.getSettings().isResizeThroughSupplier());
+    }
+
+    /**
+     * Gets the resize through supplier traders from the would be provider.
+     *
+     * @param provider The trader to check.
+     * @return Set of the resize through supplier traders consuming from the provider.
+     */
+    public static Set<Trader> getResizeThroughSupplierTradersFromProvider(Trader provider) {
+        return provider.getCustomers().stream()
+            .map(ShoppingList::getBuyer)
+                .filter(trader -> trader.getSettings().isResizeThroughSupplier())
+                    .collect(Collectors.toSet());
     }
 } // end Utility class

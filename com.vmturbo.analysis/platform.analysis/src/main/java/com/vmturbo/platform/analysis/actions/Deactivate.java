@@ -75,13 +75,36 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
     @Override
     public @NonNull Action take() {
         super.take();
-        checkArgument(getTarget().getState().isActive());
+        Trader target = getTarget();
+        checkArgument(target.getState().isActive());
+
+        try {
+            target.getCustomers().stream()
+                .map(ShoppingList::getBuyer)
+            .filter(trader -> trader.getSettings().isResizeThroughSupplier())
+            .forEach(trader -> {
+                    economy_.getMarketsAsBuyer(trader).keySet().stream()
+                        .filter(shoppingList -> shoppingList.getSupplier() == target)
+                        .forEach(sl -> {
+                            // Generate the resize actions for matching commodities between
+                            // the model seller and the resizeThroughSupplier trader.
+                            getSubsequentActions().addAll(Utility.resizeCommoditiesOfTrader(
+                                                                                    getEconomy(),
+                                                                                    target,
+                                                                                    sl, false));
+                });
+            });
+        } catch (Exception e) {
+            logger.error("Error in Deactivate for resizeThroughSupplier Trader Capacity "
+                            + "Resize when suspending "
+                                + target.getDebugInfoNeverUseInCode(), e);
+        }
 
         // If this trader has providerMustClone set, suspend this trader's suppliers as well.
         GuaranteedBuyerHelper.suspendProviders(this);
         removedShoppingLists.addAll(
-            GuaranteedBuyerHelper.removeShoppingListForGuaranteedBuyers(getEconomy(), getTarget()));
-        getTarget().changeState(TraderState.INACTIVE);
+            GuaranteedBuyerHelper.removeShoppingListForGuaranteedBuyers(getEconomy(), target));
+        target.changeState(TraderState.INACTIVE);
         return this;
     }
 
