@@ -1,6 +1,6 @@
 package com.vmturbo.stitching.vdi;
 
-import com.google.common.collect.ImmutableSet;
+import java.util.Collections;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -12,7 +12,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public class VDIStorageStitchingOperation extends VDIStitchingOperation {
 
     public VDIStorageStitchingOperation() {
-        super(EntityType.STORAGE,
-                ImmutableSet.of(CommodityType.CLUSTER));
+        super(EntityType.STORAGE, Collections.singleton(CommodityType.STORAGE_CLUSTER));
     }
 }

@@ -86,7 +86,7 @@ public class DesktopPoolMasterImageStitchingOperation implements StitchingOperat
             }
             if (stitchingPoint.getExternalMatches().size() > 1) {
                 logger.warn("Encountered more than one VM with the same uuid for stitching point" +
-                        " and will continuing stitching with the first match. ",
+                        " and will continue stitching with the first match {}.",
                         stitchingPoint.getInternalEntity().getEntityBuilder().toString());
             }
             final Optional<? extends StitchingEntity> vmEntity = stitchingPoint.getExternalMatches()

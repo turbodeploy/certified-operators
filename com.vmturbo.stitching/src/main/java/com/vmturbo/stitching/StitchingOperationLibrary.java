@@ -96,10 +96,10 @@ public class StitchingOperationLibrary {
                 return Collections.emptyList();
             case VIRTUAL_DESKTOP_INFRASTRUCTURE:
                 return ImmutableList.of(
-                        new VDIStorageStitchingOperation(),
-                        new VDIVDCStitchingOperation(),
-                        new VDIPMStitchingOperation(),
                         new VDIVMStitchingOperation(),
+                        new VDIStorageStitchingOperation(),
+                        new VDIPMStitchingOperation(),
+                        new VDIVDCStitchingOperation(),
                         new DesktopPoolMasterImageStitchingOperation());
             default:
                 logger.warn("Unknown probe type {} and category {}.", probeType, probeCategory);

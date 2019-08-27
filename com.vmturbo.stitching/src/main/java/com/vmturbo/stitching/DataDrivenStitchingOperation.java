@@ -218,7 +218,24 @@ public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGN
     @Override
     public TopologicalChangelog stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
                                        @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
-        stitchingPoints.forEach(stitchingPoint -> stitch(stitchingPoint, resultBuilder));
+        stitchingPoints.forEach(stitchingPoint -> {
+            // TODO confirm that this logic works in case where multiple proxy entities are discovered
+            // by a probe and they are in a consumer/provider relationship with each other.
+            // The proxy entity (internalEntity) and real entity (externalEntity) to merge
+            final StitchingEntity internalEntity = stitchingPoint.getInternalEntity();
+            final StitchingEntity externalEntity =
+                    stitchingPoint.getExternalMatches().iterator().next();
+
+            // log an error if more than one external entity matched a single internal entity
+            if (stitchingPoint.getExternalMatches().size() > 1) {
+                logger.error("Internal Entity {} matched multiple External Entities: {}",
+                        internalEntity.getDisplayName(), stitchingPoint.getExternalMatches()
+                                .stream()
+                                .map(StitchingEntity::getDisplayName)
+                                .collect(Collectors.joining(", ")));
+            }
+            stitch(internalEntity, externalEntity, resultBuilder);
+        });
 
         return resultBuilder.build();
     }
@@ -230,28 +247,15 @@ public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGN
      * according to the list of commodities to push in the metadata and push fields and properties
      * as well according to the metadata.
      *
-     * @param stitchingPoint The point at which the storage graph should be stitched with
-     *                       the graphs discovered by external probes.
+     * @param internalEntity The proxy entity
+     * @param externalEntity The real entity
      * @param resultBuilder  The builder of the results of the stitching operation. Changes to
      *                       relationships made by the stitching operation should be noted
      *                       in these results.
      */
-    private void stitch(@Nonnull final StitchingPoint stitchingPoint,
-                        @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
-        // TODO confirm that this logic works in case where multiple proxy entities are discovered
-        // by a probe and they are in a consumer/provider relationship with each other.
-        // The proxy entity (internalEntity) and real entity (externalEntity) to merge
-        final StitchingEntity internalEntity = stitchingPoint.getInternalEntity();
-        final StitchingEntity externalEntity = stitchingPoint.getExternalMatches().iterator().next();
-
-        // log an error if more than one external entity matched a single internal entity
-        if (stitchingPoint.getExternalMatches().size() > 1) {
-            logger.error("Internal Entity {} matched multiple External Entities: {}",
-                    internalEntity.getDisplayName(),
-                    stitchingPoint.getExternalMatches().stream().map(StitchingEntity::getDisplayName)
-                            .collect(Collectors.joining(", ")));
-        }
-
+    protected void stitch(@Nonnull final StitchingEntity internalEntity,
+            @Nonnull final StitchingEntity externalEntity,
+            @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
         // iterate over bought meta data finding providers that need to be replaced
         for (CommodityBoughtMetadata boughtData : matchingInformation.getCommoditiesBoughtToPatch()) {
             // see if there is a provider related to the internalEntity for this set of

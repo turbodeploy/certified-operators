@@ -1,13 +1,12 @@
 package com.vmturbo.stitching.vdi;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import javax.annotation.Nonnull;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -31,8 +30,8 @@ public class VDIVMStitchingOperation extends VDIStitchingOperation {
 
     public VDIVMStitchingOperation() {
         super(EntityType.VIRTUAL_MACHINE,
-                ImmutableSet.of(CommodityType.ACTIVE_SESSIONS),
-                ImmutableList.of(
+                Collections.singleton(CommodityType.ACTIVE_SESSIONS),
+                Arrays.asList(
                         CommodityBoughtMetadata.newBuilder()
                             .setProviderType(EntityType.DESKTOP_POOL)
                             .setReplacesProvider(EntityType.VIRTUAL_DATACENTER)
@@ -40,56 +39,36 @@ public class VDIVMStitchingOperation extends VDIStitchingOperation {
                             .addCommodityMetadata(CommodityType.MEM_ALLOCATION)
                             .build(),
                         CommodityBoughtMetadata.newBuilder()
-                                .setProviderType(EntityType.STORAGE)
-                                .setReplacesProvider(EntityType.STORAGE)
-                                .addCommodityMetadata(CommodityType.STORAGE_CLUSTER)
-                                .build(),
+                            .setProviderType(EntityType.STORAGE)
+                            .addCommodityMetadata(CommodityType.STORAGE_CLUSTER)
+                            .build(),
                         CommodityBoughtMetadata.newBuilder()
-                                .setProviderType(EntityType.PHYSICAL_MACHINE)
-                                .setReplacesProvider(EntityType.PHYSICAL_MACHINE)
-                                .addCommodityMetadata(CommodityType.CLUSTER)
-                                .build()
+                            .setProviderType(EntityType.PHYSICAL_MACHINE)
+                            .addCommodityMetadata(CommodityType.CLUSTER)
+                            .build()
                         ));
     }
 
-
-    @Nonnull
     @Override
-    public TopologicalChangelog stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
-                                       @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
-        super.stitch(stitchingPoints, resultBuilder);
-        //In addition to the standard stitching, this will also resolve the VM OID
+    protected void stitch(@Nonnull StitchingEntity internalEntity,
+            @Nonnull StitchingEntity externalEntity,
+            @Nonnull StitchingChangesBuilder<StitchingEntity> resultBuilder) {
+        super.stitch(internalEntity, externalEntity, resultBuilder);
+        // In addition to the standard stitching, this will also resolve the VM OID
         // for the session data in the business users consumed by this VM.
-        for (StitchingPoint stitchingPoint : stitchingPoints) {
-            resolveVMCloneSourceReference(stitchingPoint, resultBuilder);
-        }
-        return resultBuilder.build();
-
+        resolveVMCloneSourceReference(internalEntity, externalEntity, resultBuilder);
     }
 
-    private void resolveVMCloneSourceReference(final StitchingPoint stitchingPoint,
-                                               final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
-        StitchingEntity vdiVMEntity = stitchingPoint.getInternalEntity();
-        final Collection<? extends StitchingEntity> vcVMEntities = stitchingPoint.getExternalMatches();
-        if (stitchingPoint.getExternalMatches().size() == 0) {
-            logger.error("No external matches found for internal entity {}",
-                    stitchingPoint.getInternalEntity().getEntityBuilder().toString());
-            return;
-        }
-        if (vcVMEntities.size() > 1) {
-            logger.warn("Encountered more than one VM with the same uuid for stitching point" +
-                            " and will continuing stitching with the first match. ",
-                    stitchingPoint.getInternalEntity().getEntityBuilder().toString());
-        }
-        final StitchingEntity vcVMEntity = vcVMEntities.stream().findFirst().get();
+    private void resolveVMCloneSourceReference(final StitchingEntity vdiVMEntity,
+            final StitchingEntity vcVMEntity,
+            final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
         for (StitchingEntity consumerEntity : vdiVMEntity.getConsumers()) {
-
             if (consumerEntity.getEntityType() == EntityType.BUSINESS_USER &&
                     consumerEntity.getEntityBuilder().hasBusinessUserData()) {
                 resultBuilder.queueUpdateEntityAlone(consumerEntity, updateSessionDataVMId -> {
                     final BusinessUserData.Builder buDataBuilder = consumerEntity.getEntityBuilder()
                             .getBusinessUserData().toBuilder();
-                    List<SessionData> newSessionList = new ArrayList<>();
+                    final List<SessionData> newSessionList = new ArrayList<>();
                     boolean vmSessionFound = false;
                     for (SessionData sessionData : buDataBuilder.getSessionDataList()) {
                         if (sessionData.hasVirtualMachine()) {

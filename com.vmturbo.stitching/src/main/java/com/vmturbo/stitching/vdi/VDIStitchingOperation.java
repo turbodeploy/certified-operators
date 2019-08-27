@@ -4,8 +4,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import com.google.common.collect.ImmutableSet;
-
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
@@ -46,8 +44,7 @@ public abstract class VDIStitchingOperation extends StringToStringDataDrivenStit
                         .addAllCommoditiesSold(soldCommodityTypes)
                         .addAllCommoditiesBought(boughtMetaDataList)
                         .build()),
-                ImmutableSet.of(ProbeCategory.HYPERVISOR));
-
+                Collections.singleton(ProbeCategory.HYPERVISOR));
     }
 
     public VDIStitchingOperation(EntityType entityType, Set<CommodityType> soldCommodityTypes) {
