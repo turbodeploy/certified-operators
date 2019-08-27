@@ -144,9 +144,9 @@ public class TopologyEditorTest {
             .setDisplayName("PM")
             .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
             .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(MEM).setUsed(USED)
-                .setAccesses(vmId).build())
+                    .build())
             .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(CPU).setUsed(USED)
-                .setAccesses(vmId).build())
+                    .build())
             .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(DATASTORE)
                             .setAccesses(stId).build())
     );

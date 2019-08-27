@@ -290,12 +290,13 @@ public class TopologyEditor {
             final int commodityType = commodity.getCommodityType().getType();
             if (UTILIZATION_LEVEL_TYPES.contains(commodityType)) {
                 final double changedUtilization = increaseByPercent(commodity.getUsed(), percentage);
+                final double changedAmount = changedUtilization - commodity.getUsed();
                 changedCommodities.add(CommodityBoughtDTO.newBuilder(commodity)
                         .setUsed(changedUtilization).build());
                 // increase provider's commodity sold utilization only when it has provider
                 if (providerCommodities.hasProviderId()) {
                     increaseCommoditySoldByProvider(topology, providerCommodities.getProviderId(),
-                            vm.getOid(), commodityType, percentage);
+                            vm.getOid(), commodityType, changedAmount);
                 }
             } else {
                 changedCommodities.add(commodity);
@@ -305,7 +306,7 @@ public class TopologyEditor {
     }
 
     private void increaseCommoditySoldByProvider(@Nonnull Map<Long, TopologyEntity.Builder> topology,
-            long providerId, long consumerId, int commodityType, int percentage) {
+            long providerId, long consumerId, int commodityType, double adjustmentAmount) {
         final ImmutableList.Builder<CommoditySoldDTO> changedSoldCommodities =
                 ImmutableList.builder();
         final TopologyEntity.Builder provider = topology.get(providerId);
@@ -313,10 +314,11 @@ public class TopologyEditor {
             throw new IllegalArgumentException("Topology doesn't contain entity with id " + providerId);
         }
         for (CommoditySoldDTO sold : provider.getEntityBuilder().getCommoditySoldListList()) {
-            if (sold.getAccesses() == consumerId
+            if (((sold.getAccesses() == 0 ) || (sold.getAccesses() == consumerId))
                     && sold.getCommodityType().getType() == commodityType) {
+                // increase the commodity by the adjustment amount
                 final CommoditySoldDTO increasedCommodity = CommoditySoldDTO.newBuilder(sold)
-                        .setUsed(increaseByPercent(sold.getUsed(), percentage))
+                        .setUsed(adjustmentAmount + sold.getUsed())
                         .build();
                 changedSoldCommodities.add(increasedCommodity);
             } else {
