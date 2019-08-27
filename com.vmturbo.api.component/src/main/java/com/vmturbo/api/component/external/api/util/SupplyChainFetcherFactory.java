@@ -723,7 +723,8 @@ public class SupplyChainFetcherFactory {
 
                 // fetch service entities, if requested
                 final Map<String, ServiceEntityApiDTO> serviceEntityApiDTOS = new HashMap<>();
-                if (entityDetailType != null) {
+                // If we only have one member we need its name for the supplychain
+                if (entityDetailType != null || memberOidsList.size() == 1) {
                     repositoryApi.entitiesRequest(memberOidsList)
                         .getSEList()
                         .forEach(e -> serviceEntityApiDTOS.put(e.getUuid(), e));
