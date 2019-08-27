@@ -42,8 +42,6 @@ env:
     value: kafka:9092
   - name: realtimeTopologyContextId
     value: "777777"
-  - name: enableSecureDBConnection
-    value: "false"
 
 resources:
    limits:

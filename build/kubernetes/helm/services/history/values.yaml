@@ -44,8 +44,6 @@ env:
     value: info
   - name: realtimeTopologyContextId
     value: "777777"
-  - name: enableSecureDBConnection
-    value: "true"
 
 resources:
   limits:

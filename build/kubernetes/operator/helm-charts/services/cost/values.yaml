@@ -43,8 +43,6 @@ env:
   # Enables the realtime topology listener. Should be "true" for cloud support.
   - name: enableTopologyListener
     value: "false"
-  - name: enableSecureDBConnection
-    value: "false"
 
 resources:
   limits:
