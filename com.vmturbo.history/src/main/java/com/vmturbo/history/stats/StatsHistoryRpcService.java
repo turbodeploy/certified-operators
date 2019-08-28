@@ -62,6 +62,8 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
+import com.vmturbo.common.protobuf.stats.Stats.MultiSystemLoadInfoRequest;
+import com.vmturbo.common.protobuf.stats.Stats.MultiSystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
@@ -77,6 +79,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.SharedMetrics;
@@ -1063,12 +1066,12 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * @param request It contains the id of the slice.
      * @param responseObserver An indication that the request has completed.
      */
+    @Override
     public void getSystemLoadInfo(
                     SystemLoadInfoRequest request,
                     final StreamObserver<SystemLoadInfoResponse> responseObserver) {
         final SystemLoadInfoResponse.Builder responseBuilder = SystemLoadInfoResponse.newBuilder();
         final Stats.SystemLoadRecord.Builder recordBuilder = Stats.SystemLoadRecord.newBuilder();
-        SystemLoadInfoResponse response = null;
 
         List<SystemLoadRecord> records = systemLoadReader.getSystemLoadInfo(Long.toString(request.getClusterId()));
         for (SystemLoadRecord record : records) {
@@ -1088,6 +1091,57 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             responseBuilder.addRecord(statsRecord);
         }
         responseObserver.onNext(responseBuilder.build());
+        responseObserver.onCompleted();
+    }
+
+    /**
+     * The method reads all the system load related records for all cluster ids.
+     *
+     * @param request It contains a list of cluster ids.
+     * @param responseObserver An indication that the request has completed.
+     */
+    @Override
+    public void getMultiSystemLoadInfo(
+                    MultiSystemLoadInfoRequest request,
+                    final StreamObserver<MultiSystemLoadInfoResponse> responseObserver) {
+        // For now we essentially call the individual system load info RPC multiple times.
+        // In the future we can try to optimize this.
+        for (long clusterId : request.getClusterIdList()) {
+            final SystemLoadInfoRequest systemLoadInfoRequest =
+                SystemLoadInfoRequest.newBuilder().setClusterId(clusterId).build();
+
+            getSystemLoadInfo(systemLoadInfoRequest, new StreamObserver<SystemLoadInfoResponse>() {
+                private final SetOnce<SystemLoadInfoResponse> response = new SetOnce<>();
+
+                @Override
+                public void onNext(final SystemLoadInfoResponse systemLoadInfoResponse) {
+                    this.response.trySetValue(systemLoadInfoResponse);
+                }
+
+                @Override
+                public void onError(final Throwable throwable) {
+                    logger.error("Encountered error for clusterId {}. Error: {}",
+                        clusterId, throwable.getMessage());
+                    responseObserver.onNext(MultiSystemLoadInfoResponse.newBuilder()
+                        .setClusterId(clusterId)
+                        .setError(throwable.getMessage())
+                        .build());
+                }
+
+                @Override
+                public void onCompleted() {
+                    final MultiSystemLoadInfoResponse.Builder builder =
+                        MultiSystemLoadInfoResponse.newBuilder().setClusterId(clusterId);
+
+                    response.getValue()
+                        .map(SystemLoadInfoResponse::getRecordList)
+                        .ifPresent(builder::addAllRecord);
+
+                    responseObserver.onNext(builder.build());
+                }
+            });
+        }
+
         responseObserver.onCompleted();
     }
 

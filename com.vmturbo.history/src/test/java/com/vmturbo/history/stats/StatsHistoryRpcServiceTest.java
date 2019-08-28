@@ -2,6 +2,7 @@ package com.vmturbo.history.stats;
 
 import static com.vmturbo.components.common.utils.StringConstants.USED;
 import static com.vmturbo.components.common.utils.StringConstants.UTILIZATION;
+import static com.vmturbo.history.schema.RelationType.COMMODITIES;
 import static com.vmturbo.history.stats.StatsTestUtils.newStatRecord;
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -13,7 +14,9 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -36,18 +39,23 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import javax.annotation.Nonnull;
+
 import org.jooq.Record;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Matchers;
+import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import io.grpc.Status;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
+import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
@@ -67,6 +75,7 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
+import com.vmturbo.common.protobuf.stats.Stats.MultiSystemLoadInfoRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
@@ -79,6 +88,8 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
+import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
@@ -90,6 +101,7 @@ import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
+import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
 import com.vmturbo.history.stats.StatRecordBuilder.DefaultStatRecordBuilder;
 import com.vmturbo.history.stats.StatSnapshotCreator.DefaultStatSnapshotCreator;
 import com.vmturbo.history.stats.readers.LiveStatsReader;
@@ -134,14 +146,14 @@ public class StatsHistoryRpcServiceTest {
     private SystemLoadWriter systemLoadWriter = mock(SystemLoadWriter.class);
 
     private StatsHistoryRpcService statsHistoryRpcService =
-            new StatsHistoryRpcService(REALTIME_CONTEXT_ID,
-                     mockLivestatsreader, mockPlanStatsReader,
-                     mockClusterStatsReader, mockClusterStatsWriter,
-                     historyDbio, mockProjectedStatsStore,
-                    paginationParamsFactory,
-                    statSnapshotCreatorSpy,
-                    statRecordBuilderSpy,
-                    systemLoadReader, systemLoadWriter);
+        Mockito.spy(new StatsHistoryRpcService(REALTIME_CONTEXT_ID,
+            mockLivestatsreader, mockPlanStatsReader,
+            mockClusterStatsReader, mockClusterStatsWriter,
+            historyDbio, mockProjectedStatsStore,
+            paginationParamsFactory,
+            statSnapshotCreatorSpy,
+            statRecordBuilderSpy,
+            systemLoadReader, systemLoadWriter));
 
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(statsHistoryRpcService);
@@ -863,5 +875,99 @@ public class StatsHistoryRpcServiceTest {
         } catch (StatusRuntimeException e) {
             assertThat(e, GrpcRuntimeExceptionMatcher.hasCode(Code.INTERNAL).anyDescription());
         }
+    }
+
+    /**
+     * Test getSystemLoadInfo with single clusterId.
+     */
+    @Test
+    public void testGetSingleSourceSystemLoadInfoSuccess() {
+        final long clusterId = 1;
+        List<SystemLoadRecord> records = Lists.newArrayList(
+            newSystemLoadInfo(String.valueOf(clusterId)));
+        doReturn(records).when(systemLoadReader).getSystemLoadInfo(anyString());
+
+        SystemLoadInfoResponse response = clientStub.getSystemLoadInfo(
+            SystemLoadInfoRequest.newBuilder().setClusterId(clusterId).build());
+
+        assertThat(newStatsSystemLoadInfo(clusterId), is(response.getRecordList().get(0)));
+    }
+
+    /**
+     * Test getMultiSystemLoadInfo with multiple clusterIds without error.
+     */
+    @Test
+    public void testGetMultiSystemLoadInfoSuccess() {
+        final long clusterId1 = 1;
+        final long clusterId2 = 2;
+        List<SystemLoadRecord> records1 = Lists.newArrayList(
+            newSystemLoadInfo(String.valueOf(clusterId1)));
+        List<SystemLoadRecord> records2 = Lists.newArrayList(
+            newSystemLoadInfo(String.valueOf(clusterId2)));
+        doReturn(records1).when(systemLoadReader).getSystemLoadInfo(eq(String.valueOf(clusterId1)));
+        doReturn(records2).when(systemLoadReader).getSystemLoadInfo(eq(String.valueOf(clusterId2)));
+
+        MultiSystemLoadInfoRequest.Builder requestBuilder = MultiSystemLoadInfoRequest.newBuilder()
+            .addClusterId(clusterId1).addClusterId(clusterId2);
+
+        clientStub.getMultiSystemLoadInfo(requestBuilder.build())
+            .forEachRemaining(response -> {
+                final long clusterId = response.getClusterId();
+                assertThat(newStatsSystemLoadInfo(clusterId), is(response.getRecordList().get(0)));
+        });
+    }
+
+    /**
+     * Test getMultiSystemLoadInfo with multiple clusterIds with error.
+     */
+    @Test
+    public void testGetMultiSystemLoadInfoError() {
+        final long clusterId1 = 1;
+        final long clusterId2 = 2;
+        Stats.SystemLoadRecord records2 = newStatsSystemLoadInfo(clusterId2);
+        final Throwable error = Status.INVALID_ARGUMENT.withDescription("one two three").asException();
+
+        // Right now the multi-system-load-info request just calls the regular system-load-info request.
+        // Override the behaviour to return the records we want.
+        doAnswer(invocation -> {
+            final SystemLoadInfoRequest request =
+                invocation.getArgumentAt(0, SystemLoadInfoRequest.class);
+            final StreamObserver<SystemLoadInfoResponse> observer =
+                invocation.getArgumentAt(1, StreamObserver.class);
+            if (request.getClusterId() == clusterId1) {
+                observer.onError(error);
+            } else if (request.getClusterId() == clusterId2) {
+                observer.onNext(SystemLoadInfoResponse.newBuilder()
+                    .addRecord(records2).build());
+                observer.onCompleted();
+            }
+            return null;
+        }).when(statsHistoryRpcService).getSystemLoadInfo(any(), any());
+
+        MultiSystemLoadInfoRequest.Builder requestBuilder = MultiSystemLoadInfoRequest.newBuilder();
+        requestBuilder.addClusterId(clusterId1).addClusterId(clusterId2);
+
+        clientStub.getMultiSystemLoadInfo(requestBuilder.build())
+            .forEachRemaining(response -> {
+                final long clusterId = response.getClusterId();
+                if (clusterId == clusterId1) {
+                    assertThat(response.getError(), is(error.getMessage()));
+                } else {
+                    assertThat(newStatsSystemLoadInfo(clusterId), is(response.getRecordList().get(0)));
+                }
+            });
+    }
+
+    private static SystemLoadRecord newSystemLoadInfo(@Nonnull final String clusterId) {
+        return new SystemLoadRecord(
+            clusterId, SNAPSHOT_TIME, "2", null, "4", null, 1d, 2d, null, null, COMMODITIES, "6");
+    }
+
+    private static Stats.SystemLoadRecord newStatsSystemLoadInfo(final long clusterId) {
+        return Stats.SystemLoadRecord.newBuilder().setClusterId(clusterId)
+            .setSnapshotTime(SNAPSHOT_TIME.getTime()).setUuid(2).setProducerUuid(0)
+            .setPropertyType("4").setPropertySubtype("").setCapacity(1).setAvgValue(2)
+            .setMinValue(-1).setMaxValue(-1).setRelationType(COMMODITIES.ordinal())
+            .setCommodityKey("6").build();
     }
 }

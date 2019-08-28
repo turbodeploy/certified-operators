@@ -55,6 +55,9 @@ public class PlanProjectConfig {
     @Value("${defaultHeadroomPlanProjectJsonFile:systemPlanProjects.json}")
     private String defaultHeadroomPlanProjectJsonFile;
 
+    @Value("${headroomCalculationForAllClusters}")
+    private boolean headroomCalculationForAllClusters;
+
     @Bean
     public PlanProjectRpcService planProjectService() {
         return new PlanProjectRpcService(planProjectDao(), planProjectExecutor());
@@ -87,7 +90,8 @@ public class PlanProjectConfig {
                 repositoryClientConfig.repositoryChannel(),
                 templatesConfig.templatesDao(),
                 historyClientConfig.historyChannel(),
-                planConfig.planInstanceQueue());
+                planConfig.planInstanceQueue(),
+                headroomCalculationForAllClusters);
     }
 
     @Bean

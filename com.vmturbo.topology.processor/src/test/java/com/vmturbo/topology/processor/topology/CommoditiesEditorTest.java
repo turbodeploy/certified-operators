@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.topology;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +23,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.HistoricalBaseline;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.MultiSystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
@@ -488,16 +490,17 @@ public class CommoditiesEditorTest {
         Assert.assertEquals(20, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
                         .get(0).getCommodityBoughtList().get(0).getPeak(), 0.0001);
 
+        List<MultiSystemLoadInfoResponse> response = Collections.singletonList(
+            MultiSystemLoadInfoResponse.newBuilder()
+                .addRecord(SystemLoadRecord.newBuilder()
+                    .setPropertyType(CommodityDTO.CommodityType.MEM.name())
+                    .setAvgValue(50)
+                    .setMaxValue(100)
+                    .setUuid(2L) // uuid of VM
+                    .build())
+                .build());
 
-        SystemLoadInfoResponse response = SystemLoadInfoResponse.newBuilder()
-            .addRecord(SystemLoadRecord.newBuilder()
-                .setPropertyType(CommodityDTO.CommodityType.MEM.name())
-                .setAvgValue(50)
-                .setMaxValue(100)
-                .setUuid(2L) // uuid of VM
-                .build())
-            .build();
-        Mockito.when(statsHistoryService.getSystemLoadInfo(Mockito.any())).thenReturn(response);
+        Mockito.when(statsHistoryService.getMultiSystemLoadInfo(Mockito.any())).thenReturn(response);
 
         PlanScope scope = PlanScope.newBuilder()
             .addScopeEntries(PlanScopeEntry.newBuilder()
@@ -547,16 +550,17 @@ public class CommoditiesEditorTest {
         Assert.assertEquals(80, vm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
                         .get(0).getPeak(), 0.0001);
 
-        SystemLoadInfoResponse response = SystemLoadInfoResponse.newBuilder()
-                        .addRecord(SystemLoadRecord.newBuilder()
-                            .setPropertyType(CommodityDTO.CommodityType.VMEM.name())
-                            .setAvgValue(50)
-                            .setMaxValue(100)
-                            .setUuid(1L) // uuid of VM
-                            .build())
-                        .build();
+        List<MultiSystemLoadInfoResponse> response = Collections.singletonList(
+            MultiSystemLoadInfoResponse.newBuilder()
+                .addRecord(SystemLoadRecord.newBuilder()
+                    .setPropertyType(CommodityDTO.CommodityType.VMEM.name())
+                    .setAvgValue(50)
+                    .setMaxValue(100)
+                    .setUuid(1L) // uuid of VM
+                    .build())
+                .build());
 
-        Mockito.when(statsHistoryService.getSystemLoadInfo(Mockito.any())).thenReturn(response);
+        Mockito.when(statsHistoryService.getMultiSystemLoadInfo(Mockito.any())).thenReturn(response);
 
         PlanScope scope = PlanScope.newBuilder()
             .addScopeEntries(PlanScopeEntry.newBuilder()

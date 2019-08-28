@@ -12,7 +12,6 @@
         }
       },
       "type": "CLUSTER_HEADROOM",
-      "perClusterScope": true,
       "scenarios":
       [
         {

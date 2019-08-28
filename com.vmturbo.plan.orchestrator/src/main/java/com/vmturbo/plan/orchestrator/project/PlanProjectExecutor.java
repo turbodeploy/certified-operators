@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -86,6 +87,10 @@ public class PlanProjectExecutor {
 
     private final PlanInstanceQueue planInstanceQueue;
 
+    // If true, calculate headroom for all clusters in one plan instance.
+    // If false, calculate headroom for restricted number of clusters in multiple plan instances.
+    private final boolean headroomCalculationForAllClusters;
+
     // Number of days for which system load was considered in history.
     private static final int LOOPBACK_DAYS = 10;
 
@@ -109,16 +114,19 @@ public class PlanProjectExecutor {
      * @param repositoryChannel Repository channel
      * @param templatesDao templates DAO
      * @param historyChannel history channel
+     * @param planInstanceQueue a queue of plan instances
+     * @param headroomCalculationForAllClusters specifies how to run cluster headroom plan
      */
-    public PlanProjectExecutor(@Nonnull final PlanDao planDao,
-                               @Nonnull final PlanProjectDao planProjectDao,
-                               @Nonnull final Channel groupChannel,
-                               @Nonnull final PlanRpcService planRpcService,
-                               @Nonnull final ProjectPlanPostProcessorRegistry projectPlanPostProcessorRegistry,
-                               @Nonnull final Channel repositoryChannel,
-                               @Nonnull final TemplatesDao templatesDao,
-                               @Nonnull final Channel historyChannel,
-                               @Nonnull final PlanInstanceQueue planInstanceQueue) {
+    PlanProjectExecutor(@Nonnull final PlanDao planDao,
+                        @Nonnull final PlanProjectDao planProjectDao,
+                        @Nonnull final Channel groupChannel,
+                        @Nonnull final PlanRpcService planRpcService,
+                        @Nonnull final ProjectPlanPostProcessorRegistry projectPlanPostProcessorRegistry,
+                        @Nonnull final Channel repositoryChannel,
+                        @Nonnull final TemplatesDao templatesDao,
+                        @Nonnull final Channel historyChannel,
+                        @Nonnull final PlanInstanceQueue planInstanceQueue,
+                        final boolean headroomCalculationForAllClusters) {
         this.groupChannel = Objects.requireNonNull(groupChannel);
         this.planService = Objects.requireNonNull(planRpcService);
         this.projectPlanPostProcessorRegistry = Objects.requireNonNull(projectPlanPostProcessorRegistry);
@@ -128,6 +136,7 @@ public class PlanProjectExecutor {
         this.templatesDao = Objects.requireNonNull(templatesDao);
         this.historyChannel = Objects.requireNonNull(historyChannel);
         this.planInstanceQueue = Objects.requireNonNull(planInstanceQueue);
+        this.headroomCalculationForAllClusters = headroomCalculationForAllClusters;
 
         groupRpcService = GroupServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
         settingService = SettingServiceGrpc.newBlockingStub(groupChannel);
@@ -140,88 +149,118 @@ public class PlanProjectExecutor {
      *
      * @param planProject a plan project
      */
-    public void executePlan(final PlanProject planProject) {
+    public void executePlan(@Nonnull final PlanProject planProject) {
         logger.info("Executing plan project: {} (name: {})",
                 planProject.getPlanProjectId(), planProject.getPlanProjectInfo().getName());
-        // get scope of the topology where the scenarios will be applied
-        boolean perCluster = planProject.getPlanProjectInfo().getPerClusterScope();
 
-        if (perCluster) {
-            runPlanInstancePerCluster(planProject);
+        PlanProjectType type = planProject.getPlanProjectInfo().getType();
+        if (type == PlanProjectType.CLUSTER_HEADROOM) {
+            if (headroomCalculationForAllClusters) {
+                runPlanInstanceAllCluster(planProject);
+            } else {
+                runPlanInstancePerClusters(planProject);
+            }
         } else {
-            // TODO: handle per-cluster=false case
-
+            logger.error("No such plan project type: {}", type);
         }
     }
 
     /**
-     * If the per_cluster_scope value of the plan is set to true, we will apply the plan project
-     * on each cluster. For each cluster, we will create one plan project instance for each
-     * scenario.
+     * Create one plan instance per cluster per scenario.
      *
-     * @param planProject
+     * @param planProject a plan project
      */
-    private void runPlanInstancePerCluster(PlanProject planProject) {
-        Set<Group> clusters = new HashSet<>();
-
-        // get all cluster group IDs from the topology
-        groupRpcService.getGroups(
-                GroupDTO.GetGroupsRequest.newBuilder()
-                        .addTypeFilter(GroupDTO.Group.Type.CLUSTER)
-                        .setClusterFilter(ClusterFilter.newBuilder()
-                                .setTypeFilter(ClusterInfo.Type.COMPUTE)
-                                .build())
-                        .build()).forEachRemaining(clusters::add);
-
+    private void runPlanInstancePerClusters(@Nonnull final PlanProject planProject) {
+        Set<Group> clusters = getAllComputeClusters();
         // Limit the number of clusters for each run.
         clusters = restrictNumberOfClusters(clusters);
+        logger.info("Running plan project {} on {} clusters. " +
+                "(one plan instance per cluster per scenario)",
+            planProject.getPlanProjectInfo().getName(), clusters.size());
 
-        logger.info("Running plan project on {} clusters.", clusters.size());
-        // Create one plan project instance per cluster per Scenario.
-        // Total number of plan project instance to be created equals number of clusters times
+        // Total number of plan instances to be created equals the number of clusters times
         // number of scenarios in the plan project.
-        clusters.forEach(cluster -> {
-            for (PlanProjectScenario scenario : planProject.getPlanProjectInfo().getScenariosList()) {
-                // Create plan instance
-                PlanInstance planInstance = null;
-                try {
-                    planInstance = createClusterPlanInstance(cluster,
-                            scenario,
-                            planProject.getPlanProjectInfo().getType());
-                } catch (IntegrityException | NoSuchObjectException | IllegalTemplateOperationException | DuplicateTemplateException e) {
-                    logger.error("Failed to create a plan instance for cluster {}: {}",
-                            cluster.getId(), e.getMessage());
-                    continue;
-                }
+        clusters.forEach(cluster ->
+            createClusterPlanInstanceAndRun(planProject, Collections.singleton(cluster)));
+    }
 
-                // Register post process handler
-                ProjectPlanPostProcessor planProjectPostProcessor = null;
-                if (planProject.getPlanProjectInfo().getType().equals(PlanProjectType.CLUSTER_HEADROOM)) {
-                    planProjectPostProcessor = new ClusterHeadroomPlanPostProcessor(planInstance.getPlanId(),
-                            cluster.getId(), repositoryChannel, historyChannel,
-                            planDao, groupChannel, templatesDao);
-                }
-                if (planProjectPostProcessor != null) {
-                    projectPlanPostProcessorRegistry.registerPlanPostProcessor(planProjectPostProcessor);
-                } else {
-                    continue;
-                }
+    /**
+     * Create one plan instance for all clusters per scenario.
+     *
+     * @param planProject a plan project
+     */
+    private void runPlanInstanceAllCluster(@Nonnull final PlanProject planProject) {
+        Set<Group> clusters = getAllComputeClusters();
+        logger.info("Running plan project {} on {} clusters. " +
+                "(one plan instance for all clusters per scenario)",
+            planProject.getPlanProjectInfo().getName(), clusters.size());
 
-                // Run plan instance
-                logger.info("Starting plan for cluster name {}, id {} and plan project {}",
-                        cluster.getCluster().getDisplayName(), cluster.getId(),
-                        planProject.getPlanProjectInfo().getName());
+        createClusterPlanInstanceAndRun(planProject, clusters);
+    }
 
-                // This will make a synchronous call to the Topology Processor's RPC service,
-                // and return after the plan topology is broadcast out of the Topology Processor.
-                // At that point it's safe to start running the next plan instance, without
-                // fear of overrunning the system with plans.
-                //
-                // In the future, we still need to address maximum concurrent plans (between
-                // all plan projects), and the interaction between user and system plans.
-                runPlanInstance(planInstance);
+    /**
+     * Get all compute cluster groups from the topology.
+     *
+     * @return a set of compute clusters
+     */
+    private Set<Group> getAllComputeClusters() {
+        Set<Group> clusters = new HashSet<>();
+
+        groupRpcService.getGroups(
+            GroupDTO.GetGroupsRequest.newBuilder()
+                .addTypeFilter(GroupDTO.Group.Type.CLUSTER)
+                .setClusterFilter(ClusterFilter.newBuilder()
+                    .setTypeFilter(ClusterInfo.Type.COMPUTE)
+                    .build())
+                .build()).forEachRemaining(clusters::add);
+
+        return clusters;
+    }
+
+    /**
+     * Create one plan instance for the given clusters per scenario and run it.
+     *
+     * @param planProject a plan project
+     * @param clusters the clusters where this plan is applied
+     */
+    private void createClusterPlanInstanceAndRun(@Nonnull final PlanProject planProject,
+                                                 @Nonnull final Set<Group> clusters) {
+        for (PlanProjectScenario scenario : planProject.getPlanProjectInfo().getScenariosList()) {
+            // Create plan instance
+            PlanInstance planInstance;
+            try {
+                planInstance = createClusterPlanInstance(clusters, scenario,
+                    planProject.getPlanProjectInfo().getType());
+            } catch (IntegrityException e) {
+                logger.error("Failed to create a plan instance for plan project {}: {}",
+                    planProject.getPlanProjectInfo().getName(), e.getMessage());
+                continue;
             }
-        });
+
+            // Register post process handler
+            ProjectPlanPostProcessor planProjectPostProcessor = null;
+            if (planProject.getPlanProjectInfo().getType().equals(PlanProjectType.CLUSTER_HEADROOM)) {
+                planProjectPostProcessor = new ClusterHeadroomPlanPostProcessor(planInstance.getPlanId(),
+                    clusters.stream().map(Group::getId).collect(Collectors.toSet()),
+                    repositoryChannel, historyChannel, planDao, groupChannel, templatesDao);
+            }
+            if (planProjectPostProcessor != null) {
+                projectPlanPostProcessorRegistry.registerPlanPostProcessor(planProjectPostProcessor);
+            } else {
+                continue;
+            }
+
+            logger.info("Starting plan instance for plan project {}",
+                planProject.getPlanProjectInfo().getName());
+            // This will make a synchronous call to the Topology Processor's RPC service,
+            // and return after the plan topology is broadcast out of the Topology Processor.
+            // At that point it's safe to start running the next plan instance, without
+            // fear of overrunning the system with plans.
+            //
+            // In the future, we still need to address maximum concurrent plans (between
+            // all plan projects), and the interaction between user and system plans.
+            runPlanInstance(planInstance);
+        }
     }
 
     /**
@@ -235,8 +274,8 @@ public class PlanProjectExecutor {
      * TODO Provide algorithms that ensure all clusters are cycled through in subsequent executions
      * of the plan project. Additional information may be required to achieve this goal.
      *
-     * @param clusters
-     * @return
+     * @param clusters the original clusters where this plan is applied
+     * @return the restricted clusters where this plan is applied
      */
     @VisibleForTesting
     Set<Group> restrictNumberOfClusters(Set<Group> clusters) {
@@ -258,7 +297,7 @@ public class PlanProjectExecutor {
             return clusters;
         }
 
-        List<Group> clustersAsList = new ArrayList(clusters);
+        List<Group> clustersAsList = new ArrayList<>(clusters);
         Collections.shuffle(clustersAsList);
         clustersAsList = clustersAsList.subList(0, maxPlanInstancesPerPlan.intValue());
         return new HashSet<>(clustersAsList);
@@ -267,78 +306,51 @@ public class PlanProjectExecutor {
     /**
      * Creates a plan instance from a plan project scenario, and sets the cluster ID in plan scope.
      *
-     * @param cluster the cluster where this plan is applied
+     * @param clusters the clusters where this plan is applied
      * @param planProjectScenario the plan project scenario
      * @param type of plan project
      * @return a plan instance
-     * @throws IntegrityException if some integrity constraints violated.
-     * @throws NoSuchObjectException if can not find system load records for this cluster or an existing template.
-     * @throws IllegalTemplateOperationException if the operation is not allowed created template.
+     * @throws IntegrityException if some integrity constraints violated
      */
     @VisibleForTesting
-    PlanInstance createClusterPlanInstance(final Group cluster,
-                                                   @Nonnull final PlanProjectScenario planProjectScenario,
-                                                   @Nonnull final PlanProjectType type)
-            throws IntegrityException, NoSuchObjectException, IllegalTemplateOperationException, DuplicateTemplateException {
-        final PlanScopeEntry planScopeEntry = PlanScopeEntry.newBuilder()
-                .setScopeObjectOid(cluster.getId())
-                .setClassName("Cluster")
-                .build();
-        final PlanScope planScope = PlanScope.newBuilder()
-                .addScopeEntries(planScopeEntry)
-                .build();
-        final ScenarioInfo.Builder scenarioInfoBuilder = ScenarioInfo.newBuilder()
-                .addAllChanges(planProjectScenario.getChangesList())
-                .setScope(planScope);
+    PlanInstance createClusterPlanInstance(@Nonnull final Set<Group> clusters,
+                                           @Nonnull final PlanProjectScenario planProjectScenario,
+                                           @Nonnull final PlanProjectType type)
+                                           throws IntegrityException {
+        final PlanScope.Builder planScopeBuilder = PlanScope.newBuilder();
+        for (Group cluster : clusters) {
+            boolean addScopeEntry = true;
 
-        if (type.equals(PlanProjectType.CLUSTER_HEADROOM)) {
-            SystemLoadInfoRequest.Builder builder = SystemLoadInfoRequest.newBuilder();
-            SystemLoadInfoResponse response = planProjectDao.getSystemLoadInfo(builder.setClusterId(cluster.getId()).build());
-
-            if (response == null || response.getRecordCount() == 0) {
-                throw new NoSuchObjectException("No system load records found for cluster : "
-                                + cluster.getCluster().getDisplayName());
-            }
-
-            SystemLoadProfileCreator profiles = new SystemLoadProfileCreator(cluster, response, LOOPBACK_DAYS);
-            Map<Operation, SystemLoadCalculatedProfile> profilesMap = profiles.createAllProfiles();
-            SystemLoadCalculatedProfile avgProfile = profilesMap.get(Operation.AVG);
-            Optional<TemplateInfo> headroomTemplateInfo = avgProfile.getHeadroomTemplateInfo();
-
-            // TODO (roman, Dec 5 2017): Project-type-specific logic should not be in the main
-            // executor class. We should refactor this to separate the general and type-specific
-            // processing steps.
-            Template avgHeadroomTemplate = null;
-            if (headroomTemplateInfo.isPresent()) {
-                if (cluster.hasCluster() && cluster.getCluster().hasClusterHeadroomTemplateId()) {
-                    logger.debug("Updating template for : " + cluster.getCluster().getDisplayName() +
-                                    " with template id : " + cluster.getCluster().getClusterHeadroomTemplateId());
-                    // if template Id already exists, update template with new values
-                    templatesDao.editTemplate(cluster.getCluster().getClusterHeadroomTemplateId(), headroomTemplateInfo.get());
-                } else {
-                    // Create template using template info and set it as headroomTemplate.
-                    avgHeadroomTemplate = templatesDao.createTemplate(headroomTemplateInfo.get());
+            // The failure for a single cluster should not fail the entire plan.
+            if (type.equals(PlanProjectType.CLUSTER_HEADROOM)) {
+                try {
+                    updateClusterHeadroomTemplate(cluster);
+                } catch (NoSuchObjectException | IllegalTemplateOperationException |
+                         DuplicateTemplateException e) {
+                    addScopeEntry = false;
+                    logger.error("Failed to update headroom template for cluster name {}, id {}: {}",
+                        cluster.getCluster().getDisplayName(), cluster.getId(), e.getMessage());
                 }
-            } else {
-                // Set headroomTemplate  to default template
-                avgHeadroomTemplate = templatesDao.getTemplatesByName("headroomVM").stream()
-                                .filter(template -> template.getType().equals(Type.SYSTEM))
-                                .findFirst()
-                                .orElseThrow(() -> new IllegalStateException("No system headroom VM found!"));
             }
 
-            if (avgHeadroomTemplate != null) {
-                logger.info("Setting template for : " + cluster.getCluster().getDisplayName() +
-                                " with template id : " + avgHeadroomTemplate.getId());
-                // Update template with current headroomTemplate
-                groupRpcService.updateClusterHeadroomTemplate(
-                                UpdateClusterHeadroomTemplateRequest.newBuilder()
-                                        .setGroupId(cluster.getId())
-                                        .setClusterHeadroomTemplateId(avgHeadroomTemplate.getId())
-                                        .build());
+            // If exception was encountered during pre-processing, don't add to the scope entry list.
+            if (addScopeEntry) {
+                planScopeBuilder.addScopeEntries(PlanScopeEntry.newBuilder()
+                    .setScopeObjectOid(cluster.getId())
+                    .setClassName("Cluster")
+                    .build());
             }
         }
 
+        // No scope entry found means no cluster was included in the plan instance.
+        // So there's no need to create and run the plan instance.
+        if (planScopeBuilder.getScopeEntriesCount() == 0) {
+            throw new IntegrityException("No scope entry found");
+        }
+
+        final ScenarioInfo.Builder scenarioInfoBuilder = ScenarioInfo.newBuilder()
+                .addAllChanges(planProjectScenario.getChangesList())
+                .setScope(planScopeBuilder);
         final Scenario scenario = Scenario.newBuilder()
                 .setScenarioInfo(scenarioInfoBuilder)
                 .setId(IdentityGenerator.next())
@@ -348,9 +360,75 @@ public class PlanProjectExecutor {
     }
 
     /**
+     * Create or update the headroom template of a cluster.
+     * if headroomTemplateInfo exists:
+     *     if cluster has clusterHeadroomTemplateId:
+     *         update the associated headroom template using headroomTemplateInfo
+     *     else:
+     *         create a new headroom template using headroomTemplateInfo
+     * else:
+     *     use the default headroom template
+     * update the clusterHeadroomTemplateId of the cluster
+     *
+     * @param cluster the cluster whose headroom template will be updated
+     * @throws NoSuchObjectException if can not find system load records for this cluster or an existing template
+     * @throws IllegalTemplateOperationException if the operation is not allowed created template
+     * @throws DuplicateTemplateException if there are errors when a user tries to create templates
+     */
+    private void updateClusterHeadroomTemplate(@Nonnull Group cluster)
+                throws NoSuchObjectException, IllegalTemplateOperationException,
+                       DuplicateTemplateException {
+        SystemLoadInfoRequest.Builder builder = SystemLoadInfoRequest.newBuilder();
+        SystemLoadInfoResponse response = planProjectDao.getSystemLoadInfo(builder.setClusterId(cluster.getId()).build());
+
+        if (response == null || response.getRecordCount() == 0) {
+            throw new NoSuchObjectException("No system load records found for cluster : "
+                + cluster.getCluster().getDisplayName());
+        }
+
+        SystemLoadProfileCreator profiles = new SystemLoadProfileCreator(cluster, response, LOOPBACK_DAYS);
+        Map<Operation, SystemLoadCalculatedProfile> profilesMap = profiles.createAllProfiles();
+        SystemLoadCalculatedProfile avgProfile = profilesMap.get(Operation.AVG);
+        Optional<TemplateInfo> headroomTemplateInfo = avgProfile.getHeadroomTemplateInfo();
+
+        // TODO (roman, Dec 5 2017): Project-type-specific logic should not be in the main
+        // executor class. We should refactor this to separate the general and type-specific
+        // processing steps.
+        Template avgHeadroomTemplate = null;
+        if (headroomTemplateInfo.isPresent()) {
+            if (cluster.hasCluster() && cluster.getCluster().hasClusterHeadroomTemplateId()) {
+                logger.debug("Updating template for : " + cluster.getCluster().getDisplayName() +
+                    " with template id : " + cluster.getCluster().getClusterHeadroomTemplateId());
+                // if template Id already exists, update template with new values
+                templatesDao.editTemplate(cluster.getCluster().getClusterHeadroomTemplateId(), headroomTemplateInfo.get());
+            } else {
+                // Create template using template info and set it as headroomTemplate.
+                avgHeadroomTemplate = templatesDao.createTemplate(headroomTemplateInfo.get());
+            }
+        } else {
+            // Set headroomTemplate  to default template
+            avgHeadroomTemplate = templatesDao.getTemplatesByName("headroomVM").stream()
+                .filter(template -> template.getType().equals(Type.SYSTEM))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("No system headroom VM found!"));
+        }
+
+        if (avgHeadroomTemplate != null) {
+            logger.info("Setting template for : " + cluster.getCluster().getDisplayName() +
+                " with template id : " + avgHeadroomTemplate.getId());
+            // Update template with current headroomTemplate
+            groupRpcService.updateClusterHeadroomTemplate(
+                UpdateClusterHeadroomTemplateRequest.newBuilder()
+                    .setGroupId(cluster.getId())
+                    .setClusterHeadroomTemplateId(avgHeadroomTemplate.getId())
+                    .build());
+        }
+    }
+
+    /**
      * Calls the plan service to run the plan instance.
      *
-     * @param planInstance
+     * @param planInstance a plan instance
      */
     private void runPlanInstance(PlanInstance planInstance) {
         planService.runPlan(PlanId.newBuilder()

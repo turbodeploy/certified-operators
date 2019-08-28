@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -22,6 +23,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import io.grpc.Channel;
 
@@ -39,14 +41,12 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
-import com.vmturbo.common.protobuf.plan.TemplateDTOMoles;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
-import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -55,7 +55,6 @@ import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanInstanceQueue;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Tests for the {@link com.vmturbo.plan.orchestrator.project.PlanProjectExecutor} class.
@@ -87,7 +86,7 @@ public class PlanProjectExecutorTest {
         PlanInstanceQueue planInstanceQueue = mock(PlanInstanceQueue.class);
         planProjectExecutor = new PlanProjectExecutor(planDao, planProjectDao, grpcServer.getChannel(),
                 planRpcService, registry, repositoryChannel, templatesDao, historyChannel,
-                planInstanceQueue);
+                planInstanceQueue, true);
         when(templatesDao.getTemplatesByName("headroomVM"))
             .thenReturn(Collections.singletonList(Template.newBuilder()
                     .setId(7L)
@@ -95,10 +94,17 @@ public class PlanProjectExecutorTest {
                     .setTemplateInfo(TemplateInfo.newBuilder()
                         .setName("headroomVM"))
                     .build()));
+        when(planProjectDao.getSystemLoadInfo(any()))
+            .thenReturn(SystemLoadInfoResponse.newBuilder()
+                .addRecord(SystemLoadRecord.newBuilder()
+                    .setPropertyType("VCPU")
+                    .setAvgValue(10)
+                    .setRelationType(0))
+                .build());
     }
 
     @Test
-    public void testExecutePlanTwoCluster() throws Exception {
+    public void testExecutePlanOnePlanInstancePerClusterPerScenario() throws Exception {
         PlanDTO.PlanProject planProject = createHeadroomPlanProjectWithTwoScenarios();
 
         // 2 clusters
@@ -131,18 +137,47 @@ public class PlanProjectExecutorTest {
                             .setValue(10)
                             .build()))
                 .build());
-        when(planProjectDao.getSystemLoadInfo(any()))
-        .thenReturn(SystemLoadInfoResponse.newBuilder()
-            .addRecord(SystemLoadRecord.newBuilder()
-                .setPropertyType("VCPU")
-                .setAvgValue(10)
-                .setRelationType(0))
-            .build());
+
+        ReflectionTestUtils.setField(planProjectExecutor, "headroomCalculationForAllClusters", false);
         planProjectExecutor.executePlan(planProject);
 
         // 2 clusters, with 2 scenarios each.  So there are 4 plan instances created.
         verify(planDao, Mockito.times(4)).
                 createPlanInstance(any(Scenario.class), eq(PlanProjectType.CLUSTER_HEADROOM));
+    }
+
+    /**
+     * If the per_cluster_scope value of the plan is set to false, we will apply the plan project
+     * on all clusters. We will create one plan instance for all clusters per scenario.
+     *
+     * @throws Exception if exceptions occur
+     */
+    @Test
+    public void testExecutePlanOnePlanInstanceAllClusterPerScenario() throws Exception {
+        // 3 clusters
+        List<Group> groupList = new ArrayList<>();
+        Arrays.asList(1, 2, 3).forEach(i -> groupList.add(
+            GroupDTO.Group.newBuilder().setId(i)
+                .setType(Group.Type.CLUSTER)
+                .setCluster(ClusterInfo.newBuilder().setClusterType(ClusterInfo.Type.COMPUTE))
+                .build()
+        ));
+
+        when(groupServiceMole.getGroups(any(GroupDTO.GetGroupsRequest.class)))
+            .thenReturn(groupList);
+
+        when(planDao.createPlanInstance(any(Scenario.class), eq(PlanProjectType.CLUSTER_HEADROOM)))
+            .thenReturn(PlanDTO.PlanInstance.newBuilder()
+                .setPlanId(IdentityGenerator.next())
+                .setStatus(PlanStatus.READY)
+                .build());
+
+        PlanDTO.PlanProject planProject = createHeadroomPlanProjectWithTwoScenarios();
+        planProjectExecutor.executePlan(planProject);
+
+        // 3 clusters, with 2 scenarios each. So there are 2 plan instances created.
+        verify(planDao, Mockito.times(2))
+            .createPlanInstance(any(Scenario.class), eq(PlanProjectType.CLUSTER_HEADROOM));
     }
 
     /**
@@ -165,17 +200,8 @@ public class PlanProjectExecutorTest {
                 .build();
 
         when(templatesDao.getTemplate(headroomTempalteId)).thenReturn(Optional.of(Template.getDefaultInstance()));
-        when(planProjectDao.getSystemLoadInfo(SystemLoadInfoRequest.newBuilder()
-            .setClusterId(groupWithHeadroomTemplateId.getId())
-            .build()))
-        .thenReturn(SystemLoadInfoResponse.newBuilder()
-            .addRecord(SystemLoadRecord.newBuilder()
-                .setPropertyType("VCPU")
-                .setAvgValue(10)
-                .setRelationType(0))
-            .build());
 
-        planProjectExecutor.createClusterPlanInstance(groupWithHeadroomTemplateId,
+        planProjectExecutor.createClusterPlanInstance(Collections.singleton(groupWithHeadroomTemplateId),
                 PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);
         verify(templatesDao).editTemplate(eq(headroomTempalteId), any());
         verify(templatesDao, never()).getTemplatesByName("headroomVM");
@@ -197,17 +223,8 @@ public class PlanProjectExecutorTest {
                 .build();
 
         when(templatesDao.createTemplate(any())).thenReturn(Template.getDefaultInstance());
-        when(planProjectDao.getSystemLoadInfo(SystemLoadInfoRequest.newBuilder()
-                        .setClusterId(groupWithoutHeadroomClusterInfo.getId())
-                        .build()))
-                    .thenReturn(SystemLoadInfoResponse.newBuilder()
-                        .addRecord(SystemLoadRecord.newBuilder()
-                            .setPropertyType("VCPU")
-                            .setAvgValue(10)
-                            .setRelationType(0))
-                        .build());
 
-        planProjectExecutor.createClusterPlanInstance(groupWithoutHeadroomClusterInfo,
+        planProjectExecutor.createClusterPlanInstance(Collections.singleton(groupWithoutHeadroomClusterInfo),
                 PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);
         verify(groupServiceMole).updateClusterHeadroomTemplate(any(UpdateClusterHeadroomTemplateRequest.class));
     }
@@ -228,16 +245,8 @@ public class PlanProjectExecutorTest {
                         .build())
                 .build();
         when(templatesDao.createTemplate(any())).thenReturn(Template.getDefaultInstance());
-        when(planProjectDao.getSystemLoadInfo(SystemLoadInfoRequest.newBuilder()
-                        .setClusterId(groupWithHeadroomTemplateId.getId())
-                        .build()))
-                    .thenReturn(SystemLoadInfoResponse.newBuilder()
-                        .addRecord(SystemLoadRecord.newBuilder()
-                            .setPropertyType("TestProperty")
-                            .setAvgValue(10)
-                            .setRelationType(0))
-                        .build());
-        planProjectExecutor.createClusterPlanInstance(groupWithHeadroomTemplateId,
+
+        planProjectExecutor.createClusterPlanInstance(Collections.singleton(groupWithHeadroomTemplateId),
                 PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);
         verify(templatesDao, never()).getTemplate(anyLong());
         verify(templatesDao).createTemplate(any());
@@ -246,6 +255,7 @@ public class PlanProjectExecutorTest {
 
     /**
      * Create a plan project of type CLUSTER_HEADROOM, with 2 scenarios
+     *
      * @return a plan project
      */
     private PlanDTO.PlanProject createHeadroomPlanProjectWithTwoScenarios() {
@@ -270,7 +280,6 @@ public class PlanProjectExecutorTest {
         PlanDTO.PlanProjectInfo planProjectInfo = PlanDTO.PlanProjectInfo.newBuilder()
                 .setName("Test Project")
                 .setType(PlanProjectType.CLUSTER_HEADROOM)
-                .setPerClusterScope(true)
                 .addScenarios(scenario1)
                 .addScenarios(scenario2)
                 .build();

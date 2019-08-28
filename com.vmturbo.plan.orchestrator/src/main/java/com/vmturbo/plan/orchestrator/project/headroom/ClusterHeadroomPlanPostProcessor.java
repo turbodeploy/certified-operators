@@ -1,10 +1,10 @@
 package com.vmturbo.plan.orchestrator.project.headroom;
 
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -32,13 +33,14 @@ import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
@@ -48,9 +50,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequ
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityHeadroom;
@@ -81,9 +81,9 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
     private final long planId;
 
     /**
-     * The cluster for which we're trying to calculate headroom.
+     * The clusters for which we're trying to calculate headroom.
      */
-    private final Group cluster;
+    private final List<Group> clusters;
 
     private final RepositoryServiceBlockingStub repositoryService;
 
@@ -102,7 +102,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
     /**
      * Number of days to look back for vm growth from now.
      */
-    private static final int PEAK_LOOKBACK_DAYS = 7;
+    private static final int PEAK_LOOK_BACK_DAYS = 7;
 
     /**
      * A constant holding a big number of days when exhaustion days is infinite
@@ -110,7 +110,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
     private static final int MORE_THAN_A_YEAR = 3650;
 
     // Milliseconds in a day
-    public static long DAY_MILLI_SECS = TimeUnit.DAYS.toMillis(1);
+    private static final long DAY_MILLI_SECS = TimeUnit.DAYS.toMillis(1);
 
     /**
      * List of entities relevant for headroom calculation.
@@ -142,7 +142,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
     /**
      * String representation of headroom entities.
      */
-    private static Set<String> HEADROOM_ENTITY_TYPES = ImmutableSet.of(StringConstants.VIRTUAL_MACHINE,
+    private static final Set<String> HEADROOM_ENTITY_TYPES = ImmutableSet.of(StringConstants.VIRTUAL_MACHINE,
                     StringConstants.PHYSICAL_MACHINE, StringConstants.STORAGE);
 
     /**
@@ -152,7 +152,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
     private final AtomicBoolean calculationStarted = new AtomicBoolean(false);
 
     public ClusterHeadroomPlanPostProcessor(final long planId,
-                                            @Nonnull final long clusterId,
+                                            @Nonnull final Set<Long> clusterIds,
                                             @Nonnull final Channel repositoryChannel,
                                             @Nonnull final Channel historyChannel,
                                             @Nonnull final PlanDao planDao,
@@ -169,8 +169,10 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 GroupServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
         this.planDao = Objects.requireNonNull(planDao);
         this.templatesDao = Objects.requireNonNull(templatesDao);
-        this.cluster = Objects.requireNonNull(groupRpcService
-                        .getGroup(GroupID.newBuilder().setId(clusterId).build()).getGroup());
+        this.clusters = new ArrayList<>(clusterIds.size());
+        groupRpcService.getGroups(
+                GroupDTO.GetGroupsRequest.newBuilder().addAllId(clusterIds).build())
+            .forEachRemaining(this.clusters::add);
     }
 
     @Override
@@ -184,53 +186,39 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
             // We may have multiple updates to the plan status after the initial one that set
             // the projected topology. However, we only want to calculate headroom once.
             if (calculationStarted.compareAndSet(false, true)) {
-                // This is all we need for post-processing, don't need to wait for plan
-                // to succeed.
+                logger.info("Headroom calculation started");
+                // This is all we need for post-processing, don't need to wait for plan to succeed.
+                // Retrieve all projected entities in the plan topology.
                 final Iterable<RetrieveTopologyResponse> topologyResponse = () ->
                     repositoryService.retrieveTopology(RetrieveTopologyRequest.newBuilder()
                             .setTopologyId(plan.getProjectedTopologyId())
                             .build());
 
                 // Headroom entities filtered based on entity type.
-                Map<Integer, List<TopologyEntityDTO>> headroomEntities =
-                                StreamSupport.stream(topologyResponse.spliterator(), false)
-                                    .flatMap(res -> res.getEntitiesList().stream())
-                                    .filter(entity -> HEADROOM_ENTITY_TYPE.contains(entity.getEntityType()))
-                                    .collect(Collectors.groupingBy(e -> e.getEntityType()));
+                // Key is the oid of the TopologyEntityDTO. Value is the TopologyEntityDTO.
+                final Map<Long, TopologyEntityDTO> oidToHeadroomEntity =
+                    StreamSupport.stream(topologyResponse.spliterator(), false)
+                        .flatMap(res -> res.getEntitiesList().stream())
+                        .filter(entity -> HEADROOM_ENTITY_TYPE.contains(entity.getEntityType()))
+                        .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
-                final ImmutableEntityCountData entityCounts = getHeadroomEntitesCount();
+                // Group entities into corresponding clusters.
+                final Map<Long, ImmutableEntityCountData> entityCounts = new HashMap<>(clusters.size());
+                final Map<Long, Map<Integer, List<TopologyEntityDTO>>> clusterHeadroomEntities =
+                    new HashMap<>(clusters.size());
+                clusters.forEach(cluster ->
+                    clusterHeadroomEntities.put(cluster.getId(), new HashMap<>()));
+                groupHeadroomEntities(oidToHeadroomEntity, entityCounts, clusterHeadroomEntities);
 
-                Optional<Template> template = templatesDao
-                                .getTemplate(cluster.getCluster().getClusterHeadroomTemplateId());
+                // Get vmDailyGrowth of each cluster.
+                final Map<Long, Long> clusterIdToVMDailyGrowth = getVMDailyGrowth(clusterHeadroomEntities);
 
-                if (!template.isPresent()) {
-                    logger.error("Template not found for : " + cluster.getCluster().getDisplayName() +
-                                    " with template id : " + cluster.getCluster().getClusterHeadroomTemplateId());
-                    return;
-                }
-
-                // Map of  commodities bought by template per relevant headroom commodities
-                // set of CPU, MEM and Storage.
-                Map<Set<Integer>, Map<Integer, Double>> commoditiesBoughtByTemplate =
-                                getCommoditiesBoughtByTemplate(template.get());
-
-
-                long vmGrowthInLookbackDays = getVMGrowth(headroomEntities.get(EntityType.VIRTUAL_MACHINE_VALUE).stream()
-                                .map(vm -> vm.getOid())
-                                .collect(Collectors.toSet()));
-                CommodityHeadroom cpuHeadroom = calculateHeadroom(
-                                headroomEntities.get(EntityType.PHYSICAL_MACHINE_VALUE),
-                                commoditiesBoughtByTemplate.get(CPU_HEADROOM_COMMODITIES), vmGrowthInLookbackDays);
-                CommodityHeadroom memHeadroom = calculateHeadroom(
-                                headroomEntities.get(EntityType.PHYSICAL_MACHINE_VALUE),
-                                commoditiesBoughtByTemplate.get(MEM_HEADROOM_COMMODITIES), vmGrowthInLookbackDays);
-                CommodityHeadroom storageHeadroom = calculateHeadroom(
-                                headroomEntities.get(EntityType.STORAGE_VALUE),
-                                commoditiesBoughtByTemplate.get(STORAGE_HEADROOM_COMMODITIES), vmGrowthInLookbackDays);
-                createStatsRecords(entityCounts.getNumberOfVMs(),
-                                entityCounts.getNumberOfHosts(),
-                                entityCounts.getNumberOfStorages(),
-                                cpuHeadroom, memHeadroom, storageHeadroom, getMonthlyVMGrowth(vmGrowthInLookbackDays));
+                // Calculate headroom for each cluster.
+                clusters.forEach(cluster -> {
+                    final long clusterId = cluster.getId();
+                    calculateHeadroomPerCluster(cluster, clusterHeadroomEntities.get(clusterId),
+                        entityCounts.get(clusterId), clusterIdToVMDailyGrowth.get(clusterId));
+                });
             }
         }
 
@@ -238,17 +226,17 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         // to delete it, so that everything gets deleted properly.
         // In the future, we should be able to issue a delete to an in-progress plan and
         // have no orphaned data.
+        String displayName = clusters.size() == 1 ?
+            clusters.get(0).getCluster().getDisplayName() : "All";
         if (plan.getStatus() == PlanStatus.SUCCEEDED || plan.getStatus() == PlanStatus.FAILED
                 || plan.getStatus() == PlanStatus.STOPPED) {
             if (plan.getStatus() == PlanStatus.FAILED) {
-                logger.error("Cluster headroom plan for cluster ID {} failed! Error: {}",
-                        cluster.getCluster().getDisplayName(), plan.getStatusMessage());
+                logger.error("Cluster headroom plan for cluster {} failed! Error: {}",
+                    displayName, plan.getStatusMessage());
             } else if (plan.getStatus() == PlanStatus.STOPPED) {
-                logger.info("Cluster headroom plan for cluster ID {} was stopped!",
-                        cluster.getCluster().getDisplayName());
+                logger.info("Cluster headroom plan for cluster {} was stopped!", displayName);
             } else {
-                logger.info("Cluster headroom plan for cluster ID {} completed!",
-                        cluster.getCluster().getDisplayName());
+                logger.info("Cluster headroom plan for cluster {} completed!", displayName);
             }
 
             try {
@@ -264,71 +252,199 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         } else {
             // Do nothing.
             logger.info("Cluster headroom plan for cluster {} has new status: {}",
-                    cluster.getCluster().getDisplayName(), plan.getStatus());
+                displayName, plan.getStatus());
         }
     }
 
     /**
-     * VM growth is calculated based on assumption that current VMs in cluster since PEAK_LOOKBACK_DAYS.
-     * and then fetch VMs from week before to count VMs that were not present earlier but are present now.
-     * @param currentVMsInCluster VMs in cluster currently.
-     * @return newly added VMs since past PEAK_LOOKBACK_DAYS.
+     * Group headroom entities into corresponding clusters and
+     * get the number of VMs, hosts and Storages in each cluster.
+     *
+     * @param oidToHeadroomEntity projected entities in the plan topology
+     * @param entityCounts key is the id of the cluster;
+     *                     value is the number of VMs, PMs and Storages in this cluster
+     * @param clusterHeadroomEntities key is the id of the cluster;
+     *                                value is a map, whose key is the entity type,
+     *                                value is all TopologyEntityDTOs of this entity type in this cluster
+     */
+    private void groupHeadroomEntities(
+        @Nonnull final Map<Long, TopologyEntityDTO> oidToHeadroomEntity,
+        @Nonnull final Map<Long, ImmutableEntityCountData> entityCounts,
+        @Nonnull final Map<Long, Map<Integer, List<TopologyEntityDTO>>> clusterHeadroomEntities) {
+
+        final GetMultiSupplyChainsRequest.Builder requestBuilder = GetMultiSupplyChainsRequest.newBuilder();
+        clusters.forEach(cluster -> requestBuilder.addSeeds(SupplyChainSeed.newBuilder()
+            .setSeedOid(cluster.getId())
+            .addAllStartingEntityOid(cluster.getCluster().getMembers().getStaticMemberOidsList())
+            .addAllEntityTypesToInclude(HEADROOM_ENTITY_TYPES)));
+
+        // Make a supply chain rpc call to fetch supply chain information, which is used to
+        // determine which cluster a projected entity belongs to and
+        // the number of VMs, PMs and Storages in this cluster.
+        supplyChainRpcService.getMultiSupplyChains(requestBuilder.build())
+            .forEachRemaining(supplyChainResponse -> {
+                final long clusterId = supplyChainResponse.getSeedOid();
+                if (supplyChainResponse.hasError()) {
+                    logger.error("Failed to retrieve supply chain of cluster {} due to error: {}",
+                        clusterId, supplyChainResponse.getError());
+                }
+
+                final SupplyChain supplyChain = supplyChainResponse.getSupplyChain();
+                final int missingEntitiesCnt = supplyChain.getMissingStartingEntitiesCount();
+                if (missingEntitiesCnt > 0) {
+                    logger.warn("Supply chains of {} cluster members of cluster {} not found." +
+                            " Missing members: {}", missingEntitiesCnt, clusterId,
+                        supplyChain.getMissingStartingEntitiesList());
+                }
+
+                final Map<String, Long> entitiesByType = new HashMap<>();
+                final Map<Integer, List<TopologyEntityDTO>> headroomEntities =
+                    clusterHeadroomEntities.get(clusterId);
+                HEADROOM_ENTITY_TYPE.forEach(type -> headroomEntities.put(type, new ArrayList<>()));
+                supplyChain.getSupplyChainNodesList().stream()
+                    .filter(node -> HEADROOM_ENTITY_TYPES.contains(node.getEntityType()))
+                    .forEach(node -> {
+                        node.getMembersByStateMap().values().stream()
+                            .flatMap(memberList -> memberList.getMemberOidsList().stream())
+                            .filter(oidToHeadroomEntity::containsKey)
+                            .forEach(oid ->
+                                headroomEntities.get(UIEntityType.fromString(node.getEntityType()).typeNumber())
+                                    .add(oidToHeadroomEntity.get(oid)));
+
+                        entitiesByType.put(node.getEntityType(),
+                            entitiesByType.getOrDefault(node.getEntityType(), 0L)
+                                + RepositoryDTOUtil.getMemberCount(node));
+                    });
+
+                entityCounts.put(clusterId, ImmutableEntityCountData.builder()
+                    .numberOfVMs(entitiesByType.getOrDefault(StringConstants.VIRTUAL_MACHINE, 0L))
+                    .numberOfHosts(entitiesByType.getOrDefault(StringConstants.PHYSICAL_MACHINE, 0L))
+                    .numberOfStorages(entitiesByType.getOrDefault(StringConstants.STORAGE, 0L))
+                    .build());
+            });
+    }
+
+    /**
+     * Get the averaged number of daily added VMs of each cluster since past lookBackDays.
+     * Fetch VMs from past lookBackDays to count VMs that were not present earlier but are present now.
+     *
+     * @param clusterHeadroomEntities key is the id of the cluster;
+     *                                value is a map, whose key is the entity type,
+     *                                value is all TopologyEntityDTOs of this entity type in this cluster
+     * @return vmDailyGrowth of each cluster
      */
     @VisibleForTesting
-    public long getVMGrowth(Set<Long> currentVMsInCluster) {
+    Map<Long, Long> getVMDailyGrowth(
+            @Nonnull final Map<Long, Map<Integer, List<TopologyEntityDTO>>> clusterHeadroomEntities) {
+        // Calculate date peakLookBackDays behind
+        final long currentTime = System.currentTimeMillis();
+        final long oneWeekDuration = DAY_MILLI_SECS * PEAK_LOOK_BACK_DAYS;
+        final long timeOneWeekAgo = currentTime - oneWeekDuration;
+        final long timeFiftyWeeksAgo = timeOneWeekAgo - 49 * oneWeekDuration;
+
         EntityStatsScope.Builder scope = EntityStatsScope.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
-
-        // calculate date peakLookBackDays behind
-        final long currentTime = System.currentTimeMillis();
-        final long oneWeekduration = Long.valueOf(DAY_MILLI_SECS * PEAK_LOOKBACK_DAYS);
-        final long timeOneWeekAgo = currentTime - oneWeekduration;
-        final long timeFiftyWeeksAgo = timeOneWeekAgo - 49 * oneWeekduration;
 
         // Find from when we have data. 2 weeks of data are enough, otherwise if we have
         // less data we use that
         GetEntityStatsRequest entityStatsRequest = GetEntityStatsRequest.newBuilder()
-                .setFilter(StatsFilter.newBuilder()
-                        .setStartDate(timeFiftyWeeksAgo).setEndDate(currentTime))
-                .setScope(scope)
-                .build();
+            .setFilter(StatsFilter.newBuilder()
+                .setStartDate(timeFiftyWeeksAgo).setEndDate(currentTime))
+            .setScope(scope)
+            .build();
 
         GetEntityStatsResponse response = statsHistoryService.getEntityStats(entityStatsRequest);
 
         // Calculate the earlier day in the past we have data (not earlier than 2 weeks)
-        Long startTime = currentTime;
+        long startTime = currentTime;
         for (EntityStats stats : response.getEntityStatsList()) {
             long snapshotTime = stats.getStatSnapshots(0).getSnapshotDate();
-            if (snapshotTime < startTime) {
-                startTime = snapshotTime;
-            }
+            startTime = Math.min(startTime, snapshotTime);
         }
 
-        // We will use 2 * daysNo days of data for the calculation of VM growth
-        int daysNo = (int) (Math.floor((currentTime - startTime) / (2 * DAY_MILLI_SECS)));
+        // We will use lookBackDays days of data for the calculation of VM growth
+        int lookBackDays = (int)((currentTime - startTime) / (2 * DAY_MILLI_SECS));
 
+        final Map<Long, Long> clusterIdToVMDailyGrowth = new HashMap<>();
         final long timeOneIntervalAgo;
-
-        if (daysNo == 0) {
+        if (lookBackDays == 0) {
             // We don't have data at all
-            logger.info("We don't have enough data to calculate VM growth for cluster {}", cluster.getId());
-            return 0;
-        } else if (daysNo >= PEAK_LOOKBACK_DAYS) {
+            logger.info("We don't have enough data to calculate VM daily growth");
+            clusterHeadroomEntities.forEach((clusterId, headroomEntities) ->
+                clusterIdToVMDailyGrowth.put(clusterId, 0L));
+            return clusterIdToVMDailyGrowth;
+        } else if (lookBackDays >= PEAK_LOOK_BACK_DAYS) {
             // We have data for 2 weeks
-            daysNo = PEAK_LOOKBACK_DAYS;
+            lookBackDays = PEAK_LOOK_BACK_DAYS;
             timeOneIntervalAgo = timeOneWeekAgo;
         } else {
             // We have data for less than 2 weeks
-            timeOneIntervalAgo = currentTime - daysNo * DAY_MILLI_SECS;
+            timeOneIntervalAgo = currentTime - lookBackDays * DAY_MILLI_SECS;
         }
 
-        final Set<Long> vmOidsFromHistory = response.getEntityStatsList().stream()
-                    .filter(entity -> entity.getStatSnapshots(0).getSnapshotDate() < timeOneIntervalAgo)
-                    .map(entity -> entity.getOid())
-                    .collect(Collectors.toSet());
-        return currentVMsInCluster.stream()
-        .filter(currentVM -> !vmOidsFromHistory.contains(currentVM))
-        .count() / daysNo;     // Normalize VM growth for 1 day
+        // Get all VMs present since timeOneIntervalAgo.
+        final Set<Long> vmHistory = new HashSet<>();
+        response.getEntityStatsList().stream()
+            .filter(entity -> entity.getStatSnapshots(0).getSnapshotDate() < timeOneIntervalAgo)
+            .map(EntityStats::getOid)
+            .forEach(vmHistory::add);
+
+        final long finalLookBackDays = lookBackDays;
+        logger.info("Use {} days of data to calculate VM daily growth", finalLookBackDays);
+
+        clusterHeadroomEntities.forEach((clusterId, headroomEntities) ->
+            // Put clusterId and vmDailyGrowth of this cluster.
+            clusterIdToVMDailyGrowth.put(clusterId,
+                headroomEntities.get(EntityType.VIRTUAL_MACHINE_VALUE).stream()
+                .map(TopologyEntityDTO::getOid)
+                .filter(currentVM -> !vmHistory.contains(currentVM))
+                .distinct()
+                .count() / finalLookBackDays));
+
+        return clusterIdToVMDailyGrowth;
+    }
+
+    /**
+     * Calculate headroom for each cluster.
+     *
+     * @param cluster calculate headroom for this cluster
+     * @param headroomEntities the VMs, hosts and Storages in this cluster
+     * @param entityCounts the number of VMs, hosts and Storages in this cluster
+     * @param vmDailyGrowth the averaged number of daily added VMs since past lookBackDays
+     */
+    private void calculateHeadroomPerCluster(
+        @Nonnull final Group cluster,
+        @Nonnull final Map<Integer, List<TopologyEntityDTO>> headroomEntities,
+        @Nonnull final ImmutableEntityCountData entityCounts,
+        final long vmDailyGrowth) {
+
+        Optional<Template> template = templatesDao
+            .getTemplate(cluster.getCluster().getClusterHeadroomTemplateId());
+
+        if (!template.isPresent()) {
+            logger.error("Template not found for : " + cluster.getCluster().getDisplayName() +
+                " with template id : " + cluster.getCluster().getClusterHeadroomTemplateId());
+            return;
+        }
+
+        // Map of commodities bought by template per relevant headroom commodities
+        // set of CPU, MEM and Storage.
+        Map<Set<Integer>, Map<Integer, Double>> commoditiesBoughtByTemplate =
+            getCommoditiesBoughtByTemplate(template.get());
+
+        CommodityHeadroom cpuHeadroom = calculateHeadroom(cluster,
+            headroomEntities.get(EntityType.PHYSICAL_MACHINE_VALUE),
+            commoditiesBoughtByTemplate.get(CPU_HEADROOM_COMMODITIES), vmDailyGrowth);
+        CommodityHeadroom memHeadroom = calculateHeadroom(cluster,
+            headroomEntities.get(EntityType.PHYSICAL_MACHINE_VALUE),
+            commoditiesBoughtByTemplate.get(MEM_HEADROOM_COMMODITIES), vmDailyGrowth);
+        CommodityHeadroom storageHeadroom = calculateHeadroom(cluster,
+            headroomEntities.get(EntityType.STORAGE_VALUE),
+            commoditiesBoughtByTemplate.get(STORAGE_HEADROOM_COMMODITIES), vmDailyGrowth);
+
+        createStatsRecords(cluster.getId(), entityCounts.getNumberOfVMs(),
+            entityCounts.getNumberOfHosts(), entityCounts.getNumberOfStorages(),
+            cpuHeadroom, memHeadroom, storageHeadroom, getMonthlyVMGrowth(vmDailyGrowth));
     }
 
     /**
@@ -336,12 +452,13 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * For example : For CPU_HEADROOM_COMMODITIES(CPU, CPU_PROV) Returned map has
      * key (Set<CPU_HEADROOM_COMMODITIES>) -> value (Map : key<Commodity_Type> -> Value<UsedValue>) calculated
      * by parsing template fields specific to system load.
+     *
      * @param headroomTemplate to parse.
      * @return Map<Set<Integer>, Map<Integer, Double>> which has for example :
      * key (Set<CPU_HEADROOM_COMMODITIES>) -> value (Map : key<Commodity_Type> -> Value<UsedValue>)
      */
     private Map<Set<Integer>, Map<Integer, Double>> getCommoditiesBoughtByTemplate(
-                    Template headroomTemplate) {
+        Template headroomTemplate) {
         Map<Set<Integer>, Map<Integer, Double>> commBoughtMap = new HashMap<>();
         commBoughtMap.put(CPU_HEADROOM_COMMODITIES, new HashMap<>());
         commBoughtMap.put(MEM_HEADROOM_COMMODITIES, new HashMap<>());
@@ -356,18 +473,18 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         commBoughtMap.get(CPU_HEADROOM_COMMODITIES)
             .put(CommodityType.CPU_VALUE,
                 Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.CPU_SPEED)) *
-                Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.NUM_OF_CPU)) *
-                Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.CPU_CONSUMED_FACTOR)));
+                    Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.NUM_OF_CPU)) *
+                    Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.CPU_CONSUMED_FACTOR)));
         commBoughtMap.get(CPU_HEADROOM_COMMODITIES)
             .put(CommodityType.CPU_PROVISIONED_VALUE,
                 Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.NUM_OF_CPU)) *
-                Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.CPU_SPEED)));
+                    Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.CPU_SPEED)));
 
         // Set MEM_HEADROOM_COMMODITIES
         commBoughtMap.get(MEM_HEADROOM_COMMODITIES)
-        .put(CommodityType.MEM_VALUE,
-            Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.MEMORY_SIZE)) *
-            Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.MEMORY_CONSUMED_FACTOR)));
+            .put(CommodityType.MEM_VALUE,
+                Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.MEMORY_SIZE)) *
+                    Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.MEMORY_CONSUMED_FACTOR)));
         commBoughtMap.get(MEM_HEADROOM_COMMODITIES)
             .put(CommodityType.MEM_PROVISIONED_VALUE,
                 Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.MEMORY_SIZE)));
@@ -376,111 +493,37 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         commBoughtMap.get(STORAGE_HEADROOM_COMMODITIES)
             .put(CommodityType.STORAGE_AMOUNT_VALUE,
                 Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.DISK_SIZE)) *
-                Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.DISK_CONSUMED_FACTOR)));
+                    Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.DISK_CONSUMED_FACTOR)));
         commBoughtMap.get(STORAGE_HEADROOM_COMMODITIES)
             .put(CommodityType.STORAGE_PROVISIONED_VALUE,
                 Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.DISK_SIZE)));
+        if (logger.isTraceEnabled()) {
+            logger.trace("Template name: {}", headroomTemplate.getTemplateInfo().getName());
+            logger.trace("Template fields: {}", templateFields.toString());
+            logger.trace("Commodities bought by template: {}", commBoughtMap.toString());
+        }
         return commBoughtMap;
     }
 
     /**
-     * Save the headroom value.
-     * @param headroom headroom available
-     * @param numVms number of vms
-     * @param cpuHeadroomInfo Headroom values for CPU.
-     * @param memHeadroomInfo Headroom values for Memory.
-     * @param storageHeadroomInfo Headroom values for Storage.
-     */
-    @VisibleForTesting
-    void createStatsRecords(final long numVms,
-                    final long numHosts, final long numStorages,
-                    CommodityHeadroom cpuHeadroomInfo,
-                    CommodityHeadroom memHeadroomInfo,
-                    CommodityHeadroom storageHeadroomInfo,
-                    final long monthlyVMGrowth) {
-        long minHeadroom = Stream.of(cpuHeadroomInfo.getHeadroom(), memHeadroomInfo.getHeadroom(), storageHeadroomInfo.getHeadroom())
-                        .min(Comparator.comparing(Long::valueOf))
-                        // Ideally this should never happen but if it does we are logging it before writing to db.
-                        .orElse(-1L);
-        // Save the headroom in the history component.
-        try {
-            statsHistoryService.saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
-                    .setClusterId(cluster.getId())
-                    .setNumVMs(numVms)
-                    .setNumHosts(numHosts)
-                    .setNumStorages(numStorages)
-                    .setHeadroom(minHeadroom)
-                    .setCpuHeadroomInfo(cpuHeadroomInfo)
-                    .setMemHeadroomInfo(memHeadroomInfo)
-                    .setStorageHeadroomInfo(storageHeadroomInfo)
-                    .setMonthlyVMGrowth(monthlyVMGrowth)
-                    .build());
-        } catch (StatusRuntimeException e) {
-            logger.error("Failed to save cluster headroom: {}", e.getMessage());
-        }
-    }
-
-    @Override
-    public void registerOnCompleteHandler(final Consumer<ProjectPlanPostProcessor> handler) {
-        this.onCompleteHandler = handler;
-    }
-
-    /**
-     * Get the number of VMs running in the cluster.
-     *
-     * @return number of VMs
-     */
-    private ImmutableEntityCountData getHeadroomEntitesCount() {
-        // Use the group service to get a list of IDs of all members (physical machines)
-        GetMembersResponse response = groupRpcService.getMembers(GetMembersRequest.newBuilder()
-                .setId(cluster.getId())
-                .build());
-        List<Long> memberIds = response.getMembers().getIdsList();
-
-        // Use the supply chain service to get all VM nodes that belong to the physical machines
-        final SupplyChain clusterSupplyChain = supplyChainRpcService.getSupplyChain(
-                GetSupplyChainRequest.newBuilder()
-                    .addAllStartingEntityOid(memberIds)
-                    .addAllEntityTypesToInclude(HEADROOM_ENTITY_TYPES)
-                    .build())
-                .getSupplyChain();
-
-        final int missingEntitiesCnt = clusterSupplyChain.getMissingStartingEntitiesCount();
-        if (missingEntitiesCnt > 0) {
-            logger.warn("Related entities for {} (of {}) cluster members not found. Missing members: {}",
-                missingEntitiesCnt, memberIds.size(),
-                clusterSupplyChain.getMissingStartingEntitiesList());
-        }
-
-        Map<String, Long> entitiesByType = new HashMap<>();
-
-        for (SupplyChainNode node : clusterSupplyChain.getSupplyChainNodesList()) {
-            String entityType = node.getEntityType();
-            if (HEADROOM_ENTITY_TYPES.contains(entityType)) {
-                entitiesByType.put(entityType, entitiesByType.getOrDefault(entityType, 0L)
-                    + RepositoryDTOUtil.getMemberCount(node));
-            }
-        }
-
-        return ImmutableEntityCountData.builder()
-            .numberOfVMs(entitiesByType.getOrDefault(StringConstants.VIRTUAL_MACHINE, 0L))
-            .numberOfHosts(entitiesByType.getOrDefault(StringConstants.PHYSICAL_MACHINE, 0L))
-            .numberOfStorages(entitiesByType.getOrDefault(StringConstants.STORAGE, 0L))
-            .build();
-    }
-
-    /**
      * Calculate :
-     * 1) Available Headroom : number of VMs that can be accommodated in cluster considering its utilization for given commodity.
-     * 2) Empty Headroom : number of VMs that can be accommodated in cluster for given commodity when cluster is empty.
+     * 1) Available Headroom : number of VMs that can be accommodated in cluster
+     *                         considering its utilization for given commodity.
+     * 2) Empty Headroom : number of VMs that can be accommodated in cluster
+     *                     for given commodity when cluster is empty.
      * 3) DaysToExhaustion : calculated based on calculated headroom and given vmGrowth.
-     * @param entities relevant for headroom calculation.
-     * @param headroomCommodities for which headroom is calculated.
-     * @param vmGrowth growth of VMs in past PEAK_LOOKBACK_DAYS
-     * @return CommodityHeadroom returns computed headroom data.
+     *
+     * @param cluster calculate headroom for this cluster
+     * @param entities relevant for headroom calculation
+     * @param headroomCommodities for which headroom is calculated
+     * @param vmDailyGrowth the averaged number of daily added VMs since past lookBackDays
+     * @return computed headroom data
      */
-    private CommodityHeadroom calculateHeadroom(List<TopologyEntityDTO> entities,
-                    Map<Integer, Double> headroomCommodities, long vmGrowth) {
+    private CommodityHeadroom calculateHeadroom(
+        @Nonnull final Group cluster,
+        @Nonnull final Collection<TopologyEntityDTO> entities,
+        @Nonnull final Map<Integer, Double> headroomCommodities,
+        final long vmDailyGrowth) {
 
         if (CollectionUtils.isEmpty(entities) || CollectionUtils.isEmpty(headroomCommodities)) {
             return CommodityHeadroom.getDefaultInstance();
@@ -494,6 +537,15 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         long totalHeadroomCapacity = 0;
         // Iterate over each entity and find number of VMs that fit providers.
         for (TopologyEntityDTO entity : entities) {
+            // If entity is not powered on, don't use it for headroom calculation.
+            if (!entity.hasEntityState() ||
+                !(entity.getEntityState() == EntityState.POWERED_ON)) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Skip entity {} ({}) because it's not powered on.",
+                        entity.getDisplayName(), entity.getOid());
+                }
+                continue;
+            }
             for (CommoditySoldDTO comm : entity.getCommoditySoldListList()) {
                 int commType = comm.getCommodityType().getType();
                 double headroomAvailable = 0d;
@@ -535,27 +587,28 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         return CommodityHeadroom.newBuilder()
                     .setHeadroom(totalHeadroomAvailable)
                     .setCapacity(totalHeadroomCapacity)
-                    .setDaysToExhaustion(getDaysToExhaustion(vmGrowth, totalHeadroomAvailable))
+                    .setDaysToExhaustion(getDaysToExhaustion(vmDailyGrowth, totalHeadroomAvailable))
                     .build();
     }
 
     /**
      * Calculate days to exhaustion by using vmGrowth rate
      * and current headroom availability.
-     * @param vmGrowth growth of VMs in one day
+     *
+     * @param vmDailyGrowth growth of VMs in one day
      * @param headroomAvailable current headroom availability.
      * @return days to exhaustion.
      */
-    private long getDaysToExhaustion(long vmGrowth, long headroomAvailable) {
+    private long getDaysToExhaustion(long vmDailyGrowth, long headroomAvailable) {
         //if headroom == 0 - cluster is already exhausted
         if (headroomAvailable == 0) {
             return 0;
         }
         //if headroom is infinite OR VM Growth is 0  - exhaustion time is infinite
-        if (headroomAvailable == Long.MAX_VALUE || vmGrowth == 0) {
+        if (headroomAvailable == Long.MAX_VALUE || vmDailyGrowth == 0) {
             return MORE_THAN_A_YEAR;
         }
-        return (long)Math.floor((float)headroomAvailable / vmGrowth);
+        return (long)Math.floor((float)headroomAvailable / vmDailyGrowth);
     }
 
     /**
@@ -573,12 +626,58 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
     }
 
     /**
-     * Projects VM growth in "PEAK_LOOKBACK_DAYS" to a monthly value.
-     * @param vmGrowthInLookback : represents growth of VMs in last "PEAK_LOOKBACK_DAYS".
-     * @return monthly VM growth projection.
+     * Projects VM growth to a monthly value.
+     *
+     * @param vmDailyGrowth the number of daily added VMs
+     * @return the number of monthly added VMs
      */
-    private long getMonthlyVMGrowth(long vmGrowthInLookbackDays) {
-        return (DAYS_PER_MONTH * vmGrowthInLookbackDays) / PEAK_LOOKBACK_DAYS;
+    private long getMonthlyVMGrowth(final long vmDailyGrowth) {
+        return DAYS_PER_MONTH * vmDailyGrowth;
+    }
+
+    /**
+     * Save the headroom value.
+     *
+     * @param clusterId cluster id
+     * @param numVms number of vms
+     * @param numHosts number of hosts
+     * @param numStorages number of storages
+     * @param cpuHeadroomInfo headroom values for CPU
+     * @param memHeadroomInfo headroom values for Memory
+     * @param storageHeadroomInfo headroom values for Storage
+     * @param monthlyVMGrowth the number of monthly added VMs
+     */
+    private void createStatsRecords(final long clusterId, final long numVms,
+                            final long numHosts, final long numStorages,
+                            CommodityHeadroom cpuHeadroomInfo,
+                            CommodityHeadroom memHeadroomInfo,
+                            CommodityHeadroom storageHeadroomInfo,
+                            final long monthlyVMGrowth) {
+        long minHeadroom = Stream.of(cpuHeadroomInfo.getHeadroom(), memHeadroomInfo.getHeadroom(), storageHeadroomInfo.getHeadroom())
+            .min(Comparator.comparing(Long::valueOf))
+            // Ideally this should never happen but if it does we are logging it before writing to db.
+            .orElse(-1L);
+        // Save the headroom in the history component.
+        try {
+            statsHistoryService.saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
+                .setClusterId(clusterId)
+                .setNumVMs(numVms)
+                .setNumHosts(numHosts)
+                .setNumStorages(numStorages)
+                .setHeadroom(minHeadroom)
+                .setCpuHeadroomInfo(cpuHeadroomInfo)
+                .setMemHeadroomInfo(memHeadroomInfo)
+                .setStorageHeadroomInfo(storageHeadroomInfo)
+                .setMonthlyVMGrowth(monthlyVMGrowth)
+                .build());
+        } catch (StatusRuntimeException e) {
+            logger.error("Failed to save cluster headroom: {}", e.getMessage());
+        }
+    }
+
+    @Override
+    public void registerOnCompleteHandler(final Consumer<ProjectPlanPostProcessor> handler) {
+        this.onCompleteHandler = handler;
     }
 
     @Value.Immutable
