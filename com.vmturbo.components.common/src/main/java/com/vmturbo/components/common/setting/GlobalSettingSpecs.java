@@ -11,8 +11,6 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Lists;
-
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.components.common.mail.MailConfiguration.EncryptionType;
@@ -100,57 +98,17 @@ public enum GlobalSettingSpecs {
             Collections.emptyList()),
 
     // RI related settings
-    RIPurchase("ri.purchase", "Type",
-            new BooleanSettingDataType(true),
-            Lists.newArrayList("ri")),
-    /**
-     * Global RI Setting of purchaseDate.
-     */
-    RIPurchaseDate("ri.purchaseDate", "Type",
-            numeric(0, Float.MAX_VALUE, 0),
-            Lists.newArrayList("ri")),
-
-    /**
-     * Global AWS RI setting for OfferingClass.
-     */
-    AWSPreferredOfferingClass("ri.aws.preferredOfferingClass", "Type",
+    PreferredOfferingClass("preferredOfferingClass", "Type",
             new EnumSettingDataType(RISettingsEnum.PreferredOfferingClass.STANDARD),
-            Lists.newArrayList("ri", "aws")),
+            Collections.emptyList()),
 
-    /**
-     * Global AWS RI setting for preferred term, length of RI.
-     */
-    AWSPreferredTerm("ri.aws.preferredTerm", "Term",
+    PreferredTerm("preferredTerm", "Term",
             new EnumSettingDataType(RISettingsEnum.PreferredTerm.YEARS_1),
-            Lists.newArrayList("ri", "aws")),
+            Collections.emptyList()),
 
-    /**
-     * Global AWS RI setting for preferred payment option.
-     */
-    AWSPreferredPaymentOption("ri.aws.preferredPaymentOption", "Payment",
+    PreferredPaymentOption("preferredPaymentOption", "Payment",
             new EnumSettingDataType(RISettingsEnum.PreferredPaymentOption.ALL_UPFRONT),
-            Lists.newArrayList("ri", "aws")),
-
-    /**
-     * Global AZURE RI setting for Offering Class.
-     */
-    AzurePreferredOfferingClass("ri.azure.preferredOfferingClass", "Type",
-            new EnumSettingDataType(RISettingsEnum.PreferredOfferingClass.STANDARD),
-            Lists.newArrayList("ri", "azure")),
-
-    /**
-     * Global AZURE RI setting for preferred term, length of RI.
-     */
-    AzurePreferredTerm("ri.azure.preferredTerm", "Term",
-            new EnumSettingDataType(RISettingsEnum.PreferredTerm.YEARS_1),
-            Lists.newArrayList("ri", "azure")),
-
-    /**
-     * Global AZURE RI setting for preferred payment option.
-     */
-    AzurePreferredPaymentOption("ri.azure.preferredPaymentOption", "Payment",
-            new EnumSettingDataType(RISettingsEnum.PreferredPaymentOption.ALL_UPFRONT),
-            Lists.newArrayList("ri", "azure")),
+            Collections.emptyList()),
 
     RecurrencePattern("recurrencePattern", "Recurrence Pattern",
             new StringSettingDataType("value: FREQ=WEEKLY;INTERVAL=2;BYHOUR=1", "*"),
@@ -210,16 +168,6 @@ public enum GlobalSettingSpecs {
     @Nonnull
     public String getSettingName() {
         return name;
-    }
-
-    /**
-     * Returns setting name, identified by this enumeration value.
-     *
-     * @return setting name
-     */
-    @Nonnull
-    public String getDisplayName() {
-        return displayName;
     }
 
     /**

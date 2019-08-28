@@ -1,16 +1,9 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredOfferingClass;
-import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredPaymentOption;
-import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredTerm;
-import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIPurchase;
-import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIPurchaseDate;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -25,8 +18,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.BooleanUtils;
-import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -38,7 +30,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
@@ -98,8 +89,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.components.common.setting.GlobalSettingSpecs;
-import com.vmturbo.components.common.setting.RISettingsEnum.PreferredTerm;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
@@ -143,11 +133,6 @@ public class ScenarioMapper {
      */
     private static final String VIRTUAL_MACHINES_DISPLAY_NAME = "Virtual Machines";
 
-    /**
-     * Supported RI Purchase Profile Settings.
-     */
-    private static final EnumSet<GlobalSettingSpecs> SUPPORTED_RI_PROFILE_SETTINGS = EnumSet.of(AWSPreferredOfferingClass, AWSPreferredPaymentOption, AWSPreferredTerm, RIPurchaseDate);
-
     static {
         MARKET_PLAN_SCOPE = new BaseApiDTO();
         MARKET_PLAN_SCOPE.setUuid(MARKET_PLAN_SCOPE_CLASSNAME);
@@ -161,9 +146,21 @@ public class ScenarioMapper {
                     ConstraintType.NetworkCommodity, ConstraintType.StorageClusterCommodity,
                     ConstraintType.DataCenterCommodity);
 
-    private final EnumMapper<OfferingClass> riOfferingClassMapper = EnumMapper.of(OfferingClass.class);
-    private final EnumMapper<PaymentOption> riPaymentOptionMapper = EnumMapper.of(PaymentOption.class);
-    private final EnumMapper<PreferredTerm> riTermMapper = EnumMapper.of(PreferredTerm.class);
+    private final ImmutableMap<String, OfferingClass> riOfferingClassMapper = ImmutableMap.<String, OfferingClass>builder()
+            .put("Standard", OfferingClass.STANDARD)
+            .put("Convertible", OfferingClass.CONVERTIBLE)
+            .build();
+
+    private final ImmutableMap<String, PaymentOption> riPaymentOptionMapper = ImmutableMap.<String, PaymentOption>builder()
+                    .put("All Upfront", PaymentOption.ALL_UPFRONT)
+                    .put("No Upfront", PaymentOption.NO_UPFRONT)
+                    .put("Partial Upfront", PaymentOption.PARTIAL_UPFRONT)
+                    .build();
+
+    private final ImmutableMap<String, Integer> riTermMapper = ImmutableMap.<String, Integer>builder()
+                    .put("Years 1", 1)
+                    .put("Years 3", 3)
+                    .build();
 
     private final TemplatesUtils templatesUtils;
 
@@ -688,39 +685,36 @@ public class ScenarioMapper {
      * @param riSettingList a list of ri settings
      * @return a ScenarioChange
      */
-    @Nullable
-    ScenarioChange buildRISettingChanges(List<SettingApiDTO> riSettingList) {
-        final ImmutableMap<String, SettingApiDTO> settings = Maps.uniqueIndex(riSettingList, SettingApiDTO::getUuid);
-
-        final Boolean isRIBuyEnabled = SettingsMapper.inputValueToString(settings.get(RIPurchase.getSettingName()))
-                .map(BooleanUtils::toBoolean)
-                .orElse(true);
-        if (!isRIBuyEnabled) {
+    private @Nullable ScenarioChange buildRISettingChanges(List<SettingApiDTO> riSettingList) {
+        if (riSettingList.stream()
+                .filter(r -> r.getUuid().equals(StringConstants.RI_PURCHASE))
+                .map(SettingsMapper::inputValueToString)
+                .filter(Optional::isPresent).map(Optional::get)
+                .anyMatch(v -> !Boolean.getBoolean(v))) {
             // only run optimize workload, no need to run buy RI
             return null;
         }
-
-        RISetting.Builder awsRISetting = RISetting.newBuilder();
-
-        SUPPORTED_RI_PROFILE_SETTINGS.forEach(setting -> {
-            SettingsMapper.inputValueToString(settings.get(setting.getSettingName())).ifPresent(settingValue -> {
-                switch (setting) {
-                    case AWSPreferredOfferingClass:
-                        riOfferingClassMapper.valueOf(settingValue).ifPresent(awsRISetting::setPreferredOfferingClass);
+        ScenarioChange.RISetting.Builder riSetting = RISetting.newBuilder();
+        riSettingList.forEach(r -> {
+            final Optional<String> optionalValue = SettingsMapper.inputValueToString(r);
+            optionalValue.ifPresent(settingValue -> {
+                switch (r.getUuid()) {
+                    case StringConstants.PREFERRED_OFFERING_CLASS:
+                        riSetting.setPreferredOfferingClass(riOfferingClassMapper.get(settingValue));
                         break;
-                    case AWSPreferredPaymentOption:
-                        riPaymentOptionMapper.valueOf(settingValue).ifPresent(awsRISetting::setPreferredPaymentOption);
+                    case StringConstants.PREFERRED_PAYMENT_OPTION:
+                        riSetting.setPreferredPaymentOption(riPaymentOptionMapper.get(settingValue));
                         break;
-                    case AWSPreferredTerm:
-                        riTermMapper.valueOf(settingValue).map(PreferredTerm::getYears).ifPresent(awsRISetting::setPreferredTerm);
+                    case StringConstants.PREFERRED_TERM:
+                        riSetting.setPreferredTerm(riTermMapper.get(settingValue));
                         break;
-                    case RIPurchaseDate:
-                        awsRISetting.setPurchaseDate(Long.parseLong(settingValue));
+                    case StringConstants.PURCHASE_DATE:
+                        riSetting.setPurchaseDate(Long.valueOf(settingValue));
                         break;
                 }
             });
         });
-        return ScenarioChange.newBuilder().setRiSetting(awsRISetting).build();
+        return ScenarioChange.newBuilder().setRiSetting(riSetting).build();
     }
 
     @Nonnull
@@ -1017,30 +1011,21 @@ public class ScenarioMapper {
         List<SettingApiDTO> riSettings = new ArrayList<>();
         SettingApiDTO coverageDto = new SettingApiDTO<>();
         riSettings.add(coverageDto);
-
         SettingApiDTO<String> offeringClassDto = new SettingApiDTO<>();
-        offeringClassDto.setUuid(AWSPreferredOfferingClass.getSettingName());
+        offeringClassDto.setUuid(StringConstants.PREFERRED_OFFERING_CLASS);
         offeringClassDto.setValue(ri.getPreferredOfferingClass().name());
-        offeringClassDto.setDisplayName(AWSPreferredOfferingClass.getDisplayName());
         riSettings.add(offeringClassDto);
-
         SettingApiDTO<String> paymentDto = new SettingApiDTO<>();
-        paymentDto.setUuid(AWSPreferredPaymentOption.getSettingName());
+        paymentDto.setUuid(StringConstants.PREFERRED_PAYMENT_OPTION);
         paymentDto.setValue(ri.getPreferredPaymentOption().name());
-        paymentDto.setDisplayName(AWSPreferredPaymentOption.getDisplayName());
         riSettings.add(paymentDto);
-
         SettingApiDTO<String> termDto = new SettingApiDTO<>();
-        termDto.setUuid(AWSPreferredTerm.getSettingName());
-        Optional<PreferredTerm> term = riTermMapper.valueOf(PreferredTerm.getPrefferedTermEnum(ri.getPreferredTerm()).orElse(null));
-        termDto.setValue(term.map(PreferredTerm::name).orElse(null));
-        termDto.setDisplayName(AWSPreferredTerm.getDisplayName());
+        termDto.setUuid(StringConstants.PREFERRED_TERM);
+        termDto.setValue(String.valueOf(ri.getPreferredTerm()));
         riSettings.add(termDto);
-
         SettingApiDTO<String> purchaseDateDto = new SettingApiDTO<>();
-        purchaseDateDto.setUuid(RIPurchaseDate.getSettingName());
+        purchaseDateDto.setUuid(StringConstants.PURCHASE_DATE);
         purchaseDateDto.setValue(String.valueOf(ri.getPurchaseDate()));
-        purchaseDateDto.setDisplayName(RIPurchaseDate.getDisplayName());
         riSettings.add(purchaseDateDto);
         return riSettings;
     }

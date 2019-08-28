@@ -284,6 +284,11 @@ public class StringConstants {
     public static final String DISABLED = "DISABLED";
     public static final String RESIZE = "resize";
     public static final String BUSINESS_ACCOUNT = "BUSINESSACCOUNT";
+    public static final String PREFERRED_OFFERING_CLASS = "preferredOfferingClass";
+    public static final String PREFERRED_PAYMENT_OPTION = "preferredPaymentOption";
+    public static final String PREFERRED_TERM = "preferredTerm";
+    public static final String PURCHASE_DATE = "purchaseDate";
+    public static final String RI_PURCHASE = "riPurchase";
     public final static String RESULTS_TYPE = "resultsType";
     public final static String BEFORE_PLAN = "beforePlan";
     public final static String ON_DEMAND_COMPUTE_LICENSE_COST = "ON_DEMAND_COMPUTE_LICENSE_COST";

@@ -131,7 +131,7 @@ public class SettingsMapper {
                 apiDTO.setValueType(InputValueType.STRING);
             })
             .put(ValueCase.ENUM_SETTING_VALUE, (setting, apiDTO) -> {
-                apiDTO.setValue(setting.getEnumSettingValue().getValue());
+                apiDTO.setValue(ActionDTOUtil.upperUnderScoreToMixedSpaces(setting.getEnumSettingValue().getValue()));
                 apiDTO.setValueType(InputValueType.STRING);
             })
             .build();
@@ -1261,14 +1261,16 @@ public class SettingsMapper {
                     // Enum is basically a string with predefined allowable values.
                     dtoSkeleton.setValueType(InputValueType.STRING);
                     final EnumSettingValueType enumType = settingSpec.getEnumSettingValueType();
-                    dtoSkeleton.setDefaultValue(enumType.getDefault());
+                    final String displayDefault =
+                        ActionDTOUtil.upperUnderScoreToMixedSpaces(enumType.getDefault());
+                    dtoSkeleton.setDefaultValue(displayDefault);
                     dtoSkeleton.setOptions(enumType.getEnumValuesList().stream()
                             .map(enumValue -> {
                                 final SettingOptionApiDTO enumOption = new SettingOptionApiDTO();
                                 final String displayEnum =
                                     ActionDTOUtil.upperUnderScoreToMixedSpaces(enumValue);
                                 enumOption.setLabel(displayEnum);
-                                enumOption.setValue(enumValue);
+                                enumOption.setValue(displayEnum);
                                 return enumOption;
                             })
                             .collect(Collectors.toList()));
