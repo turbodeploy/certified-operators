@@ -56,6 +56,9 @@ spec:
         imagePullPolicy: {{ template "pullPolicy" . }}
         env:
 {{ toYaml .Values.env | indent 8 -}}
+        ports:
+          - containerPort: 8086
+          - containerPort: 8088
         readinessProbe:
           tcpSocket:
             port: 8086

@@ -34,6 +34,9 @@ spec:
           value: {{ .Values.java.options }}
 {{- end }}
 {{ toYaml .Values.env | indent 8 -}}
+        ports:
+          - containerPort: 8080
+          - containerPort: 9001
         readinessProbe:
           httpGet:
             port: 8080

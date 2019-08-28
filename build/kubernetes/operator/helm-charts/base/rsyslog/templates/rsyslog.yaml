@@ -58,6 +58,7 @@ spec:
         imagePullPolicy: {{ template "pullPolicy" . }}
         ports:
         - containerPort: 2514
+        - containerPort: 8080
         readinessProbe:
           tcpSocket:
             port: 2514

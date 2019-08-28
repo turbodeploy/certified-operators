@@ -45,6 +45,13 @@ spec:
         env:
         - name: CONSUL_BIND_INTERFACE
           value: eth0
+        ports:
+          - containerPort: 8301
+          - containerPort: 8302
+          - containerPort: 8303
+          - containerPort: 8400
+          - containerPort: 8500
+          - containerPort: 8600
         readinessProbe:
           httpGet:
             port: 8500

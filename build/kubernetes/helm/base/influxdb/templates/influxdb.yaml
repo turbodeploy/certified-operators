@@ -12,7 +12,7 @@ spec:
   - ReadWriteOnce
   resources:
     requests:
-      storage: {{ .Values.persistence.auditsize }}
+      storage: {{ .Values.persistence.size }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -56,6 +56,9 @@ spec:
         imagePullPolicy: {{ template "pullPolicy" . }}
         env:
 {{ toYaml .Values.env | indent 8 -}}
+        ports:
+          - containerPort: 8086
+          - containerPort: 8088
         readinessProbe:
           tcpSocket:
             port: 8086
