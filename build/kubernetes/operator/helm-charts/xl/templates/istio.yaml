@@ -1,12 +1,11 @@
-{{- if .Values.global }}
-    {{- if .Values.global.istio }}
+{{- if .Values.istioingress.enabled }}
 apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
 metadata:
     name: t8c-gateway
 spec:
     selector:
-        istio: ingressgateway
+        istio: t8c-ingressgateway
     servers:
         - hosts:
               - '*'
@@ -79,26 +78,167 @@ spec:
                         number: 8080
           websocketUpgrade: true
 ---
-apiVersion: networking.istio.io/v1alpha3
-kind: VirtualService
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-    name: mediation
+  name: t8c-istio-ingressgateway
+  labels:
+    app: t8c-istio-ingressgateway
+    istio: t8c-ingressgateway
 spec:
-    gateways:
-        - t8c-gateway
-    hosts:
-        - '*'
-    http:
-        - match:
-              - uri:
-                    prefix: /vmturbo/remoteMediation
-          rewrite:
-              uri: /remoteMediation
-          route:
-              - destination:
-                    host: topology-processor.{{ .Release.Namespace }}.svc.cluster.local
-                    port:
-                        number: 8080
-          websocketUpgrade: true
-  {{- end -}}
+  replicas: 1
+  selector:
+    matchLabels:
+      app: t8c-istio-ingressgateway
+      istio: t8c-ingressgateway
+  template:
+    metadata:
+      labels:
+        app: t8c-istio-ingressgateway
+        istio: t8c-ingressgateway
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+        - name: istio-proxy
+          image: "docker.io/istio/proxyv2:1.2.3"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 15020
+            - containerPort: 80
+            - containerPort: 443
+            - containerPort: 31400
+            - containerPort: 15029
+            - containerPort: 15030
+            - containerPort: 15031
+            - containerPort: 15032
+            - containerPort: 15443
+            - containerPort: 15090
+              protocol: TCP
+              name: http-envoy-prom
+          args:
+            - proxy
+            - router
+            - --domain
+            - $(POD_NAMESPACE).svc.cluster.local
+            - --log_output_level=default:info
+            - --drainDuration
+            - '45s' #drainDuration
+            - --parentShutdownDuration
+            - '1m0s' #parentShutdownDuration
+            - --connectTimeout
+            - '10s' #connectTimeout
+            - --serviceCluster
+            - t8c-istio-ingressgateway
+            - --zipkinAddress
+            - zipkin:9411
+            - --proxyAdminPort
+            - "15000"
+            - --statusPort
+            - "15020"
+            - --controlPlaneAuthPolicy
+            - MUTUAL_TLS
+            - --discoveryAddress
+            - istio-pilot.istio-system.svc.cluster.local:15011
+          readinessProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /healthz/ready
+              port: 15020
+              scheme: HTTP
+            initialDelaySeconds: 1
+            periodSeconds: 2
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 2000m
+              memory: 1024Mi
+            requests:
+              cpu: 10m
+              memory: 40Mi
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+            - name: INSTANCE_IP
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: status.podIP
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: status.hostIP
+            - name: ISTIO_META_POD_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.name
+            - name: ISTIO_META_CONFIG_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+            - name: ISTIO_META_ROUTER_MODE
+              value: sni-dnat
+          volumeMounts:
+            - name: istio-certs
+              mountPath: /etc/certs
+              readOnly: true
+            - name: ingressgateway-certs
+              mountPath: "/etc/istio/ingressgateway-certs"
+              readOnly: true
+            - name: ingressgateway-ca-certs
+              mountPath: "/etc/istio/ingressgateway-ca-certs"
+              readOnly: true
+      volumes:
+        - name: istio-certs
+          secret:
+            secretName: istio.default
+            optional: true
+        - name: ingressgateway-certs
+          secret:
+            secretName: "istio-ingressgateway-certs"
+            optional: true
+        - name: ingressgateway-ca-certs
+          secret:
+            secretName: "istio-ingressgateway-ca-certs"
+            optional: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: t8c-istio-ingressgateway
+  labels:
+    app: t8c-istio-ingressgateway
+    istio: t8c-ingressgateway
+spec:
+  type: LoadBalancer
+  selector:
+    app: t8c-istio-ingressgateway
+    istio: t8c-ingressgateway
+  ports:
+    - name: status-port
+      port: 15020
+    - name: http2
+      port: 80
+    - name: https
+      port: 443
+    - name: tls
+      port: 15443
+---
 {{- end }}

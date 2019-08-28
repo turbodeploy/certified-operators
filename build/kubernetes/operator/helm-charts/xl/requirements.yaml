@@ -23,7 +23,7 @@ dependencies:
   - name: nginx
     repository: file://../base/nginx
     version: 0.1.0
-    condition: ui.enabled
+    condition: nginxingress.enabled
   - name: rsyslog
     repository: file://../base/rsyslog
     version: 0.1.0
