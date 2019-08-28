@@ -11,12 +11,14 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.context.request.RequestAttributes;
@@ -249,21 +251,30 @@ public class AuthenticationService implements IAuthenticationService {
     /**
      * Authorize SAML user.
      *
-     * @param username  user name
-     * @param groupName group name
-     * @param ipAddress user IP address
+     * @param username  SAML user name to authorize.
+     * @param groupName Optional SAML group name to authorize.
+     * @param ipAddress SAML user remote IP address.
+     * @throws BadCredentialsException if user is not in external group or match external user.
      * @return {@link AuthUserDTO}
      */
-    public Optional<AuthUserDTO> authorize(String username, Optional<String> groupName, String ipAddress) {
-        RestAuthenticationProvider authProvider = new RestAuthenticationProvider(
+    public Optional<AuthUserDTO> authorize(@Nonnull final String username,
+                                           @Nonnull final Optional<String> groupName,
+                                           @Nonnull final String ipAddress) {
+        final RestAuthenticationProvider authProvider = new RestAuthenticationProvider(
                 authHost_,
                 authPort_,
                 restTemplate_,
                 verifier_);
-        Authentication result = authProvider.authorize(username, groupName, ipAddress, componentJwtStore_);
-        return Optional.ofNullable((AuthUserDTO) result.getPrincipal());
+        try {
+            final Authentication result = authProvider
+                .authorize(username, groupName, ipAddress, componentJwtStore_);
+            return Optional.ofNullable((AuthUserDTO) result.getPrincipal());
+        } catch (HttpServerErrorException e) {
+            logger.error("Failed to authorize SAML user: {} with group: {}", username, groupName.orElse("") );
+            throw new BadCredentialsException("Error authorizing SML user: " + username
+                + " ,group: " + groupName);
+        }
     }
-
 
     @Override
     public BaseApiDTO logout() {
