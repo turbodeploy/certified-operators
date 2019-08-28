@@ -825,6 +825,8 @@ public class ActionSpecMapperTest {
         assertEquals(entityToDelete, actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
         assertEquals(ActionType.DELETE, actionApiDTO.getActionType());
+        assertEquals(1, actionApiDTO.getVirtualDisks().size());
+        assertEquals(filePath, actionApiDTO.getVirtualDisks().get(0).getDisplayName());
     }
 
     /**

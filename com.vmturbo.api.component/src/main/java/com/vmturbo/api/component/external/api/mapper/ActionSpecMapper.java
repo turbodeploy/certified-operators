@@ -48,6 +48,7 @@ import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
+import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
@@ -1151,8 +1152,15 @@ public class ActionSpecMapper {
             ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
         actionApiDTO.setCurrentEntity(
             ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
-
         actionApiDTO.setActionType(ActionType.DELETE);
+
+        // set the virtualDisks field on ActionApiDTO, only one VirtualDiskApiDTO should be set,
+        // since there is only one file (on-prem) or volume (cloud) associated with DELETE action
+        if (delete.hasFilePath()) {
+            VirtualDiskApiDTO virtualDiskApiDTO = new VirtualDiskApiDTO();
+            virtualDiskApiDTO.setDisplayName(delete.getFilePath());
+            actionApiDTO.setVirtualDisks(Collections.singletonList(virtualDiskApiDTO));
+        }
     }
 
     /**
