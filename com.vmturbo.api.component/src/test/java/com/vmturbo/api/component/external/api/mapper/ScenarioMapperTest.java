@@ -1,5 +1,10 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredOfferingClass;
+import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredPaymentOption;
+import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredTerm;
+import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIPurchase;
+import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIPurchaseDate;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -76,6 +81,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.HistoricalBaseline;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreConstraint;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.UtilizationLevel;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyRemoval;
@@ -90,7 +96,8 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 
 public class ScenarioMapperTest {
     private static final String SCENARIO_NAME = "MyScenario";
@@ -268,9 +275,7 @@ public class ScenarioMapperTest {
 
     @Test
     public void testSettingOverride() {
-        final SettingApiDTO<String> setting = new SettingApiDTO<>();
-        setting.setUuid("foo");
-        setting.setValue("value");
+        final SettingApiDTO<String> setting = createStringSetting("foo", "value");
 
         when(settingsMapper.toProtoSettings(Collections.singletonList(setting)))
             .thenReturn(ImmutableMap.of("foo", Setting.newBuilder()
@@ -295,13 +300,9 @@ public class ScenarioMapperTest {
 
     @Test
     public void testSettingOverridePlanSettingMapping() {
-        final SettingApiDTO<String> setting = new SettingApiDTO<>();
-        setting.setUuid("foo");
-        setting.setValue("value");
+        final SettingApiDTO<String> setting = createStringSetting("foo", "value");
 
-        final SettingApiDTO<String> convertedSetting = new SettingApiDTO<>();
-        convertedSetting.setUuid("foo");
-        convertedSetting.setValue("1.2f");
+        final SettingApiDTO<String> convertedSetting = createStringSetting("foo", "1.2f");
 
         when(settingsMapper.toProtoSettings(Collections.singletonList(convertedSetting)))
                 .thenReturn(ImmutableMap.of("foo", Setting.newBuilder()
@@ -332,9 +333,7 @@ public class ScenarioMapperTest {
 
     @Test
     public void testSettingOverrideUnknownSetting() {
-        final SettingApiDTO<String> setting = new SettingApiDTO<>();
-        setting.setUuid("unknown");
-        setting.setValue("value");
+        final SettingApiDTO<String> setting = createStringSetting("unknown", "value");
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.singletonList(setting), null);
         assertThat(scenarioInfo.getChangesCount(), is(1));
     }
@@ -454,21 +453,77 @@ public class ScenarioMapperTest {
         Assert.assertEquals(20, utilizationLevel.getPercentage());
     }
 
+    /**
+     * Tests ScenarioChange Object is correctly built to match SettingApiDTO configurations
+     */
     @Test
-    public void testToScenarioInfoWithRISettingChanges() {
+    public void buildRISettingChangesShouldCreateScenarioChangeWithRISettingFromAWSRIsettings() {
+        // GIVEN
         List<SettingApiDTO> riSettingList = new ArrayList<>();
-        SettingApiDTO<String> riSetting = new SettingApiDTO<>();
-        riSetting.setUuid("preferredOfferingClass");
-        riSetting.setValue("Standard");
-        riSettingList.add(riSetting);
-        ScenarioApiDTO dto = new ScenarioApiDTO();
-        ConfigChangesApiDTO configChanges = new ConfigChangesApiDTO();
-        configChanges.setRiSettingList(riSettingList);
-        dto.setConfigChanges(configChanges);
-        final ScenarioInfo scenarioInfo = getScenarioInfo("Ri setting", dto);
-        Assert.assertEquals(2, scenarioInfo.getChangesList().size());
-        Assert.assertEquals(ReservedInstanceType.OfferingClass.STANDARD, scenarioInfo.getChangesList().get(0)
-                .getRiSetting().getPreferredOfferingClass());
+        riSettingList.add(createStringSetting(RIPurchase.getSettingName(), "true"));
+        riSettingList.add(createStringSetting(AWSPreferredOfferingClass.getSettingName(), "Convertible"));
+        riSettingList.add(createStringSetting(AWSPreferredPaymentOption.getSettingName(), "Partial Upfront"));
+        riSettingList.add(createStringSetting(AWSPreferredTerm.getSettingName(), "Years 1"));
+        riSettingList.add(createStringSetting(RIPurchaseDate.getSettingName(), "123"));
+
+        // WHEN
+        final ScenarioChange scenarioChange = scenarioMapper.buildRISettingChanges(riSettingList);
+
+        // THEN
+        Assert.assertNotNull(scenarioChange);
+        final RISetting riSetting = scenarioChange.getRiSetting();
+        Assert.assertNotNull(riSetting);
+        Assert.assertEquals(OfferingClass.CONVERTIBLE, riSetting.getPreferredOfferingClass());
+        Assert.assertEquals(PaymentOption.PARTIAL_UPFRONT, riSetting.getPreferredPaymentOption());
+        Assert.assertEquals(1, riSetting.getPreferredTerm());
+        Assert.assertEquals(123, riSetting.getPurchaseDate());
+    }
+
+    /**
+     * Tests no ScenarioChange Object built when SettingApiDTO RIPurchase  set to false
+     */
+    @Test
+    public void buildRISettingChangesShouldReturnNullWhenRiPurchaseIsDisabled() {
+        // GIVEN
+        List<SettingApiDTO> riSettingList = new ArrayList<>();
+        riSettingList.add(createStringSetting(RIPurchase.getSettingName(), "false"));
+
+        // WHEN
+        final ScenarioChange scenarioChange = scenarioMapper.buildRISettingChanges(riSettingList);
+
+        // THEN
+        Assert.assertNull(scenarioChange);
+    }
+
+    /**
+     * Tests ScenarioChange Object built when SettingApiDTO RIPurchase set to true
+     */
+    @Test
+    public void buildRISettingChangesShouldCreateScenarioChangeWhenRiPurchaseIsEnabled() {
+        // GIVEN
+        List<SettingApiDTO> riSettingList = new ArrayList<>();
+        riSettingList.add(createStringSetting(RIPurchase.getSettingName(), "true"));
+
+        // WHEN
+        final ScenarioChange scenarioChange = scenarioMapper.buildRISettingChanges(riSettingList);
+
+        // THEN
+        Assert.assertNotNull(scenarioChange);
+    }
+
+    /**
+     * Tests ScenarioChange Object built when SettingApiDTO list is empty
+     */
+    @Test
+    public void buildRISettingChangesShouldCreateScenarioChangeWhenRIPurchaseNotPresent() {
+        // GIVEN
+        List<SettingApiDTO> riSettingList = new ArrayList<>();
+
+        // WHEN
+        final ScenarioChange scenarioChange = scenarioMapper.buildRISettingChanges(riSettingList);
+
+        // THEN
+        Assert.assertNotNull(scenarioChange);
     }
 
     @Test
@@ -809,6 +864,13 @@ public class ScenarioMapperTest {
                                 .filter(change -> change.hasSettingOverride())
                                 .map(change -> change.getSettingOverride().getSetting())
                                 .collect(Collectors.toList()));
+    }
+
+    private SettingApiDTO<String> createStringSetting(final String uuid, final String value) {
+        SettingApiDTO<String> riSetting = new SettingApiDTO<>();
+        riSetting.setUuid(uuid);
+        riSetting.setValue(value);
+        return riSetting;
     }
 
     private ScenarioApiDTO scenarioApiForAlleviatePressurePlan(long sourceId, long destinationId) {

@@ -1152,9 +1152,9 @@ public class ReservedInstanceAnalyzer {
      */
     private ReservedInstancePurchaseConstraints getPurchaseConstraints() {
         List<String> settingNames =
-                Arrays.asList(GlobalSettingSpecs.PreferredOfferingClass,
-                        GlobalSettingSpecs.PreferredPaymentOption,
-                        GlobalSettingSpecs.PreferredTerm)
+                Arrays.asList(GlobalSettingSpecs.AWSPreferredOfferingClass,
+                        GlobalSettingSpecs.AWSPreferredPaymentOption,
+                        GlobalSettingSpecs.AWSPreferredTerm)
                     .stream()
                     .map(GlobalSettingSpecs::getSettingName)
                     .collect(Collectors.toList());
@@ -1171,10 +1171,10 @@ public class ReservedInstanceAnalyzer {
         ReservedInstancePurchaseConstraints reservedInstancePurchaseConstraints =
                 new ReservedInstancePurchaseConstraints(
                         OfferingClass.valueOf(
-                                settings.get(GlobalSettingSpecs.PreferredOfferingClass.getSettingName()).getEnumSettingValue().getValue()),
-                        (int)(settings.get(GlobalSettingSpecs.PreferredTerm.getSettingName()).getNumericSettingValue().getValue()),
+                                settings.get(GlobalSettingSpecs.AWSPreferredOfferingClass.getSettingName()).getEnumSettingValue().getValue()),
+                        (int)(settings.get(GlobalSettingSpecs.AWSPreferredTerm.getSettingName()).getNumericSettingValue().getValue()),
                         PaymentOption.valueOf(
-                                settings.get(GlobalSettingSpecs.PreferredPaymentOption.getSettingName()).getEnumSettingValue().getValue()));
+                                settings.get(GlobalSettingSpecs.AWSPreferredPaymentOption.getSettingName()).getEnumSettingValue().getValue()));
 
         return reservedInstancePurchaseConstraints;
 
