@@ -255,4 +255,16 @@ public final class TopologyDTOUtil {
             && !storageClusterCommKey.startsWith(STORAGE_CLUSTER_ISO)
             && !storageClusterCommKey.equals(FREE_STORAGE_CLUSTER);
     }
+
+    /**
+     * Checks if the marketTier is connected to the entity with the provided entityId.
+     *
+     * @param marketTier to check for connectedness.
+     * @param entityId id to test for connectedness with marketTier.
+     * @return true if connected, false otherwise.
+     */
+    public static boolean areEntitiesConnected(TopologyEntityDTO marketTier, long entityId) {
+        return marketTier.getConnectedEntityListList().stream()
+                .map(ConnectedEntity::getConnectedEntityId).anyMatch(id -> id == entityId);
+    }
 }

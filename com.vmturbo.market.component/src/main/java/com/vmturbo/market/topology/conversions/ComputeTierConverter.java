@@ -153,13 +153,21 @@ public class ComputeTierConverter implements TierConverter {
                     .setKey(computeTier.getTypeSpecificInfo().getComputeTier().getFamily())
                     .build();
             UpdatingFunctionTO emptyUf = UpdatingFunctionTO.newBuilder().build();
-            commoditiesSold.add(commodityConverter.createCommoditySoldTO(commType, capacity, used, emptyUf));
+            commoditiesSold.add(commodityConverter.createCommoditySoldTO(commType, capacity, used,
+                    emptyUf));
+            commType = CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.TEMPLATE_ACCESS_VALUE)
+                    .setKey(computeTier.getDisplayName())
+                    .build();
+            commoditiesSold.add(commodityConverter.createCommoditySoldTO(commType, capacity, used,
+                    emptyUf));
             commType = CommodityType.newBuilder()
                     .setType(CommodityDTO.CommodityType.TEMPLATE_ACCESS_VALUE)
                     // using regionName as the key for the region specific templateAccessSold
                     .setKey(region.getDisplayName())
                     .build();
-            commoditiesSold.add(commodityConverter.createCommoditySoldTO(commType, capacity, used, emptyUf));
+            commoditiesSold.add(commodityConverter.createCommoditySoldTO(commType, capacity, used,
+                    emptyUf));
         }
         return commoditiesSold;
     }

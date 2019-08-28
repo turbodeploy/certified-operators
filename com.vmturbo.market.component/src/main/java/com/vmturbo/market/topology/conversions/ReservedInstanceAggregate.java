@@ -1,5 +1,6 @@
 package com.vmturbo.market.topology.conversions;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -12,15 +13,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -46,11 +44,13 @@ public class ReservedInstanceAggregate {
     // list of bought RIs that have the same ReservedInstanceKey
     private Set<ReservedInstanceData> constituentRIs = new HashSet<>();
 
-    // largest compute tier for in the family that this RI belongs to
-    private TopologyEntityDTO largestTier = null;
+    // For a ReservedInstanceAggregate representing instance size flexible RIs, the largest compute
+    // tier in the family that this RI belongs to. For non-instance size flexible RIs, the
+    // compute tier of the RI.
+    private TopologyEntityDTO computeTier;
 
     // A map of the RI Bought id to the coupon usage information
-    private final Map<Long, RICouponInfo> riCouponInfoMap = Maps.newHashMap();
+    private final Map<Long, RICouponInfo> riCouponInfoMap = new HashMap<>();
 
     private final boolean platformFlexible;
 
@@ -79,35 +79,12 @@ public class ReservedInstanceAggregate {
                 riData.getReservedInstanceBought()));
     }
 
-    TopologyEntityDTO getLargestTier() {
-        return largestTier;
+    TopologyEntityDTO getComputeTier() {
+        return computeTier;
     }
 
-    /**
-     * Checks if the computeTier is present in the zone and region that this {@link ReservedInstanceAggregate}
-     * is associated with and if so, set it as the largestTier
-     *
-     */
-    void checkAndUpdateLargestTier(TopologyEntityDTO computeTier, ReservedInstanceKey key) {
-        ComputeTierInfo info = computeTier.getTypeSpecificInfo().getComputeTier();
-        if (largestTier == null &&
-                // check if the computeTier is in this region
-                areEntitiesConnected(computeTier, key.getRegionId())) {
-                // TODO: check if the computeTier is in this zone
-            largestTier = computeTier;
-        }
-    }
-
-    /**
-     * Checks if the computeTier is connected to the passed entity
-     *
-     * @return true if connected, false otherwise
-     */
-    private boolean areEntitiesConnected(TopologyEntityDTO computeTier, long entityId) {
-        return computeTier.getConnectedEntityListList().stream()
-                .map(ConnectedEntity::getConnectedEntityId)
-                .filter(id -> id == entityId)
-                .count() != 0;
+    void setComputeTier(TopologyEntityDTO computeTier) {
+        this.computeTier = computeTier;
     }
 
     @Override
@@ -249,6 +226,7 @@ public class ReservedInstanceAggregate {
         private final long accountId;
         private final String family;
         private final long riBoughtId;
+        private final boolean instanceSizeFlexible;
 
         Tenancy getTenancy() {
             return tenancy;
@@ -283,7 +261,11 @@ public class ReservedInstanceAggregate {
             this.family = topology.get(riSpec.getTierId()).getTypeSpecificInfo().getComputeTier().getFamily();
             this.zoneId = riBoughtInfo.getAvailabilityZoneId();
             this.accountId = riBoughtInfo.getBusinessAccountId();
-            if (!isInstanceSizeFlexible()) {
+            //TODO(OM-49965): Copy instanceSizeFlexible value from riSpec set by mediation
+            this.instanceSizeFlexible = TopologyConversionConstants
+                    .INSTANCE_SIZE_FLEXIBLE_OPERATING_SYSTEMS.contains(os)
+                    && tenancy == Tenancy.DEFAULT;
+            if (!instanceSizeFlexible) {
                 this.riBoughtId = riData.getReservedInstanceBought().getId();
             } else {
                 this.riBoughtId = -1l;
@@ -327,8 +309,8 @@ public class ReservedInstanceAggregate {
             }
         }
 
-        private boolean isInstanceSizeFlexible() {
-            return TopologyConversionConstants.INSTANCE_SIZE_FLEXIBLE_OPERATING_SYSTEMS.contains(os);
+        boolean isInstanceSizeFlexible() {
+            return instanceSizeFlexible;
         }
     }
 

@@ -62,7 +62,7 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
         Map<TraderTO.Builder, MarketTier> traderTOs = new HashMap<>();
         // iterate over all the aggregated RI objects and creates CBTPs out of them
         for (ReservedInstanceAggregate riAggregate : riAggregates) {
-            TopologyEntityDTO computeTier = riAggregate.getLargestTier();
+            TopologyEntityDTO computeTier = riAggregate.getComputeTier();
             TopologyEntityDTO region = topology.get(riAggregate.getRiKey().getRegionId());
             RiDiscountedMarketTier marketTier = new RiDiscountedMarketTier(computeTier, region, riAggregate);
             String debugInfo = marketTier.getDisplayName();
@@ -173,14 +173,22 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
     private ShoppingListTO createShoppingListTO(ReservedInstanceAggregate riAgg,
             @Nonnull Map<Long, TopologyEntityDTO> topology) {
         List<CommodityBoughtTO> commBoughtList = new ArrayList<>();
-        CommodityType familySpecificTACommType = CommodityType.newBuilder()
+        final String instanceSizeFlexibleKey;
+        if (riAgg.getRiKey().isInstanceSizeFlexible()) {
+            // For ISF RI, set key as family, e.g. t2
+            instanceSizeFlexibleKey = riAgg.getRiKey().getFamily();
+        } else {
+            // For Non-ISF RI, set key as Compute Tier name, e.g. t2.small
+            instanceSizeFlexibleKey = riAgg.getComputeTier().getDisplayName();
+        }
+        final CommodityType instanceSizeFlexibleTACommType = CommodityType.newBuilder()
                 .setType(CommodityDTO.CommodityType.TEMPLATE_ACCESS_VALUE)
-                .setKey(riAgg.getRiKey().getFamily())
+                .setKey(instanceSizeFlexibleKey)
                 .build();
         commBoughtList.add(CommodityBoughtTO.newBuilder()
                 .setQuantity(0).setPeakQuantity(0)
                 .setSpecification(commodityConverter
-                        .commoditySpecification(familySpecificTACommType))
+                        .commoditySpecification(instanceSizeFlexibleTACommType))
                 .build());
         CommodityType regionSpecificTACommType = CommodityType.newBuilder()
                 .setType(CommodityDTO.CommodityType.TEMPLATE_ACCESS_VALUE)

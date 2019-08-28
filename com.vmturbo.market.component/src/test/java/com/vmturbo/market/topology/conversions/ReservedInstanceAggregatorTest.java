@@ -39,7 +39,7 @@ public class ReservedInstanceAggregatorTest {
     private static final int ZONE_1 = 20;
     private static final int ACCOUNT_1 = 15;
     private static final OSType OS_1 = OSType.LINUX;
-    private static final Tenancy TENANCY_1 = Tenancy.DEDICATED;
+    private static final Tenancy TENANCY_1 = Tenancy.DEFAULT;
     private static final long TIER_1 = 50;
     private static final String FAMILY_1 = "LINUX";
 

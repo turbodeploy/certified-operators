@@ -478,7 +478,7 @@ public class CommodityConverter {
         if (separatorIndex > 0) {
             return CommodityType.newBuilder()
                     .setType(Integer.parseInt(commodityTypeString.substring(0, separatorIndex)))
-                    .setKey(commodityTypeString.substring(separatorIndex + 1, commodityTypeString.length()))
+                    .setKey(commodityTypeString.substring(separatorIndex + 1))
                     .build();
         } else {
             return CommodityType.newBuilder()
