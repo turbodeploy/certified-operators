@@ -524,8 +524,10 @@ public class BootstrapSupplyTest {
         boolean computeMoved = false, storageMoved = false, computeProvisioned = false;
         int computeMoveActionIndex = -1, provisionActionIndex = -1;
         Economy economy = new Economy();
-        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, true);
+        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, false);
         pm1.setDebugInfoNeverUseInCode("PM1");
+        Trader pm2 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, true);
+        pm2.setDebugInfoNeverUseInCode("PM2");
         Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, false);
         st1.setDebugInfoNeverUseInCode("DS1");
         //Place vm1 on pm1 and st1.
@@ -566,7 +568,8 @@ public class BootstrapSupplyTest {
                     break;
                 case PROVISION_BY_DEMAND:
                     provisionActionIndex = i;
-                    assertEquals(pm1, provisionByDemand.getModelSeller());
+                    // we dont clone pm1 since it is clonable false
+                    assertEquals(pm2, provisionByDemand.getModelSeller());
                     assertEquals(sl3, provisionByDemand.getModelBuyer());
                     computeProvisioned = true;
                     break;

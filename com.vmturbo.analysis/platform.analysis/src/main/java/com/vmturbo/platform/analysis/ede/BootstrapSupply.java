@@ -994,6 +994,8 @@ public class BootstrapSupply {
         String buyerDebugInfo = shoppingList.getBuyer().getDebugInfoNeverUseInCode();
 
         List<Trader> activeSellerThatCanAcceptNewCustomers = market.getActiveSellersAvailableForPlacement();
+        List<Trader> clonableSellers = activeSellerThatCanAcceptNewCustomers.stream().filter(s ->
+                s.getSettings().isCloneable()).collect(Collectors.toList());
         // Return if there are active sellers and none of them are cloneable or resizeable through
         // supplier.
         if (!activeSellerThatCanAcceptNewCustomers.isEmpty() && activeSellerThatCanAcceptNewCustomers.stream()
@@ -1005,7 +1007,8 @@ public class BootstrapSupply {
             }
             return actions;
         }
-        Trader sellerThatFits = findTraderThatFitsBuyer(shoppingList, activeSellerThatCanAcceptNewCustomers, market, economy, Optional.empty());
+        Trader sellerThatFits = findTraderThatFitsBuyer(shoppingList, activeSellerThatCanAcceptNewCustomers,
+                                                        market, economy, Optional.empty());
         if (sellerThatFits != null) {
             boolean isDebugSeller = sellerThatFits.isDebugEnabled();
             String sellerDebugInfo = sellerThatFits.getDebugInfoNeverUseInCode();
@@ -1017,12 +1020,12 @@ public class BootstrapSupply {
             }
 
             return Collections.emptyList();
-        } else if (!activeSellerThatCanAcceptNewCustomers.isEmpty()) {
+        } else if (!clonableSellers.isEmpty()) {
             // if none of the existing sellers can fit the shoppingList, provision current seller
             bootstrapAction = new ProvisionByDemand(economy, shoppingList,
                     (shoppingList.getSupplier() != null
-                            && activeSellerThatCanAcceptNewCustomers.contains(shoppingList.getSupplier()))
-                            ? shoppingList.getSupplier() : activeSellerThatCanAcceptNewCustomers.get(0)).take();
+                            && clonableSellers.contains(shoppingList.getSupplier()))
+                            ? shoppingList.getSupplier() : clonableSellers.get(0)).take();
             ((ActionImpl)bootstrapAction).setImportance(Double.POSITIVE_INFINITY);
             provisionedSeller = ((ProvisionByDemand)bootstrapAction).getProvisionedSeller();
             provisionRelatedActionList.add(bootstrapAction);
