@@ -147,9 +147,6 @@ public class SystemLoadCalculatedProfile {
                             case "VCPU":
                                 currVCPUCapacity = (float)rec.getCapacity();
                                 break;
-                            case "VSTORAGE":
-                                currStorageConsumed = (float)rec.getCapacity();
-                                break;
                         }
 
                     }  else if (rec.getRelationType() == 1) {
@@ -166,6 +163,9 @@ public class SystemLoadCalculatedProfile {
                                 break;
                             case "IO_THROUGHPUT":
                                 currIoThroughputConsumed = (float)rec.getAvgValue();
+                                break;
+                            case "STORAGE_AMOUNT":
+                                currStorageConsumed = (float)rec.getAvgValue();
                                 break;
                         }
                     }

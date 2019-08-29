@@ -40,14 +40,14 @@ import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
  * The class SystemLoadSnapshot saves information about the current shapshot of the system, using
  * the commodities participating in the calculation of system load. More specifically:
  * For each VM:
- *      -For the sold commodities VCPU, VMEM and VSTORAGE it saves their cluster id, VM id, used values
- *          and capacities.
+ *      -For the sold commodities VCPU, VMEM and VSTORAGE it saves their cluster id, VM id, used
+ *          values and capacities.
  *      -For the commodities CPU, MEM, IO_THROUGHPUT, NET_THROUGHPUT, CPU_PROVISIONED
- *       and MEM_PROVISIONED bought from a host it saves their cluster id, VM id, producer (host) id
- *          and used values.
- *      -For the commodities STORAGE_ACCESS and STORAGE_PROVISIONED bought from a storage it saves
- *          their cluster id, VM id, producer (storage) id and used values.
- *      -For all these 11 commodities it saves the sum of used values and capacities per slice.
+ *          and MEM_PROVISIONED bought from a host it saves their cluster id, VM id, producer (host)
+ *          id and used values.
+ *      -For the commodities STORAGE_ACCESS, STORAGE_PROVISIONED and STORAGE_AMOUNT bought from a
+ *          storage it saves their cluster id, VM id, producer (storage) id and used values.
+ *      -For all these 12 commodities it saves the sum of used values and capacities per slice.
  */
 public class SystemLoadSnapshot extends AbstractStatsWriter implements ICompleteTopologyStatsWriter {
 
@@ -164,66 +164,42 @@ public class SystemLoadSnapshot extends AbstractStatsWriter implements IComplete
                                 case CPU:
                                     for (String slice : slices) {
                                         Map<String, Double> cpuSums = HostsSumCapacities.getCpu();
-                                        if (cpuSums.containsKey(slice)) {
-                                            cpuSums.put(slice, cpuSums.get(slice) + commSold.getCapacity());
-                                        } else {
-                                            cpuSums.put(slice, commSold.getCapacity());
-                                        }
+                                        cpuSums.merge(slice, commSold.getCapacity(), (s1, s2) -> s1 + s2);
                                         HostsSumCapacities.setCpu(cpuSums);
                                     }
                                     break;
                                 case MEM:
                                     for (String slice : slices) {
                                         Map<String, Double> memSums = HostsSumCapacities.getMem();
-                                        if (memSums.containsKey(slice)) {
-                                            memSums.put(slice, memSums.get(slice) + commSold.getCapacity());
-                                        } else {
-                                            memSums.put(slice, commSold.getCapacity());
-                                        }
+                                        memSums.merge(slice, commSold.getCapacity(), (s1, s2) -> s1 + s2);
                                         HostsSumCapacities.setMem(memSums);
                                     }
                                     break;
                                 case IO_THROUGHPUT:
                                     for (String slice : slices) {
                                         Map<String, Double> ioThroughputSums = HostsSumCapacities.getIoThroughput();
-                                        if (ioThroughputSums.containsKey(slice)) {
-                                            ioThroughputSums.put(slice, ioThroughputSums.get(slice) + commSold.getCapacity());
-                                        } else {
-                                            ioThroughputSums.put(slice, commSold.getCapacity());
-                                        }
+                                        ioThroughputSums.merge(slice, commSold.getCapacity(), (s1, s2) -> s1 + s2);
                                         HostsSumCapacities.setIoThroughput(ioThroughputSums);
                                     }
                                     break;
                                 case NET_THROUGHPUT:
                                     for (String slice : slices) {
                                         Map<String, Double> netThroughputSums = HostsSumCapacities.getNetThroughput();
-                                        if (netThroughputSums.containsKey(slice)) {
-                                            netThroughputSums.put(slice, netThroughputSums.get(slice) + commSold.getCapacity());
-                                        } else {
-                                            netThroughputSums.put(slice, commSold.getCapacity());
-                                        }
+                                        netThroughputSums.merge(slice, commSold.getCapacity(), (s1, s2) -> s1 + s2);
                                         HostsSumCapacities.setNetThroughput(netThroughputSums);
                                     }
                                     break;
                                 case CPU_PROVISIONED:
                                     for (String slice : slices) {
                                         Map<String, Double> cpuProvisionedSums = HostsSumCapacities.getCpuProvisioned();
-                                        if (cpuProvisionedSums.containsKey(slice)) {
-                                            cpuProvisionedSums.put(slice, cpuProvisionedSums.get(slice) + commSold.getCapacity());
-                                        } else {
-                                            cpuProvisionedSums.put(slice, commSold.getCapacity());
-                                        }
+                                        cpuProvisionedSums.merge(slice, commSold.getCapacity(), (s1, s2) -> s1 + s2);
                                         HostsSumCapacities.setCpuProvisioned(cpuProvisionedSums);
                                     }
                                     break;
                                 case MEM_PROVISIONED:
                                     for (String slice : slices) {
                                         Map<String, Double> memProvisionedSums = HostsSumCapacities.getMemProvisioned();
-                                        if (memProvisionedSums.containsKey(slice)) {
-                                            memProvisionedSums.put(slice, memProvisionedSums.get(slice) + commSold.getCapacity());
-                                        } else {
-                                            memProvisionedSums.put(slice, commSold.getCapacity());
-                                        }
+                                        memProvisionedSums.merge(slice, commSold.getCapacity(), (s1, s2) -> s1 + s2);
                                         HostsSumCapacities.setMemProvisioned(memProvisionedSums);
                                     }
                                     break;
@@ -246,23 +222,22 @@ public class SystemLoadSnapshot extends AbstractStatsWriter implements IComplete
                                 case STORAGE_ACCESS:
                                     for (String slice : slices) {
                                         Map<String, Double> storageAccessSums = StoragesSumCapacities.getStorageAccess();
-                                        if (storageAccessSums.containsKey(slice)) {
-                                            storageAccessSums.put(slice, storageAccessSums.get(slice) + commSold.getCapacity());
-                                        } else {
-                                            storageAccessSums.put(slice, commSold.getCapacity());
-                                        }
+                                        storageAccessSums.merge(slice, commSold.getCapacity(), (s1, s2) -> s1 + s2);
                                         StoragesSumCapacities.setStorageAccess(storageAccessSums);
                                     }
                                     break;
                                 case STORAGE_PROVISIONED:
                                     for (String slice : slices) {
                                         Map<String, Double> storageProvisionedSums = StoragesSumCapacities.getStorageProvisioned();
-                                        if (storageProvisionedSums.containsKey(slice)) {
-                                            storageProvisionedSums.put(slice, storageProvisionedSums.get(slice) + commSold.getCapacity());
-                                        } else {
-                                            storageProvisionedSums.put(slice, commSold.getCapacity());
-                                        }
+                                        storageProvisionedSums.merge(slice, commSold.getCapacity(), (s1, s2) -> s1 + s2);
                                         StoragesSumCapacities.setStorageProvisioned(storageProvisionedSums);
+                                    }
+                                    break;
+                                case STORAGE_AMOUNT:
+                                    for (String slice : slices) {
+                                        Map<String, Double> storageAmountSums = StoragesSumCapacities.getStorageAmount();
+                                        storageAmountSums.merge(slice, commSold.getCapacity(), (s1, s2) -> s1 + s2);
+                                        StoragesSumCapacities.setStorageAmount(storageAmountSums);
                                     }
                                     break;
                                 default:

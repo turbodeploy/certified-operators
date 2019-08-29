@@ -35,7 +35,7 @@ public class SystemLoadCalculatedProfileTest {
         resp.addRecord(createRecord(1, 5, clusterId, "CPU", 9));
         resp.addRecord(createRecord(0, 5, clusterId, "VMEM", 50));
         resp.addRecord(createRecord(1, 5, clusterId, "MEM", 10));
-        resp.addRecord(createRecord(0, 5, clusterId, "VSTORAGE", 9));
+        resp.addRecord(createRecord(1, 5, clusterId, "STORAGE_AMOUNT", 9));
         resp.addRecord(createRecord(1, 5, clusterId, "NET_THROUGHPUT", 7));
         resp.addRecord(createRecord(1, 5, clusterId, "IO_THROUGHPUT", 8));
         // Records with VM id = 6 and cluster id 1
@@ -43,7 +43,7 @@ public class SystemLoadCalculatedProfileTest {
         resp.addRecord(createRecord(1, 6, clusterId, "MEM", 20));
         resp.addRecord(createRecord(0, 6, clusterId, "VCPU", 50));
         resp.addRecord(createRecord(1, 6, clusterId, "CPU", 6));
-        resp.addRecord(createRecord(0, 6, clusterId, "VSTORAGE", 5));
+        resp.addRecord(createRecord(1, 6, clusterId, "STORAGE_AMOUNT", 5));
         resp.addRecord(createRecord(1, 6, clusterId, "NET_THROUGHPUT", 21));
         resp.addRecord(createRecord(1, 6, clusterId, "IO_THROUGHPUT", 24));
         SystemLoadCalculatedProfile profile =
@@ -148,7 +148,7 @@ public class SystemLoadCalculatedProfileTest {
         resp.addRecord(createRecord(1, 5, clusterId, "MEM", 10));
         resp.addRecord(createRecord(0, 5, clusterId, "VCPU", 100));
         resp.addRecord(createRecord(1, 5, clusterId, "CPU", 9));
-        resp.addRecord(createRecord(0, 5, clusterId, "VSTORAGE", 9));
+        resp.addRecord(createRecord(1, 5, clusterId, "STORAGE_AMOUNT", 9));
         resp.addRecord(createRecord(1, 5, clusterId, "NET_THROUGHPUT", 7));
         resp.addRecord(createRecord(1, 5, clusterId, "IO_THROUGHPUT", 8));
         // Records with VM id = 6 and cluster id 1
@@ -156,7 +156,7 @@ public class SystemLoadCalculatedProfileTest {
         resp.addRecord(createRecord(1, 6, clusterId, "MEM", 20));
         resp.addRecord(createRecord(0, 6, clusterId, "VCPU", 50));
         resp.addRecord(createRecord(1, 6, clusterId, "CPU", 6));
-        resp.addRecord(createRecord(0, 6, clusterId, "VSTORAGE", 5));
+        resp.addRecord(createRecord(1, 6, clusterId, "STORAGE_AMOUNT", 5));
         resp.addRecord(createRecord(1, 6, clusterId, "NET_THROUGHPUT", 21));
         resp.addRecord(createRecord(1, 6, clusterId, "IO_THROUGHPUT", 24));
         SystemLoadCalculatedProfile profile =

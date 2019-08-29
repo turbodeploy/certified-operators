@@ -12,21 +12,34 @@ import com.google.common.collect.Maps;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
- * The system load commodities are 11 commodities chosen to participate in the system load
+ * The system load commodities are 12 commodities chosen to participate in the system load
  * calculations.
  */
 public enum SystemLoadCommodities {
+    /** CPU commodity. */
     CPU(0),
+    /** Memory commodity. */
     MEM(1),
+    /** Storage access commodity. */
     STORAGE_ACCESS(2),
+    /** IO throughput commodity. */
     IO_THROUGHPUT(3),
+    /** Net throughput commodity. */
     NET_THROUGHPUT(4),
+    /** CPU provisioned commodity. */
     CPU_PROVISIONED(5),
+    /** Memory provisioned commodity. */
     MEM_PROVISIONED(6),
+    /** Storage provisioned commodity. */
     STORAGE_PROVISIONED(7),
+    /** Virtual memory commodity. */
     VMEM(8),
+    /** Virtual CPU commodity. */
     VCPU(9),
-    VSTORAGE(10);
+    /** Virtual storage commodity. */
+    VSTORAGE(10),
+    /** Storage amount commodity. */
+    STORAGE_AMOUNT(11);
 
     public static final int SIZE = values().length;
 
@@ -52,7 +65,8 @@ public enum SystemLoadCommodities {
             CommodityType.STORAGE_PROVISIONED.ordinal(),
             CommodityType.VMEM.ordinal(),
             CommodityType.VCPU.ordinal(),
-            CommodityType.VSTORAGE.ordinal()
+            CommodityType.VSTORAGE.ordinal(),
+            CommodityType.STORAGE_AMOUNT.ordinal()
     ));
 
     public static final HashMap<Integer, SystemLoadCommodities> hashMapComm = new HashMap<Integer, SystemLoadCommodities>() {{
@@ -67,6 +81,7 @@ public enum SystemLoadCommodities {
         put(CommodityType.VMEM.ordinal(), SystemLoadCommodities.VMEM);
         put(CommodityType.VCPU.ordinal(), SystemLoadCommodities.VCPU);
         put(CommodityType.VSTORAGE.ordinal(), SystemLoadCommodities.VSTORAGE);
+        put(CommodityType.STORAGE_AMOUNT.ordinal(), SystemLoadCommodities.STORAGE_AMOUNT);
     }};
 
     /**
@@ -101,29 +116,34 @@ public enum SystemLoadCommodities {
      * @return The respective system load commodity.
      */
     public static SystemLoadCommodities toSystemLoadCommodity(String comm) {
-        if (comm.equals("CPU"))
-            return SystemLoadCommodities.CPU;
-        if (comm.equals("MEM"))
-            return SystemLoadCommodities.MEM;
-        if (comm.equals("STORAGE_ACCESS"))
-            return SystemLoadCommodities.STORAGE_ACCESS;
-        if (comm.equals("IO_THROUGHPUT"))
-            return SystemLoadCommodities.IO_THROUGHPUT;
-        if (comm.equals("NET_THROUGHPUT"))
-            return SystemLoadCommodities.NET_THROUGHPUT;
-        if (comm.equals("CPU_PROVISIONED"))
-            return SystemLoadCommodities.CPU_PROVISIONED;
-        if (comm.equals("MEM_PROVISIONED"))
-            return SystemLoadCommodities.MEM_PROVISIONED;
-        if (comm.equals("STORAGE_PROVISIONED"))
-            return SystemLoadCommodities.STORAGE_PROVISIONED;
-        if (comm.equals("VMEM"))
-            return SystemLoadCommodities.VMEM;
-        if (comm.equals("VCPU"))
-            return SystemLoadCommodities.VCPU;
-        if (comm.equals("VSTORAGE"))
-            return SystemLoadCommodities.VSTORAGE;
-        return null;
+        switch (comm) {
+            case "CPU":
+                return SystemLoadCommodities.CPU;
+            case "MEM":
+                return SystemLoadCommodities.MEM;
+            case "STORAGE_ACCESS":
+                return SystemLoadCommodities.STORAGE_ACCESS;
+            case "IO_THROUGHPUT":
+                return SystemLoadCommodities.IO_THROUGHPUT;
+            case "NET_THROUGHPUT":
+                return SystemLoadCommodities.NET_THROUGHPUT;
+            case "CPU_PROVISIONED":
+                return SystemLoadCommodities.CPU_PROVISIONED;
+            case "MEM_PROVISIONED":
+                return SystemLoadCommodities.MEM_PROVISIONED;
+            case "STORAGE_PROVISIONED":
+                return SystemLoadCommodities.STORAGE_PROVISIONED;
+            case "VMEM":
+                return SystemLoadCommodities.VMEM;
+            case "VCPU":
+                return SystemLoadCommodities.VCPU;
+            case "VSTORAGE":
+                return SystemLoadCommodities.VSTORAGE;
+            case "STORAGE_AMOUNT":
+                return SystemLoadCommodities.STORAGE_AMOUNT;
+            default:
+                return null;
+        }
     }
 
     /**
@@ -152,7 +172,8 @@ public enum SystemLoadCommodities {
      */
     public static boolean isStorageCommodity(int commType) {
         if ((commType == CommodityType.STORAGE_ACCESS.ordinal())
-                || (commType == CommodityType.STORAGE_PROVISIONED.ordinal())) {
+                || (commType == CommodityType.STORAGE_PROVISIONED.ordinal())
+                || (commType == CommodityType.STORAGE_AMOUNT.ordinal())) {
             return true;
         }
         return false;

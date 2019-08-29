@@ -134,6 +134,7 @@ public class SystemLoadHelper {
             capacities[SystemLoadCommodities.MEM_PROVISIONED.ordinal()] = HostsSumCapacities.getMemProvisioned().get(slice);
             capacities[SystemLoadCommodities.STORAGE_ACCESS.ordinal()] = StoragesSumCapacities.getStorageAccess().get(slice);
             capacities[SystemLoadCommodities.STORAGE_PROVISIONED.ordinal()] = StoragesSumCapacities.getStorageProvisioned().get(slice);
+            capacities[SystemLoadCommodities.STORAGE_AMOUNT.ordinal()] = StoragesSumCapacities.getStorageAmount().get(slice);
             perSliceCapacities.put(slice, capacities);
         }
     }
