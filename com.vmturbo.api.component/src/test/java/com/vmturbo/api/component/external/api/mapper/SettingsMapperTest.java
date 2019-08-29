@@ -188,7 +188,7 @@ public class SettingsMapperTest {
         final SettingApiDTO<?> settingApiDTO = mgr.getSettings().get(0);
         assertEquals("move", settingApiDTO.getUuid());
         assertEquals("Move", settingApiDTO.getDisplayName());
-        assertEquals("Manual", settingApiDTO.getDefaultValue());
+        assertEquals("MANUAL", settingApiDTO.getDefaultValue());
 
         assertThat(settingApiDTO.getEntityType(), is("VirtualMachine"));
         assertEquals(InputValueType.STRING, settingApiDTO.getValueType());
@@ -196,9 +196,9 @@ public class SettingsMapperTest {
         assertEquals(2, settingApiDTO.getOptions().size());
         // The order is important
         assertEquals("Disabled", settingApiDTO.getOptions().get(0).getLabel());
-        assertEquals("Disabled", settingApiDTO.getOptions().get(0).getValue());
+        assertEquals("DISABLED", settingApiDTO.getOptions().get(0).getValue());
         assertEquals("Manual", settingApiDTO.getOptions().get(1).getLabel());
-        assertEquals("Manual", settingApiDTO.getOptions().get(1).getValue());
+        assertEquals("MANUAL", settingApiDTO.getOptions().get(1).getValue());
 
         //verify style info
         assertThat(settingApiDTO.getRange().getStep(), is(5.0));
@@ -448,8 +448,8 @@ public class SettingsMapperTest {
         final SettingApiDTO dto = specMapper.settingSpecToApi(Optional.of(stringSpec), Optional.of(setting))
             .getSettingForEntityType(settingSpec1EntityType)
             .get();
-        assertThat(dto.getDefaultValue(), is("Foo"));
-        assertThat(dto.getValue(), is("Car"));
+        assertThat(dto.getDefaultValue(), is("FOO"));
+        assertThat(dto.getValue(), is("CAR"));
         assertThat(dto.getValueType(), is(InputValueType.STRING));
     }
 
