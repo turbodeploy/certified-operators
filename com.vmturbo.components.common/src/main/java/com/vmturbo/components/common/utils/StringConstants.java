@@ -51,6 +51,10 @@ public class StringConstants {
     public static final String MEM = "Mem";
     public static final String PLATFORM = "platform";
     public static final String TENANCY = "tenancy";
+    /**
+     * Indicates whether the instance is optimized for Amazon EBS I/O.
+     */
+    public static final String EBS_OPTIMIZED = "ebsOptimized";
     public static final String WEIGHTED_VALUE = "weighted_value";
     public static final String CLEAR_TIME = "clear_time";
     public static final String LAST_NOTIFY_TIME = "last_notify_time";

@@ -25,6 +25,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessUserInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
@@ -82,7 +83,9 @@ public class VirtualMachineAspectMapperTest extends BaseAspectMapperTest {
             )
             .build();
         final TopologyEntityDTO topologyEntityDTO =
-                topologyEntityDTOBuilder(EntityType.VIRTUAL_MACHINE, typeSpecificInfo).build();
+                topologyEntityDTOBuilder(EntityType.VIRTUAL_MACHINE,
+                        typeSpecificInfo).putEntityPropertyMap(StringConstants.EBS_OPTIMIZED,
+                        Boolean.TRUE.toString()).build();
 
         VirtualMachineAspectMapper testMapper = new VirtualMachineAspectMapper(repositoryApi);
         // act
@@ -104,5 +107,6 @@ public class VirtualMachineAspectMapperTest extends BaseAspectMapperTest {
                 (long)Long.valueOf(sessionApiDTO.getBusinessUserUuid()));
         Assert.assertEquals(TEST_OID, (long)Long.valueOf(sessionApiDTO.getConnectedEntityUuid()));
         Assert.assertEquals(SESSION_DURATION_TO_THIS_VM, (long)sessionApiDTO.getDuration());
+        Assert.assertTrue(vmAspect.isEbsOptimized());
     }
 }

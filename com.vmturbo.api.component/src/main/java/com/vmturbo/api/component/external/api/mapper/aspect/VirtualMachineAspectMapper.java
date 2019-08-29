@@ -57,7 +57,11 @@ public class VirtualMachineAspectMapper implements IAspectMapper {
                     .map(this::mapToNetwork).collect(Collectors.toList()));
             }
             aspect.setSessions(getBusinessUserSessions(entity));
-            // TODO: missing ebsOptimized
+            final String isEbsOptimized =
+                    entity.getEntityPropertyMap().get(StringConstants.EBS_OPTIMIZED);
+            if (isEbsOptimized != null) {
+                aspect.setEbsOptimized(Boolean.parseBoolean(isEbsOptimized));
+            }
         }
         return aspect;
     }
