@@ -156,7 +156,7 @@ public class SQLDatabaseConfig {
             .host(dbHost)
             .port(dbPort);
         if (isSecureDBConnectionRequested) {
-            logger.info("Enabling secure DB connection.");
+            logger.info("Enabling secure DB connection with host: {}, port: {}", dbHost, dbPort);
         }
         return isSecureDBConnectionRequested ? urlBuilder
             .queryParam("useSSL", "true")

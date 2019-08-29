@@ -44,6 +44,8 @@ import org.springframework.web.context.support.AnnotationConfigWebApplicationCon
 import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import io.grpc.BindableService;
@@ -122,6 +124,11 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                                                     + "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,"
                                                     + "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,"
                                                     + "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384";
+
+    // These keys/values are defined in global_defaults.properties files. During components startup,
+    // if keys are in the OVERRIDABLE_ENV_PROPERTIES set and passed in from JVM environment,
+    // values will be applied.
+    private static final Set<String> OVERRIDABLE_ENV_PROPERTIES = ImmutableSet.of("dbPort");
 
     /**
      * The URL at which to expose Prometheus metrics.
@@ -775,7 +782,16 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                         clusterMgrClient.getComponentInstanceProperties(componentType, instanceId);
                 componentProperties.forEach((configKey, configValue) -> {
                     logger.info("       {} = >{}<", configKey, configValue);
-                    System.setProperty(configKey, configValue);
+                    // {@link PropertySourcesPlaceholderConfigurer} is registered in
+                    // BaseVmtComponentConfig::configurer(), so environment variable values
+                    // will also be injected.
+                    if (isOverridden(configKey)) {
+                       logger.info("Found overridable environment variable: {}, with value: {}." +
+                           " Skip applying instance value: {}", configKey,
+                           EnvironmentUtils.requireEnvProperty(configKey), configValue);
+                    } else {
+                        System.setProperty(configKey, configValue);
+                    }
                 });
                 break;
             } catch(ResourceAccessException e) {
@@ -784,6 +800,12 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             }
         } while (true);
         logger.info("configuration initialized");
+    }
+
+    @VisibleForTesting
+    static boolean isOverridden(@Nonnull final String configKey) {
+        return OVERRIDABLE_ENV_PROPERTIES.contains(configKey)
+            && EnvironmentUtils.getOptionalEnvProperty(configKey).isPresent();
     }
 
     /**
