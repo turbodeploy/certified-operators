@@ -120,6 +120,7 @@ public class HistorydbIO extends BasedbIO {
     // min and max for numerical values for the statstables; must fit in DECIMAL(15,3), 12 digits
     private static final double MAX_STATS_VALUE = 1e12D - 1;
     private static final double MIN_STATS_VALUE = -MAX_STATS_VALUE;
+    private final String dbUrl;
 
     // MySQL Connection parameters
     @Value("${userName:vmtplatform}")
@@ -183,8 +184,9 @@ public class HistorydbIO extends BasedbIO {
     /**
      * Constructs the HistorydbIO.
      */
-    public HistorydbIO(DBPasswordUtil dbPasswordUtil) {
+    public HistorydbIO(DBPasswordUtil dbPasswordUtil, final String dbUrl) {
         this.dbPasswordUtil = dbPasswordUtil;
+        this.dbUrl = dbUrl;
     }
 
     @Override
@@ -196,6 +198,16 @@ public class HistorydbIO extends BasedbIO {
     @Override
     protected void internalClearNotification(String eventName) {
         logger.info("clear notification user {}", eventName);
+    }
+
+    @Override
+    protected String getRootConnectionUrl() {
+        if (dbUrl != null) {
+            return dbUrl;
+        }
+        logger.warn("It should only use when running unit tests");
+        // TODO (Gary zeng, Aug 23th, 2019), remove following line, see OM-49862.
+        return super.getRootConnectionUrl();
     }
 
     @Override

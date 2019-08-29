@@ -18,8 +18,6 @@
         <swagger.component.name>Auth Component</swagger.component.name>
         <maven.build.timestamp.format>yyyyMMddHHmmssSSS</maven.build.timestamp.format>
 
-        <mariadb.version>1.5.5</mariadb.version>
-
         <!-- TODO: user and password configuration should NOT be checked into source control -->
         <db.url>jdbc:mysql://localhost:3306</db.url>
         <db.username>root</db.username>
@@ -343,7 +341,7 @@
         <dependency>
             <groupId>org.mariadb.jdbc</groupId>
             <artifactId>mariadb-java-client</artifactId>
-            <version>${mariadb.version}</version>
+            <version>${mariadb.client.version}</version>
         </dependency>
         <dependency>
             <groupId>org.jooq</groupId>

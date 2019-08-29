@@ -150,7 +150,7 @@ public class SQLDatabaseConfig {
      * @return DB connection URL
      */
     @Nonnull
-    protected String getDbUrl() {
+    public String getDbUrl() {
         final UriComponentsBuilder urlBuilder = UriComponentsBuilder.newInstance()
             .scheme("jdbc:mysql")
             .host(dbHost)

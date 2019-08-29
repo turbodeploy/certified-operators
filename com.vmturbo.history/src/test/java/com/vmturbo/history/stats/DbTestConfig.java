@@ -51,7 +51,7 @@ public class DbTestConfig {
         // always return the default DB password for this test
         DBPasswordUtil dbPasswordUtilMock = Mockito.mock(DBPasswordUtil.class);
         when(dbPasswordUtilMock.getSqlDbRootPassword()).thenReturn(DBPasswordUtil.obtainDefaultPW());
-        return new HistorydbIO(dbPasswordUtilMock);
+        return new HistorydbIO(dbPasswordUtilMock, null);
     }
 
     @Bean

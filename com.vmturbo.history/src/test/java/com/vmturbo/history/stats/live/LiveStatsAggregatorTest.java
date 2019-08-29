@@ -92,7 +92,7 @@ public class LiveStatsAggregatorTest {
         // always return the default DB password for this test
         DBPasswordUtil dbPasswordUtilMock = Mockito.mock(DBPasswordUtil.class);
         when(dbPasswordUtilMock.getSqlDbRootPassword()).thenReturn(DBPasswordUtil.obtainDefaultPW());
-        HistorydbIO real = new HistorydbIO(dbPasswordUtilMock);
+        HistorydbIO real = new HistorydbIO(dbPasswordUtilMock, null);
         HistorydbIO mock = Mockito.mock(HistorydbIO.class);
         for (int i = 0; i < 100; i++) {
             Mockito.when(mock.getEntityType(i)).thenReturn(real.getEntityType(i));

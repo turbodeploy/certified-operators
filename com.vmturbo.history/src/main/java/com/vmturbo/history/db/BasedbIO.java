@@ -1542,7 +1542,7 @@ public abstract class BasedbIO {
      * @return The connection URL String to be used to connect to a MySQL instance.
      * The host, port and database name are properties of this manager.
      */
-    public String getRootConnectionUrl() {
+    protected String getRootConnectionUrl() {
         return "jdbc:" + getAdapter()
                 + "://"
                 + getHostName()

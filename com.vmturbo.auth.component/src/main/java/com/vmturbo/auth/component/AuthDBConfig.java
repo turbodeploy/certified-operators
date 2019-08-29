@@ -19,11 +19,13 @@ import org.jooq.impl.DataSourceConnectionProvider;
 import org.jooq.impl.DefaultConfiguration;
 import org.jooq.impl.DefaultDSLContext;
 import org.jooq.impl.DefaultExecuteListenerProvider;
-import org.mariadb.jdbc.MySQLDataSource;
+import org.mariadb.jdbc.MariaDbDataSource;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy;
@@ -37,11 +39,13 @@ import com.vmturbo.auth.component.store.DBStore;
 import com.vmturbo.auth.component.store.ISecureStore;
 import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.sql.utils.JooqExceptionTranslator;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
  * Configuration for AUTH component interaction with a database.
  */
 @Configuration
+@Import({SQLDatabaseConfig.class})
 @EnableTransactionManagement
 public class AuthDBConfig {
     /**
@@ -106,6 +110,9 @@ public class AuthDBConfig {
 
     @Autowired
     private AuthKVConfig authKVConfig;
+
+    @Autowired
+    private SQLDatabaseConfig databaseConfig;
 
     /**
      * Generate a random password.  The value is returned as a sequence of 32 hexadecimal
@@ -192,21 +199,26 @@ public class AuthDBConfig {
     @Primary
     public @Nonnull DataSource dataSource() {
         // Create a correct data source.
-        @Nonnull MySQLDataSource dataSource = new MySQLDataSource();
+        @Nonnull MariaDbDataSource dataSource = new MariaDbDataSource();
         try {
             dataSource.setUrl(getDbUrl());
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
         Optional<String> credentials = authKVConfig.authKeyValueStore().get(CONSUL_KEY);
-        if (credentials.isPresent()) {
-            dataSource.setUser(dbSchemaName);
-            dataSource.setPassword(credentials.get());
-        } else {
-            // Use the well worn out defaults.
-            dataSource.setUser("root");
-            dataSource.setPassword(getRootSqlDBPassword());
+        try {
+            if (credentials.isPresent()) {
+                dataSource.setUser(dbSchemaName);
+                dataSource.setPassword(credentials.get());
+            } else {
+                // Use the well worn out defaults.
+                dataSource.setUser("root");
+                dataSource.setPassword(getRootSqlDBPassword());
+            }
+        } catch (SQLException e) {
+            throw new BeanCreationException("Failed to initialize bean: " + e.getMessage());
         }
+
 
         // Ensure the connection is available before proceeding.
         while (true) {
@@ -279,7 +291,7 @@ public class AuthDBConfig {
         performMigration();
 
         // We explicitly assume MySQL datasource here for a moment.
-        MySQLDataSource dataSource = (MySQLDataSource)dataSource();
+        MariaDbDataSource dataSource = (MariaDbDataSource)dataSource();
         try {
             dataSource.setUrl(getMariaDBDbUrl());
         } catch (SQLException e) {
@@ -288,33 +300,37 @@ public class AuthDBConfig {
 
         // Create the user and grant privileges in case the user has not been yet created.
         Optional<String> credentials = authKVConfig.authKeyValueStore().get(CONSUL_KEY);
-        if (!credentials.isPresent()) {
-            String dbPassword = generatePassword();
-            authKVConfig.authKeyValueStore().put(CONSUL_KEY, dbPassword);
-            // Make sure we have the proper user here.
-            // We call this only when the database user is not yet been created and set.
-            // We are doing the inlined code here, since creating multiple beans causes the circular
-            // dependencies in Sprint.
-            dataSource.setUser("root");
-            dataSource.setPassword(getRootSqlDBPassword());
-            try (Connection connection = dataSource.getConnection()) {
-                try (PreparedStatement stmt = connection.prepareStatement(
-                        "CREATE USER 'auth'@'%' IDENTIFIED BY ?;")) {
-                    stmt.setString(1, dbPassword);
-                    stmt.execute();
+        try {
+            if (!credentials.isPresent()) {
+                String dbPassword = generatePassword();
+                authKVConfig.authKeyValueStore().put(CONSUL_KEY, dbPassword);
+                // Make sure we have the proper user here.
+                // We call this only when the database user is not yet been created and set.
+                // We are doing the inlined code here, since creating multiple beans causes the circular
+                // dependencies in Sprint.
+                dataSource.setUser("root");
+                dataSource.setPassword(getRootSqlDBPassword());
+                try (Connection connection = dataSource.getConnection()) {
+                    try (PreparedStatement stmt = connection.prepareStatement(
+                            "CREATE USER 'auth'@'%' IDENTIFIED BY ?;")) {
+                        stmt.setString(1, dbPassword);
+                        stmt.execute();
+                    }
+                    try (PreparedStatement stmt = connection.prepareStatement(
+                            "GRANT ALL PRIVILEGES ON auth.* TO 'auth'@'%' WITH GRANT OPTION;")) {
+                        stmt.execute();
+                    }
+                    try (PreparedStatement stmt = connection.prepareStatement("FLUSH PRIVILEGES;")) {
+                        stmt.execute();
+                    }
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
                 }
-                try (PreparedStatement stmt = connection.prepareStatement(
-                        "GRANT ALL PRIVILEGES ON auth.* TO 'auth'@'%' WITH GRANT OPTION;")) {
-                    stmt.execute();
-                }
-                try (PreparedStatement stmt = connection.prepareStatement("FLUSH PRIVILEGES;")) {
-                    stmt.execute();
-                }
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
+                dataSource.setUser(dbSchemaName);
+                dataSource.setPassword(dbPassword);
             }
-            dataSource.setUser(dbSchemaName);
-            dataSource.setPassword(dbPassword);
+        } catch (SQLException e) {
+            throw new BeanCreationException("Failed to initialize bean: " + e.getMessage());
         }
 
         // Create a JOOQ configuration.
@@ -352,6 +368,10 @@ public class AuthDBConfig {
      * @return The database URL.
      */
     private String getDbUrl() {
+        if (databaseConfig != null) {
+            return databaseConfig.getDbUrl();
+        }
+        // Use for unit test only
         return UriComponentsBuilder.newInstance()
                                    .scheme("jdbc:mysql")
                                    .host(dbHost)

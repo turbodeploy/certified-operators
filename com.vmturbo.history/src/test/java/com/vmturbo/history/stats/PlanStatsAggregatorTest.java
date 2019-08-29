@@ -61,7 +61,7 @@ public class PlanStatsAggregatorTest {
             .setTopologyContextId(CONTEXT_ID)
             .setTopologyId(200)
             .build();
-        HistorydbIO historydbIO = new HistorydbIO(Mockito.mock(DBPasswordUtil.class));
+        HistorydbIO historydbIO = new HistorydbIO(Mockito.mock(DBPasswordUtil.class), null);
         aggregator = new PlanStatsAggregator(historydbIO, topologyOrganizer, true);
         aggregator.handleChunk(Lists.newArrayList(vm1, pm1));
         aggregator.handleChunk(Lists.newArrayList(vm2, pm2));
