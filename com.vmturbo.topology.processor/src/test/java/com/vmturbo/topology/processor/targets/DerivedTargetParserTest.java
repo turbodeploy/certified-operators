@@ -55,7 +55,7 @@ public class DerivedTargetParserTest {
      */
     @SuppressWarnings("unchecked")
     @Test
-    public void testInstantiateDerivedTargets() throws IdentityStoreException {
+    public void testInstantiateDerivedTargetsForAddressField() throws IdentityStoreException {
         final String addressField = PredefinedAccountDefinition.Address.name().toLowerCase();
         final String userNameField = PredefinedAccountDefinition.Username.name().toLowerCase();
         final long probeId = 0L;
@@ -64,17 +64,17 @@ public class DerivedTargetParserTest {
                 .setProbeCategory("test").setProbeType("foo")
                 .addTargetIdentifierField(addressField)
                 .addAccountDefinition(AccountDefEntry.newBuilder()
-                    .setCustomDefinition(CustomAccountDefEntry.newBuilder()
-                        .setName(userNameField)
-                        .setDisplayName("username-displayName")
-                        .setDescription("username-desc"))
-                    .setMandatory(true))
+                        .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+                                .setName(userNameField)
+                                .setDisplayName("username-displayName")
+                                .setDescription("username-desc"))
+                        .setMandatory(true))
                 .addAccountDefinition(AccountDefEntry.newBuilder()
-                    .setCustomDefinition(CustomAccountDefEntry.newBuilder()
-                        .setName(addressField)
-                        .setDisplayName("address-displayName")
-                        .setDescription("address-desc"))
-                    .setMandatory(true))
+                        .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+                                .setName(addressField)
+                                .setDisplayName("address-displayName")
+                                .setDescription("address-desc"))
+                        .setMandatory(true))
                 .build();
         final DerivedTargetSpecificationDTO dto1 = DerivedTargetSpecificationDTO.newBuilder()
                 .setProbeType("foo").setHidden(true).setDependent(true)
@@ -88,6 +88,59 @@ public class DerivedTargetParserTest {
                 .addAccountValue(AccountValue.newBuilder().setKey(userNameField)
                         .setStringValue("AAA").build())
                 .addAccountValue(AccountValue.newBuilder().setKey(addressField)
+                        .setStringValue("250.250.250.250").build())
+                .build();
+        final List<DerivedTargetSpecificationDTO> derivedDTOList = Arrays.asList(dto1, dto2);
+
+        Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
+        Mockito.when(probeStore.getProbeIdForType(Mockito.anyString())).thenReturn(Optional.of(probeId));
+
+        derivedTargetParser.instantiateDerivedTargets(parentTargetId, derivedDTOList);
+
+        Assert.assertEquals(2, targetStore.getAll().size());
+        targetStore.getAll().stream().allMatch(target -> target.getSpec().hasParentId());
+        targetStore.getAll().stream().anyMatch(target -> target.getSpec().getIsHidden());
+    }
+
+    /**
+     * Test instantiate derived targets.
+     * @throws IdentityStoreException should never happen
+     */
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testInstantiateDerivedTargetsForNameField() throws IdentityStoreException {
+        final String nameField = "name";
+        final String userNameField = PredefinedAccountDefinition.Username.name().toLowerCase();
+        final long probeId = 0L;
+        final long parentTargetId = 0L;
+        final ProbeInfo probeInfo = ProbeInfo.newBuilder()
+                .setProbeCategory("test").setProbeType("foo")
+                .addTargetIdentifierField(nameField)
+                .addAccountDefinition(AccountDefEntry.newBuilder()
+                    .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+                        .setName(userNameField)
+                        .setDisplayName("username-displayName")
+                        .setDescription("username-desc"))
+                    .setMandatory(true))
+                .addAccountDefinition(AccountDefEntry.newBuilder()
+                    .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+                        .setName(nameField)
+                        .setDisplayName("name-displayName")
+                        .setDescription("name-desc"))
+                    .setMandatory(true))
+                .build();
+        final DerivedTargetSpecificationDTO dto1 = DerivedTargetSpecificationDTO.newBuilder()
+                .setProbeType("foo").setHidden(true).setDependent(true)
+                .addAccountValue(AccountValue.newBuilder().setKey(userNameField)
+                        .setStringValue("vmturbo").build())
+                .addAccountValue(AccountValue.newBuilder().setKey(nameField)
+                        .setStringValue("1.2.3.4").build())
+                .build();
+        final DerivedTargetSpecificationDTO dto2 = DerivedTargetSpecificationDTO.newBuilder()
+                .setProbeType("foo").setHidden(false).setDependent(true)
+                .addAccountValue(AccountValue.newBuilder().setKey(userNameField)
+                        .setStringValue("AAA").build())
+                .addAccountValue(AccountValue.newBuilder().setKey(nameField)
                         .setStringValue("250.250.250.250").build())
                 .build();
         final List<DerivedTargetSpecificationDTO> derivedDTOList = Arrays.asList(dto1, dto2);

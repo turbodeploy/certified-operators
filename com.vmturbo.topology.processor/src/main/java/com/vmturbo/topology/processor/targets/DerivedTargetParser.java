@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.targets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
@@ -38,6 +39,54 @@ public class DerivedTargetParser {
     }
 
     /**
+     * First try to get the display name from either the "address" or the "name" fields.
+     * If both fields don't exist - get the probes identifying fields and if the target has any of them,
+     * concatenate them and use the result as the derived target display name.
+     * Else - throw an exception.
+     *
+     * @param derivedTargetDTO the derived target for which we want to get the display name.
+     * @return the derived target display name for logging.
+     */
+    private String getDerivedTargetDisplayName(DerivedTargetSpecificationDTO derivedTargetDTO) {
+        return derivedTargetDTO.getAccountValueList().stream()
+                .filter(accountValue -> "name".equalsIgnoreCase(accountValue.getKey()) ||
+                        PredefinedAccountDefinition.Address.name()
+                                .equalsIgnoreCase(accountValue.getKey()))
+                .findFirst()
+                .map(Discovery.AccountValue::getStringValue)
+                .orElseGet(() -> probeStore.getProbeInfoForType(derivedTargetDTO.getProbeType())
+                        .map(probeInfo -> {
+                            String targetName = probeInfo.getTargetIdentifierFieldList().stream()
+                                    .map(probeIdentifyingField -> derivedTargetDTO.getAccountValueList()
+                                            .stream()
+                                            .filter(accountValue -> accountValue.getKey()
+                                                    .equalsIgnoreCase(probeIdentifyingField))
+                                            .map(Discovery.AccountValue::getStringValue)
+                                            .findAny()
+                                            .orElse(""))
+                                    .collect(Collectors.joining(", "));
+                            if (targetName.isEmpty()) {
+                                throwInvalidTargetException("No identifying fields of probe "
+                                        + derivedTargetDTO.getProbeType() + " for derived target");
+                            }
+                            return targetName;
+                        })
+                        .orElseGet(() -> throwInvalidTargetException("target probe "
+                                + derivedTargetDTO.getProbeType() + " is not registered")));
+    }
+
+    /**
+     * Since throwing checked exceptions inside a stream is forbidden, use this method to throw
+     * a runtime exception, with the correct type of exception inside it.
+     *
+     * @param errorMessage an error message to use in the exception.
+     * @return signature contains string return value in order to fit the "orElse" argument type.
+     */
+    private String throwInvalidTargetException(String errorMessage) {
+        throw new RuntimeException(new InvalidTargetException(errorMessage));
+    }
+
+    /**
      * Instantiates all derived targets and parses the DerivedTargetSpecificationDTO that returned from
      * discovery responses.
      *
@@ -49,32 +98,31 @@ public class DerivedTargetParser {
         logger.trace(derivedTargetsList.size() + " derived targets found.");
         final List<TargetSpec> derivedTargetSpecs = new ArrayList<>();
         derivedTargetsList.forEach(derivedTargetDTO -> {
-            final String targetName = derivedTargetDTO.getAccountValueList().stream()
-                        .filter(accountValue -> accountValue.getKey().equalsIgnoreCase(
-                                PredefinedAccountDefinition.Address.name()))
-                        .map(Discovery.AccountValue::getStringValue)
-                        .findFirst()
-                        .orElse(derivedTargetDTO.toString());
             try {
-                final long probeId = probeStore.getProbeIdForType(derivedTargetDTO.getProbeType())
-                        .orElseThrow(() -> new InvalidTargetException(
-                                String.format("No probe type %s found.", derivedTargetDTO.getProbeType())));
-                final TargetSpec targetSpec = parseDerivedTargetSpec(probeId, parentTargetId,
-                                derivedTargetDTO);
-                // If the target is dependent on the parent target, then we create it as derived target, or
-                // we should create the target as normal way as the case for VCD creating VC targets.
-                if (targetSpec.hasParentId()) {
-                    derivedTargetSpecs.add(targetSpec);
-                } else {
-                    try {
-                        targetStore.createTarget(targetSpec);
-                    } catch (DuplicateTargetException e) {
-                        logger.debug("Derived target {} already exists, parsing will be skipped.",
-                                targetName);
+                final String targetName = getDerivedTargetDisplayName(derivedTargetDTO);
+                try {
+                    final long probeId = probeStore.getProbeIdForType(derivedTargetDTO.getProbeType())
+                            .orElseThrow(() -> new InvalidTargetException(
+                                    String.format("No probe type %s found.", derivedTargetDTO.getProbeType())));
+                    final TargetSpec targetSpec = parseDerivedTargetSpec(probeId, parentTargetId,
+                            derivedTargetDTO);
+                    // If the target is dependent on the parent target, then we create it as derived target, or
+                    // we should create the target as normal way as the case for VCD creating VC targets.
+                    if (targetSpec.hasParentId()) {
+                        derivedTargetSpecs.add(targetSpec);
+                    } else {
+                        try {
+                            targetStore.createTarget(targetSpec);
+                        } catch (DuplicateTargetException e) {
+                            logger.debug("Derived target {} already exists, parsing will be skipped.",
+                                    targetName);
+                        }
                     }
+                } catch (InvalidTargetException | IdentityStoreException e) {
+                    logger.error("Parse derived target {} failed. {}", targetName, e);
                 }
-            } catch (InvalidTargetException | IdentityStoreException e) {
-                logger.error("Parse derived target {} failed. {}", targetName, e);
+            } catch (RuntimeException e) {
+                logger.error("Failed to get derived target name. parentID: {}, {}", parentTargetId, e);
             }
         });
         try {
