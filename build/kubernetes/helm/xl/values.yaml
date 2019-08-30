@@ -46,6 +46,8 @@ appinsights:
   enabled: false
 aws:
   enabled: false
+baremetal:
+  enabled: false
 datadog:
   enabled: false
 awslambda:

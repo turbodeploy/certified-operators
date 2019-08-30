@@ -319,6 +319,7 @@
                 <module>../com.vmturbo.mediation.azure.cost.component</module>
                 <module>../com.vmturbo.mediation.azure.ea.component</module>
                 <module>../com.vmturbo.mediation.azure.sp.component</module>
+                <module>../com.vmturbo.mediation.baremetal.component</module>
                 <module>../com.vmturbo.mediation.client</module>
                 <module>../com.vmturbo.mediation.client.bootstrap</module>
                 <module>../com.vmturbo.mediation.conversion</module>
@@ -643,6 +644,13 @@
         </profile>
 
         <profile>
+            <id>mediation-baremetal</id>
+            <modules>
+                <module>../com.vmturbo.mediation.baremetal.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation-datadog</id>
             <modules>
                 <module>../com.vmturbo.mediation.datadog.component</module>
@@ -945,6 +953,7 @@
                 <module>../com.vmturbo.mediation.azure.cost.component</module>
                 <module>../com.vmturbo.mediation.azure.ea.component</module>
                 <module>../com.vmturbo.mediation.azure.sp.component</module>
+                <module>../com.vmturbo.mediation.baremetal.component</module>
                 <module>../com.vmturbo.mediation.cloudfoundry.component</module>
                 <module>../com.vmturbo.mediation.compellent.component</module>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
