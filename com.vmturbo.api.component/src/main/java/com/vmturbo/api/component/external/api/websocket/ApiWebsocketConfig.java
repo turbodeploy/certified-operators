@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
+import org.springframework.web.socket.server.support.HttpSessionHandshakeInterceptor;
 
 @EnableWebSocket
 @Configuration
@@ -36,7 +37,11 @@ public class ApiWebsocketConfig implements WebSocketConfigurer {
         // there was also a related issue fixed in a newer version of Spring
         // (https://jira.spring.io/browse/SPR-16262) that we might also need to pull in if we want
         // to go the "headers" route.
-        webSocketHandlerRegistry.addHandler(websocketHandler(), WEBSOCKET_URL).setAllowedOrigins("*");
+        webSocketHandlerRegistry.addHandler(websocketHandler(), WEBSOCKET_URL).setAllowedOrigins("*")
+            // Add Session Handshake interceptor to attach meta info to the attributes of the
+            // websocket object.  This will tie both the HTTP Session ID and the Spring Security
+            // Context to the websocket instance.
+            .addInterceptors(new HttpSessionHandshakeInterceptor());
     }
 
     /**

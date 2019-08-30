@@ -17,6 +17,7 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.web.socket.BinaryMessage;
@@ -49,6 +50,9 @@ public class ApiWebsocketHandler extends TextWebSocketHandler implements UINotif
             .build()
             .register();
 
+    private static final String HTTP_SESSION_ID_PATH = "HTTP.SESSION.ID";
+    private static final String SECURITY_CONTEXT_PATH = "SPRING_SECURITY_CONTEXT";
+
     /**
      * The logger.
      */
@@ -61,6 +65,9 @@ public class ApiWebsocketHandler extends TextWebSocketHandler implements UINotif
     private final long sessionTimeoutMilliSeconds;
     private final int pingIntervalSeconds;
 
+    /**
+     * Scheduler for ping message intervals.
+     */
     private final ScheduledExecutorService scheduler;
 
     public ApiWebsocketHandler(final int sessionTimeoutSeconds, final int pingIntervalSeconds) {
@@ -142,6 +149,19 @@ public class ApiWebsocketHandler extends TextWebSocketHandler implements UINotif
         logger_.info("Connection established: {}, {}", session, this);
         sessions_.add(session);
         NUM_WEBSOCKET_SESSIONS.setData((double) sessions_.size());
+
+        // If Session credentials are not found, user does not have a valid session
+        // so close the websocket to prevent information leak to unauthorized user.
+        if (!session.getAttributes().containsKey(HTTP_SESSION_ID_PATH)) {
+            try {
+                logger_.warn("Http Session credentials were not found for user attempting websocket connection." +
+                    "  Websocket connection terminated.");
+                session.close(CloseStatus.POLICY_VIOLATION
+                    .withReason("Session credentials not found.  Websocket connection terminated."));
+            } catch (IOException e) {
+                logger_.info("Failed to close Websocket session - {}", e.getMessage());
+            }
+        }
     }
 
     /**
@@ -216,7 +236,7 @@ public class ApiWebsocketHandler extends TextWebSocketHandler implements UINotif
                 .setTime(Instant.now().toEpochMilli())
                 .setTargetsNotification(Objects.requireNonNull(notification))
                 .build());
-  }
+    }
 
     @Override
     public void broadcastTargetValidationNotification(@Nonnull final TargetNotification notification) {
@@ -268,5 +288,26 @@ public class ApiWebsocketHandler extends TextWebSocketHandler implements UINotif
             logger_.info("Shutting down websocket session monitor scheduler.");
             scheduler.shutdownNow();
         }
+    }
+
+    /**
+     * Given an HTTP Session ID, close all open websockets that are tied to that ID.
+     *
+     * @param httpSessionId the HTTP Session ID to close websockets for
+     * @param closeStatus the status/reason for closing the websockets
+     */
+    public void closeWSSessionsByHttpSessionId(@Nonnull final String httpSessionId,
+                                               @Nonnull final CloseStatus closeStatus) {
+        sessions_.forEach(wsSession -> {
+            final Object wsHttpSessionId = wsSession.getAttributes().get(HTTP_SESSION_ID_PATH);
+            if (wsHttpSessionId instanceof String
+                && StringUtils.equals((String)wsHttpSessionId, httpSessionId)) {
+                try {
+                    wsSession.close(closeStatus);
+                } catch (IOException e) {
+                    logger_.info("Failed to close Websocket session.", e);
+                }
+            }
+        });
     }
 }

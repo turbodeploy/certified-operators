@@ -19,6 +19,7 @@ import org.springframework.security.saml.userdetails.SAMLUserDetailsService;
 import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.external.api.SAML.SAMLCondition;
 import com.vmturbo.api.component.external.api.SAML.SAMLUserDetailsServiceImpl;
+import com.vmturbo.api.component.external.api.listener.HttpSessionListener;
 import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
@@ -656,5 +657,17 @@ public class ServiceConfig {
             communicationConfig.groupExpander(),
             mapperConfig.settingsMapper(),
             mapperConfig.settingManagerMappingLoader().getMapping());
+    }
+
+    /**
+     * Returns the HttpSessionListener with access to the websocketHandler.
+     *
+     * @return an {@link HttpSessionListener} to capture session events.
+     */
+    @Bean
+    public HttpSessionListener httpSessionListener() {
+        return new HttpSessionListener(
+            websocketConfig.websocketHandler()
+        );
     }
 }
