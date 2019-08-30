@@ -149,11 +149,6 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
-    public DockerInterfaceService dockerInterfaceService() {
-        return new DockerInterfaceService();
-    }
-
-    @Bean
     public DataAggregator dataAggregator() {
         return new DataAggregator();
     }

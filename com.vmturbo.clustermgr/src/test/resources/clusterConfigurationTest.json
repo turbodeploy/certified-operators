@@ -2,7 +2,6 @@
   "component_instances": {
     "c1_1": {
       "componentType": "c1",
-      "node": "node1",
       "properties": {
         "prop1": "val1",
         "prop2": "val2"
@@ -10,13 +9,12 @@
     },
     "c2_1": {
       "componentType": "c2",
-      "node": "node2",
       "properties": {
         "prop3": "val3"
       }
     }
   },
-  "component_types": {
+  "component_type_properties": {
     "c1": {
         "prop1": "val1",
         "prop2": "val2"

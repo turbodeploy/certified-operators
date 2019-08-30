@@ -28,8 +28,6 @@ import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import javax.annotation.Nonnull;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -50,7 +48,7 @@ import com.vmturbo.clustermgr.api.ComponentProperties;
 import com.vmturbo.clustermgr.api.HttpProxyConfig;
 
 /**
- * test for ClusterMgr Service
+ * Test for ClusterMgr Service.
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @WebAppConfiguration
@@ -58,10 +56,6 @@ import com.vmturbo.clustermgr.api.HttpProxyConfig;
     classes = {ClusterMgrServiceTestConfiguration.class})
 public class ClusterMgrServiceTest {
 
-    // parms: componentType, propertyName
-    private static final String COMPONENT_DEFAULT_PROPERTY_KEY = "vmturbo/components/%s/defaults/%s";
-    // parms: componentType, instanceId, propertyName
-    private static final String COMPONENT_INSTANCE_PROPERTY_KEY = "vmturbo/components/%s/instances/%s/properties/%s";
     @Autowired
     ConsulService consulServiceMock;
     @Autowired
@@ -99,7 +93,7 @@ public class ClusterMgrServiceTest {
     }
 
     @Test
-    public void testGetComponentInstanceIds() throws Exception {
+    public void testGetComponentInstanceIds() {
         // Arrange
         String[] expected = {"vmturbo", "c1_1", "c1_2"};
         // Act
@@ -109,7 +103,7 @@ public class ClusterMgrServiceTest {
     }
 
     @Test
-    public void testGetPropertiesforComponentInstance() throws Exception {
+    public void testGetPropertiesforComponentInstance() {
         // Arrange
         // Act
         ComponentProperties propMap = clusterMgrService.getComponentInstanceProperties("c1", "c1_1");
@@ -120,18 +114,18 @@ public class ClusterMgrServiceTest {
     }
 
     @Test
-    public void getComponentTypePropertyTest() throws Exception {
+    public void getComponentTypePropertyTest() {
         // Arrange
         when(consulServiceMock.getValueAsString("vmturbo/components/c1/defaults/p1"))
             .thenReturn(Optional.fromNullable("defaultVal1"));
         // Act
-        String val = clusterMgrService.getComponentTypeProperty("c1", "p1");
+        String val = clusterMgrService.getDefaultComponentProperty("c1", "p1");
         // Assert
         assertThat(val, is("defaultVal1"));
     }
 
     @Test
-    public void putDefaultPropertiesForComponentTypeTest() throws Exception {
+    public void putDefaultPropertiesForComponentTypeTest() {
         // Arrange
         ComponentProperties newProperties = new ComponentProperties();
         newProperties.put("p1", "v1");
@@ -163,7 +157,7 @@ public class ClusterMgrServiceTest {
     }
 
     @Test
-    public void testGetPropertyforComponentInstance() throws Exception {
+    public void testGetPropertyforComponentInstance() {
         // Arrange
         when(consulServiceMock.getValueAsString("vmturbo/components/c1/instances/c1_1/properties/prop1"))
             .thenReturn(Optional.fromNullable("val1"));
@@ -186,7 +180,7 @@ public class ClusterMgrServiceTest {
     }
 
     @Test
-    public void testSetProperty() throws Exception {
+    public void testSetProperty() {
         // Arrange
         String componentType = "c1";
         String instanceId = "c1_1";
@@ -225,34 +219,6 @@ public class ClusterMgrServiceTest {
         return v;
     }
 
-    /**
-     * Construct a key stem for a given property of a given component on a given node.
-     *
-     * @param propertyName the name of the property to be retrieved
-     * @return a key stem for a node/component/property specifier
-     */
-    @Nonnull
-    private String getInstancePropertyKey(
-        @Nonnull String componentType,
-        @Nonnull String instanceId,
-        @Nonnull String propertyName) {
-        return String.format(COMPONENT_INSTANCE_PROPERTY_KEY, componentType, instanceId, propertyName);
-    }
-
-    /**
-     * Construct a key stem for a given property of a given component type.
-     *
-     * @param componentType the node where this component resides
-     * @param propertyName  the name of the property to be retrieved
-     * @return a key stem for a node/component/property specifier
-     */
-    @Nonnull
-    private String getDefaultPropertyKey(
-        @Nonnull String componentType,
-        @Nonnull String propertyName) {
-        return String.format(COMPONENT_DEFAULT_PROPERTY_KEY, componentType, propertyName);
-    }
-
     @Test
     public void testValidateDiagsName() {
         final long currentEpoch = System.currentTimeMillis();
@@ -285,7 +251,7 @@ public class ClusterMgrServiceTest {
         ZipOutputStream zipOutputStream = mock(ZipOutputStream.class);
         clusterMgrService.insertDiagsSummaryFile(zipOutputStream, new StringBuilder());
         final ZipEntry zipEntry = new ZipEntry(ClusterMgrService.DIAGS_SUMMARY_SUCCESS_TXT);
-        verify(zipOutputStream).putNextEntry(argThat(new MatchesZipEntiry(zipEntry)));
+        verify(zipOutputStream).putNextEntry(argThat(new MatchesZipEntry(zipEntry)));
         verify(zipOutputStream, never()).write(new byte[]{anyByte()}, anyInt(), anyInt());
         verify(zipOutputStream).closeEntry();
     }
@@ -297,16 +263,20 @@ public class ClusterMgrServiceTest {
         errorMessages.append("clustermgr\n");
         clusterMgrService.insertDiagsSummaryFile(zipOutputStream, errorMessages);
         final ZipEntry zipEntry = new ZipEntry(ClusterMgrService.DIAGS_SUMMARY_FAIL_TXT);
-        verify(zipOutputStream).putNextEntry(argThat(new MatchesZipEntiry(zipEntry)));
+        verify(zipOutputStream).putNextEntry(argThat(new MatchesZipEntry(zipEntry)));
         verify(zipOutputStream, times(1)).write(new byte[]{anyByte()}, anyInt(), anyInt());
         verify(zipOutputStream).closeEntry();
     }
 
-    private class MatchesZipEntiry extends ArgumentMatcher<ZipEntry> {
+    /**
+     * Utility matcher so check whether the argument is a ZipEntry and that the
+     * name matches the desired ZipEntry name.
+     */
+    private static class MatchesZipEntry extends ArgumentMatcher<ZipEntry> {
 
         private final ZipEntry zipEntry;
 
-        public MatchesZipEntiry(final ZipEntry zipEntry) {
+        MatchesZipEntry(final ZipEntry zipEntry) {
             this.zipEntry = zipEntry;
         }
 

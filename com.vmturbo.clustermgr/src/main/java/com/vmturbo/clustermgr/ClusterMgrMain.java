@@ -1,6 +1,5 @@
 package com.vmturbo.clustermgr;
 
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -71,13 +70,23 @@ public class ClusterMgrMain {
     }
 
 
-    public static void main(String[] args) throws Exception {
+    /**
+     * Startup for the ClusterMgr component. ClusterMgr comes up first in XL, and initializatino for
+     * all other component depends on ClusterMgr being already up, and so (chicken and egg)
+     * ClusterMgr is the only component that does *not* inherit from BaseVmtComponent.
+     *
+     * <p>Create a Spring Context, start up a Jetty server, and then call the run() method
+     * on the ClusterMgrMain instance.
+     *
+     * @param args command line arguments passed on startup - not used directly.
+     */
+    public static void main(String[] args) {
         final Logger logger = LogManager.getLogger();
         logger.info("Starting web server with spring context");
         final String serverPort = requireEnvProperty("serverHttpPort");
 
         final org.eclipse.jetty.server.Server server =
-                new org.eclipse.jetty.server.Server(Integer.valueOf(serverPort));
+                new org.eclipse.jetty.server.Server(Integer.parseInt(serverPort));
         final ServletContextHandler contextServer =
                 new ServletContextHandler(ServletContextHandler.SESSIONS);
         try {
@@ -104,13 +113,8 @@ public class ClusterMgrMain {
         }
     }
 
-    /*
-     * Once the Spring context is initialized, perform the clustermgr process:
-     * <ul>
-     * <li>from the Consul K/V store, look up the set of components to load on this node
-     * <li>if none, initialize the stored list of components to "all known components" (saved back to Consul K/V store)
-     * <li>launch each component (by calling the Docker API)</li>
-     * </ul>
+    /**
+     * When ClusterMgr begins running, launch a background task to configure Kafka.
      */
     public void run() {
 
@@ -126,18 +130,6 @@ public class ClusterMgrMain {
             Thread.currentThread().interrupt();
             throw new RuntimeException(ie);
         }
-
-        // retrieve the configuration for this cluster
-        ClusterConfiguration configuration =
-                clusterMgrConfig.clusterMgrService().getClusterConfiguration();
-        // launch each component instance in the cluster
-        for (Map.Entry<String, ComponentInstanceInfo> componentInfo:  configuration.getInstances().entrySet()) {
-            String instanceId = componentInfo.getKey();
-            String componentType = componentInfo.getValue().getComponentType();
-            String node = componentInfo.getValue().getNode();
-            clusterMgrConfig.dockerInterfaceService()
-                    .launchComponent(componentType, instanceId, node);
-        }
     }
 
     private synchronized void startBackgroundTask(Runnable task) {
@@ -151,20 +143,12 @@ public class ClusterMgrMain {
     @PreDestroy
     private void shutDown() {
         log.info("<<<<<<<  clustermgr shutting down");
-
         // stop any background tasks
         synchronized (this) {
             if (backgroundTaskRunner != null) {
                 log.info("Stopping background tasks...");
                 backgroundTaskRunner.shutdownNow();
             }
-        }
-
-        ClusterConfiguration configuration =
-                clusterMgrConfig.clusterMgrService().getClusterConfiguration();
-        for (Map.Entry<String, ComponentInstanceInfo> componentInfo:  configuration.getInstances().entrySet()) {
-            String instanceId = componentInfo.getKey();
-            clusterMgrConfig.dockerInterfaceService().stopComponent(instanceId);
         }
     }
 

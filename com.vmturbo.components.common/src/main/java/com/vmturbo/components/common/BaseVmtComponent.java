@@ -351,7 +351,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             // get a pointer to the ClusterMgr client api
             ClusterMgrRestClient clusterMgrClient = getClusterMgrClient();
 
-            clusterMgrClient.setPropertyForComponentInstance(componentType, instanceId, PROP_INSTANCE_IP, "");
+            clusterMgrClient.setComponentInstanceProperty(componentType, instanceId,
+                PROP_INSTANCE_IP, "");
         }
         setStatus(ExecutionStatus.TERMINATED);
     }
@@ -778,8 +779,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                 instanceId, componentType);
         do {
             try {
-                final ComponentProperties componentProperties =
-                        clusterMgrClient.getComponentInstanceProperties(componentType, instanceId);
+                ComponentProperties componentProperties =
+                        clusterMgrClient.getEffectiveInstanceProperties(componentType, instanceId);
                 componentProperties.forEach((configKey, configValue) -> {
                     logger.info("       {} = >{}<", configKey, configValue);
                     // {@link PropertySourcesPlaceholderConfigurer} is registered in
@@ -840,7 +841,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             }
             // and the component IP address
             if (StringUtils.isNotBlank(instanceId) && StringUtils.isNotBlank(instanceIp)) {
-                clusterMgrClient.setPropertyForComponentInstance(componentType, instanceId, PROP_INSTANCE_IP, instanceIp);
+                clusterMgrClient.setComponentInstanceProperty(componentType, instanceId,
+                    PROP_INSTANCE_IP, instanceIp);
             }
         }
     }

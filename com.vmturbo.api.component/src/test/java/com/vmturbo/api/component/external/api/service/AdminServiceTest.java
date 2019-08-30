@@ -67,11 +67,11 @@ import com.vmturbo.kvstore.KeyValueStore;
 @ContextConfiguration(classes = AdminServiceTest.ServiceTestConfig.class)
 public class AdminServiceTest {
 
-    public static final String PUBLIC_VERSION_STRING = "public-version";
-    public static final String TEST_VERSION_PROPERTY = "test-version";
-    public static final String TEST_BUILD = "test-build";
-    public static final String TEST_BUILD_TIME = "test-time";
-    public static final String TEST_PACKAGE_NAME = "test-package-name";
+    private static final String PUBLIC_VERSION_STRING = "public-version";
+    private static final String TEST_VERSION_PROPERTY = "test-version";
+    private static final String TEST_BUILD = "test-build";
+    private static final String TEST_BUILD_TIME = "test-time";
+    private static final String TEST_PACKAGE_NAME = "test-package-name";
     private static final String API_COMPONENT = "api";
     private static final String AUTH_COMPONENT = "auth";
     private static final String MARKET_COMPONENT = "market";
@@ -98,7 +98,7 @@ public class AdminServiceTest {
     AdminService serviceUnderTest;
 
     @Test
-    public void testGetVersionInfo() throws Exception {
+    public void testGetVersionInfo() {
         String instance1 = "inst1";
         String instance2 = "inst2";
         String instance1Type = "inst1Type";
@@ -111,10 +111,12 @@ public class AdminServiceTest {
         instance1Defaults.put("component.version", instance1Version);
         final ComponentPropertiesDTO instance2Defaults = new ComponentPropertiesDTO();
         instance2Defaults.put("component.version", instance2Version);
-        clusterConfigurationDTO.addComponentType(instance1Type, instance1Defaults);
-        clusterConfigurationDTO.addComponentType(instance2Type, instance2Defaults);
-        clusterConfigurationDTO.addComponentInstance(instance1, instance1Type, instance1Version, "node", new ComponentPropertiesDTO());
-        clusterConfigurationDTO.addComponentInstance(instance2, instance2Type, instance2Version, "node", new ComponentPropertiesDTO());
+        clusterConfigurationDTO.setDefaultProperties(instance1Type, instance1Defaults);
+        clusterConfigurationDTO.setDefaultProperties(instance2Type, instance2Defaults);
+        clusterConfigurationDTO.addComponentInstance(instance1, instance1Type, instance1Version,
+            new ComponentPropertiesDTO());
+        clusterConfigurationDTO.addComponentInstance(instance2, instance2Type, instance2Version,
+            new ComponentPropertiesDTO());
         Mockito.when(clusterService.getClusterConfiguration())
                 .thenReturn(clusterConfigurationDTO);
 
@@ -186,7 +188,7 @@ public class AdminServiceTest {
     }
 
     @Test
-    public void testSetProxyConfigSureProxy() throws Exception {
+    public void testSetProxyConfigSureProxy() {
         HttpProxyDTO dto = new HttpProxyDTO();
         dto.setProxyHost("10.10.10.1");
         dto.setProxyPortNumber(3306);
@@ -301,7 +303,7 @@ public class AdminServiceTest {
         }
 
         @Bean
-        public static PropertySourcesPlaceholderConfigurer properties() throws Exception {
+        public static PropertySourcesPlaceholderConfigurer properties() {
             final PropertySourcesPlaceholderConfigurer propertiesConfigureer
                     = new PropertySourcesPlaceholderConfigurer();
 
