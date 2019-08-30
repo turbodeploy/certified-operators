@@ -8,77 +8,37 @@ import javax.annotation.Nonnull;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * Capture the configuration of an Ops Manager cluster: nodes / components/ config properties;
- * components / default-properties; and components / local-properties.
+ * Capture the configuration of an Ops Manager cluster: nodes / components/ config properties; and
+ * components / default-properties.
  */
 public class ClusterConfiguration {
 
     // map instance_id to component->properties map
     @JsonProperty("component_instances")
-    private final Map<String, ComponentInstanceInfo> instances = new HashMap<>();
+    private Map<String, ComponentInstanceInfo> instances = new HashMap<>();
 
-    @JsonProperty("component_type_properties")
-    private final ComponentPropertiesMap defaults = new ComponentPropertiesMap();
+    private ComponentPropertiesMap defaults = new ComponentPropertiesMap();
 
-    @JsonProperty("local_properties")
-    private final ComponentPropertiesMap localProperties = new ComponentPropertiesMap();
-
-    @Nonnull
     public Map<String, ComponentInstanceInfo> getInstances() {
         return instances;
     }
 
+    @JsonProperty("component_types")
     public ComponentPropertiesMap getDefaults() {
         return defaults;
     }
 
-    public ComponentPropertiesMap getLocalProperties() {
-        return localProperties;
-    }
-
-    /**
-     * Register a new component type with default configuration properties.
-     *
-     * @param componentType the name of the component type to register
-     * @param defaultConfiguration the default configuration properties for the new component type
-     */
     public void addComponentType(@Nonnull String componentType,
                                  @Nonnull ComponentProperties defaultConfiguration) {
         defaults.addComponentConfiguration(componentType, defaultConfiguration);
     }
 
-    /**
-     * Register the "local" properties for a component type. Local properties are an override
-     * for the default configuration properties.
-     *
-     * @param componentType the type of component for these local properties
-     * @param newLocalProperties a map of propertyName -> propertyValue
-     */
-    public void setLocalProperties(@Nonnull String componentType,
-                                   @Nonnull ComponentProperties newLocalProperties) {
-        localProperties.addComponentConfiguration(componentType, newLocalProperties);
-    }
-
-    /**
-     * Add an instance of a component type, indicating the instance id, component type,
-     * software version, and instance configuration properties.
-     *
-     * <p>The instance configuration properties have the highest priority when computing the
-     * effect configuration properties passed to the component instance on startup.
-     *
-     * <p>TODO: the entire concept of separate configuration for instances is being reconsidered
-     *
-     * @param instanceId the unique id of this component instance
-     * @param componentType the component type
-     * @param componentVersion the sofware version of the component instance
-     * @param instanceConfiguration the configuration properties for the component.
-     */
     public void addComponentInstance(@Nonnull String instanceId,
                                      @Nonnull String componentType,
                                      @Nonnull String componentVersion,
+                                     @Nonnull String node,
                                      @Nonnull ComponentProperties instanceConfiguration) {
-        instances.put(instanceId, new ComponentInstanceInfo(componentType, componentVersion,
-            instanceConfiguration));
+        instances.put(instanceId, new ComponentInstanceInfo(componentType, componentVersion, node, instanceConfiguration));
     }
 
     @Override

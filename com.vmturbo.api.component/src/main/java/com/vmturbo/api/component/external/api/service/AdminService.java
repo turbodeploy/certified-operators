@@ -100,8 +100,9 @@ public class AdminService implements IAdminService {
             .setDescription("Failed to export diagnostics data").build())
         .build();
 
+    @VisibleForTesting
     // use single thread to ensure only one export diagnostics at a time.
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
     private final KeyValueStore keyValueStore;
 
@@ -423,7 +424,7 @@ public class AdminService implements IAdminService {
     private String getVersionInfoString() {
         String header = MessageFormat.format(VERSION_INFO_HEADER, publicVersionString, buildNumber, buildTime);
         ClusterConfigurationDTO clusterConfig = clusterService.getClusterConfiguration();
-        return header + clusterConfig.getDefaultProperties().entrySet().stream()
+        return header + clusterConfig.getDefaults().entrySet().stream()
             .map(componentDefaultsEntry -> {
                 return String.format("%s: %s", componentDefaultsEntry.getKey(),
                     componentDefaultsEntry.getValue().get(COMPONENT_VERSION_KEY));

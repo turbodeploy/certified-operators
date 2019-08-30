@@ -37,34 +37,24 @@ public class ClusterMgrRestClient extends ComponentRestClient {
     private static final String REST_API_PREFIX = "";
 
     // the URI to access the entire cluster state
-    private static final String CLUSTER_CONFIG_URI = "";
+    private static String CLUSTER_CONFIG_URI = "";
 
     // the current state of the component instances
-    private static final String COMPONENT_INSTANCES_STATE_URI = "/state";
+    private static String COMPONENT_INSTANCES_STATE_URI = "/state";
 
     // fetch the diagnostics from all the running instances
-    private static final String DIAGNOSTICS_URI = "/diagnostics";
+    private static String DIAGNOSTICS_URI = "/diagnostics";
 
     // configuration for the various components
-    private static final String KNOWN_COMPONENTS_URI = "/components";
-    private static final String TELEMETRY_INITIALIZED = "/proactive/initialized";
-    private static final String TELEMETRY_ENABLED = "/proactive/enabled";
-    private static final String COMPONENT_INSTANCE_EFFECTIVE_PROPERTIES_URI =
-        "/components/{componentType}/instances/{instanceId}/effectiveProperties";
-    private static final String COMPONENT_INSTANCE_PROPERTIES_URI =
-        "/components/{componentType}/instances/{instanceId}/properties";
-    private static final String COMPONENT_INSTANCE_PROPERTY_URI =
-        "/components/{componentType}/instances/{instanceId}/properties/{propertyName}";
-    private static final String COMPONENT_LOCAL_PROPERTIES_URI =
-        "/components/{componentType}/localProperties";
-    private static final String COMPONENT_LOCAL_PROPERTY_URI =
-        "/components/{componentType}/localProperties/{propertyName}";
-    private static final String COMPONENT_DEFAULT_PROPERTIES_URI =
-        "/components/{componentType}/defaults";
-    private static final String COMPONENT_DEFAULT_PROPERTY_URI =
-        "/components/{componentType}/defaults/{propertyName}";
-    private static final String COMPONENT_TYPE_INSTANCE_IDS_URI =
-        "/components/{componentType}/instances";
+    private static String KNOWN_COMPONENTS_URI = "/components";
+    private static String TELEMETRY_INITIALIZED = "/proactive/initialized";
+    private static String TELEMETRY_ENABLED = "/proactive/enabled";
+    private static String COMPONENT_INSTANCE_PROPERTIES_URI = "/components/{componentType}/instances/{instanceId}/properties";
+    private static String COMPONENT_INSTANCE_PROPERTY_URI = "/components/{componentType}/instances/{instanceId}/properties/{propertyName}";
+    private static String COMPONENT_TYPE_DEFAULT_PROPERTY_URI =  "/components/{componentType}/defaults/{propertyName}";
+    private static String COMPONENT_TYPE_DEFAULTS_URI = "/components/{componentType}/defaults";
+    private static String COMPONENT_TYPE_INSTANCE_IDS_URI = "/components/{componentType}/instances";
+    private static String COMPONENT_INSTANCE_NODE_URI = "/components/{componentType}/instances/{instanceId}/node";
 
     // the base URI to use for all accesses
     private String uriBase;
@@ -152,9 +142,9 @@ public class ClusterMgrRestClient extends ComponentRestClient {
     }
 
     /**
-     * Populate a ClusterConfiguration object with the current definition: all known component types,
-     *  the defaults and current configuration properties for each component type, and all the
-     *  component instances.
+     * Populate a ClusterConfiguration object with the current definition: all known component types, with the component
+     * instances and configuration properties for each;
+     * plus a list of all known component types with their default configuration property values.
      *
      * @return an aggregate ClusterConfiguration populated with node/component/configuration and component/default-configuration
      * values.
@@ -168,9 +158,9 @@ public class ClusterMgrRestClient extends ComponentRestClient {
     /**
      * Replace the entire Cluster Configuration.
      * This includes the <strong>default properties</strong> {@link ComponentProperties}
-     * (component-type -> default properties) local properties {@link ComponentProperties}
-     * (component-type -> local properties), and instances (component-type ->
-     * (component-instance-id -> @link com.vmturbo.api.dto.cluster.ComponentInstanceDTO}
+     * (component-type -> default properties)
+     * and the <strong>instance properties</strong> {@link ComponentProperties}
+     * (instance-id -> instance properties)
      *
      * @param newConfiguration an {@link ClusterConfiguration} to completely replace the current configuration.
      * @return the new configuration, read back from the Consul key/value store.
@@ -185,8 +175,8 @@ public class ClusterMgrRestClient extends ComponentRestClient {
     /**
      * Fetch the set of Components known to VMTurbo from the Consul K/V store.
      * Components are "known" if there is a configuration key "{@code /vmturbo/components/{component-name}/}".
-     *
-     * <p>If no matching configuration keys are found, then the global key/value store is initialized from the
+     * <p>
+     * If no matching configuration keys are found, then the global key/value store is initialized from the
      * default Component list in application.yml.
      *
      * @return the set of all component names known to VMTurbo.
@@ -199,14 +189,16 @@ public class ClusterMgrRestClient extends ComponentRestClient {
     /**
      * Set the value of a given component property for the given component instance.
      *
-     * <p>Set the value for the given property on the given component instance. Based on the semantics of Consul, any
+     * Set the value for the given property on the given component instance. Based on the semantics of Consul, any
      * previous value for this property will be overwritten, and if the property did not exist before then it is created.
      *
-     * <p>The new value may be null, which effectively deletes this property. The "customer" will need to provide a suitable
+     * The new value may be null, which effectively deletes this property. The "customer" will need to provide a suitable
      * default. This will help us implement a "search path" of configuration properties.
      *
-     * <p>Returns the new value. Note that there is a write/read with no locking, and so the value returned may
+     * Returns the new value. Note that there is a write/read with no locking, and so the value returned may
      * differ if there has been an intervening write.
+     *
+     * See the {@literal COMPONENT_INSTANCE_PROPERTY_FORMAT} format for the full key to be used in Consul.
      *
      * @param componentType the type of the given component instance
      * @param instanceId the unique id of the given component instance
@@ -214,59 +206,25 @@ public class ClusterMgrRestClient extends ComponentRestClient {
      * @param propertyValue the new value for the given configuration property
      * @return the new value of the configuration property
      */
-    public String setComponentInstanceProperty(String componentType,
-                                               String instanceId,
-                                               String propertyName,
-                                               String propertyValue) {
+    public String setPropertyForComponentInstance(String componentType,
+                                                  String instanceId,
+                                                  String propertyName,
+                                                  String propertyValue) {
         return new RestPutRequestor<String, String>(COMPONENT_INSTANCE_PROPERTY_URI, String.class)
-            .invoke(propertyValue, componentType, instanceId, propertyName);
+                .invoke(propertyValue, componentType, instanceId, propertyName);
     }
 
     /**
      * Look up a set of currently configured Component Instance IDs belonging to a given Component Type.
      *
-     * <p>Each Instance Id represents a VMT Component instance to be launched as part of the OpsMgr Cluster
+     * Each Instance Id represents a VMT Component instance to be launched as part of the OpsMgr Cluster
      *
      * @param componentType the component type to which the answer Instance IDs belong
      * @return a set of Component Instance ID strings as configured in the current OpsMgr
      */
     public Set<String> getComponentInstanceIds(String componentType) {
         return new RestGetRequestor<Set<String>>(COMPONENT_TYPE_INSTANCE_IDS_URI, Set.class)
-            .invoke(componentType);
-    }
-
-    /**
-     * Set the local value for the given property on the given component instance.
-     * Any previous value for this property will be overwritten, and if the property did not
-     * exist before then it is created.
-     *
-     * <p>Returns the new value. Note that there is a write/read with no locking, and so the value returned may
-     * differ if there has been an intervening write.
-     *
-     * @param componentType the type of the given component instance
-     * @param propertyName the name of the configuration property to set
-     * @param propertyValue the new value for the given configuration property
-     * @return the new value of the configuration property
-     */
-    public String setComponentLocalProperty(String componentType,
-                                            String propertyName,
-                                            String propertyValue) {
-        return new RestPutRequestor<String, String>(COMPONENT_LOCAL_PROPERTY_URI, String.class)
-                .invoke(propertyValue, componentType, propertyName);
-    }
-
-    /**
-     * Delete the local value for the given property for the given component type. Since there is
-     * no longer a local override, then the default value for that property will be in effect.
-     *
-     * @param componentType the component type of the given component instance.
-     * @param propertyName the value of the named configuration property, or null if there is none.
-     * @return the default value of the configuration property for the given component
-     */
-    public String deleteComponentLocalProperty(String componentType,
-                                              String propertyName) {
-        return new RestDeleteRequestor<String>(COMPONENT_LOCAL_PROPERTY_URI, String.class)
-                .invoke(componentType, propertyName);
+                .invoke(componentType);
     }
 
     /**
@@ -311,8 +269,38 @@ public class ClusterMgrRestClient extends ComponentRestClient {
      * @return whether diagnostics has been successfully exported
      */
     public boolean exportComponentDiagnostics(@Nonnull HttpProxyConfig httpProxyConfig) {
-        return new RestPostRequestor<Boolean, HttpProxyConfig>(DIAGNOSTICS_URI, Boolean.class)
-            .invoke(httpProxyConfig);
+        return new RestPostRequestor<Boolean, HttpProxyConfig>(uriBase + DIAGNOSTICS_URI,
+            Boolean.class).invoke(httpProxyConfig);
+    }
+
+    /**
+     * Return the current Cluster Node name assigned to this VMT Component Instance.
+     *
+     * @param componentType type of the component to which component is assigned
+     * @param instanceId the id of the VMT Component Instance to look up.
+     * @return the node name on which this component should be run.
+     */
+    public String getNodeForComponentInstance(String componentType,
+                                              String instanceId) {
+        return new RestGetRequestor<String>(COMPONENT_INSTANCE_NODE_URI, String.class)
+                .invoke(componentType, instanceId);
+    }
+
+    /**
+     * Store the name of the current cluster node for the given component instance / type.
+     * The new cluster node name will be returned. Note that there is no locking for this write/read operation, so
+     * if another request overlaps this one the value returned may not reflect the given cluster node.
+     *
+     * @param componentType the type of the given component
+     * @param instanceId the unique id of the given component instance
+     * @param nodeName the name of the cluster node on which this component should run
+     * @return the cluster node name for this component instance
+     */
+    @Nonnull
+    public String setNodeForComponentInstance(String componentType, String instanceId,
+                                              String nodeName) {
+        return new RestPutRequestor<String, String>(COMPONENT_INSTANCE_NODE_URI, String.class)
+                .invoke(nodeName, componentType, instanceId);
     }
 
     /**
@@ -323,40 +311,9 @@ public class ClusterMgrRestClient extends ComponentRestClient {
      * component type.
      */
     @Nonnull
-    public ComponentProperties getComponentDefaultProperties(String componentType) {
-        return new RestGetRequestor<ComponentProperties>(COMPONENT_DEFAULT_PROPERTIES_URI,
-            ComponentProperties.class).invoke(componentType);
-    }
-
-    /**
-     * Return the local {@link ComponentProperties} for the given component type.
-     * The local properties override the default properties for the corresponding component type.
-     *
-     * @param componentType the component type for which to fetch the local ComponentProperties
-     * @return a {@link ComponentProperties} object containing all local configuration properties for the given
-     * component type.
-     */
-    @Nonnull
-    public ComponentProperties getComponentLocalProperties(String componentType) {
-        return new RestGetRequestor<ComponentProperties>(COMPONENT_LOCAL_PROPERTIES_URI,
-            ComponentProperties.class).invoke(componentType);
-    }
-
-    /**
-     * Return the {@link ComponentProperties} for the given component instance / type. The result
-     * map of properties is a merge of default values (came from component type) and specific values
-     * (came from instance itself) with the priority of instance-level values.
-     *
-     * @param componentType type for the given component instance.
-     * @param componentInstanceId unique id for the given component instance
-     * @return a {@link ComponentProperties} object containing all of the configuration properties for the given
-     * component instance.
-     */
-    public ComponentProperties getEffectiveInstanceProperties(String componentType,
-                                                                 String componentInstanceId) {
-        return new RestGetRequestor<ComponentProperties>(COMPONENT_INSTANCE_EFFECTIVE_PROPERTIES_URI,
-            ComponentProperties.class)
-            .invoke(componentType, componentInstanceId);
+    public ComponentProperties getDefaultPropertiesForComponentType(String componentType) {
+        return new RestGetRequestor<ComponentProperties>(COMPONENT_TYPE_DEFAULTS_URI, ComponentProperties.class)
+                .invoke(componentType);
     }
 
     /**
@@ -396,35 +353,24 @@ public class ClusterMgrRestClient extends ComponentRestClient {
     }
 
     /**
-     * Return the value for the given property for the given component type.
-     * If there is no property by that name, then return null.
+     * Return the value for the given property for the given component type. If there is no property by that name,
+     * then return null.
      *
-     * @param componentType the type of component to query
+     * See the {@literal COMPONENT_INSTANCE_PROPERTY_FORMAT} format for the full key to be used in Consul.
+     *
      * @param propertyName the value of the named configuration property, or null if there is none.
      * @return value of the configureation property for the given component type
      */
-    public String getComponentDefaultProperty(String componentType, String propertyName) {
-        return new RestGetRequestor<String>(COMPONENT_DEFAULT_PROPERTY_URI, String.class)
-                .invoke(componentType, propertyName);
-    }
-
-    /**
-     * Return the local override value for the given property for the given component type.
-     * If there is no override property by that name, then return null.
-     *
-     * @param componentType the type of component to fetch properties from
-     * @param propertyName the current value of the named configuration property,
-     *                     or null if there is none.
-     * @return value of the current configuration property for the given component type
-     */
-    public String getComponentLocalProperty(String componentType, String propertyName) {
-        return new RestGetRequestor<String>(COMPONENT_LOCAL_PROPERTY_URI, String.class)
+    public String getComponentTypeProperty(String componentType, String propertyName) {
+        return new RestGetRequestor<String>(COMPONENT_TYPE_DEFAULT_PROPERTY_URI, String.class)
                 .invoke(componentType, propertyName);
     }
 
     /**
      * Return the value for the given property for the given component instance. If there is no property by that name,
      * then return null.
+     *
+     * See the {@literal COMPONENT_INSTANCE_PROPERTY_FORMAT} format for the full key to be used in Consul.
      *
      * @param componentType the component type of the given component instance.
      * @param componentInstanceId the unique id of the given component instance.
@@ -454,36 +400,17 @@ public class ClusterMgrRestClient extends ComponentRestClient {
     public ComponentProperties putComponentDefaultProperties(String componentType,
                                                                 ComponentProperties updatedProperties) {
         return new RestPutRequestor<ComponentProperties, ComponentProperties>(
-            COMPONENT_DEFAULT_PROPERTIES_URI, ComponentProperties.class)
+                COMPONENT_TYPE_DEFAULTS_URI, ComponentProperties.class)
                 .invoke(updatedProperties, componentType);
-    }
-
-    /**
-     * Replace the local {@link ComponentProperties} for the given component type.
-     * Return the updated {@link ComponentProperties}. The properties will replace the local
-     * set of properties for the instance. So, if empty map of properties is specified, this will
-     * remove all the local properties of this instance.
-     *
-     * @param componentType type for the given component instance.
-     * @param updatedProperties the new configuration property values to be saved.
-     * @return a {@link ComponentProperties} object containing all of the configuration properties for the given
-     * component instance.
-     */
-    public ComponentProperties putLocalComponentProperties(String componentType,
-                                                                    ComponentProperties updatedProperties) {
-        return new RestPutRequestor<ComponentProperties, ComponentProperties>(
-            COMPONENT_LOCAL_PROPERTIES_URI, ComponentProperties.class)
-            .invoke(updatedProperties, componentType);
     }
 
     /**
      * Utility class to perform an HTTP GET. The constructor takes a URI string as a parameter, which
      * may include substitution parameters. The field "uriBase" is prepended to the given URI string.
-     *
-     * <p>The .invoke() call accepts parameters to be substituted into the URI.
-     *
-     * <p>Note: the status code from the http request is not checked.
-     *
+     * <p>
+     * The .invoke() call accepts parameters to be substituted into the URI.
+     * <p>
+     * Note: the status code from the http request is not checked.
      * @param <T> the type of the return value
      */
     private class RestGetRequestor<T> {
@@ -500,7 +427,8 @@ public class ClusterMgrRestClient extends ComponentRestClient {
         T invoke(@Nonnull String... parameters) {
             logger.debug("invoke GET requestor URI:{} parameters...{} resultClass: {}", this.uri, parameters, clz);
             final UriBuilder uriBuilder = UriBuilder.fromPath(this.uri);
-            final URI uri = uriBuilder.build(parameters);
+            final URI uri = uriBuilder
+                    .build(parameters);
             final RestTemplate restTemplate = getRestTemplate();
             final ResponseEntity<T> response = restTemplate.exchange(uri,
                     HttpMethod.GET, null, clz);
@@ -513,11 +441,10 @@ public class ClusterMgrRestClient extends ComponentRestClient {
     /**
      * Utility class to perform an HTTP PUT. The constructor takes a URI string as a parameter, which
      * may include substitution parameters. The field "uriBase" is prepended to the given URI string.
-     *
-     * <p>The .invoke() call accepts a data object of type U to be "put", and parameters to be substituted into the URI.
-     *
-     * <p>Note: the status code from the http request is not checked.
-     *
+     * <p>
+     * The .invoke() call accepts a data object of type U to be "put", and parameters to be substituted into the URI.
+     * <p>
+     * Note: the status code from the http request is not checked.
      * @param <T> the type of the return value
      * @param <U> the type of the object to be "PUT"
      */
@@ -547,15 +474,13 @@ public class ClusterMgrRestClient extends ComponentRestClient {
     }
 
     /**
-     * Utility class to perform an HTTP POST. The constructor takes a URI string as a parameter,
-     * which may include substitution parameters. The field "uriBase" is prepended to the
-     * given URI string.
-     *
-     * <p>The .invoke() call accepts a data object of type U to be "POST", and parameters to be
+     * Utility class to perform an HTTP POST. The constructor takes a URI string as a parameter, which
+     * may include substitution parameters. The field "uriBase" is prepended to the given URI string.
+     * <p>
+     * The .invoke() call accepts a data object of type U to be "POST", and parameters to be
      * substituted into the URI.
-     *
-     * <p>Note: the status code from the http request is not checked.
-     *
+     * <p>
+     * Note: the status code from the http request is not checked.
      * @param <T> the type of the return value
      * @param <U> the type of the object to be "POST"
      */
@@ -564,7 +489,7 @@ public class ClusterMgrRestClient extends ComponentRestClient {
         private final Class clz;
 
         RestPostRequestor(String uri, Class resultClass) {
-            this.uri = uriBase + uri;
+            this.uri = uri;
             this.clz = resultClass;
         }
 
@@ -578,37 +503,9 @@ public class ClusterMgrRestClient extends ComponentRestClient {
                 HttpMethod.POST, new HttpEntity<>(requestObject), clz);
             return response.getBody();
         }
-    }
 
-    /**
-     * Utility class to perform an HTTP DELETE. The constructor takes a URI string as a parameter, which
-     * may include substitution parameters. The field "uriBase" is prepended to the given URI string.
-     *
-     * <p>The .invoke() accepts parameters to be substituted into the URI.
-     *
-     * <p>Note: the status code from the http request is not checked.
-     * @param <T> the type of the return value
-     */
-    private class RestDeleteRequestor<T> {
-        private final String uri;
-        private final Class clz;
-
-        RestDeleteRequestor(String uri, Class resultClass) {
-            this.uri = uriBase + uri;
-            this.clz = resultClass;
-        }
-
-        @SuppressWarnings("unchecked")
-        @Nonnull
-        T invoke(@Nonnull Object... parameters) {
-            logger.trace("invoke DELETE requestor  URI:{} parameters...{} resultClass: {}",
-                this.uri, parameters, clz);
-            logger.trace(UriBuilder.fromPath(uri).build(parameters));
-            final RestTemplate restTemplate = getRestTemplate();
-            final ResponseEntity<T> response = restTemplate.exchange(
-                UriBuilder.fromPath(uri).build(parameters),
-                HttpMethod.DELETE, HttpEntity.EMPTY, clz);
-            return response.getBody();
+        void invokeVoid(@Nonnull U requestObject, @Nonnull Object... parameters) {
+            getRestTemplate().put(uri, requestObject, parameters);
         }
     }
 

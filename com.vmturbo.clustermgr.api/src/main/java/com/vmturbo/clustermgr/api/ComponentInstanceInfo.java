@@ -7,12 +7,13 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 /**
  * Capture the configuration information related to a given VMT Component instance.
  *
- * <p>Each instance belongs to a component type and version information.
- * Also, each instance has a map of propertyName -> propertyValue (each Strings) that
- * override the corresponding component-type default or local property values.
+ * Each instance belongs to a component type and runs on a given execution node (hostname, IP, or "" meaning "default".
+ * Also, each instance has a map of propertyName -> propertyValue (each Strings).
  */
 public class ComponentInstanceInfo {
 
+    @JsonProperty
+    private String node;
     @JsonProperty
     private String componentType;
     @JsonProperty
@@ -20,23 +21,19 @@ public class ComponentInstanceInfo {
     @JsonProperty
     private ComponentProperties properties;
 
-    @SuppressWarnings("unused")
     private ComponentInstanceInfo() {
         // only used by Jackson Deserialize
     }
 
-    /**
-     * Bean to represent an instance of an XL Component. Record the component type and version here,
-     * as well as the component-specific override properties.
-     *
-     * @param componentType the component type name
-     * @param componentVersion the version information for this component
-     * @param properties the configuration property overrides for this component
-     */
-    public ComponentInstanceInfo(String componentType, String componentVersion, ComponentProperties properties) {
+    public ComponentInstanceInfo(String componentType, String componentVersion, String node, ComponentProperties properties) {
         this.componentType = componentType;
         this.componentVersion = componentVersion;
+        this.node = node;
         this.properties = properties;
+    }
+
+    public String getNode() {
+        return node;
     }
 
     public String getComponentType() {
@@ -60,12 +57,13 @@ public class ComponentInstanceInfo {
 
         final ComponentInstanceInfo that = (ComponentInstanceInfo)o;
 
-        return Objects.equals(componentType, that.componentType) &&
+        return Objects.equals(node, that.node) &&
+                Objects.equals(componentType, that.componentType) &&
                 Objects.equals(properties, that.properties);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(componentType, properties);
+        return Objects.hash(node, componentType, properties);
     }
 }

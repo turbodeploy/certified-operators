@@ -25,6 +25,7 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -35,6 +36,8 @@ import javax.ws.rs.NotFoundException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Splitter;
 import com.google.common.collect.Lists;
+import com.google.common.net.InetAddresses;
+import com.google.common.net.InternetDomainName;
 import com.orbitz.consul.model.health.HealthCheck;
 import com.orbitz.consul.model.kv.Value;
 
@@ -63,83 +66,81 @@ import com.vmturbo.components.common.utils.Strings;
 /**
  * Implement the ClusterMgr Services: component status, component configuration, node configuration.
  * This implementation uses the Consul key/value service API.
- *
- * <p>Consul key structure:
+ * <p>
+ * Consul key structure:
  * {@code
  * vmturbo/components/{component-type}/defaults/properties/{property-name} = default-property-value
  * vmturbo/components/{component-type}/instances/{instance_id}/properties/{property-name} = property-value
  * vmturbo/components/{component-type}/instances/{instance_id}/node = {node id where instance runs}
  * }
- *
- * <p>Consul values may be any byte string, with a size limit of 512kB.
+ * <p>
+ * Consul values may be any byte string, with a size limit of 512kB.
  ***/
 public class ClusterMgrService {
     // Consul key path component names to implement the Component/Node/Properties schema above
     private static final Character CONSUL_PATH_SEPARATOR = '/';
     private static final String VMTURBO_BASE_FORMAT = "vmturbo" + CONSUL_PATH_SEPARATOR;
-    private static final String COMPONENTS_BASE_FORMAT = VMTURBO_BASE_FORMAT + "components"
-        + CONSUL_PATH_SEPARATOR;
+    private static final String COMPONENTS_BASE_FORMAT = VMTURBO_BASE_FORMAT + "components" + CONSUL_PATH_SEPARATOR;
     // %s = component type
-    private static final String COMPONENT_FORMAT = COMPONENTS_BASE_FORMAT + "%s"
-        + CONSUL_PATH_SEPARATOR;
-    private static final String COMPONENT_DEFAULTS_FORMAT = COMPONENT_FORMAT + "defaults"
-        + CONSUL_PATH_SEPARATOR;
+    private static final String COMPONENT_FORMAT = COMPONENTS_BASE_FORMAT + "%s" + CONSUL_PATH_SEPARATOR;
+    private static final String COMPONENT_DEFAULTS_FORMAT = COMPONENT_FORMAT + "defaults" + CONSUL_PATH_SEPARATOR;
     // %s = property name
     private static final String COMPONENT_DEFAULTS_PROPERTY_FORMAT = COMPONENT_DEFAULTS_FORMAT + "%s";
 
-    private static final String COMPONENT_LOCAL_PROPERTIES_FORMAT = COMPONENT_FORMAT
-        + "local" + CONSUL_PATH_SEPARATOR;
-    // %s = property name
-    private static final String COMPONENT_LOCAL_PROPERTY_FORMAT =
-        COMPONENT_LOCAL_PROPERTIES_FORMAT + "%s";
-
-    private static final String COMPONENT_INSTANCES_FORMAT = COMPONENT_FORMAT + "instances"
-        + CONSUL_PATH_SEPARATOR;
+    private static final String COMPONENT_INSTANCES_FORMAT = COMPONENT_FORMAT + "instances" + CONSUL_PATH_SEPARATOR;
     // %s = component instance id
-    private static final String COMPONENT_INSTANCE_FORMAT = COMPONENT_FORMAT + "instances"
-        + CONSUL_PATH_SEPARATOR + "%s" + CONSUL_PATH_SEPARATOR;
-    private static final String COMPONENT_INSTANCE_PROPERTIES_FORMAT = COMPONENT_INSTANCE_FORMAT
-        + "properties" + CONSUL_PATH_SEPARATOR;
+    private static final String COMPONENT_INSTANCE_FORMAT = COMPONENT_FORMAT + "instances" + CONSUL_PATH_SEPARATOR + "%s"
+            + CONSUL_PATH_SEPARATOR;
+    private static final String COMPONENT_INSTANCE_PROPERTIES_FORMAT = COMPONENT_INSTANCE_FORMAT + "properties"
+            + CONSUL_PATH_SEPARATOR;
     // %s = property name
-    private static final String COMPONENT_INSTANCE_PROPERTY_FORMAT =
-        COMPONENT_INSTANCE_PROPERTIES_FORMAT + "%s";
+    private static final String COMPONENT_INSTANCE_PROPERTY_FORMAT = COMPONENT_INSTANCE_PROPERTIES_FORMAT + "%s";
+    private static final String COMPONENT_INSTANCE_NODE_FORMAT = COMPONENT_INSTANCE_FORMAT + "node";
     private static final Character PROPERTY_KEY_SEPARATOR = '.';
 
     // split on the path separator for Consul keys: '/'
     private static final Splitter PATH_SEP_LIST_SPLITTER = Splitter.on(CONSUL_PATH_SEPARATOR)
             .omitEmptyStrings();
 
+    // execution node name to use if none is specified.
+    private static final String DEFAULT_NODE_NAME = "default";
+    private static final String SERVICE_RESTART_REQUEST = "/service/restart";
+
     // constant values used for parsing consul health check results
     private static final String CONSUL_HEALTH_CHECK_PASSING_RESULT = "passing";
     private static final String CONSUL_HEALTH_CHECK_UNSUCCESSFUL_FRAGMENT = "no such host";
     private static final String GLOBAL_DEFAULT_COMPONENT_CONFIG_PROPERTIES_PATH =
         "config/global_defaults.properties";
-    @VisibleForTesting
-    static final String HOME_TURBONOMIC_DATA_TURBO_FILE_ZIP =
+    public static final String HOME_TURBONOMIC_DATA_TURBO_FILE_ZIP =
         "/home/turbonomic/data/turbonomic-diags-_%d.zip";
-    private static final String AT = "@";
+    public static final String COLLON = ":";
+    public static final String AT = "@";
 
 
     /**
      * The socket timeout in milliseconds, which is the timeout for
      * waiting for data  or, put differently, a maximum period inactivity
      * between two consecutive data packets).
-     *
-     * <p>A timeout value of zero is interpreted as an infinite timeout.
+     * <p>
+     * A timeout value of zero is interpreted as an infinite timeout.
      * A negative value is interpreted as undefined (system default).
-     *
-     * <p>Default: {@code -1}
+     * </p>
+     * <p>
+     * Default: {@code -1}
+     * </p>
      */
     private static final int SOCKET_TIMEOUT = 10 * 60 * 1000;
 
     /**
      * Timeout in milliseconds until a connection is established.
      * A timeout value of zero is interpreted as an infinite timeout.
-     *
-     * <p>A timeout value of zero is interpreted as an infinite timeout.
+     * <p>
+     * A timeout value of zero is interpreted as an infinite timeout.
      * A negative value is interpreted as undefined (system default).
-     *
-     * <p>Default: {@code -1}
+     * </p>
+     * <p>
+     * Default: {@code -1}
+     * </p>
      */
     private static final int CONNECT_TIMEOUT = 10 * 1000;
 
@@ -147,15 +148,19 @@ public class ClusterMgrService {
      * Timeout in milliseconds used when requesting a connection
      * from the connection manager. A timeout value of zero is interpreted
      * as an infinite timeout.
-     *
-     * <p>A timeout value of zero is interpreted as an infinite timeout.
+     * <p>
+     * A timeout value of zero is interpreted as an infinite timeout.
      * A negative value is interpreted as undefined (system default).
-     *
-     * <p>Default: {@code -1}
+     * </p>
+     * <p>
+     * Default: {@code -1}
+     * </p>
      */
     private static final int CONNECTION_REQUEST_TIMEOUT = 10 * 1000;
 
     private static final String NEXT_LINE = "\n";
+
+    private static final Predicate<String> IS_SERVICE_PREDICATE = name -> !name.startsWith("mediation");
 
     @VisibleForTesting
     static final String DIAGS_SUMMARY_SUCCESS_TXT = "DiagsSummary-Success.txt";
@@ -173,9 +178,10 @@ public class ClusterMgrService {
     private final ComponentProperties globalDefaultProperties = new ComponentProperties();
     private final OsCommandProcessRunner osCommandProcessRunner;
 
-    private static final String CURL_COMMAND = "curl";
     @VisibleForTesting
-    static final String UPLOAD_VMTURBO_COM_URL =
+    final static String CURL_COMMAND = "curl";
+    @VisibleForTesting
+    final static String UPLOAD_VMTURBO_COM_URL =
         "http://upload.vmturbo.com/appliance/cgi-bin/vmtupload.cgi";
 
     private Logger log = LogManager.getLogger();
@@ -188,12 +194,6 @@ public class ClusterMgrService {
 
     private final AtomicBoolean kvInitialized = new AtomicBoolean(false);
 
-    /**
-     * Create a new ClusterMgrService instance.
-     *
-     * @param consulService the client API for calls to Consul
-     * @param osCommandProcessRunner a utility object for running operating system commands
-     */
     public ClusterMgrService(@Nonnull final ConsulService consulService,
                              @Nonnull final OsCommandProcessRunner osCommandProcessRunner) {
         this.consulService = Objects.requireNonNull(consulService);
@@ -211,7 +211,7 @@ public class ClusterMgrService {
         Properties globalDefaultsFromFile = new Properties();
         log.info("Loading global default properties from file: {}",
                 GLOBAL_DEFAULT_COMPONENT_CONFIG_PROPERTIES_PATH);
-        try (InputStream configPropertiesStream = ClusterMgrService.class.getClassLoader()
+        try (final InputStream configPropertiesStream = ClusterMgrService.class.getClassLoader()
                 .getResourceAsStream(GLOBAL_DEFAULT_COMPONENT_CONFIG_PROPERTIES_PATH)) {
             if (configPropertiesStream == null) {
                 throw new RuntimeException("Cannot find default configuration properties file: " +
@@ -245,8 +245,8 @@ public class ClusterMgrService {
     /**
      * Fetch the set of Components known to VMTurbo from the Consul K/V store.
      * Components are "known" if there is a configuration key "{@code /vmturbo/components/{component-name}/}".
-     *
-     * <p>If no matching configuration keys are found, then the global key/value store is initialized from the
+     * <p>
+     * If no matching configuration keys are found, then the global key/value store is initialized from the
      * default Component list in application.yml.
      *
      * @return the set of all component names known to VMTurbo.
@@ -255,6 +255,42 @@ public class ClusterMgrService {
     public Set<String> getKnownComponents() {
         String compositeKey = getComponentsBaseKey();
         return getComponentsWithPrefix(compositeKey);
+    }
+
+    /**
+     * Instantiate a new instance of a given component type. This is accomplished simply by
+     * <ol>
+     * <li>creating a unique ID for this component instance. The current unique ID scheme is to
+     * append a sequence number to the component type name, e.g. "mediation-hyperv-1".
+     *
+     * <p>
+     * <strong>WARNING</strong> - the sequence number is ALWAYS "1". This means that we only support a single
+     * instance of each component type. The salvation is - there are no VMT Components that are currently planning to
+     * support multiple instances.
+     * <p>
+     * TODO: use Consul locking and k/v store to implement a cluster-wide unique ID, e.g. using a monotonically
+     * increasing integer. For a discussion of Consul locking see:  https://www.consul.io/docs/guides/semaphore.html
+     * </li>
+     * <li>use the unique ID for the new component to create a key/value prefix for this component instance of the
+     * form {@literal COMPONENT_INSTANCE_FORMAT} and put a "null" in the key/value store for this key.
+     * The key/value prefix must be unique among all VMT Components of the given type.
+     * </li>
+     * </ol>
+     *
+     * @param componentType name of the VMT Component type of the new instance
+     * @return the unique ID of the new instance or {@code null} if the instance already exist
+     */
+    private void addComponentInstance(String componentType, String componentInstanceId) {
+        String newInstanceKey = getComponentInstanceKey(componentType, componentInstanceId);
+        // check for previously existing component instance with this ID. TODO: this should be done with locking
+        try {
+            if (!consulService.keyExist(newInstanceKey)) {
+                consulService.putValue(newInstanceKey);
+            }
+        } catch (NotFoundException e) {
+            // Could return 404.
+            log.info("The component instance " + newInstanceKey + " is not yet found.");
+        }
     }
 
     /**
@@ -280,7 +316,7 @@ public class ClusterMgrService {
      * Establish a new component type. This is accomplished simply by creating a key prefix in the consul
      * k/v store - see {@code COMPONENT_FORMAT} for the format of this key prefix.
      *
-     * <p>Note that there is no check for a previous component type by the same name
+     * Note that there is no check for a previous component type by the same name
      *
      * @param componentType the new component type to be established.
      */
@@ -321,7 +357,7 @@ public class ClusterMgrService {
     }
 
     private void validateKeyPrefix(String keyPrefix) {
-        if (keyPrefix.charAt(keyPrefix.length() - 1) != CONSUL_PATH_SEPARATOR) {
+        if (keyPrefix.charAt(keyPrefix.length()-1) != CONSUL_PATH_SEPARATOR) {
             throw new RuntimeException("Value keyPrefix does not end with CONSUL_PATH_SEPARATOR: "
                     + CONSUL_PATH_SEPARATOR);
         }
@@ -330,16 +366,16 @@ public class ClusterMgrService {
     /**
      * Set the value of a given component property for the given component instance.
      *
-     * <p>Set the value for the given property on the given component instance. Based on the semantics of Consul, any
+     * Set the value for the given property on the given component instance. Based on the semantics of Consul, any
      * previous value for this property will be overwritten, and if the property did not exist before then it is created.
      *
-     * <p>The new value may be null, which effectively deletes this property. The "customer" will need to provide a suitable
+     * The new value may be null, which effectively deletes this property. The "customer" will need to provide a suitable
      * default. This will help us implement a "search path" of configuration properties.
      *
-     * <p>Returns the new value. Note that there is a write/read with no locking, and so the value returned may
+     * Returns the new value. Note that there is a write/read with no locking, and so the value returned may
      * differ if there has been an intervening write.
      *
-     * <p>See the {@literal COMPONENT_INSTANCE_PROPERTY_FORMAT} format for the full key to be used in Consul.
+     * See the {@literal COMPONENT_INSTANCE_PROPERTY_FORMAT} format for the full key to be used in Consul.
      *
      * @param componentType the type of the given component instance
      * @param instanceId the unique id of the given component instance
@@ -359,8 +395,8 @@ public class ClusterMgrService {
 
     /**
      * Look up Consul keys with a given prefix and exactly one additional component. Return an empty set if none found.
-     *
-     * <p>Note: the prefix MUST end in the CONSUL_PATH_SEPARATOR ('/').
+     * <p>
+     * Note: the prefix MUST end in the CONSUL_PATH_SEPARATOR ('/').
      * Example: keyPrefix = "a/b/c/" matches: "a/b/c/d", "a/b/c/e" but not "a/b/c/x/y" and returns ["d", "e"].
      *
      * @param keyPrefix a string giving a prefix of keys to examine.
@@ -396,7 +432,7 @@ public class ClusterMgrService {
      * prefix stripped off. For example, if the prefix is "a/b/", then the key/value {@code {"a/b/c": "foo"}} will return
      * the map with entry {@code {"c": "foo"}}
      *
-     * <p>If there are no keys with the given prefix, then an empty {@link ComponentProperties}.
+     * If there are no keys with the given prefix, then an empty {@link ComponentProperties}.
      *
      * @param keyPrefix the initial prefix to be matched against keys in the key/value store
      * @return a map of the matching keys to their respective values, with the keyPrefix removed from the resulting key.
@@ -426,7 +462,7 @@ public class ClusterMgrService {
     /**
      * Look up a single Consul Key/Value. The value will be returned, or null if the given key is not present.
      *
-     * <p>Note that the property value may be null.
+     * Note that the property value may be null.
      *
      * @param propertyKey the key to look up in the Consul Key/Value database
      * @return the value for the given key, or null if the key is not present
@@ -439,30 +475,20 @@ public class ClusterMgrService {
     /**
      * Set a single Consul Key/Value.
      *
-     * <p>The propertyValue may be null. Clients will need to provide a default value as appropriate.
+     * The propertyValue may be null. Clients will need to provide a default value as appropriate.
      * As a general rule, we treat configuration properties with a <i>null</i> value as indistinguishable from a
      * property with <i>no</i> value.
      *
      * @param propertyKey the key to look up in the Consul Key/Value database
-     * @param propertyValue the new value to store in the Consul Key/value database
      */
     private void setComponentKeyValue(@Nonnull String propertyKey, @Nullable String propertyValue) {
         consulService.putValue(propertyKey, propertyValue);
     }
 
     /**
-     * Delete a single Consul Key/Value.
-     *
-     * @param propertyKey the key to delete in the Consul Key/Value database
-     */
-    private void deleteComponentKeyValue(@Nonnull String propertyKey) {
-        consulService.deleteKey(propertyKey);
-    }
-
-    /**
      * Look up a set of currently configured Component Instance IDs belonging to a given Component Type.
      *
-     * <p>Each Instance Id represents a VMT Component instance to be launched as part of the OpsMgr Cluster
+     * Each Instance Id represents a VMT Component instance to be launched as part of the OpsMgr Cluster
      *
      * @param componentType the component type to which the answer Instance IDs belong
      * @return a set of Component Instance ID strings as configured in the current OpsMgr
@@ -474,13 +500,13 @@ public class ClusterMgrService {
     /**
      * Gather the current state from each running VMT Component Instance. We will do this by
      * mapping the Consul health status to a turbo component state
-     *<pre>
+     *
      *    consul health result     XL component status
      *    --------------------     ------------------
      *    passing                  RUNNING
      *    critical - w/output      UNHEALTHY (presence of output means our check is working)
      *    crticial - w/o output    UNKNOWN (no output means we haven't reported a check result yet)
-     *</pre>
+     *
      * @return a map of component_id -> status
      */
     public Map<String, ComponentState> getComponentsState() {
@@ -516,7 +542,7 @@ public class ClusterMgrService {
      *
      * @return a map of component id -> health check
      */
-    public Map<String, HealthCheck> getAllComponentsHealth() {
+    public Map<String,HealthCheck> getAllComponentsHealth() {
         Set<String> discoveredComponents = getKnownComponents();
         Map<String, HealthCheck> retVal = new HashMap<>();
         for (String componentInstance : discoveredComponents) {
@@ -537,11 +563,11 @@ public class ClusterMgrService {
      * satisfied dump the response onto the output stream.  Remember that you may not interleave
      * partial responses from the different components; a complete response must be dumped onto the zip file
      * at a time.
+     * <p>
+     * Note that the responseOutput stream is not closed on exit.
      *
-     * <p>Note that the responseOutput stream is not closed on exit.
-     *
-     * <p>TODO: consider moving this to its own class, e.g. ClusterDiagnosticsService
-     * TODO: look into the "offset" parameter to the diagnosticZip.write() method
+     * todo: consider moving this to its own class, e.g. ClusterDiagnosticsService
+     * todo: look into the "offset" parameter to the diagnosticZip.write() method
      *
      * @param responseOutput the output stream onto which the zipfile is written.
      * @throws RuntimeException for errors creating URI, fetching data, and copying to output zip stream
@@ -564,9 +590,8 @@ public class ClusterMgrService {
             } catch (IOException e) {
                 // log the error and continue to the next service in the list of services
                 log.error(componentId + " --- Error reading diagnostic stream", e);
-                errorMessagesBuild
-                    .append(componentId)
-                    .append(NEXT_LINE);
+                final String instanceName = componentId;
+                errorMessagesBuild.append(instanceName + NEXT_LINE);
             } finally {
                 log.debug(componentId + " --- closing zip entry");
                 try {
@@ -596,11 +621,10 @@ public class ClusterMgrService {
      * The reason for an independent method lies in fact that rsyslog is not a component
      * managed by Consul, so has a different configuration.
      *
-     * <p>Test: The test is very much an integration here.
+     * Test: The test is very much an integration here.
      *
      * @param diagnosticZip The diagnostic zip stream.
      * @param acceptResponseTypes The HTTP header for accepted responses.
-     * @param errorMessageBuilder an accumulator for multiple error messages
      */
     private void getRsyslogDiags(ZipOutputStream diagnosticZip, String acceptResponseTypes,
                                  @Nonnull final StringBuilder errorMessageBuilder) {
@@ -610,8 +634,8 @@ public class ClusterMgrService {
         URI requestUri = getComponentInstanceUri(componentName, "/diagnostics");
         HttpGet request = new HttpGet(requestUri);
         request.addHeader("Accept", acceptResponseTypes);
-        try (CloseableHttpClient httpclient =  HttpClientBuilder.create()
-            .setDefaultRequestConfig(requestConfig).build()) {
+        try (CloseableHttpClient httpclient =  HttpClientBuilder.create().
+            setDefaultRequestConfig(requestConfig).build()) {
             // execute the request
             try (CloseableHttpResponse response = httpclient.execute(request)) {
                 log.debug(componentName + " --- response status: " + response.getStatusLine());
@@ -628,9 +652,7 @@ public class ClusterMgrService {
                     } catch (IOException e) {
                         // log the error and continue to the next service in the list of services
                         log.error(componentName + " --- Error reading diagnostic stream", e);
-                        errorMessageBuilder
-                            .append(componentName)
-                            .append(NEXT_LINE);
+                        errorMessageBuilder.append(componentName + NEXT_LINE);
                     } finally {
                         log.debug(componentName + " --- closing zip entry");
                         try {
@@ -645,7 +667,7 @@ public class ClusterMgrService {
                 }
             }
         } catch (IOException e) {
-            log.error(componentName + " --- Error fetching the information", e);
+            log.error(componentName.toString() + " --- Error fetching the information", e);
         }
     }
 
@@ -675,13 +697,12 @@ public class ClusterMgrService {
             }
         }
     }
-
     /**
      * Specialized request for the rsyslog to retrieve all the logs.
      * The reason for an independent method lies in fact that rsyslog is not a component
      * managed by Consul, so has a different configuration.
      *
-     * <p>Test: The test is very much an integration here.
+     * Test: The test is very much an integration here.
      *
      * @param out The output stream.
      * @param acceptResponseTypes The HTTP header for accepted responses.
@@ -718,13 +739,12 @@ public class ClusterMgrService {
     /**
      * Send an HTTP GET to each active VMT Component Instance and process the response.
      *
-     * <p>Note that this process is single-threaded and blocks for each request.
+     * Note that this process is single-threaded and blocks for each request.
      *
-     * <p>TODO: consider parallel processing for the list of requests.
+     * TODO: consider parallel processing for the list of requests.
      * @param requestPath the URL to GET from each active component instance
      * @param acceptResponseTypes the http response types to accept from this request
      * @param responseEntityProcessor the processor for the response.getEntity() after the http request completes.
-     * @param errorMessageBuilder an accumulator for multiple error messages
      */
     private void visitActiveComponents(String requestPath,
                                        String acceptResponseTypes,
@@ -749,20 +769,19 @@ public class ClusterMgrService {
     /**
      * Send an HTTP GET to a given VMT Component Instance and process the response.
      *
-     * <p>Note: we treat an http request as a non-fatal error; most likely cause is the target
+     * Note: we treat an http request as a non-fatal error; most likely cause is the target
      * component is not currently running.
      *
      * @param componentName the VMT Component service to send the request to
      * @param request the HttpUriRequest to execute
      * @param responseEntityProcessor the processor for the response.getEntity() after the http request completes.
-     * @param errorMessagBuilder an accumulator for errors in case multiple are found
      */
     private void sendRequestToComponent(String componentName, HttpUriRequest request,
                                         ResponseEntityProcessor responseEntityProcessor,
                                         @Nonnull final java.util.Optional<StringBuilder> errorMessagBuilder) {
         // open an HttpClient link
-        try (CloseableHttpClient httpclient = HttpClientBuilder.create()
-            .setDefaultRequestConfig(requestConfig).build()) {
+        try (CloseableHttpClient httpclient = HttpClientBuilder.create().
+            setDefaultRequestConfig(requestConfig).build()) {
             // execute the request
             try (CloseableHttpResponse response = httpclient.execute(request)) {
                 log.debug(componentName + " --- response status: " + response.getStatusLine());
@@ -787,11 +806,9 @@ public class ClusterMgrService {
     }
 
     @VisibleForTesting
-    private void appendFailedServiceName(@Nonnull final String componentName,
+    void appendFailedServiceName(@Nonnull final String componentName,
                                  @Nonnull final java.util.Optional<StringBuilder> errorMessageBuilder) {
-        errorMessageBuilder.ifPresent(builder -> builder
-            .append(componentName)
-            .append(NEXT_LINE));
+        errorMessageBuilder.ifPresent(builder -> builder.append(componentName + NEXT_LINE));
     }
 
     /**
@@ -801,9 +818,7 @@ public class ClusterMgrService {
      * @param requestPath The request path.
      * @return The URI.
      */
-    @Nonnull
-    private URI getComponentInstanceUri(@Nonnull String componentInstance,
-                                        @Nonnull String requestPath) {
+    private URI getComponentInstanceUri(String componentInstance, String requestPath) {
         // create a request from the given path and the target component instance properties
         URI requestUri;
         try {
@@ -841,9 +856,10 @@ public class ClusterMgrService {
             String version = defaultProperties.get(COMPONENT_VERSION_KEY);
             Set<String> instanceIds = getComponentInstanceIds(componentType);
             for (String instanceId : instanceIds) {
+                String nodeId = getNodeForComponentInstance(componentType, instanceId);
                 String instancePropertiesKey = getComponentInstancePropertiesKey(componentType, instanceId);
                 ComponentProperties instanceProperties = getComponentPropertiesWithPrefix(instancePropertiesKey);
-                answer.addComponentInstance(instanceId, componentType, version, instanceProperties);
+                answer.addComponentInstance(instanceId, componentType, version, nodeId, instanceProperties);
             }
         }
         return answer;
@@ -856,20 +872,17 @@ public class ClusterMgrService {
      * and the <strong>instance properties</strong> {@link ComponentProperties}
      * (instance-id -> instance properties)
      *
-     * @param newConfiguration an {@link ClusterConfiguration} to completely replace the current
-     *                         configuration.
+     * @param newConfiguration an {@link ClusterConfiguration} to completely replace the current configuration.
      * @return the new configuration, read back from the Consul key/value store.
      */
     @Nonnull
-    public ClusterConfiguration setClusterConfiguration(
-        @Nonnull ClusterConfiguration newConfiguration) {
+    public ClusterConfiguration setClusterConfiguration(ClusterConfiguration newConfiguration) {
 
         // clear the current configuration (gulp!)
         consulService.deleteKey(getVMTurboBaseKey());
 
         // Process the defaults for the given component types
-        for (Map.Entry<String, ComponentProperties> defaultEntry :
-            newConfiguration.getDefaults().getComponents().entrySet()) {
+        for (Map.Entry<String, ComponentProperties> defaultEntry : newConfiguration.getDefaults().getComponents().entrySet()) {
             String componentType = defaultEntry.getKey();
             String defaultComponentKey = getComponentDefaultsKey(componentType);
             setAllValues(defaultComponentKey, defaultEntry.getValue());
@@ -881,8 +894,48 @@ public class ClusterMgrService {
             String componentType = instanceInfo.getComponentType();
             String instancePropertiesKey = getComponentInstancePropertiesKey(componentType, instanceId);
             setAllValues(instancePropertiesKey, instanceInfo.getProperties());
+            String componentNode = instanceInfo.getNode();
+            String instanceNodeKey = getInstanceNodeKey(componentType, instanceId);
+            consulService.putValue(instanceNodeKey, componentNode);
+
         }
         return getClusterConfiguration();
+    }
+
+    /**
+     * Return the current Cluster Node name assigned to this VMT Component Instance.
+     *
+     * @param componentType type of the component to which component is assigned
+     * @param instanceId the id of the VMT Component Instance to look up.
+     * @return the node name on which this component should be run.
+     */
+    public String getNodeForComponentInstance(String componentType, String instanceId) {
+        String instanceNodeKey = getInstanceNodeKey(componentType, instanceId);
+        return consulService.getValueAsString(instanceNodeKey, DEFAULT_NODE_NAME);
+    }
+
+    /**
+     * Store the name of the current cluster node for the given component instance / type.
+     * The new cluster node name will be returned. Note that there is no locking for this write/read operation, so
+     * if another request overlaps this one the value returned may not reflect the given cluster node.
+     *
+     * @param componentType the type of the given component
+     * @param instanceId the unique id of the given component instance
+     * @param nodeName the name of the cluster node on which this component should run
+     * @return the cluster node name for this component instance
+     */
+    public String setNodeForComponentInstance(String componentType, String instanceId, String nodeName) {
+        checkValidNodeName(nodeName);
+        String instanceNodeKey = getInstanceNodeKey(componentType, instanceId);
+        consulService.putValue(instanceNodeKey, nodeName);
+        return getNodeForComponentInstance(componentType, instanceId);
+    }
+
+    public void addInstancePropertiesNode(@Nonnull final String componentType,
+                                          @Nonnull final String instanceId) {
+        final String propertiesNodeKey =
+                getComponentInstancePropertiesKey(componentType, instanceId);
+        consulService.putValue(propertiesNodeKey);
     }
 
     /**
@@ -892,21 +945,8 @@ public class ClusterMgrService {
      * @return a {@link ComponentProperties} object containing all default configuration properties for the given
      * component type.
      */
-    @Nonnull
-    public ComponentProperties getDefaultPropertiesForComponentType(@Nonnull String componentType) {
+    public ComponentProperties getDefaultPropertiesForComponentType(String componentType) {
         return getComponentDefaultProperties(componentType);
-    }
-
-    /**
-     * Return the current {@link ComponentProperties} for the given component type.
-     *
-     * @param componentType the component type for which to fetch the default ComponentProperties
-     * @return a {@link ComponentProperties} object containing all default configuration properties for the given
-     * component type.
-     */
-    @Nonnull
-    public ComponentProperties getLocalPropertiesForComponentType(@Nonnull String componentType) {
-        return getComponentLocalProperties(componentType);
     }
 
     /**
@@ -920,10 +960,9 @@ public class ClusterMgrService {
      * @return a {@link ComponentProperties} object containing all default configuration properties
      * for the given component type.
      */
-    @Nonnull
     public ComponentProperties putDefaultPropertiesForComponentType(
-            @Nonnull String componentType,
-            @Nonnull ComponentProperties newComponentDefaultProperties) {
+            String componentType,
+            ComponentProperties newComponentDefaultProperties) {
 
         // begin with the 'global default properties'
         ComponentProperties combinedDefaultProperties = new ComponentProperties();
@@ -944,56 +983,6 @@ public class ClusterMgrService {
     }
 
     /**
-     * Replace the local {@link ComponentProperties} for the given component type. Begin with
-     * the Global Default properties as a base, and then overlay the new Default properties on
-     * top of that.
-     *
-     * @param componentType the component type for which to store the local ComponentProperties
-     * @param newComponentDefaultProperties the new values for the local {@link ComponentProperties}
-     *                                      for the given component type
-     * @return a {@link ComponentProperties} object containing all default configuration properties
-     * for the given component type.
-     */
-    @Nonnull
-    public ComponentProperties putLocalPropertiesForComponentType(
-        @Nonnull String componentType,
-        @Nonnull ComponentProperties newComponentDefaultProperties) {
-
-        // ensure that the component type exists; if already exists, this is a no-op
-        addComponentType(componentType);
-
-        // store those as the new component local properties
-        final String componentLocalPropertiesKeyPrefix =
-            getComponentLocalPropertiesKey(componentType);
-        setAllValues(componentLocalPropertiesKeyPrefix, newComponentDefaultProperties);
-
-        // return the updated component default properties
-        return getComponentLocalProperties(componentType);
-    }
-
-    /**
-     * Return the Effective {@link ComponentProperties} for the given component instance / type.
-     * The effective properties combine the default properties for the component type (lowest
-     * priority), local properties for the component type, and instance properties for the
-     * component type and instance.
-     *
-     * @param componentType type for the given component instance.
-     * @param componentInstanceId unique id for the given component instance
-     * @return a {@link ComponentProperties} object containing the merged set of
-     * configuration properties for the given component instance.
-     */
-    @Nonnull
-    public ComponentProperties getEffectiveInstanceProperties(@Nonnull String componentType,
-                                                              @Nonnull String componentInstanceId) {
-        final ComponentProperties componentProperties =
-            getDefaultPropertiesForComponentType(componentType);
-        componentProperties.putAll(getComponentLocalProperties(componentType));
-        componentProperties.putAll(getComponentInstanceProperties(componentType,
-            componentInstanceId));
-        return componentProperties;
-    }
-
-    /**
      * Return the {@link ComponentProperties} for the given component instance / type.
      *
      * @param componentType type for the given component instance.
@@ -1001,13 +990,17 @@ public class ClusterMgrService {
      * @return a {@link ComponentProperties} object containing all of the configuration properties for the given
      * component instance.
      */
-    @Nonnull
-    public ComponentProperties getComponentInstanceProperties(@Nonnull String componentType,
-                                                              @Nonnull String componentInstanceId) {
+    public ComponentProperties getComponentInstanceProperties(String componentType, String componentInstanceId) {
+        final String defaultPropertiesKey = getComponentDefaultsKey(componentType);
+        final ComponentProperties componentProperties =
+                getComponentPropertiesWithPrefix(defaultPropertiesKey);
 
         final String instancePropertiesKey =
                 getComponentInstancePropertiesKey(componentType, componentInstanceId);
-        return getComponentPropertiesWithPrefix(instancePropertiesKey);
+        final ComponentProperties instanceSpecificProperties =
+                getComponentPropertiesWithPrefix(instancePropertiesKey);
+        componentProperties.putAll(instanceSpecificProperties);
+        return componentProperties;
     }
 
     /**
@@ -1025,77 +1018,30 @@ public class ClusterMgrService {
         log.debug("updating default properties for: " + componentType);
         setComponentInstanceProperties(componentType, componentInstanceId, updatedProperties);
         return getComponentInstanceProperties(componentType, componentInstanceId);
+
     }
 
     /**
-     * Return the default value for the given property for the given component type.
-     * If there is no property by that name, then return null.
+     * Return the value for the given property for the given component type. If there is no property by that name,
+     * then return null.
      *
-     * @param componentType the component type of to access
+     * See the {@literal COMPONENT_INSTANCE_PROPERTY_FORMAT} format for the full key to be used in Consul.
+     *
      * @param propertyName the value of the named configuration property, or null if there is none.
      * @return value of the configureation property for the given component type
      */
-    public String getDefaultComponentProperty(
+    public String getComponentTypeProperty(
             String componentType,
             String propertyName) {
         String defaultPropertyKey = getComponentDefaultPropertyKey(componentType, propertyName);
         return getComponentKeyValue(defaultPropertyKey);
-    }
-
-    /**
-     * Return the local value for the given property for the given component type.
-     * If there is no property by that name, then return null.
-     *
-     * @param componentType the component type of to access
-     * @param propertyName the value of the named configuration property, or null if there is none.
-     * @return value of the configureation property for the given component type
-     */
-    public String getLocalComponentProperty(
-            String componentType,
-            String propertyName) {
-        String defaultPropertyKey = getComponentDefaultPropertyKey(componentType, propertyName);
-        return getComponentKeyValue(defaultPropertyKey);
-    }
-
-    /**
-     * Return the local value for the given property for the given component type.
-     * If there is no property by that name, then return null.
-     *
-     * @param componentType the component type of to access
-     * @param propertyName the name of the property to set
-     * @param newValue the value to set as local property
-     * @return value of the configuration property for the given component type
-     */
-    public String putComponentLocalProperty(
-            String componentType,
-            String propertyName,
-            String newValue) {
-        String localPropertyKey = getComponentLocalPropertyKey(componentType, propertyName);
-        setComponentKeyValue(localPropertyKey, newValue);
-        return getLocalComponentProperty(componentType, localPropertyKey);
-    }
-
-    /**
-     * Delete the local value for the given property for the given component type.
-     * Returns the newly-uncovered "default" value.
-     *
-     * @param componentType the component type of to access
-     * @param propertyName the configuration property to delete
-     * @return the default value of the configureation property for the given component type
-     */
-    public String deleteComponentLocalProperty(
-            String componentType,
-            String propertyName) {
-        String localPropertyKey = getComponentLocalPropertyKey(componentType, propertyName);
-        deleteComponentKeyValue(localPropertyKey);
-        return getDefaultComponentProperty(componentType, propertyName);
     }
 
     /**
      * Return the value for the given property for the given component instance. If there is no property by that name,
      * then return null.
      *
-     * <p>See the {@literal COMPONENT_INSTANCE_PROPERTY_FORMAT} format for the full key to be used in Consul.
+     * See the {@literal COMPONENT_INSTANCE_PROPERTY_FORMAT} format for the full key to be used in Consul.
      *
      * @param componentType the component type of the given component instance.
      * @param componentInstanceId the unique id of the given component instance.
@@ -1152,7 +1098,7 @@ public class ClusterMgrService {
     /**
      * Return the default {@link ComponentProperties} for the given component instance / type.
      *
-     * <p>Add the version for the component type to the default properties.
+     * Add the version for the component type to the default properties.
      *
      * @param componentType the component type for the requested defaults
      * @return the default {@link ComponentProperties} for the given component type
@@ -1171,26 +1117,12 @@ public class ClusterMgrService {
     }
 
     /**
-     * Return the current {@link ComponentProperties} for the given component type.
-     *
-     * <p>Add the version for the component type to the default properties.
-     *
-     * @param componentType the component type for the requested defaults
-     * @return the default {@link ComponentProperties} for the given component type
-     */
-    @Nonnull
-    private ComponentProperties getComponentLocalProperties(String componentType) {
-        String localPropertiesKey = getComponentLocalPropertiesKey(componentType);
-        return getComponentPropertiesWithPrefix(localPropertiesKey);
-    }
-
-    /**
      * Fetch the version string for this component from the the k/v store.
      * The key for the version string is, for now, "${component_type}-1". This is a hold-over
      * from the naming for the component key/value store naming.
      *
      * @param componentType the component-type to look up
-     * @return the version string for this component type, or "unknown" if not found
+     * @return the version string for this component type, or "<unknown>" if not found.
      */
     @Nonnull
     private String getComponentVersionString(@Nonnull final String componentType) {
@@ -1200,9 +1132,7 @@ public class ClusterMgrService {
     }
 
     /**
-     * Base key for all VMT Key/Value information.
-     *
-     * @return the base (root) key for the configuration key/value segment
+     * Base key for all VMT Key/Value information
      */
     private static String getVMTurboBaseKey() {
         return VMTURBO_BASE_FORMAT;
@@ -1210,18 +1140,14 @@ public class ClusterMgrService {
 
     /**
      * Base key for all VMT Components information.
-     *
-     * @return the path element for "components"
      */
     private static String getComponentsBaseKey() {
         return COMPONENTS_BASE_FORMAT;
     }
 
     /**
-     * Key for accessing a given component type.
-     *
+     * Key for accessing a given component type
      * @param componentType type of component to access
-     * @return the key for accessing a component type properties
      */
     private static String getComponentKey(String componentType) {
         checkComponentTypeValid(componentType);
@@ -1232,7 +1158,6 @@ public class ClusterMgrService {
      * Key for accessing defaults of a given component type.
      *
      * @param componentType type of component to access
-     * @return the composite key to access the default properties of a component type
      */
     private static String getComponentDefaultsKey(String componentType) {
         checkComponentTypeValid(componentType);
@@ -1240,22 +1165,9 @@ public class ClusterMgrService {
     }
 
     /**
-     * Key for accessing local properties of a given component type.
-     *
-     * @param componentType type of component to access
-     * @return the composite key for the local properties for the given component type
-     */
-    private static String getComponentLocalPropertiesKey(String componentType) {
-        checkComponentTypeValid(componentType);
-        return String.format(COMPONENT_LOCAL_PROPERTIES_FORMAT, componentType);
-    }
-
-    /**
      * Key for accessing defaults of a given component type.
      *
      * @param componentType type of component to access
-     * @param propertyName the name of the property to access
-     * @return the key for accessing a default property with the given componentType and propertyName
      */
     private static String getComponentDefaultPropertyKey(String componentType, String propertyName) {
         checkComponentTypeValid(componentType);
@@ -1263,26 +1175,21 @@ public class ClusterMgrService {
     }
 
     /**
-     * Key for accessing local property value of a given component type.
+     * Key for accessing instances of a given component type.
      *
      * @param componentType type of component to access
-     * @param propertyName name of property value to access
-     * @return the composite key for the local property value given the component type and
-     * property name
      */
-    private static String getComponentLocalPropertyKey(String componentType, String propertyName) {
-        checkComponentTypeValid(componentType);
-        return String.format(COMPONENT_LOCAL_PROPERTY_FORMAT, componentType, propertyName);
+    private static String getComponentInstancesKey(String componentType) {
+        return String.format(COMPONENT_INSTANCES_FORMAT, componentType);
     }
 
     /**
      * Key for accessing instances of a given component type.
      *
      * @param componentType type of component to access
-     * @return the key for the root of the component instances config properties
      */
-    private static String getComponentInstancesKey(String componentType) {
-        return String.format(COMPONENT_INSTANCES_FORMAT, componentType);
+    private static String getComponentInstanceKey(String componentType, String componentInstanceId) {
+        return String.format(COMPONENT_INSTANCE_FORMAT, componentType, componentInstanceId);
     }
 
     /**
@@ -1290,7 +1197,6 @@ public class ClusterMgrService {
      *
      * @param componentType type of component to access
      * @param componentInstanceId instance id of the specific component to access
-     * @return the key for accessing all the configuration properties of a component instance
      */
     private static String getComponentInstancePropertiesKey(String componentType, String componentInstanceId) {
         return String.format(COMPONENT_INSTANCE_PROPERTIES_FORMAT, componentType, componentInstanceId);
@@ -1302,14 +1208,35 @@ public class ClusterMgrService {
      * @param componentType type of component to access
      * @param componentInstanceId instance id of the specific component to access
      * @param propertyName name of the specific property
-     * @return the composite key for accessing a particular configuration property of the given
-     * component instance and type
      */
     private static String getComponentInstancePropertyKey(
             String componentType,
             String componentInstanceId,
             String propertyName) {
         return String.format(COMPONENT_INSTANCE_PROPERTY_FORMAT, componentType, componentInstanceId, propertyName);
+    }
+
+    /**
+     * Key for accessing the execution node name for a given instance of a given component type.
+     *
+     * @param componentType type of component to access
+     * @param componentInstanceId instance id of the specific component to access
+     */
+    private static String getInstanceNodeKey(String componentType, String componentInstanceId) {
+        return String.format(COMPONENT_INSTANCE_NODE_FORMAT, componentType, componentInstanceId);
+    }
+
+
+    /**
+     * A Node Name may be a hostname, IP address, or empty string ("") which corresponds to the "default" node.
+     *
+     * @param nodeName the name of the node to check for illegal characters.
+     * @throws RuntimeException if the node name is incompatible.
+     */
+    private void checkValidNodeName(@Nonnull String nodeName) {
+        if (!nodeName.isEmpty() && !InetAddresses.isInetAddress(nodeName) && !InternetDomainName.isValid(nodeName)) {
+            throw new RuntimeException(("invalid nodename: " + nodeName));
+        }
     }
 
     /**
@@ -1329,7 +1256,6 @@ public class ClusterMgrService {
      * may not be empty, may not contain a period ('.'), and may not contain the CONSUL_PATH_SEPARATOR ('/').
      *
      * @param keyComponent the component to check for validity
-     * @return whether the key component is valid or not
      */
     private static boolean isValidKeyComponent(@Nonnull String keyComponent) {
         return (StringUtils.isNotBlank(keyComponent) &&
@@ -1343,10 +1269,10 @@ public class ClusterMgrService {
      * Note: this method is synchronized because they are resources intensive operations, e.g.
      * the diagnostics file could be very big.
      * TODO: integration test
-     * @param httpProxy value object with proxy settings
+     * @param httpProxyConfig value object with proxy settings
      * @return true if export is successful
      */
-    public synchronized boolean exportDiagnostics(final HttpProxyConfig httpProxy) {
+    public synchronized boolean exportDiagnostics(final HttpProxyConfig httpProxyConfig) {
         // export the diags file to /home/turbonomic/data/turbonomic-diags-_xxx.zip
         // xxx is current system time epoch.
         final String fileName = String.format(HOME_TURBONOMIC_DATA_TURBO_FILE_ZIP,
@@ -1355,11 +1281,11 @@ public class ClusterMgrService {
 
         // 1. write to file
         if (writeDiagnosticsFileToDisk(diagsFile)) {
-            // 2. invoke curl command to upload, se.g.:
+            // 2. invoke curl command to upload, e.g.:
             // curl -x 10.10.172.84:3128 -F ufile=@test.log  http://10.10.168.175/cgi-bin/vmturboupload.cgi
             try {
                 // this runner blocks until the process completes
-                osCommandProcessRunner.runOsCommandProcess(CURL_COMMAND, getCurlArgs(fileName, httpProxy));
+                osCommandProcessRunner.runOsCommandProcess(CURL_COMMAND, getCurlArgs(fileName, httpProxyConfig));
                 // delete the file
                 if (diagsFile.delete()) {
                     log.debug("Successfully deleted diagnostic file: " + diagsFile.getName());
@@ -1382,6 +1308,10 @@ public class ClusterMgrService {
             collectComponentDiagnostics(diagsFileOutputStream);
             diagsFileOutputStream.flush();
             diagsFileOutputStream.close();
+        } catch (FileNotFoundException e) {
+            log.error("Failed to write diagnostics file to {}. Error message: {}",
+                HOME_TURBONOMIC_DATA_TURBO_FILE_ZIP, e.getMessage() );
+            return false;
         } catch (IOException e) {
             log.error("Failed to write diagnostics file to {}. Error message: {}",
                 HOME_TURBONOMIC_DATA_TURBO_FILE_ZIP, e.getMessage() );
@@ -1403,36 +1333,32 @@ public class ClusterMgrService {
     // get curl command based on if proxy is available or not
     @VisibleForTesting
     String[] getCurlArgs(@Nonnull final String fileName,
-                         @Nonnull final HttpProxyConfig httpProxy) {
-        final List<String> argsList = Lists.newArrayList("-F", "ufile=@" + fileName,
+                         @Nonnull final HttpProxyConfig httpProxyDTO) {
+        final List <String> argsList = Lists.newArrayList("-F", "ufile=@" + fileName,
             UPLOAD_VMTURBO_COM_URL);
         // it's mainly not writing proxy password to log file.
-        final List<String> argsListDebug = Lists.newArrayList(argsList);
-        if (httpProxy.getIsProxyEnabled()) {
-            String hostPortTuple = httpProxy.getProxyHostAndPortTuple();
+        final List <String> argsListDebug = Lists.newArrayList(argsList);
+        if (httpProxyDTO.getIsProxyEnabled()) {
+            String hostPortTuple = httpProxyDTO.getProxyHostAndPortTuple();
             if (StringUtils.isNotBlank(hostPortTuple)) {
                 // using proxy
                 argsList.add("-x");
                 argsListDebug.add("-x");
 
-                String userNamePasswordTuple = httpProxy.getUserNameAndPasswordTuple();
+                String userNamePasswordTuple = httpProxyDTO.getUserNameAndPasswordTuple();
                 if (StringUtils.isNotBlank(userNamePasswordTuple)) {
                     argsList.add(Strings.concat(userNamePasswordTuple, AT, hostPortTuple));
-                    argsListDebug.add(Strings.concat(httpProxy.getUserNameAndHiddenPasswordTuple(), AT, hostPortTuple));
+                    argsListDebug.add(Strings.concat(httpProxyDTO.getUserNameAndHiddenPasswordTuple(), AT, hostPortTuple));
                 } else {
                     argsList.add(hostPortTuple);
                     argsListDebug.add(hostPortTuple);
                 }
             }
         }
-        log.debug("curl arguments: " + argsListDebug);
+        log.info("curl arguments: " +argsListDebug);
         return argsList.toArray(new String[0]);
     }
 
-    /**
-     * Process the response (an {@link HttpEntity}), to an Http query for a given
-     * component instance.
-     */
     private interface ResponseEntityProcessor {
         void process(String componentId, HttpEntity entity);
     }

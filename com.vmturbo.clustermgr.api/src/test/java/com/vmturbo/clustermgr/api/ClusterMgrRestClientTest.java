@@ -1,6 +1,5 @@
 package com.vmturbo.clustermgr.api;
 
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -10,16 +9,14 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import java.io.ByteArrayOutputStream;
-import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.gson.Gson;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -41,15 +38,13 @@ public class ClusterMgrRestClientTest {
     private MockRestServiceServer mockServer;
     private String baseTestURL;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    private static final String TELEMETRY_INITIALIZED = "/proactive/initialized";
-    private static final String TELEMETRY_ENABLED = "/proactive/enabled";
+    private Gson gson = new Gson();
 
-    /**
-     * Create mock rest server and an instance of ClusterMgrRestClient to be used in all tests.
-     */
+    private static String TELEMETRY_INITIALIZED = "/proactive/initialized";
+    private static String TELEMETRY_ENABLED = "/proactive/enabled";
+
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
         // Create a connection config to pass to the ClusterMgrRestClient under test
         ComponentApiConnectionConfig connectionConfig = ComponentApiConnectionConfig.newBuilder()
                 .setHostAndPort("test-host", 4321)
@@ -60,26 +55,20 @@ public class ClusterMgrRestClientTest {
         mockServer = MockRestServiceServer.createServer(testRestClient.getRestTemplate());
     }
 
-    /**
-     * Check that the call to check 'isXLEnabled()' indicates that this is XL running.
-     */
     @Test
-    public void testIsXLEnabled() {
+    public void testIsXLEnabled() throws Exception {
         // Act
         boolean result = testRestClient.isXLEnabled();
         // Assert
         assertTrue(result);
     }
 
-    /**
-     * Check that a ClusterConfiguration response is fetched and correctly deserialized.
-     */
     @Test
-    public void testGetClusterConfiguration() {
+    public void testGetClusterConfiguration() throws Exception {
         // Arrange
         String expectedUri = baseTestURL;
-        ClusterConfiguration testConfiguration = getSampleClusterConfiguration();
-        String testResponseString = writeValueAsJsonString(testConfiguration);
+        ClusterConfiguration testResponse = new ClusterConfiguration();
+        String testResponseString = gson.toJson(testResponse);
         mockServer.expect(requestTo(expectedUri))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess(testResponseString, MediaType.APPLICATION_JSON_UTF8));
@@ -87,57 +76,34 @@ public class ClusterMgrRestClientTest {
         ClusterConfiguration result = testRestClient.getClusterConfiguration();
         // Assert
         mockServer.verify();
-        assertThat(result, equalTo(testConfiguration));
+        assertThat(result, is(testResponse));
     }
 
-    /**
-     * Check setting ClusterConfiguration returns the original configuration and is correctly
-     * deserialized.
-     */
     @Test
-    public void testSetClusterConfiguration() {
+    public void testSetClusterConfiguration() throws Exception {
+
         // Arrange
         String expectedUri = baseTestURL;
-        ClusterConfiguration expected = getSampleClusterConfiguration();
-        String testResponseString = writeValueAsJsonString(expected);
+        ClusterConfiguration postMockDTO = new ClusterConfiguration();
+        ClusterConfiguration testResponse = new ClusterConfiguration();
+        String testPostString = gson.toJson(postMockDTO);
+        String testResponseString = gson.toJson(testResponse);
         mockServer.expect(requestTo(expectedUri))
                 .andExpect(method(HttpMethod.PUT))
                 .andRespond(withSuccess(testResponseString, MediaType.APPLICATION_JSON_UTF8));
         // Act
-        ClusterConfiguration result = testRestClient.setClusterConfiguration(expected);
+        ClusterConfiguration result = testRestClient.setClusterConfiguration(postMockDTO);
         // Assert
         mockServer.verify();
-        assertThat(result, equalTo(expected));
+        assertThat(result, is(testResponse));
     }
 
-//    /**
-//     * Test fetching instance ids.
-//     */
-//    @Test
-//    public void testGetComponentInstanceIds() {
-//        // Arrange
-//        final String expectedUri = baseTestURL + "/components/component-type/instances";
-//        String[] instanceIds = {"instance-1", "instance-2"};
-//        String testResponseString = writeValueAsJsonString(instanceIds);
-//        mockServer.expect(requestTo(expectedUri))
-//            .andExpect(method(HttpMethod.GET))
-//            .andRespond(withSuccess(testResponseString, MediaType.APPLICATION_JSON_UTF8));
-//        // Act
-//        Set<String> resultInstanceIds = testRestClient.getComponentInstanceIds("component-type");
-//        // Assert
-//        assertThat(resultInstanceIds, containsInAnyOrder("instance-1", "instance-2"));
-//    }
-
-    /**
-     * Test dispatching the request to fetch the list of known component types from the
-     * configuration.
-     */
     @Test
-    public void testGetKnownComponents() {
+    public void testGetKnownComponents() throws Exception {
         // Arrange
         String expectedUri = baseTestURL + "/components";
         Set<String> testResponse = new HashSet<>();
-        String testResponseString = writeValueAsJsonString(testResponse);
+        String testResponseString = gson.toJson(testResponse);
         mockServer.expect(requestTo(expectedUri))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess(testResponseString, MediaType.APPLICATION_JSON_UTF8));
@@ -148,11 +114,8 @@ public class ClusterMgrRestClientTest {
         assertThat(result, is(testResponse));
     }
 
-    /**
-     * Test dispatching the request to set a component instance property.
-     */
     @Test
-    public void testSetPropertyForComponentInstance() {
+    public void testSetPropertyForComponentInstance() throws Exception {
         // Arrange
         String newValue = "mock-post-value";
         String expectedUri = baseTestURL + "/components/test-type/instances/test-instance/properties/test-property";
@@ -161,25 +124,21 @@ public class ClusterMgrRestClientTest {
                 .andExpect(content().string(newValue))
                 .andRespond(withSuccess(newValue, MediaType.APPLICATION_JSON_UTF8));
         // Act
-        String result = testRestClient.setComponentInstanceProperty("test-type", "test-instance",
-            "test-property", newValue);
+        String result = testRestClient.setPropertyForComponentInstance("test-type", "test-instance", "test-property", newValue);
         // Assert
         mockServer.verify();
         assertThat(result, is(newValue));
     }
 
-    /**
-     * Test the dispatch for fetching component instance ids.
-     */
     @Test
-    public void testGetComponentInstanceIds() {
+    public void testGetComponentInstanceIds() throws Exception {
         // Arrange
         String expectedUri = baseTestURL + "/components/test-type/instances";
         Set<String> testResponse = Sets.newHashSet("a", "b", "c");
-        String testResponseString = writeValueAsJsonString(testResponse);
+        String testResponseString = gson.toJson(testResponse);
         mockServer.expect(requestTo(expectedUri))
-            .andExpect(method(HttpMethod.GET))
-            .andRespond(withSuccess(testResponseString, MediaType.APPLICATION_JSON_UTF8));
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(testResponseString, MediaType.APPLICATION_JSON_UTF8));
         // Act
         Set<String> result = testRestClient.getComponentInstanceIds("test-type");
         // Assert
@@ -187,144 +146,14 @@ public class ClusterMgrRestClientTest {
         assertThat(result, is(testResponse));
     }
 
-    /**
-     * Test the dispatch for setting a component-type local property.
-     */
     @Test
-    public void testSetComponentLocalProperty() {
-        // arrange
-        String newValue = "mock-post-value";
-        String expectedUri = baseTestURL + "/components/test-type/localProperties/test-property";
-        mockServer.expect(requestTo(expectedUri))
-            .andExpect(method(HttpMethod.PUT))
-            .andExpect(content().string(newValue))
-            .andRespond(withSuccess(newValue, MediaType.APPLICATION_JSON_UTF8));
-        // act
-        final String result = testRestClient.setComponentLocalProperty("test-type",
-            "test-property", newValue);
-        // assert
-        assertThat(result, equalTo(newValue));
-    }
-
-    /**
-     * Test the dispatch for deleting a component-type local property.
-     */
-    @Test
-    public void testDeleteComponentLocalProperty() {
-        // arrange
-        String oldValue = "mock-post-value";
-        String expectedUri = baseTestURL + "/components/test-type/localProperties/test-property";
-        mockServer.expect(requestTo(expectedUri))
-            .andExpect(method(HttpMethod.DELETE))
-            .andRespond(withSuccess(oldValue, MediaType.APPLICATION_JSON_UTF8));
-        // act
-        final String result = testRestClient.deleteComponentLocalProperty("test-type",
-            "test-property");
-        // assert
-        assertThat(result, equalTo(oldValue));
-    }
-
-    /**
-     * Test the dispatch for a request to get the "effective" properties for a component instance.
-     */
-    @Test
-    public void testGetEffectiveInstanceProperties() {
-        // arrange
-        final ComponentProperties expectedResult = getSampleComponentProperties("prop_");
-        String returnString = writeValueAsJsonString(expectedResult);
-        String expectedUri = baseTestURL + "/components/test-type/instances/test-instance/effectiveProperties";
-        mockServer.expect(requestTo(expectedUri))
-            .andExpect(method(HttpMethod.GET))
-            .andRespond(withSuccess(returnString, MediaType.APPLICATION_JSON_UTF8));
-        // act
-        final ComponentProperties result = testRestClient.getEffectiveInstanceProperties("test-type",
-            "test-instance");
-        // assert
-        assertThat(result, equalTo(expectedResult));
-    }
-
-    /**
-     * Test the dispatch for a request to fetch a "default" property for a component type.
-     */
-    @Test
-    public void testGetComponentDefaultProperty() {
-        // arrange
-        final String expectedResult = "expected value";
-        String expectedUri = baseTestURL + "/components/test-type/defaults/prop-name";
-        mockServer.expect(requestTo(expectedUri))
-            .andExpect(method(HttpMethod.GET))
-            .andRespond(withSuccess(expectedResult, MediaType.APPLICATION_JSON_UTF8));
-        // act
-        final String result = testRestClient.getComponentDefaultProperty("test-type", "prop-name");
-        // assert
-        assertThat(result, equalTo(expectedResult));
-    }
-
-    /**
-     * Test the dispatch for a request to fetch a "local" property for a component type.
-     */
-    @Test
-    public void testGetComponentLocqlProperty() {
-        // arrange
-        final String expectedResult = "expected value";
-        String expectedUri = baseTestURL + "/components/test-type/localProperties/prop-name";
-        mockServer.expect(requestTo(expectedUri))
-            .andExpect(method(HttpMethod.GET))
-            .andRespond(withSuccess(expectedResult, MediaType.APPLICATION_JSON_UTF8));
-        // act
-        final String result = testRestClient.getComponentLocalProperty("test-type", "prop-name");
-        // assert
-        assertThat(result, equalTo(expectedResult));
-    }
-
-    /**
-     * Test the dispatch for a request to fetch all the "local" properties for a component type.
-     */
-    @Test
-    public void testGetCurrentComponentProperties() {
-        // arrange
-        final ComponentProperties expectedResult = getSampleComponentProperties("prop_");
-        String returnString = writeValueAsJsonString(expectedResult);
-        String expectedUri = baseTestURL + "/components/test-type/localProperties";
-        mockServer.expect(requestTo(expectedUri))
-            .andExpect(method(HttpMethod.GET))
-            .andRespond(withSuccess(returnString, MediaType.APPLICATION_JSON_UTF8));
-        // act
-        final ComponentProperties result = testRestClient.getComponentLocalProperties("test-type");
-        // assert
-        assertThat(result, equalTo(expectedResult));
-    }
-
-    /**
-     * Test the dispatch for a request to update all the properties for a component instance.
-     */
-    @Test
-    public void testPutComponentInstanceProperties() {
-        // arrange
-        final ComponentProperties expectedResult = getSampleComponentProperties("prop_");
-        String returnString = writeValueAsJsonString(expectedResult);
-        String expectedUri = baseTestURL + "/components/test-type/instances/test-instance/properties";
-        mockServer.expect(requestTo(expectedUri))
-            .andExpect(method(HttpMethod.PUT))
-            .andRespond(withSuccess(returnString, MediaType.APPLICATION_JSON_UTF8));
-        // act
-        final ComponentProperties result = testRestClient.putComponentInstanceProperties(
-            "test-type", "test-instance", expectedResult);
-        // assert
-        assertThat(result, equalTo(expectedResult));
-    }
-
-    /**
-     * Test the dispatch for a request to get the current execution stat for all component types.
-     */
-    @Test
-    public void testGetComponentsState() {
+    public void testGetComponentsState() throws Exception {
         // Arrange
         String expectedUri = baseTestURL + "/state";
         Map<String, String> testResponse = Maps.newHashMap();
         testResponse.put("a", "new");
         testResponse.put("b", "running");
-        String testResponseString = writeValueAsJsonString(testResponse);
+        String testResponseString = gson.toJson(testResponse);
         mockServer.expect(requestTo(expectedUri))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess(testResponseString, MediaType.APPLICATION_JSON_UTF8));
@@ -335,20 +164,15 @@ public class ClusterMgrRestClientTest {
         assertThat(result, is(testResponse));
     }
 
-    /**
-     * Test the dispatch and return decoding for a request to dump diagnostics.
-     *
-     * @throws UnsupportedEncodingException If there is an error encoding the zip data
-     */
     @Test
-    public void testCollectComponentDiagnostics() throws UnsupportedEncodingException {
+    public void testCollectComponentDiagnostics() throws Exception {
         // Arrange
         String expectedUri = baseTestURL + "/diagnostics";
         String testResponse = "this is a zipped file";
         mockServer = MockRestServiceServer.createServer(testRestClient.getStreamingRestTemplate());
         mockServer.expect(requestTo(expectedUri))
                 .andExpect(method(HttpMethod.GET))
-                .andRespond(withSuccess(testResponse, new MediaType("application", "zip")));
+                .andRespond(withSuccess(testResponse, new MediaType("application","zip")));
         ByteArrayOutputStream testOutputStream = new ByteArrayOutputStream();
         // Act
         testRestClient.collectComponentDiagnostics(testOutputStream);
@@ -357,33 +181,59 @@ public class ClusterMgrRestClientTest {
         assertThat(testOutputStream.toString(StandardCharsets.UTF_8.name()), is(testResponse));
     }
 
-    /**
-     * Test dispatch for a request to fetch the default properties for a component type.
-     */
     @Test
-    public void testGetDefaultPropertiesForComponentType() {
+    public void testGetNodeForComponentInstance() throws Exception {
         // Arrange
-        String expectedUri = baseTestURL + "/components/test-type/defaults";
-        ComponentProperties testResponse = new ComponentProperties();
-        String testResponseString = writeValueAsJsonString(testResponse);
+        String expectedUri = baseTestURL + "/components/test-type/instances/test-instance/node";
+        String testResponse = "node-name";
         mockServer.expect(requestTo(expectedUri))
                 .andExpect(method(HttpMethod.GET))
-                .andRespond(withSuccess(testResponseString, MediaType.APPLICATION_JSON_UTF8));
+                .andRespond(withSuccess(testResponse, MediaType.APPLICATION_JSON_UTF8));
         // Act
-        ComponentProperties result = testRestClient.getComponentDefaultProperties("test-type");
+        String result = testRestClient.getNodeForComponentInstance("test-type", "test-instance");
         // Assert
         mockServer.verify();
         assertThat(result, is(testResponse));
     }
 
-    /**
-     * Test the dispatch for a request to store new component properties for a component type.
-     */
     @Test
-    public void testPutDefaultPropertiesForComponentType() {
+    public void testSetNodeForComponentInstance() throws Exception {
         // Arrange
+        String newValue = "test-node";
+        String expectedUri = baseTestURL + "/components/test-type/instances/test-instance/node";
+        mockServer.expect(requestTo(expectedUri))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(content().string(newValue))
+                .andRespond(withSuccess(newValue, MediaType.APPLICATION_JSON_UTF8));
+        // Act
+        String result = testRestClient.setNodeForComponentInstance("test-type", "test-instance", newValue);
+        // Assert
+        mockServer.verify();
+        assertThat(result, is(newValue));
+    }
+
+    @Test
+    public void testGetDefaultPropertiesForComponentType() throws Exception {
+        // Arrange
+        String expectedUri = baseTestURL + "/components/test-type/defaults";
         ComponentProperties testResponse = new ComponentProperties();
-        String testResponseString = writeValueAsJsonString(testResponse);
+        String testResponseString = gson.toJson(testResponse);
+        mockServer.expect(requestTo(expectedUri))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(testResponseString, MediaType.APPLICATION_JSON_UTF8));
+        // Act
+        ComponentProperties result = testRestClient.getDefaultPropertiesForComponentType("test-type");
+        // Assert
+        mockServer.verify();
+        assertThat(result, is(testResponse));
+    }
+
+    @Test
+    public void testPutDefaultPropertiesForComponentType() throws Exception {
+        // Arrange
+        ComponentProperties newValue = new ComponentProperties();
+        ComponentProperties testResponse = new ComponentProperties();
+        String testResponseString = gson.toJson(testResponse);
         String expectedUri = baseTestURL + "/components/test-type/defaults";
         mockServer.expect(requestTo(expectedUri))
                 .andExpect(method(HttpMethod.PUT))
@@ -397,66 +247,60 @@ public class ClusterMgrRestClientTest {
         assertThat(result, is(testResponse));
     }
 
-    /**
-     * Test the dispatch for a request to get the instance properties for a component instance.
-     */
     @Test
-    public void testGetComponentInstanceProperties() {
+    public void testGetComponentInstanceProperties() throws Exception {
         // Arrange
         ComponentProperties testResponse = new ComponentProperties();
-        String testResponseString = writeValueAsJsonString(testResponse);
+        String testResponseString = gson.toJson(testResponse);
         String expectedUri = baseTestURL + "/components/test-type/instances/test-instance/properties";
         mockServer.expect(requestTo(expectedUri))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess(testResponseString, MediaType.APPLICATION_JSON_UTF8));
         // Act
-        ComponentProperties result = testRestClient.getComponentInstanceProperties("test-type", "test-instance");
+        ComponentProperties
+                result = testRestClient.getComponentInstanceProperties("test-type", "test-instance");
         // Assert
         mockServer.verify();
         assertThat(result, is(testResponse));
     }
 
-    /**
-     * Test the dispatch for a request to update the local properties for a component type.
-     */
     @Test
-    public void testPutComponentLocalProperties() {
+    public void testPutComponentInstanceProperties() throws Exception {
         // Arrange
+        ComponentProperties newValue = new ComponentProperties();
+        String newValueString = gson.toJson(newValue);
         ComponentProperties testResponse = new ComponentProperties();
-        String testResponseString = writeValueAsJsonString(testResponse);
-        String expectedUri = baseTestURL + "/components/test-type/localProperties";
+        String testResponseString = gson.toJson(testResponse);
+        String expectedUri = baseTestURL + "/components/test-type/instances/test-instance/properties";
         mockServer.expect(requestTo(expectedUri))
                 .andExpect(method(HttpMethod.PUT))
                 .andExpect(content().string(testResponseString))
                 .andRespond(withSuccess(testResponseString, MediaType.APPLICATION_JSON_UTF8));
         // Act
-        ComponentProperties result = testRestClient.putLocalComponentProperties("test-type",
-            testResponse);
+        ComponentProperties
+                result = testRestClient.putComponentInstanceProperties("test-type", "test-instance", testResponse);
         // Assert
         mockServer.verify();
         assertThat(result, is(testResponse));
     }
 
-    //    @Test
-//    public void testGetComponentTypeProperty() throws Exception {
-//        // Arrange
-//        String expectedUri = baseTestURL + "/components/test-type/defaults/test-property";
-//        String testResponse = "propertyValue";
-//        mockServer.expect(requestTo(expectedUri))
-//                .andExpect(method(HttpMethod.GET))
-//                .andRespond(withSuccess(testResponse, MediaType.APPLICATION_JSON_UTF8));
-//        // Act
-//        String result = testRestClient.getComponentDefaultProperty("test-type", "test-property");
-//        // Assert
-//        mockServer.verify();
-//        assertThat(result, is(testResponse));
-//    }
-
-    /**
-     * Test the dispatch for a request to fetch a component instance property.
-     */
     @Test
-    public void testGetComponentInstanceProperty() {
+    public void testGetComponentTypeProperty() throws Exception {
+        // Arrange
+        String expectedUri = baseTestURL + "/components/test-type/defaults/test-property";
+        String testResponse = "propertyValue";
+        mockServer.expect(requestTo(expectedUri))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(testResponse, MediaType.APPLICATION_JSON_UTF8));
+        // Act
+        String result = testRestClient.getComponentTypeProperty("test-type", "test-property");
+        // Assert
+        mockServer.verify();
+        assertThat(result, is(testResponse));
+    }
+
+    @Test
+    public void testGetComponentInstanceProperty() throws Exception {
         // Arrange
         String expectedUri = baseTestURL + "/components/test-type/instances/test-instance/properties/test-property";
         String testResponse = "propertyValue";
@@ -470,11 +314,8 @@ public class ClusterMgrRestClientTest {
         assertThat(result, is(testResponse));
     }
 
-    /**
-     * Test the dispatch for a call to fetch the setting status for telemetry initialized.
-     */
     @Test
-    public void testIsTelemetryInitialized() {
+    public void testIsTelemetryInitialized() throws Exception {
         // Arrange
         String expectedUri = baseTestURL + TELEMETRY_INITIALIZED;
         String testResponse = "true";
@@ -488,11 +329,8 @@ public class ClusterMgrRestClientTest {
         assertThat(result, is(Boolean.valueOf(testResponse)));
     }
 
-    /**
-     * Test the dispatch for the request to fetch the setting for telemetry enabled == true.
-     */
     @Test
-    public void testIsTelemetryEnabledTrue() {
+    public void testIsTelemetryEnabledTrue() throws Exception {
         // Arrange
         String expectedUri = baseTestURL + TELEMETRY_ENABLED;
         String testResponse = "true";
@@ -506,11 +344,8 @@ public class ClusterMgrRestClientTest {
         assertThat(result, is(Boolean.valueOf(testResponse)));
     }
 
-    /**
-     * Test the dispatch for the request to fetch the setting for telemetry enabled == false.
-     */
     @Test
-    public void testIsTelemetryEnabledFalse() {
+    public void testIsTelemetryEnabledFalse() throws Exception {
         // Arrange
         String expectedUri = baseTestURL + TELEMETRY_ENABLED;
         String testResponse = "false";
@@ -524,14 +359,11 @@ public class ClusterMgrRestClientTest {
         assertThat(result, is(Boolean.valueOf(testResponse)));
     }
 
-    /**
-     * Test the dispatch for the request to set the telemetry enabled status.
-     */
     @Test
-    public void testSetTelemetryEnabled() {
+    public void testSetTelemetryEnabled() throws Exception {
         // Arrange
-        final boolean newValue = false;
-        String newValueString = writeValueAsJsonString(newValue);
+        boolean newValue = false;
+        String newValueString = gson.toJson(newValue);
         String expectedUri = baseTestURL + TELEMETRY_ENABLED;
         mockServer.expect(requestTo(expectedUri))
                 .andExpect(method(HttpMethod.PUT))
@@ -543,47 +375,4 @@ public class ClusterMgrRestClientTest {
         mockServer.verify();
     }
 
-    /**
-     * Test the request to initiate component diagnostics dump.
-     */
-    @Test
-    public void testExportComponentDiagnostics() {
-        // Arrange
-        final HttpProxyConfig httpProxyDTO = new HttpProxyConfig(true, "proxyHost",
-            9876, "proxyUser", "secret");
-//        final String postString = writeValueAsJsonString(httpProxyDTO); use when .andExpect works
-        String expectedUri = baseTestURL + "/diagnostics";
-        mockServer.expect(requestTo(expectedUri))
-            .andExpect(method(HttpMethod.POST))
-//            .andExpect(content().json(postString)) not implemented in this release of spring
-            .andRespond(withSuccess("true", MediaType.APPLICATION_JSON_UTF8));
-        // Act
-        boolean result = testRestClient.exportComponentDiagnostics(httpProxyDTO);
-        // Assert
-        assertTrue(result);
-    }
-
-    private String writeValueAsJsonString(final Object objectToConvert) {
-        try {
-            return objectMapper.writeValueAsString(objectToConvert);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("Error converting " + objectToConvert + " to JSON string: ", e);
-        }
-    }
-
-    private ClusterConfiguration getSampleClusterConfiguration() {
-        ClusterConfiguration testConfiguration = new ClusterConfiguration();
-        final String componentType = "componentType";
-        testConfiguration.addComponentInstance("instanceId", componentType, "v0.0.1",
-            getSampleComponentProperties("instance_prop_"));
-        testConfiguration.addComponentType(componentType, getSampleComponentProperties("default_"));
-        return testConfiguration;
-    }
-
-    private ComponentProperties getSampleComponentProperties(final String propertyPrefix) {
-        final ComponentProperties expectedResult = new ComponentProperties();
-        expectedResult.put(propertyPrefix + "key1", "val1");
-        expectedResult.put(propertyPrefix + "key2", "val2");
-        return expectedResult;
-    }
 }

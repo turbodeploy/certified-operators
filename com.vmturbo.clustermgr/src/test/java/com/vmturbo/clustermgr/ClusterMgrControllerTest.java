@@ -93,6 +93,34 @@ public class ClusterMgrControllerTest {
     }
 
     @Test
+    public void getNodeForInstance() throws Exception {
+        // Arrange
+        when(clusterMgrServiceMock.getNodeForComponentInstance("c1", "c1_1")).thenReturn("node_1");
+        String request = API_PREFIX + "/components/c1/instances/c1_1/node";
+        // Act
+        MvcResult result = mockMvc.perform(get(request))
+                .andExpect(status().isOk())
+                .andReturn();
+        // Assert
+        verify(clusterMgrServiceMock, times(1)).getNodeForComponentInstance("c1", "c1_1");
+    }
+
+    @Test
+    public void setNodeForComponentInstance() throws Exception {
+        // Arrange
+        when(clusterMgrServiceMock.getNodeForComponentInstance("c1", "c1_1")).thenReturn("node_1");
+        String request = API_PREFIX + "/components/c1/instances/c1_1/node";
+        // Act
+        MvcResult result = mockMvc.perform(put(request)
+                .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
+                .content("test-node"))
+                .andExpect(status().isOk())
+                .andReturn();
+        // Assert
+        verify(clusterMgrServiceMock, times(1)).setNodeForComponentInstance("c1", "c1_1", "test-node");
+    }
+
+    @Test
     public void getDefaultsForComponentType() throws Exception {
         // Arrange
         // Act
