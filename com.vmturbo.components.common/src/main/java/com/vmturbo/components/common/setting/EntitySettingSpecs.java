@@ -273,6 +273,22 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0.0f/*min*/, 100.0f/*max*/, 10.0f/*default*/), true),
 
     /**
+     * Resize target Utilization for Net Throughput.
+     */
+    ResizeTargetUtilizationNetThroughput("resizeTargetUtilizationNetThroughput",
+            "Scaling Target Net Throughput Utilization", Collections.emptyList(),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            numeric(1.0f, 100.0f, 70.0f), true),
+
+    /**
+     * Resize target Utilization for IO Throughput.
+     */
+    ResizeTargetUtilizationIoThroughput("resizeTargetUtilizationIoThroughput",
+            "Scaling Target IO Throughput Utilization", Collections.emptyList(),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            numeric(1.0f, 100.0f, 70.0f), true),
+
+    /**
      * Resize target Utilization for VCPU.
      */
     ResizeTargetUtilizationVcpu("resizeTargetUtilizationVcpu", "Scaling Target VCPU Utilization",
