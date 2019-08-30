@@ -8,6 +8,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -15,10 +16,12 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
@@ -30,13 +33,13 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
-import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.client.Summary;
 import io.prometheus.client.Summary.Timer;
 
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
@@ -47,6 +50,8 @@ import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.EntityCommoditiesMaxValues;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityGroup;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityGroupList;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
@@ -196,10 +201,34 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     @Override
     public void getProjectedEntityStats(@Nonnull final ProjectedEntityStatsRequest request,
                 @Nonnull final StreamObserver<ProjectedEntityStatsResponse> responseObserver) {
+        final EntityStatsScope scope = request.getScope();
+        // create mapping from seed entity to derived entities, if no derived entities specified,
+        // it will only use the seed entity to fetch stats
+        final Map<Long, Set<Long>> seedEntityToDerivedEntities;
+        switch (scope.getScopeCase()) {
+            case ENTITY_LIST:
+                seedEntityToDerivedEntities = scope.getEntityList().getEntitiesList().stream()
+                    .collect(Collectors.toMap(oid -> oid, oid -> Collections.emptySet()));
+                break;
+            case ENTITY_GROUP_LIST:
+                seedEntityToDerivedEntities = scope.getEntityGroupList().getGroupsList().stream()
+                .collect(Collectors.toMap(EntityGroup::getSeedEntity,
+                    entityGroup -> entityGroup.getEntitiesCount() == 0
+                        ? Collections.singleton(entityGroup.getSeedEntity())
+                        : new HashSet<>(entityGroup.getEntitiesList())));
+                break;
+            default:
+                logger.warn("Scope case {} is not supported, returning empty stats",
+                    scope.getScopeCase());
+                responseObserver.onError(new UnsupportedOperationException("Scope case: " +
+                    scope.getScopeCase() + " is not supported, returning empty stats."));
+                responseObserver.onCompleted();
+                return;
+        }
         responseObserver.onNext(projectedStatsStore.getEntityStats(
-                new HashSet<>(request.getEntitiesList()),
-                new HashSet<>(request.getCommodityNameList()),
-                paginationParamsFactory.newPaginationParams(request.getPaginationParams())));
+            seedEntityToDerivedEntities,
+            new HashSet<>(request.getCommodityNameList()),
+            paginationParamsFactory.newPaginationParams(request.getPaginationParams())));
         responseObserver.onCompleted();
     }
 
@@ -249,8 +278,9 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                         filter.getCommodityRequestsList());
             } else {
                 // read from live topologies
-                returnLiveMarketStats(responseObserver, filter,
-                        entitiesList, request.getGlobalFilter());
+                getLiveMarketStats(filter, entitiesList, request.getGlobalFilter())
+                    .forEach(responseObserver::onNext);
+                responseObserver.onCompleted();
             }
 
             timer.observeDuration();
@@ -264,6 +294,65 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         }
     }
 
+    /**
+     * Get the comparator that can be used to sort EntityStats according to the passed-in pagination
+     * parameters. We compare the utilization of the stat (used / capacity).
+     *
+     * @param entityStats list of entity stats to get comparator for
+     * @param commodity name of the stat to compare
+     * @param ascending whether to create comparator in the ascending order or descending order
+     * @return comparator used to sort EntityStats
+     */
+    private Comparator<EntityStats> getEntityStatsComparator(@Nonnull List<EntityStats> entityStats,
+                                                             @Nonnull String commodity,
+                                                             final boolean ascending) {
+        // pre calculate the utilization for each entity, to reduce the calculation during sorting
+        final Map<Long, Float> utilizationByEntity = entityStats.stream()
+            .collect(Collectors.toMap(EntityStats::getOid, stats ->
+                getStatsUtilization(stats, commodity, ascending)));
+        return (entityStats1, entityStats2) -> {
+            float statVal1 = utilizationByEntity.get(entityStats1.getOid());
+            float statVal2 = utilizationByEntity.get(entityStats2.getOid());
+            int compareResult = Float.compare(statVal1, statVal2);
+            // if stats values are same, compare entity oid to ensure stable sorting
+            if (compareResult == 0) {
+                compareResult = Long.compare(entityStats1.getOid(), entityStats2.getOid());
+            }
+            return ascending ? compareResult : -compareResult;
+        };
+    }
+
+    /**
+     * Get the utilization of the given commodity from the list of snapshots. If no no snapshots,
+     * or no capacity, or commodity is not found, return max/min if it's ascending/descending so
+     * it is placed at the end after sorting.
+     *
+     * @param entityStats entityStats containing entity id and a list of snapshots
+     * @param commodity name of the commodity to calculate utilization for
+     * @param ascending whether or not the pagination is ascending or descending
+     * @return utilization of the given commodity
+     */
+    private Float getStatsUtilization(@Nonnull final EntityStats entityStats,
+                                      @Nonnull final String commodity,
+                                      final boolean ascending) {
+        final List<StatSnapshot> snapshots = entityStats.getStatSnapshotsList();
+        if (snapshots.isEmpty()) {
+            // if no snapshots, return max/min if it's ascending/descending so it is placed
+            // at the end after sorting
+            return ascending ? Float.MAX_VALUE : Float.MIN_VALUE;
+        }
+        // take the first matching one for comparison
+        return snapshots.get(0).getStatRecordsList().stream()
+            .filter(statRecord -> StringUtils.equals(statRecord.getName(), commodity))
+            // must have capacity to calculate utilization
+            .filter(statRecord -> statRecord.hasCapacity() && statRecord.getCapacity().getAvg() != 0)
+            .map(statRecord -> statRecord.getValues().getAvg() / statRecord.getCapacity().getAvg())
+            .findFirst()
+            // if no matching commodity, return max/min if it's ascending/descending so it is
+            // placed at the end after sorting
+            .orElse(ascending ? Float.MAX_VALUE : Float.MIN_VALUE);
+    }
+
     @Override
     public void getEntityStats(@Nonnull GetEntityStatsRequest request,
                                @Nonnull StreamObserver<GetEntityStatsResponse> responseObserver) {
@@ -274,35 +363,47 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             responseObserver.onNext(GetEntityStatsResponse.getDefaultInstance());
             responseObserver.onCompleted();
             return;
-        } else if (!(scope.hasEntityList() || scope.hasEntityType())) {
+        } else if (!(scope.hasEntityList() || scope.hasEntityType() || scope.hasEntityGroupList())) {
             responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(
-                "Scope must have either an entity type or  a list of entity IDs.").asException());
+                "Scope must have either an entity type, a list of entity IDs or a list of " +
+                    "entity groups.").asException());
         }
         try {
             final Timer timer = GET_ENTITY_STATS_DURATION_SUMMARY.startTimer();
-            final StatRecordPage recordPage = liveStatsReader.getPaginatedStatsRecords(request.getScope(),
+
+            if (scope.hasEntityGroupList()) {
+                // if the scope is a list of EntityGroups, we should handle it differently since
+                // each stats is an aggregation on the derived entities for the seed entity
+                returnStatsForEntityGroups(scope.getEntityGroupList(), request.getFilter(),
+                    request.hasPaginationParams() ? Optional.of(request.getPaginationParams())
+                        : Optional.empty(), responseObserver);
+            } else {
+                final StatRecordPage recordPage = liveStatsReader.getPaginatedStatsRecords(scope,
                     request.getFilter(),
                     paginationParamsFactory.newPaginationParams(request.getPaginationParams()));
 
-            final List<EntityStats> entityStats = new ArrayList<>(recordPage.getNextPageRecords().size());
-            recordPage.getNextPageRecords().forEach((entityOid, recordList) -> {
-                final EntityStats.Builder statsForEntity = EntityStats.newBuilder()
+                final List<EntityStats> entityStats = new ArrayList<>(
+                    recordPage.getNextPageRecords().size());
+                recordPage.getNextPageRecords().forEach((entityOid, recordList) -> {
+                    final EntityStats.Builder statsForEntity = EntityStats.newBuilder()
                         .setOid(entityOid);
-                // organize the stats DB records for this entity into StatSnapshots and add to response
-                statSnapshotCreator.createStatSnapshots(recordList, false,
+                    // organize the stats DB records for this entity into StatSnapshots and add to response
+                    statSnapshotCreator.createStatSnapshots(recordList, false,
                         request.getFilter().getCommodityRequestsList())
-                    .forEach(statsForEntity::addStatSnapshots);
-                entityStats.add(statsForEntity.build());
-            });
+                        .forEach(statsForEntity::addStatSnapshots);
+                    entityStats.add(statsForEntity.build());
+                });
 
-            final PaginationResponse.Builder paginationResponse = PaginationResponse.newBuilder();
-            recordPage.getNextCursor().ifPresent(paginationResponse::setNextCursor);
+                final PaginationResponse.Builder paginationResponse = PaginationResponse.newBuilder();
+                recordPage.getNextCursor().ifPresent(paginationResponse::setNextCursor);
 
-            responseObserver.onNext(GetEntityStatsResponse.newBuilder()
+                responseObserver.onNext(GetEntityStatsResponse.newBuilder()
                     .addAllEntityStats(entityStats)
                     .setPaginationResponse(paginationResponse)
                     .build());
-            responseObserver.onCompleted();
+                responseObserver.onCompleted();
+            }
+
             timer.observeDuration();
         } catch (VmtDbException e) {
             responseObserver.onError(Status.INTERNAL
@@ -316,6 +417,77 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                     .withCause(e)
                     .asException());
         }
+    }
+
+    /**
+     * Fetch and return a sequence of StatSnapshots for each of the provided entity group in the
+     * request. For each seed entity (like: DC), it aggregates stats on its derived entities
+     * (like: PMs) and use it as the stats for the seed entity.
+     *
+     * <p>Currently, we only support getting stats from live topology history, since there is no use
+     * case for plan topology. We can extend it to support plan topology history if necessary.
+     *
+     * <p>Note: This call is expected to be slower since we can't do pagination in DB level.
+     *
+     * @param entityGroupList EntityGroupList containing list of EnityGroups
+     * @param statsFilter the requested stats names and filters
+     * @param paginationParameters pagination parameters
+     * @param responseObserver the chunking channel on which the response should be returned
+     * @throws VmtDbException if there is an error interacting with the database
+     */
+    private void returnStatsForEntityGroups(@Nonnull EntityGroupList entityGroupList,
+                                            @Nonnull StatsFilter statsFilter,
+                                            @Nonnull Optional<PaginationParameters> paginationParameters,
+                                            @Nonnull StreamObserver<GetEntityStatsResponse> responseObserver)
+            throws VmtDbException {
+        final List<EntityGroup> entityGroups = entityGroupList.getGroupsList();
+        final List<EntityStats> entityStatsList = new ArrayList<>(entityGroups.size());
+        // get stats for all aggregated entities
+        for (EntityGroup entityGroup : entityGroups) {
+            // use derived entities if any, otherwise use seed entity
+            final Collection<Long> entities = entityGroup.getEntitiesList().isEmpty()
+                ? Collections.singleton(entityGroup.getSeedEntity())
+                : entityGroup.getEntitiesList();
+            final EntityStats.Builder entityStats = EntityStats.newBuilder()
+                .setOid(entityGroup.getSeedEntity());
+            // fetch aggregated stats
+            getLiveMarketStats(statsFilter, entities, GlobalFilter.getDefaultInstance())
+                .forEach(entityStats::addStatSnapshots);
+            entityStatsList.add(entityStats.build());
+        }
+
+        // if no pagination parameters provided, return all
+        if (!paginationParameters.isPresent()) {
+            responseObserver.onNext(GetEntityStatsResponse.newBuilder()
+                .addAllEntityStats(entityStatsList).build());
+            responseObserver.onCompleted();
+            return;
+        }
+
+        final PaginationParameters paginationParams = paginationParameters.get();
+        // create stats comparator for sorting and pagination
+        final Comparator<EntityStats> comparator = getEntityStatsComparator(entityStatsList,
+            paginationParams.getOrderBy().getEntityStats().getStatName(), paginationParams.getAscending());
+        // sort entityStatsList
+        entityStatsList.sort(comparator);
+
+        // get the start and end indexes for next page stats
+        final int startIndex = paginationParams.hasCursor()
+            ? Integer.valueOf(paginationParams.getCursor()) : 0;
+        final int endIndex = Math.min(entityStatsList.size(),
+            startIndex + paginationParams.getLimit());
+
+        final GetEntityStatsResponse.Builder response = GetEntityStatsResponse.newBuilder()
+                .addAllEntityStats(entityStatsList.subList(startIndex, endIndex));
+
+        // set nextCursor on pagination response
+        final PaginationResponse.Builder paginationResponse = PaginationResponse.newBuilder();
+        if (endIndex < entityStatsList.size()) {
+            paginationResponse.setNextCursor(String.valueOf(endIndex));
+        }
+        response.setPaginationResponse(paginationResponse.build());
+        responseObserver.onNext(response.build());
+        responseObserver.onCompleted();
     }
 
     /**
@@ -687,17 +859,16 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * If there are entity OIDs specified in the 'entities' list, then the 'relatedEntityType' is
      * ignored and only those entities listed are included in the stats averages returned.
      *
-     * @param responseObserver the chunking channel on which the response should be returned
      * @param statsFilter The stats filter to apply.
      * @param entities A list of service entity OIDs; an empty list implies full market, which
      *                 may be filtered based on relatedEntityType
      * @param globalFilter The global filter to apply to all commodities requested by the filter.
+     * @return stream of StatSnapshots from live market
      * @throws VmtDbException if error writing to the db.
      */
-    private void returnLiveMarketStats(@Nonnull StreamObserver<StatSnapshot> responseObserver,
-                                       @Nonnull final StatsFilter statsFilter,
-                                       @Nonnull Collection<Long> entities,
-                                       @Nonnull GlobalFilter globalFilter) throws VmtDbException {
+    private Stream<StatSnapshot> getLiveMarketStats(@Nonnull final StatsFilter statsFilter,
+                                                    @Nonnull Collection<Long> entities,
+                                                    @Nonnull GlobalFilter globalFilter) throws VmtDbException {
         // get a full list of stats that satisfy this request, depending on the entity request
         final List<Record> statDBRecords;
         final boolean fullMarket = entities.isEmpty();
@@ -715,11 +886,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         }
 
         // organize the stats DB records into StatSnapshots and return them to the caller
-        statSnapshotCreator.createStatSnapshots(statDBRecords, fullMarket,
-                    statsFilter.getCommodityRequestsList())
-                .map(StatSnapshot.Builder::build)
-                .forEach(responseObserver::onNext);
-        responseObserver.onCompleted();
+        return statSnapshotCreator.createStatSnapshots(statDBRecords, fullMarket,
+            statsFilter.getCommodityRequestsList()).map(StatSnapshot.Builder::build);
     }
 
     /**

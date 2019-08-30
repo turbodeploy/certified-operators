@@ -5,6 +5,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyLong;
@@ -12,7 +13,6 @@ import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -61,6 +62,7 @@ import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
+import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
@@ -102,6 +104,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityGroup;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
@@ -163,6 +166,8 @@ public class StatsServiceTest {
     private final ApiId apiId1 = mock(ApiId.class);
     private final String oid2 = "2";
     private final ApiId apiId2 = mock(ApiId.class);
+    private final String marketUuid = "Market";
+    private final ApiId marketApiId = mock(ApiId.class);
 
     private final ServiceEntityApiDTO se1 = new ServiceEntityApiDTO();
     private final ServiceEntityApiDTO se2 = new ServiceEntityApiDTO();
@@ -210,11 +215,20 @@ public class StatsServiceTest {
             magicScopeGateway, userSessionContext,
             serviceEntityMapper, uuidMapper, statsQueryExecutor));
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
-        when(uuidMapper.fromUuid(oid2)).thenReturn(apiId2);
         when(apiId1.uuid()).thenReturn(oid1);
         when(apiId1.oid()).thenReturn(Long.parseLong(oid1));
+        when(apiId1.getScopeType()).thenReturn(Optional.of(UIEntityType.PHYSICAL_MACHINE));
+        when(apiId1.isGroup()).thenReturn(false);
+
+        when(uuidMapper.fromUuid(oid2)).thenReturn(apiId2);
         when(apiId2.uuid()).thenReturn(oid2);
         when(apiId2.oid()).thenReturn(Long.parseLong(oid2));
+        when(apiId2.getScopeType()).thenReturn(Optional.of(UIEntityType.PHYSICAL_MACHINE));
+        when(apiId2.isGroup()).thenReturn(false);
+
+        when(uuidMapper.fromUuid(marketUuid)).thenReturn(marketApiId);
+        when(marketApiId.getScopeType()).thenReturn(Optional.empty());
+        when(marketApiId.isGroup()).thenReturn(false);
 
         se1.setUuid(apiId1.uuid());
         se1.setClassName("ClassName-1");
@@ -389,7 +403,6 @@ public class StatsServiceTest {
 
     @Test
     public void testGetStatsByUuidsQueryProjected() throws Exception {
-
         // Arrange
         StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         inputDto.setScopes(Lists.newArrayList("1"));
@@ -398,6 +411,7 @@ public class StatsServiceTest {
         inputDto.setPeriod(period);
 
         final Set<Long> expandedUids = Sets.newHashSet(1L);
+        final EntityStatsScope entityStatsScope = StatsTestUtil.createEntityStatsScope(expandedUids);
         when(groupExpander.expandUuids(anySetOf(String.class))).thenReturn(expandedUids);
 
         final EntityStatsPaginationRequest paginationRequest =
@@ -407,7 +421,7 @@ public class StatsServiceTest {
         when(repositoryApi.entitiesRequest(expandedUids)).thenReturn(req);
 
         final ProjectedEntityStatsRequest request = ProjectedEntityStatsRequest.getDefaultInstance();
-        when(statsMapper.toProjectedEntityStatsRequest(expandedUids, period, paginationRequest))
+        when(statsMapper.toProjectedEntityStatsRequest(entityStatsScope, period, paginationRequest))
             .thenReturn(request);
 
         final String nextCursor = "you're next!";
@@ -431,7 +445,7 @@ public class StatsServiceTest {
                 anyObject());
         verify(groupExpander).expandUuids(Collections.singleton("1"));
         verify(repositoryApi).entitiesRequest(expandedUids);
-        verify(statsMapper).toProjectedEntityStatsRequest(expandedUids, period, paginationRequest);
+        verify(statsMapper).toProjectedEntityStatsRequest(entityStatsScope, period, paginationRequest);
         verify(statsHistoryServiceSpy).getProjectedEntityStats(request);
         verify(statsMapper).toStatSnapshotApiDTO(STAT_SNAPSHOT);
 
@@ -544,8 +558,6 @@ public class StatsServiceTest {
 
         verifySupplyChainTraversal();
 
-        // Make sure we normalize the related entity type.
-        verify(statsMapper, atLeastOnce()).normalizeRelatedType(inputDto.getRelatedType());
         // Make sure that the stats mapper got called with the right IDs.
         verify(statsMapper).toEntityStatsRequest(EntityStatsScope.newBuilder()
                 .setEntityList(EntityList.newBuilder()
@@ -660,7 +672,6 @@ public class StatsServiceTest {
                 statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
 
         // Assert
-        verify(statsMapper).normalizeRelatedType(PHYSICAL_MACHINE_TYPE);
         verify(statsMapper).toEntityStatsRequest(EntityStatsScope.newBuilder()
                 .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
                 .build(), period, paginationRequest);
@@ -755,22 +766,29 @@ public class StatsServiceTest {
         when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
 
         // not a temp group and has an entity that's out of scope
-        when(groupExpander.getGroup(eq("temp"))).thenReturn(
+        final String tempGroupUuid = "temp";
+        when(groupExpander.getGroup(eq(tempGroupUuid))).thenReturn(
                 Optional.of(Group.newBuilder()
                         .setTempGroup(TempGroupInfo.newBuilder()
                                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                                 .setIsGlobalScopeGroup(true))
                         .build()));
 
+        ApiId tempGroupApiId = mock(ApiId.class);
+        when(uuidMapper.fromUuid(tempGroupUuid)).thenReturn(tempGroupApiId);
+        when(tempGroupApiId.getScopeType()).thenReturn(Optional.of(UIEntityType.VIRTUAL_MACHINE));
+        when(tempGroupApiId.isGroup()).thenReturn(true);
+
         // the temp group will have oids 1 and 2
-        Set<Long> groupMembers = new HashSet<>(Arrays.asList(1L,2L));
-        when(groupExpander.expandUuids(eq(new HashSet<>(Arrays.asList("temp"))))).thenReturn(
+        Set<Long> groupMembers = new HashSet<>(Arrays.asList(1L, 2L));
+        when(groupExpander.expandUuids(eq(new HashSet<>(Arrays.asList(tempGroupUuid))))).thenReturn(
                 groupMembers);
 
         // request scope 2
         StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         inputDto.setPeriod(null);
-        inputDto.setScopes(Lists.newArrayList("temp"));
+        inputDto.setScopes(Lists.newArrayList(tempGroupUuid));
+        inputDto.setRelatedType(UIEntityType.VIRTUAL_MACHINE.apiStr());
 
         final ArgumentCaptor<EntityStatsScope> argumentCaptor = ArgumentCaptor.forClass(EntityStatsScope.class);
         // Act
@@ -780,6 +798,79 @@ public class StatsServiceTest {
         EntityList entityList = argumentCaptor.getValue().getEntityList();
         Assert.assertEquals(1, entityList.getEntitiesCount());
         Assert.assertEquals(1, entityList.getEntities(0));
+    }
+
+
+    /**
+     * Test the case that scope is a DC group, relatedType is DataCenter, it should expand to DCs
+     * first, then expand each DC to PMs, and fetch aggregated stats for each DC using the related
+     * PMs.
+     *
+     * @throws Exception any exception thrown in the unit test
+     */
+    @Test
+    public void testGetStatsByUuidsQueryHistoricalWithRelatedTypeDataCenter() throws Exception {
+        final String dcGroupOid = "12345";
+        final Long dcOid1 = 111L;
+        final Long dcOid2 = 112L;
+        final Set<Long> pmsForDC1 = Sets.newHashSet(1111L, 1112L);
+        final Set<Long> pmsForDC2 = Sets.newHashSet(1121L);
+
+        // mock
+        ApiId dcGroupApiId = mock(ApiId.class);
+        when(uuidMapper.fromUuid(dcGroupOid)).thenReturn(dcGroupApiId);
+        when(dcGroupApiId.getScopeType()).thenReturn(Optional.of(UIEntityType.DATACENTER));
+        when(dcGroupApiId.isGroup()).thenReturn(true);
+
+        StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setScopes(Lists.newArrayList(dcGroupOid));
+        StatPeriodApiInputDTO period = buildStatPeriodApiInputDTO(2000L, "1000", "1000", "a");
+        inputDto.setPeriod(period);
+        inputDto.setRelatedType(UIEntityType.DATACENTER.apiStr());
+
+        final Set<String> seedUuids = Sets.newHashSet(dcGroupOid);
+        Set<Long> dcMembers = Sets.newHashSet(dcOid1, dcOid2);
+        when(groupExpander.expandUuids(eq(seedUuids))).thenReturn(dcMembers);
+        when(supplyChainFetcherFactory.expandScope(eq(Sets.newHashSet(dcOid1, dcOid2)), any()))
+            .thenReturn(Sets.newHashSet(dcOid1, dcOid2));
+        when(supplyChainFetcherFactory.expandScope(eq(Sets.newHashSet(dcOid1)), any())).thenReturn(pmsForDC1);
+        when(supplyChainFetcherFactory.expandScope(eq(Sets.newHashSet(dcOid2)), any())).thenReturn(pmsForDC2);
+
+        when(statsMapper.toEntityStatsRequest(any(), any(), any())).thenReturn(
+            GetEntityStatsRequest.getDefaultInstance());
+        when(statsHistoryServiceSpy.getEntityStats(any())).thenReturn(
+            GetEntityStatsResponse.newBuilder()
+                .addEntityStats(ENTITY_STATS)
+                .build());
+
+        final List<StatSnapshotApiDTO> statDtos = Collections.singletonList(new StatSnapshotApiDTO());
+        when(statsMapper.toStatsSnapshotApiDtoList(ENTITY_STATS)).thenReturn(statDtos);
+        when(statsMapper.shouldNormalize(UIEntityType.DATACENTER.apiStr())).thenReturn(true);
+
+        // act
+        final EntityStatsPaginationResponse response = statsService.getStatsByUuidsQuery(inputDto,
+                new EntityStatsPaginationRequest("foo", 1, true, "order"));
+
+        // Assert
+        // verify DC group is expanded to DCs first
+        verify(groupExpander).expandUuids(seedUuids);
+
+        // verify each DC is expanded to related PMs
+        verify(supplyChainFetcherFactory).expandScope(eq(Sets.newHashSet(dcOid1)), any());
+        verify(supplyChainFetcherFactory).expandScope(eq(Sets.newHashSet(dcOid2)), any());
+
+        // verify that AggregatedEntity list is created correctly
+        final ArgumentCaptor<EntityStatsScope> captor = ArgumentCaptor.forClass(EntityStatsScope.class);
+        verify(statsMapper).toEntityStatsRequest(captor.capture(), any(), any());
+        EntityStatsScope entityStatsScope = captor.getValue();
+        assertTrue(entityStatsScope.hasEntityGroupList());
+
+        List<EntityGroup> groupsList = entityStatsScope.getEntityGroupList().getGroupsList();
+        assertThat(groupsList.size(), is(2));
+        final Map<Long, List<Long>> aggregatedEntitiesMap = groupsList.stream()
+            .collect(Collectors.toMap(EntityGroup::getSeedEntity, EntityGroup::getEntitiesList));
+        assertThat(aggregatedEntitiesMap.get(dcOid1), containsInAnyOrder(pmsForDC1.toArray()));
+        assertThat(aggregatedEntitiesMap.get(dcOid2), containsInAnyOrder(pmsForDC2.toArray()));
     }
 
     private void expectedEntityIdsAfterSupplyChainTraversal(Set<Long> entityIds)

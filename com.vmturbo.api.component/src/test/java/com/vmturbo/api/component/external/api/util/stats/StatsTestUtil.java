@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.util.stats;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -9,6 +10,8 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
 import com.vmturbo.components.common.utils.StringConstants;
 
 public class StatsTestUtil {
@@ -46,5 +49,17 @@ public class StatsTestUtil {
         StatApiInputDTO apiInputDTO = new StatApiInputDTO();
         apiInputDTO.setName(name);
         return apiInputDTO;
+    }
+
+    /**
+     * Create EntityStatsScope based on the list of entities' ids. It sets the EntityList case.
+     *
+     * @param entities list of entities to create EntityStatsScope for
+     * @return EntityStatsScope containing the given ids
+     */
+    public static EntityStatsScope createEntityStatsScope(@Nonnull Set<Long> entities) {
+        return EntityStatsScope.newBuilder()
+            .setEntityList(EntityList.newBuilder().addAllEntities(entities))
+            .build();
     }
 }

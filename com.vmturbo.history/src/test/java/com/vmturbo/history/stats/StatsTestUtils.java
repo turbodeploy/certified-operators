@@ -8,6 +8,11 @@ import java.net.URL;
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -323,4 +328,15 @@ public class StatsTestUtils {
             .build();
     }
 
+    /**
+     * Create aggregated entities map based on given seedEntities, the derived entities only
+     * include the seedEntity.
+     *
+     * @param seedEntities set of entities ids to create EntityGroup map for
+     * @return mapping from seed entity to derived entities
+     */
+    public static Map<Long, Set<Long>> createEntityGroupsMap(@Nonnull Set<Long> seedEntities) {
+        return seedEntities.stream()
+            .collect(Collectors.toMap(Function.identity(), Collections::singleton));
+    }
 }

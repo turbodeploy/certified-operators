@@ -36,6 +36,7 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.external.api.service.StatsService;
 import com.vmturbo.api.component.external.api.service.TargetsService;
+import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
@@ -528,9 +529,10 @@ public class StatsMapperTest {
         final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
         final Set<Long> uuids = Sets.newHashSet(1L, 2L);
 
-        final ProjectedEntityStatsRequest request =
-                statsMapper.toProjectedEntityStatsRequest(uuids, period, ENTITY_PAGINATION_REQUEST);
-        assertThat(request.getEntitiesList(), containsInAnyOrder(uuids.toArray()));
+        final ProjectedEntityStatsRequest request = statsMapper.toProjectedEntityStatsRequest(
+            StatsTestUtil.createEntityStatsScope(uuids), period, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getScope().getEntityList().getEntitiesList(),
+            containsInAnyOrder(uuids.toArray()));
         assertThat(request.getPaginationParams(), is(MAPPED_PAGINATION_PARAMS));
     }
 
@@ -538,9 +540,10 @@ public class StatsMapperTest {
     public void testProjectedEntityStatsRequestWithNullPeriod() {
         final Set<Long> uuids = Sets.newHashSet(1L, 2L);
 
-        final ProjectedEntityStatsRequest request =
-                statsMapper.toProjectedEntityStatsRequest(uuids, null, ENTITY_PAGINATION_REQUEST);
-        assertThat(request.getEntitiesList(), containsInAnyOrder(uuids.toArray()));
+        final ProjectedEntityStatsRequest request = statsMapper.toProjectedEntityStatsRequest(
+            StatsTestUtil.createEntityStatsScope(uuids), null, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getScope().getEntityList().getEntitiesList(),
+            containsInAnyOrder(uuids.toArray()));
         assertThat(request.getPaginationParams(), is(MAPPED_PAGINATION_PARAMS));
     }
 
@@ -557,8 +560,8 @@ public class StatsMapperTest {
 
         final Set<Long> uuids = Sets.newHashSet(1L, 2L);
 
-        final ProjectedEntityStatsRequest request =
-                statsMapper.toProjectedEntityStatsRequest(uuids, period, ENTITY_PAGINATION_REQUEST);
+        final ProjectedEntityStatsRequest request = statsMapper.toProjectedEntityStatsRequest(
+            StatsTestUtil.createEntityStatsScope(uuids), period, ENTITY_PAGINATION_REQUEST);
 
         assertThat(request.getCommodityNameList(), containsInAnyOrder(stats.toArray()));
     }

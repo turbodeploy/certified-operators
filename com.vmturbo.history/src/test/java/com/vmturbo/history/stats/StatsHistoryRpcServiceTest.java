@@ -49,7 +49,6 @@ import com.google.common.collect.Sets;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
-import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -58,6 +57,8 @@ import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityGroup;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityGroupList;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingResponse;
@@ -494,13 +495,24 @@ public class StatsHistoryRpcServiceTest {
         final EntityStatsPaginationParams entityStatsPaginationParams =
                 mock(EntityStatsPaginationParams.class);
 
+        final Map<Long, Set<Long>> entities = StatsTestUtils.createEntityGroupsMap(targetEntities);
+
         when(paginationParamsFactory.newPaginationParams(paginationParams)).thenReturn(entityStatsPaginationParams);
-        when(mockProjectedStatsStore.getEntityStats(targetEntities, targetCommodities, entityStatsPaginationParams))
+        when(mockProjectedStatsStore.getEntityStats(entities, targetCommodities, entityStatsPaginationParams))
                 .thenReturn(expectedResponse);
+
+        List<EntityGroup> entityGroups = entities.entrySet().stream()
+            .map(entry -> EntityGroup.newBuilder()
+                .setSeedEntity(entry.getKey())
+                .addAllEntities(entry.getValue())
+                .build())
+            .collect(Collectors.toList());
 
         final ProjectedEntityStatsResponse response = clientStub.getProjectedEntityStats(
             ProjectedEntityStatsRequest.newBuilder()
-                .addAllEntities(targetEntities)
+                .setScope(EntityStatsScope.newBuilder()
+                    .setEntityGroupList(EntityGroupList.newBuilder()
+                        .addAllGroups(entityGroups)))
                 .addAllCommodityName(targetCommodities)
                 .setPaginationParams(PaginationParameters.newBuilder()
                         .setCursor("startCursor"))
@@ -508,8 +520,8 @@ public class StatsHistoryRpcServiceTest {
 
         assertThat(response, is(expectedResponse));
 
-        verify(mockProjectedStatsStore)
-                .getEntityStats(targetEntities, targetCommodities, entityStatsPaginationParams);
+        verify(mockProjectedStatsStore).getEntityStats(entities, targetCommodities,
+            entityStatsPaginationParams);
     }
 
 

@@ -35,17 +35,37 @@ message GetAveragedEntityStatsRequest {
 
 // The scope for an entity stats query.
 message EntityStatsScope {
-    message EntityList {
-        // If empty, return no results.
-        repeated int64 entities = 1;
-    }
-
     oneof scope {
         // Scope the entity stats request to a specific list of entities.
         EntityList entity_list = 1;
 
         // Scope the entity stats request to entities of a specific type.
         int32 entity_type = 2;
+
+        // Scope the entity stats request to a list of entity groups
+        EntityGroupList entity_group_list = 3;
+    }
+
+    message EntityList {
+        // list of entities oids. if empty, return no results.
+        repeated int64 entities = 1;
+    }
+
+    message EntityGroupList {
+        // list of entity groups, each containing seed entity and list of derived entities
+        repeated EntityGroup groups = 1;
+    }
+
+    // A group of entities, which contains seed entity and derived entities
+    // for example: the seed_entity can be a datacenter, and the derived entities can be a list of
+    // PMs in that datacenter
+    message EntityGroup {
+        // oid of the seed entity to get stats for
+        optional int64 seed_entity = 1;
+
+        // member entities derived from seed entity, if set it will aggregate stats on members;
+        // if empty, it will get stat for seed entity.
+        repeated int64 entities = 2;
     }
 }
 
@@ -135,7 +155,7 @@ message ProjectedStatsRequest {
 // Request for per-entity stats from the latest projected topology.
 message ProjectedEntityStatsRequest {
     // The entities to gather stats for. If empty, get them for the whole topology!
-    repeated int64 entities = 1;
+    optional EntityStatsScope scope = 1;
 
     // The commodities to retrieve.
     repeated string commodity_name = 2;

@@ -133,6 +133,10 @@ class TopologyCommoditiesSnapshot {
      * parameters.
      *
      * @param paginationParams The {@link EntityStatsPaginationParams} used to order entities.
+     * @param entitiesMap mapping from seed entity to derived entities, the value can
+     *                    either contain one single seed entity if this is the entity to
+     *                    get stats for, or derived entities if these are the members to
+     *                    aggregate stats on. The value must not be empty.
      * @return A {@link Comparator} that can be used to compare entity IDs according to the
      *         {@link EntityStatsPaginationParams}. If an entity ID is not in this snapshot, or
      *         does not buy/sell the commodity, it will be considered smaller than any entity ID
@@ -141,7 +145,8 @@ class TopologyCommoditiesSnapshot {
      *         a global count statistic like numVMs).
      */
     @Nonnull
-    Comparator<Long> getEntityComparator(@Nonnull final EntityStatsPaginationParams paginationParams)
+    Comparator<Long> getEntityComparator(@Nonnull final EntityStatsPaginationParams paginationParams,
+                                         @Nonnull final Map<Long, Set<Long>> entitiesMap)
             throws IllegalArgumentException {
         final String sortCommodity = paginationParams.getSortCommodity();
         if (entityCountInfo.isCountStat(sortCommodity)) {
@@ -154,10 +159,14 @@ class TopologyCommoditiesSnapshot {
         return (id1, id2) -> {
             // For each entity, the commodity should either be sold or bought. An entity
             // shouldn't buy and sell the same commodity.
-            final double id1StatValue = soldCommoditiesInfo.getValue(id1, sortCommodity) +
-                    boughtCommoditiesInfo.getValue(id1, sortCommodity);
-            final double id2StatValue = soldCommoditiesInfo.getValue(id2, sortCommodity) +
-                    boughtCommoditiesInfo.getValue(id2, sortCommodity);
+            final double id1StatValue = entitiesMap.get(id1).stream()
+                .mapToDouble(id1Sub -> soldCommoditiesInfo.getValue(id1Sub, sortCommodity) +
+                    boughtCommoditiesInfo.getValue(id1Sub, sortCommodity))
+                .sum();
+            final double id2StatValue = entitiesMap.get(id2).stream()
+                .mapToDouble(id2Sub -> soldCommoditiesInfo.getValue(id2Sub, sortCommodity) +
+                    boughtCommoditiesInfo.getValue(id2Sub, sortCommodity))
+                .sum();
             final int valComparisonResult = paginationParams.isAscending() ?
                     Double.compare(id1StatValue, id2StatValue) :
                     Double.compare(id2StatValue, id1StatValue);

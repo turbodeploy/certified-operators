@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -117,6 +118,14 @@ public class StatsMapper {
      * Cloud cost component constant, a filter type for bottom-up cost
      */
     private static final String COST_COMPONENT = "costComponent";
+
+    /**
+     * The related type in the api request which should be normalized to another type.
+     */
+    private static final Map<String, String> RELATED_TYPES_TO_NORMALIZE = ImmutableMap.of(
+        UIEntityType.DATACENTER.apiStr(), UIEntityType.PHYSICAL_MACHINE.apiStr(),
+        StringConstants.CLUSTER, UIEntityType.PHYSICAL_MACHINE.apiStr()
+    );
 
     private final PaginationMapper paginationMapper;
 
@@ -437,7 +446,7 @@ public class StatsMapper {
     /**
      * Create a {@link ProjectedEntityStatsRequest}.
      *
-     * @param entityIds The IDs to get stats for.
+     * @param entityStatsScope The aggregated entities to get stats for.
      * @param statApiInput A {@link StatApiInputDTO} specifying query options.
      * @param paginationRequest A {@link EntityStatsPaginationRequest} specifying the pagination
      *                          parameters.
@@ -445,16 +454,16 @@ public class StatsMapper {
      */
     @Nonnull
     public ProjectedEntityStatsRequest toProjectedEntityStatsRequest(
-            @Nonnull final Set<Long> entityIds,
+            @Nonnull final EntityStatsScope entityStatsScope,
             @Nullable final StatPeriodApiInputDTO statApiInput,
             @Nonnull final EntityStatsPaginationRequest paginationRequest) {
         // fetch the projected stats for each of the given entities
         final ProjectedEntityStatsRequest.Builder requestBuilder =
                 ProjectedEntityStatsRequest.newBuilder()
-                        .addAllEntities(entityIds)
-                        .setPaginationParams(paginationMapper.toProtoParams(paginationRequest));
+                    .setScope(entityStatsScope)
+                    .setPaginationParams(paginationMapper.toProtoParams(paginationRequest));
         Optional.ofNullable(statApiInput)
-                .map(input -> input.getStatistics())
+                .map(StatPeriodApiInputDTO::getStatistics)
                 .orElse(Collections.emptyList())
                 .stream()
                 .filter(statApiInputDto -> statApiInputDto.getName() != null)
@@ -672,10 +681,17 @@ public class StatsMapper {
      */
     @Nonnull
     public String normalizeRelatedType(@Nonnull String relatedType) {
-        return relatedType.equals(StringConstants.CLUSTER) ||
-                relatedType.equals(UIEntityType.DATACENTER.apiStr()) ||
-                relatedType.equals(UIEntityType.PHYSICAL_MACHINE.apiStr()) ?
-            UIEntityType.PHYSICAL_MACHINE.apiStr() : relatedType;
+        return RELATED_TYPES_TO_NORMALIZE.getOrDefault(relatedType, relatedType);
+    }
+
+    /**
+     * Whether or not the relatedType should be normalized, for example: normalize DC to PM.
+     *
+     * @param relatedType type of the entity to check
+     * @return true if the original 'relatedType' should be normalized, otherwise false
+     */
+    public boolean shouldNormalize(@Nonnull String relatedType) {
+        return RELATED_TYPES_TO_NORMALIZE.containsKey(relatedType);
     }
 
     /**
