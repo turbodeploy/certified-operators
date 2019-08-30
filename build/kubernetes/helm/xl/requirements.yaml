@@ -144,7 +144,7 @@ dependencies:
     version: 0.1.0
     condition: aws.enabled
   - name: mediation-baremetal
-    repository: file://../probes/baremetal-datadog
+    repository: file://../probes/mediation-baremetal
     version: 0.1.0
     condition: baremetal.enabled
   - name: mediation-datadog
