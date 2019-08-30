@@ -39,7 +39,7 @@ public class ConsulDiscoveryManualConfig {
     protected void registerConsul() throws UnknownHostException {
         enableConsulRegistration = EnvironmentUtils.getOptionalEnvProperty(ENABLE_CONSUL_REGISTRATION)
                 .map(Boolean::parseBoolean)
-                .orElse(false);
+                .orElse(true);
         if (!enableConsulRegistration) {
             return;
         }

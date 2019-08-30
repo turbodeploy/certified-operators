@@ -107,7 +107,7 @@ public class ServiceConfiguration {
                              @Nonnull final String key, @Nonnull final String value)
         throws ServiceConfigurationException {
         try {
-            clustermgr.setPropertyForComponentInstance(serviceName, instanceName, key, value);
+            clustermgr.setComponentLocalProperty(serviceName, key, value);
         } catch (RuntimeException e) {
             final String message = String.format("Unexpected exception occurred while setting key \"%s\" to " +
                 "value \"%s\" for service %s (%s)", key, value, serviceName, instanceName);

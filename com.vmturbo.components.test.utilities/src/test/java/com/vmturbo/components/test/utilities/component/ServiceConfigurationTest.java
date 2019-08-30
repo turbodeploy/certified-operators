@@ -18,6 +18,6 @@ public class ServiceConfigurationTest {
             .withConfiguration("foo", "bar")
             .apply(clusterMgr);
 
-        verify(clusterMgr).setPropertyForComponentInstance(eq("market"), eq("market_1"), eq("foo"), eq("bar"));
+        verify(clusterMgr).setComponentLocalProperty(eq("market"), eq("foo"), eq("bar"));
     }
 }

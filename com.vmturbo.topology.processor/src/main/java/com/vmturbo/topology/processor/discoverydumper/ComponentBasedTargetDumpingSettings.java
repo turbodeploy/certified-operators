@@ -71,7 +71,8 @@ public class ComponentBasedTargetDumpingSettings implements TargetDumpingSetting
      */
     @Override
     public void refreshSettings() {
-        this.componentProperties = BaseVmtComponent.getClusterMgrClient().getComponentInstanceProperties(componentType, componentId);
+        this.componentProperties = BaseVmtComponent.getClusterMgrClient()
+            .getComponentLocalProperties(componentType);
         this.lastFetchTime = System.currentTimeMillis();
     }
 
