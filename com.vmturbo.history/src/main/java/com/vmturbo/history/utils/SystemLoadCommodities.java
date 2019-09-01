@@ -36,10 +36,8 @@ public enum SystemLoadCommodities {
     VMEM(8),
     /** Virtual CPU commodity. */
     VCPU(9),
-    /** Virtual storage commodity. */
-    VSTORAGE(10),
     /** Storage amount commodity. */
-    STORAGE_AMOUNT(11);
+    STORAGE_AMOUNT(10);
 
     public static final int SIZE = values().length;
 
@@ -65,7 +63,6 @@ public enum SystemLoadCommodities {
             CommodityType.STORAGE_PROVISIONED.ordinal(),
             CommodityType.VMEM.ordinal(),
             CommodityType.VCPU.ordinal(),
-            CommodityType.VSTORAGE.ordinal(),
             CommodityType.STORAGE_AMOUNT.ordinal()
     ));
 
@@ -80,7 +77,6 @@ public enum SystemLoadCommodities {
         put(CommodityType.STORAGE_PROVISIONED.ordinal(), SystemLoadCommodities.STORAGE_PROVISIONED);
         put(CommodityType.VMEM.ordinal(), SystemLoadCommodities.VMEM);
         put(CommodityType.VCPU.ordinal(), SystemLoadCommodities.VCPU);
-        put(CommodityType.VSTORAGE.ordinal(), SystemLoadCommodities.VSTORAGE);
         put(CommodityType.STORAGE_AMOUNT.ordinal(), SystemLoadCommodities.STORAGE_AMOUNT);
     }};
 
@@ -137,8 +133,6 @@ public enum SystemLoadCommodities {
                 return SystemLoadCommodities.VMEM;
             case "VCPU":
                 return SystemLoadCommodities.VCPU;
-            case "VSTORAGE":
-                return SystemLoadCommodities.VSTORAGE;
             case "STORAGE_AMOUNT":
                 return SystemLoadCommodities.STORAGE_AMOUNT;
             default:

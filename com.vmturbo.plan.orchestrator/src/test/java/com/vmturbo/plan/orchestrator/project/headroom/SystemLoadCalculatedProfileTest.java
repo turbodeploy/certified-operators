@@ -38,6 +38,7 @@ public class SystemLoadCalculatedProfileTest {
         resp.addRecord(createRecord(1, 5, clusterId, "STORAGE_AMOUNT", 9));
         resp.addRecord(createRecord(1, 5, clusterId, "NET_THROUGHPUT", 7));
         resp.addRecord(createRecord(1, 5, clusterId, "IO_THROUGHPUT", 8));
+        resp.addRecord(createRecord(1, 5, clusterId, "STORAGE_ACCESS", 15));
         // Records with VM id = 6 and cluster id 1
         resp.addRecord(createRecord(0, 6, clusterId, "VMEM", 40));
         resp.addRecord(createRecord(1, 6, clusterId, "MEM", 20));
@@ -46,6 +47,7 @@ public class SystemLoadCalculatedProfileTest {
         resp.addRecord(createRecord(1, 6, clusterId, "STORAGE_AMOUNT", 5));
         resp.addRecord(createRecord(1, 6, clusterId, "NET_THROUGHPUT", 21));
         resp.addRecord(createRecord(1, 6, clusterId, "IO_THROUGHPUT", 24));
+        resp.addRecord(createRecord(1, 6, clusterId, "STORAGE_ACCESS", 25));
         SystemLoadCalculatedProfile profile =
                         getSystemLoadCalculatedProfile(Operation.AVG, getClusterWithId(clusterId), resp.build());
 
@@ -95,6 +97,11 @@ public class SystemLoadCalculatedProfileTest {
         Optional<TemplateField> io = getField(SystemLoadCalculatedProfile.IO_THROUGHPUT, templateInfo);
         assertTrue(io.isPresent());
         assertEquals(16d, Double.valueOf(io.get().getValue()), delta);
+
+        // STORAGE_ACCESS avg = (15 + 25)/2
+        Optional<TemplateField> accessSpeed = getField(SystemLoadCalculatedProfile.DISK_IOPS, templateInfo);
+        assertTrue(accessSpeed.isPresent());
+        assertEquals(20d, Double.valueOf(accessSpeed.get().getValue()), delta);
     }
 
 
@@ -151,6 +158,7 @@ public class SystemLoadCalculatedProfileTest {
         resp.addRecord(createRecord(1, 5, clusterId, "STORAGE_AMOUNT", 9));
         resp.addRecord(createRecord(1, 5, clusterId, "NET_THROUGHPUT", 7));
         resp.addRecord(createRecord(1, 5, clusterId, "IO_THROUGHPUT", 8));
+        resp.addRecord(createRecord(1, 5, clusterId, "STORAGE_ACCESS", 15));
         // Records with VM id = 6 and cluster id 1
         resp.addRecord(createRecord(0, 6, clusterId, "VMEM", 40));
         resp.addRecord(createRecord(1, 6, clusterId, "MEM", 20));
@@ -159,6 +167,7 @@ public class SystemLoadCalculatedProfileTest {
         resp.addRecord(createRecord(1, 6, clusterId, "STORAGE_AMOUNT", 5));
         resp.addRecord(createRecord(1, 6, clusterId, "NET_THROUGHPUT", 21));
         resp.addRecord(createRecord(1, 6, clusterId, "IO_THROUGHPUT", 24));
+        resp.addRecord(createRecord(1, 6, clusterId, "STORAGE_ACCESS", 25));
         SystemLoadCalculatedProfile profile =
                         getSystemLoadCalculatedProfile(Operation.MAX, getClusterWithId(clusterId), resp.build());
 
@@ -208,6 +217,11 @@ public class SystemLoadCalculatedProfileTest {
         Optional<TemplateField> io = getField(SystemLoadCalculatedProfile.IO_THROUGHPUT, templateInfo);
         assertTrue(io.isPresent());
         assertEquals(24d, Double.valueOf(io.get().getValue()), delta);
+
+        // STORAGE_ACCESS : max(15, 25)
+        Optional<TemplateField> accessSpeed = getField(SystemLoadCalculatedProfile.DISK_IOPS, templateInfo);
+        assertTrue(accessSpeed.isPresent());
+        assertEquals(25d, Double.valueOf(accessSpeed.get().getValue()), delta);
     }
 
     /**

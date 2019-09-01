@@ -40,14 +40,14 @@ import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
  * The class SystemLoadSnapshot saves information about the current shapshot of the system, using
  * the commodities participating in the calculation of system load. More specifically:
  * For each VM:
- *      -For the sold commodities VCPU, VMEM and VSTORAGE it saves their cluster id, VM id, used
- *          values and capacities.
+ *      -For the sold commodities VCPU and VMEM it saves their cluster id, VM id, used values and
+ *          capacities.
  *      -For the commodities CPU, MEM, IO_THROUGHPUT, NET_THROUGHPUT, CPU_PROVISIONED
  *          and MEM_PROVISIONED bought from a host it saves their cluster id, VM id, producer (host)
  *          id and used values.
  *      -For the commodities STORAGE_ACCESS, STORAGE_PROVISIONED and STORAGE_AMOUNT bought from a
  *          storage it saves their cluster id, VM id, producer (storage) id and used values.
- *      -For all these 12 commodities it saves the sum of used values and capacities per slice.
+ *      -For all these 11 commodities it saves the sum of used values and capacities per slice.
  */
 public class SystemLoadSnapshot extends AbstractStatsWriter implements ICompleteTopologyStatsWriter {
 

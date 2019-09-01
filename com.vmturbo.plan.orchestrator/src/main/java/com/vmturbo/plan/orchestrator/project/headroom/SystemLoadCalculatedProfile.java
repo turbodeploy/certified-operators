@@ -122,6 +122,7 @@ public class SystemLoadCalculatedProfile {
         float memConsumedFactor = 0;
         float cpuConsumedFactor = 0;
         float storageConsumedFactor = 0;
+        float accessSpeedConsumed = 0;
         int numVMs = 0;
 
         // Iterate through VMs to find average or peak of commodities
@@ -135,6 +136,7 @@ public class SystemLoadCalculatedProfile {
             float currNetworkThroughputConsumed = 0;
             float currIoThroughputConsumed = 0;
             float currStorageConsumed = 0;
+            float currAccessSpeedConsumed = 0;
 
             for (SystemLoadRecord rec : virtualMachinesMap.get(vmId)) {
                 if (rec.getPropertySubtype().equals("used")) {
@@ -167,6 +169,8 @@ public class SystemLoadCalculatedProfile {
                             case "STORAGE_AMOUNT":
                                 currStorageConsumed = (float)rec.getAvgValue();
                                 break;
+                            case "STORAGE_ACCESS":
+                                currAccessSpeedConsumed = (float)rec.getAvgValue();
                         }
                     }
                 }
@@ -181,6 +185,7 @@ public class SystemLoadCalculatedProfile {
                     networkThroughputConsumed += currNetworkThroughputConsumed;
                     ioThroughputConsumed += currIoThroughputConsumed;
                     storageConsumed += currStorageConsumed;
+                    accessSpeedConsumed += currAccessSpeedConsumed;
                     break;
                 case MAX:
                     vMemSize = Math.max(vMemSize, currVMemCapacity);
@@ -190,6 +195,7 @@ public class SystemLoadCalculatedProfile {
                     networkThroughputConsumed = Math.max(networkThroughputConsumed, currNetworkThroughputConsumed);
                     ioThroughputConsumed = Math.max(ioThroughputConsumed, currIoThroughputConsumed);
                     storageConsumed = Math.max(storageConsumed, currStorageConsumed);
+                    accessSpeedConsumed = Math.max(accessSpeedConsumed, currAccessSpeedConsumed);
                     memConsumedFactor = Math.max(memConsumedFactor, Float.isFinite(currMemConsumed / currVMemCapacity) ?
                                     currMemConsumed / currVMemCapacity : MEM_CONSUMED_FACTOR_DEFAULT);
                     cpuConsumedFactor = Math.max(cpuConsumedFactor, Float.isFinite(currCPUConsumed / currVCPUCapacity) ?
@@ -213,6 +219,7 @@ public class SystemLoadCalculatedProfile {
             networkThroughputConsumed = networkThroughputConsumed / numVMs;
             ioThroughputConsumed = ioThroughputConsumed / numVMs;
             storageConsumed = storageConsumed / numVMs;
+            accessSpeedConsumed = accessSpeedConsumed / numVMs;
         }
 
         // compute
@@ -227,6 +234,7 @@ public class SystemLoadCalculatedProfile {
         // storage
         templateStorageStats.put(DISK_CONSUMED_FACTOR, Math.min(1, storageConsumedFactor));
         templateStorageStats.put(DISK_SIZE, storageConsumed);
+        templateStorageStats.put(DISK_IOPS, accessSpeedConsumed);
         setHeadroomTemplateInfo(generateTemplateInfoFromProfile());
     }
 
