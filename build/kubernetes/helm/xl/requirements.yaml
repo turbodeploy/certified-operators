@@ -104,7 +104,7 @@ dependencies:
     version: 1.7.0
     condition: global.elk
 
-  # Monitoring dependencies
+# Monitoring dependencies
   - name: prometheus
     repository: file://../base/prometheus
     version: 8.9.1
@@ -113,6 +113,10 @@ dependencies:
     repository: file://../base/grafana
     version: 3.0.1
     condition: grafana.enabled
+  - name: kubeturbo
+    repository: file://../base/kubeturbo
+    version: 0.1.0
+    condition: kubeturbo.enabled
 
 # Mediation dependencies
   - name: mediation-actionscript

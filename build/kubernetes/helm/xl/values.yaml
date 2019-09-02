@@ -29,6 +29,8 @@ platform:
   enabled: true
 metron:
   enabled: false
+kubeturbo:
+  enabled: false
 
 prometheus:
   enabled: false
