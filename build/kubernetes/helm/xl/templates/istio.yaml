@@ -8,7 +8,7 @@ spec:
         istio: t8c-ingressgateway
     servers:
         - hosts:
-              - {{ .Values.istioingress.domain | default "*.turbonomic.com" }}
+              - {{ .Values.istioingress.domain | default "*.turbonomic.com" | quote }}
           port:
               number: 80
               name: http
@@ -16,7 +16,7 @@ spec:
           tls:
               httpsRedirect: true
         - hosts:
-              - {{ .Values.istioingress.domain | default "*.turbonomic.com" }}
+              - {{ .Values.istioingress.domain | default "*.turbonomic.com" | quote }}
           port:
               number: 443
               name: https
@@ -34,7 +34,7 @@ spec:
     gateways:
         - t8c-gateway
     hosts:
-        - {{ .Values.istioingress.domain | default "*.turbonomic.com" }}
+        - {{ .Values.istioingress.domain | default "*.turbonomic.com" | quote }}
     http:
         - match:
               - uri:
@@ -249,13 +249,13 @@ spec:
     secretName: istio-ingressgateway-certs
     issuerRef:
         name: letsencrypt-prod
-    commonName: {{ .Values.istioingress.domain | default "*.turbonomic.com" }}
+    commonName: {{ .Values.istioingress.domain | default "*.turbonomic.com" | quote }}
     acme:
         config:
             - dns01:
                   provider: cloud-dns
               domains:
-                  - {{ .Values.istioingress.domain | default "*.turbonomic.com" }}
+                  - {{ .Values.istioingress.domain | default "*.turbonomic.com" | quote }}
 
 ---
 {{- end }}

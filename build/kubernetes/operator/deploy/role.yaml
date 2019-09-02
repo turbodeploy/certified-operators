@@ -54,3 +54,9 @@ rules:
     - virtualservices
   verbs:
     - '*'
+- apiGroups:
+    - certmanager.k8s.io
+  resources:
+    - certificates
+  verbs:
+    - '*'
