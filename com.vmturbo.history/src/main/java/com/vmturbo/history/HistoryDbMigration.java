@@ -31,7 +31,7 @@ public class HistoryDbMigration {
      */
     public void migrate() throws VmtDbException {
         log.info("Starting DB migration");
-        historydbIO.init(false, null, historydbIO.getDatabaseName());
+        historydbIO.init(false, null, historydbIO.getDbSchemaName());
         log.info("DB Migration complete");
     }
 }

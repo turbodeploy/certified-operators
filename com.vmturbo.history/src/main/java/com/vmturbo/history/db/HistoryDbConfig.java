@@ -31,7 +31,8 @@ public class HistoryDbConfig {
 
     @Bean
     public HistorydbIO historyDbIO() {
-        final HistorydbIO dbIO = new HistorydbIO(dbPasswordUtil(), databaseConfig.getDbUrl());
+        final HistorydbIO dbIO
+            = new HistorydbIO(dbPasswordUtil(), databaseConfig.getSQLConfigObject());
         HistorydbIO.setSharedInstance(dbIO);
         return dbIO;
     }

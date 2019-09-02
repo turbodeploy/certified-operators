@@ -109,7 +109,6 @@ public class TestSQLDatabaseConfig {
     @Primary
     public DataSource dataSource() {
         final MariaDbDataSource dataSource = new MariaDbDataSource();
-
         try {
             dataSource.setUrl(getDbUrl());
             dataSource.setUser("root");

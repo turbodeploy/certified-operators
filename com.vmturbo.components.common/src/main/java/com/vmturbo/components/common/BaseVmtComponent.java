@@ -128,7 +128,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     // These keys/values are defined in global_defaults.properties files. During components startup,
     // if keys are in the OVERRIDABLE_ENV_PROPERTIES set and passed in from JVM environment,
     // values will be applied.
-    private static final Set<String> OVERRIDABLE_ENV_PROPERTIES = ImmutableSet.of("dbPort");
+    private static final Set<String> OVERRIDABLE_ENV_PROPERTIES =
+        ImmutableSet.of("dbPort", "dbUsername", "dbUserPassword", "sqlDialect");
 
     /**
      * The URL at which to expose Prometheus metrics.

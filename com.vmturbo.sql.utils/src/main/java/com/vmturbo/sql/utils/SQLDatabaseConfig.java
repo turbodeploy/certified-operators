@@ -2,10 +2,13 @@ package com.vmturbo.sql.utils;
 
 import java.sql.SQLException;
 import java.time.Duration;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.Immutable;
 import javax.sql.DataSource;
 
+import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.flywaydb.core.Flyway;
@@ -28,6 +31,8 @@ import org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy;
 import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.web.util.UriComponentsBuilder;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.components.common.utils.EnvironmentUtils;
@@ -52,8 +57,11 @@ public class SQLDatabaseConfig {
     @Value("${dbPort}")
     private int dbPort;
 
-    @Value("${dbUsername}")
+    @Value("${dbUsername:root}")
     private String dbUsername;
+
+    @Value("${dbUserPassword:vmturbo}")
+    private String dbUserPassword;
 
     @Value("${dbSchemaName}")
     private String dbSchemaName;
@@ -76,12 +84,10 @@ public class SQLDatabaseConfig {
     @Primary
     public DataSource dataSource() {
         MariaDbDataSource dataSource = new MariaDbDataSource();
-        DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort,
-            authRetryDelaySecs);
         try {
             dataSource.setUrl(getDbUrl());
             dataSource.setUser(dbUsername);
-            dataSource.setPassword(dbPasswordUtil.getSqlDbRootPassword());
+            dataSource.setPassword(dbUserPassword);
             return dataSource;
         } catch (SQLException e) {
             throw new BeanCreationException("Failed to initialize bean: " + e.getMessage());
@@ -150,7 +156,8 @@ public class SQLDatabaseConfig {
      * @return DB connection URL
      */
     @Nonnull
-    public String getDbUrl() {
+    @VisibleForTesting
+    String getDbUrl() {
         final UriComponentsBuilder urlBuilder = UriComponentsBuilder.newInstance()
             .scheme("jdbc:mysql")
             .host(dbHost)
@@ -162,6 +169,75 @@ public class SQLDatabaseConfig {
             .queryParam("useSSL", "true")
             .queryParam("trustServerCertificate", "true")
             .build().toUriString() : urlBuilder.build().toUriString();
+    }
+
+    /**
+     * Get DTO with all the SQL connection parameters.
+     *
+     * @return {@link SQLConfigObject}
+     */
+    @Bean
+    public SQLConfigObject getSQLConfigObject() {
+        final Optional<UsernamePasswordCredentials> credentials = (dbUsername != null && dbUserPassword != null) ?
+            Optional.ofNullable(new UsernamePasswordCredentials(dbUsername, dbUserPassword)) : Optional.empty();
+        return new SQLConfigObject(dbHost, dbPort, credentials, sqlDialectName, getDbUrl(), isSecureDBConnectionRequested);
+    }
+
+    /**
+     * A value object contains all the SQL connection parameters.
+     */
+    @Immutable
+    public static class SQLConfigObject {
+        private final String dbUrl;
+        private final String dbHost;
+        private final int dbPort;
+        private final String sqlDialect;
+        private final boolean isSecureDBConnectionRequested;
+
+        private final Optional<UsernamePasswordCredentials> credentials;
+
+
+        public SQLConfigObject(@Nonnull final String dbHost,
+                               @Nonnull final int dbPort,
+                               @Nonnull final Optional<UsernamePasswordCredentials> credentials,
+                               @Nonnull final String sqlDialect,
+                               @Nonnull final String dbUrl,
+                               final boolean isSecureDBConnectionRequested) {
+            this.dbHost = dbHost;
+            this.dbPort = dbPort;
+            this.credentials = credentials;
+            this.sqlDialect = sqlDialect;
+            this.dbUrl = dbUrl;
+            this.isSecureDBConnectionRequested = isSecureDBConnectionRequested;
+        }
+
+        @Nonnull
+        public String getDbUrl() {
+            return dbUrl;
+        }
+
+        @Nonnull
+        public String getDbHost() {
+            return dbHost;
+        }
+
+        public int getDbPort() {
+            return dbPort;
+        }
+
+        @Nonnull
+        public Optional<UsernamePasswordCredentials> getCredentials() {
+            return credentials;
+        }
+
+        @Nonnull
+        public String getSqlDialect() {
+            return sqlDialect;
+        }
+
+        public boolean isSecureDBConnectionRequested() {
+            return isSecureDBConnectionRequested;
+        }
     }
 }
 

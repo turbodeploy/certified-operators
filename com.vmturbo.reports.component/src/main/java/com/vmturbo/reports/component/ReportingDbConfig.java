@@ -49,7 +49,7 @@ public class ReportingDbConfig extends SQLDatabaseConfig {
         final DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort,
                 authRetryDelaySecs);
         try {
-            dataSource.setUrl(getDbUrl() + '/' + vmtDbSchema);
+            dataSource.setUrl(getSQLConfigObject().getDbUrl() + '/' + vmtDbSchema);
             dataSource.setUser(dbUsername);
             dataSource.setPassword(dbPasswordUtil.getSqlDbRootPassword());
             return dataSource;

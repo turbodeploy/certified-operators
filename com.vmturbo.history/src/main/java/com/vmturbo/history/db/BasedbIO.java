@@ -1407,15 +1407,7 @@ public abstract class BasedbIO {
      * @return The connection URL String to be used to connect to a MySQL instance.
      * The host, port and database name are properties of this manager.
      */
-    public String getMySQLConnectionUrl() {
-        return "jdbc:" + getAdapter()
-                + "://"
-                + getHostName()
-                + ":"
-                + getPortNumber()
-                + "/"
-                + getDatabaseName();
-    }
+    abstract String getMySQLConnectionUrl();
 
     /**
      * Notify the user of a critical problem with the database.  Notifications
@@ -1535,22 +1527,14 @@ public abstract class BasedbIO {
         Driver myDriver = new org.mariadb.jdbc.Driver();
         DriverManager.registerDriver(myDriver);
 
-        return DriverManager.getConnection(getRootConnectionUrl(), "root", getRootPassword());
+        return DriverManager.getConnection(getRootConnectionUrl(), getRootUsername(), getRootPassword());
     }
 
     /**
      * @return The connection URL String to be used to connect to a MySQL instance.
      * The host, port and database name are properties of this manager.
      */
-    protected String getRootConnectionUrl() {
-        return "jdbc:" + getAdapter()
-                + "://"
-                + getHostName()
-                + ":"
-                + getPortNumber();
-    }
-
-
+    abstract String getRootConnectionUrl();
 
     public void shutdown() {
         if (DBConnectionPool.instance != null)
@@ -1560,12 +1544,13 @@ public abstract class BasedbIO {
     // Accessors for connection parameters
     public abstract String getUserName();
     public abstract String getPassword();
+    public abstract String getRootUsername();
     public abstract String getRootPassword();
     public abstract String getRequestHost();
     public abstract String getAdapter();
     public abstract String getHostName();
     public abstract String getPortNumber();
-    public abstract String getDatabaseName();
+    public abstract String getDbSchemaName();
     public abstract String getReadOnlyUserName();
     public abstract String getReadOnlyPassword();
     public abstract int getQueryTimeoutSeconds();

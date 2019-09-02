@@ -23,8 +23,6 @@ import com.google.common.collect.Lists;
 
 public class SchemaUtil {
     protected static final Logger logger = Logger.getLogger("com.vmturbo.history.db");
-    private static final String DEFAULT_USER_NAME = "root";
-
 
     /**
      * Mapping from SQL dialects to the corresponding java class name.
@@ -217,7 +215,7 @@ public class SchemaUtil {
     private static DataSource defaultDataSource() throws SQLException {
         final String url = BasedbIO.instance().getMySQLConnectionUrl();
         final MariaDbDataSource mysqlDS = new MariaDbDataSource(url);
-        mysqlDS.setUser(DEFAULT_USER_NAME);
+        mysqlDS.setUser(BasedbIO.instance().getRootUsername());
         mysqlDS.setPassword(BasedbIO.instance().getRootPassword());
         return mysqlDS;
     }

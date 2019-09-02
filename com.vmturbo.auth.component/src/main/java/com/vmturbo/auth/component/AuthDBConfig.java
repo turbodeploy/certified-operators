@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Optional;
+
 import javax.annotation.Nonnull;
 import javax.sql.DataSource;
 
@@ -32,6 +33,8 @@ import org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy;
 import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.web.util.UriComponentsBuilder;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.auth.component.services.SecureStorageController;
@@ -64,9 +67,14 @@ public class AuthDBConfig {
     private static final String CONSUL_KEY = "dbcreds";
 
     /**
+     * The Consul root DB username key.
+     */
+    public static final String CONSUL_ROOT_DB_USER_KEY = "rootdbUsername";
+
+    /**
      * The Consul root DB password key.
      */
-    public static final String CONSUL_ROOT_KEY = "rootdbcreds";
+    public static final String CONSUL_ROOT_DB_PASS_KEY = "rootdbcreds";
 
     /**
      * The arango root DB password key.
@@ -79,28 +87,10 @@ public class AuthDBConfig {
     public static final String INFLUX_ROOT_PW_KEY = "influxcreds";
 
     /**
-     * The DB host.
-     */
-    @Value("${dbHost}")
-    private String dbHost;
-
-    /**
-     * The DB port.
-     */
-    @Value("${dbPort}")
-    private int dbPort;
-
-    /**
      * The DB schema name.
      */
     @Value("${dbSchemaName}")
     private String dbSchemaName;
-
-    /**
-     * The DB dialect.
-     */
-    @Value("${sqlDialect}")
-    private String sqlDialectName;
 
     /**
      * The REST config.
@@ -139,20 +129,52 @@ public class AuthDBConfig {
     }
 
     /**
+     * Returns the root SQL DB username.
+     * 1. if db username passed in from environment, use it, also store it to Consul.
+     * 2. if not passed in, try to get it from Consul.
+     * 3. if not in Consul, use default username.
+     *
+     * @return The root DB password.
+     */
+    @Bean
+    public String getRootSqlDBUser() {
+        // Both dbUsername and dbUserPassword have default values defined in {@link @SQLDatabaseConfig.java},
+        // So credential should not be null.
+        if (databaseConfig.getSQLConfigObject().getCredentials().isPresent()) {
+            String rootDBUser = databaseConfig.getSQLConfigObject().getCredentials().get().getUserName();
+            // It will be updated every time auth is started, so we always have the latest root db user.
+            authKVConfig.authKeyValueStore().put(CONSUL_ROOT_DB_USER_KEY, rootDBUser);
+            return rootDBUser;
+        }
+        // it should not be reached.
+        Optional<String> rootDbUser = authKVConfig.authKeyValueStore().get(CONSUL_ROOT_DB_USER_KEY);
+        if (rootDbUser.isPresent()) {
+            return rootDbUser.get();
+        }
+        return DBPasswordUtil.obtainDefaultRootDbUser();
+    }
+
+    /**
      * Returns the root SQL DB password.
-     * In case the password is not yet encrypted and stored in Consul, do that.
+     * 1. if db password passed in from environment, use it, also store the encrypted value to Consul
+     * 2. if not passed in, try to get it from Consul.
+     * 3. if not in Consul, use default password
      *
      * @return The root DB password.
      */
     @Bean
     public  @Nonnull String getRootSqlDBPassword() {
-        Optional<String> rootDbPassword = authKVConfig.authKeyValueStore().get(CONSUL_ROOT_KEY);
+        if (databaseConfig.getSQLConfigObject().getCredentials().isPresent()) {
+            String dbPassword = databaseConfig.getSQLConfigObject().getCredentials().get().getPassword();
+            // It will be updated every time auth is started, so we always have the latest root db password.
+            authKVConfig.authKeyValueStore().put(CONSUL_ROOT_DB_PASS_KEY, CryptoFacility.encrypt(dbPassword));
+            return dbPassword;
+        }
+        Optional<String> rootDbPassword = authKVConfig.authKeyValueStore().get(CONSUL_ROOT_DB_PASS_KEY);
         if (rootDbPassword.isPresent()) {
             return CryptoFacility.decrypt(rootDbPassword.get());
         }
-        String defaultPwd = DBPasswordUtil.obtainDefaultPW();
-        authKVConfig.authKeyValueStore().put(CONSUL_ROOT_KEY, CryptoFacility.encrypt(defaultPwd));
-        return defaultPwd;
+        return DBPasswordUtil.obtainDefaultPW();
     }
 
     /**
@@ -212,7 +234,7 @@ public class AuthDBConfig {
                 dataSource.setPassword(credentials.get());
             } else {
                 // Use the well worn out defaults.
-                dataSource.setUser("root");
+                dataSource.setUser(getRootSqlDBUser());
                 dataSource.setPassword(getRootSqlDBPassword());
             }
         } catch (SQLException e) {
@@ -308,7 +330,7 @@ public class AuthDBConfig {
                 // We call this only when the database user is not yet been created and set.
                 // We are doing the inlined code here, since creating multiple beans causes the circular
                 // dependencies in Sprint.
-                dataSource.setUser("root");
+                dataSource.setUser(getRootSqlDBUser());
                 dataSource.setPassword(getRootSqlDBPassword());
                 try (Connection connection = dataSource.getConnection()) {
                     try (PreparedStatement stmt = connection.prepareStatement(
@@ -338,7 +360,7 @@ public class AuthDBConfig {
         jooqConfiguration.set(connectionProvider());
         jooqConfiguration.set(new DefaultExecuteListenerProvider(exceptionTranslator()));
         jooqConfiguration.set(new Settings().withRenderNameStyle(RenderNameStyle.LOWER));
-        jooqConfiguration.set(SQLDialect.valueOf(sqlDialectName));
+        jooqConfiguration.set(SQLDialect.valueOf(databaseConfig.getSQLConfigObject().getSqlDialect()));
         return jooqConfiguration;
     }
 
@@ -368,36 +390,31 @@ public class AuthDBConfig {
      * @return The database URL.
      */
     private String getDbUrl() {
-        if (databaseConfig != null) {
-            return databaseConfig.getDbUrl();
-        }
-        // Use for unit test only
-        return UriComponentsBuilder.newInstance()
-                                   .scheme("jdbc:mysql")
-                                   .host(dbHost)
-                                   .port(dbPort)
-                                   .build()
-                                   .toUriString();
+        return databaseConfig.getSQLConfigObject().getDbUrl();
     }
 
     /**
      * Creates the MariaDB database URL.
+     * Note:
+     * Secure URL: jdbc:mysql://host:port?useSSL=true&trustServerCertificate=true, so will append "&" and
+     * parameters. It will be: jdbc:mysql://host:port?useSSL=true&trustServerCertificate=true&useUnicode=true...
+     * Insecure URL: jdbc:mysql://host:port, so will append "?" and parameters. It will be:
+     * jdbc:mysql://host:port?useUnicode=true...
+     * @TODO consider using {@link UriComponentsBuilder} to better build parameters.
      *
      * @return The MariaDB database URL.
      */
-    private String getMariaDBDbUrl() {
-        return "jdbc:mysql"
-               + "://"
-               + dbHost
-               + ":"
-               + dbPort
-               + "/"
-               + dbSchemaName
-               + "?useUnicode=true"
-               + "&tcpRcvBuf=8192"
-               + "&tcpSndBuf=8192"
-               + "&characterEncoding=UTF-8"
-               + "&characterSetResults=UTF-8"
-               + "&connectionCollation=utf8_unicode_ci";
+    @VisibleForTesting
+    String getMariaDBDbUrl() {
+
+        final String parameters = "useUnicode=true"
+            + "&tcpRcvBuf=8192"
+            + "&tcpSndBuf=8192"
+            + "&characterEncoding=UTF-8"
+            + "&characterSetResults=UTF-8"
+            + "&connectionCollation=utf8_unicode_ci";
+        return databaseConfig.getSQLConfigObject().isSecureDBConnectionRequested() ?
+            databaseConfig.getSQLConfigObject().getDbUrl() + "&" + parameters :
+            databaseConfig.getSQLConfigObject().getDbUrl() + "?" + parameters;
     }
 }

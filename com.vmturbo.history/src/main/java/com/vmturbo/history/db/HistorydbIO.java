@@ -3,11 +3,11 @@ package com.vmturbo.history.db;
 import static com.vmturbo.components.common.utils.StringConstants.AVG_VALUE;
 import static com.vmturbo.components.common.utils.StringConstants.CAPACITY;
 import static com.vmturbo.components.common.utils.StringConstants.COMMODITY_KEY;
+import static com.vmturbo.components.common.utils.StringConstants.CURRENT_PRICE_INDEX;
 import static com.vmturbo.components.common.utils.StringConstants.EFFECTIVE_CAPACITY;
 import static com.vmturbo.components.common.utils.StringConstants.MAX_VALUE;
 import static com.vmturbo.components.common.utils.StringConstants.MIN_VALUE;
 import static com.vmturbo.components.common.utils.StringConstants.PRICE_INDEX;
-import static com.vmturbo.components.common.utils.StringConstants.CURRENT_PRICE_INDEX;
 import static com.vmturbo.components.common.utils.StringConstants.PRODUCER_UUID;
 import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_SUBTYPE;
 import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_SUBTYPE_USED;
@@ -105,6 +105,7 @@ import com.vmturbo.history.stats.MarketStatsAccumulator;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.sql.utils.SQLDatabaseConfig.SQLConfigObject;
 
 /**
  * Dbio Component for use within the History Component.
@@ -120,7 +121,8 @@ public class HistorydbIO extends BasedbIO {
     // min and max for numerical values for the statstables; must fit in DECIMAL(15,3), 12 digits
     private static final double MAX_STATS_VALUE = 1e12D - 1;
     private static final double MIN_STATS_VALUE = -MAX_STATS_VALUE;
-    private final String dbUrl;
+    private final SQLConfigObject sqlConfigObject;
+    private static final String SECURE_DB_URL = "?useSSL=true&trustServerCertificate=true";
 
     // MySQL Connection parameters
     @Value("${userName:vmtplatform}")
@@ -129,17 +131,8 @@ public class HistorydbIO extends BasedbIO {
     @Value("${requestHost:%}")
     private String requestHost;
 
-    @Value("${adapter:mysql}")
-    private String adapter;
-
-    @Value("${hostName:db}")
-    private String hostName;
-
-    @Value("${portNumber:3306}")
-    private String portNumber;
-
-    @Value("${databaseName:vmtdb}")
-    private String databaseName;
+    @Value("${dbSchemaName:vmtdb}")
+    private String dbSchemaName;
 
     @Value("${readonlyUserName:vmtreader}")
     private String readonlyUserName;
@@ -184,9 +177,10 @@ public class HistorydbIO extends BasedbIO {
     /**
      * Constructs the HistorydbIO.
      */
-    public HistorydbIO(DBPasswordUtil dbPasswordUtil, final String dbUrl) {
+    public HistorydbIO(@Nonnull DBPasswordUtil dbPasswordUtil,
+                       @Nonnull final SQLConfigObject sqlConfigObject) {
         this.dbPasswordUtil = dbPasswordUtil;
-        this.dbUrl = dbUrl;
+        this.sqlConfigObject = sqlConfigObject;
     }
 
     @Override
@@ -202,12 +196,7 @@ public class HistorydbIO extends BasedbIO {
 
     @Override
     protected String getRootConnectionUrl() {
-        if (dbUrl != null) {
-            return dbUrl;
-        }
-        logger.warn("It should only use when running unit tests");
-        // TODO (Gary zeng, Aug 23th, 2019), remove following line, see OM-49862.
-        return super.getRootConnectionUrl();
+        return sqlConfigObject.getDbUrl();
     }
 
     @Override
@@ -234,22 +223,22 @@ public class HistorydbIO extends BasedbIO {
 
     @Override
     public String getAdapter() {
-        return adapter;
+        return sqlConfigObject.getSqlDialect().toLowerCase();
     }
 
     @Override
     public String getHostName() {
-        return hostName;
+        return sqlConfigObject.getDbHost();
     }
 
     @Override
     public String getPortNumber() {
-        return portNumber;
+        return String.valueOf(sqlConfigObject.getDbPort());
     }
 
     @Override
-    public String getDatabaseName() {
-        return databaseName;
+    public String getDbSchemaName() {
+        return dbSchemaName;
     }
 
     @Override
@@ -318,7 +307,35 @@ public class HistorydbIO extends BasedbIO {
     }
 
     @Override
+    protected String getMySQLConnectionUrl() {
+        final String baseUrl = "jdbc:" + getAdapter()
+            + "://"
+            + getHostName()
+            + ":"
+            + getPortNumber()
+            + "/"
+            + getDbSchemaName();
+        if (sqlConfigObject.isSecureDBConnectionRequested()) {
+            // E.g.: "jdbc:mysql://host:3306/vmtdt?useSSL=true&trustServerCertificate=true
+            return baseUrl + SECURE_DB_URL;
+        }
+        // E.g.: "jdbc:mysql://host:3306/vmtdt
+        return baseUrl;
+    }
+
+    @Override
+    public String getRootUsername() {
+        if (sqlConfigObject.getCredentials().isPresent()) {
+            return sqlConfigObject.getCredentials().get().getUserName();
+        }
+        return dbPasswordUtil.getSqlDbRootUsername();
+    }
+
+    @Override
     public String getRootPassword() {
+        if (sqlConfigObject.getCredentials().isPresent()) {
+            return sqlConfigObject.getCredentials().get().getPassword();
+        }
         return getPassword();
     }
 

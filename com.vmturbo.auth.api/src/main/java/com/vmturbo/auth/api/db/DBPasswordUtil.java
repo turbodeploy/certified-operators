@@ -29,8 +29,14 @@ public class DBPasswordUtil {
 
     static final String SECURESTORAGE_PATH = "/securestorage/";
     static final String SQL_DB_ROOT_PASSWORD_PATH = "getSqlDBRootPassword";
+    static final String SQL_DB_ROOT_USERNAME_PATH = "getSqlDBRootUsername";
     static final String ARANGO_DB_ROOT_PASSWORD_PATH = "getArangoDBRootPassword";
     static final String INFLUX_DB_ROOT_PASSWORD_PATH = "getInfluxDBRootPassword";
+
+    /**
+     * The database root username.
+     */
+    private String dbRootUsername;
 
     /**
      * The database root password.
@@ -117,6 +123,15 @@ public class DBPasswordUtil {
     }
 
     /**
+     * Obtains the default root DB username.
+     *
+     * @return The default root DB username
+     */
+    public static String obtainDefaultRootDbUser() {
+        return "root";
+    }
+
+    /**
      * Fetch the the SQL database root password from the Auth component.
      *
      * In case we have an error obtaining the database root password from the auth component,
@@ -129,6 +144,21 @@ public class DBPasswordUtil {
      */
     public synchronized @Nonnull String getSqlDbRootPassword() {
         return getRootPassword(SQL_DB_ROOT_PASSWORD_PATH, "SQL");
+    }
+
+    /**
+     * Fetch the the SQL database root username from the Auth component.
+     *
+     * In case we have an error obtaining the database root username from the auth component,
+     * retry continually with a configured delay between each retry.
+     *
+     * If the auth component is down and the database root username has been changed, there will be
+     * no security implications, as the component will not be able to access the database..
+     *
+     * @return The SQL database root password.
+     */
+    public synchronized @Nonnull String getSqlDbRootUsername() {
+        return getRootUser(SQL_DB_ROOT_USERNAME_PATH);
     }
 
     /**
@@ -159,6 +189,38 @@ public class DBPasswordUtil {
      */
     public synchronized @Nonnull String getInfluxDbRootPassword() {
         return getRootPassword(INFLUX_DB_ROOT_PASSWORD_PATH, "Influx");
+    }
+
+    private @Nonnull String getRootUser(@Nonnull final String usernameKeyOffset) {
+        for (int i = 1; dbRootUsername == null; i++) {
+            // Obtains the database root username.
+            // Since the password change in the database will require the JDBC pools to be
+            // restarted, that implies we need to restart the history component. Which means
+            // we can cache the username here.
+            final String request = UriComponentsBuilder.newInstance()
+                .scheme("http")
+                .host(authHost)
+                .port(authPort)
+                .path(SECURESTORAGE_PATH + usernameKeyOffset)
+                .build().toUriString();
+            try {
+                ResponseEntity<String> result =
+                    restTemplate.getForEntity(request, String.class);
+                dbRootUsername = result.getBody();
+                if (dbRootUsername.isEmpty()) {
+                    throw new IllegalArgumentException("root db username is empty");
+                }
+            } catch (ResourceAccessException e) {
+                logger.warn("...Unable to fetch the SQL database root name; sleep {} secs; try {}",
+                    authRetryDelaySecs, i);
+                try {
+                    Thread.sleep(Duration.ofSeconds(authRetryDelaySecs).toMillis());
+                } catch (InterruptedException e2) {
+                    logger.warn("...Auth connection retry sleep interrupted; still waiting");
+                }
+            }
+        }
+        return dbRootUsername;
     }
 
     /**

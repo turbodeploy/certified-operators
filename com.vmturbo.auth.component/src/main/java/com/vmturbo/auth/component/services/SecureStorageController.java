@@ -201,6 +201,21 @@ public class SecureStorageController {
     }
 
     /**
+     * Returns (SQL) DB root username.
+     *
+     * @return The user resource URL if successful.
+     * @throws Exception In case of an error getting user.
+     */
+    @ApiOperation(value = "Returns (SQL) DB root username")
+    @RequestMapping(path = "getSqlDBRootUsername",
+        method = RequestMethod.GET,
+        produces = {MediaType.APPLICATION_JSON_VALUE})
+    @ResponseBody
+    public @Nonnull String getSqlDBRootUsername() throws Exception {
+        return store_.getRootSqlDBUsername();
+    }
+
+    /**
      * Sets the (SQL) DB root password.
      *
      * @return The user resource URL if successful.
