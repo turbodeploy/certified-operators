@@ -192,6 +192,9 @@ message Explanation {
 
         // How much demand out of totalAverageDemand is covered in terms of coupons.
         optional float coveredAverageDemand = 2;
+
+        // Estimated on demand cost of RI for the term of the RI
+        optional float estimatedOnDemandCost = 3;
     }
 
     // Reference to a commodity causing the action, with extended per-commodity information.

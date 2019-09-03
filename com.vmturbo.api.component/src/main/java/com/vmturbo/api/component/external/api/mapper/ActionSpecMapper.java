@@ -46,12 +46,15 @@ import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotF
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
+import com.vmturbo.api.dto.action.RIBuyActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
+import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ActionMode;
 import com.vmturbo.api.enums.ActionState;
@@ -1311,6 +1314,42 @@ public class ActionSpecMapper {
                 logger.error("Unknown action state {}", stateStr);
                 throw new IllegalArgumentException("Unsupported action state " + stateStr);
         }
+    }
+
+
+    /**
+     * Given an actionSpec fetches the corresponding action details.
+     * @param actionSpec - ActionSpec for the user sent action
+     * @return actionDetailsApiDTO which contains extra information about a given action
+     */
+    public ActionDetailsApiDTO createActionDetailsApiDTO(final ActionSpec actionSpec) {
+        if (actionSpec != null && actionSpec.hasRecommendation()) {
+            ActionDetailsApiDTO detailsDTO = null;
+            // Buy RI action - set est. on-demand cost and coverage values + historical demand data
+            if (actionSpec.getRecommendation().hasExplanation() && actionSpec.getRecommendation()
+                    .getExplanation().hasBuyRI()) {
+                RIBuyActionDetailsApiDTO detailsDto = new RIBuyActionDetailsApiDTO();
+                // set est RI Coverage
+                ActionDTO.Explanation.BuyRIExplanation buyRIExplanation = actionSpec.getRecommendation()
+                        .getExplanation().getBuyRI();
+                float covered = buyRIExplanation.getCoveredAverageDemand();
+                float capacity = buyRIExplanation.getTotalAverageDemand();
+                detailsDto.setEstimatedRICoverage((covered / capacity) * 100);
+                // set est. on-demand cost
+                detailsDto.setEstimatedOnDemandCost(buyRIExplanation.getEstimatedOnDemandCost());
+                // set demand data
+                // todo: get demand data from dbio and set in details DTO
+                List<StatSnapshotApiDTO> demandList = null;
+                detailsDto.setHistoricalDemandData(demandList);
+                return detailsDto;
+            }
+            // todo: action details for cloud resize actions (OM-49988)
+            if (actionSpec.getRecommendation().getExplanation().hasResize()) {
+                return null;
+            }
+            return null;
+        }
+        return null;
     }
 
     /**

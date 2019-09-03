@@ -37,6 +37,7 @@ import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.ActionScopesApiInputDTO;
 import com.vmturbo.api.dto.action.EntityActionsApiDTO;
+import com.vmturbo.api.dto.action.NoDetailsApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -384,6 +385,16 @@ public class ActionsService implements IActionsService {
      */
     @Override
     public ActionDetailsApiDTO getActionsDetailsByUuid(String uuid) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        ActionOrchestratorAction action = actionOrchestratorRpc.getAction(actionRequest(uuid));
+        ActionDetailsApiDTO actionDetailsApiDTO = null;
+        if (action.hasActionSpec()) {
+            // create action details dto based on action api dto which contains "explanation" with coverage information.
+            actionDetailsApiDTO = actionSpecMapper.createActionDetailsApiDTO(action.getActionSpec());
+            if (actionDetailsApiDTO == null) {
+                return new NoDetailsApiDTO();
+            }
+            return actionDetailsApiDTO;
+        }
+        return new NoDetailsApiDTO();
     }
 }
