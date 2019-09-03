@@ -76,7 +76,7 @@ public class ActionStoreConfig {
     @Value("${entityRetrievalMaxRetries:900}")
     private int entityRetrievalMaxRetries;
 
-    @Value("${actionExecution.concurrentAutomatedActions:1}")
+    @Value("${actionExecution.concurrentAutomatedActions:5}")
     private int concurrentAutomatedActions;
 
     @Bean
