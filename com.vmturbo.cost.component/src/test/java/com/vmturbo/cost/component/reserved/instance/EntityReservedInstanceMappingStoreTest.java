@@ -62,20 +62,36 @@ public class EntityReservedInstanceMappingStoreTest {
             .setEntityId(123L)
             .addCoverage(Coverage.newBuilder()
                     .setProbeReservedInstanceId("testOne")
-                    .setCoveredCoupons(10))
+                    .setCoveredCoupons(10)
+                    .setRiCoverageSource(Coverage.RICoverageSource.BILLING))
             .addCoverage(Coverage.newBuilder()
                     .setProbeReservedInstanceId("testTwo")
-                    .setCoveredCoupons(20))
+                    .setCoveredCoupons(20)
+                    .setRiCoverageSource(Coverage.RICoverageSource.SUPPLEMENTAL_COVERAGE_ALLOCATION))
             .build();
 
     final EntityRICoverageUpload coverageTwo = EntityRICoverageUpload.newBuilder()
             .setEntityId(124L)
             .addCoverage(Coverage.newBuilder()
                     .setProbeReservedInstanceId("testOne")
-                    .setCoveredCoupons(30))
+                    .setCoveredCoupons(30)
+                    .setRiCoverageSource(Coverage.RICoverageSource.BILLING))
             .addCoverage(Coverage.newBuilder()
                     .setProbeReservedInstanceId("testThree")
-                    .setCoveredCoupons(40))
+                    .setCoveredCoupons(40)
+                    .setRiCoverageSource(Coverage.RICoverageSource.BILLING))
+            .build();
+
+    final EntityRICoverageUpload coverageThree = EntityRICoverageUpload.newBuilder()
+            .setEntityId(125L)
+            .addCoverage(Coverage.newBuilder()
+                    .setProbeReservedInstanceId("testFour")
+                    .setCoveredCoupons(10)
+                    .setRiCoverageSource(Coverage.RICoverageSource.BILLING))
+            .addCoverage(Coverage.newBuilder()
+                    .setProbeReservedInstanceId("testFour")
+                    .setCoveredCoupons(30)
+                    .setRiCoverageSource(Coverage.RICoverageSource.SUPPLEMENTAL_COVERAGE_ALLOCATION))
             .build();
 
     final ReservedInstanceBoughtInfo riInfoOne = ReservedInstanceBoughtInfo.newBuilder()
@@ -102,6 +118,14 @@ public class EntityReservedInstanceMappingStoreTest {
             .setNumBought(30)
             .build();
 
+    final ReservedInstanceBoughtInfo riInfoFour = ReservedInstanceBoughtInfo.newBuilder()
+            .setBusinessAccountId(125)
+            .setProbeReservedInstanceId("testFour")
+            .setReservedInstanceSpec(99L)
+            .setAvailabilityZoneId(50L)
+            .setNumBought(50)
+            .build();
+
     @Before
     public void setup() throws Exception {
         flyway = dbConfig.flyway();
@@ -118,9 +142,9 @@ public class EntityReservedInstanceMappingStoreTest {
     @Test
     public void testUpdateAndGetRIMapping() {
         final List<ReservedInstanceBoughtInfo> reservedInstancesBoughtInfo =
-                Arrays.asList(riInfoOne, riInfoTwo, riInfoThree);
+                Arrays.asList(riInfoOne, riInfoTwo, riInfoThree, riInfoFour);
         final List<EntityRICoverageUpload> entityCoverageLists =
-                Arrays.asList(coverageOne, coverageTwo);
+                Arrays.asList(coverageOne, coverageTwo, coverageThree);
         reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstancesBoughtInfo);
         entityReservedInstanceMappingStore.updateEntityReservedInstanceMapping(dsl, entityCoverageLists);
 
@@ -131,6 +155,7 @@ public class EntityReservedInstanceMappingStoreTest {
         final long ri1Id = riProbeIdMap.get(riInfoOne.getProbeReservedInstanceId());
         final long ri2Id = riProbeIdMap.get(riInfoTwo.getProbeReservedInstanceId());
         final long ri3Id = riProbeIdMap.get(riInfoThree.getProbeReservedInstanceId());
+        final long ri4Id = riProbeIdMap.get(riInfoFour.getProbeReservedInstanceId());
 
         final Map<Long, EntityReservedInstanceCoverage> coverageMap =
                 entityReservedInstanceMappingStore.getEntityRiCoverage();
@@ -142,6 +167,10 @@ public class EntityReservedInstanceMappingStoreTest {
         final EntityReservedInstanceCoverage retCvg2 = coverageMap.get(coverageTwo.getEntityId());
         assertThat(retCvg2.getCouponsCoveredByRiMap(),
                 is(ImmutableMap.of(ri1Id, 30.0, ri3Id, 40.0)));
+
+        final EntityReservedInstanceCoverage retCvg3 = coverageMap.get(coverageThree.getEntityId());
+        assertThat(retCvg3.getCouponsCoveredByRiMap(),
+                is(ImmutableMap.of(ri4Id, 40.0)));
     }
 
     @Test

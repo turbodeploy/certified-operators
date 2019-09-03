@@ -441,6 +441,7 @@ public class RIDataUploaderTest {
         // should be consuming 2 coupons from RI 101
         Assert.assertEquals("aws::ap-south-1::RI::1ac0b0f5-ff53-4d64-aac5-c5cf674cce77", riCoverage.getCoverage(0).getProbeReservedInstanceId());
         Assert.assertEquals(2, riCoverage.getCoverage(0).getCoveredCoupons(), 0);
+        Assert.assertEquals(EntityRICoverageUpload.Coverage.RICoverageSource.BILLING, riCoverage.getCoverage(0).getRiCoverageSource());
 
         // also verify that the account id and coupons used were backfilled into the RI Bought info
         // based on some data from coverage

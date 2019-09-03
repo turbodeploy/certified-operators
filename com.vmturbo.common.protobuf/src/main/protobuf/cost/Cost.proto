@@ -545,6 +545,15 @@ message UploadRIDataRequest {
         repeated Coverage coverage = 3;
 
         message Coverage {
+            //Enumeration defining the sources which contribute to RI coverage for an entity.
+            enum RICoverageSource {
+                //Indicates that the RI Coverage information for an entity comes from the bill.
+                BILLING = 0;
+
+                //Indicates that the RI Coverage information for an entity comes from other sources such as the RI Allocator.
+                SUPPLEMENTAL_COVERAGE_ALLOCATION = 1;
+            }
+
             // The id of reserved instance.
             optional int64 reserved_instance_id = 1;
 
@@ -554,6 +563,9 @@ message UploadRIDataRequest {
 
             // The number of coupons covered by the reserve instance.
             optional double covered_coupons = 3;
+
+            // The RI Coverage source for the entity
+            optional RICoverageSource ri_coverage_source = 4;
         }
     }
 }

@@ -462,7 +462,8 @@ public class RICostDataUploader {
                                                 }
                                                 entityRIBought.addCoverage(EntityRICoverageUpload.Coverage.newBuilder()
                                                         .setProbeReservedInstanceId(commBought.getProviderId())
-                                                        .setCoveredCoupons(commodityDTO.getUsed()));
+                                                        .setCoveredCoupons(commodityDTO.getUsed())
+                                                        .setRiCoverageSource(EntityRICoverageUpload.Coverage.RICoverageSource.BILLING));
                                                 // increment the RI Bought coupons used by the used amount.
                                                 ReservedInstanceBought.Builder rib = riCostComponentData.riBoughtByLocalId.get(commBought.getProviderId());
                                                 if (rib != null) {

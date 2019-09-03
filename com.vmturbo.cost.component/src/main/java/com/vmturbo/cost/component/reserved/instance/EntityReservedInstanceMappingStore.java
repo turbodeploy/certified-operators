@@ -7,9 +7,7 @@ import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -128,20 +126,31 @@ public class EntityReservedInstanceMappingStore {
 
         EntityReservedInstanceCoverage.Builder curEntityCoverageBldr = null;
         for (final EntityToReservedInstanceMapping reCoverageRow : riCoverageRows) {
+            logger.debug("EntityToReservedInstanceMapping retrieved from Database: {}", reCoverageRow::toString);
+            final Long entityId = reCoverageRow.getEntityId();
             if (curEntityCoverageBldr == null) {
                 // This should only be true for the first entry.
                 curEntityCoverageBldr = EntityReservedInstanceCoverage.newBuilder()
-                        .setEntityId(reCoverageRow.getEntityId());
-            } else if (curEntityCoverageBldr.getEntityId() != reCoverageRow.getEntityId()) {
+                        .setEntityId(entityId);
+            } else if (curEntityCoverageBldr.getEntityId() != entityId) {
                 // Because of the group-by, this means there are no longer any records for the
                 // entity whose coverage we've been building so far. We can "finalize" it by
                 // and put it in the return map.
                 retMap.put(curEntityCoverageBldr.getEntityId(), curEntityCoverageBldr.build());
                 curEntityCoverageBldr = EntityReservedInstanceCoverage.newBuilder()
-                        .setEntityId(reCoverageRow.getEntityId());
+                        .setEntityId(entityId);
             }
-            curEntityCoverageBldr.putCouponsCoveredByRi(reCoverageRow.getReservedInstanceId(),
-                    reCoverageRow.getUsedCoupons());
+            // When we have a case where an entity can be covered by multiple RIs, either through the bill or RI Allocator,
+            // we need to aggregate them when updating the Coupons Covered by RI.
+            if (reCoverageRow.getUsedCoupons() == null) {
+                logger.error("Unable to get Used coupons for Entity {} with Reservation {}. Please check values in entity_to_reserved_instance_mapping table of cost db.",
+                        reCoverageRow.getEntityId(), reCoverageRow.getReservedInstanceId());
+                continue;
+            }
+            final double usedCoupons = reCoverageRow.getUsedCoupons();
+            final double couponsCoveredByRiOrDefault = curEntityCoverageBldr.getCouponsCoveredByRiOrDefault(reCoverageRow.getReservedInstanceId(), 0.0);
+            curEntityCoverageBldr.putCouponsCoveredByRi(reCoverageRow.getReservedInstanceId(), usedCoupons + couponsCoveredByRiOrDefault);
+            logger.debug("Current Entity Coverage Builder: {}", curEntityCoverageBldr.getCouponsCoveredByRiMap()::toString);
         }
         // End of results = end of records for the last entity being built.
         if (curEntityCoverageBldr != null) {
@@ -173,7 +182,7 @@ public class EntityReservedInstanceMappingStore {
                         context.newRecord(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING,
                                 new EntityToReservedInstanceMappingRecord(currentTime, entityId,
                                         probeStrIdToIdMap.get(riCoverage.getProbeReservedInstanceId()),
-                                        riCoverage.getCoveredCoupons())))
+                                        riCoverage.getCoveredCoupons(), riCoverage.getRiCoverageSource().toString())))
                 .collect(Collectors.toList());
     }
 }
