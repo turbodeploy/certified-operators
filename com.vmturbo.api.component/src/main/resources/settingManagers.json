@@ -115,8 +115,6 @@
         "heapUtilization",
         "collectionTimeUtilization",
         "RATE_OF_RESIZE",
-        "resizeTargetUtilizationNetThroughput",
-        "resizeTargetUtilizationIoThroughput",
         "resizeTargetUtilizationVcpu",
         "resizeTargetUtilizationVmem",
         "resizeVcpuMinThreshold",

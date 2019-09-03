@@ -42,8 +42,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
-import io.grpc.stub.StreamObserver;
-
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
@@ -51,7 +49,6 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
@@ -69,7 +66,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
-import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
@@ -78,6 +74,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
@@ -99,8 +96,6 @@ public class EntitySettingsResolverTest {
     private GroupServiceBlockingStub groupServiceClient;
 
     private SettingPolicyServiceBlockingStub settingPolicyServiceClient;
-
-    private SettingPolicyServiceStub settingPolicyServiceClientAsync;
 
     private SettingServiceBlockingStub settingServiceClient;
 
@@ -198,7 +193,7 @@ public class EntitySettingsResolverTest {
     private static final ScheduleResolver scheduleResolver = mock(ScheduleResolver.class);
     private static final Schedule APPLIES_NOW = createOneTimeSchedule(4815162342L, 20);
     private static final Schedule NOT_NOW = createOneTimeSchedule(11235813L, 20);
-    private static final int CHUNK_SIZE = 1;
+
     static {
         when(scheduleResolver.appliesAtResolutionInstant(APPLIES_NOW)).thenReturn(true);
         when(scheduleResolver.appliesAtResolutionInstant(NOT_NOW)).thenReturn(false);
@@ -213,9 +208,8 @@ public class EntitySettingsResolverTest {
         settingPolicyServiceClient = SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
         groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
         settingServiceClient = SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        settingPolicyServiceClientAsync = SettingPolicyServiceGrpc.newStub(grpcServer.getChannel());
         entitySettingsResolver = new EntitySettingsResolver(settingPolicyServiceClient,
-            groupServiceClient, settingServiceClient, settingPolicyServiceClientAsync, CHUNK_SIZE);
+            groupServiceClient, settingServiceClient);
     }
 
     /**
@@ -701,27 +695,7 @@ public class EntitySettingsResolverTest {
         entitySettingsResolver.sendEntitySettings(info, Collections.singletonList(
                 createEntitySettings(entityOid1, Arrays.asList(setting2, setting1), 444444L)));
 
-        verify(testSettingPolicyService).uploadEntitySettings(any(StreamObserver.class));
-    }
-
-    /**
-     * Verify that the setting policies are sent in the case of realtime topology.
-     */
-    @Test
-    public void testStreamEntitySettingsRequest() {
-
-        final TopologyInfo info = TopologyInfo.newBuilder()
-            .setTopologyContextId(777)
-            .setTopologyId(123456)
-            .setTopologyType(TopologyType.REALTIME)
-            .build();
-        StreamObserver<UploadEntitySettingsRequest> requestObserver =
-            (StreamObserver<UploadEntitySettingsRequest>)mock(StreamObserver.class);
-
-        entitySettingsResolver.streamEntitySettingsRequest(info, Arrays.asList(
-            createEntitySettings(entityOid1, Arrays.asList(setting2, setting1), 444444L),
-            createEntitySettings(entityOid2, Arrays.asList(setting2, setting1), 444444L)), requestObserver);
-        verify(requestObserver, times(2)).onNext(any());
+        verify(testSettingPolicyService).uploadEntitySettings(any());
     }
 
     /**
