@@ -5,7 +5,7 @@ metadata:
     name: t8c-gateway
 spec:
     selector:
-        istio: t8c-ingressgateway
+        istio: t8c-ingressgateway-{{ .Release.Name }}
     servers:
         - hosts:
               - {{ .Values.istioingress.domain | default "*.turbonomic.com" | quote }}
@@ -230,7 +230,7 @@ spec:
   type: LoadBalancer
   selector:
     app: t8c-istio-ingressgateway
-    istio: t8c-ingressgateway
+    istio: t8c-ingressgateway-{{ .Release.Name }}
   ports:
     - name: status-port
       port: 15020
