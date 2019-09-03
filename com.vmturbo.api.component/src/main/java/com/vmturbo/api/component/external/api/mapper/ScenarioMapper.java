@@ -1015,8 +1015,6 @@ public class ScenarioMapper {
      */
     private List<SettingApiDTO> createRiSettingApiDTO(RISetting ri) {
         List<SettingApiDTO> riSettings = new ArrayList<>();
-        SettingApiDTO coverageDto = new SettingApiDTO<>();
-        riSettings.add(coverageDto);
 
         SettingApiDTO<String> offeringClassDto = new SettingApiDTO<>();
         offeringClassDto.setUuid(AWSPreferredOfferingClass.getSettingName());
@@ -1037,11 +1035,13 @@ public class ScenarioMapper {
         termDto.setDisplayName(AWSPreferredTerm.getDisplayName());
         riSettings.add(termDto);
 
-        SettingApiDTO<String> purchaseDateDto = new SettingApiDTO<>();
-        purchaseDateDto.setUuid(RIPurchaseDate.getSettingName());
-        purchaseDateDto.setValue(String.valueOf(ri.getPurchaseDate()));
-        purchaseDateDto.setDisplayName(RIPurchaseDate.getDisplayName());
-        riSettings.add(purchaseDateDto);
+        if (ri.getPurchaseDate() > 0L) {
+            SettingApiDTO<String> purchaseDateDto = new SettingApiDTO<>();
+            purchaseDateDto.setUuid(RIPurchaseDate.getSettingName());
+            purchaseDateDto.setValue(String.valueOf(ri.getPurchaseDate()));
+            purchaseDateDto.setDisplayName(RIPurchaseDate.getDisplayName());
+            riSettings.add(purchaseDateDto);
+        }
         return riSettings;
     }
 
