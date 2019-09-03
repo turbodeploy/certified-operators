@@ -110,17 +110,17 @@ public class BuyRIAnalysisRpcService extends BuyRIAnalysisServiceImplBase {
         long planId = request.getTopologyInfo().getTopologyContextId();
         try {
             // failed the plan because not enough data to run buy ri
-//            if (!computeTierDemandStatsStore.containsDataOverWeek()) {
-//                String failedMsg = "Not enough compute tier data collected to run buy RI analysis";
-//                logger.error(failedMsg);
-//                responseObserver.onError(Status.FAILED_PRECONDITION.withDescription(failedMsg).asException());
-//            } else {
+            if (!computeTierDemandStatsStore.containsDataOverWeek()) {
+                String failedMsg = "Not enough compute tier data collected to run buy RI analysis";
+                logger.error(failedMsg);
+                responseObserver.onError(Status.FAILED_PRECONDITION.withDescription(failedMsg).asException());
+            } else {
                 logger.info("Executing buy RI algorithm for plan {}.", planId);
                 ReservedInstanceAnalysisScope reservedInstanceAnalysisScope =
                                 new ReservedInstanceAnalysisScope(request);
                 reservedInstanceAnalyzer.runRIAnalysisAndSendActions(planId, reservedInstanceAnalysisScope,
                                                                      ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
-           //}
+           }
         } catch (CommunicationException | InterruptedException e) {
             logger.error("Failed to send buy RI action plan to action orchestrator for plan {}", planId);
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());

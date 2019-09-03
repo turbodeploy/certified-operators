@@ -33,9 +33,6 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         TopologyListenerConfig.class})
 public class ReservedInstanceAnalysisConfig {
 
-    @Value("${realtimeTopologyContextId}")
-    private long realtimeTopologyContextId;
-
     @Autowired
     private ComputeTierDemandStatsConfig computeTierDemandStatsConfig;
 
@@ -82,8 +79,7 @@ public class ReservedInstanceAnalysisConfig {
                 topologyListenerConfig.cloudTopologyFactory(),
                 reservedInstanceActionsSenderConfig.actionSender(),
                 reservedInstanceConfig.buyReservedInstanceStore(),
-                reservedInstanceConfig.actionContextRIBuyStore(),
-                realtimeTopologyContextId);
+                reservedInstanceConfig.actionContextRIBuyStore());
     }
 
 }

@@ -76,11 +76,8 @@ public class ActionStoreConfig {
     @Value("${entityRetrievalMaxRetries:900}")
     private int entityRetrievalMaxRetries;
 
-    @Value("${actionExecution.concurrentAutomatedActions:5}")
+    @Value("${actionExecution.concurrentAutomatedActions:1}")
     private int concurrentAutomatedActions;
-
-    @Value("${realtimeTopologyContextId}")
-    private Long realtimeTopologyContextId;
 
     @Bean
     public IActionFactory actionFactory() {
@@ -138,8 +135,7 @@ public class ActionStoreConfig {
             actionFactory(),
             actionModeCalculator(),
             entitySettingsCache(),
-            actionTranslationConfig.actionTranslator(),
-            realtimeTopologyContextId);
+            actionTranslationConfig.actionTranslator());
     }
 
     @Bean
