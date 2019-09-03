@@ -4,6 +4,8 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.Assert;
@@ -22,6 +24,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityNewCapacityEntry;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
@@ -30,6 +37,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -44,7 +52,8 @@ public class ActionDescriptionBuilderTest {
     private ActionDTO.Action deactivateRecommendation;
     private ActionDTO.Action activateRecommendation;
     private ActionDTO.Action reconfigureRecommendation;
-    private ActionDTO.Action provisionRecommendation;
+    private ActionDTO.Action provisionBySupplyRecommendation;
+    private ActionDTO.Action provisionByDemandRecommendation;
     private ActionDTO.Action deleteRecommendation;
     private ActionDTO.Action buyRIRecommendation;
 
@@ -85,22 +94,49 @@ public class ActionDescriptionBuilderTest {
         activateRecommendation = makeRec(makeActivateInfo(VM1_ID), SupportLevel.SUPPORTED).build();
         reconfigureRecommendation = makeRec(makeReconfigureInfo(VM1_ID, PM_SOURCE_ID),
             SupportLevel.SUPPORTED).build();
-        provisionRecommendation = makeRec(makeProvisionInfo(ST_SOURCE_ID),
-            SupportLevel.SUPPORTED).build();
+        Explanation explanation1 = Explanation.newBuilder()
+            .setProvision(makeProvisionBySupplyExplanation()).build();
+        provisionBySupplyRecommendation = makeRec(makeProvisionInfo(ST_SOURCE_ID),
+            SupportLevel.SUPPORTED, explanation1).build();
+        Explanation explanation2 = Explanation.newBuilder()
+            .setProvision(makeProvisionByDemandExplanation()).build();
+        provisionByDemandRecommendation = makeRec(makeProvisionInfo(PM_SOURCE_ID),
+            SupportLevel.SUPPORTED, explanation2).build();
         deleteRecommendation = makeRec(makeDeleteInfo(ST_SOURCE_ID),
             SupportLevel.SUPPORTED).build();
         buyRIRecommendation = makeRec(makeBuyRIInfo(COMPUTE_TIER_ID,MASTER_ACCOUNT_ID,REGION_ID),
             SupportLevel.SUPPORTED).build();
     }
 
-    public static ActionDTO.Action.Builder makeRec(ActionInfo.Builder infoBuilder,
-                                             final SupportLevel supportLevel) {
+    /**
+     * Build an {@link ActionDTO.Action}.
+     *
+     * @param infoBuilder {@link ActionInfo.Builder}
+     * @param supportLevel {@link SupportLevel}
+     * @return {@link ActionDTO.Action.Builder}
+     */
+    private static ActionDTO.Action.Builder makeRec(final ActionInfo.Builder infoBuilder,
+                                                    final SupportLevel supportLevel) {
+        return makeRec(infoBuilder, supportLevel, Explanation.newBuilder().build());
+    }
+
+    /**
+     * Build an {@link ActionDTO.Action}.
+     *
+     * @param infoBuilder {@link ActionInfo.Builder}
+     * @param supportLevel {@link SupportLevel}
+     * @param explanation {@link Explanation}
+     * @return {@link ActionDTO.Action.Builder}
+     */
+    private static ActionDTO.Action.Builder makeRec(final ActionInfo.Builder infoBuilder,
+                                                    final SupportLevel supportLevel,
+                                                    final Explanation explanation) {
         return ActionDTO.Action.newBuilder()
-                .setId(IdentityGenerator.next())
-                .setDeprecatedImportance(0)
-                .setExecutable(true)
-                .setSupportingLevel(supportLevel)
-                .setInfo(infoBuilder).setExplanation(Explanation.newBuilder().build());
+            .setId(IdentityGenerator.next())
+            .setDeprecatedImportance(0)
+            .setExecutable(true)
+            .setSupportingLevel(supportLevel)
+            .setInfo(infoBuilder).setExplanation(explanation);
     }
 
     private ActionInfo.Builder makeResizeInfo(long targetId) {
@@ -196,6 +232,39 @@ public class ActionDescriptionBuilderTest {
                     .build())
                 .build())
             .build());
+    }
+
+    /**
+     * Create a {@link ProvisionBySupplyExplanation}.
+     *
+     * @return {@link ProvisionExplanation}
+     */
+    private ProvisionExplanation makeProvisionBySupplyExplanation() {
+        return ProvisionExplanation.newBuilder()
+            .setProvisionBySupplyExplanation(
+                ProvisionBySupplyExplanation.newBuilder()
+                    .setMostExpensiveCommodityInfo(ReasonCommodity.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder().setType(22)))
+                    .build())
+            .build();
+    }
+
+    /**
+     * Create a {@link ProvisionByDemandExplanation}
+     *
+     * @return {@link ProvisionExplanation}
+     */
+    private ProvisionExplanation makeProvisionByDemandExplanation() {
+        List<CommodityNewCapacityEntry> capacityPerType = new ArrayList<>();
+        capacityPerType.add(ProvisionByDemandExplanation.CommodityNewCapacityEntry.newBuilder()
+            .setCommodityBaseType(CommodityDTO.CommodityType.MEM_VALUE)
+            .setNewCapacity(10).build());
+        return ProvisionExplanation.newBuilder()
+            .setProvisionByDemandExplanation(ProvisionByDemandExplanation
+                .newBuilder().setBuyerId(VM1_ID)
+                .addAllCommodityNewCapacityEntry(capacityPerType)
+                .addAllCommodityMaxAmountAvailable(new ArrayList<>()).build())
+            .build();
     }
 
     public static Optional<ActionPartialEntity> createEntity(Long Oid, int entityType,
@@ -321,17 +390,41 @@ public class ActionDescriptionBuilderTest {
         Assert.assertEquals(description, "Start Virtual Machine vm1_test due to increased demand for resources");
     }
 
+    /**
+     * Test ProvisionBySupply action description.
+     */
     @Test
-    public void testBuildProvisionActionDescription() {
+    public void testBuildProvisionBySupplyActionDescription() {
         when(entitySettingsCache.getEntityFromOid(eq(ST_SOURCE_ID)))
-            .thenReturn((createEntity(ST_SOURCE_ID,
+            .thenReturn(createEntity(ST_SOURCE_ID,
                 EntityType.STORAGE.getNumber(),
-                ST_SOURCE_DISPLAY_NAME)));
+                ST_SOURCE_DISPLAY_NAME));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
-            entitySettingsCache, provisionRecommendation);
+            entitySettingsCache, provisionBySupplyRecommendation);
 
         Assert.assertEquals(description, "Provision Storage storage_source_test");
+    }
+
+    /**
+     * Test ProvisionByDemand action description.
+     */
+    @Test
+    public void testBuildProvisionByDemandActionDescription() {
+        when(entitySettingsCache.getEntityFromOid(eq(PM_SOURCE_ID)))
+            .thenReturn(createEntity(PM_SOURCE_ID,
+                EntityType.PHYSICAL_MACHINE.getNumber(),
+                PM_SOURCE_DISPLAY_NAME));
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
+            .thenReturn(createEntity(VM1_ID,
+                EntityType.VIRTUAL_MACHINE.getNumber(),
+                VM1_DISPLAY_NAME));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+            entitySettingsCache, provisionByDemandRecommendation);
+
+        Assert.assertEquals(description,
+            "Provision Physical Machine similar to pm_source_test with scaled up Mem due to vm1_test");
     }
 
     @Test

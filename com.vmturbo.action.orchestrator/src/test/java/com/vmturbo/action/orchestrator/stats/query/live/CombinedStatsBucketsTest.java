@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.stats.query.live;
 
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.getCommodityDisplayName;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -38,7 +39,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
@@ -397,8 +397,8 @@ public class CombinedStatsBucketsTest {
         assertThat(stats, containsInAnyOrder(
             CurrentActionStat.newBuilder()
                 .setStatGroup(StatGroup.newBuilder()
-                    .setActionExplanation(ClassicEnumMapper.getCommodityString(
-                        CommodityDTO.CommodityType.MEM) + " congestion"))
+                    .setActionExplanation(getCommodityDisplayName(TopologyDTO.CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.MEM_VALUE).build()) + " congestion"))
                 .setActionCount(2)
                 .setEntityCount(1)
                 .setSavings(0.0)
@@ -406,8 +406,8 @@ public class CombinedStatsBucketsTest {
                 .build(),
             CurrentActionStat.newBuilder()
                 .setStatGroup(StatGroup.newBuilder()
-                    .setActionExplanation(ClassicEnumMapper.getCommodityString(
-                        CommodityDTO.CommodityType.CPU) + " congestion"))
+                    .setActionExplanation(getCommodityDisplayName(TopologyDTO.CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.CPU_VALUE).build()) + " congestion"))
                 .setActionCount(1)
                 .setEntityCount(1)
                 .setSavings(0.0)

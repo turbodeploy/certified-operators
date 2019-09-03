@@ -43,6 +43,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -640,5 +643,46 @@ public class ActionDTOUtil {
      */
     public static String createTranslationBlock(long entityOid, @Nonnull String field, @Nonnull String defaultValue) {
         return "{entity:"+ entityOid +":"+ field +":"+ defaultValue +"}";
+    }
+
+    /**
+     * Convert a list of commodity type numbers to a comma-separated string of readable commodity names.
+     *
+     * Example: BALLOONING, SWAPPING, CPU_ALLOCATION -> Ballooning, Swapping, Cpu Allocation
+     *
+     * @param commodityTypes commodity types
+     * @return comma-separated string commodity types
+     */
+    public static String beautifyCommodityTypes(@Nonnull final List<TopologyDTO.CommodityType> commodityTypes) {
+        return commodityTypes.stream()
+            .map(ActionDTOUtil::getCommodityDisplayName)
+            .collect(Collectors.joining(", "));
+    }
+
+    /**
+     * Returns the entity type and entity name in a nicely formatted way separated by a space.
+     * e.g. <p>Virtual Machine vm-test-1</p>
+     *
+     * @param entityDTO {@link TopologyEntityDTO} entity object.
+     * @return The entity type and name separated by a space.
+     */
+    public static String beautifyEntityTypeAndName(@Nonnull final ActionPartialEntity entityDTO) {
+        return String.format("%s %s",
+            beautifyString(EntityType.forNumber(entityDTO.getEntityType()).name()),
+            entityDTO.getDisplayName()
+        );
+    }
+
+    /**
+     * Formats the given string by replacing underscores (if they exist) with spaces and returning
+     * the new string in "Title Case" format.
+     * e.g. VIRTUAL_MACHINE -> Virtual Machine.
+     * e.g. SUSPEND -> Suspend.
+     *
+     * @param str The string that will be formatted.
+     * @return The formatted string.
+     */
+    public static String beautifyString(@Nonnull final String str) {
+        return WordUtils.capitalize(str.replace("_"," ").toLowerCase());
     }
 }

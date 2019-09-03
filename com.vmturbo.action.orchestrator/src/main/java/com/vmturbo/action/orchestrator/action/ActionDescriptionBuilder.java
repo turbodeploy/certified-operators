@@ -1,8 +1,11 @@
 package com.vmturbo.action.orchestrator.action;
 
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyCommodityTypes;
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyEntityTypeAndName;
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyString;
+
 import java.text.MessageFormat;
 import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -11,7 +14,6 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang.WordUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -25,14 +27,16 @@ import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityNewCapacityEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.commons.Units;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -41,13 +45,19 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public class ActionDescriptionBuilder {
 
     private static final Logger logger = LogManager.getLogger();
-    private static final String ACTION_DESCRIPTION_PROVISION = "Provision {0}";
-    private static final String ACTION_DESCRIPTION_ACTIVATE = "Start {0} due to increased demand for resources";
+    private static final String ACTION_DESCRIPTION_PROVISION_BY_SUPPLY = "Provision {0}";
+    private static final String ACTION_DESCRIPTION_PROVISION_BY_DEMAND =
+        "Provision {0} similar to {1} with scaled up {2} due to {3}";
+    private static final String ACTION_DESCRIPTION_ACTIVATE =
+        "Start {0} due to increased demand for resources";
     private static final String ACTION_DESCRIPTION_DEACTIVATE = "{0} {1}";
-    private static final String ACTION_DESCRIPTION_DELETE = "Delete wasted file ''{0}'' from {1} to free up {2}";
-    private static final String ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT = "Remove {0} limit on entity {1}";
+    private static final String ACTION_DESCRIPTION_DELETE =
+        "Delete wasted file ''{0}'' from {1} to free up {2}";
+    private static final String ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT =
+        "Remove {0} limit on entity {1}";
     private static final String ACTION_DESCRIPTION_RESIZE = "Resize {0} {1} for {2} from {3} to {4}";
-    private static final String ACTION_DESCRIPTION_RECONFIGURE_WITH_SOURCE = "Reconfigure {0} which requires {1} but is hosted by {2} which does not provide {1}";
+    private static final String ACTION_DESCRIPTION_RECONFIGURE_WITH_SOURCE =
+        "Reconfigure {0} which requires {1} but is hosted by {2} which does not provide {1}";
     private static final String ACTION_DESCRIPTION_RECONFIGURE = "Reconfigure {0} as it is unplaced";
     private static final String ACTION_DESCRIPTION_MOVE_WITHOUT_SOURCE = "Start {0} on {1}";
     private static final String ACTION_DESCRIPTION_MOVE = "{0} {1}{2} from {3} to {4}";
@@ -58,7 +68,8 @@ public class ActionDescriptionBuilder {
     private static final String DOWN = "down";
     private static final String OF = " of ";
     private static final String DEFAULT_ERROR_MSG = "Unsupported action type ";
-    private static final String ENTITY_NOT_FOUND_WARN_MSG = "Entity {0} doesn't exist in the entities snapshot";
+    private static final String ENTITY_NOT_FOUND_WARN_MSG =
+        "Entity {0} doesn't exist in the entities snapshot";
 
     // Commodities in actions mapped to their default units.
     // For example, vMem commodity has its default capacity unit as KB.
@@ -286,19 +297,43 @@ public class ActionDescriptionBuilder {
      * Builds the Provision action description. This is intended to be called by
      * {@link ActionDescriptionBuilder#buildActionDescription(EntitiesAndSettingsSnapshot, ActionDTO.Action)}
      *
+     * e.g. ProvisionBySupply action description:
+     *      Provision Storage storage_source_test
+     * e.g. ProvisionByDemand action description:
+     *      Provision Physical Machine similar to pm_source_test with scaled up Mem due to vm1_test
+     *
      * @param entitiesSnapshot {@link EntitiesAndSettingsSnapshot} object that contains entities
      * information.
      * @return The Provision action description.
      */
     private static String getProvisionActionDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
-                                                    @Nonnull final ActionDTO.Action recommendation)  {
+                                                        @Nonnull final ActionDTO.Action recommendation) {
         long entityId = recommendation.getInfo().getProvision().getEntityToClone().getId();
         if (!entitiesSnapshot.getEntityFromOid(entityId).isPresent()) {
             logger.debug(MessageFormat.format(ENTITY_NOT_FOUND_WARN_MSG, entityId));
             return "";
         }
-        return MessageFormat.format(ACTION_DESCRIPTION_PROVISION,
-            beautifyEntityTypeAndName(entitiesSnapshot.getEntityFromOid(entityId).get()));
+
+        final ProvisionExplanation explanation = recommendation.getExplanation().getProvision();
+        final ActionPartialEntity entityDTO = entitiesSnapshot.getEntityFromOid(entityId).get();
+        if (explanation.getProvisionExplanationTypeCase().getNumber() ==
+                        ProvisionExplanation.PROVISION_BY_SUPPLY_EXPLANATION_FIELD_NUMBER) {
+            return MessageFormat.format(ACTION_DESCRIPTION_PROVISION_BY_SUPPLY,
+                beautifyEntityTypeAndName(entityDTO));
+        } else {
+            final ProvisionByDemandExplanation provisionByDemandExplanation =
+                explanation.getProvisionByDemandExplanation();
+            return MessageFormat.format(ACTION_DESCRIPTION_PROVISION_BY_DEMAND,
+                beautifyString(EntityType.forNumber(entityDTO.getEntityType()).name()),
+                entityDTO.getDisplayName(),
+                // Beautify all reason commodities.
+                beautifyCommodityTypes(provisionByDemandExplanation.getCommodityNewCapacityEntryList()
+                    .stream().map(CommodityNewCapacityEntry::getCommodityBaseType)
+                    .map(baseType -> TopologyDTO.CommodityType.newBuilder().setType(baseType).build())
+                    .collect(Collectors.toList())),
+                entitiesSnapshot.getEntityFromOid(provisionByDemandExplanation.getBuyerId())
+                    .map(ActionPartialEntity::getDisplayName).orElse("high demand"));
+        }
     }
 
     /**
@@ -310,7 +345,7 @@ public class ActionDescriptionBuilder {
      * @return The Delete action description.
      */
     private static String getDeleteActionDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
-                                                        @Nonnull final ActionDTO.Action recommendation)  {
+                                                     @Nonnull final ActionDTO.Action recommendation) {
         // TODO need to give savings in terms of cost instead of file size for Cloud entities
         String deleteFilePath = recommendation.getInfo().getDelete().getFilePath();
         long entityId = recommendation.getInfo().getDelete().getTarget().getId();
@@ -384,46 +419,5 @@ public class ActionDescriptionBuilder {
         } else {
             return MessageFormat.format("{0}", capacity);
         }
-    }
-
-    /**
-     * Convert a list of commodity type numbers to a comma-separated string of readable commodity names.
-     *
-     * Example: BALLOONING, SWAPPING, CPU_ALLOCATION -> Ballooning, Swapping, Cpu Allocation
-     *
-     * @param commodityTypes commodity types
-     * @return comma-separated string commodity types
-     */
-    private static String beautifyCommodityTypes(@Nonnull final List<CommodityType> commodityTypes) {
-        return commodityTypes.stream()
-            .map(commodityType -> ActionDTOUtil.getCommodityDisplayName(commodityType))
-            .collect(Collectors.joining(", "));
-    }
-
-    /**
-     * Returns the entity type and entity name in a nicely formatted way separated by a space.
-     * e.g. <p>Virtual Machine vm-test-1</p>
-     *
-     * @param entityDTO {@link TopologyEntityDTO} entity object.
-     * @return The entity type and name separated by a space.
-     */
-    private static String beautifyEntityTypeAndName(@Nonnull final ActionPartialEntity entityDTO) {
-        return String.format("%s %s",
-            beautifyString(EntityType.forNumber(entityDTO.getEntityType()).name()),
-            entityDTO.getDisplayName()
-        );
-    }
-
-    /**
-     * Formats the given string by replacing underscores (if they exist) with spaces and returning
-     * the new string in "Title Case" format.
-     * e.g. VIRTUAL_MACHINE -> Virtual Machine.
-     * e.g. SUSPEND -> Suspend.
-     *
-     * @param str The string that will be formatted.
-     * @return The formatted string.
-     */
-    private static String beautifyString(@Nonnull final String str) {
-        return WordUtils.capitalize(str.replace("_"," ").toLowerCase());
     }
 }

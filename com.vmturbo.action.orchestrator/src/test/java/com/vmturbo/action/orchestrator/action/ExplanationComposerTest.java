@@ -4,6 +4,10 @@ import static com.vmturbo.common.protobuf.action.ActionDTOUtil.COMMODITY_KEY_SEP
 import static org.junit.Assert.assertEquals;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
+import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -243,7 +247,7 @@ public class ExplanationComposerTest {
     }
 
     @Test
-    public void testProvisionExplanation() {
+    public void testProvisionBySupplyExplanation() {
         ActionDTO.Action provision = ActionDTO.Action.newBuilder()
                 .setId(0).setInfo(ActionInfo.getDefaultInstance()).setDeprecatedImportance(0)
                 .setExplanation(Explanation.newBuilder()
@@ -257,6 +261,28 @@ public class ExplanationComposerTest {
 
         assertEquals("Mem congestion", ExplanationComposer.composeExplanation(provision));
         assertEquals("Mem congestion", ExplanationComposer.shortExplanation(provision));
+    }
+
+    @Test
+    public void testProvisionByDemandExplanation() {
+        ActionDTO.Action provision = ActionDTO.Action.newBuilder()
+            .setId(0).setDeprecatedImportance(0).setInfo(ActionInfo.newBuilder().setProvision(
+                Provision.newBuilder().setEntityToClone(
+                    ActionEntity.newBuilder().setId(1).setType(EntityType.PHYSICAL_MACHINE_VALUE))))
+            .setDeprecatedImportance(0)
+            .setExplanation(Explanation.newBuilder()
+                .setProvision(ProvisionExplanation.newBuilder()
+                    .setProvisionByDemandExplanation(ProvisionByDemandExplanation.newBuilder().setBuyerId(2)
+                        .addCommodityMaxAmountAvailable(CommodityMaxAmountAvailableEntry.newBuilder()
+                            .setCommodityBaseType(40).setMaxAmountAvailable(0).setRequestedAmount(0))
+                        .addCommodityMaxAmountAvailable(CommodityMaxAmountAvailableEntry.newBuilder()
+                            .setCommodityBaseType(21).setMaxAmountAvailable(0).setRequestedAmount(0)))))
+            .build();
+
+        assertEquals("(^_^)~Cpu, Mem congestion in '{entity:1:displayName:Physical Machine}'",
+            ExplanationComposer.composeExplanation(provision));
+        assertEquals("Cpu, Mem congestion",
+            ExplanationComposer.shortExplanation(provision));
     }
 
     @Test

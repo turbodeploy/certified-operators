@@ -1,5 +1,8 @@
 package com.vmturbo.action.orchestrator.action;
 
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyCommodityTypes;
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.getCommodityDisplayName;
+
 import java.text.MessageFormat;
 import java.util.Collection;
 import java.util.List;
@@ -56,8 +59,6 @@ public class ExplanationComposer {
     public static final String DEACTIVATE_EXPLANATION = "Improve infrastructure efficiency";
     public static final String RECONFIGURE_EXPLANATION =
         "Enable supplier to offer requested resource(s) ";
-    public static final String PROVISION_BY_DEMAND_EXPLANATION =
-        "No current supplier has enough capacity to satisfy demand for ";
     public static final String ACTION_TYPE_ERROR =
         "Can not give a proper explanation as action type is not defined";
     public static final String INCREASE_RI_UTILIZATION =
@@ -149,11 +150,13 @@ public class ExplanationComposer {
                     case PROVISION_BY_DEMAND_EXPLANATION:
                         return buildProvisionByDemandExplanation(
                             provExp.getProvisionByDemandExplanation()
-                                .getCommodityMaxAmountAvailableList(), keepItShort);
+                                .getCommodityMaxAmountAvailableList(),
+                            action.getInfo().getProvision().getEntityToClone(),
+                            keepItShort);
                     case PROVISION_BY_SUPPLY_EXPLANATION:
                         return buildProvisionBySupplyExplanation(provExp
                             .getProvisionBySupplyExplanation()
-                            .getMostExpensiveCommodityInfo().getCommodityType().getType());
+                            .getMostExpensiveCommodityInfo().getCommodityType());
                     default:
                         return ACTION_TYPE_ERROR;
                 }
@@ -232,7 +235,7 @@ public class ExplanationComposer {
         if (keepItShort) {
             return UICommodityType.fromType(commType).apiStr();
         } else {
-            return ActionDTOUtil.getCommodityDisplayName(commType);
+            return getCommodityDisplayName(commType);
         }
     }
 
@@ -483,52 +486,35 @@ public class ExplanationComposer {
     }
 
     /**
-     * Build provision explanation for addressing high demand. This looks like:
-     *
-     * "No current supplier has enough capacity to satisfy demand for [{commodity name} whose requested
-     * amount is {request amount} but max available is {max available}]" (where the bracketed
-     * section is repeated once per commodity in demand)
+     * Build provision explanation for addressing high demand.
+     * e.g. Cpu, Mem congestion in 'pm_test'
      *
      * @param entries a list of entries containing commodity base type, the requested amount of
      * it and the max available amount of it.
+     * @param entity entity to clone
+     * @param keepItShort compose a short explanation if true
      * @return explanation
      */
-    public static String buildProvisionByDemandExplanation(List<CommodityMaxAmountAvailableEntry> entries,
-                                                           final boolean keepItShort) {
-        StringBuilder sb = new StringBuilder().append(PROVISION_BY_DEMAND_EXPLANATION);
-        entries.forEach(entry -> {
-            sb.append(UICommodityType.fromType(entry.getCommodityBaseType()).apiStr());
-            if (!keepItShort) {
-                String unit =
-                    CommodityMetadata.COMMODITY_UNITS.get(UICommodityType.fromType(entry.getCommodityBaseType()).sdkType());
-
-                sb.append(" ")
-                    .append(" whose requested amount is ")
-                    .append(entry.getRequestedAmount())
-                    .append(" ")
-                    .append(unit)
-                    .append(" but max available is ")
-                    .append(entry.getMaxAmountAvailable())
-                    .append(" ")
-                    .append(unit)
-                    .append(" ");
-            }
-        });
-        return sb.toString();
+    private static String buildProvisionByDemandExplanation(
+                @Nonnull final List<CommodityMaxAmountAvailableEntry> entries,
+                @Nonnull final ActionEntity entity,
+                final boolean keepItShort) {
+        return (keepItShort ? "" : ActionDTOUtil.TRANSLATION_PREFIX) +
+            beautifyCommodityTypes(entries.stream().map(CommodityMaxAmountAvailableEntry::getCommodityBaseType)
+                .map(baseType -> CommodityType.newBuilder().setType(baseType).build())
+                .collect(Collectors.toList())) +
+            " congestion" +
+            (keepItShort ? "" : " in '" + buildEntityNameOrType(entity) + "'");
     }
-
 
     /**
-     * Build provision explanation for addressing high utilization, e.g. "{commodity type} congestion"
+     * Build provision explanation for addressing high utilization.
+     * e.g. Storage Latency congestion
      *
-     * @param commodity the most expensive commodity base type
+     * @param commodity the most expensive commodity
      * @return explanation
      */
-    public static String buildProvisionBySupplyExplanation(int commodity) {
-        return new StringBuilder()
-                .append(UICommodityType.fromType(commodity).apiStr())
-                .append(" congestion")
-                .toString();
+    private static String buildProvisionBySupplyExplanation(@Nonnull final CommodityType commodity) {
+        return getCommodityDisplayName(commodity) + " congestion";
     }
-
 }
