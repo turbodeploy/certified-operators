@@ -147,10 +147,32 @@ public class TopologyEntityUtils {
                                                         long lastUpdatedTime,
                                                         EntityType entityType,
                                                         long... producers) {
+        return topologyEntity(oid, discoveringTargetId, lastUpdatedTime, "", entityType, producers);
+    }
+
+    /**
+     * Create a minimal topology entity builder.
+     *
+     * @param oid The OID of the topology entity.
+     * @param discoveringTargetId The ID of the target that discovered the entity.
+     * @param lastUpdatedTime last updated time of the topology entity.
+     * @param displayName topology entity display name.
+     * @param entityType The entity type for the entity.
+     * @param producers The OIDs of the producers that the created entity should be consuming from.
+     *                  Does not actually associate any commodities with the producers.
+     * @return A {@link TopologyEntityDTO} with the given properties.
+     */
+    public static TopologyEntity.Builder topologyEntity(long oid,
+                                                        long discoveringTargetId,
+                                                        long lastUpdatedTime,
+                                                        String displayName,
+                                                        EntityType entityType,
+                                                        long... producers) {
         final TopologyEntity.Builder builder = TopologyEntity.newBuilder(
             TopologyEntityDTO.newBuilder()
                 .setOid(oid)
                 .setEntityType(entityType.getNumber())
+                .setDisplayName(displayName)
                 .setOrigin(Origin.newBuilder()
                     .setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(discoveringTargetId)
                         .lastUpdatedAt(lastUpdatedTime))));
@@ -158,6 +180,7 @@ public class TopologyEntityUtils {
         addCommodityBoughtMap(builder.getEntityBuilder(), producers);
         return builder;
     }
+
 
     /**
      * Create a minimal topology entity builder.
@@ -175,10 +198,32 @@ public class TopologyEntityUtils {
                                                                  long lastUpdatedTime,
                                                                  EntityType entityType,
                                                                  long... connectedToEntities) {
+        return connectedTopologyEntity(oid, discoveringTargetId, lastUpdatedTime, "", entityType, connectedToEntities);
+    }
+
+    /**
+     * Create a minimal topology entity builder.
+     *
+     * @param oid The OID of the topology entity.
+     * @param discoveringTargetId The ID of the target that discovered the entity.
+     * @param lastUpdatedTime last updated time of the topology entity
+     * @param displayName topology entity display name.
+     * @param entityType The entity type for the entity.
+     * @param connectedToEntities The OIDs of the entities that the created entity should be
+     *                            connected to in the topology
+     * @return A {@link TopologyEntityDTO} with the given properties.
+     */
+    public static TopologyEntity.Builder connectedTopologyEntity(long oid,
+                                                                 long discoveringTargetId,
+                                                                 long lastUpdatedTime,
+                                                                 String displayName,
+                                                                 EntityType entityType,
+                                                                 long... connectedToEntities) {
         final TopologyEntity.Builder builder = TopologyEntity.newBuilder(
             TopologyEntityDTO.newBuilder()
                 .setOid(oid)
                 .setEntityType(entityType.getNumber())
+                .setDisplayName(displayName)
                 .setOrigin(Origin.newBuilder()
                     .setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(discoveringTargetId)
                         .lastUpdatedAt(lastUpdatedTime))));

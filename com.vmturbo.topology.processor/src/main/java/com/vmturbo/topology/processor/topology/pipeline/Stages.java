@@ -587,7 +587,7 @@ public class Stages {
         @Override
         public Status passthrough(final TopologyGraph<TopologyEntity> input) throws PipelineStageException {
             // if no scope to apply, this function does nothing.
-            if (planScope.getScopeEntriesCount() == 0) {
+            if (planScope == null || planScope.getScopeEntriesCount() == 0) {
                 return Status.success("No scope to apply.");
             }
             // translate the set of groups and entities in the plan scope into a list of "seed"
@@ -596,8 +596,8 @@ public class Stages {
             // entities belonging to groups that are in scope.
 
             // initialize the set with any existing seed oids
-            Set<Long> seedEntities = new HashSet(getContext().getTopologyInfo().getScopeSeedOidsList());
-            Set<Long> groupsToResolve = new HashSet();
+            final Set<Long> seedEntities = new HashSet<>(getContext().getTopologyInfo().getScopeSeedOidsList());
+            final Set<Long> groupsToResolve = new HashSet<>();
             for (PlanScopeEntry scopeEntry : planScope.getScopeEntriesList()) {
                 // if it's an entity, add it right to the seed entity list. Otherwise queue it for
                 // group resolution.
