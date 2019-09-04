@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.topology;
 
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.buildTopologyEntityWithCommBought;
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.buildTopologyEntityWithCommSold;
 import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
@@ -102,32 +104,6 @@ public class ConstraintsEditorTest {
                                                 .setActive(true)
                                 ).build()
                 ));
-    }
-
-    private TopologyEntity.Builder buildTopologyEntityWithCommBought(long oid, int commType, int entityType, long provider) {
-        return TopologyEntityUtils.topologyEntityBuilder(
-                    TopologyEntityDTO.newBuilder().setOid(oid).addCommoditiesBoughtFromProviders(
-                        CommoditiesBoughtFromProvider.newBuilder().addCommodityBought(
-                            CommodityBoughtDTO.newBuilder().setCommodityType(
-                                CommodityType.newBuilder().setType(commType).setKey("").build())
-                            .setActive(true))
-                        .setProviderId(provider))
-                    .setEntityType(entityType));
-    }
-
-    private TopologyEntity.Builder buildTopologyEntityWithCommSold(long oid, int commType, int entityType) {
-        final ImmutableList.Builder<CommoditySoldDTO> commSoldList =
-                        ImmutableList.builder();
-        commSoldList.add(
-            CommoditySoldDTO.newBuilder()
-                .setCommodityType(CommodityType.newBuilder()
-                    .setType(commType).setKey("").build())
-                .setActive(true)
-                .build());
-        return TopologyEntityUtils.topologyEntityBuilder(
-                        TopologyEntityDTO.newBuilder().setOid(oid)
-                        .addAllCommoditySoldList(commSoldList.build())
-                        .setEntityType(entityType));
     }
 
     @Test

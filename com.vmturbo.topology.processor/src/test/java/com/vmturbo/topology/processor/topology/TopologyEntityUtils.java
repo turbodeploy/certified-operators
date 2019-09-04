@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.topology;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -8,10 +9,14 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -310,5 +315,81 @@ public class TopologyEntityUtils {
                 .setProviderId(producer)
                 .build());
         }
+    }
+
+    static TopologyEntity.Builder buildTopologyEntityWithCommBought(
+            long oid, int commType, int entityType, long provider) {
+        return buildTopologyEntityWithCommBought(oid, commType, entityType, provider, 0, 0, 0, 0);
+    }
+
+    static TopologyEntity.Builder buildTopologyEntityWithCommBought(
+        long oid, int commType, int entityType, long provider, double used, double peak) {
+        return buildTopologyEntityWithCommBought(oid, commType, entityType, provider, used, peak, 0, 0);
+    }
+
+    static TopologyEntity.Builder buildTopologyEntityWithCommBought(
+            long oid, int commType, int entityType, long provider,
+            double used, double peak, double historicalUsed, double historicalPeak) {
+        CommoditiesBoughtFromProvider.Builder commFromProvider =
+            CommoditiesBoughtFromProvider.newBuilder().addCommodityBought(
+                CommodityBoughtDTO.newBuilder().setCommodityType(
+                    CommodityType.newBuilder().setType(commType).setKey("").build())
+                    .setActive(true)
+                    .setUsed(used)
+                    .setPeak(peak)
+                    .setHistoricalUsed(HistoricalValues.newBuilder().setHistUtilization(historicalUsed))
+                    .setHistoricalPeak(HistoricalValues.newBuilder().setHistUtilization(historicalPeak))
+                    .setHistoricalUsed(HistoricalValues.newBuilder().setSystemLoad(historicalUsed))
+                    .setHistoricalPeak(HistoricalValues.newBuilder().setSystemLoad(historicalPeak)))
+                .setProviderId(provider);
+
+        return TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder().setOid(oid)
+            .addCommoditiesBoughtFromProviders(commFromProvider)
+            .setEntityType(entityType));
+    }
+
+    static TopologyEntity.Builder buildTopologyEntityWithCommSold(
+            long oid, int commType, int entityType) {
+        return buildTopologyEntityWithCommSold(oid, commType, entityType, 0, 0, 0, 0);
+    }
+
+    static TopologyEntity.Builder buildTopologyEntityWithCommSold(
+        long oid, int commType, int entityType, double used, double peak) {
+        return buildTopologyEntityWithCommSold(oid, commType, entityType, used, peak, 0, 0);
+    }
+
+    static TopologyEntity.Builder buildTopologyEntityWithCommSold(
+            long oid, int commType, int entityType,
+            double used, double peak, double historicalUsed, double historicalPeak) {
+        final ImmutableList.Builder<CommoditySoldDTO> commSoldList = ImmutableList.builder();
+        commSoldList.add(CommoditySoldDTO.newBuilder().setCommodityType(
+            CommodityType.newBuilder().setType(commType).setKey("").build())
+            .setActive(true)
+            .setUsed(used)
+            .setPeak(peak)
+            .setHistoricalUsed(HistoricalValues.newBuilder().setHistUtilization(historicalUsed))
+            .setHistoricalPeak(HistoricalValues.newBuilder().setHistUtilization(historicalPeak))
+            .setHistoricalUsed(HistoricalValues.newBuilder().setSystemLoad(historicalUsed))
+            .setHistoricalPeak(HistoricalValues.newBuilder().setSystemLoad(historicalPeak))
+            .build());
+
+        return TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder().setOid(oid)
+            .addAllCommoditySoldList(commSoldList.build())
+            .setEntityType(entityType));
+    }
+
+    static TopologyGraph<TopologyEntity> createGraph(CommodityDTO.CommodityType commType,
+             double pmUsed, double pmPeak, double vmUsed, double vmPeak) {
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
+
+        // Set physical machine with commodities sold.
+        topology.put(1L, buildTopologyEntityWithCommSold(1L, commType.getNumber(),
+            EntityType.PHYSICAL_MACHINE_VALUE, pmUsed, pmPeak));
+
+        // Set virtual machine with commodities bought.
+        topology.put(2L, buildTopologyEntityWithCommBought(2L, commType.getNumber(),
+            EntityType.VIRTUAL_MACHINE_VALUE, 1L, vmUsed, vmPeak));
+
+        return TopologyEntityTopologyGraphCreator.newGraph(topology);
     }
 }

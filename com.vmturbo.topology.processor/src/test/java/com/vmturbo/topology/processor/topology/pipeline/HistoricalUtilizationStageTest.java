@@ -1,5 +1,8 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -15,12 +18,14 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -52,6 +57,7 @@ public class HistoricalUtilizationStageTest {
     private HistoricalUtilizationDatabase historicalUtilizationDatabase;
     private HistoricalUtilizationStage historicalUtilizationStage;
     private TopologyGraph<TopologyEntity> topologyGraph;
+    private final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
 
     /**
      * Objects initialization necessary for a unit test.
@@ -127,6 +133,8 @@ public class HistoricalUtilizationStageTest {
     @Test
     public void testProcessCommodityBoughtListForCloudAndOnPremEntities()
             throws PipelineStageException {
+        when(context.getTopologyInfo()).thenReturn(TopologyInfo.newBuilder().build());
+        ReflectionTestUtils.setField(historicalUtilizationStage, "context", context);
         historicalUtilizationStage.passthrough(topologyGraph);
 
         final ArgumentCaptor<HistoricalInfo> captor = ArgumentCaptor.forClass(HistoricalInfo.class);

@@ -1277,13 +1277,21 @@ public class Stages {
 
         private final HistoricalEditor historicalEditor;
 
-        public HistoricalUtilizationStage(@Nonnull HistoricalEditor historicalEditor) {
+        private final List<ScenarioChange> changes;
+
+        public HistoricalUtilizationStage(@Nonnull final HistoricalEditor historicalEditor) {
+            this(historicalEditor, Collections.emptyList());
+        }
+
+        public HistoricalUtilizationStage(@Nonnull final HistoricalEditor historicalEditor,
+                                          @Nonnull final List<ScenarioChange> changes) {
             this.historicalEditor = Objects.requireNonNull(historicalEditor);
+            this.changes = Objects.requireNonNull(changes);
         }
 
         @Override
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
-            historicalEditor.applyCommodityEdits(graph);
+            historicalEditor.applyCommodityEdits(graph, changes, getContext().getTopologyInfo());
             return Status.success();
         }
     }

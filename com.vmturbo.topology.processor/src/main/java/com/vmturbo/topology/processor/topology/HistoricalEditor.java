@@ -16,12 +16,16 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.collect.ImmutableSet;
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.topology.HistoricalInfo.HistoricalInfoDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -134,9 +138,19 @@ public class HistoricalEditor {
      * This method calculates the used and peak values for all the commodities
      * considering the values read from mediation and the historical values from
      * the previous cycle.
+     *
      * @param graph The topology graph which contains all the SEs
+     * @param changes to iterate over and find relevant changes (e.g baseline change)
+     * @param topologyInfo to identify if it is a cluster headroom plan
      */
-    public void applyCommodityEdits(@Nonnull final TopologyGraph<TopologyEntity> graph) {
+    public void applyCommodityEdits(@Nonnull final TopologyGraph<TopologyEntity> graph,
+                                    @Nonnull final List<ScenarioChange> changes,
+                                    @Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
+        // Don't allow historical editor to update commodities for headroom or historicalBaseline plan.
+        if (TopologyDTOUtil.isPlanType(PlanProjectType.CLUSTER_HEADROOM, topologyInfo) ||
+            changes.stream().anyMatch(change -> change.getPlanChanges().hasHistoricalBaseline())) {
+            return;
+        }
 
         Stream<TopologyEntity> entities = graph.entities();
         Iterable<TopologyEntity> entitiesIterable = entities::iterator;

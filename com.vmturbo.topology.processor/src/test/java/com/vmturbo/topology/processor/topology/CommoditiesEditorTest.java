@@ -1,5 +1,8 @@
 package com.vmturbo.topology.processor.topology;
 
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.buildTopologyEntityWithCommSold;
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.createGraph;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -13,7 +16,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
@@ -27,14 +29,12 @@ import com.vmturbo.common.protobuf.stats.Stats.MultiSystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
-import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -77,54 +77,6 @@ public class CommoditiesEditorTest {
         return TopologyDTO.TopologyInfo.newBuilder().addAllScopeSeedOids(oids).build();
     }
 
-    private TopologyGraph<TopologyEntity> createGraph(CommodityDTO.CommodityType commType) {
-        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
-
-        // Set physical machine with commodities sold.
-        topology.put(1L, buildTopologyEntityWithCommSold(1L, commType.getNumber(),
-                        EntityType.PHYSICAL_MACHINE_VALUE));
-
-        // Set virtual machine with commodities bought.
-        topology.put(2L, buildTopologyEntityWithCommBought(2L, commType.getNumber(),
-                        EntityType.VIRTUAL_MACHINE_VALUE, 1L));
-
-
-        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
-        return graph;
-    }
-
-    private TopologyEntity.Builder buildTopologyEntityWithCommBought(long oid, int commType, int entityType, long provider) {
-
-        CommoditiesBoughtFromProvider.Builder commFromProvider = CommoditiesBoughtFromProvider.newBuilder().addCommodityBought(
-            CommodityBoughtDTO.newBuilder().setCommodityType(
-                CommodityType.newBuilder().setType(commType).setKey("").build())
-            .setActive(true)
-            .setUsed(10)
-            .setPeak(20))
-        .setProviderId(provider);
-
-        return TopologyEntityUtils.topologyEntityBuilder(
-                    TopologyEntityDTO.newBuilder().setOid(oid).addCommoditiesBoughtFromProviders(commFromProvider)
-                    .setEntityType(entityType));
-    }
-
-    private TopologyEntity.Builder buildTopologyEntityWithCommSold(long oid, int commType, int entityType) {
-        final ImmutableList.Builder<CommoditySoldDTO> commSoldList =
-                        ImmutableList.builder();
-        commSoldList.add(
-            CommoditySoldDTO.newBuilder()
-                .setCommodityType(CommodityType.newBuilder()
-                    .setType(commType).setKey("").build())
-                .setActive(true)
-                .setUsed(70)
-                .setPeak(80)
-                .build());
-        return TopologyEntityUtils.topologyEntityBuilder(
-                        TopologyEntityDTO.newBuilder().setOid(oid)
-                        .addAllCommoditySoldList(commSoldList.build())
-                        .setEntityType(entityType));
-    }
-
     private EntityStats getEntityStats(long entityOid, String providerOid, float peak, float used, String commodityName) {
         return EntityStats.newBuilder().setOid(entityOid).addStatSnapshots(
             StatSnapshot.newBuilder().addStatRecords(
@@ -141,7 +93,7 @@ public class CommoditiesEditorTest {
         // Get graph
         // Sets value for VM(Used :10 , Peak : 20)
         // Sets value for PM(Used : 70, Peak : 80)
-        TopologyGraph<TopologyEntity> g = createGraph(CommodityDTO.CommodityType.MEM);
+        TopologyGraph<TopologyEntity> g = createGraph(CommodityDTO.CommodityType.MEM, 70, 80, 10, 20);
 
         TopologyEntity pm = g.getEntity(1L).get();
         TopologyEntity vm = g.getEntity(2L).get();
@@ -198,7 +150,7 @@ public class CommoditiesEditorTest {
         // Get graph
         // Sets value for VM(Used :10 , Peak : 20)
         // Sets value for PM(Used : 70, Peak : 80)
-        TopologyGraph<TopologyEntity> g = createGraph(CommodityDTO.CommodityType.MEM);
+        TopologyGraph<TopologyEntity> g = createGraph(CommodityDTO.CommodityType.MEM, 70, 80, 10, 20);
 
         TopologyEntity pm = g.getEntity(1L).get();
         TopologyEntity vm = g.getEntity(2L).get();
@@ -274,9 +226,9 @@ public class CommoditiesEditorTest {
 
         // Set two storages with commodities sold.
         topology.put(1L, buildTopologyEntityWithCommSold(1L, CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber(),
-                        EntityType.STORAGE_VALUE));
+                        EntityType.STORAGE_VALUE, 70, 80));
         topology.put(2L, buildTopologyEntityWithCommSold(2L, CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber(),
-                        EntityType.STORAGE_VALUE));
+                        EntityType.STORAGE_VALUE, 70, 80));
         topology.put(3L, vmBuilder);
 
         final TopologyGraph<TopologyEntity> g = TopologyEntityTopologyGraphCreator.newGraph(topology);
@@ -355,7 +307,7 @@ public class CommoditiesEditorTest {
         // Get graph
         // Sets value for VM(Used :10 , Peak : 20)
         // Sets value for PM(Used : 70, Peak : 80)
-        TopologyGraph<TopologyEntity> g = createGraph(CommodityDTO.CommodityType.STORAGE_ACCESS);
+        TopologyGraph<TopologyEntity> g = createGraph(CommodityDTO.CommodityType.STORAGE_ACCESS, 70, 80, 10, 20);
 
         TopologyEntity pm = g.getEntity(1L).get();
         TopologyEntity vm = g.getEntity(2L).get();
@@ -409,7 +361,7 @@ public class CommoditiesEditorTest {
         // Get graph
         // Sets value for VM(Used :10 , Peak : 20)
         // Sets value for PM(Used : 70, Peak : 80)
-        TopologyGraph<TopologyEntity> g = createGraph(CommodityDTO.CommodityType.MEM);
+        TopologyGraph<TopologyEntity> g = createGraph(CommodityDTO.CommodityType.MEM, 70, 80, 10, 20);
 
         TopologyEntity pm = g.getEntity(1L).get();
         TopologyEntity vm = g.getEntity(2L).get();
@@ -472,7 +424,7 @@ public class CommoditiesEditorTest {
         // Get graph
         // Sets value for VM(Used :10 , Peak : 20)
         // Sets value for PM(Used : 70, Peak : 80)
-        TopologyGraph<TopologyEntity> g = createGraph(CommodityDTO.CommodityType.MEM);
+        TopologyGraph<TopologyEntity> g = createGraph(CommodityDTO.CommodityType.MEM, 70, 80, 10, 20);
 
         TopologyEntity pm = g.getEntity(1L).get();
         TopologyEntity vm = g.getEntity(2L).get();
@@ -540,7 +492,7 @@ public class CommoditiesEditorTest {
         // Set virtual machine with commodities sold.
         // Sets commodity value as - Used : 70, Peak : 80
         topology.put(1L, buildTopologyEntityWithCommSold(1L, CommodityDTO.CommodityType.VMEM.getNumber(),
-                        EntityType.VIRTUAL_MACHINE_VALUE));
+                        EntityType.VIRTUAL_MACHINE_VALUE, 70, 80));
         final TopologyGraph<TopologyEntity> g = TopologyEntityTopologyGraphCreator.newGraph(topology);
         // Check values before calling CommoditiesEditor.
         // Compare used

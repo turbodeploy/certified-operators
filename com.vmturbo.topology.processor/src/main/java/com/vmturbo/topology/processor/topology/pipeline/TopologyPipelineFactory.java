@@ -312,7 +312,7 @@ public class TopologyPipelineFactory {
                 .addStage(new EntityValidationStage(entityValidator))
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new PlanScopingStage(planTopologyScopeEditor, scope, searchResolver, changes))
-                .addStage(new HistoricalUtilizationStage(historicalEditor))
+                .addStage(new HistoricalUtilizationStage(historicalEditor, changes))
                 .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager)))
                 .build();
     }
