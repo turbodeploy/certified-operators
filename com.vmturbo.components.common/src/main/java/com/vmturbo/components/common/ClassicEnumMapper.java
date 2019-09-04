@@ -92,7 +92,7 @@ public class ClassicEnumMapper {
             .put("MemRequestAllocation",        CommodityType.MEM_REQUEST_ALLOCATION)
             .put("NetThroughput",               CommodityType.NET_THROUGHPUT)
             .put("NetworkCommodity",            CommodityType.NETWORK)
-            .put("PORT_CHANEL",                 CommodityType.PORT_CHANEL)
+            .put("PortChannel",                 CommodityType.PORT_CHANEL)
             .put("Power",                       CommodityType.POWER)
             .put("Q16VCPU",                     CommodityType.Q16_VCPU)
             .put("Q1VCPU",                      CommodityType.Q1_VCPU)
@@ -153,7 +153,7 @@ public class ClassicEnumMapper {
      * Note that this is defined in opsmgr/com.vmturbo.reports.db but never used (AFAIK).
      * We didn't want to include the 'db' project here.
      **/
-    public  enum CommodityTypeUnits {
+    public enum CommodityTypeUnits {
         ACTIVE_SESSIONS("ActiveSessions", ""),
         BALLOONING("Ballooning", "KB"),
         COLLECTION_TIME("CollectionTime", "%"),
@@ -189,6 +189,7 @@ public class ClassicEnumMapper {
         POOL_CPU("PoolCPU", "MHz"),
         POOL_MEM("PoolMem", "KB"),
         POOL_STORAGE("PoolStorage", "MB"),
+        PORT_CHANEL("PortChannel", "KByte/sec"),
         POWER("Power", "W"),
         PRODUCES("Produces", ""),
         SPACE("Space", ""),
