@@ -25,6 +25,7 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiInputDTO;
+import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
@@ -89,6 +90,33 @@ public class TemplateMapper {
     }
 
     /**
+     * * Given a templateInfo it checks whether the input fields are the correct ones for the
+     * entity type. If there's at least one field that is not correct, it will throw a
+     * IllegalArgumentException
+     *
+     * @param templateInfo {@link TemplateInfo} that contains the fields
+     * @param templateSpec matched with template parameter.
+     */
+    public void checkIfValidTemplate(TemplateInfo templateInfo, TemplateSpec templateSpec) throws
+        UnauthorizedObjectException {
+
+        Map<String, TemplateSpecField> templateSpecFieldMap = templateSpec.getResourcesList().stream()
+            .map(TemplateSpecResource::getFieldsList)
+            .flatMap(List::stream)
+            .collect(Collectors.toMap(TemplateSpecField::getName, Function.identity()));
+
+        List<TemplateResource> templateResourceList = templateInfo.getResourcesList();
+        for (TemplateResource resource : templateResourceList) {
+            for (TemplateField field : resource.getFieldsList()) {
+                if (!templateSpecFieldMap.containsKey(field.getName())) {
+                    throw new UnauthorizedObjectException("Wrong field " + field.getName() +
+                        " for template of entity type " + templateSpec.getEntityType());
+                }
+            }
+        }
+    }
+
+    /**
      * Convert {@link TemplateApiInputDTO} to {@link TemplateInfo}, it will use matched templateSpec
      * to find all fields which have default value. If they are not provided value from inputDTO, they
      * will be assigned with default value.
@@ -100,13 +128,15 @@ public class TemplateMapper {
      */
     public TemplateInfo mapToTemplateInfo(TemplateApiInputDTO inputDTO,
                                           TemplateSpec templateSpec,
-                                          int entityType) {
-        Builder templateInfo = TemplateInfo.newBuilder()
+                                          int entityType) throws UnauthorizedObjectException {
+        Builder templateInfoBuilder = TemplateInfo.newBuilder()
             .setName(inputDTO.getDisplayName())
             .setTemplateSpecId(templateSpec.getId());
-        setBasicApiInputDTOProperty(templateInfo, inputDTO, entityType);
-        setResourceProperty(templateInfo, inputDTO, templateSpec);
-        return templateInfo.build();
+        setBasicApiInputDTOProperty(templateInfoBuilder, inputDTO, entityType);
+        setResourceProperty(templateInfoBuilder, inputDTO, templateSpec);
+        TemplateInfo templateInfo = templateInfoBuilder.build();
+        checkIfValidTemplate(templateInfo, templateSpec);
+        return templateInfo;
     }
 
     /**

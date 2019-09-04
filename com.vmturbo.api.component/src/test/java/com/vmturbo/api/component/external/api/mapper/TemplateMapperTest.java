@@ -10,6 +10,7 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiInputDTO;
+import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
@@ -142,7 +143,7 @@ public class TemplateMapperTest {
     }
 
     @Test
-    public void testVMApiInputDTOtoTemplateInfo() {
+    public void testVMApiInputDTOtoTemplateInfo() throws UnauthorizedObjectException {
         final TemplateApiInputDTO templateApiInputDTO = new TemplateApiInputDTO();
         templateApiInputDTO.setDisplayName("test-VM-template");
         templateApiInputDTO.setClassName("VirtualMachineProfile");
@@ -162,7 +163,7 @@ public class TemplateMapperTest {
      * to a TemplateInfo internal protobuf.
      */
     @Test
-    public void testPMApiInputDTOtoTemplateInfo() {
+    public void testPMApiInputDTOtoTemplateInfo() throws UnauthorizedObjectException {
         final TemplateApiInputDTO templateApiInputDTO = new TemplateApiInputDTO();
         templateApiInputDTO.setDisplayName("test-PM-template");
         templateApiInputDTO.setClassName("PhysicalMachineProfile");
@@ -179,7 +180,7 @@ public class TemplateMapperTest {
     }
 
     @Test
-    public void testSTApiInputDTOtoTemplateInfo() {
+    public void testSTApiInputDTOtoTemplateInfo() throws UnauthorizedObjectException {
         final TemplateApiInputDTO templateApiInputDTO = new TemplateApiInputDTO();
         templateApiInputDTO.setDisplayName("test-ST-template");
         templateApiInputDTO.setClassName("StorageProfile");
@@ -192,5 +193,20 @@ public class TemplateMapperTest {
         int entityType = EntityType.STORAGE.getValue();
         TemplateInfo templateInfo = templateMapper.mapToTemplateInfo(templateApiInputDTO, TEMPLATE_ST_SPEC, entityType);
         assertEquals(TEMPLATE_ST_INFO, templateInfo);
+    }
+
+    @Test(expected = UnauthorizedObjectException.class)
+    public void testCheckNotValidTemplate() throws UnauthorizedObjectException {
+        final TemplateApiInputDTO templateApiInputDTO = new TemplateApiInputDTO();
+        templateApiInputDTO.setDisplayName("test-ST-template");
+        templateApiInputDTO.setClassName("StorageProfile");
+        final ResourceApiDTO resourceApiDTO = new ResourceApiDTO();
+        final StatApiDTO statApiDTO = new StatApiDTO();
+        statApiDTO.setName("numCpu");
+        statApiDTO.setValue(1F);
+        resourceApiDTO.setStats(Lists.newArrayList(statApiDTO));
+        templateApiInputDTO.setStorageResources(Lists.newArrayList(resourceApiDTO));
+        int entityType = EntityType.STORAGE.getValue();
+        templateMapper.mapToTemplateInfo(templateApiInputDTO, TEMPLATE_ST_SPEC, entityType);
     }
 }
