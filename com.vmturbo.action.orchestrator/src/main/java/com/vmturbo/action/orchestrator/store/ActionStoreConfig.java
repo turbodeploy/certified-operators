@@ -79,6 +79,9 @@ public class ActionStoreConfig {
     @Value("${actionExecution.concurrentAutomatedActions:1}")
     private int concurrentAutomatedActions;
 
+    @Value("${realtimeTopologyContextId}")
+    private Long realtimeTopologyContextId;
+
     @Bean
     public IActionFactory actionFactory() {
         return new ActionFactory(actionModeCalculator());
@@ -135,7 +138,8 @@ public class ActionStoreConfig {
             actionFactory(),
             actionModeCalculator(),
             entitySettingsCache(),
-            actionTranslationConfig.actionTranslator());
+            actionTranslationConfig.actionTranslator(),
+            realtimeTopologyContextId);
     }
 
     @Bean

@@ -139,6 +139,7 @@ public class ReservedInstanceAnalyzer {
 
     private ActionContextRIBuyStore actionContextRIBuyStore;
 
+    private final long realtimeTopologyContextId;
     /**
      *
      * Construct an analyzer.
@@ -152,6 +153,8 @@ public class ReservedInstanceAnalyzer {
      * @param cloudTopologyFactory Cloud topology factory.
      * @param actionsSender used to broadcast the actions.
      * @param buyRiStore Place to store all the buy RIs suggested by this algorithm
+     * @param actionContextRIBuyStore the class to perform database operation on the cost.action_context_ri_buy
+     * @param realtimeTopologyContextId realtime topology context id
      */
     public ReservedInstanceAnalyzer(@Nonnull SettingServiceBlockingStub settingsServiceClient,
                                     @Nonnull RepositoryServiceBlockingStub repositoryClient,
@@ -162,7 +165,8 @@ public class ReservedInstanceAnalyzer {
                                     @Nonnull TopologyEntityCloudTopologyFactory cloudTopologyFactory,
                                     @Nonnull ReservedInstanceActionsSender actionsSender,
                                     @Nonnull BuyReservedInstanceStore buyRiStore,
-                                    @Nonnull ActionContextRIBuyStore actionContextRIBuyStore) {
+                                    @Nonnull ActionContextRIBuyStore actionContextRIBuyStore,
+                                    final long realtimeTopologyContextId) {
         this.settingsServiceClient = Objects.requireNonNull(settingsServiceClient);
         this.riBoughtStore = Objects.requireNonNull(riBoughtStore);
         this.riSpecStore = Objects.requireNonNull(riSpecStore);
@@ -173,6 +177,7 @@ public class ReservedInstanceAnalyzer {
         this.actionsSender = Objects.requireNonNull(actionsSender);
         this.buyRiStore = Objects.requireNonNull(buyRiStore);
         this.actionContextRIBuyStore = Objects.requireNonNull(actionContextRIBuyStore);
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     public void runRIAnalysisAndSendActions(final long planId,
@@ -204,6 +209,7 @@ public class ReservedInstanceAnalyzer {
     /**
      * Run the analysis and produce recommendations.
      *
+     * @param topologyContextId the topology used to analyze buy ri
      * @param scope describes the scope of the analysis including regions, platforms, etc. under consideration.
      * @param historicalDemandDataType type of data used in RI Buy Analysis -- ALLOCATION or CONSUMPTION based.
      * @return the resulting recommendations plus contextual information, or null
@@ -213,7 +219,7 @@ public class ReservedInstanceAnalyzer {
      *         adequate RI coverage).
      */
     @Nullable
-    public ReservedInstanceAnalysisResult analyze(final long planId,
+    public ReservedInstanceAnalysisResult analyze(final long topologyContextId,
             @Nonnull ReservedInstanceAnalysisScope scope,
             @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType) {
 
@@ -225,10 +231,12 @@ public class ReservedInstanceAnalyzer {
             // What if repository is down? Should we keep re-trying until repository is up?
             // TODO: karthikt - fetch just the entities needed instead of getting all the
             // entities in the topology.
+            // we need to fetch the realtime topology even for plan because buy RI runs
+            // before any plan topology being constructed, if there is a plan topology
             Stream<TopologyEntityDTO> entities = RepositoryDTOUtil.topologyEntityStream(
                 repositoryClient.retrieveTopologyEntities(
                         RetrieveTopologyEntitiesRequest.newBuilder()
-                            .setTopologyContextId(planId)
+                            .setTopologyContextId(realtimeTopologyContextId)
                             .setReturnType(Type.FULL)
                             .setTopologyType(TopologyType.SOURCE)
                             .build()))
@@ -266,7 +274,7 @@ public class ReservedInstanceAnalyzer {
                 removeBuyZeroRecommendations(recommendations);
                 ReservedInstanceAnalysisResult result =
                         new ReservedInstanceAnalysisResult(scope, purchaseConstraints, recommendations,
-                                planId, analysisStartTime.getTime(),
+                                topologyContextId, analysisStartTime.getTime(),
                                 (new Date()).getTime(), numContextsAnalyzed, buyRiStore, actionContextRIBuyStore);
 
                 logger.info("process {} Analyzer clusters for {} recommendations, in time: {} ms",
@@ -324,60 +332,79 @@ public class ReservedInstanceAnalyzer {
 
         Map<ReservedInstanceRegionalContext, List<ReservedInstanceZonalContext>> map = new HashMap<>();
         // What are the historical contexts?
-        try (Stream<ComputeTierTypeHourlyByWeekRecord> riStatsRecordStream =
-                     computeTierDemandStatsStore.getAllDemandStats()) {
-
-            riStatsRecordStream.forEach(riStatRecord -> {
-                long masterAccount = riStatRecord.getAccountId();
-                long computeTierId =   riStatRecord.getComputeTierId();
-                long availabilityZoneId = riStatRecord.getAvailabilityZone();
-                Optional<TopologyEntityDTO> computeTierDTO = cloudTopology.getEntity(computeTierId);
-                if (!computeTierDTO.isPresent()) {
-                    logger.warn("ComputeTier {} not present in the real-time topology.", computeTierId);
-                    return;
+        Set<ComputeTierTypeHourlyByWeekRecord> riStatsRecords =
+                     computeTierDemandStatsStore.getAllDemandStats().collect(Collectors.toSet());
+        for (ComputeTierTypeHourlyByWeekRecord riStatRecord : riStatsRecords) {
+            long masterAccount = riStatRecord.getAccountId();
+            long computeTierId = riStatRecord.getComputeTierId();
+            long availabilityZoneId = riStatRecord.getAvailabilityZone();
+            Optional<TopologyEntityDTO> computeTierDTO = cloudTopology.getEntity(computeTierId);
+            if (!computeTierDTO.isPresent()) {
+                logger.warn("ComputeTier {} not present in the real-time topology.", computeTierId);
+                return map;
+            }
+            // for the compute tier in a db record, first we try to get all of the regions connected,
+            // then use the az info in the same db record to filter and obtain the one region which owns
+            // the az.
+            TopologyEntityDTO computeTier = computeTierDTO.get();
+            Set<TopologyEntityDTO> connectedRegions = computeTier.getConnectedEntityListList()
+                    .stream()
+                    .filter(c -> c.getConnectedEntityType() == EntityType.REGION_VALUE)
+                    .map(c -> cloudTopology.getEntity(c.getConnectedEntityId()))
+                    .map(Optional::get)
+                    .collect(Collectors.toSet());
+            Optional<TopologyEntityDTO> regionOpt = Optional.empty();
+            for (TopologyEntityDTO r : connectedRegions) {
+                if (r.getConnectedEntityListList().stream()
+                        .anyMatch(c -> c.getConnectedEntityId() == availabilityZoneId)) {
+                    regionOpt = Optional.of(r);
+                    break;
                 }
-                TopologyEntityDTO computeTier = computeTierDTO.get();
-                // TODO: karthikt - create different regional contexts if there are multiple regions.
-                TopologyEntityDTO region = cloudTopology.getConnectedRegion(computeTierId).get();
-                // if regions is empty, check all regions.
-                if (!scope.getRegions().isEmpty() && !scope.getRegions().stream().anyMatch(oid -> oid == region.getOid())) {
-                    logger.debug("region UUID {} not in scope {}", region.getOid(), scope.getRegions());
-                    return;
-                }
+            }
+            if (!regionOpt.isPresent()) {
+                logger.debug("No region found to be associated with compute tier {} in availability zone id {}",
+                        computeTier, availabilityZoneId);
+                continue;
+            }
+            TopologyEntityDTO region = regionOpt.get();
+            // check for a given scope, if it contains the region which associates the compute tier in the db record
+            if (!scope.getRegions().isEmpty() && !scope.getRegions().stream().anyMatch(id -> region.getOid() == id)) {
+                logger.debug("region UUID {} not in scope {}", region.getOid(), scope.getRegions());
+                continue;
+            }
 
-                OSType platform = OSType.forNumber(riStatRecord.getPlatform());
-                if (! scope.getPlatforms().contains(platform)) {
-                    logger.debug("platform {} not in scope {} ", platform, scope.getPlatforms());
-                    return;
-                }
+            OSType platform = OSType.forNumber(riStatRecord.getPlatform());
+            if (!scope.getPlatforms().contains(platform)) {
+                logger.debug("platform {} not in scope {} ", platform, scope.getPlatforms());
+                continue;
+            }
 
-                Tenancy tenancy = Tenancy.forNumber(riStatRecord.getTenancy());
-                if (! scope.getTenancies().contains(tenancy)) {
-                    logger.debug("tenancy {} not in scope ", tenancy, scope.getTenancies());
-                    return;
-                }
+            Tenancy tenancy = Tenancy.forNumber(riStatRecord.getTenancy());
+            if (!scope.getTenancies().contains(tenancy)) {
+                logger.debug("tenancy {} not in scope ", tenancy, scope.getTenancies());
+                continue;
+            }
 
-                ReservedInstanceZonalContext zonalContext =
-                        new ReservedInstanceZonalContext(
-                                masterAccount,
-                                platform,
-                                tenancy,
-                                computeTier,
-                                availabilityZoneId);
+            ReservedInstanceZonalContext zonalContext =
+                new ReservedInstanceZonalContext(
+                    masterAccount,
+                    platform,
+                    tenancy,
+                    computeTier,
+                    availabilityZoneId);
 
-                ReservedInstanceRegionalContext regionalContext;
-                // for instance size flexible, find smallest instance type in family
-                computeTier = getComputeTierToBuyFor(computeTier, platform, tenancy, computeTierFamilies);
-                regionalContext = new ReservedInstanceRegionalContext(masterAccount, platform, tenancy,
-                        computeTier, region.getOid());
+            ReservedInstanceRegionalContext regionalContext;
+            // for instance size flexible, find smallest instance type in family
+            computeTier = getComputeTierToBuyFor(computeTier, platform, tenancy, computeTierFamilies);
+            regionalContext = new ReservedInstanceRegionalContext(masterAccount, platform, tenancy,
+                computeTier, region.getOid());
 
-                List<ReservedInstanceZonalContext> contexts = map.get(regionalContext);
-                if (contexts == null) {
-                    map.put(regionalContext, new ArrayList<>(Arrays.asList(zonalContext)));
-                } else {
-                    contexts.add(zonalContext);
-                }
-            });
+            List<ReservedInstanceZonalContext> contexts = map.get(regionalContext);
+            if (contexts == null) {
+                map.put(regionalContext, new ArrayList<>(Arrays.asList(zonalContext)));
+            } else {
+                contexts.add(zonalContext);
+            }
         }
 
         return map;
