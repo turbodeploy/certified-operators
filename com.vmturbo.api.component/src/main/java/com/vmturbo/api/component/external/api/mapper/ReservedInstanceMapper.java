@@ -13,6 +13,7 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.PaymentOption;
@@ -27,9 +28,12 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 
+/**
+ * Conversion class for reserved instances.
+ */
 public class ReservedInstanceMapper {
 
-    private final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
     private static final String RESERVED_INSTANCE = "ReservedInstance";
 
@@ -48,16 +52,16 @@ public class ReservedInstanceMapper {
      *                               which contains full entity information if region, account,
      *                               availability zones entity.
      * @return a {@link ReservedInstanceApiDTO}.
-     * @throws NotFoundMatchPaymentOptionException
-     * @throws NotFoundMatchTenancyException
-     * @throws NotFoundMatchOfferingClassException
+     * @throws NotFoundMatchPaymentOptionException when no matching payment option can be found.
+     * @throws NotFoundMatchTenancyException when no matching tenancy can be found.
+     * @throws NotFoundMatchOfferingClassException when no matching offering class can be found.
      */
     public ReservedInstanceApiDTO mapToReservedInstanceApiDTO(
             @Nonnull final ReservedInstanceBought reservedInstanceBought,
             @Nonnull final ReservedInstanceSpec reservedInstanceSpec,
             @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap)
                 throws NotFoundMatchPaymentOptionException, NotFoundMatchTenancyException,
-                NotFoundMatchOfferingClassException {
+                NotFoundMatchOfferingClassException, NotFoundCloudTypeException {
         // TODO: set RI cost data which depends on discount information.
         ReservedInstanceApiDTO reservedInstanceApiDTO = new ReservedInstanceApiDTO();
         final ReservedInstanceBoughtInfo reservedInstanceBoughtInfo =
@@ -79,7 +83,7 @@ public class ReservedInstanceMapper {
                 reservedInstanceSpec.getReservedInstanceSpecInfo().getOs().name()));
         reservedInstanceApiDTO.setTenancy(Tenancy.getByName(
                 reservedInstanceSpec.getReservedInstanceSpecInfo().getTenancy().name())
-                .orElseThrow(() -> new NotFoundMatchTenancyException()));
+                .orElseThrow(NotFoundMatchTenancyException::new));
         reservedInstanceApiDTO.setType(convertReservedInstanceTypeToApiDTO(
                 reservedInstanceSpec.getReservedInstanceSpecInfo().getType().getOfferingClass()));
         reservedInstanceApiDTO.setInstanceCount(reservedInstanceBoughtInfo.getNumBought());
@@ -89,7 +93,7 @@ public class ReservedInstanceMapper {
                 .getRecurringCostPerHour()
                 .getAmount());
         reservedInstanceApiDTO.setCostPrice(createStatApiDTO(StringConstants.DOLLARS_PER_HOUR,
-                Optional.empty(), (float) getTotalHourlyCost(reservedInstanceBoughtInfo,
+                Optional.empty(), (float)getTotalHourlyCost(reservedInstanceBoughtInfo,
                         reservedInstanceSpec)));
         reservedInstanceApiDTO.setUpFrontCost(reservedInstanceBoughtInfo
                 .getReservedInstanceBoughtCost()
@@ -100,9 +104,9 @@ public class ReservedInstanceMapper {
         // TODO: need to get on demand price of reserved instance from price table.
         reservedInstanceApiDTO.setOnDemandPrice(createStatApiDTO(StringConstants.DOLLARS_PER_HOUR, Optional.empty(), 0));
         reservedInstanceApiDTO.setCoupons(createStatApiDTO(StringConstants.RI_COUPON_UNITS,
-                Optional.of((float) reservedInstanceBought.getReservedInstanceBoughtInfo()
+                Optional.of((float)reservedInstanceBought.getReservedInstanceBoughtInfo()
                         .getReservedInstanceBoughtCoupons().getNumberOfCoupons()),
-                (float) reservedInstanceBought.getReservedInstanceBoughtInfo()
+                (float)reservedInstanceBought.getReservedInstanceBoughtInfo()
                         .getReservedInstanceBoughtCoupons().getNumberOfCouponsUsed()));
         reservedInstanceApiDTO.setTerm(createStatApiDTO(YEAR, Optional.empty(),
                 reservedInstanceSpec
@@ -111,8 +115,8 @@ public class ReservedInstanceMapper {
                 reservedInstanceSpec.getReservedInstanceSpecInfo().getType().getTermYears()
                         * NUM_OF_MILLISECONDS_OF_YEAR;
         reservedInstanceApiDTO.setExpDate(DateTimeUtil.toString(endTime));
-        //todo: set cloud type to AWS for now, change it once Azure RI is supported in XL
-        reservedInstanceApiDTO.setCloudType(CloudType.AWS);
+        reservedInstanceApiDTO.setCloudType(retrieveCloudType(reservedInstanceBoughtInfo,
+            serviceEntityApiDTOMap));
         return reservedInstanceApiDTO;
     }
 
@@ -171,12 +175,12 @@ public class ReservedInstanceMapper {
     private StatApiDTO createStatApiDTO(@Nonnull final String units,
                                         @Nonnull final Optional<Float> capacity,
                                         final float value) {
-        StatApiDTO statsDto = new StatApiDTO();
         StatValueApiDTO statsValueDto = new StatValueApiDTO();
         statsValueDto.setMin(value);
         statsValueDto.setMax(value);
         statsValueDto.setAvg(value);
         statsValueDto.setTotal(value);
+        StatApiDTO statsDto = new StatApiDTO();
         statsDto.setValues(statsValueDto);
         statsDto.setValue(value);
         StatValueApiDTO capacityDto = new StatValueApiDTO();
@@ -251,21 +255,75 @@ public class ReservedInstanceMapper {
         return template;
     }
 
+    /**
+     * Retrieve reserved instance Cloud type from its parent business account.
+     *
+     * @param reservedInstanceBoughtInfo Reserved instance info API object.
+     * @param serviceEntityApiDTOMap Map which key is entity id, value is {@link ServiceEntityApiDTO}.
+     * @return {@link CloudType} instance for the given reserved instance.
+     */
+    @Nonnull
+    private static CloudType retrieveCloudType(
+            @Nonnull final ReservedInstanceBoughtInfo reservedInstanceBoughtInfo,
+            @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap)
+            throws NotFoundCloudTypeException {
+        if (!reservedInstanceBoughtInfo.hasBusinessAccountId()) {
+            throw new NotFoundCloudTypeException("No Business Account in RI: " +
+                reservedInstanceBoughtInfo.getProbeReservedInstanceId());
+        }
+        final Long businessAccountId = reservedInstanceBoughtInfo.getBusinessAccountId();
+        final ServiceEntityApiDTO businessAccount = serviceEntityApiDTOMap.get(
+            businessAccountId);
+        if (businessAccount == null) {
+            throw new NotFoundCloudTypeException("Cannot find Business Account with ID " +
+                businessAccountId);
+        }
+        final TargetApiDTO targetApiDTO = businessAccount.getDiscoveredBy();
+        if (targetApiDTO == null) {
+            throw new NotFoundCloudTypeException("Missing target in Business Account " +
+                businessAccountId);
+        }
+        final String type = targetApiDTO.getType();
+        final Optional<CloudType> cloudType = CloudType.getByName(type);
+        if (!cloudType.isPresent()) {
+            throw new NotFoundCloudTypeException("Unknown Cloud Type: " + type);
+        }
+        return cloudType.get();
+    }
+
+    /**
+     * This exception is thrown when no matching payment option can be found.
+     */
     public static class NotFoundMatchPaymentOptionException extends Exception {
-        public NotFoundMatchPaymentOptionException() {
+        NotFoundMatchPaymentOptionException() {
             super("Not found matched payment option!");
         }
     }
 
+    /**
+     * This exception is thrown when no matching tenancy can be found.
+     */
     public static class NotFoundMatchTenancyException extends Exception {
-        public NotFoundMatchTenancyException() {
+        NotFoundMatchTenancyException() {
             super("Not found matched tenancy option!");
         }
     }
 
+    /**
+     * This exception is thrown when no matching offering class can be found.
+     */
     public static class NotFoundMatchOfferingClassException extends Exception {
-        public NotFoundMatchOfferingClassException() {
+        NotFoundMatchOfferingClassException() {
             super("Not found matched offering class option!");
+        }
+    }
+
+    /**
+     * This exception is thrown when no matching Cloud type can be found.
+     */
+    public static class NotFoundCloudTypeException extends Exception {
+        NotFoundCloudTypeException(String message) {
+            super(message);
         }
     }
 }

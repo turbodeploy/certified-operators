@@ -26,6 +26,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundCloudTypeException;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import org.apache.commons.collections4.CollectionUtils;
@@ -1066,6 +1067,8 @@ public class ActionSpecMapper {
             logger.error("Tenancy not found for RI : {}", buyRI.getBuyRiId(), e);
         } catch (NotFoundMatchOfferingClassException e) {
             logger.error("Offering Class not found for RI : {}", buyRI.getBuyRiId(), e);
+        } catch (NotFoundCloudTypeException e) {
+            logger.error("Cannot identify Cloud Type for RI : {}", buyRI.getBuyRiId(), e);
         }
     }
 

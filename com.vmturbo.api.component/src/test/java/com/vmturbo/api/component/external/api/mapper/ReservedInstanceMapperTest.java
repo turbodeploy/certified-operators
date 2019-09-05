@@ -6,11 +6,13 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.junit.Test;
-import org.mockito.Mockito;
 
-import com.vmturbo.api.component.communication.RepositoryApi;
+import com.google.common.collect.ImmutableMap;
+
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.PaymentOption;
 import com.vmturbo.api.enums.Platform;
 import com.vmturbo.api.enums.ReservedInstanceType;
@@ -21,11 +23,12 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord.StatValue;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 
+/**
+ * Unit tests for {@link ReservedInstanceMapperTest} class.
+ */
 public class ReservedInstanceMapperTest {
 
     private ReservedInstanceMapper reservedInstanceMapper = new ReservedInstanceMapper();
@@ -62,26 +65,14 @@ public class ReservedInstanceMapperTest {
                     .setRegionId(44L))
             .build();
 
-    private ReservedInstanceStatsRecord riStatsrecord = ReservedInstanceStatsRecord.newBuilder()
-            .setCapacity(StatValue.newBuilder()
-                    .setMin(10)
-                    .setMax(20)
-                    .setAvg(15)
-                    .setTotal(30))
-            .setValues(StatValue.newBuilder()
-                    .setMax(5)
-                    .setMin(1)
-                    .setAvg(3)
-                    .setTotal(6))
-            .build();
-
-
-    private static float DELTA = 0.000001f;
-
     @Test
     public void testMapToReservedInstanceApiDTO() throws Exception {
         final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap = new HashMap<>();
         final float delta = 0.000001f;
+        final ServiceEntityApiDTO businessAccount = new ServiceEntityApiDTO();
+        final TargetApiDTO target = new TargetApiDTO();
+        target.setType(CloudType.AWS.name());
+        businessAccount.setDiscoveredBy(target);
         ServiceEntityApiDTO availabilityZoneEntity = new ServiceEntityApiDTO();
         availabilityZoneEntity.setUuid("22");
         availabilityZoneEntity.setDisplayName("us-east-1a");
@@ -91,6 +82,7 @@ public class ReservedInstanceMapperTest {
         ServiceEntityApiDTO templateEntity = new ServiceEntityApiDTO();
         templateEntity.setUuid("33");
         templateEntity.setDisplayName("c3.xlarge");
+        serviceEntityApiDTOMap.put(11L, businessAccount);
         serviceEntityApiDTOMap.put(22L, availabilityZoneEntity);
         serviceEntityApiDTOMap.put(33L, templateEntity);
         serviceEntityApiDTOMap.put(44L, regionEntity);
@@ -110,6 +102,24 @@ public class ReservedInstanceMapperTest {
         assertEquals("ReservedInstance", reservedInstanceApiDTO.getClassName());
         assertEquals(100.0, reservedInstanceApiDTO.getUpFrontCost(), delta);
         assertEquals(300.0, reservedInstanceApiDTO.getActualHourlyCost(), delta);
+        assertEquals(CloudType.AWS, reservedInstanceApiDTO.getCloudType());
     }
 
+    @Test
+    public void testMapToReservedInstanceApiDTOForAzure() throws Exception {
+        // Arrange
+        final ServiceEntityApiDTO businessAccount = new ServiceEntityApiDTO();
+        final TargetApiDTO target = new TargetApiDTO();
+        target.setType(CloudType.AZURE.name());
+        businessAccount.setDiscoveredBy(target);
+        final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap = ImmutableMap
+            .of(11L, businessAccount);
+
+        // Act
+        final ReservedInstanceApiDTO reservedInstanceApiDTO = reservedInstanceMapper
+            .mapToReservedInstanceApiDTO(riBought, riSpec, serviceEntityApiDTOMap);
+
+        // Assert
+        assertEquals(CloudType.AZURE, reservedInstanceApiDTO.getCloudType());
+    }
 }
