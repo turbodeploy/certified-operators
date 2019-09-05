@@ -324,7 +324,8 @@ public class AuthDBConfig {
         Optional<String> credentials = authKVConfig.authKeyValueStore().get(CONSUL_KEY);
         try {
             if (!credentials.isPresent()) {
-                String dbPassword = generatePassword();
+                // use the same externalized admin db password as prefix and append it with random characters.
+                String dbPassword = getRootSqlDBPassword() + generatePassword();
                 authKVConfig.authKeyValueStore().put(CONSUL_KEY, dbPassword);
                 // Make sure we have the proper user here.
                 // We call this only when the database user is not yet been created and set.
