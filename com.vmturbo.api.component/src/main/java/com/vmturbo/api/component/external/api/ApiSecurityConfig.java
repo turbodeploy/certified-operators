@@ -6,11 +6,17 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
 import javax.xml.parsers.ParserConfigurationException;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 
 import org.apache.commons.httpclient.protocol.Protocol;
 import org.apache.commons.httpclient.protocol.ProtocolSocketFactory;
+import org.apache.commons.lang.StringUtils;
 import org.apache.velocity.app.VelocityEngine;
 import org.opensaml.saml2.metadata.provider.DOMMetadataProvider;
 import org.opensaml.saml2.metadata.provider.MetadataProvider;
@@ -25,7 +31,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ByteArrayResource;
-import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.core.io.Resource;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
@@ -42,7 +47,7 @@ import org.springframework.security.saml.SAMLLogoutFilter;
 import org.springframework.security.saml.SAMLLogoutProcessingFilter;
 import org.springframework.security.saml.SAMLProcessingFilter;
 import org.springframework.security.saml.SAMLWebSSOHoKProcessingFilter;
-import org.springframework.security.saml.context.SAMLContextProviderImpl;
+import org.springframework.security.saml.context.SAMLContextProvider;
 import org.springframework.security.saml.context.SAMLContextProviderLB;
 import org.springframework.security.saml.key.JKSKeyManager;
 import org.springframework.security.saml.key.KeyManager;
@@ -75,7 +80,6 @@ import org.springframework.security.saml.websso.WebSSOProfileOptions;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.FilterChainProxy;
-import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.channel.ChannelProcessingFilter;
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler;
@@ -85,12 +89,9 @@ import org.springframework.security.web.authentication.logout.SimpleUrlLogoutSuc
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.web.filter.GenericFilterBean;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
-
-import com.google.common.base.Function;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
 
 import com.vmturbo.api.component.external.api.SAML.SAMLCondition;
 import com.vmturbo.api.component.external.api.SAML.SAMLUtils;
@@ -99,8 +100,9 @@ import com.vmturbo.api.component.security.FailedAuthRequestAuditor;
 import com.vmturbo.auth.api.Base64CodecUtils;
 
 /**
- * <p>Configure security for the REST API Dispatcher here.
- * The BASE_URI are defined in {@link com.vmturbo.api.component.external.api.ExternalApiConfig#BASE_URL_MAPPINGS}.</p>
+ * Configure security for the REST API Dispatcher here.
+ * The BASE_URI are defined in {@link ExternalApiConfig#BASE_URL_MAPPINGS}.
+ *
  * <p>The legacy API - BASE_URI/api/** - requires no permissions (OM-22367).</p>
  * Permissions for the "new API":
  * <ul>
@@ -128,19 +130,22 @@ import com.vmturbo.auth.api.Base64CodecUtils;
 @EnableWebSecurity
 @EnableGlobalMethodSecurity(prePostEnabled = true)
 public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
-    public static final String TURBO = "turbo";
-    public static final String HTTPS_SLASH = "https://";
-    public static final String VMTURBO = "/vmturbo";
-    public static final String DEV_ENTITY_BASE_URL = "https://localhost/vmturbo";
-    public static final String LOCALHOST = "localhost";
-    public static final int DEFAULT_PORT = 443;
-    public static final String HTTPS = "https";
-    // map "/vmturbo/rest/*" to "/vmturbo/rest/",
-    // and "/vmturbo/api/v2/*" to "/vmturbo/api/v2/"
-    private static Function<String, String> mappingsToBaseURI = input -> input.substring(0, input.length() - 1);
+
+    private static final String TURBO = "turbo";
+    private static final String HTTPS_SLASH = "https://";
+    private static final String VMTURBO = "/vmturbo";
+    private static final String DEV_ENTITY_BASE_URL = "https://localhost/vmturbo";
+    private static final String LOCALHOST = "localhost";
+    private static final int DEFAULT_PORT = 443;
+    private static final String HTTPS = "https";
+    private static final String SAML_REDIRECT_URL = "/app/index.html#/view/main/home/Market/hybrid";
+
+    // mapping to remove the trailing character, so /vmturbo/rest/* -> /vmturbo/rest/
     private static ImmutableList<String> baseURIs =
-            ImmutableList.copyOf(Iterables.transform(ExternalApiConfig.BASE_URL_MAPPINGS,
-                    mappingsToBaseURI));
+            ImmutableList.copyOf(ExternalApiConfig.BASE_URL_MAPPINGS
+                .stream()
+                .map(StringUtils::chop)
+                .collect(Collectors.toList()));
 
     @Autowired
     ApplicationContext applicationContext;
@@ -169,13 +174,25 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
     @Value("${samlPrivateKeyAlias:apollo}")
     private String samlPrivateKeyAlias;
 
-    // Initialization of OpenSAML library
+    /**
+     * Initialization of OpenSAML library.
+     *
+     * @return new SAMLBootstrap bean
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public static SAMLBootstrap sAMLBootstrap() {
         return new SAMLBootstrap();
     }
 
+    /**
+     * Add a custom authentication exception entry point to replace the default handler.
+     * The reason is, for example, if there are some request without login authenticated, the default
+     * handler "Http403ForbiddenEntryPoint" will send 403 Forbidden response, but the right
+     * response should be 401 Unauthorized.
+     *
+     * @return the new default authentication exception handler
+     */
     @Bean
     public AuthenticationEntryPoint restAuthenticationEntryPoint() {
         return new RestAuthenticationEntryPoint();
@@ -227,30 +244,59 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
         // enable session management to keep active session in SessionRegistry,
         // also allow multiple sessions for same user (-1).
         http.sessionManagement().maximumSessions(-1).sessionRegistry(sessionRegistry());
-
     }
 
-    // Initialization of the velocity engine for parsing SAML messages
+    /**
+     * Sets a custom authentication provider.
+     *
+     * @param auth SecurityBuilder used to create an AuthenticationManager.
+     */
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) {
+        if (samlEnabled) {
+            auth.authenticationProvider(samlAuthenticationProvider());
+        }
+    }
+
+    /**
+     * Initialization of the Velocity templating engine used in the communication underlying
+     * the SAML message exchange protocol.
+     *
+     * @return the Velocity templating engine instance
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public VelocityEngine velocityEngine() {
         return VelocityFactory.getEngine();
     }
 
-    // XML parser pool needed for OpenSAML parsing
+    /**
+     * JAXP XML parser pool needed for OpenSAML parsing.
+     *
+     * @return a new parser pool
+     */
     @Bean(initMethod = "initialize")
     @Conditional(SAMLCondition.class)
     public StaticBasicParserPool parserPool() {
         return new StaticBasicParserPool();
     }
 
+    /**
+     * Holder for the JAXP XML parser pool above.
+     *
+     * @return a new ParserPoolHolder
+     */
     @Bean(name = "parserPoolHolder")
     @Conditional(SAMLCondition.class)
     public ParserPoolHolder parserPoolHolder() {
         return new ParserPoolHolder();
     }
 
-    // SAML Authentication Provider responsible for validating of received SAML messages
+    /**
+     * SAML Authentication Provider responsible for validating of received SAML messages.
+     *
+     * @return a new SAMLAuthenticationProvider bean
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public SAMLAuthenticationProvider samlAuthenticationProvider() {
@@ -260,10 +306,16 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
         return samlAuthenticationProvider;
     }
 
-    // Provider of default SAML Context
+    /**
+     * Provider of default SAML Context. The scheme is set to HTTPS. The external (landing) IP
+     * is taken from the 'samlExternalIP' configuration property, and if not specified defaults
+     * to 'localhost. The default port is set = 443.
+     *
+     * @return the new SAMLContextProvider bean
+     */
     @Bean
     @Conditional(SAMLCondition.class)
-    public SAMLContextProviderImpl contextProvider() {
+    public SAMLContextProvider contextProvider() {
         SAMLContextProviderLB samlContextProviderLB = new SAMLContextProviderLB();
         samlContextProviderLB.setScheme(HTTPS);
         if (samlExternalIP != null) {
@@ -277,85 +329,138 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
         return samlContextProviderLB;
     }
 
-    // Logger for SAML messages and events
+    /**
+     * Logger for SAML messages and events. The default sends SAML progress messages to log4j.
+     *
+     * @return a SAMLDefaultLogger that uses log4j
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public SAMLDefaultLogger samlLogger() {
         return new SAMLDefaultLogger();
     }
 
-    // SAML 2.0 WebSSO Assertion Consumer
+    /**
+     * Create a SAML 2.0 WebSSO Assertion parser / consumer.
+     *
+     * @return a new WebSSOProfileConsumer
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public WebSSOProfileConsumer webSSOprofileConsumer() {
         return new WebSSOProfileConsumerImplExt();
     }
 
-    // SAML 2.0 Holder-of-Key WebSSO Assertion Consumer
+    /**
+     * Create a SAML 2.0 Holder-of-Key WebSSO Assertion Consumer to
+     * process of the SAML Holder-of-Key Browser SSO profile.
+     *
+     * @return a new instance of WebSSOProfileConsumer
+     */
     @Bean
     @Conditional(SAMLCondition.class)
-    public WebSSOProfileConsumerHoKImpl hokWebSSOprofileConsumer() {
+    public WebSSOProfileConsumer hokWebSSOprofileConsumer() {
         return new WebSSOProfileConsumerHoKImpl();
     }
 
-    // SAML 2.0 Web SSO profile
+    /**
+     * Create a SAML 2.0 Web SSO profile bean.
+     *
+     * @return a new WebSSOProfile
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public WebSSOProfile webSSOprofile() {
         return new WebSSOProfileImpl();
     }
 
-    // SAML 2.0 Holder-of-Key Web SSO profile
+    /**
+     * SAML 2.0 Holder-of-Key Web SSO profile.
+     *
+     * @return a new instance of WebSSOProfileConsumer
+     */
     @Bean
     @Conditional(SAMLCondition.class)
-    public WebSSOProfileConsumerHoKImpl hokWebSSOProfile() {
+    public WebSSOProfileConsumer hokWebSSOProfile() {
         return new WebSSOProfileConsumerHoKImpl();
     }
 
-    // SAML 2.0 ECP profile
+    /**
+     * Create a new SAML 2.0 ECP profile to handle SSH handshake.
+     *
+     * @return a new WebSSOProfile
+     */
     @Bean
     @Conditional(SAMLCondition.class)
-    public WebSSOProfileECPImpl ecpprofile() {
+    public WebSSOProfile ecpprofile() {
         return new WebSSOProfileECPImpl();
     }
 
+    /**
+     * Create a handler for SingleLogout protocol.
+     *
+     * @return a new SingleLogoutProfile handler
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public SingleLogoutProfile logoutprofile() {
         return new SingleLogoutProfileImpl();
     }
 
-    // Central storage of cryptographic keys
+    /**
+     * Create a Central storage of cryptographic keys.
+     *
+     * @return a new KeyManager to store the SAML keys
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public KeyManager keyManager() {
-        DefaultResourceLoader loader = new DefaultResourceLoader();
-        byte [] byteArray = Base64CodecUtils.decode(samlKeystore);
+        byte[] byteArray = Base64CodecUtils.decode(samlKeystore);
         Resource storeFile = new ByteArrayResource(byteArray);
-        Map<String, String> passwords = new HashMap<String, String>();
+        Map<String, String> passwords = new HashMap<>();
         passwords.put(samlPrivateKeyAlias, samlKeystorePassword);
         return new JKSKeyManager(storeFile, samlKeystorePassword, passwords, samlPrivateKeyAlias);
     }
 
-    // Setup TLS Socket Factory
+    /**
+     * Configure the TLS Protocol for secure communication.
+     *
+     * @return a new TLSProtocolConfigurer to handle secure communication
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public TLSProtocolConfigurer tlsProtocolConfigurer() {
         return new TLSProtocolConfigurer();
     }
 
+    /**
+     * Configure the ProtocolSocketFactory for TLS connections to the IDP.
+     *
+     * @return a new ProtocolSocketFactory bean
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public ProtocolSocketFactory socketFactory() {
         return new TLSProtocolSocketFactory(keyManager(), null, "default");
     }
 
+    /**
+     * Create a bean for the Socket Factory Protocol - HTTPS, using the default TLS port (443).
+     *
+     * @return the newly created Protocol
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public Protocol socketFactoryProtocol() {
         return new Protocol(HTTPS, socketFactory(), DEFAULT_PORT);
     }
 
+    /**
+     * Create a bean to register the protocol above. This requires a call to the static
+     * method {@link Protocol#registerProtocol}, hence the MethodInvokingFactoryBean.
+     *
+     * @return the bean to register the desired protocol
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public MethodInvokingFactoryBean socketFactoryInitialization() {
@@ -367,6 +472,12 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
         return methodInvokingFactoryBean;
     }
 
+    /**
+     * Create an WebSSOProfileOptions object that excludes the scoping from the SSO
+     * request sent to the IDP.
+     *
+     * @return the new WebSSOProfileOptions bean
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public WebSSOProfileOptions defaultWebSSOProfileOptions() {
@@ -375,8 +486,12 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
         return webSSOProfileOptions;
     }
 
-    // Entry point to initialize authentication, default values taken from
-    // properties file
+    /**
+     * Entry point to initialize authentication, with the default values taken from
+     * the configuration properties.
+     *
+     * @return the SAMLEntryPoint to represent this authentication process
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public SAMLEntryPoint samlEntryPoint() {
@@ -385,7 +500,11 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
         return samlEntryPoint;
     }
 
-    // Setup advanced info about metadata
+    /**
+     * Setup advanced info about the metadata.
+     *
+     * @return an ExtendedMetadata bean
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public ExtendedMetadata extendedMetadata() {
@@ -396,25 +515,42 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
         return extendedMetadata;
     }
 
+    /**
+     * Create an ExtendedMetadataProvider description specific to Okta.
+     *
+     * @return an ExtendedMetadataProvider specific to okta.
+     * @throws ParserConfigurationException if there's configuring the parser for the XML
+     * @throws IOException if there's an error reading the XML
+     * @throws SAXException if there's an error parsing the XML
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     @Qualifier("okta")
     public ExtendedMetadataDelegate oktaExtendedMetadataProvider()
             throws ParserConfigurationException, SAXException, IOException {
-        Element element = SAMLUtils.loadXMLFromString(SAMLUtils.SAMPLEIDPMETADA).getDocumentElement();
-        DOMMetadataProvider provider = new DOMMetadataProvider(element);
-        ExtendedMetadataDelegate extendedMetadataDelegate = new ExtendedMetadataDelegate(provider, new ExtendedMetadata());
-        return extendedMetadataDelegate;
+        Element element = SAMLUtils.loadXMLFromString(SAMLUtils.SAMPLEIDPMETADA)
+            .getDocumentElement();
+        return new ExtendedMetadataDelegate(new DOMMetadataProvider(element),
+            new ExtendedMetadata());
     }
 
-    // IDP Metadata configuration - paths to metadata of IDPs in circle of trust is here.
-    // Do no forget to call initialize method on providers
+    /**
+     * IDP Metadata configuration specific to Okta. Paths to metadata of IDPs in
+     * circle of trust are here. Do no forget to call initialize method on providers
+     *
+     * @return IDP Metadata
+     * @throws MetadataProviderException if there is an error creating the CachingMetadataProvider
+     * @throws IOException if there's an error fetching the metadata
+     * @throws SAXException if there's an error parsing the metadata
+     * @throws ParserConfigurationException if there's an error configuring the metadata parser
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     @Qualifier("metadata")
-    public CachingMetadataManager metadata() throws MetadataProviderException, IOException, SAXException, ParserConfigurationException {
-        List<MetadataProvider> providers = new ArrayList<MetadataProvider>();
-        if (samlIdpMetadata !=null ) {
+    public CachingMetadataManager metadata() throws MetadataProviderException, IOException,
+        SAXException, ParserConfigurationException {
+        List<MetadataProvider> providers = new ArrayList<>();
+        if (samlIdpMetadata != null ) {
             DOMMetadataProvider provider = getDomMetadataProvider();
             providers.add(new ExtendedMetadataDelegate(provider, new ExtendedMetadata()));
         } else { //default provider for development
@@ -430,7 +566,11 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
         return new DOMMetadataProvider(element);
     }
 
-    // Generates service provide metadata
+    /**
+     * Generates service provide metadata.
+     *
+     * @return new MetadataGenerator based on the configuration properties
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public MetadataGenerator metadataGenerator() {
@@ -441,7 +581,7 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
             metadataGenerator.setEntityId(TURBO);
         }
         if (samlExternalIP != null) {
-            metadataGenerator.setEntityBaseURL(HTTPS_SLASH + samlExternalIP+ VMTURBO);
+            metadataGenerator.setEntityBaseURL(HTTPS_SLASH + samlExternalIP + VMTURBO);
         } else { // It's empty in Consul
             metadataGenerator.setEntityBaseURL(DEV_ENTITY_BASE_URL);
         }
@@ -451,25 +591,37 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
         return metadataGenerator;
     }
 
-    // The filter is waiting for connections on URL suffixed with filterSuffix
-    // and presents SP metadata there
+    /**
+     * The filter is waiting for connections on URL suffixed with filterSuffix
+     * and presents SP metadata there.
+     *
+     * @return the new MetadataDisplayFilter
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public MetadataDisplayFilter metadataDisplayFilter() {
         return new MetadataDisplayFilter();
     }
 
-    // Handler deciding where to redirect user after successful login
+    /**
+     * Handler deciding where to redirect user after successful login.
+     *
+     * @return the SavedRequestAwareAuthenticationSuccessHandler
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public SavedRequestAwareAuthenticationSuccessHandler successRedirectHandler() {
         SavedRequestAwareAuthenticationSuccessHandler successRedirectHandler =
                 new SavedRequestAwareAuthenticationSuccessHandler();
-        successRedirectHandler.setDefaultTargetUrl("/");
+        successRedirectHandler.setDefaultTargetUrl(SAML_REDIRECT_URL);
         return successRedirectHandler;
     }
 
-    // Handler deciding where to redirect user after failed login
+    /**
+     * Handler deciding where to redirect user after failed login.
+     *
+     * @return the SimpleUrlAuthenticationFailureHandler
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public SimpleUrlAuthenticationFailureHandler authenticationFailureHandler() {
@@ -480,6 +632,14 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
         return failureHandler;
     }
 
+    /**
+     * The SAMLWebSSOHoKProcessingFilter (holder-of-key) that ties together the
+     * AuthenticationManager, the AuthenticationSuccessHandler,
+     * and the AuthenticationFailureHandler.
+     *
+     * @return the new SAMLWebSSOHoKProcessingFilter bean
+     * @throws Exception if there's an error creating the AuthenticationManager
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public SAMLWebSSOHoKProcessingFilter samlWebSSOHoKProcessingFilter() throws Exception {
@@ -490,7 +650,13 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
         return samlWebSSOHoKProcessingFilter;
     }
 
-    // Processing filter for WebSSO profile messages
+    /**
+     * Processing filter for WebSSO profile messages that ties together the
+     * AuthenticationManager, the AuthenticationSuccessHandler,
+     * and the AuthenticationFailureHandler.     *
+     * @return a new SAMLProcessingFilter
+     * @throws Exception if there's an error creating the AuthenticationManager
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public SAMLProcessingFilter samlWebSSOProcessingFilter() throws Exception {
@@ -501,25 +667,38 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
         return samlWebSSOProcessingFilter;
     }
 
+    /**
+     * Create a filer based on the metadataGenerator bean created above.
+     *
+     * @return the new MetadataGeneratorFilter
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public MetadataGeneratorFilter metadataGeneratorFilter() {
         return new MetadataGeneratorFilter(metadataGenerator());
     }
 
-    // Handler for successful logout
+    /**
+     * Handler for successful logout, redirecting to the URL "/".
+     *
+     * @return a SimpleUrlLogoutSuccessHandler
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public SimpleUrlLogoutSuccessHandler successLogoutHandler() {
         SimpleUrlLogoutSuccessHandler successLogoutHandler = new SimpleUrlLogoutSuccessHandler();
-        successLogoutHandler.setDefaultTargetUrl("/");
+        successLogoutHandler.setDefaultTargetUrl(SAML_REDIRECT_URL);
         return successLogoutHandler;
     }
 
-    // Logout handler terminating local session
+    /**
+     * Logout handler terminating local session.
+     *
+     * @return a logout handler that clears the HTTP session
+     */
     @Bean
     @Conditional(SAMLCondition.class)
-    public SecurityContextLogoutHandler logoutHandler() {
+    public SecurityContextLogoutHandler securityContextLogoutHandler() {
         SecurityContextLogoutHandler logoutHandler =
                 new SecurityContextLogoutHandler();
         logoutHandler.setInvalidateHttpSession(true);
@@ -527,61 +706,96 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
         return logoutHandler;
     }
 
-    // Filter processing incoming logout messages
-    // First argument determines URL user will be redirected to after successful
-    // global logout
+    /**
+     * Add a call to log out from the context in addition to the success logout handler.
+
+     * @return the ProcessingFilter for the SAML logout
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public SAMLLogoutProcessingFilter samlLogoutProcessingFilter() {
-        return new SAMLLogoutProcessingFilter(successLogoutHandler(),
-                logoutHandler());
+        return new SAMLLogoutProcessingFilter(
+            successLogoutHandler(),
+            securityContextLogoutHandler());
     }
 
-    // Overrides default logout processing filter with the one processing SAML
-    // messages
+    /**
+     * Overrides default logout processing filter with the one processing SAML messages.
+     *
+     * @return the processing filter for SAML logout handling
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public SAMLLogoutFilter samlLogoutFilter() {
         return new SAMLLogoutFilter(successLogoutHandler(),
-                new LogoutHandler[]{logoutHandler()},
-                new LogoutHandler[]{logoutHandler()});
+                new LogoutHandler[]{securityContextLogoutHandler()},
+                new LogoutHandler[]{securityContextLogoutHandler()});
     }
 
+    /**
+     * Configure an HTTPSOAP11Binding binding.
+     *
+     * @return the configured HTTPSOAP11Binding
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public HTTPSOAP11Binding soapBinding() {
         return new HTTPSOAP11Binding(parserPool());
     }
 
+    /**
+     * Create an HTTP Post binding using the parserPool and velocityEngine defined above.
+     *
+     * @return the SAML Velocity handler for HTTP post binding handling
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public HTTPPostBinding httpPostBinding() {
         return new HTTPPostBinding(parserPool(), velocityEngine());
     }
 
+    /**
+     * Create a SAML parser binding for HTTP redirect responses.
+     *
+     * @return the SAML Velocity handler for redirected responses
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public HTTPRedirectDeflateBinding httpRedirectDeflateBinding() {
         return new HTTPRedirectDeflateBinding(parserPool());
     }
 
+    /**
+     * Create a SAML parser for HTTP Soap 11 responses.
+     *
+     * @return the SAML Velocity parser for HTTP Soap 11 responses
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public HTTPSOAP11Binding httpSOAP11Binding() {
         return new HTTPSOAP11Binding(parserPool());
     }
 
+    /**
+     * Create a SAML parser for HTTP Soap AOS responses.
+     *
+     * @return a SAML parser for HTTP Soap AOS responses
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public HTTPPAOS11Binding httpPAOS11Binding() {
         return new HTTPPAOS11Binding(parserPool());
     }
 
-    // Processor
+    /**
+     * Top level SAML Processor.
+     *
+     * @return a SAML top-level processor
+     */
     @Bean
     @Conditional(SAMLCondition.class)
     public SAMLProcessorImpl processor() {
-        Collection<SAMLBinding> bindings = new ArrayList<SAMLBinding>();
+        Collection<SAMLBinding> bindings = new ArrayList<>();
         bindings.add(httpRedirectDeflateBinding());
         bindings.add(httpPostBinding());
         bindings.add(httpSOAP11Binding());
@@ -590,28 +804,28 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
     }
 
     /**
-     * Define the security filter chain in order to support SSO Auth by using SAML 2.0
+     * Define the security filter chain in order to support SSO Auth by using SAML 2.0.
      *
      * @return Filter chain proxy
-     * @throws Exception
+     * @throws Exception if there is an error creating one of the filters
      */
     @Bean
     @Conditional(SAMLCondition.class)
     public FilterChainProxy samlFilter() throws Exception {
-        List<SecurityFilterChain> chains = new ArrayList<SecurityFilterChain>();
-        chains.add(new DefaultSecurityFilterChain(new AntPathRequestMatcher("/vmturbo/saml/login/**"),
-                samlEntryPoint()));
-        chains.add(new DefaultSecurityFilterChain(new AntPathRequestMatcher("/vmturbo/saml/logout/**"),
-                samlLogoutFilter()));
-        chains.add(new DefaultSecurityFilterChain(new AntPathRequestMatcher("/vmturbo/saml/metadata/**"),
-                metadataDisplayFilter()));
-        chains.add(new DefaultSecurityFilterChain(new AntPathRequestMatcher("/vmturbo/saml/SSO/**"),
-                samlWebSSOProcessingFilter()));
-        chains.add(new DefaultSecurityFilterChain(new AntPathRequestMatcher("/vmturbo/saml/SSOHoK/**"),
-                samlWebSSOHoKProcessingFilter()));
-        chains.add(new DefaultSecurityFilterChain(new AntPathRequestMatcher("/vmturbo/saml/SingleLogout/**"),
-                samlLogoutProcessingFilter()));
-        return new FilterChainProxy(chains);
+        return new FilterChainProxy(Lists.newArrayList(
+            filterChainEntry("/vmturbo/saml/login/**", samlEntryPoint()),
+            filterChainEntry("/vmturbo/saml/logout/**", samlLogoutFilter()),
+            filterChainEntry("/vmturbo/saml/metadata/**", metadataDisplayFilter()),
+            filterChainEntry("/vmturbo/saml/SSO/**", samlWebSSOProcessingFilter()),
+            filterChainEntry("/vmturbo/saml/SSOHoK/**", samlWebSSOHoKProcessingFilter()),
+            filterChainEntry("/vmturbo/saml/SingleLogout/**", samlLogoutProcessingFilter())
+        ));
+    }
+
+    private DefaultSecurityFilterChain filterChainEntry(@Nonnull final String pattern,
+                                                        @Nonnull final GenericFilterBean filter) {
+        return new DefaultSecurityFilterChain(new AntPathRequestMatcher(pattern),
+            filter);
     }
 
     /**
@@ -619,7 +833,7 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
      * It represents a bean definition with the aim allow wiring from
      * other classes performing the Inversion of Control (IoC).
      *
-     * @throws Exception
+     * @throws Exception if there's an error creating an AuthenticationManager
      */
     @Bean
     @Conditional(SAMLCondition.class)
@@ -629,34 +843,33 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
     }
 
     /**
-     * Sets a custom authentication provider.
+     * Publish http session event to remove destroyed sessions from
+     * {@link org.springframework.security.core.session.SessionRegistry}.
      *
-     * @param auth SecurityBuilder used to create an AuthenticationManager.
-     * @throws Exception
+     * @return  publisher for HTTP Session events
      */
-    @Override
-    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-        if (samlEnabled) {
-            auth.authenticationProvider(samlAuthenticationProvider());
-        }
-    }
-
-
-    // Publish http session event to remove destroyed sessions from
-    // {@link org.springframework.security.core.session.SessionRegistry}.
     @Bean
     public HttpSessionEventPublisher httpSessionEventPublisher() {
         return new HttpSessionEventPublisher();
     }
 
-    // Keep user sessions, so they can be used to expire deleted user's active sessions
+    /**
+     * Keep user sessions, so they can be used to expire deleted user's active sessions.
+     *
+     * @return an instance of the Spring Session Registry default implementation
+     */
     @Bean
-    SessionRegistry sessionRegistry() {
+    public SessionRegistry sessionRegistry() {
         return new SessionRegistryImpl();
     }
 
+    /**
+     * Add a handler for auding failed Auth requests.
+     *
+     * @return a handler for Failed Auth Requests that logs messages to the audit log
+     */
     @Bean
-    FailedAuthRequestAuditor failedAuthRequestAuditor() {
+    public FailedAuthRequestAuditor failedAuthRequestAuditor() {
         return new FailedAuthRequestAuditor(applicationContext);
     }
 }

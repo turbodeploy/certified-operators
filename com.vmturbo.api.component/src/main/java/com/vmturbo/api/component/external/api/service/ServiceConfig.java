@@ -49,17 +49,15 @@ import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.auth.api.widgets.AuthClientConfig;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 import com.vmturbo.kvstore.PublicKeyStoreConfig;
-import com.vmturbo.kvstore.SAMLConfigurationStoreConfig;
 import com.vmturbo.notification.api.impl.NotificationClientConfig;
 import com.vmturbo.reporting.api.ReportingClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
-
 /**
  * Spring Configuration that initializes all the services.
- * <p>
- * For readability purposes, the services should appear in alphabetical order.
+ *
+ * <p>For readability purposes, the services should appear in alphabetical order.
  */
 @Configuration
 @Import({SpringSecurityConfig.class,
@@ -69,7 +67,6 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
         TopologyProcessorClientConfig.class,
         ReportingClientConfig.class,
         PublicKeyStoreConfig.class,
-        SAMLConfigurationStoreConfig.class,
         LicenseCheckClientConfig.class,
         NotificationClientConfig.class,
         UserSessionConfig.class,
@@ -77,8 +74,6 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 @PropertySource("classpath:api-component.properties")
 public class ServiceConfig {
 
-    @Autowired
-    private AuthClientConfig authConfig;
     /**
      * A path prefix to access reports data (implemented in Legacy as CGI-script) using
      * {@link ReportCgiServlet}.
@@ -115,10 +110,15 @@ public class ServiceConfig {
     @Value("${sessionTimeoutSeconds}")
     private int sessionTimeoutSeconds;
 
+    @Value("${componentType:api}")
+    private String apiComponentType;
 
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
      */
+    @Autowired
+    private AuthClientConfig authConfig;
+
     @Autowired
     private SpringSecurityConfig securityConfig;
 
@@ -145,9 +145,6 @@ public class ServiceConfig {
 
     @Autowired
     private TopologyProcessorClientConfig topologyProcessorClientConfig;
-
-    @Autowired
-    private SAMLConfigurationStoreConfig samlConfigurationStoreConfig;
 
     @Autowired
     private LicenseCheckClientConfig licenseCheckClientConfig;
@@ -190,7 +187,7 @@ public class ServiceConfig {
 
     @Bean
     public ISAMLService samlService() {
-        return new SAMLService(samlConfigurationStoreConfig.samlConfigurationStore());
+        return new SAMLService(apiComponentType, communicationConfig.clusterMgr());
     }
 
     @Bean
