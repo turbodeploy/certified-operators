@@ -8,6 +8,9 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.topology.processor.operation.OperationManager;
+import com.vmturbo.topology.processor.probes.ProbeException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -90,11 +93,13 @@ public class DerivedTargetParser {
      * Instantiates all derived targets and parses the DerivedTargetSpecificationDTO that returned from
      * discovery responses.
      *
+     * @param operationManager the operation manager is passed for the validation of the derived targets.
      * @param parentTargetId The id of the parent target.
      * @param derivedTargetsList The DTOs of derived targets list returned from discovery response.
      */
-    public void instantiateDerivedTargets(final long parentTargetId,
-            @Nonnull final List<DerivedTargetSpecificationDTO> derivedTargetsList) {
+    public void instantiateDerivedTargets(@Nonnull final OperationManager operationManager,
+                                          final long parentTargetId,
+                                          @Nonnull final List<DerivedTargetSpecificationDTO> derivedTargetsList) {
         logger.trace(derivedTargetsList.size() + " derived targets found.");
         final List<TargetSpec> derivedTargetSpecs = new ArrayList<>();
         derivedTargetsList.forEach(derivedTargetDTO -> {
@@ -112,7 +117,8 @@ public class DerivedTargetParser {
                         derivedTargetSpecs.add(targetSpec);
                     } else {
                         try {
-                            targetStore.createTarget(targetSpec);
+                            Target derivedTarget = targetStore.createTarget(targetSpec);
+                            validateDerivedTarget(operationManager, derivedTarget.getId());
                         } catch (DuplicateTargetException e) {
                             logger.debug("Derived target {} already exists, parsing will be skipped.",
                                     targetName);
@@ -127,9 +133,29 @@ public class DerivedTargetParser {
         });
         try {
             targetStore.createOrUpdateDerivedTargets(derivedTargetSpecs);
+            targetStore.getDerivedTargetIds(parentTargetId).forEach(derivedTargetID ->
+                validateDerivedTarget(operationManager, derivedTargetID)
+            );
         } catch (IdentityStoreException e) {
             logger.error("Error when fetching derived target identifiers and OIDs, derived targets creation "
                     + "or update failed. {}", e);
+        }
+    }
+
+    /**
+     * Initiate validation for the derived target and handle exceptions.
+     * The derived targets validation is done so that the UI will properly show their validation status.
+     *
+     * @param operationManager the operation manager which will validate the derived target.
+     * @param derivedTargetId the ID of the derived target which we need to validate.
+     */
+    private void validateDerivedTarget(@Nonnull final OperationManager operationManager,
+                                       final long derivedTargetId) {
+        try {
+            operationManager.startValidation(derivedTargetId);
+        } catch (TargetNotFoundException | ProbeException | CommunicationException |
+                InterruptedException e) {
+            logger.error("Validation failed for derived target {} failed: {}", derivedTargetId, e);
         }
     }
 
