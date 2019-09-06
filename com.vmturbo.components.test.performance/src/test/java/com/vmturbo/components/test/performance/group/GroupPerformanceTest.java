@@ -1,15 +1,11 @@
 package com.vmturbo.components.test.performance.group;
 
-import static java.util.stream.Collectors.groupingBy;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
@@ -21,6 +17,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+
+import com.google.common.collect.Iterators;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -36,6 +34,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesReque
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest.SettingsChunk;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsResponse;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.alert.Alert;
@@ -139,14 +138,16 @@ public class GroupPerformanceTest {
             settingPolicyRpcServiceAsync.uploadEntitySettings(responseObserver);
         try {
             AtomicInteger counter = new AtomicInteger();
-            settingsIt
-                .collect(groupingBy(x -> counter.getAndIncrement() / CHUNK_SIZE))
-                .values()
-                .forEach(chunk -> requestObserver.onNext(UploadEntitySettingsRequest.newBuilder()
+            requestObserver.onNext(UploadEntitySettingsRequest.newBuilder()
+                .setContext(UploadEntitySettingsRequest.Context.newBuilder()
                     .setTopologyId(TOPOLOGY_ID)
-                    .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
-                    .addAllEntitySettings(chunk).build()
-                ));
+                    .setTopologyContextId(TOPOLOGY_CONTEXT_ID))
+                .build());
+            Iterators.partition(settingsIt.iterator(), CHUNK_SIZE)
+                .forEachRemaining(chunk -> requestObserver.onNext(UploadEntitySettingsRequest.newBuilder()
+                    .setSettingsChunk(SettingsChunk.newBuilder()
+                        .addAllEntitySettings(chunk))
+                    .build()));
         } catch (RuntimeException e) {
             // Cancel RPC
             requestObserver.onError(e);

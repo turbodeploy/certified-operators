@@ -66,6 +66,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest.Context;
+import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest.SettingsChunk;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsResponse;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -666,7 +668,7 @@ public class SettingPolicyRpcServiceTest {
         StatusException exception = exceptionCaptor.getValue();
         assertThat(exception, GrpcExceptionMatcher
                 .hasCode(Code.INVALID_ARGUMENT)
-                .descriptionContains("Missing topologyId and/or topologyContextId argument!"));
+                .descriptionContains("Unexpected request chunk"));
     }
 
     @Test
@@ -698,10 +700,14 @@ public class SettingPolicyRpcServiceTest {
             settingPolicyService.uploadEntitySettings(responseObserver);
 
         requestObserver.onNext(UploadEntitySettingsRequest.newBuilder()
-            .setTopologyId(topologyId)
-            .setTopologyContextId(topologyContexId)
-            .addAllEntitySettings(esList).build()
-        );
+            .setContext(Context.newBuilder()
+                .setTopologyId(topologyId)
+                .setTopologyContextId(topologyContexId))
+            .build());
+        requestObserver.onNext(UploadEntitySettingsRequest.newBuilder()
+            .setSettingsChunk(SettingsChunk.newBuilder()
+                .addAllEntitySettings(esList))
+            .build());
         requestObserver.onCompleted();
         verify(responseObserver).onNext(responseCaptor.capture());
         verify(responseObserver).onCompleted();
@@ -739,27 +745,29 @@ public class SettingPolicyRpcServiceTest {
         long topologyId = 1111;
         long topologyContexId = 7777;
 
-        final ArgumentCaptor<UploadEntitySettingsResponse> responseCaptor =
-            ArgumentCaptor.forClass(UploadEntitySettingsResponse.class);
         StreamObserver<UploadEntitySettingsRequest> requestObserver =
             settingPolicyService.uploadEntitySettings(responseObserver);
+        requestObserver.onNext(UploadEntitySettingsRequest.newBuilder()
+            .setContext(Context.newBuilder()
+                .setTopologyId(topologyId)
+                .setTopologyContextId(topologyContexId))
+            .build());
         for (EntitySettings entity : esList) {
             requestObserver.onNext(UploadEntitySettingsRequest.newBuilder()
-                .setTopologyId(topologyId)
-                .setTopologyContextId(topologyContexId)
-                .addAllEntitySettings(Arrays.asList(entity)).build()
-            );
+                .setSettingsChunk(SettingsChunk.newBuilder()
+                    .addAllEntitySettings(Arrays.asList(entity)))
+                .build());
         }
         requestObserver.onCompleted();
-        verify(responseObserver, times(esList.size())).onNext(responseCaptor.capture());
+        verify(responseObserver).onNext(any());
         verify(responseObserver).onCompleted();
     }
 
     /**
-     * Test failure of processing a chunk.
+     * Test failure when processing a request with no context.
      */
     @Test
-    public void testUploadEntitySettingsFailingChunk() {
+    public void testUploadEntitySettingsFailingWhenNoContext() {
         final StreamObserver<UploadEntitySettingsResponse> responseObserver =
             (StreamObserver<UploadEntitySettingsResponse>)mock(StreamObserver.class);
 
@@ -780,28 +788,19 @@ public class SettingPolicyRpcServiceTest {
         long topologyId = 1111;
         long topologyContexId = 7777;
 
-        final ArgumentCaptor<UploadEntitySettingsResponse> responseCaptor =
-            ArgumentCaptor.forClass(UploadEntitySettingsResponse.class);
         StreamObserver<UploadEntitySettingsRequest> requestObserver =
             settingPolicyService.uploadEntitySettings(responseObserver);
+
+        // No context.
+
         for (EntitySettings entity : esList) {
             requestObserver.onNext(UploadEntitySettingsRequest.newBuilder()
-                .setTopologyId(topologyId)
-                .setTopologyContextId(topologyContexId)
-                .addAllEntitySettings(Arrays.asList(entity)).build()
-            );
+                .setSettingsChunk(SettingsChunk.newBuilder()
+                    .addAllEntitySettings(Arrays.asList(entity)))
+                .build());
         }
-        EntitySettings es3 =
-            EntitySettings.newBuilder()
-                .setEntityOid(8910)
-                .build();
-
-        requestObserver.onNext(UploadEntitySettingsRequest.newBuilder()
-            .setTopologyContextId(topologyContexId)
-            .addAllEntitySettings(Arrays.asList(es3)).build());
 
         requestObserver.onCompleted();
-        verify(responseObserver, times(esList.size())).onNext(responseCaptor.capture());
         verify(responseObserver).onError(any());
     }
 

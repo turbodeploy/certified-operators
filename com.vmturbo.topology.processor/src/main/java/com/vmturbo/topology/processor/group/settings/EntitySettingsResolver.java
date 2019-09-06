@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status;
@@ -42,6 +43,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest.Context;
+import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest.SettingsChunk;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsResponse;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -546,15 +549,18 @@ public class EntitySettingsResolver {
     void streamEntitySettingsRequest(@Nonnull final TopologyInfo topologyInfo,
                               @Nonnull final Collection<EntitySettings> entitiesSettings,
                               @Nonnull final StreamObserver<UploadEntitySettingsRequest> requestObserver) {
-        AtomicInteger counter = new AtomicInteger();
-        entitiesSettings.stream()
-            .collect(groupingBy(x -> counter.getAndIncrement() / chunkSize))
-            .values()
-            .forEach(chunk -> requestObserver.onNext(UploadEntitySettingsRequest.newBuilder()
-                .setTopologyId(topologyInfo.getTopologyId())
+        requestObserver.onNext(UploadEntitySettingsRequest.newBuilder()
+            .setContext(Context.newBuilder()
                 .setTopologyContextId(topologyInfo.getTopologyContextId())
-                .addAllEntitySettings(chunk).build()
-            ));
+                .setTopologyId(topologyInfo.getTopologyId()))
+            .build());
+        Iterators.partition(entitiesSettings.iterator(), chunkSize)
+            .forEachRemaining(chunk -> {
+                requestObserver.onNext(UploadEntitySettingsRequest.newBuilder()
+                    .setSettingsChunk(SettingsChunk.newBuilder()
+                        .addAllEntitySettings(chunk))
+                    .build());
+            });
     }
 
     /**
