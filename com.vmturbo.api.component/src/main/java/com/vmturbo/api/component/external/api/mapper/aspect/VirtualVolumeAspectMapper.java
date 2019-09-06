@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -93,21 +94,25 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
         return mapEntitiesToAspect(Lists.newArrayList(entity));
     }
 
+    @Nullable
     @Override
     public EntityAspect mapEntitiesToAspect(@Nonnull List<TopologyEntityDTO> entities) {
         if (entities.size() == 0) {
             return null;
         }
-
         final int entityType = entities.get(0).getEntityType();
-        if (entityType == EntityType.STORAGE_TIER_VALUE) {
-            return mapStorageTiers(entities);
-        } else if (entityType == EntityType.VIRTUAL_MACHINE_VALUE) {
-            return mapVirtualMachines(entities);
-        } else if (entityType == EntityType.STORAGE_VALUE) {
-            return mapStorages(entities);
+        switch (entityType) {
+            case EntityType.VIRTUAL_VOLUME_VALUE:
+                return mapVirtualVolumes(entities);
+            case EntityType.STORAGE_TIER_VALUE:
+                return mapStorageTiers(entities);
+            case EntityType.VIRTUAL_MACHINE_VALUE:
+                return mapVirtualMachines(entities);
+            case EntityType.STORAGE_VALUE:
+                return mapStorages(entities);
+            default:
+                return null;
         }
-        return null;
     }
 
     /**
@@ -288,6 +293,81 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
             .getFullEntities()
             .collect(Collectors.toList());
         return mapVirtualMachines(vms, topologyContextId);
+    }
+
+    /**
+     * Create VirtualVolumeAspect for a list of virtual volumes.
+     *
+     * @param volumeDTOs a list of virtual volumes.
+     */
+    @Nullable
+    private EntityAspect mapVirtualVolumes(@Nonnull List<TopologyEntityDTO> volumeDTOs) {
+        return mapVirtualVolumes(volumeDTOs, null);
+    }
+
+    @Nullable
+    private EntityAspect mapVirtualVolumes(@Nonnull List<TopologyEntityDTO> vols,
+                                           @Nullable Long topologyContextId) {
+        final Map<Long, TopologyEntityDTO> vmByVolumeId = Maps.newHashMap();
+
+        // create mapping from volume id to storage tier and region
+        final Map<Long, ServiceEntityApiDTO> storageTierByVolumeId = Maps.newHashMap();
+        final Map<Long, ApiPartialEntity> regionByVolumeId = Maps.newHashMap();
+        final Map<Long, Long> storageTierIdToVolumeOid = Maps.newHashMap();
+
+        vols.forEach(vol -> {
+            for (ConnectedEntity connectedEntity : vol.getConnectedEntityListList()) {
+                switch (connectedEntity.getConnectedEntityType()) {
+                    case EntityType.AVAILABILITY_ZONE_VALUE:
+                        // get region from zone
+                        repositoryApi.newSearchRequest(
+                                SearchProtoUtil.neighborsOfType(connectedEntity.getConnectedEntityId(),
+                                        TraversalDirection.CONNECTED_FROM,
+                                        UIEntityType.REGION))
+                                .getEntities()
+                                .forEach(region -> regionByVolumeId.put(vol.getOid(), region));
+                        break;
+                    case EntityType.STORAGE_TIER_VALUE:
+                        storageTierIdToVolumeOid.put(connectedEntity.getConnectedEntityId(), vol.getOid());
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+            // find connected VMs
+            repositoryApi.newSearchRequest(
+                    SearchProtoUtil.neighborsOfType(vol.getOid(),
+                            TraversalDirection.CONNECTED_FROM,
+                            UIEntityType.VIRTUAL_MACHINE))
+                    .getFullEntities().forEach(vm ->
+                        vmByVolumeId.put(vol.getOid(), vm));
+        });
+
+        repositoryApi.entitiesRequest(storageTierIdToVolumeOid.keySet())
+                .getSEMap().entrySet()
+                .forEach(storageTierKeyValue -> storageTierByVolumeId.put(
+                        storageTierIdToVolumeOid.get(storageTierKeyValue.getKey()),
+                        storageTierKeyValue.getValue()));
+
+        // get cost stats for all volumes
+        final Map<Long, StatApiDTO> volumeCostStatById = getVolumeCostStats(
+                new ArrayList<>(vmByVolumeId.values()), topologyContextId);
+
+        // convert to VirtualDiskApiDTO
+        List<VirtualDiskApiDTO> virtualDisks = vols.stream()
+            .map(volume -> convert(volume, vmByVolumeId, storageTierByVolumeId,
+                regionByVolumeId, volumeCostStatById))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+
+        if (virtualDisks.isEmpty()) {
+            return null;
+        }
+
+        final VirtualDisksAspectApiDTO aspect = new VirtualDisksAspectApiDTO();
+        aspect.setVirtualDisks(virtualDisks);
+        return aspect;
     }
 
     /**

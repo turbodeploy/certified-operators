@@ -19,8 +19,11 @@ import com.google.common.collect.Sets;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
 import com.vmturbo.api.dto.entityaspect.VirtualDisksAspectApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
+
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
@@ -172,6 +175,18 @@ public class VirtualVolumeAspectMapperTest {
             .build())
         .build();
 
+    private ApiPartialEntity zone1 = ApiPartialEntity.newBuilder()
+            .setOid(zoneId1)
+            .setDisplayName("aws-ap-northeast-1a")
+            .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+            .build();
+
+    private ApiPartialEntity storageTierPartialEntity = ApiPartialEntity.newBuilder()
+            .setOid(storageTierId1)
+            .setDisplayName(storageDisplayName)
+            .setEntityType(EntityType.STORAGE_TIER_VALUE)
+            .build();
+
     // azure entities:
     // vm2 --> volume3, vm2 --> storageTier2
     // volume1 and volume2 --> zone1, storageTier1
@@ -241,6 +256,92 @@ public class VirtualVolumeAspectMapperTest {
         .setDisplayName(storageDisplayName)
         .setEntityType(EntityType.STORAGE_VALUE)
         .build();
+
+    private final Long volumeConnectedZoneId = 102L;
+    private final String volumeConnectedZoneDisplayName = "zone1";
+
+    private ApiPartialEntity volumeConnectedZone = ApiPartialEntity.newBuilder()
+            .setOid(volumeConnectedZoneId)
+            .setDisplayName(volumeConnectedZoneDisplayName)
+            .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+            .build();
+
+    ServiceEntityApiDTO storageTierSEApiDTO = new ServiceEntityApiDTO();
+
+    private final Long virtualVolumeId = 100L;
+    private final String virtualVolumeDisplayName = "volume1";
+
+    private final int storageAccessCapacity = 512000;
+    private final int storageAmountCapacity = 500;
+
+    private TopologyEntityDTO virtualVolume1 = TopologyEntityDTO.newBuilder()
+            .setOid(virtualVolumeId)
+            .setDisplayName(virtualVolumeDisplayName)
+            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+            .addConnectedEntityList(ConnectedEntity.newBuilder()
+                    .setConnectedEntityId(volumeConnectedZoneId)
+                    .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+                    .build())
+            .addConnectedEntityList(ConnectedEntity.newBuilder()
+                    .setConnectedEntityType(EntityType.STORAGE_TIER_VALUE)
+                    .setConnectedEntityId(storageTierId1)
+                    .build())
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setVirtualVolume(VirtualVolumeInfo.newBuilder()
+                            .setStorageAccessCapacity(storageAccessCapacity)
+                            .setStorageAmountCapacity(storageAmountCapacity)
+                            .build()))
+            .build();
+
+    @Test
+    public void testMapVolume() {
+        storageTierSEApiDTO.setUuid(storageTierId1.toString());
+        storageTierSEApiDTO.setDisplayName(storageDisplayName);
+
+        doAnswer(invocation -> {
+            SearchParameters param = invocation.getArgumentAt(0, SearchParameters.class);
+            if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_MACHINE))) {
+                return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(vm1));
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeConnectedZoneId, TraversalDirection.CONNECTED_FROM, UIEntityType.REGION))) {
+                return ApiTestUtils.mockSearchReq(Lists.newArrayList(volumeConnectedZone));
+            } else {
+                throw new IllegalArgumentException(param.toString());
+            }
+        }).when(repositoryApi).newSearchRequest(any(SearchParameters.class));
+
+        RepositoryApi.MultiEntityRequest storageTierRequest = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(storageTierSEApiDTO));
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(storageTierId1))).thenReturn(storageTierRequest);
+
+        VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO) volumeAspectMapper.mapEntitiesToAspect(
+                Lists.newArrayList(virtualVolume1));
+
+        assertEquals(1, aspect.getVirtualDisks().size());
+
+        // check the virtual disks for each file on the wasted storage
+        VirtualDiskApiDTO volumeAspect = null;
+        for (VirtualDiskApiDTO virtualDiskApiDTO : aspect.getVirtualDisks()) {
+            if (virtualDiskApiDTO.getDisplayName().equals(virtualVolumeDisplayName)) {
+                volumeAspect = virtualDiskApiDTO;
+            }
+        }
+
+        assertNotNull(volumeAspect);
+        assertEquals(String.valueOf(virtualVolumeId), volumeAspect.getUuid());
+        assertEquals(String.valueOf(storageTierId1), volumeAspect.getProvider().getUuid());
+        assertEquals(String.valueOf(volumeConnectedZoneId), volumeAspect.getDataCenter().getUuid());
+
+        // check stats for volume
+        java.util.List<StatApiDTO> stats = volumeAspect.getStats();
+        assertEquals(2, stats.size());
+        java.util.Optional<StatApiDTO> statApiDTOStorageAccess = stats.stream().filter(stat -> stat.getName() == "StorageAccess").findFirst();
+        assertEquals(statApiDTOStorageAccess.get().getCapacity().getAvg().longValue(), storageAccessCapacity);
+        java.util.Optional<StatApiDTO> statApiDTOStorageAmount = stats.stream().filter(stat -> stat.getName() == "StorageAmount").findFirst();
+        assertEquals(statApiDTOStorageAmount.get().getCapacity().getAvg().longValue(), storageAmountCapacity);
+
+        assertEquals(virtualVolumeDisplayName, volumeAspect.getDisplayName());
+
+        assertEquals(String.valueOf(vmId1), volumeAspect.getAttachedVirtualMachine().getUuid());
+    }
 
     private TopologyEntityDTO volume4 = TopologyEntityDTO.newBuilder()
         .setOid(volumeId4)

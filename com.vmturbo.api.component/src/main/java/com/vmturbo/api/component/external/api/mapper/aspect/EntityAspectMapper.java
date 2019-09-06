@@ -78,6 +78,8 @@ public class EntityAspectMapper {
             .put(EntityType.DESKTOP_POOL_VALUE, ImmutableList.of(
                 desktopPoolAspectMapper,
                 masterImageEntityAspectMapper))
+            .put(EntityType.VIRTUAL_VOLUME_VALUE, ImmutableList.of(
+                virtualVolumeAspectMapper))
             .build();
     }
 
