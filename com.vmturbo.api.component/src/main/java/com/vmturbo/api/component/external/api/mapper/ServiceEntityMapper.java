@@ -7,7 +7,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -44,7 +43,6 @@ public class ServiceEntityMapper {
         baseApiDTO.setDisplayName(Objects.requireNonNull(topologyEntityDTO).getDisplayName());
         baseApiDTO.setClassName(UIEntityType.fromType(topologyEntityDTO.getEntityType()).apiStr());
         baseApiDTO.setUuid(String.valueOf(topologyEntityDTO.getOid()));
-        setNonEmptyDisplayName(baseApiDTO);
         return baseApiDTO;
     }
 
@@ -54,7 +52,6 @@ public class ServiceEntityMapper {
         baseApiDTO.setDisplayName(Objects.requireNonNull(topologyEntityDTO).getDisplayName());
         baseApiDTO.setClassName(UIEntityType.fromType(topologyEntityDTO.getEntityType()).apiStr());
         baseApiDTO.setUuid(String.valueOf(topologyEntityDTO.getOid()));
-        setNonEmptyDisplayName(baseApiDTO);
         return baseApiDTO;
     }
 
@@ -64,18 +61,7 @@ public class ServiceEntityMapper {
         baseApiDTO.setDisplayName(Objects.requireNonNull(topologyEntityDTO).getDisplayName());
         baseApiDTO.setClassName(UIEntityType.fromType(topologyEntityDTO.getEntityType()).apiStr());
         baseApiDTO.setUuid(String.valueOf(topologyEntityDTO.getOid()));
-        setNonEmptyDisplayName(baseApiDTO);
         return baseApiDTO;
-    }
-
-    /**
-     * Set displayName to UUID if the former is null or empty
-     * @param apiDTO    DTO to update
-     */
-    private static void setNonEmptyDisplayName(final ServiceEntityApiDTO apiDTO) {
-        if (StringUtils.isEmpty(apiDTO.getDisplayName())) {
-            apiDTO.setDisplayName(apiDTO.getUuid());
-        }
     }
 
     /**

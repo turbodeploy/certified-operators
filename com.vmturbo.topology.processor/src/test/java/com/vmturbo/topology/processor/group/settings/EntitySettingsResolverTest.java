@@ -721,7 +721,7 @@ public class EntitySettingsResolverTest {
         entitySettingsResolver.streamEntitySettingsRequest(info, Arrays.asList(
             createEntitySettings(entityOid1, Arrays.asList(setting2, setting1), 444444L),
             createEntitySettings(entityOid2, Arrays.asList(setting2, setting1), 444444L)), requestObserver);
-        verify(requestObserver, times(3)).onNext(any());
+        verify(requestObserver, times(2)).onNext(any());
     }
 
     /**

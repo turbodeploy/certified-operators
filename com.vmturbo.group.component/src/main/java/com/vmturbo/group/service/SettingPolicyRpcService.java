@@ -3,7 +3,6 @@ package com.vmturbo.group.service;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -34,7 +33,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyReque
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup.SettingPolicyId;
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
@@ -56,9 +54,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest.Context;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsResponse;
-import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableSettingPolicyUpdateException;
@@ -355,17 +351,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
      **/
     private class EntitySettingsRequest implements StreamObserver<UploadEntitySettingsRequest> {
 
-        private final StreamObserver<UploadEntitySettingsResponse> responseObserver;
-
-        /**
-         * All entity settings, across all chunks.
-         */
-        private final List<EntitySettings> allEntitySettings = new LinkedList<>();
-
-        /**
-         * The context message received as the first message in the upload request.
-         */
-        private final SetOnce<Context> context = new SetOnce<>();
+        StreamObserver<UploadEntitySettingsResponse> responseObserver;
 
         EntitySettingsRequest(StreamObserver<UploadEntitySettingsResponse> responseObserver) {
             this.responseObserver = responseObserver;
@@ -373,30 +359,17 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
 
         @Override
         public void onNext(final UploadEntitySettingsRequest request) {
-            switch (request.getTypeCase()) {
-                case CONTEXT:
-                    final Context reqContext = request.getContext();
-                    if (!reqContext.hasTopologyId() || !reqContext.hasTopologyContextId()) {
-                        logger.error("Missing topologyId {} or topologyContextId argument {}",
-                            reqContext.hasTopologyId(), reqContext.hasTopologyContextId());
-                        responseObserver.onError(Status.INVALID_ARGUMENT
-                            .withDescription("Missing topologyId and/or topologyContextId argument!")
-                            .asException());
-                        return;
-                    }
-                    context.trySetValue(request.getContext());
-                    break;
-                case SETTINGS_CHUNK:
-                    allEntitySettings.addAll(request.getSettingsChunk().getEntitySettingsList());
-                    break;
-                default:
-                    final String error = "Unexpected request chunk: " + request.getTypeCase();
-                    logger.error(error);
-                    responseObserver.onError(Status.INVALID_ARGUMENT
-                        .withDescription(error)
-                        .asException());
-                    break;
+            if (!request.hasTopologyId() || !request.hasTopologyContextId()) {
+                logger.error("Missing topologyId {} or topologyContextId argument {}",
+                    request.hasTopologyId(), request.hasTopologyContextId());
+                responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Missing topologyId and/or topologyContextId argument!")
+                    .asException());
+                return;
             }
+            entitySettingStore.storeEntitySettings(request.getTopologyContextId(),
+                request.getTopologyId(), request.getEntitySettingsList().stream());
+            responseObserver.onNext(UploadEntitySettingsResponse.newBuilder().build());
         }
 
         @Override
@@ -406,21 +379,9 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
 
         @Override
         public void onCompleted() {
-            if (!context.getValue().isPresent()) {
-                String error = "No valid context message received as part of the input stream.";
-                logger.error(error);
-                responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription(error)
-                    .asException());
-            } else {
-                final Context contextVal = context.getValue().get();
-                logger.info("Completed uploading of {} entity settings in context: {}",
-                    allEntitySettings.size(), contextVal);
-                entitySettingStore.storeEntitySettings(contextVal.getTopologyContextId(),
-                    contextVal.getTopologyId(), allEntitySettings.stream());
-                responseObserver.onNext(UploadEntitySettingsResponse.newBuilder().build());
-                responseObserver.onCompleted();
-            }
+            logger.info("Finished receiving EntitySettings map to group component");
+            responseObserver.onCompleted();
+
         }
     }
 

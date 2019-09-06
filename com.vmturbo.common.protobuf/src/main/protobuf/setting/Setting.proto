@@ -555,32 +555,13 @@ message EntitySettings {
 }
 
 message UploadEntitySettingsRequest {
+    // required field
+    optional int64 topology_id = 1;
 
-    // A single entity settings upload will contain exactly one context message,
-    // followed by zero or more settings chunks.
-    oneof type {
-        // The context of the request. There will always be a context for each upload.
-        Context context = 1;
+    // required field
+    optional int64 topology_context_id = 2;
 
-        // A chunk of entity settings.
-        SettingsChunk settings_chunk = 2;
-    }
-
-    // The context describes the topology and topology context for the settings upload.
-    message Context {
-        // required field
-        optional int64 topology_id = 1;
-
-        // required field
-        optional int64 topology_context_id = 2;
-    }
-
-    message SettingsChunk {
-        // Each chunk will contain some number of settings. At the time of this writing this
-        // is only called from the Topology Processor, and is controlled by the
-        // entitySettingsChunksSize property.
-        repeated EntitySettings entity_settings = 1;
-    }
+    repeated EntitySettings entity_settings = 3;
 }
 
 message UploadEntitySettingsResponse {
