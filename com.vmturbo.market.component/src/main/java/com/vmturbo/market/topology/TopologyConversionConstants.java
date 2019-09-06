@@ -57,9 +57,14 @@ public class TopologyConversionConstants {
                     // mapping for Azure Database commodities
                     .put(CommodityType.DB_MEM_VALUE, CommodityType.VMEM_VALUE)
                     .put(CommodityType.TRANSACTION_VALUE, CommodityType.VCPU_VALUE).build();
+
+    // Throughput commodities.
+    public static final Set<Integer> THROUGHPUT_COMMODITIES =
+            ImmutableSet.of(CommodityType.IO_THROUGHPUT_VALUE, CommodityType.NET_THROUGHPUT_VALUE);
+
     // TODO: the following constants will be from user settings once UI supports it
-    public static final double RESIZE_AVG_WEIGHT =  0.1f;
-    public static final double RESIZE_MAX_WEIGHT =  0.9f;
-    public static final double RESIZE_PEAK_WEIGHT =  0.0f;
+    public static final double RESIZE_AVG_WEIGHT = 0.1f;
+    public static final double RESIZE_MAX_WEIGHT = 0.9f;
+    public static final double RESIZE_PEAK_WEIGHT = 0.0f;
     public static final float FLOAT_COMPARISON_DELTA = 0.0000001f;
 }

@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.group.settings;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntityBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -29,6 +30,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -111,11 +113,34 @@ public class EntitySettingsApplicatorTest {
                     .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(5000))
                     .build();
 
+    private static final Setting VM_IO_THROUGHPUT_RESIZE_TARGET_UTILIZATION = Setting.newBuilder()
+            .setSettingSpecName(
+                    EntitySettingSpecs.ResizeTargetUtilizationIoThroughput.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(50))
+            .build();
+
+    private static final Setting VM_NET_THROUGHPUT_RESIZE_TARGET_UTILIZATION = Setting.newBuilder()
+            .setSettingSpecName(
+                    EntitySettingSpecs.ResizeTargetUtilizationNetThroughput.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(40))
+            .build();
+
+    private static final Setting VM_VMEM_THROUGHPUT_RESIZE_TARGET_UTILIZATION = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeTargetUtilizationVmem.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(30))
+            .build();
+
+    private static final Setting VM_VCPU_THROUGHPUT_RESIZE_TARGET_UTILIZATION = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeTargetUtilizationVcpu.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(20))
+            .build();
+
     private static final Setting.Builder RESIZE_SETTING_BUILDER = Setting.newBuilder()
             .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
 
     private static final TopologyEntityDTO PARENT_OBJECT =
             TopologyEntityDTO.newBuilder().setOid(PARENT_ID).setEntityType(100001).build();
+    private static final double DELTA = 0.001;
 
     private EntitySettingsApplicator applicator;
 
@@ -585,6 +610,73 @@ public class EntitySettingsApplicatorTest {
 
         // Resizeable unchanged for non default setting of vStorage increment.
         assertTrue(builder.getCommoditySoldListBuilder(0).getIsResizeable());
+    }
+
+    /**
+     * Test virtual machine io throughput resize target utilization.
+     */
+    @Test
+    public void testVmIoThroughputResizeTargetUtilization() {
+        testResizeTargetUtilizationCommodityBoughtApplicator(CommodityType.IO_THROUGHPUT,
+                VM_IO_THROUGHPUT_RESIZE_TARGET_UTILIZATION);
+    }
+
+    /**
+     * Test virtual machine net throughput resize target utilization.
+     */
+    @Test
+    public void testVmNetThroughputResizeTargetUtilization() {
+        testResizeTargetUtilizationCommodityBoughtApplicator(CommodityType.NET_THROUGHPUT,
+                VM_NET_THROUGHPUT_RESIZE_TARGET_UTILIZATION);
+    }
+
+    /**
+     * Test resize target utilization commodity bought applicator.
+     */
+    private void testResizeTargetUtilizationCommodityBoughtApplicator(CommodityType commodityType,
+            Setting resizeTargetUtilizationSetting) {
+        final TopologyEntityDTO.Builder virtualMachine = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                        .setType(commodityType.getNumber()))));
+        applySettings(TOPOLOGY_INFO, virtualMachine, resizeTargetUtilizationSetting);
+        assertEquals(virtualMachine.getCommoditiesBoughtFromProviders(0)
+                        .getCommodityBoughtList()
+                        .get(0)
+                        .getResizeTargetUtilization(),
+                resizeTargetUtilizationSetting.getNumericSettingValue().getValue() / 100, DELTA);
+    }
+
+    /**
+     * Test virtual machine vmem resize target utilization.
+     */
+    @Test
+    public void testVmVMemResizeTargetUtilization() {
+        testResizeTargetUtilizationCommoditySoldApplicator(CommodityType.VMEM,
+                VM_VMEM_THROUGHPUT_RESIZE_TARGET_UTILIZATION);
+    }
+
+    /**
+     * Test virtual machine vmem resize target utilization.
+     */
+    @Test
+    public void testVmVCpuResizeTargetUtilization() {
+        testResizeTargetUtilizationCommoditySoldApplicator(CommodityType.VCPU,
+                VM_VCPU_THROUGHPUT_RESIZE_TARGET_UTILIZATION);
+    }
+
+    /**
+     * Test resize target utilization commodity sold applicator.
+     */
+    private void testResizeTargetUtilizationCommoditySoldApplicator(CommodityType commodityType,
+            Setting resizeTargetUtilizationSetting) {
+        final TopologyEntityDTO.Builder virtualMachine =
+                createEntityWithCommodity(EntityType.VIRTUAL_MACHINE, commodityType);
+        applySettings(TOPOLOGY_INFO, virtualMachine, resizeTargetUtilizationSetting);
+        assertEquals(virtualMachine.getCommoditySoldList(0).getResizeTargetUtilization(),
+                resizeTargetUtilizationSetting.getNumericSettingValue().getValue() / 100, DELTA);
     }
 
     @Test

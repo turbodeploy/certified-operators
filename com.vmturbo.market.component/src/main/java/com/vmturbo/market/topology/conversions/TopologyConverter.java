@@ -1191,99 +1191,147 @@ public class TopologyConverter {
      *
      * @param topologyDTO topology entity DTO as resize target
      * @param commBought commodity bought to be resized
-     * @return an array of two elements, the first element is new used value, the second is the new peak value
+     * @param providerOid the oid of the seller of the shopping list
+     * @return an array of two elements, the first element is new used value,
+     * the second is the new peak value
      */
-    protected float[] getResizedCapacityForCloud(@Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO,
-                                                 @Nonnull final TopologyDTO.CommodityBoughtDTO commBought) {
+    protected double[] getResizedCapacityForCloud(
+            @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO,
+            @Nonnull final TopologyDTO.CommodityBoughtDTO commBought,
+            @Nullable final Long providerOid) {
+        final float used =
+                CommodityConverter.getUsedValue(commBought, TopologyDTO.CommodityBoughtDTO::getUsed,
+                        commBought.hasHistoricalUsed() ?
+                                TopologyDTO.CommodityBoughtDTO::getHistoricalUsed : null);
+        final float peak =
+                CommodityConverter.getUsedValue(commBought, TopologyDTO.CommodityBoughtDTO::getPeak,
+                        commBought.hasHistoricalPeak() ?
+                                TopologyDTO.CommodityBoughtDTO::getHistoricalPeak : null);
 
-        float used = CommodityConverter
-                        .getUsedValue(commBought, TopologyDTO.CommodityBoughtDTO::getUsed,
-                                      commBought.hasHistoricalUsed()
-                                                      ? TopologyDTO.CommodityBoughtDTO::getHistoricalUsed
-                                                      : null);
-        float peak = CommodityConverter
-                        .getUsedValue(commBought, TopologyDTO.CommodityBoughtDTO::getPeak,
-                                      commBought.hasHistoricalPeak()
-                                                      ? TopologyDTO.CommodityBoughtDTO::getHistoricalPeak
-                                                      : null);
-        float[] newQuantity = {used, peak};
-        Integer drivingCommSoldType = TopologyConversionConstants.commDependancyMapForCloudResize
-                .get(commBought.getCommodityType().getType());
-        if (drivingCommSoldType == null) {
-            return newQuantity;
-        }
-        List<TopologyDTO.CommoditySoldDTO> drivingCommSold = topologyDTO.getCommoditySoldListList().stream()
-                .filter(c -> c.getCommodityType().getType() == drivingCommSoldType).collect(Collectors.toList());
         // TODO: Need to add check for Cloud migration here. This will apply to Cloud Migration too.
-        if (drivingCommSold.size() == 1 && topologyDTO.getEnvironmentType() == EnvironmentType.CLOUD) {
-            CommoditySoldDTO commSold = drivingCommSold.get(0);
-            double targetUtil = commSold.getResizeTargetUtilization();
-            if (targetUtil <= 0.0) {
-                // Dividing by 100 to convert the percentage in setting to decimal expected here
-                final double globalDefault = EntitySettingSpecs.UtilTarget.getSettingSpec()
-                        .getNumericSettingValueType().getDefault() / 100;
-                logger.warn("Invalid resize target util {} in commodity of type {} in entity {}; " +
-                                "replacing it with the global default {}",
-                        targetUtil, commSold.getCommodityType().getType(),
-                        topologyDTO.getDisplayName(), globalDefault);
-                targetUtil = globalDefault;
-            }
-            logger.debug("Resizing {} of {}. Used = {}, Peak = {}, RTU = {}",
-                    commSold.getCommodityType().getType(), topologyDTO.getDisplayName(),
-                    commSold.getUsed(), commSold.getPeak(), targetUtil);
-
-            double resizeUpDemand = commSold.getUsed();
-            // For cloud resize down where instead of using the max we use weighted average
-            double resizeDownDemand = getWeightedUsed(commSold);
-            double newCapacity;
-            if (Math.ceil(resizeUpDemand / targetUtil) > commSold.getCapacity()) {
-                newCapacity = resizeUpDemand / targetUtil;
-                cert.logCommodityResize(topologyDTO.getOid(), commSold.getCommodityType(),
-                        newCapacity - commSold.getCapacity());
-                logger.debug("Using resizeUpDemand value {} for Driving commodity type {} for "
-                        + "entity {}. New commBoughtUsed = {} and targetUtil = {}", resizeUpDemand,
-                        commSold.getCommodityType().getType(), topologyDTO.getDisplayName(),
-                        newCapacity, targetUtil);
-
-            } else if (resizeDownDemand > 0 && Math.ceil(resizeDownDemand / targetUtil)
-                    < commSold.getCapacity()) {
-                newCapacity = resizeDownDemand / targetUtil;
-                cert.logCommodityResize(topologyDTO.getOid(), commSold.getCommodityType(),
-                        newCapacity - commSold.getCapacity());
-                logger.debug("Using resizeDownDemand value {} for Driving commodity type {} for "
-                        + "entity {}. New commBoughtUsed = {} and  targetUtil = {}", resizeDownDemand,
-                        commSold.getCommodityType().getType(), topologyDTO.getDisplayName(),
-                        newCapacity, targetUtil);
-            } else {
-                // do not resize
-                newCapacity = (float)commSold.getCapacity();
-                logger.debug("Using capacity of Driving commodity type {} for entity {}. "
-                        + "CommBoughtUsed = {} ", commSold.getCommodityType().getType(),
-                        topologyDTO.getDisplayName(), newCapacity);
-            }
-            newQuantity[0] = (float) newCapacity;
-            // For cloud entities / cloud migration plans, we do not use the peakQuantity.
-            // We only use the quantity values inside M2
-            newQuantity[1] = (float) (Math.max(commSold.getPeak(), commSold.getUsed()) / targetUtil);
-            logger.debug("Using a Peak used of {} for Driving commodity type {} for entity {}. ",
-                    newQuantity[1], commSold.getCommodityType().getType(), topologyDTO.getDisplayName());
+        if (topologyDTO.getEnvironmentType() != EnvironmentType.CLOUD) {
+            return new double[]{used, peak};
         }
-        return newQuantity;
+
+        final Integer drivingCommSoldType =
+                TopologyConversionConstants.commDependancyMapForCloudResize.get(
+                        commBought.getCommodityType().getType());
+
+        if (drivingCommSoldType != null) {
+            final List<TopologyDTO.CommoditySoldDTO> drivingCommmoditySoldList =
+                    topologyDTO.getCommoditySoldListList()
+                            .stream()
+                            .filter(c -> c.getCommodityType().getType() == drivingCommSoldType)
+                            .collect(Collectors.toList());
+            if (!drivingCommmoditySoldList.isEmpty()) {
+                final CommoditySoldDTO commoditySoldDTO = drivingCommmoditySoldList.get(0);
+                final double[] resizedQuantity =
+                        calculateResizedQuantity(commoditySoldDTO.getUsed(),
+                                getWeightedUsed(commoditySoldDTO), commoditySoldDTO.getUsed(),
+                                commoditySoldDTO.getPeak(), commoditySoldDTO.getCapacity(),
+                                commoditySoldDTO.getResizeTargetUtilization());
+                cert.logCommodityResize(topologyDTO.getOid(), commoditySoldDTO.getCommodityType(),
+                        resizedQuantity[0] - commoditySoldDTO.getCapacity());
+                logger.debug(
+                        "Using a peak used of {} for driving commodity type {} for entity {}.",
+                        resizedQuantity[1], commoditySoldDTO.getCommodityType().getType(),
+                        topologyDTO.getDisplayName());
+                return resizedQuantity;
+            }
+        } else if (providerOid != null &&
+                TopologyConversionConstants.THROUGHPUT_COMMODITIES.contains(
+                        commBought.getCommodityType().getType())) {
+            final MarketTier marketTier = cloudTc.getMarketTier(providerOid);
+            if (marketTier != null) {
+                final TopologyEntityDTO tier = marketTier.getTier();
+                final Optional<CommoditySoldDTO> commoditySoldDTO = tier
+                        .getCommoditySoldListList()
+                        .stream()
+                        .filter(c -> c.getCommodityType().equals(commBought.getCommodityType()))
+                        .filter(CommoditySoldDTO::hasCapacity)
+                        .findFirst();
+                if (commoditySoldDTO.isPresent()) {
+                    final double[] resizedQuantity = calculateResizedQuantity(commBought.getUsed(),
+                            getWeightedUsed(commBought), commBought.getUsed(), commBought.getPeak(),
+                            commoditySoldDTO.get().getCapacity(),
+                            commBought.getResizeTargetUtilization());
+                    cert.logCommodityResize(topologyDTO.getOid(), commBought.getCommodityType(),
+                            resizedQuantity[0] - commoditySoldDTO.get().getCapacity());
+                    logger.debug("Using a peak used of {} for commodity type {} for entity {}.",
+                            resizedQuantity[1], commBought.getCommodityType().getType(),
+                            topologyDTO.getDisplayName());
+                    return resizedQuantity;
+                } else {
+                    logger.debug("Tier {} does not sell commodity type {} for entity {}",
+                            tier::getDisplayName, commBought::getCommodityType,
+                            topologyDTO::getDisplayName);
+                }
+            }
+        }
+
+        return new double[]{used, peak};
+    }
+
+    private double[] calculateResizedQuantity(double resizeUpDemand, double resizeDownDemand,
+            double used, double peak, double capacity, double targetUtil) {
+        if (targetUtil <= 0.0) {
+            targetUtil = EntitySettingSpecs.UtilTarget.getSettingSpec()
+                    .getNumericSettingValueType()
+                    .getDefault() / 100D;
+        }
+
+        // For cloud entities / cloud migration plans, we do not use the peakQuantity.
+        // We only use the quantity values inside M2
+        final double peakQuantity = Math.max(used, peak) / targetUtil;
+        final double quantity;
+        if (Math.ceil(resizeUpDemand / targetUtil) > capacity) {
+            quantity = resizeUpDemand / targetUtil;
+        } else if (resizeDownDemand > 0 && Math.ceil(resizeDownDemand / targetUtil) < capacity) {
+            quantity = resizeDownDemand / targetUtil;
+        } else {
+            // do not resize
+            quantity = capacity;
+        }
+        return new double[]{quantity, peakQuantity};
     }
 
     /**
      * Calculates the weighted usage which will be used for resize down for cloud resource.
+     *
+     * @param commodity the {@link TopologyDTO.CommoditySoldDTO}
      */
     private double getWeightedUsed(@Nonnull final TopologyDTO.CommoditySoldDTO commodity) {
-        Double maxQuantity = commodity.hasHistoricalUsed()
-                        && commodity.getHistoricalUsed().hasMaxQuantity()
-                                        ? commodity.getHistoricalUsed().getMaxQuantity()
-                                        : null;
-        float max = maxQuantity == null ? 0f : maxQuantity.floatValue();
-        return max <= 0 ? max
-                : TopologyConversionConstants.RESIZE_AVG_WEIGHT * commodity.getUsed()
-                + TopologyConversionConstants.RESIZE_MAX_WEIGHT * max
-                + TopologyConversionConstants.RESIZE_PEAK_WEIGHT * commodity.getPeak();
+        final Double maxQuantity =
+                commodity.hasHistoricalUsed() && commodity.getHistoricalUsed().hasMaxQuantity() ?
+                        commodity.getHistoricalUsed().getMaxQuantity() : null;
+        final float max = maxQuantity == null ? 0f : maxQuantity.floatValue();
+        return getWeightedUsed(commodity.getUsed(), max, commodity.getPeak());
+    }
+
+    /**
+     * Calculates the weighted usage which will be used for resize down for cloud resource.
+     *
+     * @param commodity the {@link TopologyDTO.CommodityBoughtDTO}
+     */
+    private double getWeightedUsed(@Nonnull final TopologyDTO.CommodityBoughtDTO commodity) {
+        final Double maxQuantity =
+                commodity.hasHistoricalUsed() && commodity.getHistoricalUsed().hasMaxQuantity() ?
+                        commodity.getHistoricalUsed().getMaxQuantity() : null;
+        final float max = maxQuantity == null ? 0f : maxQuantity.floatValue();
+        return getWeightedUsed(commodity.getUsed(), max, commodity.getPeak());
+    }
+
+    /**
+     * Calculates the weighted usage which will be used for resize down for cloud resource.
+     *
+     * @param used commodity used
+     * @param max max quantity of commodity historical used
+     * @param peak commodity peak
+     */
+    private static double getWeightedUsed(double used, double max, double peak) {
+        return max <= 0 ? max : TopologyConversionConstants.RESIZE_AVG_WEIGHT * used +
+                TopologyConversionConstants.RESIZE_MAX_WEIGHT * max +
+                TopologyConversionConstants.RESIZE_PEAK_WEIGHT * peak;
     }
 
     /**
@@ -1810,15 +1858,15 @@ public class TopologyConverter {
                 : generateBcCommodityBoughtTO(
                     providers.getOrDefault(providerOid, providerOid), type)
             // all other commodities - convert to DTO regardless of shop-together
-            : createAndValidateCommBoughtTO(buyer, topologyCommBought);
+            : createAndValidateCommBoughtTO(buyer, topologyCommBought, providerOid);
     }
 
     private CommodityDTOs.CommodityBoughtTO createAndValidateCommBoughtTO(
-                    final TopologyDTO.TopologyEntityDTO buyer,
-                    TopologyDTO.CommodityBoughtDTO topologyCommBought) {
-        float[] newQuantity = getResizedCapacityForCloud(buyer, topologyCommBought);
-        float usedQuantity = newQuantity[0];
-        float peakQuantity = newQuantity[1];
+            final TopologyDTO.TopologyEntityDTO buyer,
+            TopologyDTO.CommodityBoughtDTO topologyCommBought, @Nullable final Long providerOid) {
+        final double[] newQuantity = getResizedCapacityForCloud(buyer, topologyCommBought, providerOid);
+        double usedQuantity = newQuantity[0];
+        double peakQuantity = newQuantity[1];
 
         if (usedQuantity < 0) {
             // We don't want to log every time we get used = -1 because mediation
@@ -1844,8 +1892,8 @@ public class TopologyConverter {
             peakQuantity = 0;
         }
         return CommodityDTOs.CommodityBoughtTO.newBuilder()
-                .setQuantity(usedQuantity)
-                .setPeakQuantity(peakQuantity)
+                .setQuantity((float)usedQuantity)
+                .setPeakQuantity((float)peakQuantity)
                 .setSpecification(commodityConverter.commoditySpecification(
                         topologyCommBought.getCommodityType()))
                 .build();

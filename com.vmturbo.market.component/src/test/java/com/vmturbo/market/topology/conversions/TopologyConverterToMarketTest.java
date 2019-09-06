@@ -25,9 +25,12 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockito.Mockito;
+import org.mockito.internal.util.reflection.Whitebox;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -52,6 +55,7 @@ import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
+import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
@@ -79,6 +83,7 @@ public class TopologyConverterToMarketTest {
             .setPlanInfo(PlanTopologyInfo.newBuilder()
                     .setPlanProjectType(PlanProjectType.USER))
             .build();
+    private static final long PROVIDER_ID = 1;
 
     private double epsilon = 1e-5; // used in assertEquals(double, double, epsilon)
 
@@ -754,7 +759,7 @@ public class TopologyConverterToMarketTest {
         double used = 70;
         double peak = 80;
         double max = 90;
-        float[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+        double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
                 CommodityDTO.CommodityType.MEM_VALUE,
                 CommodityDTO.CommodityType.VMEM_VALUE, used, peak, max, 200, 0.9);
         // new used = [(max * 0.9) + (used * 0.1)] / rtu
@@ -768,7 +773,7 @@ public class TopologyConverterToMarketTest {
         double used = 70;
         double peak = 80;
         double max = 90;
-        float[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+        double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
                 CommodityDTO.CommodityType.MEM_VALUE,
                 CommodityDTO.CommodityType.VMEM_VALUE, used, peak, max, 100, 0.5);
         // new used = used / rtu
@@ -782,7 +787,7 @@ public class TopologyConverterToMarketTest {
         double used = 70;
         double peak = 75;
         double max = 85;
-        float[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+        double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
                 CommodityDTO.CommodityType.MEM_VALUE,
                 CommodityDTO.CommodityType.VMEM_VALUE, used, peak, max, 100, 0.8);
         // new used = capacity
@@ -791,7 +796,7 @@ public class TopologyConverterToMarketTest {
         assertEquals(93.75, quantities[1], 0.01f);
     }
 
-    private float[] getResizedCapacityForCloud(int entityType, int commBoughtType, int commSoldType,
+    private double[] getResizedCapacityForCloud(int entityType, int commBoughtType, int commSoldType,
                                                double commSoldUsed, double commSoldPeak,
                                                double commSoldMax, double commSoldCap, double commSoldRtu) {
         CommodityBoughtDTO commBought = CommodityBoughtDTO.newBuilder()
@@ -814,7 +819,7 @@ public class TopologyConverterToMarketTest {
                         .setResizeTargetUtilization(commSoldRtu)
                         .build())
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                        .setProviderId(1)
+                        .setProviderId(PROVIDER_ID)
                         .addCommodityBought(commBought))
                 .build();
         final TopologyConverter converter =
@@ -824,6 +829,94 @@ public class TopologyConverterToMarketTest {
                     marketPriceTable,
                     ccd,
                     CommodityIndex.newFactory());
-        return converter.getResizedCapacityForCloud(vmEntityDTO, commBought);
+        return converter.getResizedCapacityForCloud(vmEntityDTO, commBought, PROVIDER_ID);
+    }
+
+    /**
+     * Test resize capacity down for cloud throughput commodities.
+     */
+    @Test
+    public void testGetResizedCapacityForCloud_ResizeDown_Throughput() {
+        final double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+                CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE, /*commodityBoughtUsed*/
+                70, /*commodityBoughtPeak*/80, /*commodityBoughtMax*/
+                90, /*commodityBoughtResizeTargetUtilization*/0.9, /*commoditySoldCapacity*/200);
+        // new used = [(max * 0.9) + (used * 0.1)] / rtu
+        Assert.assertEquals(97.777, quantities[0], 0.01f);
+        // new peak = max(peak, used) / rtu
+        Assert.assertEquals(88.888, quantities[1], 0.01f);
+    }
+
+    /**
+     * Test resize capacity up for cloud throughput commodities.
+     */
+    @Test
+    public void testGetResizedCapacityForCloud_ResizeUp_Throughput() {
+        final double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+                CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE, /*commodityBoughtUsed*/
+                70, /*commodityBoughtPeak*/80, /*commodityBoughtMax*/
+                90, /*commodityBoughtResizeTargetUtilization*/0.5, /*commoditySoldCapacity*/100);
+        // new used = used / rtu
+        Assert.assertEquals(140, quantities[0], 0.01f);
+        // new peak = max(peak, used) / rtu
+        Assert.assertEquals(160, quantities[1], 0.01f);
+    }
+
+    /**
+     * Test no resize capacity for cloud throughput commodities.
+     */
+    @Test
+    public void testGetResizedCapacityForCloud_NoResize_Throughput() {
+        final double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+                CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE, /*commodityBoughtUsed*/
+                70, /*commodityBoughtPeak*/75, /*commodityBoughtMax*/
+                85, /*commodityBoughtResizeTargetUtilization*/0.8, /*commoditySoldCapacity*/100);
+        // new used = capacity
+        Assert.assertEquals(100, quantities[0], 0.01f);
+        // new peak = max(peak, used) / rtu
+        Assert.assertEquals(93.75, quantities[1], 0.01f);
+    }
+
+    private static double[] getResizedCapacityForCloud(int entityType, int commodityType,
+            double commodityBoughtUsed, double commodityBoughtPeak, double commodityBoughtMax,
+            double commodityBoughtResizeTargetUtilization, double commoditySoldCapacity) {
+        CommodityBoughtDTO commodityBoughtDTO = CommodityBoughtDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder().setType(commodityType))
+                .setUsed(commodityBoughtUsed)
+                .setPeak(commodityBoughtPeak)
+                .setHistoricalUsed(
+                        HistoricalValues.newBuilder().setMaxQuantity(commodityBoughtMax).build())
+                .setResizeTargetUtilization(commodityBoughtResizeTargetUtilization)
+                .build();
+        TopologyEntityDTO topologyEntityDTO = TopologyEntityDTO.newBuilder()
+                .setEntityType(entityType)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .setOid(100)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PROVIDER_ID)
+                        .addCommodityBought(commodityBoughtDTO))
+                .build();
+        final TopologyEntityDTO computeTier = TopologyEntityDTO.newBuilder()
+                .setOid(PROVIDER_ID)
+                .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder().setType(commodityType))
+                        .setCapacity(commoditySoldCapacity))
+                .build();
+
+        final CloudTopologyConverter cloudTopologyConverter =
+                Mockito.mock(CloudTopologyConverter.class);
+        final TopologyConverter converter = Mockito.mock(TopologyConverter.class);
+        Mockito.when(
+                converter.getResizedCapacityForCloud(Mockito.any(), Mockito.any(), Mockito.any()))
+                .thenCallRealMethod();
+        Whitebox.setInternalState(converter, "cloudTc", cloudTopologyConverter);
+        Whitebox.setInternalState(converter, "cert", Mockito.mock(CloudEntityResizeTracker.class));
+        final MarketTier marketTier = mock(MarketTier.class);
+        Mockito.when(marketTier.getTier()).thenReturn(computeTier);
+        Mockito.when(cloudTopologyConverter.getMarketTier(PROVIDER_ID)).thenReturn(marketTier);
+
+        return converter.getResizedCapacityForCloud(topologyEntityDTO, commodityBoughtDTO,
+                PROVIDER_ID);
     }
 }

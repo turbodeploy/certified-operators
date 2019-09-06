@@ -12,17 +12,18 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
@@ -129,10 +130,14 @@ public class EntitySettingsApplicator {
                         CommodityType.VSTORAGE),
                 new ResizeIncrementApplicator(EntitySettingSpecs.StorageIncrement,
                         CommodityType.STORAGE_AMOUNT),
-                new ResizeTargetUtilizationApplicator(EntitySettingSpecs.ResizeTargetUtilizationVcpu,
-                        CommodityType.VCPU),
-                new ResizeTargetUtilizationApplicator(EntitySettingSpecs.ResizeTargetUtilizationVmem,
-                        CommodityType.VMEM));
+                new ResizeTargetUtilizationCommodityBoughtApplicator(
+                        EntitySettingSpecs.ResizeTargetUtilizationIoThroughput, CommodityType.IO_THROUGHPUT),
+                new ResizeTargetUtilizationCommodityBoughtApplicator(
+                        EntitySettingSpecs.ResizeTargetUtilizationNetThroughput, CommodityType.NET_THROUGHPUT),
+                new ResizeTargetUtilizationCommoditySoldApplicator(
+                        EntitySettingSpecs.ResizeTargetUtilizationVcpu, CommodityType.VCPU),
+                new ResizeTargetUtilizationCommoditySoldApplicator(
+                        EntitySettingSpecs.ResizeTargetUtilizationVmem, CommodityType.VMEM));
     }
 
     private static Collection<CommoditySoldDTO.Builder> getCommoditySoldBuilders(
@@ -606,16 +611,18 @@ public class EntitySettingsApplicator {
 
     /**
      * Applicator for the resize target utilization settings.
-     * This sets the resize_target_utilization in the {@link CommoditySoldDTO}
-     * for Virtual Machine entities.
      */
     @ThreadSafe
-    private static class ResizeTargetUtilizationApplicator extends SingleSettingApplicator {
+    private abstract static class ResizeTargetUtilizationApplicator extends
+            SingleSettingApplicator {
+
+        static final String APPLY_RESIZE_TARGET_UTILIZATION_MESSAGE =
+                "Apply Resize Target Utilization for entity = {}, commodity = {} , value = {}";
 
         private final CommodityType commodityType;
 
         private ResizeTargetUtilizationApplicator(@Nonnull EntitySettingSpecs setting,
-                                          @Nonnull final CommodityType commodityType) {
+                @Nonnull final CommodityType commodityType) {
             super(setting);
             this.commodityType = Objects.requireNonNull(commodityType);
         }
@@ -623,20 +630,77 @@ public class EntitySettingsApplicator {
         @Override
         public void apply(@Nonnull Builder entity, @Nonnull Setting setting) {
             final EntityType entityType = EntityType.forNumber(entity.getEntityType());
-            if (entityType != null && getEntitySettingSpecs().getEntityTypeScope().contains(entityType)) {
+            if (entityType != null &&
+                    getEntitySettingSpecs().getEntityTypeScope().contains(entityType)) {
                 final float settingValue = setting.getNumericSettingValue().getValue();
-                entity.getCommoditySoldListBuilderList().stream()
-                        .filter(commodity -> commodity.getCommodityType().getType() ==
-                                commodityType.getNumber())
-                        .forEach(commodityBuilder -> {
-                            // Divide by 100 since the RTU value set by the user in the UI is a
-                            // percentage value
-                            commodityBuilder.setResizeTargetUtilization(settingValue / 100);
-                            logger.debug("Apply Resize Target utilization for entity = {}, " +
-                                            "commodity = {} , value = {}", entity.getDisplayName(),
-                                    commodityType.getNumber(), commodityBuilder.getCapacityIncrement());
-                        });
+                // Divide by 100 since the RTU value set by the user in the UI is a percentage value
+                apply(entity, settingValue / 100);
             }
+        }
+
+        protected abstract void apply(@Nonnull Builder entity, double resizeTargetUtilization);
+
+        @Nonnull
+        CommodityType getCommodityType() {
+            return commodityType;
+        }
+    }
+
+    /**
+     * Applicator for the resize target utilization settings.
+     * This sets the resize_target_utilization in the {@link CommoditySoldDTO}.
+     */
+    @ThreadSafe
+    private static class ResizeTargetUtilizationCommoditySoldApplicator extends
+            ResizeTargetUtilizationApplicator {
+
+        private ResizeTargetUtilizationCommoditySoldApplicator(@Nonnull EntitySettingSpecs setting,
+                @Nonnull final CommodityType commodityType) {
+            super(setting, commodityType);
+        }
+
+        @Override
+        protected void apply(@Nonnull Builder entity, double resizeTargetUtilization) {
+            entity.getCommoditySoldListBuilderList()
+                    .stream()
+                    .filter(commodity -> commodity.getCommodityType().getType() ==
+                            getCommodityType().getNumber())
+                    .forEach(commodityBuilder -> {
+                        commodityBuilder.setResizeTargetUtilization(resizeTargetUtilization);
+                        logger.debug(APPLY_RESIZE_TARGET_UTILIZATION_MESSAGE,
+                                entity.getDisplayName(), getCommodityType().getNumber(),
+                                commodityBuilder.getResizeTargetUtilization());
+                    });
+        }
+    }
+
+    /**
+     * Applicator for the resize target utilization settings.
+     * This sets the resize_target_utilization in the {@link CommodityBoughtDTO}.
+     */
+    @ThreadSafe
+    private static class ResizeTargetUtilizationCommodityBoughtApplicator extends
+            ResizeTargetUtilizationApplicator {
+
+        private ResizeTargetUtilizationCommodityBoughtApplicator(
+                @Nonnull EntitySettingSpecs setting, @Nonnull final CommodityType commodityType) {
+            super(setting, commodityType);
+        }
+
+        @Override
+        protected void apply(@Nonnull Builder entity, double resizeTargetUtilization) {
+            entity.getCommoditiesBoughtFromProvidersBuilderList()
+                    .stream()
+                    .map(CommoditiesBoughtFromProvider.Builder::getCommodityBoughtBuilderList)
+                    .flatMap(Collection::stream)
+                    .filter(commodity -> commodity.getCommodityType().getType() ==
+                            getCommodityType().getNumber())
+                    .forEach(commodityBuilder -> {
+                        commodityBuilder.setResizeTargetUtilization(resizeTargetUtilization);
+                        logger.debug(APPLY_RESIZE_TARGET_UTILIZATION_MESSAGE,
+                                entity.getDisplayName(), getCommodityType().getNumber(),
+                                commodityBuilder.getResizeTargetUtilization());
+                    });
         }
     }
 }

@@ -867,6 +867,9 @@ message CommodityBoughtDTO {
     // with given timestamp and interval between points.
     // Certain probes may send more than one point per discovery request.
     optional UtilizationData utilizationData = 11;
+
+    // The resize target utilization used as a coefficient when resizing commodity quantity.
+    optional double resize_target_utilization = 12;
 }
 
 message CommoditySoldDTO {
