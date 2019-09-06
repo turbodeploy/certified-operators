@@ -25,11 +25,11 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
-import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataResponse;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc.RIAndExpenseUploadServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -153,7 +153,7 @@ public class RICostDataUploader {
                 // "clear" data when all cloud targets are removed.
                 UploadRIDataRequest request = requestBuilder.build();
                 logger.info("Uploading RI cost data ({} bytes)", request.getSerializedSize());
-                UploadRIDataResponse response = costServiceClient.uploadRIData(requestBuilder.build());
+                costServiceClient.uploadRIData(requestBuilder.build());
                 logger.info("Cloud cost upload took {} secs", uploadTimer.getTimeElapsedSecs());
                 lastUploadTime = clock.instant();
             } catch (Exception e) {
@@ -237,6 +237,10 @@ public class RICostDataUploader {
                         riSpecInfoBuilder.setTierId(cloudEntitiesMap.get(riData.getRelatedProfileId()));
                     }
 
+                    if (riData.hasInstanceSizeFlexible()) {
+                        riSpecInfoBuilder.setSizeFlexible(riData.getInstanceSizeFlexible());
+                    }
+
                     ReservedInstanceSpecInfo riSpecInfo = riSpecInfoBuilder.build();
 
                     // if we haven't already saved this spec, add it to the list.
@@ -294,6 +298,19 @@ public class RICostDataUploader {
                                     .setReservedInstanceBoughtCost(riBoughtCost)
                                     .setReservedInstanceBoughtCoupons(riBoughtCoupons)
                             );
+
+                    // Set display name is it is provided in EntityDTO
+                    if (riStitchingEntity.getEntityBuilder().hasDisplayName()) {
+                        riBought.getReservedInstanceBoughtInfoBuilder().setDisplayName(
+                            riStitchingEntity.getDisplayName());
+                    }
+
+                    // Set reservation order ID is it is provided in EntityDTO
+                    if (riData.hasReservationOrderId()) {
+                        riBought.getReservedInstanceBoughtInfoBuilder().setReservationOrderId(
+                            riData.getReservationOrderId());
+                    }
+
                     // set AZ, if it exists
                     if (riData.hasAvailabilityZone()
                             && cloudEntitiesMap.containsKey(riData.getAvailabilityZone())) {
@@ -301,6 +318,28 @@ public class RICostDataUploader {
                                 .setAvailabilityZoneId(cloudEntitiesMap.get(
                                         riData.getAvailabilityZone()));
                     }
+
+                    final ReservedInstanceScopeInfo.Builder scopeInfo = ReservedInstanceScopeInfo
+                        .newBuilder();
+                    if (riData.hasShared()) {
+                        scopeInfo.setShared(riData.getShared());
+                        if (!riData.getShared() && riData.getAppliedScopesCount() > 1) {
+                            logger.warn("Single scoped RI has {} applied scopes. RI ID is {}.",
+                                riData.getAppliedScopesCount(), riStitchingEntity.getLocalId());
+                        }
+                    }
+                    for (final String accountId : riData.getAppliedScopesList()) {
+                        final Long accountOid = cloudEntitiesMap.get(accountId);
+                        if (accountOid != null) {
+                            scopeInfo.addApplicableBusinessAccountId(accountOid);
+                        } else {
+                            logger.error("Cannot find account from RI applied scopes." +
+                                    " RI: {}, Account: {}", riStitchingEntity.getOid(), accountId);
+                        }
+                    }
+                    riBought.getReservedInstanceBoughtInfoBuilder().setReservedInstanceScopeInfo(
+                        scopeInfo);
+
                     riBoughtByLocalId.put(riStitchingEntity.getLocalId(), riBought);
                 });
 

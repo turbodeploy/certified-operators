@@ -75,9 +75,9 @@ public class ReservationMapper {
 
     private final PolicyServiceBlockingStub policyService;
 
-    private final String PLACEMENT_SUCCEEDED = "PLACEMENT_SUCCEEDED";
+    private static final String PLACEMENT_SUCCEEDED = "PLACEMENT_SUCCEEDED";
 
-    private final String PLACEMENT_FAILED = "PLACEMENT_FAILED";
+    private static final String PLACEMENT_FAILED = "PLACEMENT_FAILED";
 
     public ReservationMapper(@Nonnull final RepositoryApi repositoryApi,
                              @Nonnull final TemplateServiceBlockingStub templateService,

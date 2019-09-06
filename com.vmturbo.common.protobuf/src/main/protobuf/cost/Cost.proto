@@ -92,6 +92,15 @@ message ReservedInstanceBought {
         // The coupons information of the reserved instance.
         optional ReservedInstanceBoughtCoupons reserved_instance_bought_coupons = 8;
 
+        // Reserved instance display name.
+        optional string display_name = 9;
+
+        // Reservation order ID. Currently it is used by Azure only.
+        optional string reservation_order_id = 10;
+
+        // Information about the scope within RI can be applied.
+        optional ReservedInstanceScopeInfo reserved_instance_scope_info = 11;
+
         message ReservedInstanceBoughtCost {
             // The upfront one-time cost of the Reserved Instance.
             optional common_dto.CurrencyAmount fixed_cost = 1;
@@ -120,6 +129,22 @@ message ReservedInstanceBought {
             // from the entity's RI coverage, and it should be equal to the sum of its consumers
             // coupons. The SDK probe will not set this field when discovering real time topology.
             optional double number_of_coupons_used = 2;
+        }
+
+        // Information about the scope within RI can be applied.
+        // Azure RIs can be either shared or single scoped. If RI is shared it can be applied to
+        // several accounts in the billing family. These accounts are listed in
+        // applicable_business_account_id field.
+        // AWS RIs can also be shared or single scoped. However AWS shared RIs are the most common.
+        // Currently we do not support single scope AWS RIs. So for AWS "shared" is always true.
+        message ReservedInstanceScopeInfo {
+            // Defines whether RI can be used by all accounts in the billing family.
+            optional bool shared = 1 [default = true];
+
+            // List of accounts that RI can be applied to. In case of single scoped (non-shared)
+            // RI the list cannot contain more than one account ID. If this list is empty for
+            // shared RI it means the RI can be applied to all accounts in the billing family.
+            repeated int64 applicable_business_account_id = 2;
         }
     }
 }
@@ -157,6 +182,10 @@ message ReservedInstanceSpecInfo {
     // The property that determines if the RI is applicable to workloads running any platform or to
     // the workloads running the same platform as the RI's platform.
     optional bool platform_flexible = 6 [default = false];
+
+    // The property defining whether RI is applicable to workloads in different tiers of the same
+    // template family.
+    optional bool size_flexible = 7 [default = false];
 }
 
 // The RI coverage of a particular entity and projected RI coverage after market.

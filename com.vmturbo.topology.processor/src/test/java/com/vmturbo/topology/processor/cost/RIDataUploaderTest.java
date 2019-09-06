@@ -21,6 +21,7 @@ import org.mockito.Mockito;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
@@ -64,7 +65,7 @@ import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
 /**
- *
+ * Unit tests for {@link RICostDataUploader}.
  */
 public class RIDataUploaderTest {
     private static final Logger logger = LogManager.getLogger();
@@ -95,9 +96,6 @@ public class RIDataUploaderTest {
     @Rule
     public GrpcTestServer server = GrpcTestServer.newServer(costServiceSpy);
 
-    // test cost component client
-    private RIAndExpenseUploadServiceBlockingStub costServiceClient;
-
     //private TargetStore targetStore = Mockito.mock(TargetStore.class);
     private Map<Long, SDKProbeType> probeTypeMap;
 
@@ -105,7 +103,7 @@ public class RIDataUploaderTest {
     private Map<Long, TargetCostData> costDataByTargetId;
 
     // object to be tested
-    RICostDataUploader riCostDataUploader;
+    private RICostDataUploader riCostDataUploader;
 
     @Before
     public void setup() {
@@ -114,7 +112,8 @@ public class RIDataUploaderTest {
         probeTypeMap.put(TARGET_ID_AWS_DISCOVERY_1, SDKProbeType.AWS);
         probeTypeMap.put(TARGET_ID_AWS_BILLING_1, SDKProbeType.AWS_BILLING);
 
-        costServiceClient = RIAndExpenseUploadServiceGrpc.newBlockingStub(server.getChannel());
+        // test cost component client
+        final RIAndExpenseUploadServiceBlockingStub costServiceClient = RIAndExpenseUploadServiceGrpc.newBlockingStub(server.getChannel());
 
         riCostDataUploader = new RICostDataUploader(costServiceClient, 0, Clock.systemUTC());
 
@@ -288,6 +287,7 @@ public class RIDataUploaderTest {
                         EntityDTO.newBuilder()
                                 .setEntityType(EntityType.RESERVED_INSTANCE)
                                 .setId("aws::ap-south-1::RI::1ac0b0f5-ff53-4d64-aac5-c5cf674cce77")
+                                .setDisplayName("RI display name")
                                 .setReservedInstanceData(ReservedInstanceData.newBuilder()
                                         .setReservedInstanceId("1ac0b0f5-ff53-4d64-aac5-c5cf674cce77")
                                         .setStartTime(0)
@@ -304,7 +304,12 @@ public class RIDataUploaderTest {
                                         .setInstanceTenancy(InstanceTenancy.DEFAULT)
                                         .setAvailabilityZone("aws::ap-south-1::PM::ap-south-1b")
                                         .setPlatform(Platform.LINUX)
-                                        .setRelatedProfileId("aws::VMPROFILE::t2.nano")))
+                                        .setRelatedProfileId("aws::VMPROFILE::t2.nano")
+                                        .addAppliedScopes("account-1")
+                                        .addAppliedScopes("account-2")
+                                        .setReservationOrderId("orderID-1")
+                                        .setShared(false)
+                                        .setInstanceSizeFlexible(true)))
                                 .oid(101)
                                 .targetId(TARGET_ID_AWS_DISCOVERY_1)
                                 .lastUpdatedTime(now)
@@ -329,7 +334,8 @@ public class RIDataUploaderTest {
                                                 .setInstanceTenancy(InstanceTenancy.DEDICATED)
                                                 //.setAvailabilityZone("aws::ap-south-1::PM::ap-south-1b")
                                                 .setPlatform(Platform.WINDOWS)
-                                                .setRelatedProfileId("aws::VMPROFILE::m4.large")))
+                                                .setRelatedProfileId("aws::VMPROFILE::m4.large")
+                                                .setInstanceSizeFlexible(true)))
                                 .oid(102)
                                 .targetId(TARGET_ID_AWS_DISCOVERY_1)
                                 .lastUpdatedTime(now)
@@ -354,7 +360,8 @@ public class RIDataUploaderTest {
                                                 .setInstanceTenancy(InstanceTenancy.DEDICATED)
                                                 .setAvailabilityZone("aws::ap-south-1::PM::ap-south-1b")
                                                 .setPlatform(Platform.WINDOWS)
-                                                .setRelatedProfileId("aws::VMPROFILE::m4.large")))
+                                                .setRelatedProfileId("aws::VMPROFILE::m4.large")
+                                                .setInstanceSizeFlexible(true)))
                                 .oid(103)
                                 .targetId(TARGET_ID_AWS_DISCOVERY_1)
                                 .lastUpdatedTime(now)
@@ -406,6 +413,8 @@ public class RIDataUploaderTest {
         Assert.assertEquals(21, riSpecInfo.getTierId());
         // region should be ap-south-1
         Assert.assertEquals(42, riSpecInfo.getRegionId());
+        // verify size flexibility
+        Assert.assertTrue(riSpecInfo.getSizeFlexible());
 
         // Verify some RI Bought
         // we'll verify a few fields
@@ -442,6 +451,14 @@ public class RIDataUploaderTest {
 
         // assignment of business account id verifies that the coverage mapping is working
         Assert.assertEquals(11, boughtInfo.getBusinessAccountId());
+
+        Assert.assertEquals("RI display name", boughtInfo.getDisplayName());
+        Assert.assertEquals("orderID-1", boughtInfo.getReservationOrderId());
+
+        // verify scope information
+        final ReservedInstanceScopeInfo scopeInfo = boughtInfo.getReservedInstanceScopeInfo();
+        Assert.assertFalse(scopeInfo.getShared());
+        Assert.assertEquals(2, scopeInfo.getApplicableBusinessAccountIdCount());
     }
 
     public static class TestCostService extends RIAndExpenseUploadServiceImplBase {
