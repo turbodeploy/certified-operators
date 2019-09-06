@@ -211,7 +211,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         switch (scope.getScopeCase()) {
             case ENTITY_LIST:
                 seedEntityToDerivedEntities = scope.getEntityList().getEntitiesList().stream()
-                    .collect(Collectors.toMap(oid -> oid, oid -> Collections.emptySet()));
+                    .collect(Collectors.toMap(oid -> oid, Collections::singleton));
                 break;
             case ENTITY_GROUP_LIST:
                 seedEntityToDerivedEntities = scope.getEntityGroupList().getGroupsList().stream()
