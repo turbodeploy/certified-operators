@@ -70,10 +70,16 @@ public class SetOnce<CONTENT> {
     }
 
     public boolean trySetValue(@Nonnull final Supplier<CONTENT> valueSupplier) {
+        // Careful with the locks! OM-50075
+        // Functions passed here might be using other locks, such as the concurrent hashmap
+        // targetsById. We need to make sure that from the moment we take the write lock to the
+        // moment we release it we don't need other locks such as those from a concurrent hashmap,
+        // since this can cause a deadlock.
+        final CONTENT newValue = valueSupplier.get();
+
         lock.writeLock().lock();
         try {
             if (value == null) {
-                final CONTENT newValue = valueSupplier.get();
                 if (newValue != null) {
                     value = newValue;
                 }
