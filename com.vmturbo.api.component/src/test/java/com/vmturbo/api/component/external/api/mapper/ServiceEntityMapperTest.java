@@ -9,6 +9,7 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang3.StringUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -181,6 +182,31 @@ public class ServiceEntityMapperTest {
         Assert.assertEquals(tagValue, serviceEntityApiDTO.getTags().get(tagKey).get(0));
 
         checkDiscoveredBy(serviceEntityApiDTO.getDiscoveredBy());
+    }
+
+    @Test
+    public void testToServiceEntityApiDTOWithEmptyDisplayName() {
+        final ServiceEntityMapper mapper = new ServiceEntityMapper(targetCache);
+
+        final String displayName = "";
+        final long oid = 152L;
+        final EntityType entityType = EntityType.VIRTUAL_MACHINE;
+
+        final TopologyEntityDTO topologyEntityDTO =
+            TopologyEntityDTO.newBuilder()
+                .setDisplayName(displayName)
+                .setOid(oid)
+                .setEntityType(entityType.getNumber())
+                .build();
+
+        final ServiceEntityApiDTO serviceEntityApiDTO =
+            mapper.toServiceEntityApiDTO(topologyEntityDTO);
+        Assert.assertFalse(StringUtils.isEmpty(serviceEntityApiDTO.getDisplayName()));
+        Assert.assertEquals(oid, (Long.parseLong(serviceEntityApiDTO.getDisplayName())));
+        Assert.assertEquals(oid, (Long.parseLong(serviceEntityApiDTO.getUuid())));
+        Assert.assertEquals(
+            entityType.getNumber(),
+            UIEntityType.fromString(serviceEntityApiDTO.getClassName()).typeNumber());
     }
 
 }
