@@ -35,6 +35,7 @@ import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfi
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
@@ -398,29 +399,36 @@ public class CloudCostCalculator<ENTITY_CLASS> {
     private void recordVMLicenseCost(CostJournal.Builder<ENTITY_CLASS> journal, ENTITY_CLASS computeTier,
                                      ComputeConfig computeConfig,
                                      ComputeTierPriceList computePriceList, double unitsBought) {
-        LicensePriceTuple licensePrice = cloudCostData.getLicensePriceForOS(computeConfig.getOs(),
-            computeConfig.getNumCores(), computePriceList);
+        if (computeConfig.getLicenseModel() == LicenseModel.LICENSE_INCLUDED) {
+            LicensePriceTuple licensePrice = cloudCostData.getLicensePriceForOS(computeConfig.getOs(),
+                    computeConfig.getNumCores(), computePriceList);
 
-        // Recording any price adjustments from the license base price
-        if (licensePrice.getImplicitLicensePrice() != LicensePriceTuple.NO_LICENSE_PRICE) {
-            journal.recordOnDemandCost(CostCategory.LICENSE, computeTier,
-                Price.newBuilder().setPriceAmount(CurrencyAmount.newBuilder()
-                    .setAmount(licensePrice.getImplicitLicensePrice()).build())
-                    .build(), unitsBought);
-        }
+            // Recording any price adjustments from the license base price.
+            if (licensePrice.getImplicitLicensePrice() != LicensePriceTuple.NO_LICENSE_PRICE) {
+                journal.recordOnDemandCost(CostCategory.LICENSE, computeTier,
+                        Price.newBuilder().setPriceAmount(CurrencyAmount.newBuilder()
+                                .setAmount(licensePrice.getImplicitLicensePrice()).build())
+                                .build(), unitsBought);
+            }
 
-        // Recording the license price according to os and number of cores (used for explicit cases).
-        // Here the "unitsBought" is 1.0 since the RI discount does not apply on explicit price.
-        if (licensePrice.getExplicitLicensePrice() != LicensePriceTuple.NO_LICENSE_PRICE) {
+            // Recording the license price according to os and number of cores (used for explicit cases).
+            // Here the "unitsBought" is 1.0 since the RI discount does not apply on explicit price.
+            if (licensePrice.getExplicitLicensePrice() != LicensePriceTuple.NO_LICENSE_PRICE) {
+                journal.recordOnDemandCost(CostCategory.LICENSE, computeTier,
+                        Price.newBuilder().setPriceAmount(CurrencyAmount.newBuilder()
+                                .setAmount(licensePrice.getExplicitLicensePrice()).build())
+                                .build(), 1.0);
+            }
+        } else {
+            // The VM is "Bring Your Own License" - set the license price to 0.
             journal.recordOnDemandCost(CostCategory.LICENSE, computeTier,
-                Price.newBuilder().setPriceAmount(CurrencyAmount.newBuilder()
-                    .setAmount(licensePrice.getExplicitLicensePrice()).build())
-                    .build(), 1.0);
+                    Price.newBuilder().setPriceAmount(CurrencyAmount.newBuilder()
+                            .setAmount(0).build()).build(), 0);
         }
     }
 
     private void recordOnDemandVmCost(CostJournal.Builder<ENTITY_CLASS> journal, double unitsBought,
-                                      ComputeTierConfigPrice basePrice, ENTITY_CLASS computeTier){
+                                      ComputeTierConfigPrice basePrice, ENTITY_CLASS computeTier) {
         journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, computeTier,
             basePrice.getPricesList().get(0), unitsBought);
     }

@@ -18,7 +18,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
-
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 /**
  * Topology Extension data related to Virtual Machine.
  **/
@@ -58,9 +58,13 @@ public class VirtualMachineAspectMapper implements IAspectMapper {
             }
             aspect.setSessions(getBusinessUserSessions(entity));
             final String isEbsOptimized =
-                    entity.getEntityPropertyMap().get(StringConstants.EBS_OPTIMIZED);
+                    entity.getEntityPropertyMapMap().get(StringConstants.EBS_OPTIMIZED);
             if (isEbsOptimized != null) {
                 aspect.setEbsOptimized(Boolean.parseBoolean(isEbsOptimized));
+            }
+
+            if (virtualMachineInfo.getLicenseModel() == LicenseModel.AHUB) {
+                aspect.setAHUBLicense(true);
             }
         }
         return aspect;

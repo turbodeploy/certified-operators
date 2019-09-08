@@ -27,6 +27,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Busines
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 public class VirtualMachineAspectMapperTest extends BaseAspectMapperTest {
@@ -62,14 +63,13 @@ public class VirtualMachineAspectMapperTest extends BaseAspectMapperTest {
                                 .build())
                         .build())
                 .build();
+        final SearchRequest request =
+                ApiTestUtils.mockSearchFullReq(Collections.singletonList(businessUser));
+        Mockito.when(repositoryApi.newSearchRequest(Mockito.any())).thenReturn(request);
     }
 
     @Test
     public void testMapEntityToAspect() {
-        final SearchRequest request =
-                ApiTestUtils.mockSearchFullReq(Collections.singletonList(businessUser));
-        Mockito.when(repositoryApi.newSearchRequest(Mockito.any())).thenReturn(request);
-
         final TypeSpecificInfo typeSpecificInfo = TypeSpecificInfo.newBuilder()
             .setVirtualMachine(VirtualMachineInfo.newBuilder()
                 .setGuestOsInfo(OS.newBuilder()
@@ -83,15 +83,16 @@ public class VirtualMachineAspectMapperTest extends BaseAspectMapperTest {
             )
             .build();
         final TopologyEntityDTO topologyEntityDTO =
-                topologyEntityDTOBuilder(EntityType.VIRTUAL_MACHINE,
-                        typeSpecificInfo).putEntityPropertyMap(StringConstants.EBS_OPTIMIZED,
-                        Boolean.TRUE.toString()).build();
+                topologyEntityDTOBuilder(EntityType.VIRTUAL_MACHINE, typeSpecificInfo)
+                        .putEntityPropertyMap(StringConstants.EBS_OPTIMIZED, Boolean.TRUE.toString())
+                        .build();
 
         VirtualMachineAspectMapper testMapper = new VirtualMachineAspectMapper(repositoryApi);
+
         // act
         final EntityAspect resultAspect = testMapper.mapEntityToAspect(topologyEntityDTO);
+
         // assert
-        Assert.assertTrue(resultAspect instanceof VMEntityAspectApiDTO);
         final VMEntityAspectApiDTO vmAspect = (VMEntityAspectApiDTO)resultAspect;
         Assert.assertEquals(OSType.LINUX.name(), vmAspect.getOs());
         Assert.assertEquals(IP_ADDRESSES, vmAspect.getIp());
@@ -108,5 +109,35 @@ public class VirtualMachineAspectMapperTest extends BaseAspectMapperTest {
         Assert.assertEquals(TEST_OID, (long)Long.valueOf(sessionApiDTO.getConnectedEntityUuid()));
         Assert.assertEquals(SESSION_DURATION_TO_THIS_VM, (long)sessionApiDTO.getDuration());
         Assert.assertTrue(vmAspect.isEbsOptimized());
+        Assert.assertNull(vmAspect.isAHUBLicense());
+    }
+
+    /**
+     * Test that we set the isAHUB aspect to TRUE is case that this is Azure Hybrid Benefit (AHuB).
+     */
+    @Test
+    public void testMapEntityToAspectIsAhub() {
+        final TypeSpecificInfo typeSpecificInfo = TypeSpecificInfo.newBuilder()
+                .setVirtualMachine(VirtualMachineInfo.newBuilder()
+                        .setGuestOsInfo(OS.newBuilder()
+                                .setGuestOsType(OSType.WINDOWS)
+                                .setGuestOsName(OSType.WINDOWS.name()))
+                        .setNumCpus(4)
+                        .setLicenseModel(LicenseModel.AHUB)
+                        .addIpAddresses(IpAddress.newBuilder().setIpAddress(IP_ADDRESSES.get(0)))
+                        .addConnectedNetworks(CONNECTED_NETWORK_NAME_1)
+                )
+                .build();
+        final TopologyEntityDTO topologyEntityDTO =
+                topologyEntityDTOBuilder(EntityType.VIRTUAL_MACHINE,
+                        typeSpecificInfo).putEntityPropertyMap(StringConstants.EBS_OPTIMIZED,
+                        Boolean.TRUE.toString()).build();
+
+        VirtualMachineAspectMapper testMapper = new VirtualMachineAspectMapper(repositoryApi);
+        // act
+        final EntityAspect resultAspect = testMapper.mapEntityToAspect(topologyEntityDTO);
+        // assert
+        final VMEntityAspectApiDTO vmAspect = (VMEntityAspectApiDTO)resultAspect;
+        Assert.assertTrue(vmAspect.isAHUBLicense());
     }
 }

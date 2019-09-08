@@ -11,6 +11,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 
 /**
  * An {@link EntityInfoExtractor} for {@link TopologyEntityDTO}, to be used when running the cost
@@ -40,9 +41,10 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
             && entity.hasTypeSpecificInfo() && entity.getTypeSpecificInfo().hasVirtualMachine()) {
             VirtualMachineInfo vmConfig = entity.getTypeSpecificInfo().getVirtualMachine();
             return Optional.of(new ComputeConfig(vmConfig.getGuestOsInfo().getGuestOsType(),
-                vmConfig.getTenancy(),
-                vmConfig.getBillingType(),
-                vmConfig.getNumCpus()));
+                    vmConfig.getTenancy(),
+                    vmConfig.getBillingType(),
+                    vmConfig.getNumCpus(),
+                    vmConfig.getLicenseModel()));
         } else {
             return Optional.empty();
         }

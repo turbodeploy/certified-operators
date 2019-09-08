@@ -37,6 +37,7 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.NetworkConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
@@ -158,11 +159,31 @@ public class CloudCostCalculatorTest {
             .thenReturn(riApplicator);
     }
 
+    private TestEntityClass createVmTestEntity(long id, int entityType, OSType osType, Tenancy tenancy,
+                        VMBillingType billingType, int numCores, EntityDTO.LicenseModel licenseModel) {
+        return TestEntityClass.newBuilder(id)
+                .setType(entityType)
+                .setComputeConfig(new EntityInfoExtractor.ComputeConfig(osType,
+                        tenancy, billingType, numCores, licenseModel))
+                .setNetworkConfig(networkConfig)
+                .build(infoExtractor);
+    }
+
+    private DiscountApplicator<TestEntityClass> setupDiscountApplicator(double returnDiscount) {
+        DiscountApplicator<TestEntityClass> discountApplicator =
+                (DiscountApplicator<TestEntityClass>)mock(DiscountApplicator.class);
+        when(discountApplicator.getDiscountPercentage(any())).thenReturn(returnDiscount);
+        when(discountApplicatorFactory.entityDiscountApplicator(any(), any(), any(), any()))
+                .thenReturn(discountApplicator);
+        return discountApplicator;
+    }
+
     @Test
     public void testCalculateOnDemandCostForCompute() {
         DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
         TestEntityClass wsqlVm4Cores = createVmTestEntity(DEFAULT_VM_ID, EntityType.VIRTUAL_MACHINE_VALUE,
-            OSType.WINDOWS_WITH_SQL_ENTERPRISE, Tenancy.DEFAULT, VMBillingType.ONDEMAND, 4);
+            OSType.WINDOWS_WITH_SQL_ENTERPRISE, Tenancy.DEFAULT, VMBillingType.ONDEMAND, 4,
+                EntityDTO.LicenseModel.LICENSE_INCLUDED);
         // act
         final CostJournal<TestEntityClass> journal1 = CALCULATOR.calculateCost(wsqlVm4Cores);
 
@@ -188,13 +209,15 @@ public class CloudCostCalculatorTest {
         // Here we verify that when the number of CPUs equals one of the LicensePrice number of cores
         // then that price is used.
         TestEntityClass wsqlVm2Cores = createVmTestEntity(DEFAULT_VM_ID, EntityType.VIRTUAL_MACHINE_VALUE,
-            OSType.WINDOWS_WITH_SQL_ENTERPRISE, Tenancy.DEFAULT, VMBillingType.ONDEMAND, 2);
+            OSType.WINDOWS_WITH_SQL_ENTERPRISE, Tenancy.DEFAULT, VMBillingType.ONDEMAND, 2,
+                EntityDTO.LicenseModel.LICENSE_INCLUDED);
         final CostJournal<TestEntityClass> journal2 = CALCULATOR.calculateCost(wsqlVm2Cores);
         assertThat(journal2.getHourlyCostForCategory(CostCategory.LICENSE),
             is(WSQL_ADJUSTMENT * (1 - DEFAULT_RI_COVERAGE) + WSQL_ENTERPRISE_2));
 
         final TestEntityClass spotVm = createVmTestEntity(DEFAULT_VM_ID, EntityType.VIRTUAL_MACHINE_VALUE,
-            OSType.SUSE, Tenancy.DEFAULT, VMBillingType.BIDDING, 2);
+            OSType.SUSE, Tenancy.DEFAULT, VMBillingType.BIDDING, 2,
+                EntityDTO.LicenseModel.LICENSE_INCLUDED);
         final CostJournal<TestEntityClass> spotJournal = CALCULATOR.calculateCost(spotVm);
         assertThat(spotJournal.getHourlyCostForCategory(CostCategory.SPOT),
             is(BASE_PRICE * (1 - DEFAULT_RI_COVERAGE)));
@@ -202,31 +225,38 @@ public class CloudCostCalculatorTest {
         assertThat(spotJournal.getHourlyCostForCategory(CostCategory.LICENSE), is(0.0));
 
         final TestEntityClass suseVm =  createVmTestEntity(DEFAULT_VM_ID, EntityType.VIRTUAL_MACHINE_VALUE,
-            OSType.SUSE, Tenancy.DEFAULT, VMBillingType.ONDEMAND, 2);
+            OSType.SUSE, Tenancy.DEFAULT, VMBillingType.ONDEMAND, 2,
+                EntityDTO.LicenseModel.LICENSE_INCLUDED);
 
         final CostJournal<TestEntityClass> journal3 = CALCULATOR.calculateCost(suseVm);
         assertThat(journal3.getHourlyCostForCategory(CostCategory.LICENSE),
             is(SUSE_ADJUSTMENT * (1 - DEFAULT_RI_COVERAGE)));
     }
 
-    private TestEntityClass createVmTestEntity(long id, int entityType, OSType osType, Tenancy tenancy,
-                                               VMBillingType billingType, int numCores){
-        return TestEntityClass.newBuilder(id)
-            .setType(entityType)
-            .setComputeConfig(new EntityInfoExtractor.ComputeConfig(osType,
-                tenancy, billingType, numCores))
-            .setNetworkConfig(networkConfig)
-            .build(infoExtractor);
-    }
+    /**
+     * Test that for AHuB VMs (Azure VMs which use Windows BYOL) we don't add the Windows price
+     * for the total VM cost.
+     */
+    @Test
+    public void testCalculateOnDemandCostForComputeForAhub() {
+        DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
 
-    private DiscountApplicator<TestEntityClass> setupDiscountApplicator(double returnDiscount) {
-        DiscountApplicator<TestEntityClass> discountApplicator =
-            (DiscountApplicator<TestEntityClass>)mock(DiscountApplicator.class);
-        when(discountApplicator.getDiscountPercentage(any())).thenReturn(returnDiscount);
-        when(discountApplicatorFactory.entityDiscountApplicator(
-            any(), eq(topology), eq(infoExtractor), eq(CLOUD_COST_DATA)))
-            .thenReturn(discountApplicator);
-        return discountApplicator;
+        TestEntityClass windowsVm4CoresBYOL = createVmTestEntity(DEFAULT_VM_ID,
+                EntityType.VIRTUAL_MACHINE_VALUE, OSType.WINDOWS, Tenancy.DEFAULT,
+                VMBillingType.ONDEMAND, 4, EntityDTO.LicenseModel.AHUB);
+        double expectedIpAdjustment = IP_RANGE * IP_PRICE_RANGE_1 + (IP_COUNT - IP_RANGE) * IP_PRICE;
+
+
+        // act
+        final CostJournal<TestEntityClass> journal1 = CALCULATOR.calculateCost(windowsVm4CoresBYOL);
+
+        // The cost of the RI isn't factored in because we mocked out the RI Applicator.
+        assertThat(journal1.getTotalHourlyCost(), is(BASE_PRICE * (1 - DEFAULT_RI_COVERAGE)
+                + expectedIpAdjustment));
+        assertThat(journal1.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE),
+                is(BASE_PRICE * (1 - DEFAULT_RI_COVERAGE)));
+        // assert no license price
+        assertThat(journal1.getHourlyCostForCategory(CostCategory.LICENSE), is(0.0));
     }
 
     /**

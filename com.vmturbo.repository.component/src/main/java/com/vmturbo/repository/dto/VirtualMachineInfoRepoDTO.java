@@ -14,6 +14,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
@@ -30,11 +31,14 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     private Integer numCpus;
 
+    private LicenseModel licenseModel;
+
     private List<String> connectedNetworks;
 
     public VirtualMachineInfoRepoDTO() {
         guestOsInfo = null;
         tenancy = null;
+        licenseModel = LicenseModel.LICENSE_INCLUDED;
         ipAddressInfoList = Lists.newArrayList();
         connectedNetworks = Lists.newArrayList();
     }
@@ -57,6 +61,8 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
                         ipAddrInfo.getIsElastic()))
                 .collect(Collectors.toList()));
         setNumCpus(vmInfo.hasNumCpus() ? vmInfo.getNumCpus() : null);
+        setLicenseModel(vmInfo.getLicenseModel());
+
         setConnectedNetworks(vmInfo.getConnectedNetworksList());
         serviceEntityRepoDTO.setVirtualMachineInfoRepoDTO(this);
     }
@@ -93,6 +99,9 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         if (getConnectedNetworks() != null) {
             vmBuilder.addAllConnectedNetworks(getConnectedNetworks());
         }
+
+        vmBuilder.setLicenseModel(getLicenseModel());
+
         return TypeSpecificInfo.newBuilder()
                 .setVirtualMachine(vmBuilder)
                 .build();
@@ -115,6 +124,10 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         return numCpus;
     }
 
+    public LicenseModel getLicenseModel() {
+        return licenseModel;
+    }
+
     public void setGuestOsInfo(GuestOSRepoDTO guestOsInfo) {
         this.guestOsInfo = guestOsInfo;
     }
@@ -129,6 +142,10 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     public void setNumCpus(Integer numCpus) {
         this.numCpus = numCpus;
+    }
+
+    public void setLicenseModel(LicenseModel licenseModel) {
+        this.licenseModel = licenseModel;
     }
 
     public List<String> getConnectedNetworks() {
@@ -148,12 +165,13 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
                 Objects.equals(tenancy, that.tenancy) &&
                 Objects.equals(ipAddressInfoList, that.ipAddressInfoList) &&
                 Objects.equals(numCpus, that.numCpus) &&
+                Objects.equals(licenseModel, that.licenseModel) &&
                 Objects.equals(connectedNetworks, that.connectedNetworks);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(guestOsInfo, tenancy, ipAddressInfoList, numCpus, connectedNetworks);
+        return Objects.hash(guestOsInfo, tenancy, ipAddressInfoList, numCpus, licenseModel, connectedNetworks);
     }
 
     @Override
@@ -163,6 +181,7 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
                 ", tenancy='" + tenancy + '\'' +
                 ", ipAddressInfoList=" + ipAddressInfoList +
                 ", numCpus=" + numCpus +
+                ", licenseModel=" + licenseModel +
                 ", connectedNetworks=" + connectedNetworks +
                 '}';
     }

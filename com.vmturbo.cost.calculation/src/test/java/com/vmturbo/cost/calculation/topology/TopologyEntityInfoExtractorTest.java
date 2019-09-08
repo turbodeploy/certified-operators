@@ -24,6 +24,7 @@ import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierC
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.NetworkConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
@@ -58,6 +59,23 @@ public class TopologyEntityInfoExtractorTest {
                             .setGuestOsInfo(OS.newBuilder()
                                     .setGuestOsType(OSType.LINUX)
                                     .setGuestOsName(OSType.LINUX.name()))
+                            .setTenancy(Tenancy.DEFAULT)))
+            .build();
+
+    private static final TopologyEntityDTO AHUB_VM = TopologyEntityDTO.newBuilder()
+            .setOid(DEFAULT_ID)
+            .setDisplayName("foo")
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setVirtualMachine(VirtualMachineInfo.newBuilder()
+                            .addIpAddresses(IpAddress.newBuilder()
+                                    .setIpAddress(VM_IP)
+                                    .setIsElastic(true)
+                                    .build())
+                            .setLicenseModel(EntityDTO.LicenseModel.AHUB)
+                            .setGuestOsInfo(OS.newBuilder()
+                                    .setGuestOsType(OSType.WINDOWS)
+                                    .setGuestOsName(OSType.WINDOWS.name()))
                             .setTenancy(Tenancy.DEFAULT)))
             .build();
 
@@ -123,6 +141,15 @@ public class TopologyEntityInfoExtractorTest {
         final ComputeConfig config = computeConfigOptional.get();
         assertThat(config.getOs(), is(OSType.LINUX));
         assertThat(config.getTenancy(), is(Tenancy.DEFAULT));
+        assertThat(config.getLicenseModel(), is(EntityDTO.LicenseModel.LICENSE_INCLUDED));
+    }
+
+    @Test
+    public void testExtractAhubVmComputeConfig() {
+        final ComputeConfig config = entityInfoExtractor.getComputeConfig(AHUB_VM).get();
+        assertThat(config.getOs(), is(OSType.WINDOWS));
+        assertThat(config.getTenancy(), is(Tenancy.DEFAULT));
+        assertThat(config.getLicenseModel(), is(EntityDTO.LicenseModel.AHUB));
     }
 
     @Test

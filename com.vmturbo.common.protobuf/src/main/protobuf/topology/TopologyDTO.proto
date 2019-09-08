@@ -58,6 +58,9 @@ message TypeSpecificInfo {
 
         // display name of all of the networks that connected to the VM.
         repeated string connected_networks = 6;
+
+        // The licensing model of the VM (license included in compute price vs. BYOL)
+        optional .common_dto.EntityDTO.LicenseModel license_model = 7 [default = LICENSE_INCLUDED];
     }
 
     // Properties unique to a PhysicalMachine in the model

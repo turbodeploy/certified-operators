@@ -9,7 +9,7 @@ import javax.annotation.concurrent.Immutable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
-import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
@@ -118,13 +118,20 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
         private final Tenancy tenancy;
         private final VMBillingType billingType;
         private final int numCores;
+        private final EntityDTO.LicenseModel licenseModel;
 
         public ComputeConfig(final OSType os, final Tenancy tenancy,
                         final VMBillingType billingType, final int numCores) {
+            this(os, tenancy, billingType, numCores, EntityDTO.LicenseModel.LICENSE_INCLUDED);
+        }
+
+        public ComputeConfig(final OSType os, final Tenancy tenancy, final VMBillingType billingType,
+                             final int numCores, final EntityDTO.LicenseModel licenseModel) {
             this.os = os;
             this.tenancy = tenancy;
             this.billingType = billingType;
             this.numCores = numCores;
+            this.licenseModel = licenseModel;
         }
 
         @Nonnull
@@ -144,6 +151,10 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
 
         public int getNumCores() {
             return numCores;
+        }
+
+        public EntityDTO.LicenseModel getLicenseModel() {
+            return licenseModel;
         }
 
         public boolean matchesPriceTableConfig(@Nonnull final ComputeTierConfigPrice computeTierConfigPrice) {
