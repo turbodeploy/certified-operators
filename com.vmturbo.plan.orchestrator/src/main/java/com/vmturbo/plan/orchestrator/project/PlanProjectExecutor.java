@@ -328,8 +328,10 @@ public class PlanProjectExecutor {
                 } catch (NoSuchObjectException | IllegalTemplateOperationException |
                          DuplicateTemplateException e) {
                     addScopeEntry = false;
-                    logger.error("Failed to update headroom template for cluster name {}, id {}: {}",
-                        cluster.getCluster().getDisplayName(), cluster.getId(), e.getMessage());
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("Failed to update headroom template for cluster name {}, id {}: {}",
+                            cluster.getCluster().getDisplayName(), cluster.getId(), e.getMessage());
+                    }
                 }
             }
 
