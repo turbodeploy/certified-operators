@@ -4,9 +4,18 @@ import static com.vmturbo.clustermgr.api.ClusterMgrClient.COMPONENT_VERSION_KEY;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.DirectoryStream;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -14,6 +23,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
@@ -97,9 +107,10 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
     /**
      * The minimum acceptable server-side keepalive rate.
-     * <p>
-     * In gRPC, the server only accepts keepalives every 5 minutes by default. We want to set it
-     * a little lower. The server will reject keepalives coming in at a greater rate.
+     *
+     * <p>In gRPC, the server only accepts keepalives every 5 minutes by default.
+     * We want to set it a little lower. The server will reject keepalives coming
+     * in at a greater rate.
      */
     private static final int GRPC_MIN_KEEPALIVE_TIME_MIN = 1;
 
@@ -150,13 +161,15 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             .withHelp("Duration in ms from component instantiation to Spring context built.")
             .build()
             .register();
+
+    private static final String CONFIG = "config";
     private static final String COMPONENT_DEFAULT_PATH =
-            "config/component_default.properties";
+                    CONFIG + "/component_default.properties";
 
     private ExecutionStatus status = ExecutionStatus.NEW;
     private final AtomicBoolean startFired = new AtomicBoolean(false);
 
-    private static final int SCHEDULED_METRICS_DELAY_MS=60000;
+    private static final int SCHEDULED_METRICS_DELAY_MS = 60000;
 
     @Value("${scheduledMetricsIntervalMs:60000}")
     private int scheduledMetricsIntervalMs;
@@ -173,7 +186,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @GuardedBy("grpcServerLock")
     private Server grpcServer;
 
-    private static SetOnce<org.eclipse.jetty.server.Server> JETTY_SERVER = new SetOnce<>();
+    private static final SetOnce<org.eclipse.jetty.server.Server> JETTY_SERVER = new SetOnce<>();
 
     private final Object grpcServerLock = new Object();
 
@@ -192,7 +205,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     private ConsulDiscoveryManualConfig consulDiscoveryManualConfig;
 
     /**
-     * Embed a component for monitoring dependency/subcomponent health
+     * Embed a component for monitoring dependency/subcomponent health.
      */
     private final CompositeHealthMonitor healthMonitor =
             new CompositeHealthMonitor(componentType + " Component");
@@ -201,10 +214,11 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         // Capture the beginning of component execution - begins from when the Java static is loaded.
         startupTime = Instant.now();
     }
+
     private static Instant startupTime;
 
     /**
-     * Constructor for BaseVmtComponent
+     * Constructor for BaseVmtComponent.
      */
     public BaseVmtComponent() {
         // install a component ExecutionStatus-based health check into the monitor.
@@ -214,7 +228,9 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             private HealthStatus lastStatus;
 
             @Override
-            public String getName() { return "ExecutionStatus"; }
+            public String getName() {
+                return "ExecutionStatus";
+            }
 
             @Override
             public HealthStatus getHealthStatus() {
@@ -304,10 +320,11 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         setStatus(ExecutionStatus.STARTING);
         DefaultExports.initialize();
         // start up the default scheduled metrics too
-        ScheduledMetrics.initializeScheduledMetrics(scheduledMetricsIntervalMs,SCHEDULED_METRICS_DELAY_MS);
+        ScheduledMetrics.initializeScheduledMetrics(
+            scheduledMetricsIntervalMs, SCHEDULED_METRICS_DELAY_MS);
 
         // add the additional health checks if they aren't already registered
-        Map<String,HealthStatusProvider> healthChecks = getHealthMonitor().getDependencies();
+        Map<String, HealthStatusProvider> healthChecks = getHealthMonitor().getDependencies();
         if (!healthChecks.containsKey(baseVmtComponentConfig.memoryMonitor().getName())) {
             logger.info("Adding memory health check.");
             getHealthMonitor().addHealthCheck(baseVmtComponentConfig.memoryMonitor());
@@ -438,9 +455,11 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     /**
      * Component implementations should override this method and return the gRPC services
      * they want to expose externally.
-     * <p>
-     * Note - we could do this automatically with Spring, but we choose to do it explicitly
+     *
+     * <p>Note - we could do this automatically with Spring, but we choose to do it explicitly
      * so it's easy to tell how services get into the gRPC server.
+     *
+     * @return exposed gRPC services
      */
     @Nonnull
     protected List<BindableService> getGrpcServices() {
@@ -450,17 +469,19 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     /**
      * Component implementations should override this method and return the gRPC interceptors
      * they want to attach to the services.
-     * <p>
-     * Each of these interceptors will be attached to each of the services returned by
+     *
+     * <p>Each of these interceptors will be attached to each of the services returned by
      * {@link BaseVmtComponent#getGrpcServices()}. If the component author wants to attach an
      * interceptor only to a specific service, do so in the {@link BaseVmtComponent#getGrpcServices()}
      * implementation.
-     * <p>
-     * TODO (roman, Apr 24 2019): The main reason we have this right now is for the JWT interceptor.
+     *
+     * <p>TODO (roman, Apr 24 2019): The main reason we have this right now is for the JWT interceptor.
      * We can't import the spring security config directly in BaseVmtComponent because that would
      * create a circular dependency between components.common and auth.api. In the future we should
      * move the "common" security stuff to components.common, initialize the JWT interceptor in
      * BaseVmtComponent, and remove this method.
+     *
+     * @return gRPC interceptors
      */
     @Nonnull
     protected List<ServerInterceptor> getServerInterceptors() {
@@ -688,27 +709,122 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     /**
      * Read the default configuration properties for this component from the resource file.
      *
+     * @return properties loaded from the config resource of the component
+     *
      */
-    private static Properties loadConfigurationProperties() {
+    @VisibleForTesting
+    static Properties loadConfigurationProperties() {
         logger.info("Sending the default configuration for this component to ClusterMgr");
-        // first read the default config from a resource
         final Properties defaultProperties = new Properties();
-        try (final InputStream configPropertiesStream = BaseVmtComponent.class.getClassLoader()
-                .getResourceAsStream(COMPONENT_DEFAULT_PATH)) {
-            if (configPropertiesStream != null) {
-                defaultProperties.load(configPropertiesStream);
-            } else {
-                logger.warn("Cannot find component default properties file: {} for component: {}",
-                        COMPONENT_DEFAULT_PATH, componentType);
-            }
-        } catch (IOException e) {
-            // if the component defaults cannot be found we still need to send an empty
-            // default properties to ClusterMgr where the global defaults will be used.
-            logger.warn("Cannot read default configuration properties file: {} for component: {};" +
-                            "- assuming empty configuration.", COMPONENT_DEFAULT_PATH,
-                    componentType);
+        try {
+            // Handle component defaults first (so other properties can override)
+            defaultProperties.putAll(loadDefaultProperties());
+            // Handle other resources in config
+            defaultProperties.putAll(loadOtherProperties());
+        } catch (URISyntaxException | IOException e) {
+            logger.error("Could not access the config resources", e);
         }
+
         return defaultProperties;
+    }
+
+    private static Properties loadDefaultProperties() throws IOException {
+        // TODO: what if there are other jars with the same resource? Should we
+        // forcefully prevent that (not let the component start)? Consider them as override?
+        logger.info("Loading component defaults from " + COMPONENT_DEFAULT_PATH);
+        return propsFromInputStream(() -> BaseVmtComponent.class.getClassLoader()
+                        .getResourceAsStream(COMPONENT_DEFAULT_PATH), COMPONENT_DEFAULT_PATH);
+    }
+
+    /**
+     * Load properties other than {@link #COMPONENT_DEFAULT_PATH}.
+     * Look for files in the "config" resource. Files of type ".properties" are
+     * treated as {@link Properties} files. For other file types create a property
+     * which name is the file name and value is the content of the file.
+     *
+     * @return a properties map with all the loaded properties
+     * @throws IOException when there is a problem accessing resources
+     * @throws URISyntaxException when unable to convert a resource URL to URI
+     */
+    private static Properties loadOtherProperties() throws URISyntaxException, IOException {
+        Properties properties = new Properties();
+        Enumeration<URL> configs = BaseVmtComponent.class.getClassLoader().getResources(CONFIG);
+        while (configs.hasMoreElements()) {
+            URI uri = configs.nextElement().toURI();
+            FileSystem fs = fileSystem(uri);
+            Path configPath = fs.getPath(path(uri));
+            try (DirectoryStream<Path> ds = Files.newDirectoryStream(configPath)) {
+                ds.forEach(propPath -> {
+                    // Skip COMPONENT_DEFAULT_PATH - it is loaded in loadDefaultProperties()
+                    if (!propPath.toString().endsWith(COMPONENT_DEFAULT_PATH)) {
+                        String fileName = propPath.getFileName().toString();
+                        if (fileName.endsWith(".properties")) {
+                            properties.putAll(propsFromInputStream(
+                                pathInputStream(propPath), propPath.toString()));
+                        } else {
+                            logger.info("Looading " + propPath);
+                            try {
+                                String content = new String(Files.readAllBytes(propPath));
+                                properties.put(fileName, content);
+                                logger.info("Loaded " + content.length()
+                                + " bytes from " + propPath);
+                            } catch (IOException e) {
+                                logger.warn("Could not load " + propPath);
+                            }
+                        }
+                    }
+                });
+            } finally {
+                try {
+                    fs.close();
+                } catch (UnsupportedOperationException usoe) {
+                    // Happens during testing with "file" scheme. Ignore.
+                }
+            }
+        }
+        return properties;
+    }
+
+    private static Supplier<InputStream> pathInputStream(Path propPath) {
+        return () -> {
+            try {
+                return Files.newInputStream(propPath);
+            } catch (IOException e) {
+                return null;
+            }
+        };
+    }
+
+    private static Properties propsFromInputStream(Supplier<InputStream> isSupplier,
+                    String pathName) {
+        logger.info("Loading properties from " + pathName);
+        Properties props = new Properties();
+        try (InputStream is = isSupplier.get()) {
+            props.load(is);
+            int numProps = props.size();
+            String propCount = numProps + (numProps == 1 ? " property" : " properties");
+            logger.info("Loaded " + propCount + " from " + pathName);
+        } catch (IOException ioe) {
+            logger.warn("Could not load properties from " + pathName);
+        }
+        return props;
+    }
+
+    private static FileSystem fileSystem(URI uri) throws IOException {
+        return "file".equals(uri.getScheme())
+            // "file" scheme used in unit tests
+            ? FileSystems.getDefault()
+            // "jar" scheme expected at runtime
+            : FileSystems.newFileSystem(
+                URI.create(uri.toString().replaceFirst("!.*", "")), Collections.emptyMap());
+    }
+
+    private static String path(URI uri) {
+        return "file".equals(uri.getScheme())
+            // "file" scheme used in unit tests
+            ? uri.getPath()
+            // "jar" scheme expected at runtime
+            : uri.toString().replaceFirst(".*!", "");
     }
 
     /**
@@ -716,6 +832,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * publish those to the clustermgr configuration port.
      *
      * @param clusterMgrClient the clustermgr api client handle
+     * @param defaultProperties default properties to be sent to clustermgr
      */
     private static void updateClusterConfigurationProperties(
             @Nonnull final ClusterMgrRestClient clusterMgrClient, Properties defaultProperties) {
@@ -728,17 +845,17 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         do {
             try {
                 clusterMgrClient.putComponentDefaultProperties(componentType, defaultComponentProperties);
-                logger.info("Default property values for component type '{}' successfully stored:",
+                logger.info("Default property values for component type '{}' successfully stored",
                     componentType);
                 defaultProperties.forEach((configKey, configValue) ->
-                    logger.info("       {} = >{}<", configKey, configValue));
+                    logProperty(configKey, configValue));
                 break;
             } catch (ResourceAccessException e) {
                 logger.error("Error in attempt {} to send default configuration from ClusterMgr: {}",
                     tryCount++, e.getMessage());
                 sleepWaitingForClusterMgr();
             }
-        } while(true);
+        } while (true);
     }
 
     /**
@@ -749,15 +866,16 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * beginning Spring instantiation.
      *
      */
-    private static void fetchLocalConfigurationProperties(Properties defaultProperties) {
+    @VisibleForTesting
+    static void fetchLocalConfigurationProperties(Properties defaultProperties) {
         do {
             try {
                 defaultProperties.stringPropertyNames().forEach(configKey -> {
-                    logger.info("       {} = >{}<", configKey, defaultProperties.getProperty(configKey));
+                    logProperty(configKey, defaultProperties.getProperty(configKey));
                     System.setProperty(configKey, defaultProperties.getProperty(configKey));
                 });
                 break;
-            } catch(ResourceAccessException e) {
+            } catch (ResourceAccessException e) {
                 logger.error("Error fetching configuration from ClusterMgr: {}", e.getMessage());
                 sleepWaitingForClusterMgr();
             }
@@ -783,7 +901,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                 ComponentProperties componentProperties =
                         clusterMgrClient.getEffectiveInstanceProperties(componentType, instanceId);
                 componentProperties.forEach((configKey, configValue) -> {
-                    logger.info("       {} = >{}<", configKey, configValue);
+                    logProperty(configKey, configValue);
                     // {@link PropertySourcesPlaceholderConfigurer} is registered in
                     // BaseVmtComponentConfig::configurer(), so environment variable values
                     // will also be injected.
@@ -796,7 +914,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                     }
                 });
                 break;
-            } catch(ResourceAccessException e) {
+            } catch (ResourceAccessException e) {
                 logger.error("Error fetching configuration from ClusterMgr: {}", e.getMessage());
                 sleepWaitingForClusterMgr();
             }
@@ -811,6 +929,48 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     }
 
     /**
+     * Log a pair of key-value properties. If the value is too long or
+     * is multi-lines then print the first few characters followed by ...
+     *
+     * @param key a property key
+     * @param value a property value
+     */
+    private static void logProperty(Object key, Object value) {
+        String str;
+        if (value == null) {
+            str = null;
+        } else {
+            str = value.toString();
+            int originalLength = str.length();
+            boolean truncated = false;
+            if (str.length() > 80) {
+                truncated = true;
+                str = str.substring(0, 76);
+            }
+            if (str.contains("\n")) {
+                truncated = true;
+                str = str.substring(0, str.indexOf("\n"));
+            }
+            if (truncated) {
+                str += "... [" + (originalLength - str.length() + " bytes truncated]");
+            }
+        }
+        logger.info("       {} = '{}'", key, str);
+    }
+
+    /**
+     * Get the value of a single configuration property.
+     * This implementation assumes the configuration properties are stored as System
+     * properties. This may change when switching to Kubernetes configmaps.
+     *
+     * @param property the configuration property to get
+     * @return the value of the configuration property
+     */
+    public static String getConfigurationProperty(String property) {
+        return System.getProperty(property);
+    }
+
+    /**
      * Sleep while wait/looping for ClusterMgr to respond.
      */
     private static void sleepWaitingForClusterMgr() {
@@ -818,7 +978,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             logger.info("...sleeping for {} ms and then trying again...",
                     clusterMgrConnectionRetryDelayMs);
             Thread.sleep(clusterMgrConnectionRetryDelayMs);
-        } catch (InterruptedException e2) {
+        } catch (InterruptedException ie) {
             logger.warn("Interrupted while waiting for ClusterMgr; continuing to wait.");
             Thread.currentThread().interrupt();
         }
@@ -875,5 +1035,4 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         ConfigurableWebApplicationContext configure(@Nonnull ServletContextHandler servletContext)
                 throws ContextConfigurationException;
     }
-
 }
