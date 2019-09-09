@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.topology;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -17,7 +18,6 @@ import java.util.stream.Stream;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -82,33 +82,52 @@ public class PlanTopologyScopeEditorTest {
     private static final TopologyEntity.Builder BUSINESS_ACC2 = createCloudConnectedTopologyEntity(5002L, "Business account 2", EntityType.BUSINESS_ACCOUNT, VM_IN_OHIO.getOid());
     private static final TopologyEntity.Builder BUSINESS_ACC3 = createCloudConnectedTopologyEntity(5003L, "Business account 3", EntityType.BUSINESS_ACCOUNT, REGION_HONG_KONG.getOid());
 
+    /* Creating an on prem topology.
+
+                       ba
+                    /     \
+                   /       \
+                  /         \
+        app1    as1         as2
+           \  /              |
+           vm1               vm3
+           / \               / \
+        pm1  vv            pm3  st2
+        /     \            |
+     dc1     st1-da1      dc2
+      |       /
+     pm2    /
+       \   /
+        vm2
+
+     */
     private static final TopologyGraph<TopologyEntity> GRAPH = TopologyEntityUtils
-                    .topologyGraphOf(APP1, VM1_IN_DC1, VM2_IN_DC1, VM_IN_DC2, PM1_IN_DC1,
-                                     PM2_IN_DC1, PM_IN_DC2, DC1, DC2, ST1, ST2, DA1, BAPP1, AS1,
-                                     AS2, VIRTUAL_VOLUME, AZ1_LONDON, AZ2_LONDON, AZ_OHIO,
-                                     AZ1_HONG_KONG, AZ2_HONG_KONG, REGION_LONDON, REGION_OHIO,
-                                     REGION_HONG_KONG, COMPUTE_TIER, VM1_IN_LONDON,
-                                     VM2_IN_LONDON, DB_LONDON, DBS_LONDON, DBS_HONG_KONG,
-                                     VM_IN_OHIO, BUSINESS_ACC1, BUSINESS_ACC2, BUSINESS_ACC3,
-                                     VIRTUAL_VOLUME_IN_OHIO, STORAGE_TIER);
+        .topologyGraphOf(APP1, VM1_IN_DC1, VM2_IN_DC1, VM_IN_DC2, PM1_IN_DC1,
+            PM2_IN_DC1, PM_IN_DC2, DC1, DC2, ST1, ST2, DA1, BAPP1, AS1,
+            AS2, VIRTUAL_VOLUME, AZ1_LONDON, AZ2_LONDON, AZ_OHIO,
+            AZ1_HONG_KONG, AZ2_HONG_KONG, REGION_LONDON, REGION_OHIO,
+            REGION_HONG_KONG, COMPUTE_TIER, VM1_IN_LONDON,
+            VM2_IN_LONDON, DB_LONDON, DBS_LONDON, DBS_HONG_KONG,
+            VM_IN_OHIO, BUSINESS_ACC1, BUSINESS_ACC2, BUSINESS_ACC3,
+            VIRTUAL_VOLUME_IN_OHIO, STORAGE_TIER);
 
     private static final Set<TopologyEntity.Builder> EXPECTED_ENTITIES_FOR_REGION = Stream
-                    .of(AZ1_LONDON, AZ2_LONDON, REGION_LONDON, COMPUTE_TIER,
-                        VM1_IN_LONDON, VM2_IN_LONDON, DB_LONDON, DBS_LONDON, BUSINESS_ACC1,
-                        BUSINESS_ACC2, STORAGE_TIER)
-                    .collect(Collectors.collectingAndThen(Collectors.toSet(),
-                                                          Collections::unmodifiableSet));
+        .of(AZ1_LONDON, AZ2_LONDON, REGION_LONDON, COMPUTE_TIER,
+            VM1_IN_LONDON, VM2_IN_LONDON, DB_LONDON, DBS_LONDON, BUSINESS_ACC1,
+            BUSINESS_ACC2, STORAGE_TIER)
+        .collect(Collectors.collectingAndThen(Collectors.toSet(),
+            Collections::unmodifiableSet));
 
     private static final Set<TopologyEntity.Builder> EXPECTED_ENTITIES_FOR_REGIONS_LIST = Stream
-                    .of(AZ1_LONDON, AZ2_LONDON, AZ_OHIO, REGION_LONDON, REGION_OHIO, COMPUTE_TIER,
-                        VM1_IN_LONDON, VM2_IN_LONDON, VM_IN_OHIO, DB_LONDON, DBS_LONDON,
-                        BUSINESS_ACC1, BUSINESS_ACC2, STORAGE_TIER, VIRTUAL_VOLUME_IN_OHIO)
-                    .collect(Collectors.collectingAndThen(Collectors.toSet(),
-                                                          Collections::unmodifiableSet));
+        .of(AZ1_LONDON, AZ2_LONDON, AZ_OHIO, REGION_LONDON, REGION_OHIO, COMPUTE_TIER,
+            VM1_IN_LONDON, VM2_IN_LONDON, VM_IN_OHIO, DB_LONDON, DBS_LONDON,
+            BUSINESS_ACC1, BUSINESS_ACC2, STORAGE_TIER, VIRTUAL_VOLUME_IN_OHIO)
+        .collect(Collectors.collectingAndThen(Collectors.toSet(),
+            Collections::unmodifiableSet));
 
-    private GroupResolver groupResolver = mock(GroupResolver.class);
+    private static final GroupResolver groupResolver = mock(GroupResolver.class);
     private PlanTopologyScopeEditor planTopologyScopeEditor;
-    private GroupServiceMole groupServiceClient = spy(new GroupServiceMole());
+    private static final GroupServiceMole groupServiceClient = spy(new GroupServiceMole());
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceClient);
@@ -116,7 +135,7 @@ public class PlanTopologyScopeEditorTest {
     @Before
     public void setup() {
         planTopologyScopeEditor = new PlanTopologyScopeEditor(GroupServiceGrpc
-                .newBlockingStub(grpcServer.getChannel()));
+            .newBlockingStub(grpcServer.getChannel()));
     }
 
     /**
@@ -126,11 +145,12 @@ public class PlanTopologyScopeEditorTest {
      */
     @Test
     public void testScopeCloudTopologyForRegion() {
+
         final PlanScope planScope = PlanScope.newBuilder()
-                        .addScopeEntries(PlanScopeEntry.newBuilder()
-                                        .setClassName(StringConstants.REGION)
-                                        .setScopeObjectOid(2001L).setDisplayName("London").build())
-                        .build();
+            .addScopeEntries(PlanScopeEntry.newBuilder()
+                .setClassName(StringConstants.REGION)
+                .setScopeObjectOid(2001L).setDisplayName("London").build())
+            .build();
         testScopeCloudTopology(planScope, EXPECTED_ENTITIES_FOR_REGION);
     }
 
@@ -138,6 +158,10 @@ public class PlanTopologyScopeEditorTest {
      * Tests scope cloud topology for the plan scope with 2 regions.
      * Topology graph contains entities for 2 targets: hypervisor and cloud.
      * EXPECTED_ENTITIES_FOR_REGIONS_LIST - set of cloud entities expected as result of applying plan scope to the topology.
+     * Scenario: scope on pm1 and pm2 which consumes on dc1.
+     * Expected: the entities in scope should be vm1, vm2, pm1, pm2, dc1, vv, st1, da1, app1, as1, ba
+     *
+     * @throws PipelineStageException An exception thrown when a stage of the pipeline fails.
      */
     @Test
     public void testScopeCloudTopologyForRegionsList() {
@@ -160,10 +184,15 @@ public class PlanTopologyScopeEditorTest {
                         .isPresent()));
     }
 
+    /**
+     * Scenario: scope on pm1 and pm2 which consumes on dc1.
+     * Expected: the entities in scope should be vm1, vm2, pm1, pm2, dc1, vv, st1, da1, app1, as1, ba
+     *
+     * @throws PipelineStageException An exception thrown when a stage of the pipeline fails.
+     */
     @Test
-    @Ignore
     public void testScopeOnpremTopologyOnCluster() throws PipelineStageException {
-        TopologyInfo topologyInfo = TopologyInfo.newBuilder().build();
+        TopologyInfo topologyInfo = TopologyInfo.getDefaultInstance();
         Group g = Group.newBuilder().setCluster(ClusterInfo.newBuilder()
                 .setMembers(StaticGroupMembers.newBuilder().addStaticMemberOids(PM1_IN_DC1.getOid())
                         .addStaticMemberOids(PM2_IN_DC1.getOid()))).build();
@@ -177,47 +206,61 @@ public class PlanTopologyScopeEditorTest {
                                 .setScopeObjectOid(90001L).setDisplayName("PM cluster/DC1").build()).build();
         TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
                 .scopeOnPremTopology(topologyInfo, GRAPH, planScope, groupResolver,  new ArrayList<ScenarioChange>());
-        assertTrue(result.size() == 11);
+        assertEquals(11, result.size());
     }
 
+    /**
+     * Scenario: scope on ba which consumes as1 and as2.
+     * Expected: the entities in scope should be ba, as1, app1, vm1, vm2, pm1, pm2, dc1, vv, st1,
+     * da1, as2, vm3, pm3, dc2, st2
+     *
+     * @throws PipelineStageException An exception thrown when a stage of the pipeline fails.
+     */
     @Test
-    @Ignore
     public void testScopeOnpremTopologyOnBA() throws PipelineStageException {
-        TopologyInfo topologyInfo = TopologyInfo.newBuilder().build();
-
+        TopologyInfo topologyInfo = TopologyInfo.getDefaultInstance();
         final PlanScope planScope = PlanScope.newBuilder()
                         .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("BusinessApplication")
                                 .setScopeObjectOid(80001L).setDisplayName("BusinessApplication1").build()).build();
         TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
                 .scopeOnPremTopology(topologyInfo, GRAPH, planScope, groupResolver,  new ArrayList<ScenarioChange>());
-        assertTrue(result.size() == 16);
+        assertEquals(16, result.size());
     }
 
+    /**
+     * Scenario: scope on st2 which hosts vm on dc2.
+     * Expected: the entities in scope should be ba, as2, vm3, pm3, st2, dc2
+     *
+     * @throws PipelineStageException An exception thrown when a stage of the pipeline fails.
+     */
     @Test
     public void testScopeOnpremTopologyOnStorage() throws PipelineStageException {
-        TopologyInfo topologyInfo = TopologyInfo.newBuilder().build();
-
+        TopologyInfo topologyInfo = TopologyInfo.getDefaultInstance();
         final PlanScope planScope = PlanScope.newBuilder()
                         .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("Storage")
                                 .setScopeObjectOid(40002L).setDisplayName("Storage2").build()).build();
         TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
                 .scopeOnPremTopology(topologyInfo, GRAPH, planScope, groupResolver,  new ArrayList<ScenarioChange>());
         result.entities().forEach(e -> System.out.println(e.getOid() + " "));
-        assertTrue(result.size() == 6);
+        assertEquals(6, result.size());
     }
 
+    /**
+     * Scenario: scope on vm2 which consumes pm2 on dc1, st1 on da1. The vm2 hosts no application at all.
+     * Expected: the entities in scope should be vm1, vm2, pm1, pm2, dc1, vv, st1, da1, app1, as1, ba
+     *
+     * @throws PipelineStageException An exception thrown when a stage of the pipeline fails.
+     */
     @Test
-    @Ignore
     public void testScopeOnpremTopologyOnVM() throws PipelineStageException {
-        TopologyInfo topologyInfo = TopologyInfo.newBuilder().build();
-
+        TopologyInfo topologyInfo = TopologyInfo.getDefaultInstance();
         final PlanScope planScope = PlanScope.newBuilder()
                         .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("VirtualMachine")
                                 .setScopeObjectOid(30002L).setDisplayName("VM2").build()).build();
         TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
                 .scopeOnPremTopology(topologyInfo, GRAPH, planScope, groupResolver,  new ArrayList<ScenarioChange>());
         result.entities().forEach(e -> System.out.println(e.getOid() + " "));
-        assertTrue(result.size() == 11);
+        assertEquals(11, result.size());
     }
 
     private static TopologyEntity.Builder createHypervisorTopologyEntity(long oid,

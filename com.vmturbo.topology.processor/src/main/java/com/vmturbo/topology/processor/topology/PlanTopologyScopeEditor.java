@@ -566,17 +566,26 @@ public class PlanTopologyScopeEditor {
                 // if the entity type present in inScopeConnectedEntityTypes. Typically,
                 // a virtual volume is not a consumer nor a provider, yet it is referenced
                 // during move action interpretation, that is why we need to include it in scope.
-                connectedEntities.addAll(Stream.concat(currentNode.getConnectedFromEntities().stream(),
-                        currentNode.getConnectedToEntities().stream())
-                        .filter(e -> inScopeConnectedEntityTypes.contains(e.getEntityType()))
-                        .collect(Collectors.toSet()));
-                connectedEntities.forEach(c -> {
-                    if (!visitedEntity.contains(c) && entitySet.contains(c)) {
-                        queue.add(c);
-                        subGraph.add(c);
-                        logger.trace("connected is {}", c.getDisplayName());
-                    }
-                });
+                Stream.concat(currentNode.getConnectedFromEntities().stream(),
+                    currentNode.getConnectedToEntities().stream())
+                    .forEach(c -> {
+                        // we need to populate all connected entities of a virtual volume,
+                        // and the virtual volume itself. For example, if the scope starts
+                        // from a virtual volume, we should associate it with vm so that
+                        // it will be part of the topology. If the scope starts from a vm
+                        // we should associate the vm with vv by getting the vm's connected
+                        // entities.
+                        if (inScopeConnectedEntityTypes.contains(currentNode.getEntityType()) ||
+                            inScopeConnectedEntityTypes.contains(c.getEntityType())) {
+                            connectedEntities.add(c);
+                        }
+                    });
+                List<TopologyEntity> unvisitedEntities = connectedEntities.stream()
+                    .filter(c -> !visitedEntity.contains(c) && entitySet.contains(c))
+                    .collect(Collectors.toList());
+                queue.addAll(unvisitedEntities);
+                subGraph.addAll(unvisitedEntities);
+                logger.trace("connected are {}", unvisitedEntities);
             }
             // a subset of entities with consumer-provider relationship is formed,
             // add it to our result list
