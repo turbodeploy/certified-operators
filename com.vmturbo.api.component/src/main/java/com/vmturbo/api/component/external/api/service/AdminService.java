@@ -2,11 +2,14 @@ package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.clustermgr.api.ClusterMgrClient.COMPONENT_VERSION_KEY;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.text.MessageFormat;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -60,6 +63,11 @@ import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
 
 public class AdminService implements IAdminService {
+
+    /**
+     * XL only uses market 2.
+     */
+    private static final int MARKET_VERSION = 2;
 
     private static final String VERSION_INFO_HEADER = "Turbonomic Operations Manager {0} (Build {1}) {2}\n\n";
 
@@ -135,6 +143,8 @@ public class AdminService implements IAdminService {
 
     private RestTemplate restTemplate;
 
+    private final BuildProperties buildProperties;
+
     AdminService(@Nonnull final ClusterService clusterService,
                  @Nonnull final KeyValueStore keyValueStore,
                  @Nonnull final ClusterMgrRestClient clusterMgrApi,
@@ -145,6 +155,7 @@ public class AdminService implements IAdminService {
         this.clusterMgrApi = Objects.requireNonNull(clusterMgrApi);
         this.restTemplate = Objects.requireNonNull(restTemplate);
         this.apiWebsocketHandler = Objects.requireNonNull(apiWebsocketHandler);
+        this.buildProperties = new BuildProperties();
     }
 
     @Override
@@ -321,13 +332,12 @@ public class AdminService implements IAdminService {
 
     @Override
     public ProductVersionDTO getVersionInfo(boolean checkForUpdates) {
-        ProductVersionDTO answer = new ProductVersionDTO();
-        answer.setVersionInfo(getVersionInfoString());
+        final ProductVersionDTO product = buildProperties.makeProductVersion();
+        product.setVersionInfo(getVersionInfoString());
         // TODO: 'checkForUpdates' is not yet implemented
-        answer.setUpdates(UPDATES_NOT_IMPLEMENTED);
-        // xl uses market 2
-        answer.setMarketVersion(2);
-        return answer;
+        product.setUpdates(UPDATES_NOT_IMPLEMENTED);
+        product.setMarketVersion(MARKET_VERSION);
+        return product;
     }
 
     @Override
@@ -430,5 +440,72 @@ public class AdminService implements IAdminService {
             })
             .sorted()
             .collect(Collectors.joining("\n"));
+    }
+
+    /**
+     * Interesting properties about the build used to create this version of the API component,
+     * loaded from the git properties file generated at build-time by the git-commit-id plugin.
+     */
+    private static class BuildProperties {
+        private static final Logger logger = LogManager.getLogger();
+
+        /**
+         * The path to the git commit file, relative to the classpath.
+         * Must be in sync with the configuration of the git-commit-id-plugin in build/pom.xml.
+         */
+        private static final String GIT_PROPERTIES_PATH = "git.properties";
+
+        /**
+         * The prefix used for build properties.
+         * Must be in sync with the configuration of the git-commit-id-plugin in build/pom.xml
+         */
+        private static final String PREFIX = "turbo-version";
+
+        // START - the names of the properties we care about.
+        private static final String BRANCH = PREFIX + ".branch";
+        private static final String DIRTY = PREFIX + ".dirty";
+        private static final String VERSION = PREFIX + ".build.version";
+        private static final String BUILD_TIME = PREFIX + ".build.time";
+        private static final String SHORT_COMMIT_MSG = PREFIX + ".commit.message.short";
+        private static final String COMMIT_ID = PREFIX + ".commit.id";
+        // END - the names of the properties we care about.
+
+        /**
+         * The properties loaded from the git.properties file.
+         */
+        private final Properties properties;
+
+        private BuildProperties() {
+            properties = new Properties();
+            try (final InputStream configPropertiesStream = AdminService.class.getClassLoader()
+                .getResourceAsStream(GIT_PROPERTIES_PATH)) {
+                if (configPropertiesStream != null) {
+                    properties.load(configPropertiesStream);
+                } else {
+                    logger.warn("Cannot find git properties file: {} in class path", GIT_PROPERTIES_PATH);
+                }
+            } catch (IOException e) {
+                // if the component defaults cannot be found we still need to send an empty
+                // default properties to ClusterMgr where the global defaults will be used.
+                logger.warn("Cannot read git properties file: {}", GIT_PROPERTIES_PATH);
+            }
+        }
+
+        /**
+         * Create a {@link ProductVersionDTO} filled with the git commit properties.
+         *
+         * @return The {@link ProductVersionDTO}.
+         */
+        @Nonnull
+        ProductVersionDTO makeProductVersion() {
+            final ProductVersionDTO productVersion = new ProductVersionDTO();
+            productVersion.setBranch(properties.getProperty(BRANCH));
+            productVersion.setVersion(properties.getProperty(VERSION));
+            productVersion.setBuild(properties.getProperty(BUILD_TIME));
+            productVersion.setCommit(properties.getProperty(COMMIT_ID));
+            productVersion.setGitDescription(properties.getProperty(SHORT_COMMIT_MSG));
+            productVersion.setHasCodeChanges(Boolean.valueOf(properties.getProperty(DIRTY)));
+            return productVersion;
+        }
     }
 }

@@ -5,8 +5,10 @@ import static com.vmturbo.api.component.external.api.service.AdminService.PROXY_
 import static com.vmturbo.api.component.external.api.service.AdminService.PROXY_PORT_NUMBER;
 import static com.vmturbo.api.component.external.api.service.AdminService.PROXY_USER_NAME;
 import static com.vmturbo.api.component.external.api.service.AdminService.PROXY_USER_PASSWORD;
+import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
@@ -127,6 +129,14 @@ public class AdminServiceTest {
         String versionInfo = answer.getVersionInfo();
         assertTrue(versionInfo.contains(instance1Type + ": " + instance1Version));
         assertTrue(versionInfo.contains(instance2Type + ": " + instance2Version));
+
+        // Assert similarity to the git.properties file.
+        assertThat(answer.getVersion(), is("MyVersion"));
+        assertThat(answer.getBranch(), is("testBranch"));
+        assertThat(answer.getBuild(), is("123"));
+        assertThat(answer.getCommit(), is("someCommitHash!"));
+        assertThat(answer.hasCodeChanges(), is(true));
+        assertThat(answer.getGitDescription(), is("ShortMessage"));
     }
 
     @Test
