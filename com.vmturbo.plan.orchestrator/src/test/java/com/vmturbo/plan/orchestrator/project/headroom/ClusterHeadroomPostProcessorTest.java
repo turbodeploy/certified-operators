@@ -8,10 +8,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -21,6 +25,7 @@ import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -41,12 +46,17 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
+import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityHeadroom;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshotOrBuilder;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -305,106 +315,6 @@ public class ClusterHeadroomPostProcessorTest {
     }
 
     @Test
-    public void testVMGrowth() {
-        final ClusterHeadroomPlanPostProcessor processor =
-                new ClusterHeadroomPlanPostProcessor(PLAN_ID, Collections.singleton(CLUSTER.getId()),
-                        grpcTestServer.getChannel(), grpcTestServer.getChannel(),
-                        planDao, grpcTestServer.getChannel(), templatesDao);
-
-        Long endDate = System.currentTimeMillis();
-        // put middle date before the middle of the interval to avoid rounding issues
-        Long middleDate = endDate - DAY_MILLI_SECS - ONE_HOUR;
-        Long startDate = middleDate - DAY_MILLI_SECS;
-
-        long vmId1 = 20;
-        long vmId2 = 21;
-        long vmId3 = 22;
-
-        EntityStats entityStats1 = EntityStats.newBuilder()
-                    .addStatSnapshots(StatSnapshot.newBuilder()
-                        .setSnapshotDate(startDate))
-                    .setOid(vmId1)
-                    .build();
-
-        EntityStats entityStats2 = EntityStats.newBuilder()
-                .addStatSnapshots(StatSnapshot.newBuilder()
-                        .setSnapshotDate(middleDate))
-                .setOid(vmId2)
-                .build();
-
-        EntityStats entityStats3 = EntityStats.newBuilder()
-                .addStatSnapshots(StatSnapshot.newBuilder()
-                        .setSnapshotDate(endDate))
-                .setOid(vmId3)
-                .build();
-
-        when(historyServiceMole.getEntityStats(any()))
-                .thenReturn(GetEntityStatsResponse.newBuilder()
-                    .addEntityStats(entityStats1)
-                    .addEntityStats(entityStats2)
-                    .addEntityStats(entityStats3)
-                    .build());
-
-        List<TopologyEntityDTO> vmsInCluster = ImmutableList.of(
-            TopologyEntityDTO.newBuilder().setOid(vmId1).setEntityType(1).build(),
-            TopologyEntityDTO.newBuilder().setOid(vmId2).setEntityType(1).build(),
-            TopologyEntityDTO.newBuilder().setOid(vmId3).setEntityType(1).build());
-
-        final Map<Long, Long> clusterIdToVMDailyGrowth =
-            processor.getVMDailyGrowth(ImmutableMap.of(CLUSTER.getId(),
-                    ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, vmsInCluster)));
-        assertEquals(1, clusterIdToVMDailyGrowth.get(CLUSTER.getId()).longValue());
-    }
-
-    @Test
-    public void testVMGrowthBigSize() {
-        final long N = 1000;
-        final ClusterHeadroomPlanPostProcessor processor =
-                new ClusterHeadroomPlanPostProcessor(PLAN_ID, Collections.singleton(CLUSTER.getId()),
-                        grpcTestServer.getChannel(), grpcTestServer.getChannel(),
-                        planDao, grpcTestServer.getChannel(), templatesDao);
-
-        EntityStatsScope scope = EntityStatsScope.newBuilder()
-                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).build();
-
-        long endDate = System.currentTimeMillis();
-        // put middle date before the middle of the interval to avoid rounding issues
-        long middleDate = endDate - DAY_MILLI_SECS - ONE_HOUR;
-        long startDate = middleDate - DAY_MILLI_SECS;
-
-        List<TopologyEntityDTO> vmsInCluster = new ArrayList<>();
-
-        GetEntityStatsResponse.Builder getEntityStatsResponseBuilder = GetEntityStatsResponse.newBuilder();
-        for (long i = 0; i < N; i++) {
-            getEntityStatsResponseBuilder.addEntityStats(EntityStats.newBuilder()
-                    .addStatSnapshots(StatSnapshot.newBuilder()
-                            .setSnapshotDate(startDate))
-                    .setOid(i)
-                    .build());
-            getEntityStatsResponseBuilder.addEntityStats(EntityStats.newBuilder()
-                    .addStatSnapshots(StatSnapshot.newBuilder()
-                            .setSnapshotDate(middleDate))
-                    .setOid(N + i)
-                    .build());
-            getEntityStatsResponseBuilder.addEntityStats(EntityStats.newBuilder()
-                    .addStatSnapshots(StatSnapshot.newBuilder()
-                            .setSnapshotDate(endDate))
-                    .setOid(2 * N + i)
-                    .build());
-            vmsInCluster.add(TopologyEntityDTO.newBuilder().setOid(2 * N + i).setEntityType(1).build());
-        }
-        GetEntityStatsResponse getEntityStatsResponse = getEntityStatsResponseBuilder.build();
-
-        when(historyServiceMole.getEntityStats(any()))
-                .thenReturn(getEntityStatsResponse);
-
-        final Map<Long, Long> clusterIdToVMDailyGrowth =
-            processor.getVMDailyGrowth(ImmutableMap.of(CLUSTER.getId(),
-                ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, vmsInCluster)));
-        assertEquals(N, clusterIdToVMDailyGrowth.get(CLUSTER.getId()).longValue());
-    }
-
-    @Test
     public void testPlanSucceeded() throws NoSuchObjectException {
         final ClusterHeadroomPlanPostProcessor processor =
                 spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, Collections.singleton(CLUSTER.getId()),
@@ -440,6 +350,104 @@ public class ClusterHeadroomPostProcessorTest {
 
         verify(planDao).deletePlan(PLAN_ID);
         verify(onCompleteHandler).accept(processor);
+    }
+
+    /**
+     * Multiple tests for vm growth calculation.
+     */
+    @Test
+    public void testGetVMDailyGrowth() {
+        float delta = 0.01f;
+        Map<Long, ImmutableEntityCountData> currentEntityCounts = ImmutableMap.of(
+            1L, setAndGetEntityCounts(15, 4,5));
+
+        final ClusterHeadroomPlanPostProcessor processor = spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, ImmutableSet.of(1L),
+            grpcTestServer.getChannel(), grpcTestServer.getChannel(),
+            planDao, grpcTestServer.getChannel(), templatesDao));
+
+        long mostRecentHistoricalDate = System.currentTimeMillis();
+        Map<Long, Long> vmsByDate = getVMsByDate(getVMCountData(10, 5), mostRecentHistoricalDate);
+        when(historyServiceMole.getClusterStats(any())).thenReturn(getStatsSnapshots(vmsByDate));
+
+        Map<Long, Float> growthPerCluster = processor.getVMDailyGrowth(currentEntityCounts);
+
+        // We should pick record with numVm value 6 since it is oldest (5 days ago)
+        // but less than peak look back days. Also, make sure we divide by this value instead of
+        // peak look back days value.
+        assertEquals(growthPerCluster.get(1L),
+            (float) (15L - 6L)/((mostRecentHistoricalDate - vmsByDate.get(6L))/DAY_MILLI_SECS), 0.01f);
+
+        // No records, growth should be 0.
+        when(historyServiceMole.getClusterStats(any())).thenReturn(new ArrayList<>());
+        growthPerCluster = processor.getVMDailyGrowth(currentEntityCounts);
+        assertEquals(growthPerCluster.get(1L), 0.0f, delta);
+
+        // Negative growth, should override to 0. all values in history are greater than current VM values.
+        mostRecentHistoricalDate = System.currentTimeMillis();
+        vmsByDate = getVMsByDate(getVMCountData(100, 5), mostRecentHistoricalDate);
+        when(historyServiceMole.getClusterStats(any())).thenReturn(getStatsSnapshots(vmsByDate));
+        growthPerCluster = processor.getVMDailyGrowth(currentEntityCounts);
+        assertEquals(growthPerCluster.get(1L), 0, delta);
+    }
+
+    /**
+     * Start Value is decreased per day for given number of days.
+     * @param startValue value to start from
+     * @param numDays number of days for which we insert values.
+     * @return array with values {startValue, startValue+1.... , startValue + numDays - 1}
+     */
+    private long[] getVMCountData(int startValue, int numDays) {
+        long[] vmCounts = new long[numDays];
+        int i = 0;
+        while(i < numDays) {
+            vmCounts[i] = startValue;
+            startValue--;
+            i++;
+        }
+        return vmCounts;
+    }
+
+    /**
+     * Inserts each value in numVMs mapped with numVMs -> (endDate - x * millis in days)
+     * with x starting from 1 incrementing by 1 with each insert.
+     * @param numVms set of values of number of VMs
+     * @param endDate date we decrement from.
+     * @return vm -> date map.
+     */
+    private Map<Long, Long> getVMsByDate(final long[] numVms, long endDate) {
+        int days = 1;
+        Map<Long, Long> vmByDate = new HashMap<>();
+        for (Long numVM : numVms) {
+            // Keep going a day before
+            vmByDate.put(numVM, endDate - (days * DAY_MILLI_SECS));
+            days++;
+        };
+        return vmByDate;
+    }
+
+    private List<StatSnapshot> getStatsSnapshots(Map<Long, Long> vmsByDate) {
+        List<StatSnapshot> statsList = new ArrayList<>();
+        vmsByDate.forEach((numVm, date) -> {
+            StatSnapshot statSnapshot = StatSnapshot.newBuilder()
+                .setSnapshotDate(date)
+                .addStatRecords((StatRecord.newBuilder()
+                        .setValues(StatValue.newBuilder()
+                            .setAvg(numVm)
+                            .build())
+                        .setName(StringConstants.VM_NUM_VMS)
+                        .build()))
+                .build();
+            statsList.add(statSnapshot);
+        });
+        return statsList;
+    }
+
+    private ImmutableEntityCountData setAndGetEntityCounts(long numVms, long numHost, long numStorage) {
+        return ImmutableEntityCountData.builder()
+            .numberOfStorages(numStorage)
+            .numberOfHosts(numHost)
+            .numberOfVMs(numVms)
+            .build();
     }
 
     private Template getTemplateForHeadroom(boolean setValidValues) {

@@ -2,10 +2,12 @@ package com.vmturbo.history.stats;
 
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_DAY;
+import static com.vmturbo.history.schema.abstraction.Tables.VM_STATS_BY_DAY;
 import static org.jooq.impl.DSL.sum;
 
 import java.math.BigDecimal;
 import java.sql.Date;
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -18,6 +20,7 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
 import org.jooq.InsertSetMoreStep;
 import org.jooq.InsertValuesStep5;
 import org.jooq.Query;
@@ -30,7 +33,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.db.BasedbIO;
+import com.vmturbo.history.db.BasedbIO.Style;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
@@ -149,11 +154,19 @@ class ClusterStatsWriter {
                     // calculate the number of hosts in the cluster
                     final int numHostsInCluster = clusterInfo.getMembers()
                             .getStaticMemberOidsCount();
-
                     // add a statement to the list to persist it to the CLUSTER_STATS table
                     InsertSetMoreStep<?> insertStmt = getBaseClusterStatInsert(dbToday, clusterOID);
-                    clusterStatsInserts.add(new NumHostsTransform()
-                            .populateClusterStatsInsert(numHostsInCluster, insertStmt));
+                    clusterStatsInserts.add(new NumEntityTransform()
+                            .populateClusterStatsInsert(numHostsInCluster, insertStmt, StringConstants.HOST, "currentNumHosts"));
+
+                    // calculate the number of VMs in the cluster
+                    final int numVMsInCluster = calculateNumberOfVMs(memberOidStrings, dbToday);
+                    if (numVMsInCluster == 0) {
+                        logger.info("No VMs found for cluster : {} with id {}", clusterName, clusterOID);
+                    }
+                    InsertSetMoreStep<?> insertStmtForVM = getBaseClusterStatInsert(dbToday, clusterOID);
+                    clusterStatsInserts.add(new NumEntityTransform()
+                        .populateClusterStatsInsert(numVMsInCluster, insertStmtForVM, StringConstants.VM_NUM_VMS, StringConstants.VM_NUM_VMS));
 
                     // do the inserts in the list
                     logger.debug("cluster {} stats insert stmt count: {}", clusterOID,
@@ -167,6 +180,16 @@ class ClusterStatsWriter {
                         ";  continuing", e);
             }
         });
+    }
+
+    private int calculateNumberOfVMs(final List<String> memberOidStrings, final Date today) throws VmtDbException {
+        final Result<? extends Record> res = historydbIO.execute(Style.FORCED, HistorydbIO.getJooqBuilder()
+             .selectCount()
+             .from(HistorydbIO.getJooqBuilder().selectDistinct(VM_STATS_BY_DAY.UUID)
+                 .from(VM_STATS_BY_DAY)
+                 .where(VM_STATS_BY_DAY.PRODUCER_UUID.in(memberOidStrings))
+                 .and(VM_STATS_BY_DAY.SNAPSHOT_TIME.equal(new Timestamp(today.getTime())))));
+         return res.isEmpty() ? 0 : (int) res.get(0).getValue(0);
     }
 
     /**
@@ -186,12 +209,16 @@ class ClusterStatsWriter {
         String clusterOid = Long.toString(clusterOID);
         Date dbToday = Date.valueOf(today);
 
-        // Delete old values for same date for this cluster.
+        // Note : If we don't expect to run headroom twice in a day in any circumstances,
+        // code to delete rows can be removed.
+        // Delete old headroom values for same date for this cluster.
         historydbIO.execute(BasedbIO.Style.FORCED,
             HistorydbIO.getJooqBuilder()
             .delete(CLUSTER_STATS_BY_DAY)
             .where(CLUSTER_STATS_BY_DAY.RECORDED_ON.equal(dbToday)
-                .and(CLUSTER_STATS_BY_DAY.INTERNAL_NAME.equal(String.valueOf(clusterOid)))));
+                .and(CLUSTER_STATS_BY_DAY.INTERNAL_NAME.equal(clusterOid)))
+                .and(CLUSTER_STATS_BY_DAY.PROPERTY_TYPE.in(clusterData.rowKeySet())
+                .and(CLUSTER_STATS_BY_DAY.PROPERTY_SUBTYPE.in(clusterData.columnKeySet()))));
 
         // Insert new values with current date for this cluster.
         final InsertValuesStep5<ClusterStatsByDayRecord, Date, String, String, String, BigDecimal> insertStmt =
@@ -337,29 +364,33 @@ class ClusterStatsWriter {
     }
 
     /**
-     * Class to help saving a given number-of-hosts to CLUSTER_STATS_BY_DAY
+     * Class to help saving a given number of hosts/VMs to CLUSTER_STATS_BY_DAY
      */
-    private static class NumHostsTransform {
+    private static class NumEntityTransform {
 
         /**
-         * Given an int Number of Hosts, add clauses to the given insert statement to save
-         * the numHostsInCluster to the CLUSTER_STATS_BY_DAY table. These clauses will
+         * Given an int Number of Hosts/VM, add clauses to the given insert statement to save
+         * the number of Hosts/VM in Cluster to the CLUSTER_STATS_BY_DAY table. These clauses will
          * set the desired PROPERTY_TYPE, PROPERTY_SUBTYPE and VALUE in the DB row.
          *
-         * @param numHostsInCluster the number to record in the CLUSTER_STATS table
+         * @param numEntityInCluster the number to record in the CLUSTER_STATS table
          * @param insertStmt the DB insert statement to add the new
+         * @param propertyType property type for the column
+         * @param propertySubtype property subtype for the column
          * @return the given DB insert statement with additional ".set" clauses to
          * write the CLUSTER_STATS_BY_DAY row.
          */
-        Query populateClusterStatsInsert(int numHostsInCluster,
-                                         @Nonnull InsertSetMoreStep<?> insertStmt) {
-            BigDecimal numHostsDbValue = BigDecimal.valueOf(numHostsInCluster);
+        Query populateClusterStatsInsert(int numEntityInCluster,
+                                         @Nonnull InsertSetMoreStep<?> insertStmt,
+                                         @Nonnull String propertyType,
+                                         @Nonnull String propertySubtype) {
+            BigDecimal numEntitiesDbValue = BigDecimal.valueOf(numEntityInCluster);
             return insertStmt
-                    .set(CLUSTER_STATS_BY_DAY.PROPERTY_TYPE, "Host")
-                    .set(CLUSTER_STATS_BY_DAY.PROPERTY_SUBTYPE, "currentNumHosts")
-                    .set(CLUSTER_STATS_BY_DAY.VALUE, numHostsDbValue)
+                    .set(CLUSTER_STATS_BY_DAY.PROPERTY_TYPE, propertyType )
+                    .set(CLUSTER_STATS_BY_DAY.PROPERTY_SUBTYPE, propertySubtype)
+                    .set(CLUSTER_STATS_BY_DAY.VALUE, numEntitiesDbValue)
                     .onDuplicateKeyUpdate()
-                    .set(CLUSTER_STATS_BY_DAY.VALUE, numHostsDbValue);
+                    .set(CLUSTER_STATS_BY_DAY.VALUE, numEntitiesDbValue);
         }
     }
 }

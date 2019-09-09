@@ -3,8 +3,9 @@ package com.vmturbo.plan.orchestrator.project.headroom;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -36,7 +37,10 @@ import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
+import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -54,9 +58,6 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityHeadroom;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
-import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
-import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
@@ -151,6 +152,12 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      */
     private final AtomicBoolean calculationStarted = new AtomicBoolean(false);
 
+    /**
+     * Set default VM growth as 0. Use it in cases when growth can't be
+     * calculated (due to insufficient history) or when it is negative.
+     */
+    private static final float DEFAULT_VM_GROWTH = 0.0f;
+
     public ClusterHeadroomPlanPostProcessor(final long planId,
                                             @Nonnull final Set<Long> clusterIds,
                                             @Nonnull final Channel repositoryChannel,
@@ -211,7 +218,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 groupHeadroomEntities(oidToHeadroomEntity, entityCounts, clusterHeadroomEntities);
 
                 // Get vmDailyGrowth of each cluster.
-                final Map<Long, Long> clusterIdToVMDailyGrowth = getVMDailyGrowth(clusterHeadroomEntities);
+                final Map<Long, Float> clusterIdToVMDailyGrowth = getVMDailyGrowth(entityCounts);
 
                 // Calculate headroom for each cluster.
                 clusters.forEach(cluster -> {
@@ -325,83 +332,85 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
     }
 
     /**
-     * Get the averaged number of daily added VMs of each cluster since past lookBackDays.
-     * Fetch VMs from past lookBackDays to count VMs that were not present earlier but are present now.
+     * Get the averaged number of daily added VMs of each cluster since past lookBackDays (if applicable).
+     * Fetch VM count from past lookBackDays to calculate growth compared to current VMs.
      *
-     * @param clusterHeadroomEntities key is the id of the cluster;
-     *                                value is a map, whose key is the entity type,
-     *                                value is all TopologyEntityDTOs of this entity type in this cluster
+     * @param currentEntityCounts key is the id of the cluster;
+ *                                value is a map with current entity counts
+ *                                of HEADROOM_ENTITY_TYPEs
      * @return vmDailyGrowth of each cluster
      */
     @VisibleForTesting
-    Map<Long, Long> getVMDailyGrowth(
-            @Nonnull final Map<Long, Map<Integer, List<TopologyEntityDTO>>> clusterHeadroomEntities) {
-        // Calculate date peakLookBackDays behind
+    Map<Long, Float> getVMDailyGrowth(
+        @Nonnull  final Map<Long, ImmutableEntityCountData> currentEntityCounts) {
         final long currentTime = System.currentTimeMillis();
-        final long oneWeekDuration = DAY_MILLI_SECS * PEAK_LOOK_BACK_DAYS;
-        final long timeOneWeekAgo = currentTime - oneWeekDuration;
-        final long timeFiftyWeeksAgo = timeOneWeekAgo - 49 * oneWeekDuration;
+        final long lookbackDaysInMillis = currentTime - PEAK_LOOK_BACK_DAYS * DAY_MILLI_SECS;
+        final Map<Long, Float> dailyVMGrowthPerCluster = new HashMap<>(currentEntityCounts.size());
+        currentEntityCounts.forEach((clusterId, entityCounts) -> {
+            ClusterStatsRequest vmCountRequest = ClusterStatsRequest.newBuilder()
+                .setClusterId(clusterId)
+                .setStats(StatsFilter.newBuilder()
+                    .setStartDate(lookbackDaysInMillis)
+                    .setEndDate(currentTime)
+                    .addCommodityRequests(CommodityRequest.newBuilder()
+                        .setCommodityName(StringConstants.VM_NUM_VMS)))
+                .build();
 
-        EntityStatsScope.Builder scope = EntityStatsScope.newBuilder()
-            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
+            final Iterator<StatSnapshot> statSnapshotIterator = statsHistoryService.getClusterStats(vmCountRequest);
+            Optional<StatSnapshot> earliestStatSnapshot = Optional.empty();
+            while (statSnapshotIterator.hasNext()) {
+                StatSnapshot currentSnapshot = statSnapshotIterator.next();
+                if (earliestStatSnapshot.isPresent()) {
+                    if(earliestStatSnapshot.get().getSnapshotDate() > currentSnapshot.getSnapshotDate()) {
+                        earliestStatSnapshot = Optional.of(currentSnapshot);
+                    }
+                } else {
+                    earliestStatSnapshot = Optional.of(currentSnapshot);
+                }
+            }
 
-        // Find from when we have data. 2 weeks of data are enough, otherwise if we have
-        // less data we use that
-        GetEntityStatsRequest entityStatsRequest = GetEntityStatsRequest.newBuilder()
-            .setFilter(StatsFilter.newBuilder()
-                .setStartDate(timeFiftyWeeksAgo).setEndDate(currentTime))
-            .setScope(scope)
-            .build();
+            if (!earliestStatSnapshot.isPresent()) {
+                logger.info("No relevant VM stat snapshots available for cluster {}. Setting 0 growth.", clusterId);
+                dailyVMGrowthPerCluster.put(clusterId, DEFAULT_VM_GROWTH);
+                return;
+            }
 
-        GetEntityStatsResponse response = statsHistoryService.getEntityStats(entityStatsRequest);
+            Optional<StatRecord> vmCountRecord = earliestStatSnapshot.get().getStatRecordsList().stream()
+                .filter(statRecord -> statRecord.getName().equals(StringConstants.VM_NUM_VMS))
+                .findFirst();
 
-        // Calculate the earlier day in the past we have data (not earlier than 2 weeks)
-        long startTime = currentTime;
-        for (EntityStats stats : response.getEntityStatsList()) {
-            long snapshotTime = stats.getStatSnapshots(0).getSnapshotDate();
-            startTime = Math.min(startTime, snapshotTime);
-        }
+            if (!vmCountRecord.isPresent()) {
+                logger.info("No relevant VM count records found in history for cluster : {}." +
+                    " Setting 0 growth.", clusterId);
+                dailyVMGrowthPerCluster.put(clusterId, DEFAULT_VM_GROWTH);
+                return;
+            }
 
-        // We will use lookBackDays days of data for the calculation of VM growth
-        int lookBackDays = (int)((currentTime - startTime) / (2 * DAY_MILLI_SECS));
+            long vmCountTime = earliestStatSnapshot.get().getSnapshotDate();
+            Date vmCountDate = new Date(vmCountTime);
+            float oldVMs = vmCountRecord.get().getValues().getAvg();
+            long currentVMs = entityCounts.getNumberOfVMs();
+            if (oldVMs > currentVMs) {
+                logger.info("Negative VM growth for cluster {} : current VM count is {}" +
+                    " and old VM count is {} recorded on {}. Setting 0 growth.", clusterId, currentVMs, oldVMs, vmCountDate);
+                dailyVMGrowthPerCluster.put(clusterId, DEFAULT_VM_GROWTH);
+                return;
+            }
 
-        final Map<Long, Long> clusterIdToVMDailyGrowth = new HashMap<>();
-        final long timeOneIntervalAgo;
-        if (lookBackDays == 0) {
-            // We don't have data at all
-            logger.info("We don't have enough data to calculate VM daily growth");
-            clusterHeadroomEntities.forEach((clusterId, headroomEntities) ->
-                clusterIdToVMDailyGrowth.put(clusterId, 0L));
-            return clusterIdToVMDailyGrowth;
-        } else if (lookBackDays >= PEAK_LOOK_BACK_DAYS) {
-            // We have data for 2 weeks
-            lookBackDays = PEAK_LOOK_BACK_DAYS;
-            timeOneIntervalAgo = timeOneWeekAgo;
-        } else {
-            // We have data for less than 2 weeks
-            timeOneIntervalAgo = currentTime - lookBackDays * DAY_MILLI_SECS;
-        }
+            long daysDifference = (currentTime - vmCountTime)/DAY_MILLI_SECS;
+            if (daysDifference == 0) {
+                logger.info("No older VM count data available for cluster {}. Setting 0 growth.", clusterId);
+                dailyVMGrowthPerCluster.put(clusterId, DEFAULT_VM_GROWTH);
+                return;
+            }
 
-        // Get all VMs present since timeOneIntervalAgo.
-        final Set<Long> vmHistory = new HashSet<>();
-        response.getEntityStatsList().stream()
-            .filter(entity -> entity.getStatSnapshots(0).getSnapshotDate() < timeOneIntervalAgo)
-            .map(EntityStats::getOid)
-            .forEach(vmHistory::add);
+            float dailyGrowth =  (currentVMs - oldVMs)/daysDifference;
+            logger.debug("Daily VM growth for cluster {} is {}. New VM count {} and old VM count is {} recorded on {}",
+                    clusterId, dailyGrowth, currentVMs, oldVMs, vmCountDate);
+            dailyVMGrowthPerCluster.put(clusterId, dailyGrowth);
+        });
 
-        final long finalLookBackDays = lookBackDays;
-        logger.info("Use {} days of data to calculate VM daily growth", finalLookBackDays);
-
-        clusterHeadroomEntities.forEach((clusterId, headroomEntities) ->
-            // Put clusterId and vmDailyGrowth of this cluster.
-            clusterIdToVMDailyGrowth.put(clusterId,
-                headroomEntities.get(EntityType.VIRTUAL_MACHINE_VALUE).stream()
-                .map(TopologyEntityDTO::getOid)
-                .filter(currentVM -> !vmHistory.contains(currentVM))
-                .distinct()
-                .count() / finalLookBackDays));
-
-        return clusterIdToVMDailyGrowth;
+        return dailyVMGrowthPerCluster;
     }
 
     /**
@@ -416,7 +425,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         @Nonnull final Group cluster,
         @Nonnull final Map<Integer, List<TopologyEntityDTO>> headroomEntities,
         @Nonnull final ImmutableEntityCountData entityCounts,
-        final long vmDailyGrowth) {
+        final float vmDailyGrowth) {
 
         Optional<Template> template = templatesDao
             .getTemplate(cluster.getCluster().getClusterHeadroomTemplateId());
@@ -523,7 +532,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         @Nonnull final Group cluster,
         @Nonnull final Collection<TopologyEntityDTO> entities,
         @Nonnull final Map<Integer, Double> headroomCommodities,
-        final long vmDailyGrowth) {
+        final float vmDailyGrowth) {
 
         if (CollectionUtils.isEmpty(entities) || CollectionUtils.isEmpty(headroomCommodities)) {
             return CommodityHeadroom.getDefaultInstance();
@@ -599,16 +608,17 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * @param headroomAvailable current headroom availability.
      * @return days to exhaustion.
      */
-    private long getDaysToExhaustion(long vmDailyGrowth, long headroomAvailable) {
+    private long getDaysToExhaustion(float vmDailyGrowth, long headroomAvailable) {
         //if headroom == 0 - cluster is already exhausted
         if (headroomAvailable == 0) {
             return 0;
         }
         //if headroom is infinite OR VM Growth is 0  - exhaustion time is infinite
-        if (headroomAvailable == Long.MAX_VALUE || vmDailyGrowth == 0) {
+        if (headroomAvailable == Long.MAX_VALUE || vmDailyGrowth == DEFAULT_VM_GROWTH
+                || vmDailyGrowth == 0) {
             return MORE_THAN_A_YEAR;
         }
-        return (long)Math.floor((float)headroomAvailable / vmDailyGrowth);
+        return (long) Math.floor((float)headroomAvailable / vmDailyGrowth);
     }
 
     /**
@@ -631,8 +641,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * @param vmDailyGrowth the number of daily added VMs
      * @return the number of monthly added VMs
      */
-    private long getMonthlyVMGrowth(final long vmDailyGrowth) {
-        return DAYS_PER_MONTH * vmDailyGrowth;
+    private long getMonthlyVMGrowth(final float vmDailyGrowth) {
+        return (long) Math.ceil(DAYS_PER_MONTH * vmDailyGrowth);
     }
 
     /**
