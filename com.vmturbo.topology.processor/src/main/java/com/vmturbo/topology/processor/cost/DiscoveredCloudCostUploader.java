@@ -56,12 +56,12 @@ public class DiscoveredCloudCostUploader implements Diagnosable {
             .build()
             .register();
 
-    protected static String CLOUD_COST_EXPENSES_SECTION = "expenses";
-    protected static String CLOUD_COST_PRICES_SECTION = "prices";
-    protected static String RI_DATA_SECTION = "ri_data";
+    protected static final String CLOUD_COST_EXPENSES_SECTION = "expenses";
+    protected static final String CLOUD_COST_PRICES_SECTION = "prices";
+    protected static final String RI_DATA_SECTION = "ri_data";
 
-    protected static String UPLOAD_REQUEST_BUILD_STAGE = "build";
-    protected static String UPLOAD_REQUEST_UPLOAD_STAGE = "upload";
+    protected static final String UPLOAD_REQUEST_BUILD_STAGE = "build";
+    protected static final String UPLOAD_REQUEST_UPLOAD_STAGE = "upload";
 
     private final TargetStore targetStore;
 

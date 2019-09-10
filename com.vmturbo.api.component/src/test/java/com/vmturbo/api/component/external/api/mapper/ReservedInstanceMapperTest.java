@@ -12,6 +12,7 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.enums.AzureRIScopeType;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.PaymentOption;
 import com.vmturbo.api.enums.Platform;
@@ -36,10 +37,13 @@ public class ReservedInstanceMapperTest {
     private ReservedInstanceBought riBought = ReservedInstanceBought.newBuilder()
             .setId(123L)
             .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
+                    .setProbeReservedInstanceId("RI_ID")
+                    .setDisplayName("RI display name")
                     .setBusinessAccountId(11L)
                     .setNumBought(10)
                     .setAvailabilityZoneId(22L)
                     .setReservedInstanceSpec(99L)
+                    .setReservationOrderId("ResOrder-1")
                     .setReservedInstanceBoughtCost(ReservedInstanceBoughtCost.newBuilder()
                             .setFixedCost(CurrencyAmount.newBuilder()
                                     .setAmount(100.0))
@@ -73,6 +77,7 @@ public class ReservedInstanceMapperTest {
         final TargetApiDTO target = new TargetApiDTO();
         target.setType(CloudType.AWS.name());
         businessAccount.setDiscoveredBy(target);
+        businessAccount.setDisplayName("Account");
         ServiceEntityApiDTO availabilityZoneEntity = new ServiceEntityApiDTO();
         availabilityZoneEntity.setUuid("22");
         availabilityZoneEntity.setDisplayName("us-east-1a");
@@ -88,7 +93,11 @@ public class ReservedInstanceMapperTest {
         serviceEntityApiDTOMap.put(44L, regionEntity);
         final ReservedInstanceApiDTO reservedInstanceApiDTO =
                 reservedInstanceMapper.mapToReservedInstanceApiDTO(riBought, riSpec, serviceEntityApiDTOMap);
+        assertEquals("RI_ID", reservedInstanceApiDTO.getTrueID());
         assertEquals("11", reservedInstanceApiDTO.getAccountId());
+        assertEquals("Account", reservedInstanceApiDTO.getAccountDisplayName());
+        assertEquals("ResOrder-1", reservedInstanceApiDTO.getOrderID());
+        assertEquals(AzureRIScopeType.SHARED, reservedInstanceApiDTO.getScopeType());
         assertEquals(Platform.LINUX, reservedInstanceApiDTO.getPlatform());
         assertEquals(ReservedInstanceType.STANDARD, reservedInstanceApiDTO.getType());
         assertEquals("us-east-1a", reservedInstanceApiDTO.getLocation().getDisplayName());
@@ -98,7 +107,7 @@ public class ReservedInstanceMapperTest {
         assertEquals(100.0f, reservedInstanceApiDTO.getCoupons().getCapacity().getAvg(), delta);
         assertEquals(10, reservedInstanceApiDTO.getInstanceCount().intValue());
         assertEquals(Tenancy.DEFAULT, reservedInstanceApiDTO.getTenancy());
-        assertEquals("c3.xlarge", reservedInstanceApiDTO.getDisplayName());
+        assertEquals("RI display name", reservedInstanceApiDTO.getDisplayName());
         assertEquals("ReservedInstance", reservedInstanceApiDTO.getClassName());
         assertEquals(100.0, reservedInstanceApiDTO.getUpFrontCost(), delta);
         assertEquals(300.0, reservedInstanceApiDTO.getActualHourlyCost(), delta);

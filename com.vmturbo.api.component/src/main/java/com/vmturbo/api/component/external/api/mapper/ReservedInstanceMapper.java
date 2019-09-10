@@ -15,6 +15,7 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
+import com.vmturbo.api.enums.AzureRIScopeType;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.PaymentOption;
 import com.vmturbo.api.enums.Platform;
@@ -72,11 +73,17 @@ public class ReservedInstanceMapper {
         final BaseApiDTO templateBaseDTO = createTemplateBaseApi(reservedInstanceSpec
                 .getReservedInstanceSpecInfo().getTierId(), serviceEntityApiDTOMap);
         reservedInstanceApiDTO.setTemplate(templateBaseDTO);
-        reservedInstanceApiDTO.setDisplayName(templateBaseDTO.getDisplayName());
-
+        reservedInstanceApiDTO.setDisplayName(reservedInstanceBoughtInfo.getDisplayName());
         reservedInstanceApiDTO.setUuid(String.valueOf(reservedInstanceBought.getId()));
         reservedInstanceApiDTO.setClassName(RESERVED_INSTANCE);
         reservedInstanceApiDTO.setAccountId(String.valueOf(reservedInstanceBoughtInfo.getBusinessAccountId()));
+
+        final ServiceEntityApiDTO businessAccount = serviceEntityApiDTOMap.get(
+            reservedInstanceBoughtInfo.getBusinessAccountId());
+        if (businessAccount != null) {
+            reservedInstanceApiDTO.setAccountDisplayName(businessAccount.getDisplayName());
+        }
+
         reservedInstanceApiDTO.setPayment(convertPaymentToApiDTO(
                 reservedInstanceSpec.getReservedInstanceSpecInfo().getType().getPaymentOption()));
         reservedInstanceApiDTO.setPlatform(Platform.findFromOsName(
@@ -114,9 +121,19 @@ public class ReservedInstanceMapper {
         final long endTime = reservedInstanceBought.getReservedInstanceBoughtInfo().getStartTime() +
                 reservedInstanceSpec.getReservedInstanceSpecInfo().getType().getTermYears()
                         * NUM_OF_MILLISECONDS_OF_YEAR;
+        reservedInstanceApiDTO.setExpDateEpochTime(endTime);
         reservedInstanceApiDTO.setExpDate(DateTimeUtil.toString(endTime));
         reservedInstanceApiDTO.setCloudType(retrieveCloudType(reservedInstanceBoughtInfo,
             serviceEntityApiDTOMap));
+
+        // The following properties are used for Azure
+        reservedInstanceApiDTO.setTrueID(reservedInstanceBoughtInfo.getProbeReservedInstanceId());
+        reservedInstanceApiDTO.setScopeType(
+            reservedInstanceBoughtInfo.getReservedInstanceScopeInfo().getShared()
+                ? AzureRIScopeType.SHARED
+                : AzureRIScopeType.SINGLE);
+        reservedInstanceApiDTO.setOrderID(reservedInstanceBoughtInfo.getReservationOrderId());
+
         return reservedInstanceApiDTO;
     }
 
