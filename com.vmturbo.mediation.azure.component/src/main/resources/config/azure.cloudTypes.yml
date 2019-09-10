@@ -1,0 +1,20 @@
+- name: Global
+  authServer: login.microsoftonline.com
+  mgmtServer: management.azure.com
+  storageAccountEndpointSuffix: core.windows.net
+  offerId: MS-AZR-0003P
+  rateCardApiVersion: 2016-08-31-preview
+
+- name: Germany
+  authServer: login.microsoftonline.de
+  mgmtServer: management.microsoftazure.de
+  storageAccountEndpointSuffix: core.cloudapi.de
+  offerId: MS-AZR-DE-0003P
+  rateCardApiVersion: 2015-06-01-preview
+
+- name: AppInsights
+  authServer: login.microsoftonline.com
+  mgmtServer: api.applicationinsights.io
+  storageAccountEndpointSuffix: core.windows.net
+  offerId: MS-AZR-0003P
+  rateCardApiVersion: 2016-08-31-preview
