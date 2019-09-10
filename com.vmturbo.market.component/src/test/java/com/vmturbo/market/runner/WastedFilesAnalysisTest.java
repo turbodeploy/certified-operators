@@ -3,6 +3,8 @@ package com.vmturbo.market.runner;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -10,6 +12,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.junit.Before;
@@ -32,12 +35,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
-import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 
@@ -66,11 +70,29 @@ public class WastedFilesAnalysisTest {
             .thenReturn(END_INSTANT);
     }
 
-    private TopologyEntityDTO.Builder createEntity(long oid, EntityType entityType) {
+    private TopologyEntityDTO.Builder createOnPremEntity(long oid, EntityType entityType) {
         return TopologyEntityDTO.newBuilder()
             .setOid(oid)
             .setEntityType(entityType.getNumber())
             .setEnvironmentType(EnvironmentType.ON_PREM);
+    }
+
+    private TopologyEntityDTO.Builder createCloudEntity(long oid, EntityType entityType) {
+        if (entityType == EntityType.VIRTUAL_VOLUME) {
+            return TopologyEntityDTO.newBuilder()
+                .setOid(oid)
+                .setEntityType(entityType.getNumber())
+                .setDisplayName("Vol-"+oid)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setVirtualVolume(VirtualVolumeInfo.newBuilder()
+                    .setStorageAccessCapacity(10f)
+                    .setStorageAmountCapacity(20f).build()).build());
+        } else {
+            return TopologyEntityDTO.newBuilder()
+                .setOid(oid)
+                .setEntityType(entityType.getNumber())
+                .setEnvironmentType(EnvironmentType.CLOUD);
+        }
     }
 
     private void connectEntities(TopologyEntityDTO.Builder from, TopologyEntityDTO.Builder to) {
@@ -88,16 +110,16 @@ public class WastedFilesAnalysisTest {
         volume.setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setVirtualVolume(volumeInfo));
     }
 
-    private Map<Long, TopologyEntityDTO> createTestTopology() {
+    private Map<Long, TopologyEntityDTO> createTestOnPremTopology() {
         final long vmOid = 1l;
         final long storOid = 2l;
         final long wastedFileVolumeOid = 3l;
         final long connectedVolumeOid = 4l;
-        final TopologyEntityDTO.Builder vm = createEntity(vmOid, EntityType.VIRTUAL_MACHINE);
-        final TopologyEntityDTO.Builder storage = createEntity(storOid, EntityType.STORAGE);
-        final TopologyEntityDTO.Builder wastedFileVolume = createEntity(wastedFileVolumeOid,
+        final TopologyEntityDTO.Builder vm = createOnPremEntity(vmOid, EntityType.VIRTUAL_MACHINE);
+        final TopologyEntityDTO.Builder storage = createOnPremEntity(storOid, EntityType.STORAGE);
+        final TopologyEntityDTO.Builder wastedFileVolume = createOnPremEntity(wastedFileVolumeOid,
             EntityType.VIRTUAL_VOLUME);
-        final TopologyEntityDTO.Builder connectedVolume = createEntity(connectedVolumeOid,
+        final TopologyEntityDTO.Builder connectedVolume = createOnPremEntity(connectedVolumeOid,
             EntityType.VIRTUAL_VOLUME);
         final String [] filePathsWasted = {"/foo/bar/file1", "/etc/turbo/file2.iso", "file3"};
         final String [] filePathsUsed = {"/foo/bar/used1", "/etc/turbo/used2.iso", "used3"};
@@ -115,20 +137,48 @@ public class WastedFilesAnalysisTest {
             connectedVolume.getOid(), connectedVolume.build());
     }
 
+    private Map<Long, TopologyEntityDTO> createTestCloudTopology() {
+        final long vmOid = 1l;
+        final long wastedFileVolume1Oid = 2l;
+        final long wastedFileVolume2Oid = 3l;
+        final long connectedVolumeOid = 4l;
+        final long storageTierOid = 5l;
+        final TopologyEntityDTO.Builder vm = createCloudEntity(vmOid, EntityType.VIRTUAL_MACHINE);
+        final TopologyEntityDTO.Builder wastedFileVolume1 = createCloudEntity(wastedFileVolume1Oid,
+            EntityType.VIRTUAL_VOLUME);
+        final TopologyEntityDTO.Builder wastedFileVolume2 = createCloudEntity(wastedFileVolume2Oid,
+            EntityType.VIRTUAL_VOLUME);
+        final TopologyEntityDTO.Builder connectedVolume = createCloudEntity(connectedVolumeOid,
+            EntityType.VIRTUAL_VOLUME);
+        final TopologyEntityDTO.Builder storageTier = createCloudEntity(storageTierOid, EntityType.STORAGE_TIER);
+
+        connectEntities(vm, connectedVolume);
+        connectEntities(connectedVolume, storageTier);
+        connectEntities(wastedFileVolume1, storageTier);
+        connectEntities(wastedFileVolume2, storageTier);
+
+        return ImmutableMap.of(
+            vm.getOid(), vm.build(),
+            storageTier.getOid(), storageTier.build(),
+            wastedFileVolume1.getOid(), wastedFileVolume1.build(),
+            wastedFileVolume2.getOid(), wastedFileVolume2.build(),
+            connectedVolume.getOid(), connectedVolume.build());
+    }
+
     /**
      * Test the {@link Analysis} constructor.
      */
     @Test
-    public void testWastedFilesAnalysis() {
+    public void testOnPremWastedFilesAnalysis() {
         final TopologyEntityCloudTopologyFactory cloudTopologyFactory = mock(TopologyEntityCloudTopologyFactory.class);
         final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
         when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
         final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
         when(cloudCostCalculatorFactory.newCalculator(topologyInfo)).thenReturn(cloudCostCalculator);
-        final MarketPriceTable priceTable = mock(MarketPriceTable.class);
+        final CloudTopology<TopologyEntityDTO> originalCloudTopology = mock(CloudTopology.class);
 
         final WastedFilesAnalysis analysis = new WastedFilesAnalysis(topologyInfo,
-            createTestTopology(), mockClock, cloudCostCalculator, priceTable);
+            createTestOnPremTopology(), mockClock, cloudCostCalculator, originalCloudTopology);
 
         assertTrue(analysis.execute());
         assertFalse(analysis.execute());
@@ -156,6 +206,60 @@ public class WastedFilesAnalysisTest {
             assertEquals(EntityType.STORAGE_VALUE, target.getType());
             assertEquals(EnvironmentType.ON_PREM, target.getEnvironmentType());
             assertEquals(2l, target.getId());
+        });
+    }
+
+    @Test
+    public void testCloudWastedFilesAnalysis() {
+        final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
+
+        final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
+        when(cloudCostCalculatorFactory.newCalculator(topologyInfo)).thenReturn(cloudCostCalculator);
+        final CloudTopology<TopologyEntityDTO> originalCloudTopology = mock(CloudTopology.class);
+
+        Map<Long, TopologyEntityDTO> cloudTopology = createTestCloudTopology();
+        final WastedFilesAnalysis analysis = new WastedFilesAnalysis(topologyInfo,
+            cloudTopology, mockClock, cloudCostCalculator, originalCloudTopology);
+
+
+        cloudTopology.values().stream().filter(dto -> dto.getEntityType() == EntityType.VIRTUAL_VOLUME.getNumber())
+            .forEach(dto -> {
+                CostJournal<TopologyEntityDTO> costJournal = mock(CostJournal.class);
+                when(costJournal.getTotalHourlyCost()).thenReturn(10d * dto.getOid());
+                when(cloudCostCalculator.calculateCostForEntity(any(), eq(dto))).thenReturn(Optional.of(costJournal));
+            });
+
+        assertTrue(analysis.execute());
+        assertFalse(analysis.execute());
+        assertEquals(AnalysisState.SUCCEEDED, analysis.getState());
+
+        assertEquals("There should be two actions for cloud wasted storage", 2, analysis.getActions().size());
+
+        assertEquals("Ensure Action has the right vol",
+                ImmutableSet.of("Vol-2", "Vol-3"),
+                analysis.getActions().stream()
+                    .map(Action::getInfo)
+                    .map(ActionInfo::getDelete)
+                    .map(Delete::getFilePath)
+                    .collect(Collectors.toSet()));
+
+        Map<String, Double> costMap = ImmutableMap.<String, Double>builder()
+            .put("Vol-2", 20d)
+            .put("Vol-3", 30d)
+            .put("Vol-4", 40d)
+            .build();
+        analysis.getActions().forEach(action ->
+            assertEquals("Ensure action has the right savings",
+                costMap.get(action.getInfo().getDelete().getFilePath()),
+                Double.valueOf(action.getSavingsPerHour().getAmount()))
+        );
+
+        // make sure storage tier is the target of each action
+        analysis.getActions().forEach(action -> {
+            ActionEntity target = action.getInfo().getDelete().getTarget();
+            assertEquals(EntityType.STORAGE_TIER_VALUE, target.getType());
+            assertEquals(EnvironmentType.CLOUD, target.getEnvironmentType());
+            assertEquals(5l, target.getId());
         });
     }
 }

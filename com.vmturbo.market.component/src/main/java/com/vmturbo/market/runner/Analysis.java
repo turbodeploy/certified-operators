@@ -956,7 +956,7 @@ public class Analysis {
     private Collection<Action> getWastedFilesActions() {
         if (topologyInfo.getAnalysisTypeList().contains(AnalysisType.WASTED_FILES)) {
             WastedFilesAnalysis wastedFilesAnalysis = wastedFilesAnalysisFactory.newWastedFilesAnalysis(
-                topologyInfo, scopeEntities, this.clock, topologyCostCalculator, marketPriceTable);
+                topologyInfo, scopeEntities, this.clock, topologyCostCalculator, originalCloudTopology);
             wastedFilesAnalysis.execute();
             logger.debug("Getting wasted files actions.");
             if (wastedFilesAnalysis.getState() == AnalysisState.SUCCEEDED) {

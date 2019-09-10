@@ -7,7 +7,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -16,7 +15,6 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -24,14 +22,17 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.SetOnce;
+import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
-import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
@@ -59,8 +60,6 @@ public class WastedFilesAnalysis {
 
     private final TopologyCostCalculator cloudCostCalculator;
 
-    private final MarketPriceTable priceTable;
-
     private final TopologyInfo topologyInfo;
 
     private final Logger logger = LogManager.getLogger();
@@ -71,16 +70,18 @@ public class WastedFilesAnalysis {
 
     private Collection<Action> actions;
 
+    private final CloudTopology<TopologyEntityDTO> originalCloudTopology;
+
     public WastedFilesAnalysis(@Nonnull final TopologyInfo topologyInfo,
                                @Nonnull final Map<Long, TopologyEntityDTO> topologyDTOs,
                                @Nonnull final Clock clock,
                                @Nonnull final TopologyCostCalculator cloudCostCalculator,
-                               @Nonnull final MarketPriceTable priceTable) {
+                               @Nonnull final CloudTopology<TopologyEntityDTO> originalCloudTopology) {
         this.topologyInfo = topologyInfo;
         this.clock = clock;
         this.topologyDTOs = topologyDTOs;
         this.cloudCostCalculator = cloudCostCalculator;
-        this.priceTable = priceTable;
+        this.originalCloudTopology = originalCloudTopology;
         state = AnalysisState.INITIAL;
         logPrefix = topologyInfo.getTopologyType() + " WastedFilesAnalysis " +
             topologyInfo.getTopologyContextId() + " with topology " +
@@ -223,33 +224,43 @@ public class WastedFilesAnalysis {
         if (volume.getEnvironmentType() != EnvironmentType.ON_PREM) {
             // handle cloud case
             storageOid = TopologyDTOUtil.getOidsOfConnectedEntityOfType(volume,
-                    EntityType.STORAGE_TIER.getNumber()).findFirst();
+                EntityType.STORAGE_TIER.getNumber()).findFirst();
             if (!storageOid.isPresent()) {
                 return Collections.emptyList();
             }
-            // TODO need to calculate savings for cloud volumes
+
+            Optional<CostJournal<TopologyDTO.TopologyEntityDTO>> costJournalOpt =
+                this.cloudCostCalculator.calculateCostForEntity(this.originalCloudTopology, volume);
+
             double costSavings = 0.0d;
+            if (costJournalOpt.isPresent()) {
+                // This will set the hourly saving rate to the action
+                costSavings = costJournalOpt.get().getTotalHourlyCost();
+            } else {
+                logger.debug("Unable to get cost for volume", volume.getDisplayName());
+            }
+
             return Collections.singletonList(newActionFromVolume(storageOid.get(),
-                    EntityType.STORAGE_TIER, volume.getDisplayName(), volume.getEnvironmentType())
-                    .setExplanation(Explanation.newBuilder().setDelete(
-                            DeleteExplanation.newBuilder().build()))
-                    .setSavingsPerHour(CurrencyAmount.newBuilder()
-                            .setAmount(costSavings)
-                            .build())
-                    .build());
+                EntityType.STORAGE_TIER, volume.getDisplayName(), volume.getEnvironmentType())
+                .setExplanation(Explanation.newBuilder().setDelete(
+                    DeleteExplanation.newBuilder().build()))
+                .setSavingsPerHour(CurrencyAmount.newBuilder()
+                    .setAmount(costSavings)
+                    .build())
+                .build());
         } else {
             // handle ON_PREM
             storageOid = TopologyDTOUtil.getOidsOfConnectedEntityOfType(volume,
-                    EntityType.STORAGE.getNumber()).findFirst();
+                EntityType.STORAGE.getNumber()).findFirst();
             if (!storageOid.isPresent()) {
                 return Collections.EMPTY_LIST;
             }
             // TODO add a setting to control the minimum file size.  For now, use 1MB
             return volume.getTypeSpecificInfo().getVirtualVolume().getFilesList().stream()
-                    .filter(vvfd -> vvfd.getSizeKb() > Units.KBYTE)
-                    .map(vvfd -> newActionFromFile(storageOid.get(), vvfd,
-                            volume.getEnvironmentType()).build())
-                    .collect(Collectors.toList());
+                .filter(vvfd -> vvfd.getSizeKb() > Units.KBYTE)
+                .map(vvfd -> newActionFromFile(storageOid.get(), vvfd,
+                    volume.getEnvironmentType()).build())
+                .collect(Collectors.toList());
         }
     }
 
