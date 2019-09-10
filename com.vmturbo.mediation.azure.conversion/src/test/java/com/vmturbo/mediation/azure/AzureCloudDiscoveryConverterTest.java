@@ -326,6 +326,10 @@ public class AzureCloudDiscoveryConverterTest {
                                     assertTrue(volume.getVirtualVolumeData().hasRedundancyType());
                                     assertEquals(file.getRedundancyType(),
                                             volume.getVirtualVolumeData().getRedundancyType().toString());
+                                    assertEquals(file.getSnapshotId(),
+                                            volume.getVirtualVolumeData().getSnapshotId());
+                                    assertFalse(file.hasSnapshotId());
+                                    assertFalse(volume.getVirtualVolumeData().hasSnapshotId());
 
                                     // check volumes are connected to region and storage tier
                                     assertThat(volume.getLayeredOverList()

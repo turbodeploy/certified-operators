@@ -266,6 +266,11 @@ public class VirtualVolumeAspectMapperTest {
             .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
             .build();
 
+    private final Long volumeConnectedBusinessAccountId = 103L;
+    private final String volumeConnectedBusinessAccountDisplayName = "businessAccount1";
+
+    private ServiceEntityApiDTO volumeConnectedBusinessAccount = new ServiceEntityApiDTO();
+
     ServiceEntityApiDTO storageTierSEApiDTO = new ServiceEntityApiDTO();
 
     private final Long virtualVolumeId = 100L;
@@ -273,6 +278,7 @@ public class VirtualVolumeAspectMapperTest {
 
     private final int storageAccessCapacity = 512000;
     private final int storageAmountCapacity = 500;
+    private final String snapshotId = "snap-vv1";
 
     private TopologyEntityDTO virtualVolume1 = TopologyEntityDTO.newBuilder()
             .setOid(virtualVolumeId)
@@ -286,10 +292,15 @@ public class VirtualVolumeAspectMapperTest {
                     .setConnectedEntityType(EntityType.STORAGE_TIER_VALUE)
                     .setConnectedEntityId(storageTierId1)
                     .build())
+            .addConnectedEntityList(ConnectedEntity.newBuilder()
+                    .setConnectedEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                    .setConnectedEntityId(volumeConnectedBusinessAccountId)
+                    .build())
             .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                     .setVirtualVolume(VirtualVolumeInfo.newBuilder()
                             .setStorageAccessCapacity(storageAccessCapacity)
                             .setStorageAmountCapacity(storageAmountCapacity)
+                            .setSnapshotId(snapshotId)
                             .build()))
             .build();
 
@@ -298,12 +309,17 @@ public class VirtualVolumeAspectMapperTest {
         storageTierSEApiDTO.setUuid(storageTierId1.toString());
         storageTierSEApiDTO.setDisplayName(storageDisplayName);
 
+        volumeConnectedBusinessAccount.setUuid(volumeConnectedBusinessAccountId.toString());
+        volumeConnectedBusinessAccount.setDisplayName(volumeConnectedBusinessAccountDisplayName);
+
         doAnswer(invocation -> {
             SearchParameters param = invocation.getArgumentAt(0, SearchParameters.class);
             if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(vm1));
             } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeConnectedZoneId, TraversalDirection.CONNECTED_FROM, UIEntityType.REGION))) {
                 return ApiTestUtils.mockSearchReq(Lists.newArrayList(volumeConnectedZone));
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.CONNECTED_FROM, UIEntityType.BUSINESS_ACCOUNT))) {
+                return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
             } else {
                 throw new IllegalArgumentException(param.toString());
             }
@@ -329,6 +345,7 @@ public class VirtualVolumeAspectMapperTest {
         assertEquals(String.valueOf(virtualVolumeId), volumeAspect.getUuid());
         assertEquals(String.valueOf(storageTierId1), volumeAspect.getProvider().getUuid());
         assertEquals(String.valueOf(volumeConnectedZoneId), volumeAspect.getDataCenter().getUuid());
+        assertEquals(String.valueOf(volumeConnectedBusinessAccountId), volumeAspect.getBusinessAccount().getUuid());
 
         // check stats for volume
         java.util.List<StatApiDTO> stats = volumeAspect.getStats();
@@ -338,6 +355,7 @@ public class VirtualVolumeAspectMapperTest {
         java.util.Optional<StatApiDTO> statApiDTOStorageAmount = stats.stream().filter(stat -> stat.getName() == "StorageAmount").findFirst();
         assertEquals(statApiDTOStorageAmount.get().getCapacity().getAvg().longValue(), storageAmountCapacity);
 
+        assertEquals(volumeAspect.getSnapshotId(), snapshotId);
         assertEquals(virtualVolumeDisplayName, volumeAspect.getDisplayName());
 
         assertEquals(String.valueOf(vmId1), volumeAspect.getAttachedVirtualMachine().getUuid());
@@ -405,6 +423,9 @@ public class VirtualVolumeAspectMapperTest {
 
     @Test
     public void testMapStorageTiers() {
+        volumeConnectedBusinessAccount.setUuid(volumeConnectedBusinessAccountId.toString());
+        volumeConnectedBusinessAccount.setDisplayName(volumeConnectedBusinessAccountDisplayName);
+
         doAnswer(invocation -> {
             SearchParameters param = invocation.getArgumentAt(0, SearchParameters.class);
             if (param.equals(SearchProtoUtil.neighborsOfType(storageTierId1, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME))) {
@@ -415,6 +436,14 @@ public class VirtualVolumeAspectMapperTest {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(vm1));
             } else if (param.equals(SearchProtoUtil.neighborsOfType(storageTierId2, TraversalDirection.PRODUCES, UIEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(vm2));
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeId1, TraversalDirection.CONNECTED_FROM, UIEntityType.BUSINESS_ACCOUNT))) {
+                return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeId2, TraversalDirection.CONNECTED_FROM, UIEntityType.BUSINESS_ACCOUNT))) {
+                return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeId3, TraversalDirection.CONNECTED_FROM, UIEntityType.BUSINESS_ACCOUNT))) {
+                return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeId4, TraversalDirection.CONNECTED_FROM, UIEntityType.BUSINESS_ACCOUNT))) {
+                return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
             } else {
                 throw new IllegalArgumentException(param.toString());
             }
@@ -502,6 +531,9 @@ public class VirtualVolumeAspectMapperTest {
 
     @Test
     public void testMapStorage() {
+        volumeConnectedBusinessAccount.setUuid(volumeConnectedBusinessAccountId.toString());
+        volumeConnectedBusinessAccount.setDisplayName(volumeConnectedBusinessAccountDisplayName);
+
         doAnswer(invocation -> {
             SearchParameters param = invocation.getArgumentAt(0, SearchParameters.class);
             if (param.equals(SearchProtoUtil.neighborsOfType(storageId, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME))) {
@@ -510,6 +542,8 @@ public class VirtualVolumeAspectMapperTest {
                 return ApiTestUtils.mockSearchCountReq(1);
             } else if (param.equals(SearchProtoUtil.neighborsOfType(wastedVolumeId1, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchCountReq(0);
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeId4, TraversalDirection.CONNECTED_FROM, UIEntityType.BUSINESS_ACCOUNT))) {
+                return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
             } else {
                 throw new IllegalArgumentException(param.toString());
             }

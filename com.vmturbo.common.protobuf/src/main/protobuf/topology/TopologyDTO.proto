@@ -147,6 +147,10 @@ message TypeSpecificInfo {
 
         // List of files for VC storage browsing.
         repeated .common_dto.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor files = 4;
+
+        // string snapshot ID of volume needed for entity details
+        optional string snapshotId = 5;
+
     }
 
     // specific data for a Storage entity

@@ -546,6 +546,13 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
             virtualDiskApiDTO.setProvider(storageTier);
         }
 
+        repositoryApi.newSearchRequest(
+                SearchProtoUtil.neighborsOfType(volumeId,
+                        TraversalDirection.CONNECTED_FROM,
+                        UIEntityType.BUSINESS_ACCOUNT))
+                .getSEList()
+                .forEach(businessAccount -> virtualDiskApiDTO.setBusinessAccount(businessAccount));
+
         // set attached VM (uuid + displayName)
         TopologyEntityDTO vmDTO = vmByVolumeId.get(volume.getOid());
 
@@ -580,6 +587,9 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
             VirtualVolumeInfo volumeInfo = volume.getTypeSpecificInfo().getVirtualVolume();
             storageAmountCapacity = volumeInfo.getStorageAmountCapacity();
             storageAccessCapacity = volumeInfo.getStorageAccessCapacity();
+            if (volumeInfo.hasSnapshotId()) {
+                virtualDiskApiDTO.setSnapshotId(volumeInfo.getSnapshotId());
+            }
         }
 
         // set following stats:

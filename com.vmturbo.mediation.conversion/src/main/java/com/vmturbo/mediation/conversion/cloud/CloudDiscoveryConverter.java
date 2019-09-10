@@ -262,6 +262,9 @@ public class CloudDiscoveryConverter {
                         if (file.hasSizeKb()) {
                             vvData.setStorageAmountCapacity(file.getSizeKb() / 1024.0f);
                         }
+                        if (file.hasSnapshotId()) {
+                            vvData.setSnapshotId(file.getSnapshotId());
+                        }
                         if (file.hasRedundancyType()) {
                             try {
                                 vvData.setRedundancyType(RedundancyType.valueOf(

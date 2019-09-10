@@ -27,6 +27,8 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     private Integer redundancyType;
 
+    private String snapshotId;
+
     private List<VirtualVolumeFileRepoDTO> files;
 
     @Override
@@ -44,6 +46,9 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         }
         if (virtualVolumeInfo.hasRedundancyType()) {
             setRedundancyType(virtualVolumeInfo.getRedundancyType().getNumber());
+        }
+        if (virtualVolumeInfo.hasSnapshotId()) {
+            setSnapshotId(virtualVolumeInfo.getSnapshotId());
         }
         setFiles(virtualVolumeInfo.getFilesList());
         serviceEntityRepoDTO.setVirtualVolumeInfoRepoDTO(this);
@@ -66,6 +71,9 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
             virtualVolumeInfoBuilder.addAllFiles(files.stream()
                 .map(VirtualVolumeFileRepoDTO::toFileDescriptor)
                 .collect(Collectors.toList()));
+        }
+        if (getSnapshotId() != null) {
+            virtualVolumeInfoBuilder.setSnapshotId(getSnapshotId());
         }
         return TypeSpecificInfo.newBuilder()
             .setVirtualVolume(virtualVolumeInfoBuilder)
@@ -96,6 +104,12 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         this.redundancyType = redundancyType;
     }
 
+    public String getSnapshotId() { return snapshotId; }
+
+    public void setSnapshotId(String snapshotId) {
+        this.snapshotId = snapshotId;
+    }
+
     public List<VirtualVolumeFileRepoDTO> getFiles() {
         return files;
     }
@@ -117,12 +131,13 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         return (Objects.equals(storageAccessCapacity, that.storageAccessCapacity) &&
             Objects.equals(storageAmountCapacity, that.storageAmountCapacity) &&
             Objects.equals(redundancyType, that.redundancyType) &&
-            Objects.equals(files, that.files));
+            Objects.equals(files, that.files) &&
+            Objects.equals(snapshotId, that.snapshotId));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(storageAccessCapacity, storageAmountCapacity, redundancyType, files);
+        return Objects.hash(storageAccessCapacity, storageAmountCapacity, redundancyType, files, snapshotId);
     }
 
     @Override
@@ -132,6 +147,7 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
                 ", storageAmountCapacity=" + storageAmountCapacity +
                 ", redundancyType=" + redundancyType +
                 ", files=" + files +
+                ", snapshotId=" + snapshotId +
                 '}';
     }
 }

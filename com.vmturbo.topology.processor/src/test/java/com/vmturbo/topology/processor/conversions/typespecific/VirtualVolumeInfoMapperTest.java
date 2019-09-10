@@ -21,6 +21,7 @@ public class VirtualVolumeInfoMapperTest {
     private static final float STORAGE_ACCESS_CAPACITY = 1.1f;
     private static final float STORAGE_AMOUNT_CAPACITY = 2.2f;
     public static final RedundancyType REDUNDANCY_TYPE = RedundancyType.RAGRS;
+    private static final String SNAPSHOT_ID = "snap-1234";
 
     @Test
     public void testExtractTypeSpecificInfo() {
@@ -30,12 +31,14 @@ public class VirtualVolumeInfoMapperTest {
                         .setStorageAccessCapacity(STORAGE_ACCESS_CAPACITY)
                         .setStorageAmountCapacity(STORAGE_AMOUNT_CAPACITY)
                         .setRedundancyType(REDUNDANCY_TYPE)
+                        .setSnapshotId(SNAPSHOT_ID)
                         .build());
         TypeSpecificInfo expected = TypeSpecificInfo.newBuilder()
                 .setVirtualVolume(VirtualVolumeInfo.newBuilder()
                         .setStorageAccessCapacity(STORAGE_ACCESS_CAPACITY)
                         .setStorageAmountCapacity(STORAGE_AMOUNT_CAPACITY)
                         .setRedundancyType(REDUNDANCY_TYPE)
+                        .setSnapshotId(SNAPSHOT_ID)
                         .build())
                 .build();
         DatabaseInfo.newBuilder()

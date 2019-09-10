@@ -346,8 +346,11 @@ public class AwsCloudDiscoveryConverterTest {
                                         volume.getVirtualVolumeData().getStorageAccessCapacity(), 0);
                                 assertEquals(file.getSizeKb() / 1024,
                                         volume.getVirtualVolumeData().getStorageAmountCapacity(), 0);
+                                assertEquals(file.getSnapshotId(),
+                                        volume.getVirtualVolumeData().getSnapshotId());
                                 assertFalse(file.hasRedundancyType());
                                 assertFalse(volume.getVirtualVolumeData().hasRedundancyType());
+                                assertFalse(volume.getVirtualVolumeData().hasSnapshotId());
 
                                 // volumes are connected to AZ and StorageTier
                                 assertThat(volume.getLayeredOverList().stream()
