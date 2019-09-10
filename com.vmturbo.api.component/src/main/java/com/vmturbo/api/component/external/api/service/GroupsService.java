@@ -54,7 +54,9 @@ import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMemberOrder
 import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.platform.common.dto.CommonDTOREST.GroupDTO.ConstraintType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
@@ -652,16 +654,34 @@ public class GroupsService implements IGroupsService {
     }
 
     /**
-     * Get parent groups in which given group belongs.
+     * In classic, this method would get a sequence of ancestor groups that a group may belong to,
+     * and is used to present a "breadcrumb" trail in the UI. In XL, we don't have the same group
+     * hierarchy, and the concept of a breadcrumb trail for groups doesn't apply the same way. So
+     * in XL, the group breadcrumb trail will only contain two items: "Home" and a link to itself.
      *
-     * @param groupUuid uuid of the group for which the parent groups will be returned
-     * @param path boolean to include all parents up to the root
-     * @return a list of Groups and SE's which are parents of the given group; include all
-     * parents up to the root if the 'path' input is true.
+     * @param groupUuid uuid of the group for which the breadcrumb list is being requested
+     * @param path boolean that according to the API indicates whether to include all parents up to
+     *             the root, but in practice does nothing in XL
+     * @return a DTO describing the current group
      */
     @Override
     public List<BaseApiDTO> getGroupsByUuid(final String groupUuid, final Boolean path)  {
-        // TODO: OM-23669
+        // Although classic returns a "breadcrumb trail" here, the sequence returned could be
+        // arbitrary -- if a group belonged to multiple groups, one would be chosen as the ancestor
+        // irrespective of how the user actually navigated to the group in the UI. Classic also has
+        // a folder-like structure for navigating through groups that XL does not.
+        //
+        // So, in XL, we've decided to only show the current group in the breadcrumb trail.
+        Optional<Group> optionalGroup = groupExpander.getGroup(groupUuid);
+        if (optionalGroup.isPresent()) {
+            Group group = optionalGroup.get();
+            final ServiceEntityApiDTO groupDTO = new ServiceEntityApiDTO();
+            groupDTO.setDisplayName(GroupProtoUtil.getGroupDisplayName(group));
+            groupDTO.setUuid(groupUuid);
+            groupDTO.setClassName(StringConstants.GROUP);
+            return Collections.singletonList(groupDTO);
+        }
+
         return new ArrayList<>();
     }
 
