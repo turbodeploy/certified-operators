@@ -15,10 +15,9 @@ import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceUtilizationCove
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.MarketListenerConfig;
 import com.vmturbo.group.api.GroupClientConfig;
@@ -114,11 +113,6 @@ public class ReservedInstanceConfig {
     }
 
     @Bean
-    public RepositoryServiceBlockingStub repositoryServiceClient() {
-        return RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
-    }
-
-    @Bean
     public ProjectedRICoverageAndUtilStore projectedEntityRICoverageAndUtilStore() {
         return new ProjectedRICoverageAndUtilStore(repositoryServiceClient());
     }
@@ -190,5 +184,15 @@ public class ReservedInstanceConfig {
     @Bean
     public ActionContextRIBuyStore actionContextRIBuyStore() {
         return new ActionContextRIBuyStore(databaseConfig.dsl());
+    }
+
+    @Bean
+    public SettingServiceBlockingStub settingServiceClient() {
+        return SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
+    }
+
+    @Bean
+    public RepositoryServiceBlockingStub repositoryServiceClient() {
+        return RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
     }
 }

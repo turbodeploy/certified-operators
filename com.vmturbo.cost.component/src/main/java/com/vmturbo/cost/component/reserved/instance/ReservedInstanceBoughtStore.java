@@ -21,6 +21,9 @@ import org.jooq.Result;
 
 import com.google.common.collect.Sets;
 
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.FluxSink;
+
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
@@ -43,10 +46,25 @@ public class ReservedInstanceBoughtStore {
     // A temporary column name used for query reserved instance count map.
     private final static String RI_SUM_COUNT = "ri_sum_count";
 
+    private final Flux<ReservedInstanceBoughtChangeType> updateEventFlux;
+
+    /**
+     * The statusEmitter is used to push updates to the statusFlux subscribers.
+     */
+    private FluxSink<ReservedInstanceBoughtChangeType> updateEventEmitter;
+
+    public enum ReservedInstanceBoughtChangeType {
+        UPDATED;
+    }
+
     public ReservedInstanceBoughtStore(@Nonnull final DSLContext dsl,
                                        @Nonnull final IdentityProvider identityProvider) {
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.dsl = Objects.requireNonNull(dsl);
+        // create a flux that a listener can subscribe to group store update events on.
+        updateEventFlux = Flux.create(emitter -> updateEventEmitter = emitter);
+        // start publishing immediately w/o waiting for a consumer to signal demand.
+        updateEventFlux.publish().connect();
     }
 
     /**
@@ -135,7 +153,21 @@ public class ReservedInstanceBoughtStore {
         internalInsert(context, reservedInstanceToAdd);
         internalUpdate(context, reservedInstanceUpdates, existingRIsProbeKeyToRecord);
         internalDelete(context, reservedInstanceToRemove);
+
+        // Means the RI Buy inventory has changed.
+        if (reservedInstanceToAdd.size() > 0 || reservedInstanceToRemove.size() > 0) {
+            updateEventEmitter.next(ReservedInstanceBoughtChangeType.UPDATED);
+        }
         logger.info("Finished updating reserved instance bought.");
+    }
+
+    /**
+     * Get the Reserved Instance Bought store update event stream. A listener can .subscribe() to the {@link Flux} that
+     * is returned and get access to any update events in the RI Inventory.
+     * @return
+     */
+    public Flux<ReservedInstanceBoughtChangeType> getUpdateEventStream() {
+        return updateEventFlux;
     }
 
     /**

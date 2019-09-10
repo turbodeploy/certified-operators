@@ -14,8 +14,8 @@ import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
-import com.vmturbo.cost.component.reserved.instance.action.ReservedInstanceActionsSender;
 import com.vmturbo.cost.component.reserved.instance.action.ReservedInstanceActionsSenderConfig;
 import com.vmturbo.cost.component.topology.TopologyListenerConfig;
 import com.vmturbo.group.api.GroupClientConfig;
@@ -86,4 +86,14 @@ public class ReservedInstanceAnalysisConfig {
                 realtimeTopologyContextId);
     }
 
+    @Bean
+    public ReservedInstanceAnalysisInvoker reservedInstanceAnalysisInvoker() {
+        return new ReservedInstanceAnalysisInvoker(reservedInstanceAnalyzer(), repositoryServiceClient(),
+                settingServiceClient(), reservedInstanceConfig.reservedInstanceBoughtStore(),
+                realtimeTopologyContextId);
+    }
+
+    public ReservedInstanceBoughtStore reservedInstanceBoughtStore() {
+        return reservedInstanceConfig.reservedInstanceBoughtStore();
+    }
 }

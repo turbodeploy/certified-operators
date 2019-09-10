@@ -57,6 +57,7 @@ import com.vmturbo.commons.reservedinstance.recommendationalgorithm.Recommendati
 import com.vmturbo.commons.reservedinstance.recommendationalgorithm.RecommendationKernelAlgorithmResult;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.components.common.setting.RISettingsEnum.PreferredTerm;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
@@ -184,26 +185,30 @@ public class ReservedInstanceAnalyzer {
                 @Nonnull ReservedInstanceAnalysisScope scope,
                 @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType)
                                 throws CommunicationException, InterruptedException {
-
-        @Nullable ReservedInstanceAnalysisResult result = analyze(planId, scope,
-                                                                  historicalDemandDataType);
-        ActionPlan actionPlan;
-        if (result == null) {
-            // when result is null, it may be that no need to buy any ri
-            // so we create a dummy action plan and send to action orchestrator
-            // once action orchestrator receives buy RI ation plan, it will
-            // notify plan orchestrator it status
-            actionPlan = ActionPlan.newBuilder()
-                            .setId(IdentityGenerator.next())
-                            .setInfo(ActionPlanInfo.newBuilder()
-                                     .setBuyRi(BuyRIActionPlanInfo.newBuilder()
-                                         .setTopologyContextId(planId)))
-                            .build();
+        if (computeTierDemandStatsStore.containsDataOverWeek()) {
+            @Nullable ReservedInstanceAnalysisResult result = analyze(planId, scope,
+                    historicalDemandDataType);
+            ActionPlan actionPlan;
+            if (result == null) {
+                // when result is null, it may be that no need to buy any ri
+                // so we create a dummy action plan and send to action orchestrator
+                // once action orchestrator receives buy RI ation plan, it will
+                // notify plan orchestrator it status
+                actionPlan = ActionPlan.newBuilder()
+                        .setId(IdentityGenerator.next())
+                        .setInfo(ActionPlanInfo.newBuilder()
+                                .setBuyRi(BuyRIActionPlanInfo.newBuilder()
+                                        .setTopologyContextId(planId)))
+                        .build();
+            } else {
+                result.persistResults();
+                actionPlan = result.createActionPlan();
+            }
+            actionsSender.notifyActionsRecommended(actionPlan);
         } else {
-            result.persistResults();
-            actionPlan = result.createActionPlan();
+            logger.info("There is no over one week data available, waiting for more data to" +
+                    " trigger buy RI analysis.");
         }
-        actionsSender.notifyActionsRecommended(actionPlan);
     }
 
     /**
@@ -1199,7 +1204,8 @@ public class ReservedInstanceAnalyzer {
                 new ReservedInstancePurchaseConstraints(
                         OfferingClass.valueOf(
                                 settings.get(GlobalSettingSpecs.AWSPreferredOfferingClass.getSettingName()).getEnumSettingValue().getValue()),
-                        (int)(settings.get(GlobalSettingSpecs.AWSPreferredTerm.getSettingName()).getNumericSettingValue().getValue()),
+                        PreferredTerm.valueOf(
+                                settings.get(GlobalSettingSpecs.AWSPreferredTerm.getSettingName()).getEnumSettingValue().getValue()).getYears(),
                         PaymentOption.valueOf(
                                 settings.get(GlobalSettingSpecs.AWSPreferredPaymentOption.getSettingName()).getEnumSettingValue().getValue()));
 

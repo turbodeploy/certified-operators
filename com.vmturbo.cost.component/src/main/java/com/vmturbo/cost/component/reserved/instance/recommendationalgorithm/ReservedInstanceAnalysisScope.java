@@ -77,7 +77,7 @@ public class ReservedInstanceAnalysisScope {
      * @param overrideRICoverage    The coverage can be overriden by a percentage. false override
      *                              coverage means default maximum savings and true override
      *                              coverage means specific coverage
-     * @param riPurchaseProfile     The type of RI to be bought which includes offering class,
+     * @param profile     The type of RI to be bought which includes offering class,
      *                              payment option, term, purchase date.
      */
     public ReservedInstanceAnalysisScope(@Nullable Collection<OSType> platforms,

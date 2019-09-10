@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsStore;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker;
 
 /**
  * The class defined the scheduler for buy reserved instance analysis. And for the first time
@@ -30,17 +30,17 @@ public class BuyRIAnalysisScheduler {
 
     private ScheduledFuture<?> scheduledTask;
 
-    private final ComputeTierDemandStatsStore computeTierDemandStatsStore;
+    private final ReservedInstanceAnalysisInvoker invoker;
 
     // The delay milliseconds for the initial buy reserved instance analysis.
     private static long INITIAL_DELAY_MILLIS = 300000;
 
     public BuyRIAnalysisScheduler(@Nonnull final ScheduledExecutorService schedulerExecutor,
-                                  @Nonnull final ComputeTierDemandStatsStore computeTierDemandStatsStore,
+                                  @Nonnull ReservedInstanceAnalysisInvoker invoker,
                                   final long initialIntervalHours,
                                   final long normalIntervalHours) {
         this.schedulerExecutor = Objects.requireNonNull(schedulerExecutor);
-        this.computeTierDemandStatsStore = Objects.requireNonNull(computeTierDemandStatsStore);
+        this.invoker = invoker;
         this.scheduledTask = createInitialScheduledTask(initialIntervalHours,
                 normalIntervalHours);
     }
@@ -101,7 +101,6 @@ public class BuyRIAnalysisScheduler {
      */
     private ScheduledFuture<?> createNormalScheduledTask(final long normalIntervalHours) {
         final long intervalMillis = TimeUnit.MILLISECONDS.convert(normalIntervalHours, TimeUnit.HOURS);
-
         final ScheduledFuture<?> normallyScheduledTask = schedulerExecutor.scheduleAtFixedRate(
                 this::normalTriggerBuyRIAnalysis,
                 intervalMillis,
@@ -121,23 +120,17 @@ public class BuyRIAnalysisScheduler {
     public void initialTriggerBuyRIAnalysis(final long normalIntervalHours) {
         try {
             logger.info("Start running initially buy reserved instance analysis...");
-            if (computeTierDemandStatsStore.containsDataOverWeek()) {
-                //TODO: call buy reserved instance analysis algorithm.
-
-                // if initially buy reserved instance analysis succeed, need to cancel the initial scheduled
-                // task, and also create a new scheduled task with different interval time.
-                scheduledTask.cancel(false);
-                scheduledTask = createNormalScheduledTask(normalIntervalHours);
-                logger.info("Finished initially buy reserved instance analysis...");
-            } else {
-                logger.info("There is no over one week data available, waiting for more data to" +
-                        " trigger buy RI analysis.");
-            }
-
+            invoker.invokeBuyRIAnalysis();
+            // if initially buy reserved instance analysis succeed, need to cancel the initial scheduled
+            // task, and also create a new scheduled task with different interval time.
+            scheduledTask.cancel(false);
+            scheduledTask = createNormalScheduledTask(normalIntervalHours);
+            logger.info("Finished initially buy reserved instance analysis...");
         } catch (RuntimeException e) {
             logger.error("Unable to run initially buy reserved instance analysis: {}", e);
         }
     }
+
 
     /**
      * Trigger buy reserved instance analysis in normal frequency.
@@ -145,7 +138,7 @@ public class BuyRIAnalysisScheduler {
     private void normalTriggerBuyRIAnalysis() {
         try {
             logger.info("Start running normally buy reserved instance analysis...");
-            //TODO: call buy reserved instance analysis algorithm.
+            invoker.invokeBuyRIAnalysis();
             logger.info("Finished normally buy reserved instance analysis...");
         } catch (RuntimeException e) {
             logger.error("Unable to run normally buy reserved instance analysis: {}", e);

@@ -9,13 +9,23 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.cost.CostREST.BuyRIAnalysisServiceController;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisConfig;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker;
+import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
 @Import({ComputeTierDemandStatsConfig.class,
-        ReservedInstanceAnalysisConfig.class})
+        ReservedInstanceAnalysisConfig.class,
+        GroupClientConfig.class,
+        RepositoryClientConfig.class
+        })
 public class BuyRIAnalysisConfig {
 
     @Value("${initialBuyRIAnalysisIntervalHours}")
@@ -39,11 +49,20 @@ public class BuyRIAnalysisConfig {
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
 
+    @Autowired
+    private GroupClientConfig groupClientConfig;
+
+    @Autowired
+    private RepositoryClientConfig repositoryClientConfig;
+
+    @Autowired
+    private ReservedInstanceConfig reservedInstanceConfig;
+
     @Bean
     public BuyRIAnalysisScheduler buyReservedInstanceScheduler() {
         return new BuyRIAnalysisScheduler(Executors.newSingleThreadScheduledExecutor(),
-                computeTierDemandStatsConfig.riDemandStatsStore(),
-                initialBuyRIAnalysisIntervalHours, normalBuyRIAnalysisIntervalHours);
+                reservedInstanceAnalysisInvoker(), initialBuyRIAnalysisIntervalHours,
+                normalBuyRIAnalysisIntervalHours);
     }
 
     @Bean
@@ -68,5 +87,22 @@ public class BuyRIAnalysisConfig {
     @Bean
     public BuyReservedInstanceRpcService buyReservedInstanceRpcService() {
         return new BuyReservedInstanceRpcService(buyReservedInstanceStore());
+    }
+
+    @Bean
+    public SettingServiceBlockingStub settingServiceClient() {
+        return SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
+    }
+
+    @Bean
+    public RepositoryServiceBlockingStub repositoryServiceClient() {
+        return RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
+    }
+
+    @Bean
+    public ReservedInstanceAnalysisInvoker reservedInstanceAnalysisInvoker() {
+        return new ReservedInstanceAnalysisInvoker(reservedInstanceAnalysisConfig.reservedInstanceAnalyzer(),
+                repositoryServiceClient(), settingServiceClient(),
+                reservedInstanceAnalysisConfig.reservedInstanceBoughtStore(), realtimeTopologyContextId);
     }
 }

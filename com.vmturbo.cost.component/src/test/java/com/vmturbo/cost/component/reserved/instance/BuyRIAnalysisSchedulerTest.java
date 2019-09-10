@@ -19,8 +19,7 @@ import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisScheduler;
-import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsStore;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker;
 
 public class BuyRIAnalysisSchedulerTest {
 
@@ -41,8 +40,8 @@ public class BuyRIAnalysisSchedulerTest {
                 any(), Mockito.anyLong(), eq(initialIntervalMillis), any()
         );
         final BuyRIAnalysisScheduler buyRIAnalysisScheduler = new BuyRIAnalysisScheduler(
-                scheduledExecutorSpy, computeTierDemandStatsStoreMock, initialIntervalHours,
-                normalIntervalHours);
+                scheduledExecutorSpy, Mockito.mock(ReservedInstanceAnalysisInvoker.class),
+                initialIntervalHours, normalIntervalHours);
         verify(scheduledExecutorSpy).scheduleAtFixedRate(any(), Mockito.anyLong(),
                 eq(initialIntervalMillis), any());
     }
@@ -57,8 +56,8 @@ public class BuyRIAnalysisSchedulerTest {
         );
         Mockito.when(computeTierDemandStatsStoreMock.containsDataOverWeek()).thenReturn(true);
         final BuyRIAnalysisScheduler buyRIAnalysisScheduler = new BuyRIAnalysisScheduler(
-                scheduledExecutorSpy, computeTierDemandStatsStoreMock, initialIntervalHours,
-                normalIntervalHours);
+                scheduledExecutorSpy, Mockito.mock(ReservedInstanceAnalysisInvoker.class),
+                initialIntervalHours, normalIntervalHours);
         buyRIAnalysisScheduler.initialTriggerBuyRIAnalysis(normalIntervalHours);
         verify(initialMockFuture).cancel(false);
         verify(scheduledExecutorSpy).scheduleAtFixedRate(any(), Mockito.anyLong(),
