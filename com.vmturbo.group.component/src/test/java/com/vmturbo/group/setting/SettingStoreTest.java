@@ -13,6 +13,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -30,6 +31,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
@@ -39,8 +41,14 @@ import org.springframework.test.context.support.AnnotationConfigContextLoader;
 import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.ProtocolStringList;
 
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.FluxSink;
+import reactor.test.StepVerifier;
+
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
@@ -49,6 +57,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.Scope
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath.SettingCategoryPathNode;
@@ -58,7 +67,11 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.SettingValueTypeCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
+import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeResponse;
 import com.vmturbo.group.common.InvalidItemException;
+import com.vmturbo.group.group.GroupStore;
+import com.vmturbo.group.group.GroupStore.GroupStoreUpdateEvent;
+import com.vmturbo.group.group.GroupStore.GroupStoreUpdateEvent.GroupChangeType;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableSettingPolicyUpdateException;
@@ -78,6 +91,7 @@ public class SettingStoreTest {
 
     private SettingStore settingStore;
     private SettingSpecStore settingSpecStore;
+    private GroupStore groupStore = mock(GroupStore.class);
 
     private final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
             .setName("test")
@@ -94,12 +108,17 @@ public class SettingStoreTest {
 
     private IdentityProvider identityProviderSpy = spy(new IdentityProvider(0));
 
+    private FluxSink<GroupStoreUpdateEvent> updateEventEmitter;
+
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
+        final Flux<GroupStoreUpdateEvent> flux = Flux.fromIterable(Collections.emptyList());
+        when(groupStore.getUpdateEventStream()).thenReturn(Flux.create(emitter -> updateEventEmitter = emitter));
+
         final DSLContext dslContext = dbConfig.prepareDatabase();
         settingSpecStore = new FileBasedSettingsSpecStore(SETTING_TEST_JSON_SETTING_SPEC_JSON);
         settingStore = new SettingStore(settingSpecStore, dslContext, identityProviderSpy,
-                settingPolicyValidator);
+                settingPolicyValidator, groupStore);
     }
 
     @After
@@ -561,5 +580,52 @@ public class SettingStoreTest {
         assertThat(secondCreated.stream()
             .map(settingPolicy -> settingPolicy.getInfo().getName())
             .collect(Collectors.toList()), containsInAnyOrder("b", "c"));
+    }
+
+    @Test
+    public void testSettingPolicyScopeAdjustmentAfterGroupRemoval()
+            throws InvalidItemException, DuplicateNameException {
+        settingStore.createUserSettingPolicy(SettingPolicyInfo.newBuilder()
+                .setName("policy1")
+                .setScope(Scope.newBuilder().addGroups(1L))
+                .build());
+        settingStore.createUserSettingPolicy(SettingPolicyInfo.newBuilder()
+                .setName("policy12")
+                .setScope(Scope.newBuilder().addGroups(1L).addGroups(2L))
+                .build());
+        settingStore.createUserSettingPolicy(SettingPolicyInfo.newBuilder()
+                .setName("policy2")
+                .setScope(Scope.newBuilder().addGroups(2L))
+                .build());
+
+        // if a non-user group is deleted, we should see no policy updates applied even if there
+        // are references to the group
+        assertEquals(0, settingStore.onGroupDeleted(Group.newBuilder()
+                .setId(1L)
+                .setOrigin(Origin.DISCOVERED)
+                .build()));
+
+        // verify that policy1 should still have one scope group
+        final SettingPolicy policy1FromDB = settingStore.getSettingPolicy("policy1").get();
+        assertEquals(1, policy1FromDB.getInfo().getScope().getGroupsList().size());
+
+        // verify that policy12 should still have two groups in scope
+        final SettingPolicy policy12FromDB = settingStore.getSettingPolicy("policy12").get();
+        assertEquals(2, policy12FromDB.getInfo().getScope().getGroupsList().size());
+
+        // when we remove group 1 and it's a user-created group, we should see two policies updated
+        // -- policy1 and policy12
+        assertEquals(2, settingStore.onGroupDeleted(Group.newBuilder()
+                .setId(1L)
+                .setOrigin(Origin.USER)
+                .build()));
+
+        // verify that policy1 no longer has any scope groups
+        final SettingPolicy policy1AfterUpdate = settingStore.getSettingPolicy("policy1").get();
+        assertEquals(0, policy1AfterUpdate.getInfo().getScope().getGroupsList().size());
+
+        // verify that policy12 should still have one group in scope
+        final SettingPolicy policy12AfterUpdate = settingStore.getSettingPolicy("policy12").get();
+        assertEquals(1, policy12AfterUpdate.getInfo().getScope().getGroupsList().size());
     }
 }

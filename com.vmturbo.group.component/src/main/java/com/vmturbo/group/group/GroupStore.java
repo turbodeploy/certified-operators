@@ -15,6 +15,11 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Preconditions;
+import com.google.gson.reflect.TypeToken;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.TextFormat;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
@@ -24,10 +29,8 @@ import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
-import com.google.common.base.Preconditions;
-import com.google.gson.reflect.TypeToken;
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protobuf.TextFormat;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.FluxSink;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
@@ -96,6 +99,17 @@ public class GroupStore implements Diagnosable {
 
     private final EntityToClusterMapping entityToClusterMapping;
 
+
+    /**
+     * Provides access to a stream of group store updates.
+     */
+    private final Flux<GroupStoreUpdateEvent> updateEventFlux;
+
+    /**
+     * The statusEmitter is used to push updates to the statusFlux subscribers.
+     */
+    private FluxSink<GroupStoreUpdateEvent> updateEventEmitter;
+
     public GroupStore(@Nonnull final DSLContext dslContext,
                       @Nonnull final PolicyStore policyStore,
                       @Nonnull final IdentityProvider identityProvider,
@@ -104,6 +118,12 @@ public class GroupStore implements Diagnosable {
         this.policyStore = Objects.requireNonNull(policyStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.entityToClusterMapping = Objects.requireNonNull(entityToClusterMapping);
+
+        // create a flux that a listener can subscribe to group store update events on.
+        Flux<GroupStoreUpdateEvent> primaryFlux = Flux.create(emitter -> updateEventEmitter = emitter);
+        updateEventFlux = primaryFlux.share(); // create a shareable flux for multicasting.
+        // start publishing immediately w/o waiting for a consumer to signal demand.
+        updateEventFlux.publish().connect();
     }
 
     /**
@@ -432,10 +452,11 @@ public class GroupStore implements Diagnosable {
                     throw new ImmutableGroupUpdateException(existingGroup);
                 }
 
+                // delete any placement policies associated with the group
                 policyStore.deletePoliciesForGroup(transactionDsl, id);
 
                 // The group exists, and is non-discovered. It's safe to delete.
-                internalDelete(transactionDsl, id);
+                internalDelete(transactionDsl, existingGroup);
                 return existingGroup;
             });
         } catch (DataAccessException e) {
@@ -584,12 +605,15 @@ public class GroupStore implements Diagnosable {
     }
 
     private void internalDelete(@Nonnull final DSLContext context,
-                                final long groupId) {
+                                final Group group) {
         // The entries from the POLICY_GROUP and the TAG_GROUP table will
         // be deleted automatically because of the foreign key constraint.
         context.deleteFrom(Tables.GROUPING)
-                .where(Tables.GROUPING.ID.eq(groupId))
+                .where(Tables.GROUPING.ID.eq(group.getId()))
                 .execute();
+
+        // broadcast the removal event
+        updateEventEmitter.next(GroupStoreUpdateEvent.createRemoveEvent(group));
     }
 
     @Nonnull
@@ -614,6 +638,9 @@ public class GroupStore implements Diagnosable {
         context.newRecord(Tables.GROUPING, grouping).store();
         extractTagsFromGroup(group).forEach(record ->
                 context.newRecord(Tables.TAGS_GROUP, record).store());
+
+        // broadcast the add event
+        updateEventEmitter.next(GroupStoreUpdateEvent.createAddedEvent(group));
 
         return toGroup(grouping).orElseThrow(() -> new IllegalArgumentException(
                 "Failed to map grouping for group " + group.getId() + " (" + groupName + ") back to group."));
@@ -657,6 +684,9 @@ public class GroupStore implements Diagnosable {
         extractTagsFromGroup(group).forEach(record ->
                 context.newRecord(Tables.TAGS_GROUP, record).store());
 
+        // broadcast the update event
+        updateEventEmitter.next(GroupStoreUpdateEvent.createUpdatedEvent(group));
+
         return toGroup(groupingRecord.into(Grouping.class)).orElseThrow(() ->
                 new IllegalArgumentException("Failed to map grouping for group " + group.getId() +
                         " (" + groupName + ") back to group."));
@@ -673,6 +703,17 @@ public class GroupStore implements Diagnosable {
                 .map(this::toGroup)
                 .filter(Optional::isPresent)
                 .map(Optional::get);
+    }
+
+    /**
+     * Get the group store update event stream. A listener can .subscribe() to the {@link Flux} that
+     * is returned and get access to any add/update/delete group events processed by this group
+     * store instance.
+     *
+     * @return
+     */
+    public Flux<GroupStoreUpdateEvent> getUpdateEventStream() {
+        return updateEventFlux;
     }
 
     @Nonnull
@@ -794,6 +835,58 @@ public class GroupStore implements Diagnosable {
         public GroupNotClusterException(final long groupId) {
             super("Group " + groupId
                     + " is not a cluster. Cannot update cluster headroom template for this group.");
+        }
+    }
+
+    /**
+     * An event class representing an update made to the group store. Will contain {@link GroupChangeType}
+     * that describes the type of change made, and a reference to the {@link Group} that was affected
+     * by the change.
+     */
+    public static class GroupStoreUpdateEvent {
+        public enum GroupChangeType {
+            /**
+             * A group was added
+             */
+            ADDED,
+            /**
+             * A group was removed
+             */
+            REMOVED,
+            /**
+             * A group was updated
+             */
+            UPDATED
+        }
+
+        private final GroupChangeType changeType;
+
+        // the group that was affected by the change.
+        private final Group groupAffected;
+
+        public static GroupStoreUpdateEvent createRemoveEvent(Group groupAffected) {
+            return new GroupStoreUpdateEvent(GroupChangeType.REMOVED, groupAffected);
+        }
+
+        public static GroupStoreUpdateEvent createAddedEvent(Group groupAffected) {
+            return new GroupStoreUpdateEvent(GroupChangeType.ADDED, groupAffected);
+        }
+
+        public static GroupStoreUpdateEvent createUpdatedEvent(Group groupAffected) {
+            return new GroupStoreUpdateEvent(GroupChangeType.UPDATED, groupAffected);
+        }
+
+        private GroupStoreUpdateEvent(GroupChangeType changeType, Group groupAffected) {
+            this.changeType = changeType;
+            this.groupAffected = groupAffected;
+        }
+
+        public GroupChangeType getType() {
+            return changeType;
+        }
+
+        public Group getGroup() {
+            return groupAffected;
         }
     }
 }

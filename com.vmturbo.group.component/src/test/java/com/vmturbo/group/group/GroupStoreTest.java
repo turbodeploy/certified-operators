@@ -15,8 +15,11 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableSet;
 
 import org.jooq.DSLContext;
 import org.junit.Assert;
@@ -29,7 +32,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
-import com.google.common.collect.ImmutableSet;
+import reactor.test.StepVerifier;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -39,6 +42,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableGroupUpdateException;
@@ -48,6 +52,7 @@ import com.vmturbo.group.common.ItemNotFoundException.PolicyNotFoundException;
 import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.tables.records.TagsGroupRecord;
 import com.vmturbo.group.group.GroupStore.GroupNotClusterException;
+import com.vmturbo.group.group.GroupStore.GroupStoreUpdateEvent.GroupChangeType;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.policy.PolicyStore;
 import com.vmturbo.group.policy.PolicyStore.PolicyDeleteException;
@@ -126,10 +131,40 @@ public class GroupStoreTest {
                 identityProvider, entityToClusterMapping);
     }
 
+    /**
+     * This test verifies a few behaviors on new group creation:
+     *
+     * 1) GroupStore.newUserGroup(...) returns the expected group object.
+     * 2) GroupStore.getUpdateEventStream() publishes the expected ADDED event.
+     * 3) GroupStore.get(group id) returns the expected group object from the db query.
+     *
+     * Although we typically don't want to mix so many checks into one test, because this test
+     * involves creating a new db schema and writing/reading data to it, it's basically an
+     * integration test and is resource-consuming and time-consuming to run since new schemas also
+     * require schema migrations to be applied. Might as well reduce the number of schemas created
+     * instead of doing the exact same expensive operation in separate tests.
+     */
     @Test
-    public void testNewUserGroupThenGet() throws DuplicateNameException {
+    public void testNewUserGroupThenGetAndEvent() {
         when(identityProvider.next()).thenReturn(GROUP_ID);
-        final Group group = groupStore.newUserGroup(GROUP_INFO);
+
+        final SetOnce<Group> newGroup = new SetOnce<>();
+        // verify that the "add" update event is published after creating the new group
+        StepVerifier.create(groupStore.getUpdateEventStream())
+                .then(() -> {
+                    try {
+                        newGroup.trySetValue(groupStore.newUserGroup(GROUP_INFO));
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+                .expectNextMatches(event -> event.getType() == GroupChangeType.ADDED
+                        && event.getGroup().getId() == GROUP_ID)
+                .thenCancel()
+                .verify();
+
+        assertTrue(newGroup.getValue().isPresent());
+        final Group group = newGroup.getValue().get();
         assertThat(group.getId(), is(GROUP_ID));
         assertThat(group.getGroup(), is(GROUP_INFO));
         assertThat(group.getOrigin(), is(Origin.USER));
@@ -164,12 +199,38 @@ public class GroupStoreTest {
                 .build());
     }
 
+    /**
+     * Tests that the Edit User Group is working with a database round-trip, and also verifies that
+     * appropriate update event is sent. We are consolidating these test cases into one test to
+     * reduce the number of unique DB schemas needed to run all tests.
+     *
+     * @throws DuplicateNameException
+     * @throws ImmutableGroupUpdateException
+     * @throws GroupNotFoundException
+     */
     @Test
-    public void testEditUserGroup() throws DuplicateNameException, ImmutableGroupUpdateException, GroupNotFoundException {
+    public void testEditUserGroupAndEvent() throws DuplicateNameException, ImmutableGroupUpdateException, GroupNotFoundException {
         when(identityProvider.next()).thenReturn(GROUP_ID);
 
         groupStore.newUserGroup(GROUP_INFO);
-        final Group group = groupStore.updateUserGroup(GROUP_ID, UPDATED_GROUP_INFO);
+
+        final SetOnce<Group> updatedGroup = new SetOnce<>();
+        // verify that the "update" event is published after the group is updated
+        StepVerifier.create(groupStore.getUpdateEventStream())
+                .then(() -> {
+                    try {
+                        updatedGroup.trySetValue(groupStore.updateUserGroup(GROUP_ID, UPDATED_GROUP_INFO));
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+                .expectNextMatches(event -> event.getType() == GroupChangeType.UPDATED
+                        && event.getGroup().getId() == GROUP_ID)
+                .thenCancel()
+                .verify();
+
+        assertTrue(updatedGroup.getValue().isPresent());
+        final Group group = updatedGroup.getValue().get();
 
         assertThat(group.getId(), is(GROUP_ID));
         assertThat(group.getGroup(), is(UPDATED_GROUP_INFO));
@@ -334,6 +395,17 @@ public class GroupStoreTest {
         groupStore.updateClusterHeadroomTemplate(GROUP_ID, 1L);
     }
 
+    /**
+     * Verify that groups can be deleted with associated policies, and that the delete event is
+     * published on the event stream.
+     *
+     * @throws DuplicateNameException
+     * @throws GroupNotFoundException
+     * @throws ImmutableGroupUpdateException
+     * @throws PolicyDeleteException
+     * @throws ImmutablePolicyUpdateException
+     * @throws PolicyNotFoundException
+     */
     @Test
     public void testDeleteGroupAndAssociatedPolicies()
             throws DuplicateNameException, GroupNotFoundException, ImmutableGroupUpdateException,
@@ -343,7 +415,24 @@ public class GroupStoreTest {
 
         assertTrue(tagsAreInDB(GROUP_ID));
 
-        final Group group = groupStore.deleteUserGroup(GROUP_ID);
+        final SetOnce<Group> deletedGroup = new SetOnce<>();
+        // verify that the "delete" event is published after deleting the group
+        StepVerifier.create(groupStore.getUpdateEventStream())
+                .then(() -> {
+                    try {
+                        deletedGroup.trySetValue(groupStore.deleteUserGroup(GROUP_ID));
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+                .expectNextMatches(event -> event.getType() == GroupChangeType.REMOVED
+                        && event.getGroup().getId() == GROUP_ID)
+                .thenCancel()
+                .verify();
+
+        assertTrue(deletedGroup.getValue().isPresent());
+        final Group group = deletedGroup.getValue().get();
+
         assertThat(group.getId(), is(GROUP_ID));
         assertThat(group.getGroup(), is(GROUP_INFO));
 

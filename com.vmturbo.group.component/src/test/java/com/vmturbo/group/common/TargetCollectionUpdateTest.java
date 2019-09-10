@@ -166,20 +166,21 @@ public class TargetCollectionUpdateTest {
 
     @Test
     public void testGroupToDelete() throws Exception {
+        Group groupToDelete = Group.newBuilder()
+                .setGroup(GroupInfo.newBuilder().setName("test"))
+                .setId(groupId)
+                .build();
         final TargetGroupUpdate update = new TargetGroupUpdate(targetId, identityProvider,
                 Collections.emptyList(),
-                Collections.singletonList(Group.newBuilder()
-                        .setGroup(GroupInfo.newBuilder().setName("test"))
-                        .setId(groupId)
-                        .build()));
+                Collections.singletonList(groupToDelete));
         update.apply(storeInstance, updateInstance, removeInstance);
         verifyZeroInteractions(identityProvider);
         verifyZeroInteractions(storeInstance);
 
-        verify(removeInstance).removeInstance(longCaptor.capture());
+        verify(removeInstance).removeInstance(groupCaptor.capture());
 
-        final long deletedGroupId = longCaptor.getValue();
-        assertEquals(groupId, deletedGroupId);
+        final Group deletedGroup = groupCaptor.getValue();
+        assertEquals(groupToDelete.getId(), deletedGroup.getId());
     }
 
     @Test
@@ -234,8 +235,8 @@ public class TargetCollectionUpdateTest {
         update.apply(storeInstance, updateInstance, removeInstance);
 
         // Make sure the lower ID got removed.
-        verify(removeInstance).removeInstance(longCaptor.capture());
-        assertEquals(1, longCaptor.getValue().longValue());
+        verify(removeInstance).removeInstance(groupCaptor.capture());
+        assertEquals(1, groupCaptor.getValue().getId());
 
         // The other should have gotten updated.
         verify(updateInstance).updateInstance(groupCaptor.capture());

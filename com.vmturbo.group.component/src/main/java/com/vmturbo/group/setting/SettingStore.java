@@ -8,6 +8,7 @@ import java.sql.SQLTransientException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -18,6 +19,12 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import com.google.protobuf.InvalidProtocolBufferException;
 
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
@@ -30,13 +37,9 @@ import org.jooq.impl.DSL;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
-import com.google.protobuf.InvalidProtocolBufferException;
-
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
@@ -54,6 +57,9 @@ import com.vmturbo.group.common.TargetCollectionUpdate.TargetSettingPolicyUpdate
 import com.vmturbo.group.db.enums.SettingPolicyPolicyType;
 import com.vmturbo.group.db.tables.pojos.SettingPolicy;
 import com.vmturbo.group.db.tables.records.SettingPolicyRecord;
+import com.vmturbo.group.group.GroupStore;
+import com.vmturbo.group.group.GroupStore.GroupStoreUpdateEvent;
+import com.vmturbo.group.group.GroupStore.GroupStoreUpdateEvent.GroupChangeType;
 import com.vmturbo.group.identity.IdentityProvider;
 
 /**
@@ -87,7 +93,8 @@ public class SettingStore implements Diagnosable {
     public SettingStore(@Nonnull final SettingSpecStore settingSpecStore,
             @Nonnull final DSLContext dslContext,
             @Nonnull final IdentityProvider identityProvider,
-            @Nonnull final SettingPolicyValidator settingPolicyValidator) {
+            @Nonnull final SettingPolicyValidator settingPolicyValidator,
+            @Nonnull final GroupStore groupStore) {
         this.settingSpecStore = Objects.requireNonNull(settingSpecStore);
         this.dslContext = Objects.requireNonNull(dslContext);
         this.identityProvider = Objects.requireNonNull(identityProvider);
@@ -100,6 +107,12 @@ public class SettingStore implements Diagnosable {
                 new GroupToSettingPolicyIndex(
                        this.getSettingPolicies(
                                 SettingPolicyFilter.newBuilder().build()));
+        // subscribe to group delete events. We will remove SettingPolicy references to deleted
+        // (user) groups when this happens.
+        groupStore.getUpdateEventStream()
+                .filter(event -> event.getType() == GroupChangeType.REMOVED)
+                .map(GroupStoreUpdateEvent::getGroup)
+                .subscribe(this::onGroupDeleted);
     }
 
     /**
@@ -383,18 +396,26 @@ public class SettingStore implements Diagnosable {
     @Nonnull
     public SettingProto.SettingPolicy deleteUserSettingPolicy(final long id)
             throws SettingPolicyNotFoundException, ImmutableSettingPolicyUpdateException {
-        return deleteSettingPolicy(dslContext, id, true);
+        return internalDeleteSettingPolicy(dslContext, id, true);
     }
 
     @Nonnull
     private SettingProto.SettingPolicy deleteSettingPolicy(@Nonnull final DSLContext context,
-                                                           final long id,
+                                                               final SettingProto.SettingPolicy settingPolicy,
+                                                               boolean initializedByUser)
+            throws SettingPolicyNotFoundException, ImmutableSettingPolicyUpdateException {
+        return internalDeleteSettingPolicy(dslContext, settingPolicy.getId(), initializedByUser);
+    }
+
+    @Nonnull
+    private SettingProto.SettingPolicy internalDeleteSettingPolicy(@Nonnull final DSLContext context,
+                                                           final long settingPolicyId,
                                                            boolean initializedByUser)
             throws SettingPolicyNotFoundException, ImmutableSettingPolicyUpdateException {
         final SettingPolicyRecord record =
-                context.fetchOne(SETTING_POLICY, SETTING_POLICY.ID.eq(id));
+                context.fetchOne(SETTING_POLICY, SETTING_POLICY.ID.eq(settingPolicyId));
         if (record == null) {
-            throw new SettingPolicyNotFoundException(id);
+            throw new SettingPolicyNotFoundException(settingPolicyId);
         }
 
         if (record.getPolicyType().equals(SettingPolicyPolicyType.default_)) {
@@ -460,7 +481,7 @@ public class SettingStore implements Diagnosable {
      * @param context The context to use to do the updates.
      * @param targetId The ID of the target that discovered the setting policies.
      * @param settingPolicyInfos The new set of {@link DiscoveredSettingPolicyInfo}s.
-     * @param groupOids a mapping of policy key (name) to policy OID
+     * @param groupOids a mapping of group name to group oid.
      * @throws DataAccessException If there is an error interacting with the database.
      */
     public void updateTargetSettingPolicies(@Nonnull final DSLContext context,
@@ -481,7 +502,7 @@ public class SettingStore implements Diagnosable {
                 getSettingPoliciesDiscoveredByTarget(context, targetId));
         update.apply((settingPolicy) -> storeDiscoveredSettingPolicy(context, settingPolicy),
                 (settingPolicy) -> internalUpdateSettingPolicy(context, settingPolicy),
-                (id) -> deleteSettingPolicy(context, id, false));
+                (settingPolicy) -> deleteSettingPolicy(context, settingPolicy, false));
         logger.info("Finished updating discovered groups.");
     }
 
@@ -850,6 +871,79 @@ public class SettingStore implements Diagnosable {
         }
 
         groupToSettingPolicyIndex.update(settingPolicies);
+    }
+
+    /**
+     * Handle the event of a group being deleted. When a user-created group is removed, we'll remove
+     * references to the group being removed from all user-created {@link SettingPolicy} instances.
+     *
+     * @param deletedGroup the group that was removed.
+     * @return the number of setting policies affected by the change.
+     */
+    protected int onGroupDeleted(Group deletedGroup) {
+        // if the group is a discovered group, we won't be making any adjustments. This is because
+        // the group/policy discovery process owns all updates to discovered groups and policies.
+        // We will also NOT remove references to discovered groups in user-created policies, due to
+        // the chance that these groups may only be missing due to discovery errors and may
+        // re-appear in future discoveries. This may result in dangling references when a discovered
+        // group is actually deleted "for real", but the system is designed to tolerate them and treat
+        // them as null references so hopefully they wouldn't become an issue.
+        if (deletedGroup.hasOrigin() && deletedGroup.getOrigin().equals(Origin.DISCOVERED)) {
+            return 0;
+        }
+
+        long deletedGroupId = deletedGroup.getId();
+        // get the set of setting policies that included the specified group id.
+        final Map<Long, List<SettingProto.SettingPolicy>> policiesForGroup =
+                getSettingPoliciesForGroups(Collections.singleton(deletedGroupId));
+
+        if (policiesForGroup.isEmpty()) {
+            // no policies need updating.
+            return 0;
+        }
+
+        List<SettingProto.SettingPolicy> policies = policiesForGroup.get(deletedGroupId);
+        int policiesUpdated = 0;
+        for (final SettingProto.SettingPolicy policy : policies) {
+            if (! (policy.hasInfo() && policy.getInfo().hasScope())) {
+                continue;
+            }
+
+            // only handle user policies. discovered policies will be updated via the upload
+            // mechanism, and default policies aren't scoped anyways.
+            if (policy.getSettingPolicyType() != Type.USER) {
+                continue;
+            }
+
+            // remove any references to the group in this policy.
+            SettingProto.SettingPolicyInfo.Builder policyInfoBuilder = policy.getInfo().toBuilder();
+            List<Long> originalGroups = policyInfoBuilder.getScopeBuilder().getGroupsList();
+            List<Long> modifiedGroups = originalGroups.stream()
+                    .filter(groupId -> ! groupId.equals(deletedGroupId))
+                    .collect(Collectors.toList());
+            boolean wasUpdated = originalGroups.size() != modifiedGroups.size();
+
+            if (wasUpdated) {
+                policiesUpdated += 1;
+                // update the policy
+                try {
+                    policyInfoBuilder.getScopeBuilder().clearGroups()
+                            .addAllGroups(modifiedGroups);
+                    updateSettingPolicy(policy.getId(), policyInfoBuilder.build());
+                } catch (SettingPolicyNotFoundException | DuplicateNameException | InvalidItemException e) {
+                    // not a huge deal -- log a warning and move on
+                    logger.warn("Attempted to update policy id {}, but received: ",
+                            policy.getId(), e.getMessage());
+                }
+            }
+        }
+
+        if (policiesUpdated > 0) {
+            logger.info("Removed references to group {} from {} SettingPolicies.",
+                    deletedGroupId, policiesUpdated);
+            return policiesUpdated;
+        }
+        return 0;
     }
 
     /**

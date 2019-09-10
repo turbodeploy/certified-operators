@@ -10,6 +10,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.logging.log4j.LogManager;
+
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 
 /**
@@ -85,6 +87,9 @@ public class GroupToSettingPolicyIndex {
      * @param settingPolicies List of Setting Policies.
      */
     public synchronized void update(List<SettingPolicy> settingPolicies) {
+        settingPolicies.forEach(policy ->
+            LogManager.getLogger().info("Updating setting policy {}", policy.getInfo().getDisplayName()));
+
         remove(settingPolicies);
         add(settingPolicies);
     }

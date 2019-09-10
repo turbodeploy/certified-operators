@@ -110,7 +110,7 @@ public class PolicyStore implements Diagnosable {
                 discoveredPolicies, getDiscoveredByTarget(context, targetId));
         update.apply((policy) -> internalCreate(context, policy),
                 (policy) -> internalUpdate(context, policy),
-                (policyId) -> internalDelete(context, policyId, true));
+                (policy) -> deleteDiscoveredPolicy(context, policy, true));
         logger.info("Finished updating discovered groups.");
     }
 
@@ -223,7 +223,7 @@ public class PolicyStore implements Diagnosable {
     public void deletePoliciesForGroup(@Nonnull final DSLContext context,
                                        final long groupId) throws PolicyDeleteException {
         try {
-            // Delete the policies associated with the group.
+            // Delete the placement policies associated with the group.
             final Set<Long> associatedPolicies = new HashSet<>(
                     context.select(Tables.POLICY_GROUP.POLICY_ID)
                             .from(Tables.POLICY_GROUP)
@@ -455,6 +455,14 @@ public class PolicyStore implements Diagnosable {
     }
 
     @Nonnull
+    private PolicyDTO.Policy deleteDiscoveredPolicy(@Nonnull final DSLContext context,
+                                            final PolicyDTO.Policy policy,
+                                            final boolean allowDiscoveredPolicyDelete)
+            throws PolicyNotFoundException, ImmutablePolicyUpdateException {
+        return internalDelete(context, policy.getId(), allowDiscoveredPolicyDelete);
+    }
+
+    @Nonnull
     private PolicyDTO.Policy internalDelete(@Nonnull final DSLContext context,
                                             final long id,
                                             final boolean allowDiscoveredPolicyDelete)
@@ -468,7 +476,7 @@ public class PolicyStore implements Diagnosable {
             throw new ImmutablePolicyUpdateException(existingRecord.getName());
         }
         // The entry from the POLICY_GROUP table should be deleted automatically
-        // because of the foreign key constaint.
+        // because of the foreign key constraint.
         existingRecord.delete();
 
         return toPolicyProto(existingRecord.into(Policy.class));
@@ -533,4 +541,5 @@ public class PolicyStore implements Diagnosable {
             super("Could not delete policy " + id + " associated with group " + groupId, cause);
         }
     }
+
 }

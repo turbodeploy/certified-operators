@@ -121,7 +121,8 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
 
             if (!settingPolicyInfo.hasScope() ||
                     settingPolicyInfo.getScope().getGroupsCount() < 1) {
-                errors.add("User setting policy must have at least one scope!");
+                // as of OM-44888, we are no longer making scopes required, and will not longer
+                // generate an error here.
             } else {
                 // Make sure the groups exist, and are compatible with the policy info.
                 try {

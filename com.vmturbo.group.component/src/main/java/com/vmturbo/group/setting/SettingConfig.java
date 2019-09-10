@@ -51,7 +51,8 @@ public class SettingConfig {
         return new SettingStore(settingSpecsStore(),
                 databaseConfig.dsl(),
                 identityProviderConfig.identityProvider(),
-                settingPolicyValidator());
+                settingPolicyValidator(),
+                groupConfig.groupStore());
     }
 
     @Bean

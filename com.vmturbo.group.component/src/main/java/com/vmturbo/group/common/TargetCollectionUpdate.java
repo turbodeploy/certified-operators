@@ -59,7 +59,7 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
 
     private final Map<Long, SpecType> groupUpdates;
 
-    private final Set<Long>  groupsToRemove;
+    private final Set<InstanceType>  groupsToRemove;
 
     private final IdentityProvider identityProvider;
 
@@ -107,7 +107,7 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
                     // If there are two duplicate instances, keep the one with the higher key.
                     final long oneId = idGetter().apply(one);
                     final long otherId = idGetter().apply(other);
-                    groupsToRemove.add(oneId > otherId ? otherId : oneId);
+                    groupsToRemove.add(oneId > otherId ? other : one);
                     return oneId > otherId ? one : other;
                 }));
 
@@ -147,7 +147,7 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
         // All entities that are NOT contained in the new discovered groups, but ARE contained
         // in the existing groups, need to be deleted.
         Sets.difference(existingByKey.keySet(), newByKey.keySet()).stream()
-            .map(key -> idGetter().apply(existingByKey.get(key)))
+            .map(existingByKey::get)
             .forEach(groupsToRemove::add);
     }
 
@@ -208,8 +208,8 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
     }
 
     @FunctionalInterface
-    public interface RemoveInstance {
-        void removeInstance(long instanceId) throws ItemNotFoundException, ImmutableUpdateException;
+    public interface RemoveInstance<InstanceType> {
+        void removeInstance(InstanceType instance) throws ItemNotFoundException, ImmutableUpdateException;
     }
 
     /**
@@ -232,7 +232,7 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
      */
     public BiMap<String, Long> apply(@Nonnull final StoreInstance<InstanceType> storeFn,
                @Nonnull final UpdateInstance<InstanceType> updateFn,
-               @Nonnull final RemoveInstance deleteFn) {
+               @Nonnull final RemoveInstance<InstanceType> deleteFn) {
         groupsToAdd.forEach(groupInfo -> {
             try {
                 long oid = identityProvider.next();
@@ -258,14 +258,14 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
             }
         });
 
-        groupsToRemove.forEach(groupId -> {
+        groupsToRemove.forEach(group -> {
             try {
-                deleteFn.removeInstance(groupId);
-                oidMap.inverse().remove(groupId);
+                deleteFn.removeInstance(group);
+                oidMap.inverse().remove(idGetter().apply(group));
             } catch (ImmutableUpdateException | ItemNotFoundException e) {
                 // Ignore the exception - let the process continue.
                 logger.warn("Encountered exception trying to delete group {}. Message: {}",
-                    groupId, e.getLocalizedMessage());
+                    idGetter().apply(group), e.getLocalizedMessage());
             }
         });
 
