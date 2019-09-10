@@ -155,7 +155,7 @@ public enum EntitySettingSpecs {
     /**
      * Activate action automation mode.
      */
-    Activate("activate", "Activate", Collections.emptyList(), SettingTiebreaker.SMALLER,
+    Activate("activate", "Start", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
                     EntityType.CONTAINER_POD, EntityType.CONTAINER,
                     EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
