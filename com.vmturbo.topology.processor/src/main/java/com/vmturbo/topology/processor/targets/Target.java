@@ -144,6 +144,7 @@ public class Target {
             targetSpec.setParentId(inputSpec.getParentId());
         }
         targetSpec.setIsHidden(inputSpec.getIsHidden());
+        targetSpec.setReadOnly(inputSpec.getReadOnly());
 
         final TargetInfo targetInfo = TargetInfo.newBuilder().setId(id).setSpec(targetSpec).build();
 
@@ -167,6 +168,28 @@ public class Target {
         noSecretAnonymousDto = removeSecretAnonymousAccountVals(targetInfo, secretFields);
 
         info = new InternalTargetInfo(targetInfo, secretFields);
+    }
+
+    /**
+     * Create a {@link TargetSpec} builder from a given {@link TargetInfo} and Collection of
+     * {@link AccountValue}s.
+     *
+     * @param targetInfo A {@link TargetInfo}.
+     * @param values Collection of {@link AccountValue}s.
+     * @return A {@link TargetSpec} builder.
+     */
+    private static TargetSpec.Builder createTargetSpecBuilder(
+                                        TargetInfo targetInfo,
+                                        Collection<TopologyProcessorDTO.AccountValue> values) {
+        final TargetSpec.Builder targetSpec = TargetSpec.newBuilder()
+                .setProbeId(targetInfo.getSpec().getProbeId())
+                .addAllAccountValue(values)
+                .setIsHidden(targetInfo.getSpec().getIsHidden())
+                .setReadOnly(targetInfo.getSpec().getReadOnly());
+        if (targetInfo.getSpec().hasParentId()) {
+            targetSpec.setParentId(targetInfo.getSpec().getParentId());
+        }
+        return targetSpec;
     }
 
     /**
@@ -204,13 +227,11 @@ public class Target {
         throws InvalidTargetException {
         TargetInfo targetInfo = info.targetInfo;
 
-        final TargetSpec.Builder newSpec = TargetSpec.newBuilder().setProbeId(probeId)
-            .addAllAccountValue(
-                mergeUpdatedAccountValues(targetInfo.getSpec().getAccountValueList(), updatedFields));
-        if (targetInfo.getSpec().hasParentId()) {
-            newSpec.setParentId(targetInfo.getSpec().getParentId());
-        }
-        newSpec.setIsHidden(targetInfo.getSpec().getIsHidden());
+
+        final TargetSpec.Builder newSpec = createTargetSpecBuilder(
+                    targetInfo, mergeUpdatedAccountValues(
+                            targetInfo.getSpec().getAccountValueList(), updatedFields)
+        );
         return new Target(getId(), probeStore, newSpec.build(), true);
     }
 
@@ -257,14 +278,12 @@ public class Target {
 
     private TargetInfo removeSecretAccountVals(@Nonnull final TargetInfo info,
                                                @Nonnull final Set<String> secretVals) {
-        final TargetSpec.Builder targetSpec = TargetSpec.newBuilder().setProbeId(info.getSpec().getProbeId())
-                .addAllAccountValue(info.getSpec().getAccountValueList().stream()
+        final TargetSpec.Builder targetSpec = createTargetSpecBuilder(
+                info, info.getSpec().getAccountValueList()
+                        .stream()
                         .filter(val -> !secretVals.contains(val.getKey()))
-                        .collect(Collectors.toList()));
-        if (info.getSpec().hasParentId()) {
-            targetSpec.setParentId(info.getSpec().getParentId());
-        }
-        targetSpec.setIsHidden(info.getSpec().getIsHidden());
+                        .collect(Collectors.toList())
+        );
         return TargetInfo.newBuilder().setId(info.getId()).setSpec(targetSpec).build();
     }
 
@@ -292,12 +311,7 @@ public class Target {
             }
         }
 
-        final TargetSpec.Builder targetSpec = TargetSpec.newBuilder().setProbeId(info.getSpec().getProbeId())
-                .addAllAccountValue(accountValues);
-        if (info.getSpec().hasParentId()) {
-            targetSpec.setParentId(info.getSpec().getParentId());
-        }
-        targetSpec.setIsHidden(info.getSpec().getIsHidden());
+        final TargetSpec.Builder targetSpec = createTargetSpecBuilder(info, accountValues);
         return TargetInfo.newBuilder().setId(info.getId()).setSpec(targetSpec).build();
     }
 
@@ -422,13 +436,7 @@ public class Target {
                     values.add(av);
                 }
             });
-            final TargetSpec.Builder targetSpec = TargetSpec.newBuilder()
-                    .setProbeId(targetInfo.getSpec().getProbeId())
-                    .addAllAccountValue(values);
-            if (targetInfo.getSpec().hasParentId()) {
-                targetSpec.setParentId(targetInfo.getSpec().getParentId());
-            }
-            targetSpec.setIsHidden(targetInfo.getSpec().getIsHidden());
+            final TargetSpec.Builder targetSpec = createTargetSpecBuilder(targetInfo, values);
             return TargetInfo.newBuilder().setId(targetInfo.getId()).setSpec(targetSpec).build();
         }
 
@@ -450,13 +458,7 @@ public class Target {
                     values.add(av);
                 }
             });
-            final TargetSpec.Builder targetSpec = TargetSpec.newBuilder()
-                    .setProbeId(targetInfo.getSpec().getProbeId())
-                    .addAllAccountValue(values);
-            if (targetInfo.getSpec().hasParentId()) {
-                targetSpec.setParentId(targetInfo.getSpec().getParentId());
-            }
-            targetSpec.setIsHidden(targetInfo.getSpec().getIsHidden());
+            final TargetSpec.Builder targetSpec = createTargetSpecBuilder(targetInfo, values);
             return TargetInfo.newBuilder().setId(targetInfo.getId()).setSpec(targetSpec).build();
         }
 

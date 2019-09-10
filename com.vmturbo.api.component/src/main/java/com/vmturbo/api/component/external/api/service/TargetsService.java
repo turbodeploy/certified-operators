@@ -612,8 +612,13 @@ public class TargetsService implements ITargetsService {
         long targetId = Long.valueOf(uuid);
         final TargetData updatedTargetData = new NewTargetData(inputFields);
         try {
+            TargetInfo targetInfo = topologyProcessor.getTarget(targetId);
+            if (targetInfo.isReadOnly()) {
+                throw new OperationFailedException(
+                        "Target " + targetId + " cannot be changed through public APIs.");
+            }
             topologyProcessor.modifyTarget(targetId, updatedTargetData);
-            return mapTargetInfoToDTO(topologyProcessor.getTarget(targetId));
+            return mapTargetInfoToDTO(targetInfo);
         } catch (CommunicationException e) {
             throw new CommunicationError(e);
         } catch (TopologyProcessorException e) {
@@ -958,6 +963,7 @@ public class TargetsService implements ITargetsService {
         final TargetApiDTO targetApiDTO = new TargetApiDTO();
         targetApiDTO.setUuid(Long.toString(targetInfo.getId()));
         targetApiDTO.setStatus(mapStatusToApiDTO(targetInfo));
+        targetApiDTO.setReadonly(targetInfo.isReadOnly());
 
         if (targetInfo.getLastValidationTime() != null) {
             // UI requires Offset date time. E.g.: 2019-01-28T20:31:04.302Z

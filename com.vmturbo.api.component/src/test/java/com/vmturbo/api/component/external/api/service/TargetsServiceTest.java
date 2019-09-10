@@ -115,6 +115,7 @@ import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.AccountField;
 public class TargetsServiceTest {
 
     private static final String TGT_NOT_FOUND = "Target not found: ";
+    private static final String TGT_NOT_EDITABLE = "cannot be changed through public APIs.";
     private static final String PROBE_NOT_FOUND = "Probe not found: ";
 
     @Autowired
@@ -539,9 +540,9 @@ public class TargetsServiceTest {
      */
     @Test
     public void testEditTarget() throws Exception {
-        final long prpbeId = 1;
+        final long probeId = 1;
         final long targetId = 2;
-        final ProbeInfo probe = createMockProbeInfo(prpbeId, "type", "category");
+        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category");
         final TargetInfo targetInfo = createMockTargetInfo(probe.getId(), targetId);
 
         final TargetApiDTO targetDto = new TargetApiDTO();
@@ -562,6 +563,36 @@ public class TargetsServiceTest {
         final Map<String, InputFieldApiDTO> expectedFieldsMap = targetDto.getInputFields().stream()
                         .collect(Collectors.toMap(field -> field.getName(), field -> field));
         inputFields.forEach(av -> assertEquals(av, expectedFieldsMap.get(av.getName())));
+    }
+
+    /**
+     * Tests the case when there is an attempt at modifying a read-only target.
+     * OperationFailedException is expected to be thrown.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testEditTarget_readOnlyTarget() throws Exception {
+        final long probeId = 5;
+        final long targetId = 10;
+        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category");
+        final TargetInfo targetInfo = createMockTargetInfo(probe.getId(), targetId);
+        when(targetInfo.isReadOnly()).thenReturn(true);
+
+        final TargetApiDTO targetDto = new TargetApiDTO();
+        targetDto.setType(probe.getType());
+        targetDto.setInputFields(Arrays.asList(inputField("key", "value2")));
+        final String targetString = GSON.toJson(targetDto);
+
+        final MvcResult result = mockMvc.perform(MockMvcRequestBuilders.put("/targets/" + targetId)
+                .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
+                .content(targetString)
+                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().is4xxClientError()).andReturn();
+        final ErrorApiDTO resp = GSON.fromJson(result.getResponse().getContentAsString(),
+                ErrorApiDTO.class);
+
+        Assert.assertThat(resp.getMessage(), CoreMatchers.containsString(TGT_NOT_EDITABLE));
     }
 
     /**
@@ -1060,6 +1091,7 @@ public class TargetsServiceTest {
         filledInputFields.forEach(inputField -> {
             assertEquals(accountValues.get(inputField.getName()), inputField);
         });
+        Assert.assertEquals(target.isReadOnly(), dto.isReadonly());
     }
 
     private void assertEquals(AccountValue accountValue, InputFieldApiDTO dto) {

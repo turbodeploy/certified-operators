@@ -56,4 +56,12 @@ public interface TargetInfo extends TargetData {
      * @return boolean that whether we hide the target
      */
     boolean isHidden();
+
+    /**
+     * Returns the boolean value to know if the target is read-only:
+     * determines whether the target cannot be changed through public APIs.
+     *
+     * @return true if a target is read-only, otherwise false.
+     */
+    boolean isReadOnly();
 }

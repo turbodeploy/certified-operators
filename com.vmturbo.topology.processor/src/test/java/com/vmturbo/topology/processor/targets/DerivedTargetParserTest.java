@@ -114,37 +114,49 @@ public class DerivedTargetParserTest {
                     .setMandatory(true))
             .build();
 
-    final DerivedTargetSpecificationDTO dto1 = DerivedTargetSpecificationDTO.newBuilder()
-            .setProbeType(probeType1).setHidden(true).setDependent(true)
-            .addAccountValue(AccountValue.newBuilder().setKey(userNameField)
-                    .setStringValue(name1).build())
-            .addAccountValue(AccountValue.newBuilder().setKey(addressField)
-                    .setStringValue(addr1).build())
-            .build();
+    final DerivedTargetSpecificationDTO dto1 =
+            createDerivedTargetSpecDTO(
+                    probeType1, true, true, true, userNameField, name1, addressField, addr1);
 
-    final DerivedTargetSpecificationDTO dto2 = DerivedTargetSpecificationDTO.newBuilder()
-            .setProbeType(probeType1).setHidden(false).setDependent(false)
-            .addAccountValue(AccountValue.newBuilder().setKey(userNameField)
-                    .setStringValue(name2).build())
-            .addAccountValue(AccountValue.newBuilder().setKey(addressField)
-                    .setStringValue(addr2).build())
-            .build();
+    final DerivedTargetSpecificationDTO dto2 =
+            createDerivedTargetSpecDTO(
+                    probeType1, false, false, false, userNameField, name2, addressField, addr2);
 
-    final DerivedTargetSpecificationDTO dto3 = DerivedTargetSpecificationDTO.newBuilder()
-            .setProbeType(probeType1).setHidden(false).setDependent(true)
-            .addAccountValue(AccountValue.newBuilder().setKey(userNameField)
-                    .setStringValue(name1).build())
-            .addAccountValue(AccountValue.newBuilder().setKey(addressField)
-                    .setStringValue(addr2).build())
-            .build();
+    final DerivedTargetSpecificationDTO dto3 =
+            createDerivedTargetSpecDTO(
+                    probeType1, false, true, true, userNameField, name1, addressField, addr2);
 
-    final DerivedTargetSpecificationDTO dto4 = DerivedTargetSpecificationDTO.newBuilder()
-            .setProbeType(probeType2).setHidden(false).setDependent(true)
-            .addAccountValue(AccountValue.newBuilder().setKey(userNameField)
-                    .setStringValue(name1).build())
-            .addAccountValue(AccountValue.newBuilder().setKey(nameField)
-                    .setStringValue(name2).build())
-            .build();
+    final DerivedTargetSpecificationDTO dto4 =
+            createDerivedTargetSpecDTO(
+                    probeType2, false, true, false, userNameField, name1, nameField, name2);
+
+    /**
+     * Create a {@link DerivedTargetSpecificationDTO} for test requirements with two associated
+     * account values.
+     *
+     * @param probeType The probe type to be specified.
+     * @param isHidden determine whether the derived target is hidden target or not.
+     * @param dependent whether the derived target is dependent target or not.
+     * @param readOnly whether the derived target is UI readOnly target or not.
+     * @param firstKey first AccountValue's key to be added.
+     * @param firstValue first AccountValue's value to be added.
+     * @param secondKey second AccountValue's key to be added.
+     * @param secondValue second AccountValue's value to be added.
+     */
+    private static final DerivedTargetSpecificationDTO createDerivedTargetSpecDTO(
+            String probeType, boolean isHidden,
+            boolean dependent, boolean readOnly,
+            String firstKey, String firstValue,
+            String secondKey, String secondValue) {
+        return DerivedTargetSpecificationDTO.newBuilder()
+                .setProbeType(probeType).setHidden(isHidden)
+                .setDependent(dependent).setReadonly(readOnly)
+                .addAccountValue(AccountValue.newBuilder().setKey(firstKey)
+                        .setStringValue(firstValue).build())
+                .addAccountValue(AccountValue.newBuilder().setKey(secondKey)
+                        .setStringValue(secondValue).build())
+                .build();
+    }
 
     /**
      * Test instantiate derived targets.
@@ -204,5 +216,20 @@ public class DerivedTargetParserTest {
 
         Assert.assertEquals(2, targetStore.getAll().size());
         Mockito.verify(operationManager, times(2)).startValidation(Mockito.anyLong());
+    }
+
+    /**
+     * Tests that readOnly attribute is populated correctly into {@link TargetSpec} from
+     * {@link DerivedTargetSpecificationDTO}.
+     */
+    @Test
+    public void testReadOnlyPopulation() {
+        derivedTargetParser.instantiateDerivedTargets(operationManager, parentTargetID1, Arrays.asList(dto1));
+
+        Assert.assertTrue(targetStore.getAll().get(0).getSpec().getReadOnly());
+
+        derivedTargetParser.instantiateDerivedTargets(operationManager, parentTargetID1, Arrays.asList(dto4));
+
+        Assert.assertFalse(targetStore.getAll().get(0).getSpec().getReadOnly());
     }
 }

@@ -61,4 +61,9 @@ public class TargetInfoProtobufWrapper implements TargetInfo {
     public boolean isHidden() {
         return targetInfo.getSpec().getIsHidden();
     }
+
+    @Override
+    public boolean isReadOnly() {
+        return targetInfo.getSpec().getReadOnly();
+    }
 }

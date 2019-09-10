@@ -656,7 +656,7 @@ public class TargetControllerTest {
                         .setKey(mandatoryAccountDef.getCustomDefinition().getName())
                         .setStringValue(id).build();
         final TopologyProcessorDTO.TargetSpec spec = TopologyProcessorDTO.TargetSpec.newBuilder().setProbeId(probeId)
-                        .addAccountValue(account).setIsHidden(false).build();
+                        .addAccountValue(account).setIsHidden(false).setReadOnly(false).build();
         return spec;
     }
 

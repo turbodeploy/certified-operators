@@ -172,6 +172,7 @@ public class DerivedTargetParser {
             });
             targetSpec.addAccountValue(accountValue);
         });
+        targetSpec.setReadOnly(derivedTargetDTO.getReadonly());
         targetSpec.setProbeId(probeId);
         targetSpec.setIsHidden(derivedTargetDTO.getHidden());
         if (derivedTargetDTO.hasDependent() && derivedTargetDTO.getDependent()) {

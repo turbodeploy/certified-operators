@@ -149,6 +149,10 @@ public class TargetRESTApi {
         public boolean isHidden() {
             return spec.getIsHidden();
         }
+        @Override
+        public boolean isReadOnly() {
+            return spec.getReadOnly();
+        }
     }
 
     /**
@@ -167,12 +171,14 @@ public class TargetRESTApi {
         private final Optional<Long> parentId;
         @ApiModelProperty(value = "Is the target hidden from users.")
         private final boolean isHidden;
-
+        @ApiModelProperty(value = "Whether the target cannot be changed through public APIs")
+        private final boolean readOnly;
 
         protected TargetSpec() {
             probeId = null;
             parentId = Optional.empty();
             isHidden = false;
+            readOnly = false;
         }
 
         public TargetSpec(@Nonnull final Long probeId,
@@ -181,6 +187,7 @@ public class TargetRESTApi {
             this.probeId = Objects.requireNonNull(probeId);
             this.parentId = Optional.empty();
             this.isHidden = false;
+            this.readOnly = false;
         }
 
         public TargetSpec(@Nonnull final TopologyProcessorDTO.TargetSpec targetSpec) {
@@ -191,6 +198,7 @@ public class TargetRESTApi {
             this.parentId = targetSpec.hasParentId() ? Optional.of(targetSpec.getParentId())
                     : Optional.empty();
             this.isHidden = targetSpec.getIsHidden();
+            this.readOnly = targetSpec.getReadOnly();
         }
 
         public Long getProbeId() {
@@ -203,6 +211,10 @@ public class TargetRESTApi {
 
         public boolean getIsHidden() {
             return isHidden;
+        }
+
+        public boolean getReadOnly() {
+            return readOnly;
         }
 
         /**
