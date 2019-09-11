@@ -85,6 +85,8 @@ http {
             return 301 https://$host$request_uri;
         }
 
+        location /healthz/ready { return 200 OK; }
+
         # include any additional server config files for the insecure port
         include /etc/nginx/userconf/insecure/*.conf;
     }
@@ -255,6 +257,8 @@ http {
 
             access_log  /var/log/nginx/access.log  upstream_ws;
         }
+
+        location /healthz/ready { return 200 OK; }
 
         # include any additional server config files for the secured block
         include /etc/nginx/userconf/secure/*.conf;
