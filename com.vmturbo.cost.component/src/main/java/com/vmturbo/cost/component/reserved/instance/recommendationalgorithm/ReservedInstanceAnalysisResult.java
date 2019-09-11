@@ -8,7 +8,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
+import java.util.Map;
+import java.util.HashMap;
 
 import javax.annotation.Nonnull;
 
@@ -191,9 +192,14 @@ public class ReservedInstanceAnalysisResult {
     public ActionPlan createActionPlan() {
 
         List<Action> actions = new ArrayList<>();
+        Map<Action, ReservedInstanceAnalysisRecommendation> actionToRecommendationMapping = new HashMap<>();
         for (ReservedInstanceAnalysisRecommendation recommendation : recommendations) {
-            actions.add(recommendation.createAction());
+            final Action action = recommendation.createAction();
+            actionToRecommendationMapping.put(action, recommendation);
+            actions.add(action);
         }
+
+        insertActionsIntoContextTable(actionToRecommendationMapping);
 
         return ActionPlan.newBuilder()
             .setId(IdentityGenerator.next())
@@ -212,6 +218,15 @@ public class ReservedInstanceAnalysisResult {
      */
     public void persistResults() {
         buyRiStore.udpateBuyReservedInstances(recommendations, manifest.getTopologyContextId());
-        actionContextRIBuyStore.insertIntoActionContextRIBuy(recommendations, manifest.getTopologyContextId());
+
+    }
+
+    /**
+     * Insert actions into action context ri buy table
+     * @param actionToRecommendationMapping
+     */
+    public void insertActionsIntoContextTable(Map<Action, ReservedInstanceAnalysisRecommendation> actionToRecommendationMapping) {
+        actionContextRIBuyStore.insertIntoActionContextRIBuy(actionToRecommendationMapping,
+                manifest.getTopologyContextId());
     }
 }

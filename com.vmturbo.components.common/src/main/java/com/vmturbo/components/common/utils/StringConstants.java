@@ -304,4 +304,7 @@ public class StringConstants {
     public static final String UNKNOWN = "Unknown";
 
     public static final String STAT_PREFIX_CURRENT = "current";
+    public static final String DATA = "data";
+    public static final String TEMPLATE_TYPE = "template_type";
+    public static final String NUMBER_OF_COUPONS = "numberOfCoupons";
 }

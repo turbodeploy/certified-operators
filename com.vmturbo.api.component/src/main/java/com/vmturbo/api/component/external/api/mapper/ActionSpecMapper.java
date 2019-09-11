@@ -7,6 +7,7 @@ import java.beans.PropertyDescriptor;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.MessageFormat;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Currency;
@@ -27,6 +28,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundCloudTypeException;
+import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
+import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import org.apache.commons.collections4.CollectionUtils;
@@ -159,6 +163,8 @@ public class ActionSpecMapper {
 
     private final ReservedInstanceMapper reservedInstanceMapper;
 
+    private final RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riStub;
+
     /**
      * The set of action states for operational actions (ie actions that have not
      * completed execution).
@@ -172,11 +178,13 @@ public class ActionSpecMapper {
     public ActionSpecMapper(@Nonnull ActionSpecMappingContextFactory actionSpecMappingContextFactory,
                             @Nonnull final ServiceEntityMapper serviceEntityMapper,
                             @Nonnull final ReservedInstanceMapper reservedInstanceMapper,
+                            @Nullable final RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riStub,
                             final long realtimeTopologyContextId) {
         this.actionSpecMappingContextFactory = Objects.requireNonNull(actionSpecMappingContextFactory);
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.reservedInstanceMapper = Objects.requireNonNull(reservedInstanceMapper);
+        this.riStub = riStub;
     }
 
     /**
@@ -1341,8 +1349,11 @@ public class ActionSpecMapper {
                 // set est. on-demand cost
                 detailsDto.setEstimatedOnDemandCost(buyRIExplanation.getEstimatedOnDemandCost());
                 // set demand data
-                // todo: get demand data from dbio and set in details DTO
-                List<StatSnapshotApiDTO> demandList = null;
+                Cost.riBuyDemandStats snapshots = riStub
+                        .getRIBuyContextData(Cost.GetRIBuyContextRequest.newBuilder()
+                                .setActionId(Long.toString(actionSpec.getRecommendation().getId())).build());
+                List<StatSnapshotApiDTO> demandList =
+                        createRiHistoricalContextStatSnapshotDTO(snapshots.getStatSnapshotsList());
                 detailsDto.setHistoricalDemandData(demandList);
                 return detailsDto;
             }
@@ -1353,6 +1364,37 @@ public class ActionSpecMapper {
             return null;
         }
         return null;
+    }
+
+    /**
+     * Create RI historical Context Stat Snapshot DTOs
+     * snapshots - template demand snapshots
+     * @return
+     */
+    @Nonnull
+    private List<StatSnapshotApiDTO> createRiHistoricalContextStatSnapshotDTO(final List<Stats.StatSnapshot> snapshots) {
+        final List<StatSnapshotApiDTO> statSnapshotApiDTOList = new ArrayList<>();
+        for (Stats.StatSnapshot snapshot : snapshots) {
+            // The records we obtain start one week back in time from snapshot.getTimestamp()
+            // So we subtract a week from that.
+            // Each of the subsequent record has an 1 hour incremental timestamp from its previous record.
+            final Long contextStartDate = snapshot.getSnapshotDate() - ((long)Units.WEEK_MS);
+            int index = 0;
+            // Create 168 snapshots in hourly intervals
+            for (Stats.StatSnapshot.StatRecord record : snapshot.getStatRecordsList()) {
+                final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+                List<StatApiDTO> statApiDTOList = new ArrayList<>();
+                StatApiDTO statApiDTO = new StatApiDTO();
+                statApiDTO.setValue((record.getValues().getAvg()));
+                statApiDTOList.add(statApiDTO);
+                statSnapshotApiDTO.setStatistics(statApiDTOList);
+                statSnapshotApiDTO.setDisplayName(record.getStatKey());
+                statSnapshotApiDTO.setDate(Long.toString(contextStartDate + (index * (long)Units.HOUR_MS)));
+                statSnapshotApiDTOList.add(statSnapshotApiDTO);
+                index++;
+            }
+        }
+        return statSnapshotApiDTOList;
     }
 
     /**

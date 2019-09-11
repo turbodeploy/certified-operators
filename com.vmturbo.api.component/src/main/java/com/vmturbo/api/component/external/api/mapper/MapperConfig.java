@@ -79,6 +79,7 @@ public class MapperConfig {
             actionSpecMappingContextFactory(),
             communicationConfig.serviceEntityMapper(),
             mapperConfig.reservedInstanceMapper(),
+            communicationConfig.riBuyContextFetchStub(),
             communicationConfig.getRealtimeTopologyContextId());
     }
 

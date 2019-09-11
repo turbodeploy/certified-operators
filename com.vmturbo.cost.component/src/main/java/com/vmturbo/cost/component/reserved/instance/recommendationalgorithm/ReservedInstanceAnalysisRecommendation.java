@@ -374,10 +374,13 @@ public class ReservedInstanceAnalysisRecommendation {
         int instanceTypeCoupons = computeTier.getNumCoupons();
         final float totalAverageDemand = averageCouponDemand * instanceTypeCoupons;
         float coveredAverageDemand = getRiUtilization() * count * instanceTypeCoupons;
+        float estimatedOnDemandCost = 0f;
+
         Explanation explanation = Explanation.newBuilder()
                 .setBuyRI(BuyRIExplanation.newBuilder()
                         .setCoveredAverageDemand(coveredAverageDemand)
                         .setTotalAverageDemand(totalAverageDemand)
+                        .setEstimatedOnDemandCost(estimatedOnDemandCost)
                         .build())
                 .build();
 

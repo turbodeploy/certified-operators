@@ -27,6 +27,7 @@ import java.util.concurrent.Executors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import org.hamcrest.collection.IsArrayContainingInAnyOrder;
 import org.junit.Assert;
 import org.junit.Before;
@@ -91,6 +92,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
@@ -180,6 +182,8 @@ public class ActionSpecMapperTest {
 
     @Before
     public void setup() throws Exception {
+        RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riBuyContextFetchServiceStub =
+                RIBuyContextFetchServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final List<PolicyResponse> policyResponses = ImmutableList.of(
             PolicyResponse.newBuilder().setPolicy(Policy.newBuilder()
                 .setId(POLICY_ID)
@@ -217,7 +221,7 @@ public class ActionSpecMapperTest {
             REAL_TIME_TOPOLOGY_CONTEXT_ID, null,
             null, serviceEntityMapper, supplyChainService);
         mapper = new ActionSpecMapper(actionSpecMappingContextFactory,
-            serviceEntityMapper, reservedInstanceMapper, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+            serviceEntityMapper, reservedInstanceMapper, riBuyContextFetchServiceStub, REAL_TIME_TOPOLOGY_CONTEXT_ID);
     }
 
     @Test

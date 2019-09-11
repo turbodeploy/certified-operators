@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import java.util.concurrent.Executors;
 
+import org.jooq.DSLContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -14,6 +15,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositorySe
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.cost.component.IdentityProviderConfig;
+import com.vmturbo.cost.component.rpc.RIBuyContextFetchRpcService;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker;
 import com.vmturbo.group.api.GroupClientConfig;
@@ -104,5 +106,19 @@ public class BuyRIAnalysisConfig {
         return new ReservedInstanceAnalysisInvoker(reservedInstanceAnalysisConfig.reservedInstanceAnalyzer(),
                 repositoryServiceClient(), settingServiceClient(),
                 reservedInstanceAnalysisConfig.reservedInstanceBoughtStore(), realtimeTopologyContextId);
+    }
+
+    public DSLContext getDsl() {
+        return databaseConfig.dsl();
+    }
+
+    @Bean
+    public ActionContextRIBuyStore actionContextRIBuyStore() {
+        return new ActionContextRIBuyStore(getDsl());
+    }
+
+    @Bean
+    public RIBuyContextFetchRpcService riBuyContextFetchRpcService() {
+        return new RIBuyContextFetchRpcService(actionContextRIBuyStore());
     }
 }

@@ -7,6 +7,7 @@ import "CloudCostDTO.proto";
 import "common/Pagination.proto";
 import "CommonDTO.proto";
 import "topology/TopologyDTO.proto";
+import "stats/Stats.proto";
 
 // Top down Cloud account expense discovered by the billing probe, associated with a specific account
 message AccountExpenses {
@@ -915,6 +916,10 @@ message RIPurchaseProfile {
 message StartBuyRIAnalysisResponse {
 }
 
+message GetRIBuyContextRequest {
+    optional string actionId = 1;
+}
+
 // A service for getting reserved instance bought
 service ReservedInstanceBoughtService {
     // Get reserved instance bought by some filter condition, such as filter by region, availability zones
@@ -1001,4 +1006,16 @@ service RIAndExpenseUploadService {
     rpc UploadRIData(UploadRIDataRequest) returns (UploadRIDataResponse);
 
     rpc GetRIDataChecksum(GetRIDataChecksumRequest) returns (ChecksumResponse);
+}
+
+message riBuyDemandStats {
+    // the actual snapshot_date for this response
+    optional uint64 snapshot_date = 1;
+
+    repeated stats.StatSnapshot statSnapshots = 2;
+}
+
+service RIBuyContextFetchService {
+    // Get buy RIs by some filter condition, such as filter by topology context id, region, business account.
+    rpc GetRIBuyContextData(GetRIBuyContextRequest) returns (riBuyDemandStats);
 }

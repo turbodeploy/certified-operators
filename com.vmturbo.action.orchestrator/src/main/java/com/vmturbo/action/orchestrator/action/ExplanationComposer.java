@@ -180,7 +180,7 @@ public class ExplanationComposer {
         sb.append("Increase RI Coverage");
         if (!keepItShort) {
             sb.append(" by ")
-                .append(Float.toString(coverageIncrease))
+                .append(Math.round(coverageIncrease))
                 .append("%.");
         }
         return sb.toString();

@@ -44,6 +44,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider.Builder;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
@@ -122,6 +123,8 @@ public class CompoundMoveTest {
         grpcServer = GrpcTestServer.newServer(policyMole);
         grpcServer.start();
         policyService = PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riBuyContextFetchServiceStub =
+                RIBuyContextFetchServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
         final List<GetMultiSupplyChainsResponse> supplyChainResponses = ImmutableList.of(
             makeGetMultiSupplyChainResponse(TARGET_ENTITY_ID, DATACENTER_ID),
@@ -146,7 +149,7 @@ public class CompoundMoveTest {
             null, serviceEntityMapper, supplyChainService);
 
         mapper = new ActionSpecMapper(actionSpecMappingContextFactory, serviceEntityMapper,
-            mock(ReservedInstanceMapper.class), REAL_TIME_TOPOLOGY_CONTEXT_ID);
+            mock(ReservedInstanceMapper.class), riBuyContextFetchServiceStub, REAL_TIME_TOPOLOGY_CONTEXT_ID);
         IdentityGenerator.initPrefix(0);
 
         final MultiEntityRequest multiReq = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(

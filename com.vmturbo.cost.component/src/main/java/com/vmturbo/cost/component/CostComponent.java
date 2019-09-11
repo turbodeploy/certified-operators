@@ -103,7 +103,8 @@ public class CostComponent extends BaseVmtComponent {
             reservedInstanceConfig.reservedInstanceUtilizationCoverageRpcService(),
             costServiceConfig.riAndExpenseUploadRpcService(),
             costServiceConfig.costDebugRpcService(),
-            buyRIAnalysisConfig.buyReservedInstanceRpcService());
+            buyRIAnalysisConfig.buyReservedInstanceRpcService(),
+            buyRIAnalysisConfig.riBuyContextFetchRpcService());
     }
 
     @Nonnull

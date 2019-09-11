@@ -194,7 +194,7 @@ public class ExplanationComposerTest {
                 .setExplanation(validExplanation)
                 .build();
 
-        assertEquals("Increase RI Coverage by 50.0%.",
+        assertEquals("Increase RI Coverage by 50%.",
                 ExplanationComposer.composeExplanation(action));
         assertEquals("Increase RI Coverage",
             ExplanationComposer.shortExplanation(action));
