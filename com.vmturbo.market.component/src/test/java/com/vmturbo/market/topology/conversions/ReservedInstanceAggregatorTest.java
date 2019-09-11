@@ -22,7 +22,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
-import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
@@ -52,6 +51,7 @@ public class ReservedInstanceAggregatorTest {
                 .setNumberOfCouponsUsed(70).build()).build()).build();
     private final ReservedInstanceSpec riSpec1 = ReservedInstanceSpec.newBuilder().setId(11)
         .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder().setOs(OS_1)
+            .setSizeFlexible(true)
             .setRegionId(REGION_1)
             .setTenancy(TENANCY_1)
             .setTierId(TIER_1).build()).build();
@@ -68,6 +68,7 @@ public class ReservedInstanceAggregatorTest {
                                 .setNumberOfCouponsUsed(70).build()).build()).build();
         ReservedInstanceSpec riSpec2 = ReservedInstanceSpec.newBuilder().setId(11)
                 .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder().setOs(OS_1)
+                        .setSizeFlexible(true)
                         .setRegionId(REGION_2)
                         .setTenancy(TENANCY_1)
                         .setTierId(TIER_1).build()).build();

@@ -169,6 +169,7 @@ public class ReservedInstanceConverterTest {
         final ReservedInstanceSpecInfo riInfo = ReservedInstanceSpecInfo.newBuilder()
                 .setPlatformFlexible(false)
                 .setOs(osType)
+                .setSizeFlexible(isf)
                 .setRegionId(REGION_ID)
                 .setTierId(TIER_ID)
                 .build();

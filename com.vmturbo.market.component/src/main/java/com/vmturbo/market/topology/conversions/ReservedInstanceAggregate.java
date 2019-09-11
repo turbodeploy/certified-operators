@@ -20,7 +20,6 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
-import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -261,10 +260,7 @@ public class ReservedInstanceAggregate {
             this.family = topology.get(riSpec.getTierId()).getTypeSpecificInfo().getComputeTier().getFamily();
             this.zoneId = riBoughtInfo.getAvailabilityZoneId();
             this.accountId = riBoughtInfo.getBusinessAccountId();
-            //TODO(OM-49965): Copy instanceSizeFlexible value from riSpec set by mediation
-            this.instanceSizeFlexible = TopologyConversionConstants
-                    .INSTANCE_SIZE_FLEXIBLE_OPERATING_SYSTEMS.contains(os)
-                    && tenancy == Tenancy.DEFAULT;
+            this.instanceSizeFlexible = riSpec.getSizeFlexible();
             if (!instanceSizeFlexible) {
                 this.riBoughtId = riData.getReservedInstanceBought().getId();
             } else {

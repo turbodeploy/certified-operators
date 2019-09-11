@@ -40,10 +40,6 @@ public class TopologyConversionConstants {
 
     public static final String BICLIQUE = "BICLIQUE";
 
-    // TODO: This information should not be stored here. It should come from outside market
-    public static final Set<OSType> INSTANCE_SIZE_FLEXIBLE_OPERATING_SYSTEMS = ImmutableSet.of(
-            OSType.LINUX, OSType.RHEL, OSType.SUSE);
-
     // a map for the type of the dependent commodity bought by an entity on the cloud to the type of
     // the resizable commodity sold
     public static ImmutableMap<Integer, Integer> commDependancyMapForCloudResize = ImmutableMap.<Integer, Integer>builder()
