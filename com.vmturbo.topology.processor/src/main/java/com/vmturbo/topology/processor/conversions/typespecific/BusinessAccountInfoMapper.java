@@ -21,11 +21,15 @@ public class BusinessAccountInfoMapper extends TypeSpecificInfoMapper {
         if (!sdkEntity.hasBusinessAccountData()) {
             return TypeSpecificInfo.getDefaultInstance();
         }
-        final BusinessAccountData ctData = sdkEntity.getBusinessAccountData();
+        final BusinessAccountData baData = sdkEntity.getBusinessAccountData();
+        BusinessAccountInfo.Builder baInfoBuilder = BusinessAccountInfo.newBuilder()
+            .setHasAssociatedTarget(baData.getDataDiscovered());
+        if (baData.hasAccountId()) {
+            baInfoBuilder.setAccountId(baData.getAccountId());
+        }
+        baInfoBuilder.addAllPricingIdentifiers(baData.getPricingIdentifiersList());
         return TypeSpecificInfo.newBuilder()
-            .setBusinessAccount(BusinessAccountInfo.newBuilder()
-                .setHasAssociatedTarget(ctData.getDataDiscovered())
-                .build())
+            .setBusinessAccount(baInfoBuilder.build())
             .build();
     }
 }
