@@ -5,16 +5,15 @@ import static org.hamcrest.Matchers.contains;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import org.junit.Test;
 
 import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreConstraint;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyRemoval;
@@ -184,4 +183,79 @@ public class PlanDTOUtilTest {
                 .build();
         assertTrue(PlanDTOUtil.getInvolvedGroups(groupReplace).isEmpty());
     }
+
+    /**
+     * Test that unique uuids returned from {@link ScenarioChange.PlanChanges.IgnoreConstraint}
+     */
+    @Test
+    public void testgetInvolvedGroupsUUidsFromIgnoreConstraintsWithNonUniqueTargetsUuids() {
+
+        //GIVEN
+        Long groupUUid1 = 1234L;
+        Long groupUUid2 = 4567L;
+
+        PlanChanges.ConstraintGroup cGroup1 = PlanChanges.ConstraintGroup.newBuilder().setGroupUuid(groupUUid1).build();
+        PlanChanges.ConstraintGroup cGroup2 = PlanChanges.ConstraintGroup.newBuilder().setGroupUuid(groupUUid1).build();
+        PlanChanges.ConstraintGroup cGroup3 = PlanChanges.ConstraintGroup.newBuilder().setGroupUuid(groupUUid2).build();
+
+        IgnoreConstraint ignoreConstraint1 = IgnoreConstraint.newBuilder().setIgnoreGroup(cGroup1).build();
+        IgnoreConstraint ignoreConstraint2 = IgnoreConstraint.newBuilder().setIgnoreGroup(cGroup2).build();
+        IgnoreConstraint ignoreConstraint3 = IgnoreConstraint.newBuilder().setIgnoreGroup(cGroup3).build();
+
+        PlanChanges planChanges = PlanChanges.newBuilder().addIgnoreConstraints(ignoreConstraint1)
+                .addIgnoreConstraints(ignoreConstraint2).addIgnoreConstraints(ignoreConstraint3)
+                .build();
+
+        //WHEN
+        Set<Long> ids = PlanDTOUtil.getInvolvedGroupsUUidsFromIgnoreConstraints(planChanges);
+
+        //THEN
+        assertTrue(ids.size() == 2);
+        assertTrue(ids.contains(groupUUid1));
+        assertTrue(ids.contains(groupUUid2));
+    }
+
+    /**
+     * Test empty {@link ScenarioChange.PlanChanges.IgnoreConstraint}
+     * returns empty Set
+     */
+    @Test
+    public void testgetInvolvedGroupsUUidsFromEmptyIgnoreConstraints() {
+        //GIVEN
+        PlanChanges planChanges = PlanChanges.newBuilder().build();
+
+        //WHEN
+
+        Set<Long> ids = PlanDTOUtil.getInvolvedGroupsUUidsFromIgnoreConstraints(planChanges);
+
+        //THEN
+        assertTrue(ids.isEmpty());
+    }
+
+    /**
+     * Tests getInvolvedGroups() calls getInvolvedGroupsUuid()
+     * when {@link ScenarioChange.PlanChanges} is present.
+     */
+    @Test
+    public void testgetInvolvedGroupsCallsGetInvolvedGroupsUuidWhenPlanChangesPresent() {
+        //GIVEN
+        Long uuid = 1234L;
+
+        PlanChanges.ConstraintGroup cGroup1 = PlanChanges.ConstraintGroup.newBuilder().setGroupUuid(uuid).build();
+        IgnoreConstraint ignoreConstraint1 = IgnoreConstraint.newBuilder().setIgnoreGroup(cGroup1).build();
+
+        PlanChanges planChanges = PlanChanges.newBuilder().addIgnoreConstraints(ignoreConstraint1).build();
+
+        final ScenarioChange scenarioChange = ScenarioChange.newBuilder()
+                .setPlanChanges(planChanges)
+                .build();
+
+        //WHEN
+        Set<Long> uuids = PlanDTOUtil.getInvolvedGroups(scenarioChange);
+
+        //THEN
+        assertTrue(uuids.contains(uuid));
+    }
+
+
 }

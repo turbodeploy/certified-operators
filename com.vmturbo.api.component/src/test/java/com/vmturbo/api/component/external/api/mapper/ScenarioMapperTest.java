@@ -15,7 +15,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -283,10 +282,6 @@ public class ScenarioMapperTest {
                     .setStringSettingValue(StringSettingValue.newBuilder().setValue("value"))
                     .build()));
 
-        // No plan setting mappings
-        when(settingsManagerMapping.convertFromPlanSetting(any()))
-            .thenAnswer(invocation -> invocation.getArguments()[0]);
-
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.singletonList(setting), null);
         assertThat(scenarioInfo.getChangesCount(), is(2));
         final List<ScenarioChange> change = excludeDefaultStorageSuspensionSetting(scenarioInfo.getChangesList());
@@ -302,17 +297,11 @@ public class ScenarioMapperTest {
     public void testSettingOverridePlanSettingMapping() {
         final SettingApiDTO<String> setting = createStringSetting("foo", "value");
 
-        final SettingApiDTO<String> convertedSetting = createStringSetting("foo", "1.2f");
-
-        when(settingsMapper.toProtoSettings(Collections.singletonList(convertedSetting)))
+        when(settingsMapper.toProtoSettings(Collections.singletonList(setting)))
                 .thenReturn(ImmutableMap.of("foo", Setting.newBuilder()
                         .setSettingSpecName("foo")
                         .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(1.2f))
                         .build()));
-
-        // Convert the input setting into a numeric setting
-        when(settingsManagerMapping.convertFromPlanSetting(Collections.singletonList(setting)))
-                .thenReturn(Collections.singletonList(convertedSetting));
 
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.singletonList(setting), null);
         assertThat(scenarioInfo.getChangesCount(), is(2));
@@ -350,41 +339,10 @@ public class ScenarioMapperTest {
         when(possibilities.getAll()).thenReturn(Collections.singletonList(apiDto));
         when(settingsMapper.toSettingApiDto(any())).thenReturn(possibilities);
         // Pass-through plan settings conversion
-        when(settingsManagerMapping.convertToPlanSetting(any()))
-            .thenAnswer(invocation -> invocation.getArguments()[0]);
 
         final ScenarioApiDTO scenarioApiDTO = scenarioMapper.toScenarioApiDTO(scenario);
         final SettingApiDTO<String> apiFoo = scenarioApiDTO.getConfigChanges().getAutomationSettingList().get(0);
         assertEquals(apiFoo, apiDto);
-
-        verify(settingsManagerMapping).convertToPlanSetting(any());
-    }
-
-    @Test
-    public void testSettingOverrideToApiDtoWithPlanSetting() {
-        final Scenario scenario = buildScenario(buildNumericSettingOverride("foo",1.2f));
-
-        final SettingApiDTO<String> convertedSetting = new SettingApiDTO<>();
-
-        final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
-        when(possibilities.getAll()).thenReturn(Collections.singletonList(new SettingApiDTO<>()));
-        when(settingsMapper.toSettingApiDto(any())).thenReturn(possibilities);
-
-        // Plan settings conversion substitutes the setting.
-        when(settingsManagerMapping.convertToPlanSetting(any()))
-                .thenAnswer(invocation -> Collections.singletonList(convertedSetting));
-
-        final ScenarioApiDTO scenarioApiDTO = scenarioMapper.toScenarioApiDTO(scenario);
-        final SettingApiDTO<String> apiFoo = scenarioApiDTO.getConfigChanges().getAutomationSettingList().get(0);
-        assertThat(apiFoo, is(convertedSetting));
-
-        verify(settingsManagerMapping).convertToPlanSetting(any());
-    }
-
-    private void assertSettingApiDTOHasSetting(@Nonnull SettingApiDTO<String> setting,
-                                               @Nonnull String value, @Nonnull String settingName) {
-        Assert.assertEquals(value, setting.getValue());
-        Assert.assertEquals(settingName, setting.getUuid());
     }
 
     /**
@@ -524,6 +482,31 @@ public class ScenarioMapperTest {
 
         // THEN
         Assert.assertNotNull(scenarioChange);
+    }
+
+    /**
+     * Tests {@link PlanChanges.IgnoreConstraint} mapped to expected {@link RemoveConstraintApiDTO}
+     */
+    @Test
+    public void testToRemoveConstraintApiDTO() {
+        //GIVEN
+        long groupId = 1234;
+        ScenarioChangeMappingContext contextMock = mock(ScenarioChangeMappingContext.class);
+        BaseApiDTO baseApiDto = new BaseApiDTO();
+        when(contextMock.dtoForId(groupId)).thenReturn(baseApiDto);
+
+        IgnoreConstraint ignoreConstraint = IgnoreConstraint.newBuilder().setIgnoreGroup(
+                PlanChanges.ConstraintGroup.newBuilder()
+                        .setCommodityType("ClusterCommodity")
+                        .setGroupUuid(groupId).build())
+                .build();
+
+        //WHEN
+        RemoveConstraintApiDTO removeConstraintApiDTO= scenarioMapper.toRemoveConstraintApiDTO(ignoreConstraint, contextMock);
+
+        //THEN
+        assertThat(removeConstraintApiDTO.getConstraintType(), is(ConstraintType.ClusterCommodity));
+        assertThat(removeConstraintApiDTO.getTarget(), is(baseApiDto));
     }
 
     @Test

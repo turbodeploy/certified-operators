@@ -43,21 +43,17 @@
       // and the design is not finalized. So we put them in
       // a different place :)
       "planSettingInfo": {
-        "uiToXlValueConversion" : {
-          "true" : "AUTOMATIC",
-          "false" : "DISABLED"
-        },
         "supportedSettingDefaults" : {
           "VirtualMachine" : {
-            "resize": "true"
+            "resize": "AUTOMATIC"
           },
           "PhysicalMachine" : {
-            "provision" : "true",
-            "suspend": "true"
+            "provision" : "AUTOMATIC",
+            "suspend": "AUTOMATIC"
           },
           "Storage" : {
-            "provision" : "true",
-            "suspend" : "false"
+            "provision" : "AUTOMATIC",
+            "suspend" : "DISABLED"
           }
         }
       }

@@ -1,15 +1,18 @@
 package com.vmturbo.common.protobuf;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
+import org.springframework.util.CollectionUtils;
 
 /**
  * Utilities for extracting information from plan-related protobufs
@@ -81,9 +84,30 @@ public class PlanDTOUtil {
             if (planChanges.getMaxUtilizationLevel().hasGroupOid()) {
                 groupBuilder.add(planChanges.getMaxUtilizationLevel().getGroupOid());
             }
+
+            groupBuilder.addAll(getInvolvedGroupsUUidsFromIgnoreConstraints(planChanges));
         }
 
         return groupBuilder.build();
+    }
+
+    /**
+     * Return the OIDs of groups involved in {@link PlanChanges.IgnoreConstraint} list
+     * as target group ids.
+     *
+     * @param planChanges
+     * @return
+     */
+    @VisibleForTesting
+    static Set<Long> getInvolvedGroupsUUidsFromIgnoreConstraints(PlanChanges planChanges) {
+        if (CollectionUtils.isEmpty(planChanges.getIgnoreConstraintsList())) {
+            return Collections.emptySet();
+        }
+        return planChanges.getIgnoreConstraintsList().stream()
+            .filter(PlanChanges.IgnoreConstraint::hasIgnoreGroup)
+            .map(PlanChanges.IgnoreConstraint::getIgnoreGroup)
+            .map(PlanChanges.ConstraintGroup::getGroupUuid)
+            .collect(Collectors.toSet());
     }
 
     /**

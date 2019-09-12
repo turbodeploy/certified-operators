@@ -7,13 +7,9 @@
         "move"
       ],
       "planSettingsInfo": {
-        "uiToXlValueConversion" : {
-          "true" : "AUTOMATIC",
-          "false" : "DISABLED"
-        },
         "supportedSettingDefaults" : {
           "VirtualMachine" : {
-            "move": "true"
+            "resize": "AUTOMATIC"
           }
         }
       }

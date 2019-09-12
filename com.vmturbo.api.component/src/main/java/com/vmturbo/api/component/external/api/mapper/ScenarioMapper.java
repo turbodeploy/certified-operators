@@ -24,6 +24,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -522,7 +523,7 @@ public class ScenarioMapper {
         } else {
             // Show configuration settings in UI when it is not Alleviate pressure plan.
             dto.setConfigChanges(buildApiConfigChanges(scenario.getScenarioInfo()
-                            .getChangesList()));
+                            .getChangesList(), context));
         }
 
         dto.setLoadChanges(buildLoadChangesApiDTO(changes, context));
@@ -630,13 +631,9 @@ public class ScenarioMapper {
             return Collections.emptyList();
         }
 
-        // First we convert them back to "real" settings.
-        final List<SettingApiDTO<String>> convertedSettingOverrides =
-                settingsManagerMapping.convertFromPlanSetting(settingsList);
-        final Map<String, Setting> settingProtoOverrides =
-                settingsMapper.toProtoSettings(convertedSettingOverrides);
+        final Map<String, Setting> settingProtoOverrides = settingsMapper.toProtoSettings(settingsList);
         final ImmutableList.Builder<ScenarioChange> retChanges = ImmutableList.builder();
-        convertedSettingOverrides.forEach(apiDto -> {
+        settingsList.forEach(apiDto -> {
             Setting protoSetting = settingProtoOverrides.get(apiDto.getUuid());
             if (protoSetting == null) {
                 String dtoDescription;
@@ -1046,7 +1043,7 @@ public class ScenarioMapper {
     }
 
     @Nonnull
-    private ConfigChangesApiDTO buildApiConfigChanges(@Nonnull final List<ScenarioChange> changes) {
+    private ConfigChangesApiDTO buildApiConfigChanges(@Nonnull final List<ScenarioChange> changes, ScenarioChangeMappingContext mappingContext) {
         final List<SettingApiDTO<String>> settingChanges = changes.stream()
                 .filter(ScenarioChange::hasSettingOverride)
                 .map(ScenarioChange::getSettingOverride)
@@ -1063,13 +1060,12 @@ public class ScenarioMapper {
                         .flatMap(ri -> createRiSettingApiDTO(ri).stream())
                         .collect(Collectors.toList());
 
-        final List<RemoveConstraintApiDTO> removeConstraintApiDTOS = getRemoveConstraintsDtos(allPlanChanges);
+        final List<RemoveConstraintApiDTO> removeConstraintApiDTOS = getRemoveConstraintsDtos(allPlanChanges, mappingContext );
 
         final ConfigChangesApiDTO outputChanges = new ConfigChangesApiDTO();
 
         outputChanges.setRemoveConstraintList(removeConstraintApiDTOS);
-        outputChanges.setAutomationSettingList(settingsManagerMapping
-                .convertToPlanSetting(settingChanges));
+        outputChanges.setAutomationSettingList(settingChanges);
         outputChanges.setAddPolicyList(Lists.newArrayList());
         outputChanges.setRemovePolicyList(Lists.newArrayList());
         outputChanges.setRiSettingList(riSetting);
@@ -1087,15 +1083,16 @@ public class ScenarioMapper {
      * @param allPlanChanges
      * @return remove constraint changes
      */
-    private List<RemoveConstraintApiDTO> getRemoveConstraintsDtos(final List<PlanChanges> allPlanChanges) {
+    private List<RemoveConstraintApiDTO> getRemoveConstraintsDtos(final List<PlanChanges> allPlanChanges, ScenarioChangeMappingContext mappingContext) {
         return allPlanChanges.stream().filter(planChanges ->
                 !CollectionUtils.isEmpty(planChanges.getIgnoreConstraintsList()))
                 .map(PlanChanges::getIgnoreConstraintsList).flatMap(List::stream)
-                .map(this::toRemoveConstraintApiDTO).collect(Collectors.toList());
+                .map(constraint -> this.toRemoveConstraintApiDTO(constraint, mappingContext)).collect(Collectors.toList());
     }
 
+    @VisibleForTesting
     @Nonnull
-    private RemoveConstraintApiDTO toRemoveConstraintApiDTO(@Nonnull IgnoreConstraint constraint) {
+    RemoveConstraintApiDTO toRemoveConstraintApiDTO(@Nonnull IgnoreConstraint constraint, ScenarioChangeMappingContext mappingContext) {
         final RemoveConstraintApiDTO constraintApiDTO = new RemoveConstraintApiDTO();
         // Currently as IgnoreConstraint for all entities is passed as a API parameter(OM-18012),
         // the UI has no way to displayIgnoreConstraint setting for all entities. So we are only
@@ -1104,9 +1101,7 @@ public class ScenarioMapper {
             ConstraintGroup constraintGroup = constraint.getIgnoreGroup();
             constraintApiDTO.setConstraintType(
                     ConstraintType.valueOf(constraintGroup.getCommodityType()));
-            final BaseApiDTO targetGroup = new BaseApiDTO();
-            targetGroup.setUuid(Long.toString(constraintGroup.getGroupUuid()));
-            constraintApiDTO.setTarget(targetGroup);
+            constraintApiDTO.setTarget(mappingContext.dtoForId(constraintGroup.getGroupUuid()));
         }
         return constraintApiDTO;
     }

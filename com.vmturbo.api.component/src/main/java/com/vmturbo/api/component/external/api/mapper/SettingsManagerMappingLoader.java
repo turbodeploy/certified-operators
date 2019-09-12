@@ -15,14 +15,11 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Table;
@@ -30,8 +27,6 @@ import com.google.gson.Gson;
 
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
-import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.GsonPostProcessable;
@@ -180,7 +175,7 @@ public class SettingsManagerMappingLoader {
         }
 
         /**
-         * Convert "regular" setting specs into settings applicable in the plan UI.
+         * Returns settings specs applicable in the plan UI.
          * See {@link PlanSettingInfo}.
          *
          * @param settingMgrs A collection of setting specs for realtime.
@@ -195,57 +190,12 @@ public class SettingsManagerMappingLoader {
                     final SettingsManagerApiDTO newMgr = mgrInfo.newApiDTO(settingMgr.getUuid());
                     mgrInfo.getPlanSettingInfo().ifPresent(planSettingInfo -> {
                         newMgr.setSettings(settingMgr.getSettings().stream()
-                                // When converting setting specs, we only want to display
-                                // settings that have plan-specific conversions.
-                                .map(planSettingInfo::toPlanSetting)
-                                .filter(Optional::isPresent).map(Optional::get)
+                                .filter(planSettingInfo::isPlanRelevant)
                                 .collect(Collectors.toList()));
                         retBuilder.add(newMgr);
                     });
                 })
             );
-            return retBuilder.build();
-        }
-
-        /**
-         * Convert "regular" setting values into settings applicable in the plan UI.
-         * See {@link PlanSettingInfo}.
-         *
-         * @param realtimeSettings A collection of setting values in realtime terms.
-         * @return The settings from regularSettings that can be displayed in the plan UI,
-         *         with the plan-specific values.
-         */
-        @Nonnull
-        public List<SettingApiDTO<String>> convertToPlanSetting(
-                @Nonnull final List<SettingApiDTO<String>> realtimeSettings) {
-            final ImmutableList.Builder<SettingApiDTO<String>> retBuilder = ImmutableList.builder();
-            realtimeSettings.forEach(realtimeSetting ->
-                getManagerForSetting(realtimeSetting.getUuid()).ifPresent(mgrInfo ->
-                    retBuilder.add(mgrInfo.getPlanSettingInfo()
-                        .flatMap(planSettingInfo -> planSettingInfo.toPlanSetting(realtimeSetting))
-                        .orElse(realtimeSetting))));
-            return retBuilder.build();
-        }
-
-        /**
-         * Convert settings values set in the plan UI, generated from the specs returned by
-         * {@link SettingsManagerMapping#convertToPlanSettingSpecs(List)}, into settings parseable
-         * in the rest of the system.
-         *
-         * See {@link PlanSettingInfo}.
-         *
-         * @param planSettings A collection of setting values from the plan UI.
-         * @return The settings from planSettings that can be used in the rest of the system.
-         */
-        @Nonnull
-        public List<SettingApiDTO<String>> convertFromPlanSetting(
-                @Nonnull final List<SettingApiDTO<String>> planSettings) {
-            final ImmutableList.Builder<SettingApiDTO<String>> retBuilder = ImmutableList.builder();
-            planSettings.forEach(planSetting ->
-                getManagerForSetting(planSetting.getUuid()).ifPresent(mgrInfo ->
-                    retBuilder.add(mgrInfo.getPlanSettingInfo()
-                        .flatMap(planSettingInfo -> planSettingInfo.fromPlanSetting(planSetting))
-                        .orElse(planSetting))));
             return retBuilder.build();
         }
     }
@@ -264,10 +214,6 @@ public class SettingsManagerMappingLoader {
      * and "plan" {@link SettingApiDTO}s.
      */
     public static class PlanSettingInfo {
-        /**
-         * UI-specific value <-> real setting value
-         */
-        private final BiMap<String, String> uiToXlValueConversion;
 
         /**
          * Entity type (num) -> setting name -> default value
@@ -278,97 +224,21 @@ public class SettingsManagerMappingLoader {
          * Default constructor intentionally private. GSON constructs via reflection.
          */
         private PlanSettingInfo() {
-            this.uiToXlValueConversion = HashBiMap.create();
             this.supportedSettingDefaults = HashBasedTable.create();
         }
 
         /**
-         * Convert a {@link SettingApiDTO} representing a "real" setting in the system
-         * to the {@link SettingApiDTO} representing the system for plans.
+         * Checks if setting is allowed in Plan UI.
+         * Not all settings are supported and allowed to be configurable in Plans
+         * and we filter out all not supported
          *
-         * @param realSetting The real setting, converted from a {@link SettingSpec}.
-         * @return The {@link SettingApiDTO} to use for the plan UI. An empty optional if this
-         *         setting has no mapping.
+         * @param setting settingApiDto which is checked against those allowed in plan
+         * @param <T> Value of realSetting
+         * @return true if realSetting part of allow plan actions
          */
-        @Nonnull
-        public <T extends Serializable> Optional<SettingApiDTO<String>> toPlanSetting(@Nonnull final SettingApiDTO<T> realSetting) {
-            final String defaultValue = supportedSettingDefaults.get(realSetting.getEntityType(),
-                    realSetting.getUuid());
-            if (defaultValue == null) {
-                return Optional.empty();
-            }
-
-            final SettingApiDTO<String> newDto = copySettingInfo(realSetting);
-            newDto.setDefaultValue(defaultValue);
-
-            // Fill in the value if it's present.
-            if (realSetting.getValue() != null) {
-                // ui passes fully-uppercased setting to plan api, such as "AUTOMATIC", it was
-                // converted to camel case (Automatic) in SettingsMapper (due to the conversion
-                // upperUnderScoreToMixedSpaces which is needed to show camel case in UI), however
-                // uiToXlValueConversion is still using "AUTOMATIC", so we need to do a reverse
-                // conversion "mixedSpacesToUpperUnderScore" here to get correct value
-                final String convertedValue = uiToXlValueConversion.inverse().get(
-                    ActionDTOUtil.mixedSpacesToUpperUnderScore(SettingsMapper.inputValueToString(realSetting).orElse("")));
-                if (convertedValue == null) {
-                    throw new IllegalArgumentException("Illegal value " + realSetting.getValue() +
-                            " for setting " + realSetting.getUuid() + "meant to be converted to a" +
-                            "plan setting! Legal values are: " +
-                            StringUtils.join(uiToXlValueConversion.values(), ","));
-                }
-                newDto.setValue(convertedValue);
-            }
-
-            return Optional.of(newDto);
-        }
-
-        /**
-         * Convert a {@link SettingApiDTO} representing a value set in a plan setting (generated via
-         * {@link PlanSettingInfo#toPlanSetting(SettingApiDTO)}) to a "real" {@link SettingApiDTO}
-         * that can be converted to a {@link Setting}.
-         *
-         * @param planSetting The plan setting, according to the model generated via
-         *                    {@link PlanSettingInfo#toPlanSetting(SettingApiDTO)}.
-         * @return A {@link SettingApiDTO} to use to convert to a {@link Setting}.
-         *         This may be the input planSetting if the input was not created from a model
-         *         generated by {@link PlanSettingInfo}.
-         * @throws IllegalArgumentException If the plan setting is illegal - most notably
-         *         if has a value that's not convertible.
-         */
-        @Nonnull
-        public Optional<SettingApiDTO<String>> fromPlanSetting(@Nonnull final SettingApiDTO<String> planSetting)
-                throws IllegalArgumentException {
-            if (!supportedSettingDefaults.contains(planSetting.getEntityType(),
-                    planSetting.getUuid())) {
-                return Optional.empty();
-            }
-
-            final String convertedValue = uiToXlValueConversion.get(planSetting.getValue());
-            if (convertedValue == null) {
-                throw new IllegalArgumentException("Illegal value " + planSetting.getValue() +
-                        " for plan setting " + planSetting.getUuid() + "! Legal values are: " +
-                        StringUtils.join(uiToXlValueConversion.keySet(), ","));
-            }
-
-            final SettingApiDTO<String> newDto = copySettingInfo(planSetting);
-            newDto.setValue(convertedValue);
-            return Optional.of(newDto);
-        }
-
-        /**
-         * Creates a new {@link SettingApiDTO} that has the same information as an input
-         * {@link SettingApiDTO} for all fields not affected by plan setting conversion.
-         *
-         * @param input The {@link SettingApiDTO} to copy.
-         * @return A new {@link SettingApiDTO}.
-         */
-        @Nonnull
-        private SettingApiDTO<String> copySettingInfo(@Nonnull final SettingApiDTO input) {
-            final SettingApiDTO<String> newDto = new SettingApiDTO<>();
-            newDto.setUuid(input.getUuid());
-            newDto.setEntityType(input.getEntityType());
-            newDto.setDisplayName(input.getDisplayName());
-            return newDto;
+        public <T extends Serializable> boolean isPlanRelevant(@Nonnull final SettingApiDTO<T> setting) {
+            return supportedSettingDefaults.get(setting.getEntityType(),
+                    setting.getUuid()) != null;
         }
     }
 
