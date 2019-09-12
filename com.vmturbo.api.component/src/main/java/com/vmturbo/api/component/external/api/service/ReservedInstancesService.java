@@ -16,9 +16,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
@@ -270,39 +267,37 @@ public class ReservedInstancesService implements IReservedInstancesService {
                 || inputDto.getPeriod().getStatistics().isEmpty()) {
             throw new InvalidOperationException("Input query does not specify statistics");
         }
-        if (inputDto.getPeriod().getStatistics().size() > 1) {
-            throw new InvalidOperationException("Input query specifies too many statistics");
-        }
 
-        // there should be a valid statistic requested
-        final StatApiInputDTO statApiInputDTO = inputDto.getPeriod().getStatistics().get(0);
-        if (statApiInputDTO.getName() == null) {
-            throw new InvalidOperationException("Missing requested statistic name");
-        }
+        for (StatApiInputDTO statApiInputDTO : inputDto.getPeriod().getStatistics()) {
+            // there should be a valid statistic requested
+            if (statApiInputDTO.getName() == null) {
+                throw new InvalidOperationException("Missing requested statistic name");
+            }
 
-        // go through all statistics that can be requested and validate each case
-        switch (statApiInputDTO.getName()) {
-            case StringConstants.NUM_RI:
-                // this statistic should be grouped by template
-                if (statApiInputDTO.getGroupBy() == null || statApiInputDTO.getGroupBy().isEmpty()) {
-                    // add default grouping by template
-                    statApiInputDTO.setGroupBy(Collections.singletonList(StringConstants.TEMPLATE));
-                } else if (statApiInputDTO.getGroupBy().size() > 1
-                              || !statApiInputDTO.getGroupBy().get(0).equals(StringConstants.TEMPLATE)) {
-                    throw new InvalidOperationException("This query should be grouped by template");
-                }
-                return;
+            // go through all statistics that can be requested and validate each case
+            switch (statApiInputDTO.getName()) {
+                case StringConstants.NUM_RI:
+                    // this statistic should be grouped by template
+                    if (statApiInputDTO.getGroupBy() == null || statApiInputDTO.getGroupBy().isEmpty()) {
+                        // add default grouping by template
+                        statApiInputDTO.setGroupBy(Collections.singletonList(StringConstants.TEMPLATE));
+                    } else if (statApiInputDTO.getGroupBy().size() > 1
+                        || !statApiInputDTO.getGroupBy().get(0).equals(StringConstants.TEMPLATE)) {
+                        throw new InvalidOperationException("This query should be grouped by template");
+                    }
+                    break;
 
-            // these statistics are valid
-            case StringConstants.RI_COUPON_UTILIZATION:
-            case StringConstants.RI_COUPON_COVERAGE:
-            case StringConstants.RI_COST:
-                return;
+                // these statistics are valid
+                case StringConstants.RI_COUPON_UTILIZATION:
+                case StringConstants.RI_COUPON_COVERAGE:
+                case StringConstants.RI_COST:
+                    break;
 
-            default:
-                // this statistic is invalid / unknown
-                throw new InvalidOperationException(
-                    "Invalid statistic " + statApiInputDTO.getName() + " requested");
+                default:
+                    // this statistic is invalid / unknown
+                    throw new InvalidOperationException(
+                        "Invalid statistic " + statApiInputDTO.getName() + " requested");
+            }
         }
     }
 
