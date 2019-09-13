@@ -276,16 +276,10 @@ public class GroupsService implements IGroupsService {
         // their associated templates. The UI uses the uuid "GROUP-PhysicalMachineByCluster" with
         // request.  This UUID is defined in the context of version 6.1 implementation.
         // In order to reuse UI as is, we decided to handle this use case as a special case.
-        // If the uuid equals "GROUP-PhysicalMachineByCluster", return a group with the same UUID.
+        // If the uuid equals "GROUP-PhysicalMachineByCluster", return null so that UI won't show it.
         // The logic to get a list of clusters in in method getMembersByGroupUuid.
         if (uuid.equals(CLUSTER_HEADROOM_GROUP_UUID)) {
-            final GroupApiDTO outputDTO = new GroupApiDTO();
-            outputDTO.setClassName("Group");
-            outputDTO.setDisplayName("Physical Machines by PM Cluster");
-            outputDTO.setGroupType(UIEntityType.PHYSICAL_MACHINE.apiStr());
-            outputDTO.setUuid(CLUSTER_HEADROOM_GROUP_UUID);
-            outputDTO.setEnvironmentType(EnvironmentType.ONPREM);
-            return outputDTO;
+            return null;
         }
 
         final Optional<GroupAndMembers> groupAndMembers = groupExpander.getGroupWithMembers(uuid);
