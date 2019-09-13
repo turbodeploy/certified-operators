@@ -46,7 +46,7 @@ public class ComputeTierConverter implements IEntityConverter {
 
         // set compute tier specific data
         entity.setComputeTierData(ComputeTierData.newBuilder()
-                .setFamily(vmProfileDTO.getFamily())
+                .setFamily(vmProfileDTO.getInstanceSizeFamily())
                 .setDedicatedStorageNetworkState(vmProfileDTO.getDedicatedStorageNetworkState())
                 .setNumCoupons(vmProfileDTO.getNumberOfCoupons())
                 .setNumCores(vmProfileDTO.getNumVCPUs())
