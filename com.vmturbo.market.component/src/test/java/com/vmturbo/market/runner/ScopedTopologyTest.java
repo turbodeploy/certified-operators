@@ -88,11 +88,13 @@ public class ScopedTopologyTest {
     public static final boolean INCLUDE_VDC = false;
     private static final long ID_GENERATOR_PREFIX = 1;
     public static final int CLUSTER_1_EXPANDED_SE_COUNT = 19;
+    public static final int TOTAL_SE_COUNT = 22;
     @SuppressWarnings("FieldCanBeLocal")
     private static String SIMPLE_TOPOLOGY_JSON_FILE = "protobuf/messages/simple-topology.json";
     private static final long HOST_11_OID = 72207427031424L;
     private static final long HOST_12_OID = 72207427031409L;
     private static final long HOST_13_OID = 72207427031408L;
+    private static final long BAPP_OID = 72207427031448L;
 
     private static final Gson GSON = new Gson();
     private Set<TopologyEntityDTO> topologyDTOs;
@@ -123,7 +125,6 @@ public class ScopedTopologyTest {
     public void setup() throws FileNotFoundException, InvalidProtocolBufferException {
         topologyDTOs = Objects.requireNonNull(readTopologyFromJsonFile());
         IdentityGenerator.initPrefix(ID_GENERATOR_PREFIX);
-        TopologyDTO.TopologyInfo topoogyInfo = TopologyDTO.TopologyInfo.getDefaultInstance();
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(AnalysisUtil.QUOTE_FACTOR,
             AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
             Collections.emptyMap())
@@ -142,7 +143,7 @@ public class ScopedTopologyTest {
         final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
             mock(WastedFilesAnalysisFactory.class);
 
-        testAnalysis = new Analysis(topoogyInfo,
+        testAnalysis = new Analysis(PLAN_TOPOLOGY_INFO,
             Collections.emptySet(),
             groupServiceClient,
             Clock.systemUTC(),
@@ -160,6 +161,9 @@ public class ScopedTopologyTest {
      * the Datastores that provide "STORAGE-CLUSTER-1" (2,4,6,8,10), and all of the
      * DiskArrays.
      *
+     * The VM hosts a BusinessApp #1. This entity gets skipped. Thus not bringing in hosts
+     * from CLUSTER-0.
+     *
      * @throws InvalidTopologyException if there is a problem converting the topology to TraderTO's
      */
     @Test
@@ -174,6 +178,26 @@ public class ScopedTopologyTest {
 
         // "Host #12", "VM #14", "App #15", "Datastore #2,4,6,8,10", "DiskArray #1-10", "Datacenter #0"
         assertThat(scopedTraderTOs.size(), equalTo(CLUSTER_1_EXPANDED_SE_COUNT));
+    }
+
+    /**
+     * In this test we start with "BusinessApp #1", This is indirectly linked to every host
+     * in the topology. We pull in all hosts into the scope in this case.
+     *
+     * @throws InvalidTopologyException if there is a problem converting the topology to TraderTO's
+     */
+    @Test
+    public void testScopeTopologyBusinessApp() throws InvalidTopologyException {
+
+        final TopologyConverter converter =
+                new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd, CommodityIndex.newFactory());
+        final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
+
+        Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
+                Sets.newHashSet(BAPP_OID));
+
+        // "Host #12", "VM #14", "App #15", "Datastore #2,4,6,8,10", "DiskArray #1-10", "Datacenter #0"
+        assertThat(scopedTraderTOs.size(), equalTo(TOTAL_SE_COUNT));
     }
 
     /**

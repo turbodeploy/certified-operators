@@ -752,6 +752,118 @@
     }
   },
   {
+    "entityType": 10,
+    "oid": "72207427031449",
+    "displayName": "VM #13",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 56,
+          "key": "VM-vm-13"
+        },
+        "used": 1,
+        "peak": 0,
+        "capacity": 100000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 53,
+          "key": ""
+        },
+        "used": 1291,
+        "peak": 0,
+        "capacity": 2048,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 65,
+          "key": ""
+        },
+        "used": 50,
+        "peak": 0,
+        "capacity": 2000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 26,
+          "key": ""
+        },
+        "used": 4059,
+        "peak": 0,
+        "capacity": 6000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "commoditiesBoughtFromProviders": [
+      {
+        "providerId": "72207427031408",
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 40,
+              "key": ""
+            },
+            "used": 3344.82,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 47,
+              "key": ""
+            },
+            "used": 5,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 0,
+              "key": "CLUSTER-0"
+            },
+            "used": 1,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 21,
+              "key": ""
+            },
+            "used": 1103.46,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "entityPropertyMap": {
+      "common_dto.EntityDTO.VirtualMachineData.vmState": "",
+      "common_dto.EntityDTO.VirtualMachineRelatedData.processor": "[id: \"VMProc/vm-13\"\ndisplayName: \"VMProc/VM #13\"\ncapacity: 1024.0\n]",
+      "common_dto.EntityDTO.VirtualMachineData.ipAddress": "[0.0.0.0]"
+    },
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
     "entityType": 14,
     "oid": "72207427031424",
     "displayName": "Host #11",
@@ -1078,6 +1190,46 @@
               "key": ""
             },
             "used": 4059.53,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 48,
+    "oid": "72207427031448",
+    "displayName": "BusinessApp #1",
+    "commoditiesBoughtFromProviders": [
+      {
+        "providerId": "72207427031449",
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 56,
+              "key": "VM-vm-13"
+            },
+            "used": 1,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      },
+      {
+        "providerId": "72207427031425",
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 56,
+              "key": "VM-vm-14"
+            },
+            "used": 1,
             "peak": 0,
             "active": true
           }

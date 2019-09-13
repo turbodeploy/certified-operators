@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -173,6 +174,10 @@ public class Analysis {
     private final MarketPriceTable marketPriceTable;
 
     private final WastedFilesAnalysisFactory wastedFilesAnalysisFactory;
+
+    // a set of on-prem application entity type
+    private static final Set<Integer> entityTypesToSkip = new HashSet<>(Arrays
+            .asList(EntityType.BUSINESS_APPLICATION_VALUE));
 
     /**
      * Create and execute a context for a Market Analysis given a topology, an optional 'scope' to
@@ -864,7 +869,9 @@ public class Analysis {
                     .collect(Collectors.toList());
             if (customerOids.size() == 0) {
                 // if no customers, then "start downwards" from here
-                if (!visited.contains(traderOid)) {
+                if (!visited.contains(traderOid) &&
+                        // skip BusinessApplications if it is not a seed
+                        (seedOids.contains(traderOid) || !entityTypesToSkip.contains(thisTrader.getType()))) {
                     buyersToSatisfy.add(traderOid);
                     visited.add(traderOid);
                 }
