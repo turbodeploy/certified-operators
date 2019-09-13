@@ -1,5 +1,6 @@
 package com.vmturbo.plan.orchestrator.scheduled;
 
+import java.time.Clock;
 import java.util.concurrent.ThreadFactory;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +21,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
+import com.vmturbo.kvstore.KeyValueStoreConfig;
 
 /**
  * Spring Configuration for the Plan Orchestrator scheduled tasks.
@@ -29,7 +31,7 @@ import com.vmturbo.history.component.api.impl.HistoryClientConfig;
  **/
 @Configuration
 @EnableScheduling
-@Import({GroupClientConfig.class, HistoryClientConfig.class})
+@Import({GroupClientConfig.class, HistoryClientConfig.class, KeyValueStoreConfig.class})
 public class ClusterRollupSchedulerConfig {
 
     @Autowired
@@ -37,6 +39,9 @@ public class ClusterRollupSchedulerConfig {
 
     @Autowired
     private HistoryClientConfig historyClientConfig;
+
+    @Autowired
+    private KeyValueStoreConfig keyValueStoreConfig;
 
     /**
      * Perform Cluster Rollup based on a cron schedule specified in the
@@ -58,7 +63,7 @@ public class ClusterRollupSchedulerConfig {
     @Bean
     public ClusterRollupTask clusterRollupTask() {
         return new ClusterRollupTask(statsRpcService(), groupRpcService(),
-                taskScheduler(), cronTrigger());
+                taskScheduler(), cronTrigger(), keyValueStoreConfig.keyValueStore(), Clock.systemUTC());
     }
 
     @Bean
