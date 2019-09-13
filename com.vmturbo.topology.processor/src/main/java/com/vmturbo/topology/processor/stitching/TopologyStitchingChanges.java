@@ -1,7 +1,9 @@
 package com.vmturbo.topology.processor.stitching;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -15,7 +17,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.stitching.EntityToAdd;
 import com.vmturbo.stitching.StitchingEntity;
@@ -318,8 +322,14 @@ public class TopologyStitchingChanges {
             // Track providers before and after applying the update.
             final List<StitchingEntity> providersBeforeChangeCopy = entityToUpdate.getProviders().stream()
                 .collect(Collectors.toList());
+            final Map<ConnectionType, Set<StitchingEntity>> connectedToBeforeChangeCopy =
+                entityToUpdate.getConnectedToByType().entrySet().stream()
+                    .collect(Collectors.toMap(e -> e.getKey(), e -> ImmutableSet.copyOf(e.getValue())));
             updateMethod.accept(entityToUpdate);
+
             final Set<StitchingEntity> providersAfterChange = entityToUpdate.getProviders();
+            final Map<ConnectionType, Set<StitchingEntity>> connectedToAfterChange =
+                entityToUpdate.getConnectedToByType();
 
             // All removed providers should no longer relate to the destination through a consumer relationship.
             providersBeforeChangeCopy.stream()
@@ -335,6 +345,27 @@ public class TopologyStitchingChanges {
                     changeset.beforeChange(provider);
                     ((TopologyStitchingEntity)provider).addConsumer(entityToUpdate);
                 });
+
+            connectedToBeforeChangeCopy.forEach((connectionType, beforeEntities) -> {
+                final Set<StitchingEntity> afterChangeEntities =
+                    connectedToAfterChange.getOrDefault(connectionType, Collections.emptySet());
+
+                // Remove all removed connections from the destination.
+                beforeEntities.forEach(beforeEntity -> {
+                    if (!afterChangeEntities.contains(beforeEntity)) {
+                        changeset.beforeChange(beforeEntity);
+                        ((TopologyStitchingEntity)beforeEntity).removeConnectedFrom(connectionType, entityToUpdate);
+                    }
+                });
+
+                // Add all added connections to the destination.
+                afterChangeEntities.forEach(afterEntity -> {
+                    if (!beforeEntities.contains(afterEntity)) {
+                        changeset.beforeChange(afterEntity);
+                        ((TopologyStitchingEntity)afterEntity).addConnectedFrom(connectionType, entityToUpdate);
+                    }
+                });
+            });
         }
     }
 

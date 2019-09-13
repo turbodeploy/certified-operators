@@ -8,6 +8,10 @@ import com.google.common.collect.ImmutableBiMap;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
+/**
+ * Utility class to help map SDK commodity types to their UI/API string equivalents, as well as
+ * to provide an intra-XL representation for the types.
+ */
 public enum UICommodityType {
     ACTION_PERMIT("ActionPermit", CommodityType.ACTION_PERMIT),
     ACTIVE_SESSIONS("ActiveSessions", CommodityType.ACTIVE_SESSIONS),
@@ -82,6 +86,35 @@ public enum UICommodityType {
     VMEM_REQUEST("VMemRequest", CommodityType.VMEM_REQUEST),
     VMPM_ACCESS("VMPMAccessCommodity", CommodityType.VMPM_ACCESS),
     VSTORAGE("VStorage", CommodityType.VSTORAGE),
+
+    /**
+     * Zone commodity - reported by cloud probes.
+     */
+    ZONE("Zone", CommodityType.ZONE),
+
+    /**
+     * Coupon commodity - commonly reported by cloud probes for reserved instance objects.
+     */
+    COUPON("Coupon", CommodityType.COUPON),
+
+    /**
+     * Number of Disks - commonly reported by cloud probes.
+     */
+    NUM_DISK("NumDisk", CommodityType.NUM_DISK),
+
+    /**
+     * Instance disk size - reported by cloud probes.
+     */
+    INSTANCE_DISK_SIZE("InstanceDiskSize", CommodityType.INSTANCE_DISK_SIZE),
+
+    /**
+     * Instance disk type - reported by cloud probes.
+     */
+    INSTANCE_DISK_TYPE("InstanceDiskType", CommodityType.INSTANCE_DISK_TYPE),
+
+    /**
+     * Unknown - fallback for all unrecognized commodities.
+     */
     UNKNOWN("Unknown", CommodityType.UNKNOWN);
 
     private final String apiStr;

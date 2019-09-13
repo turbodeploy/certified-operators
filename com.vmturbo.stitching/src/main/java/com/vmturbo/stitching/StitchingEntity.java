@@ -169,7 +169,7 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      *
      * @param errorCode The code of the error.
      */
-    void recordError(@Nonnull final StitchingErrorCode errorCode);
+    void recordError(@Nonnull StitchingErrorCode errorCode);
 
     /**
      * Get the time that the data for this entity was last updated.
@@ -196,7 +196,7 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * @return true if the input updateTime is newer than the current update time,
      *         false otherwise.
      */
-    boolean updateLastUpdatedTime(final long updateTime);
+    boolean updateLastUpdatedTime(long updateTime);
 
     /**
      * The commodities sold by this entity.
@@ -218,8 +218,8 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      *                 Storage associated with the PhysicalMachine that sells this commodity.
      *                 Empty otherwise.
      */
-    void addCommoditySold(@Nonnull final CommodityDTO.Builder commoditySold,
-                          @Nonnull final Optional<StitchingEntity> accesses);
+    void addCommoditySold(@Nonnull CommodityDTO.Builder commoditySold,
+                          @Nonnull Optional<StitchingEntity> accesses);
 
     /**
      * Get the commodities bought list by this entity, indexed by the provider of those commodities.
@@ -249,7 +249,7 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * CommoditiesBought on this entity
      * @return matched CommoditiesBought wrapped by Optional, or empty if not existing.
      */
-    Optional<CommoditiesBought> getMatchingCommoditiesBought(@Nonnull final StitchingEntity provider,
+    Optional<CommoditiesBought> getMatchingCommoditiesBought(@Nonnull StitchingEntity provider,
             @Nonnull CommoditiesBought commoditiesBought);
 
     /**
@@ -263,7 +263,18 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      *         the list of commodities no longer being bought from the provider. If
      *         the entity was not a provider, returns {@link Optional#empty()}.
      */
-    Optional<List<CommoditiesBought>> removeProvider(@Nonnull final StitchingEntity entity);
+    Optional<List<CommoditiesBought>> removeProvider(@Nonnull StitchingEntity entity);
+
+    /**
+     * Remove the connection from this entity to an entity this entity is connected to.
+     *
+     * @param connectedTo The entity this entity is connected to.
+     * @param type The type of connection to remove.
+     * @return True if the connection was successfully removed. False if there was no connection
+     *         of the right type to remove.
+     */
+    boolean removeConnection(@Nonnull StitchingEntity connectedTo,
+                             @Nonnull ConnectionType type);
 
     /**
      * Check if this entity is providing commodities to another {@link StitchingEntity}.
@@ -271,7 +282,7 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * @param entity The entity to check if it is providing commodities to this entity.
      * @return True if the entity is providing commodities to this entity, false otherwise.
      */
-    boolean hasProvider(@Nonnull final StitchingEntity entity);
+    boolean hasProvider(@Nonnull StitchingEntity entity);
 
     /**
      * Check if this entity is consuming commodities from another {@link StitchingEntity}.
@@ -279,7 +290,7 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * @param entity The entity to check if it is consuming commodities from this entity.
      * @return True if the entity is consuming commodities to this entity, false otherwise.
      */
-    boolean hasConsumer(@Nonnull final StitchingEntity entity);
+    boolean hasConsumer(@Nonnull StitchingEntity entity);
 
     /**
      * Get an unmodifiable view of information about the entities that were merged onto
@@ -302,7 +313,7 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * @param mergeInformation the {@Link StitchingMergeInformation} to be added.
      * @return true if the information was successfully added, false otherwise.
      */
-    boolean addMergeInformation(@Nonnull final StitchingMergeInformation mergeInformation);
+    boolean addMergeInformation(@Nonnull StitchingMergeInformation mergeInformation);
 
     /**
      * Add a list of {@link StitchingMergeInformation} for entities that were merged onto this entity.
@@ -311,7 +322,7 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      *
      * @param mergeInformation The list of {@link StitchingMergeInformation} to be added.
      */
-    void addAllMergeInformation(@Nonnull final List<StitchingMergeInformation> mergeInformation);
+    void addAllMergeInformation(@Nonnull List<StitchingMergeInformation> mergeInformation);
 
     /**
      * True if this {@link StitchingEntity}'s merge information contains at least one entry.

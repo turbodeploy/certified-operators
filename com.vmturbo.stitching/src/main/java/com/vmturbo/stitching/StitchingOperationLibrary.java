@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.stitching.billing.AwsBillingBusinessAccountStitchingOperation;
 import com.vmturbo.stitching.billing.AwsBillingStitchingOperation;
 import com.vmturbo.stitching.cloudfoundry.CloudFoundryVMStitchingOperation;
 import com.vmturbo.stitching.compute.IaasVMStitchingOperation;
@@ -91,7 +92,8 @@ public class StitchingOperationLibrary {
                 return Collections.emptyList();
             case BILLING:
                 if (probeType.equals(SDKProbeType.AWS_BILLING.getProbeType())) {
-                    return Collections.singletonList(new AwsBillingStitchingOperation());
+                    return Arrays.asList(new AwsBillingStitchingOperation(),
+                        new AwsBillingBusinessAccountStitchingOperation());
                 }
                 return Collections.emptyList();
             case VIRTUAL_DESKTOP_INFRASTRUCTURE:

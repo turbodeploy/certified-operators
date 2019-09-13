@@ -11,6 +11,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors.StitchingErrorCode;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -138,6 +139,11 @@ public class TestStitchingEntity implements StitchingEntity {
 
     @Override
     public Optional<List<CommoditiesBought>> removeProvider(@Nonnull StitchingEntity entity) {
+        throw new IllegalStateException();
+    }
+
+    @Override
+    public boolean removeConnection(@Nonnull final StitchingEntity connectedTo, @Nonnull final ConnectionType type) {
         throw new IllegalStateException();
     }
 

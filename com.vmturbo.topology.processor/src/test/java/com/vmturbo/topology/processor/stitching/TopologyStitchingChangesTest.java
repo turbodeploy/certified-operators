@@ -59,7 +59,7 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 public class TopologyStitchingChangesTest {
 
     /**
-     * 4   5
+     * 4   5    6 (owns 3 and 2, connected to 4 and 5)
      *  \ /
      *   2   3
      *    \ /
@@ -70,14 +70,22 @@ public class TopologyStitchingChangesTest {
     private final StitchingEntityData entity3Data = stitchingData("3", Collections.singletonList("1"));
     private final StitchingEntityData entity4Data = stitchingData("4", Collections.singletonList("2"));
     private final StitchingEntityData entity5Data = stitchingData("5", Collections.singletonList("2"));
+    private final StitchingEntityData entity6Data = stitchingData(EntityDTO.newBuilder()
+        .setId("6")
+        .setEntityType(EntityType.BUSINESS_ACCOUNT)
+        .addConsistsOf("3")
+        .addConsistsOf("2")
+        .addLayeredOver("4")
+        .addLayeredOver("5"));
 
-    private final Map<String, StitchingEntityData> topologyMap = ImmutableMap.of(
-        "1", entity1Data,
-        "2", entity2Data,
-        "3", entity3Data,
-        "4", entity4Data,
-        "5", entity5Data
-    );
+    private final Map<String, StitchingEntityData> topologyMap = ImmutableMap.<String, StitchingEntityData>builder()
+        .put("1", entity1Data)
+        .put("2", entity2Data)
+        .put("3", entity3Data)
+        .put("4", entity4Data)
+        .put("5", entity5Data)
+        .put("6", entity6Data)
+        .build();
 
     private final TopologyStitchingGraph graph = newStitchingGraph(topologyMap);
     private final TopologyStitchingEntity entity1 = graph.getEntity(entity1Data.getEntityDtoBuilder()).get();
@@ -85,6 +93,7 @@ public class TopologyStitchingChangesTest {
     private final TopologyStitchingEntity entity3 = graph.getEntity(entity3Data.getEntityDtoBuilder()).get();
     private final TopologyStitchingEntity entity4 = graph.getEntity(entity4Data.getEntityDtoBuilder()).get();
     private final TopologyStitchingEntity entity5 = graph.getEntity(entity5Data.getEntityDtoBuilder()).get();
+    private final TopologyStitchingEntity entity6 = graph.getEntity(entity6Data.getEntityDtoBuilder()).get();
 
     private final StitchingContext stitchingContext = mock(StitchingContext.class);
 
@@ -170,6 +179,44 @@ public class TopologyStitchingChangesTest {
             .applyChange(new StitchingJournal<>());
         assertThat(entity5.getProviders(), containsInAnyOrder(entity2, entity3));
         assertThat(entity3.getConsumers(), contains(entity5));
+    }
+
+    /**
+     * Test that removing a connection removes the associated connected-to connection.
+     */
+    @Test
+    public void testRemoveConnectedToRemovesConnectedFrom() {
+        assertThat(entity6.getConnectedToByType().get(ConnectionType.NORMAL_CONNECTION), containsInAnyOrder(entity4, entity5));
+        assertThat(entity5.getConnectedFromByType().get(ConnectionType.NORMAL_CONNECTION), contains(entity6));
+        assertThat(entity4.getConnectedFromByType().get(ConnectionType.NORMAL_CONNECTION), contains(entity6));
+
+        new UpdateEntityRelationshipsChange(entity6, toUpdate ->
+                toUpdate.removeConnection(entity5, ConnectionType.NORMAL_CONNECTION))
+            .applyChange(new StitchingJournal<>());
+
+        assertThat(entity6.getConnectedToByType().get(ConnectionType.NORMAL_CONNECTION), contains(entity4));
+        assertThat(entity5.getConnectedFromByType().get(ConnectionType.NORMAL_CONNECTION), empty());
+        assertThat(entity4.getConnectedFromByType().get(ConnectionType.NORMAL_CONNECTION), contains(entity6));
+
+    }
+
+    /**
+     * Test that removing an owns connection removes the associated owned-by connection.
+     */
+    @Test
+    public void testRemoveOwnsRemovesOwnedBy() {
+        assertThat(entity6.getConnectedToByType().get(ConnectionType.OWNS_CONNECTION), containsInAnyOrder(entity2, entity3));
+        assertThat(entity3.getConnectedFromByType().get(ConnectionType.OWNS_CONNECTION), contains(entity6));
+        assertThat(entity2.getConnectedFromByType().get(ConnectionType.OWNS_CONNECTION), contains(entity6));
+
+        new UpdateEntityRelationshipsChange(entity6, toUpdate ->
+            toUpdate.removeConnection(entity3, ConnectionType.OWNS_CONNECTION))
+            .applyChange(new StitchingJournal<>());
+
+        assertThat(entity6.getConnectedToByType().get(ConnectionType.OWNS_CONNECTION), contains(entity2));
+        assertThat(entity3.getConnectedFromByType().get(ConnectionType.OWNS_CONNECTION), empty());
+        assertThat(entity2.getConnectedFromByType().get(ConnectionType.OWNS_CONNECTION), contains(entity6));
+
     }
 
     @Test

@@ -268,6 +268,16 @@ public class TopologyStitchingEntity implements StitchingEntity {
         return Optional.ofNullable(commodityBoughtListByProvider.remove(entity));
     }
 
+    @Override
+    public boolean removeConnection(@Nonnull final StitchingEntity connectedTo, @Nonnull final ConnectionType type) {
+        final Set<StitchingEntity> connectedToOfType = this.connectedTo.get(type);
+        if (connectedToOfType != null) {
+            return connectedToOfType.remove(connectedTo);
+        } else {
+            return false;
+        }
+    }
+
     public void addProviderCommodityBought(@Nonnull final StitchingEntity entity,
             @Nonnull final CommoditiesBought commoditiesBought) {
         Preconditions.checkArgument(entity instanceof TopologyStitchingEntity);

@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -33,6 +34,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.matrix.component.external.MatrixInterface;
@@ -82,12 +84,12 @@ import com.vmturbo.topology.processor.topology.ConstraintsEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector.InjectionSummary;
 import com.vmturbo.topology.processor.topology.HistoricalEditor;
+import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor.EditorSummary;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
-import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PassthroughStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
@@ -1124,6 +1126,8 @@ public class Stages {
 
         private final List<TopoBroadcastManager> broadcastManagers;
 
+        private final Map<UIEntityType, MutableInt> counts = new HashMap<>();
+
         public BroadcastStage(@Nonnull final List<TopoBroadcastManager> broadcastManagers) {
             this.broadcastManagers = Objects.requireNonNull(broadcastManagers);
             Preconditions.checkArgument(broadcastManagers.size() > 0);
@@ -1173,15 +1177,24 @@ public class Stages {
                 }
                 if (broadcastInfo.getEntityCount() == 0) {
                     return StageResult.withResult(broadcastInfo)
-                            .andStatus(Status.withWarnings("No entities broadcast."));
-                } else if (numEntitiesWithErrors.intValue() > 0) {
-                    // There were some entities with stitching (or other pipeline) errors.
-                    return StageResult.withResult(broadcastInfo)
-                        .andStatus(Status.withWarnings("Broadcast " + broadcastInfo.getEntityCount() +
-                            " entities. " + numEntitiesWithErrors.intValue() + " of them had pipeline errors."));
+                        .andStatus(Status.withWarnings("No entities broadcast."));
                 } else {
-                    return StageResult.withResult(broadcastInfo)
-                            .andStatus(Status.success("Broadcast " + broadcastInfo.getEntityCount() + " entities."));
+                    StringJoiner stringJoiner = new StringJoiner("\n");
+                    stringJoiner.add("Broadcast " + broadcastInfo.getEntityCount() + " entities.");
+                    counts.forEach((type, count) -> {
+                        stringJoiner.add(count + " of type " + type.apiStr());
+                    });
+
+                    if (numEntitiesWithErrors.intValue() > 0) {
+                        // There were some entities with stitching (or other pipeline) errors.
+                        stringJoiner.add("=============================");
+                        stringJoiner.add(numEntitiesWithErrors + " of them had pipeline errors.");
+                        return StageResult.withResult(broadcastInfo)
+                            .andStatus(Status.withWarnings(stringJoiner.toString()));
+                    } else {
+                        return StageResult.withResult(broadcastInfo)
+                            .andStatus(Status.success(stringJoiner.toString()));
+                    }
                 }
             } catch (CommunicationException e) {
                 throw new PipelineStageException(e);
@@ -1198,6 +1211,8 @@ public class Stages {
                 .collect(Collectors.toList());
             for (Iterator<TopologyEntityDTO> it = topology; it.hasNext(); ) {
                 final TopologyEntityDTO entity = it.next();
+                counts.computeIfAbsent(UIEntityType.fromType(entity.getEntityType()),
+                    k -> new MutableInt(0)).increment();
                 for (TopologyBroadcast broadcast : broadcasts) {
                     broadcast.append(entity);
                 }
@@ -1209,8 +1224,8 @@ public class Stages {
                 resultSentCount = sentCount;
 
                 logger.info("Successfully sent {} entities within topology {} for context {} " +
-                        "and broadcast of type {}", sentCount, topologyInfo.getTopologyId(),
-                    topologyInfo.getTopologyContextId(), broadcast.getClass().getSimpleName());
+                        "and broadcast of type {}. Type breakdown: {}", sentCount, topologyInfo.getTopologyId(),
+                    topologyInfo.getTopologyContextId(), broadcast.getClass().getSimpleName(), counts);
             }
 
             return new TopologyBroadcastInfo(resultSentCount, topologyInfo.getTopologyId(),

@@ -13,6 +13,7 @@ import java.util.Optional;
 
 import org.hamcrest.CoreMatchers;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
@@ -51,9 +52,13 @@ public class VDIStitchingIntegrationTest extends StitchingIntegrationTest {
     private IStitchingJournal<StitchingEntity> journal;
     private StringBuilder journalStringBuilder;
 
-    @Override
+    /**
+     * Common pre-test setup. Runs after {@link StitchingIntegrationTest#integrationSetup()}.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Before
     public void setup() throws Exception {
-        super.setup();
         final Map<Long, EntityDTO> vdiEntities =
                 sdkDtosFromFile(getClass(), "protobuf/messages/vdi_stitch_test.json", 1L);
         final Map<Long, EntityDTO> vcEntities =

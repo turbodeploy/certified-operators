@@ -86,7 +86,7 @@ public class EntityStore {
      * All the probes which support convert layered over to connected to relationship.
      */
     private static final Set<SDKProbeType> SUPPORTED_CONNECTED_TO_PROBES = ImmutableSet.of(
-        SDKProbeType.AWS, SDKProbeType.AZURE, SDKProbeType.VC_STORAGE_BROWSE,
+        SDKProbeType.AWS, SDKProbeType.AWS_BILLING, SDKProbeType.AZURE, SDKProbeType.VC_STORAGE_BROWSE,
         SDKProbeType.VCENTER, SDKProbeType.HYPERV, SDKProbeType.VMM);
 
     public EntityStore(@Nonnull final TargetStore targetStore,
