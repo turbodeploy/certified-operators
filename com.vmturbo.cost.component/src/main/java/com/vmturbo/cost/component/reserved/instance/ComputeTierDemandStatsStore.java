@@ -23,6 +23,7 @@ import org.jooq.Query;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
@@ -43,6 +44,14 @@ public class ComputeTierDemandStatsStore {
     private int statsRecordsQueryBatchSize;
 
     private final DSLContext dslContext;
+
+    /*
+     * for Junit tests only
+     */
+    @VisibleForTesting
+    ComputeTierDemandStatsStore() {
+        dslContext = null;
+    }
 
     public ComputeTierDemandStatsStore(@Nonnull final DSLContext dslContext,
                                        int statsRecordsCommitBatchSize,
