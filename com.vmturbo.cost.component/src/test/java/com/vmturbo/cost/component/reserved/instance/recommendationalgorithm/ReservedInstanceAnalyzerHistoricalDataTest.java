@@ -8,10 +8,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import javax.annotation.Nonnull;
+
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
@@ -45,7 +50,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         TopologyEntityCloudTopology cloudTopology = createCloudTopology();
         // Create input parameter: store.
         ComputeTierDemandStatsStore store = Mockito.spy(ComputeTierDemandStatsStore.class);
-        Set<ComputeTierTypeHourlyByWeekRecord> recordSet = createOneRecordSet(store);
+        Set<ComputeTierTypeHourlyByWeekRecord> recordSet = createOneRecordSet();
         Mockito.doReturn(recordSet.stream()).when(store).getAllDemandStats();
 
         Map<ReservedInstanceRegionalContext,
@@ -149,7 +154,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         TopologyEntityCloudTopology cloudTopology = createCloudTopology();
         // Create input parameter: store
         ComputeTierDemandStatsStore store = Mockito.spy(ComputeTierDemandStatsStore.class);
-        Set<ComputeTierTypeHourlyByWeekRecord> recordSet = createOneRecordSet(store);
+        Set<ComputeTierTypeHourlyByWeekRecord> recordSet = createOneRecordSet();
         Mockito.doReturn(recordSet.stream()).when(store).getAllDemandStats();
 
         Map<ReservedInstanceRegionalContext,
@@ -188,7 +193,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         TopologyEntityCloudTopology cloudTopology = createCloudTopology();
         // Create input parameter: store
         ComputeTierDemandStatsStore store = Mockito.spy(ComputeTierDemandStatsStore.class);
-        Set<ComputeTierTypeHourlyByWeekRecord> recordSet = createOneRecordSet(store);
+        Set<ComputeTierTypeHourlyByWeekRecord> recordSet = createOneRecordSet();
         Mockito.doReturn(recordSet.stream()).when(store).getAllDemandStats();
 
         Map<ReservedInstanceRegionalContext,
@@ -215,7 +220,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         TopologyEntityCloudTopology cloudTopology = createCloudTopology();
         // Create input parameter: store
         ComputeTierDemandStatsStore store = Mockito.spy(ComputeTierDemandStatsStore.class);
-        Set<ComputeTierTypeHourlyByWeekRecord> recordSet = createOneRecordSet(store);
+        Set<ComputeTierTypeHourlyByWeekRecord> recordSet = createOneRecordSet();
         Mockito.doReturn(recordSet.stream()).when(store).getAllDemandStats();
 
         Map<ReservedInstanceRegionalContext,
@@ -243,7 +248,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         TopologyEntityCloudTopology cloudTopology = createCloudTopology();
         // Create input parameter: store
         ComputeTierDemandStatsStore store = Mockito.spy(ComputeTierDemandStatsStore.class);
-        Set<ComputeTierTypeHourlyByWeekRecord> recordSet = createOneRecordSet(store);
+        Set<ComputeTierTypeHourlyByWeekRecord> recordSet = createOneRecordSet();
         Mockito.doReturn(recordSet.stream()).when(store).getAllDemandStats();
 
         Map<ReservedInstanceRegionalContext,
@@ -271,7 +276,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
     /*
      * Create historical demand.  Only one record.
      */
-    private Set<ComputeTierTypeHourlyByWeekRecord> createOneRecordSet(ComputeTierDemandStatsStore store) {
+    private Set<ComputeTierTypeHourlyByWeekRecord> createOneRecordSet() {
         ComputeTierTypeHourlyByWeekRecord record1Isf = new ComputeTierTypeHourlyByWeekRecord(
             ReservedInstanceAnalyzerConstantsTest.HOUR1,
             ReservedInstanceAnalyzerConstantsTest.DAY1,
@@ -304,7 +309,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         TopologyEntityCloudTopology cloudTopology = createCloudTopology();
         // Create input parameter: store.
         ComputeTierDemandStatsStore store = Mockito.spy(ComputeTierDemandStatsStore.class);
-        Set<ComputeTierTypeHourlyByWeekRecord> recordSet = createMultiRecordSet(store);
+        Set<ComputeTierTypeHourlyByWeekRecord> recordSet = createMultiRecordSet();
         Mockito.doReturn(recordSet.stream()).when(store).getAllDemandStats();
 
         Map<ReservedInstanceRegionalContext,
@@ -396,7 +401,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         TopologyEntityCloudTopology cloudTopology = createCloudTopology();
         // Create input parameter: store.
         ComputeTierDemandStatsStore store = Mockito.spy(ComputeTierDemandStatsStore.class);
-        Set<ComputeTierTypeHourlyByWeekRecord> recordSet = createMultiRecordSet(store);
+        Set<ComputeTierTypeHourlyByWeekRecord> recordSet = createMultiRecordSet();
         Mockito.doReturn(recordSet.stream()).when(store).getAllDemandStats();
 
         Map<ReservedInstanceRegionalContext,
@@ -420,7 +425,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
     /*
      * Create historical demand with multiple records.
      */
-    private Set<ComputeTierTypeHourlyByWeekRecord> createMultiRecordSet(ComputeTierDemandStatsStore store) {
+    private Set<ComputeTierTypeHourlyByWeekRecord> createMultiRecordSet() {
         ComputeTierTypeHourlyByWeekRecord record1 = new ComputeTierTypeHourlyByWeekRecord(
             // two records with master account 1 in ohio region
             ReservedInstanceAnalyzerConstantsTest.HOUR1,
@@ -433,7 +438,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
             ReservedInstanceAnalyzerConstantsTest.VALUE_ALLOCATION,
             ReservedInstanceAnalyzerConstantsTest.VALUE_CONSUMPTION);
         ComputeTierTypeHourlyByWeekRecord record2 = new ComputeTierTypeHourlyByWeekRecord(
-            ReservedInstanceAnalyzerConstantsTest.HOUR1,
+            ReservedInstanceAnalyzerConstantsTest.HOUR2,
             ReservedInstanceAnalyzerConstantsTest.DAY1,
             ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID,
             ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_M5_LARGE_OID,
@@ -444,7 +449,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
             ReservedInstanceAnalyzerConstantsTest.VALUE_CONSUMPTION);
         // one record master account 10 in oregon region
         ComputeTierTypeHourlyByWeekRecord record3 = new ComputeTierTypeHourlyByWeekRecord(
-            ReservedInstanceAnalyzerConstantsTest.HOUR1,
+            ReservedInstanceAnalyzerConstantsTest.HOUR3,
             ReservedInstanceAnalyzerConstantsTest.DAY1,
             ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_2_OID,
             ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_MICRO_OID,
@@ -558,5 +563,72 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
                 computeTierFamilies
             );
         Assert.assertTrue(profile.equals(ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_NANO));
+    }
+
+    /*
+     * Test the getDemandFromRecords method for Allocation data
+     */
+    @Test
+    public void testGetDemandFromRecordsAllocation() {
+        Set<ComputeTierTypeHourlyByWeekRecord> recordSet = createOneRecordSet();
+        ComputeTierDemandStatsStore store = Mockito.spy(ComputeTierDemandStatsStore.class);
+        float[] demand =
+            new ReservedInstanceAnalyzerHistoricalData(store).getDemandFromRecords(Lists.newArrayList(recordSet),
+                ReservedInstanceHistoricalDemandDataType.ALLOCATION);
+        Assert.assertTrue(demand.length == 168);
+        Map<Float, Integer> map = computeMemberSize(demand);
+        Assert.assertTrue(map.get(-1.0f) == 167);
+        Assert.assertTrue(map.get(ReservedInstanceAnalyzerConstantsTest.VALUE_ALLOCATION.floatValue()) == 1);
+
+
+        recordSet = createMultiRecordSet();
+        demand =
+            new ReservedInstanceAnalyzerHistoricalData(store).getDemandFromRecords(Lists.newArrayList(recordSet),
+                ReservedInstanceHistoricalDemandDataType.ALLOCATION);
+        Assert.assertTrue(demand.length == 168);
+        map = computeMemberSize(demand);
+        Assert.assertTrue(map.get(-1.0f) == 165);
+        Assert.assertTrue(map.get(ReservedInstanceAnalyzerConstantsTest.VALUE_ALLOCATION.floatValue()) == 3);
+    }
+
+    /*
+     * Test the getDemandFromRecords method for Consumption data
+     * This test fails because the ReservedInstanceHistoricalDemandDataType enumerate type has
+     * the demand type and field in DB record swapped.
+     */
+    @Ignore
+    @Test
+    public void testGetDemandFromRecordsConsumption() {
+        Set<ComputeTierTypeHourlyByWeekRecord> recordSet = createOneRecordSet();
+        ComputeTierDemandStatsStore store = Mockito.spy(ComputeTierDemandStatsStore.class);
+
+        float[] demand = new ReservedInstanceAnalyzerHistoricalData(store).getDemandFromRecords(Lists.newArrayList(recordSet),
+                ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
+        Assert.assertTrue(demand.length == 168);
+        Map<Float, Integer> map = computeMemberSize(demand);
+        Assert.assertTrue(map.get(-1.0f) == 167);
+        Assert.assertTrue(map.get(ReservedInstanceAnalyzerConstantsTest.VALUE_CONSUMPTION.floatValue()) == 1);
+
+        recordSet = createMultiRecordSet();
+        demand =
+            new ReservedInstanceAnalyzerHistoricalData(store).getDemandFromRecords(Lists.newArrayList(recordSet),
+                ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
+        Assert.assertTrue(demand.length == 168);
+        map = computeMemberSize(demand);
+        Assert.assertTrue(map.get(-1.0f) == 165);
+        Assert.assertTrue(map.get(ReservedInstanceAnalyzerConstantsTest.VALUE_CONSUMPTION.floatValue()) == 3);
+
+    }
+
+    private Map<Float, Integer> computeMemberSize(float[] array) {
+        Map<Float, Integer> map = new HashMap<>();
+        for (float f: array) {
+            if (map.containsKey(f)) {
+                map.put(f, map.get(f) +1);
+            } else {
+                map.put(f, 1);
+            }
+        }
+        return map;
     }
 }

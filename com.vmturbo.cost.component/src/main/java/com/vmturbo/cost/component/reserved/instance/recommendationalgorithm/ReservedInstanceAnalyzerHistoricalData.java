@@ -201,7 +201,8 @@ public class ReservedInstanceAnalyzerHistoricalData {
      * @return Demand stats array
      */
     @Nonnull
-    private float[] getDemandFromRecords(List<ComputeTierTypeHourlyByWeekRecord> records,
+    @VisibleForTesting
+    float[] getDemandFromRecords(List<ComputeTierTypeHourlyByWeekRecord> records,
                                          ReservedInstanceHistoricalDemandDataType demandDataType) {
 
         float[] demands = new float[WEEKLY_DEMAND_DATA_SIZE];
