@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.store;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -222,8 +223,16 @@ class LiveActions implements QueryableActionViews {
                              @Nonnull final EntitiesAndSettingsSnapshot newEntitiesSnapshot) {
         actionsLock.writeLock().lock();
         try {
-            marketActions.keySet().removeAll(actionsToRemove);
+            // We used to do a marketActions.keySet().removeAll(actionsToRemove) here, but that
+            // method had serious performance issues when the argument is a List that is bigger than
+            // the set. (which was the case for us) The AbstractSet.removeAll() implementation ends
+            // up being n^2 due to repetitive iterations through the List.
+            for (final Long actionId : actionsToRemove) {
+                marketActions.remove(actionId);
+            }
+
             actionsToAdd.forEach(action -> marketActions.put(action.getId(), action));
+
             updateIndices();
 
             // Now that we updated the entities + settings cache, refresh the action modes

@@ -15,25 +15,23 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.commons.lang3.text.WordUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.base.CaseFormat;
-import com.google.common.collect.ImmutableSet;
-
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
-import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
@@ -47,6 +45,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPart
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -555,11 +554,7 @@ public class ActionDTOUtil {
      */
     public static String getCommodityDisplayName(@Nonnull TopologyDTO.CommodityType commType) {
         UICommodityType commodity = UICommodityType.fromType(commType.getType());
-
-        final String commodityName = commodity.name();
-
-        String commodityDisplayName = getSpaceSeparatedWordsFromCamelCaseString(
-                CaseFormat.UPPER_UNDERSCORE.to(CaseFormat.UPPER_CAMEL, commodityName));
+        String commodityDisplayName = commodity.displayName();
 
         // If the commodity type is network, we need to append the name of the network.
         // The name of the network is stored in the key currently. So we append the key.
@@ -572,7 +567,7 @@ public class ActionDTOUtil {
             String commKey = commType.getKey();
 
             // normalize the prefixes to everything lower case
-            String commKeyPrefixExpected = commodityName.toLowerCase() + COMMODITY_KEY_SEPARATOR;
+            String commKeyPrefixExpected = commodity.name().toLowerCase() + COMMODITY_KEY_SEPARATOR;
             String commKeyPrefix = commKey.substring(0, commKeyPrefixExpected.length()).toLowerCase();
             // and check if the key has the prefix, and remove it.
             if (commKeyPrefix.startsWith(commKeyPrefixExpected)) {
@@ -585,25 +580,6 @@ public class ActionDTOUtil {
         }
 
         return commodityDisplayName;
-    }
-
-    /**
-     * Convert camel case (e.g. PhysicalMachine) into strings with the same
-     * capitalization plus blank spaces (e.g. "Physical Machine"). It also splits numbers,
-     * e.g. "May5" -> "May 5" and respects upper case runs, e.g. (PDFLoader -> "PDF Loader").
-     *
-     * The regex uses zero-length pattern matching with look-behind and look-forward, and is
-     * taken from - http://stackoverflow.com/questions/2559759.
-     *
-     * @param str any string
-     * @return see description
-     */
-    public static String getSpaceSeparatedWordsFromCamelCaseString(@Nonnull final String str) {
-        return str.replaceAll(String.format("%s|%s|%s",
-                "(?<=[A-Z])(?=[A-Z][a-z])",
-                "(?<=[^A-Z])(?=[A-Z])",
-                "(?<=[A-Za-z])(?=[^A-Za-z])"),
-                " ");
     }
 
     /**
@@ -660,6 +636,20 @@ public class ActionDTOUtil {
     }
 
     /**
+     * Convert a single commodity type to a readable commodity name. This is really just a passthrough
+     * to getCommodityDisplayName(), but with a method name that aligns better with the other
+     * "beautify" methods. We seem to create a lot of singleton lists just for the purpose of calling
+     * the list-based version of this method when really it's not needed at all.
+     *
+     * @param commodityType
+     * @return
+     */
+    public static String beautifyCommodityType(@Nonnull final TopologyDTO.CommodityType commodityType) {
+        return ActionDTOUtil.getCommodityDisplayName(commodityType);
+    }
+
+
+    /**
      * Returns the entity type and entity name in a nicely formatted way separated by a space.
      * e.g. <p>Virtual Machine vm-test-1</p>
      *
@@ -667,22 +657,11 @@ public class ActionDTOUtil {
      * @return The entity type and name separated by a space.
      */
     public static String beautifyEntityTypeAndName(@Nonnull final ActionPartialEntity entityDTO) {
-        return String.format("%s %s",
-            beautifyString(EntityType.forNumber(entityDTO.getEntityType()).name()),
-            entityDTO.getDisplayName()
-        );
+        return new StringBuilder()
+                .append(UIEntityType.fromType(entityDTO.getEntityType()).displayName())
+                .append(" ")
+                .append(entityDTO.getDisplayName())
+                .toString();
     }
 
-    /**
-     * Formats the given string by replacing underscores (if they exist) with spaces and returning
-     * the new string in "Title Case" format.
-     * e.g. VIRTUAL_MACHINE -> Virtual Machine.
-     * e.g. SUSPEND -> Suspend.
-     *
-     * @param str The string that will be formatted.
-     * @return The formatted string.
-     */
-    public static String beautifyString(@Nonnull final String str) {
-        return WordUtils.capitalize(str.replace("_"," ").toLowerCase());
-    }
 }

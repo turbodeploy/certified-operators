@@ -2,9 +2,11 @@ package com.vmturbo.common.protobuf.topology;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.CaseFormat;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 
+import com.vmturbo.common.protobuf.StringUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
@@ -119,10 +121,15 @@ public enum UICommodityType {
 
     private final String apiStr;
     private final CommodityType sdkType;
+    // Someday we may want to localize the display names, in which case we could call a translation
+    // method instead of generating these here.
+    private final String displayName;
 
     UICommodityType(@Nonnull final String apiStr, @Nonnull final CommodityType sdkType) {
         this.apiStr = apiStr;
         this.sdkType = sdkType;
+        this.displayName = StringUtil.getSpaceSeparatedWordsFromCamelCaseString(
+                CaseFormat.UPPER_UNDERSCORE.to(CaseFormat.UPPER_CAMEL, name()));
     }
 
     @Nonnull
@@ -138,6 +145,8 @@ public enum UICommodityType {
     public int typeNumber() {
         return sdkType.getNumber();
     }
+
+    public String displayName() { return displayName; }
 
     /**
      * Mappings between entityType enum values in TopologyEntityDTO to strings that UI

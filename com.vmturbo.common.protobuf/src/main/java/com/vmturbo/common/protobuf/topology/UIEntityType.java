@@ -5,6 +5,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 
+import com.vmturbo.common.protobuf.StringUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -53,9 +54,12 @@ public enum UIEntityType {
 
     private final EntityType type;
 
+    private final String displayName;
+
     UIEntityType(String uiStr, EntityType type) {
         this.uiStr = uiStr;
         this.type = type;
+        this.displayName = StringUtil.beautifyString(type.name());
     }
 
     public String apiStr() {
@@ -65,6 +69,8 @@ public enum UIEntityType {
     public int typeNumber() {
         return type.getNumber();
     }
+
+    public String displayName() { return displayName; }
 
     @Nonnull
     public EntityType sdkType() {

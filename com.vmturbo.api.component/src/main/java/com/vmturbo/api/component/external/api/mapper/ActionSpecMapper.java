@@ -68,6 +68,7 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.Pair;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
+import com.vmturbo.common.protobuf.StringUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
@@ -1198,7 +1199,7 @@ public class ActionSpecMapper {
      */
     private String readableEntityTypeAndName(BaseApiDTO entityDTO) {
         return String.format("%s %s",
-            ActionDTOUtil.getSpaceSeparatedWordsFromCamelCaseString(entityDTO.getClassName()),
+            StringUtil.getSpaceSeparatedWordsFromCamelCaseString(entityDTO.getClassName()),
             entityDTO.getDisplayName()
         );
     }
