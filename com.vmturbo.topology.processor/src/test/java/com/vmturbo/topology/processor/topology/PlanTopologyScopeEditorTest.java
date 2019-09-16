@@ -44,7 +44,8 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Pipelin
  */
 public class PlanTopologyScopeEditorTest {
     private static final int HYPERVISOR_TARGET = 0;
-    private static final int CLOUD_TARGET = 1;
+    private static final int CLOUD_TARGET_1 = 1;
+    private static final int CLOUD_TARGET_2 = 2;
     private static final TopologyEntity.Builder DA1 = createHypervisorTopologyEntity(50001L, "DA1", EntityType.DISK_ARRAY);
     private static final TopologyEntity.Builder ST1 = createHypervisorTopologyEntity(40001L, "ST1", EntityType.STORAGE, DA1.getOid());
     private static final TopologyEntity.Builder ST2 = createHypervisorTopologyEntity(40002L, "ST2", EntityType.STORAGE);
@@ -69,18 +70,32 @@ public class PlanTopologyScopeEditorTest {
     private static final TopologyEntity.Builder REGION_LONDON = createCloudConnectedTopologyEntity(2001L, "London", EntityType.REGION, AZ1_LONDON.getOid(), AZ2_LONDON.getOid());
     private static final TopologyEntity.Builder REGION_OHIO = createCloudConnectedTopologyEntity(2002L, "Ohio", EntityType.REGION, AZ_OHIO.getOid());
     private static final TopologyEntity.Builder REGION_HONG_KONG = createCloudConnectedTopologyEntity(2003L, "Hong Kong", EntityType.REGION, AZ1_HONG_KONG.getOid(), AZ2_HONG_KONG.getOid());
-    private static final TopologyEntity.Builder VM1_IN_LONDON = createCloudConnectedTopologyEntity(4001L, "VM1 in London", EntityType.VIRTUAL_MACHINE, AZ1_LONDON.getOid());
-    private static final TopologyEntity.Builder VM2_IN_LONDON = createCloudConnectedTopologyEntity(4002L, "VM2 in London", EntityType.VIRTUAL_MACHINE, AZ2_LONDON.getOid());
     private static final TopologyEntity.Builder DB_LONDON = createCloudConnectedTopologyEntity(8001L, "DB in London", EntityType.DATABASE, REGION_LONDON.getOid());
     private static final TopologyEntity.Builder DBS_LONDON = createCloudConnectedTopologyEntity(9001L, "DBS in London", EntityType.DATABASE_SERVER, AZ1_LONDON.getOid());
     private static final TopologyEntity.Builder DBS_HONG_KONG = createCloudConnectedTopologyEntity(9002L, "DBS in Hong Kong", EntityType.DATABASE_SERVER, AZ2_HONG_KONG.getOid());
     private static final TopologyEntity.Builder COMPUTE_TIER = createCloudConnectedTopologyEntity(3001L, "Compute tier", EntityType.COMPUTE_TIER, REGION_LONDON.getOid(), REGION_OHIO.getOid());
-    private static final TopologyEntity.Builder STORAGE_TIER = createCloudConnectedTopologyEntity(7001L, "Storage tier", EntityType.STORAGE_TIER, REGION_LONDON.getOid(), REGION_OHIO.getOid());
+    private static final TopologyEntity.Builder STORAGE_TIER = createCloudConnectedTopologyEntity(7001L, "Storage tier", EntityType.STORAGE_TIER, REGION_LONDON.getOid(), REGION_OHIO.getOid(), REGION_HONG_KONG.getOid());
+    private static final TopologyEntity.Builder VIRTUAL_VOLUME_IN_LONDON = createCloudConnectedTopologyEntity(6002L, "Virtual Volume in London", EntityType.VIRTUAL_VOLUME, AZ1_LONDON.getOid(), STORAGE_TIER.getOid());
+    private static final TopologyEntity.Builder VM1_IN_LONDON = createCloudConnectedTopologyEntity(4001L, "VM1 in London", EntityType.VIRTUAL_MACHINE, AZ1_LONDON.getOid(), VIRTUAL_VOLUME_IN_LONDON.getOid());
+    private static final TopologyEntity.Builder VM2_IN_LONDON = createCloudConnectedTopologyEntity(4002L, "VM2 in London", EntityType.VIRTUAL_MACHINE, AZ2_LONDON.getOid(), VIRTUAL_VOLUME_IN_LONDON.getOid());
     private static final TopologyEntity.Builder VIRTUAL_VOLUME_IN_OHIO = createCloudConnectedTopologyEntity(6001L, "Virtual Volume in Ohio", EntityType.VIRTUAL_VOLUME, AZ_OHIO.getOid(), STORAGE_TIER.getOid());
     private static final TopologyEntity.Builder VM_IN_OHIO = createCloudConnectedTopologyEntity(4003L, "VM in Ohio", EntityType.VIRTUAL_MACHINE, AZ_OHIO.getOid(), VIRTUAL_VOLUME_IN_OHIO.getOid());
-    private static final TopologyEntity.Builder BUSINESS_ACC1 = createCloudConnectedTopologyEntity(5001L, "Business account 1", EntityType.BUSINESS_ACCOUNT, VM1_IN_LONDON.getOid());
+    private static final TopologyEntity.Builder VIRTUAL_VOLUME_IN_HONG_KONG = createCloudConnectedTopologyEntity(6003L, "Virtual Volume in Hong Kong", EntityType.VIRTUAL_VOLUME, AZ1_HONG_KONG.getOid(), STORAGE_TIER.getOid());
+    private static final TopologyEntity.Builder VM_IN_HONG_KONG = createCloudConnectedTopologyEntity(4004L, "VM in Hong Kong", EntityType.VIRTUAL_MACHINE, AZ1_HONG_KONG.getOid(), VIRTUAL_VOLUME_IN_HONG_KONG.getOid());
     private static final TopologyEntity.Builder BUSINESS_ACC2 = createCloudConnectedTopologyEntity(5002L, "Business account 2", EntityType.BUSINESS_ACCOUNT, VM_IN_OHIO.getOid());
-    private static final TopologyEntity.Builder BUSINESS_ACC3 = createCloudConnectedTopologyEntity(5003L, "Business account 3", EntityType.BUSINESS_ACCOUNT, REGION_HONG_KONG.getOid());
+    private static final TopologyEntity.Builder BUSINESS_ACC3 = createCloudConnectedTopologyEntity(5003L, "Business account 3", EntityType.BUSINESS_ACCOUNT, VM_IN_HONG_KONG.getOid());
+    private static final TopologyEntity.Builder BUSINESS_ACC1 = createCloudConnectedTopologyEntity(5001L, "Business account 1", EntityType.BUSINESS_ACCOUNT, BUSINESS_ACC3.getOid(), VM1_IN_LONDON.getOid());
+    private static final TopologyEntity.Builder REGION_CENTRAL_US = createCloud2ConnectedTopologyEntity(2004L, "Central US", EntityType.REGION);
+    private static final TopologyEntity.Builder REGION_CANADA = createCloud2ConnectedTopologyEntity(2005L, "Canada", EntityType.REGION);
+    private static final TopologyEntity.Builder DB_CENTRAL_US = createCloud2ConnectedTopologyEntity(8002L, "DB in Central US", EntityType.DATABASE, REGION_CENTRAL_US.getOid());
+    private static final TopologyEntity.Builder DBS_CENTRAL_US = createCloud2ConnectedTopologyEntity(9003L, "DBS in Central US", EntityType.DATABASE_SERVER, REGION_CENTRAL_US.getOid());
+    private static final TopologyEntity.Builder COMPUTE_TIER_2 = createCloud2ConnectedTopologyEntity(3002L, "Compute tier 2", EntityType.COMPUTE_TIER, REGION_CENTRAL_US.getOid(), REGION_CANADA.getOid());
+    private static final TopologyEntity.Builder STORAGE_TIER_2 = createCloud2ConnectedTopologyEntity(7002L, "Storage tier 2", EntityType.STORAGE_TIER, REGION_CENTRAL_US.getOid(), REGION_CANADA.getOid());
+    private static final TopologyEntity.Builder VIRTUAL_VOLUME_IN_CENTRAL_US = createCloud2ConnectedTopologyEntity(6004L, "Virtual Volume in Central US", EntityType.VIRTUAL_VOLUME, REGION_CENTRAL_US.getOid(), STORAGE_TIER_2.getOid());
+    private static final TopologyEntity.Builder VM_IN_CENTRAL_US = createCloud2ConnectedTopologyEntity(4005L, "VM in Central US", EntityType.VIRTUAL_MACHINE, REGION_CENTRAL_US.getOid(), VIRTUAL_VOLUME_IN_CENTRAL_US.getOid());
+    private static final TopologyEntity.Builder VIRTUAL_VOLUME_IN_CANADA = createCloud2ConnectedTopologyEntity(6005L, "Virtual Volume in Canada", EntityType.VIRTUAL_VOLUME, REGION_CANADA.getOid(), STORAGE_TIER_2.getOid());
+    private static final TopologyEntity.Builder VM_IN_CANADA = createCloud2ConnectedTopologyEntity(4006L, "VM in Canada", EntityType.VIRTUAL_MACHINE, REGION_CANADA.getOid(), VIRTUAL_VOLUME_IN_CANADA.getOid());
+    private static final TopologyEntity.Builder BUSINESS_ACC4 = createCloud2ConnectedTopologyEntity(5004L, "Business account 4", EntityType.BUSINESS_ACCOUNT, VM_IN_CANADA.getOid());
 
     /* Creating an on prem topology.
 
@@ -108,22 +123,52 @@ public class PlanTopologyScopeEditorTest {
             AZ1_HONG_KONG, AZ2_HONG_KONG, REGION_LONDON, REGION_OHIO,
             REGION_HONG_KONG, COMPUTE_TIER, VM1_IN_LONDON,
             VM2_IN_LONDON, DB_LONDON, DBS_LONDON, DBS_HONG_KONG,
-            VM_IN_OHIO, BUSINESS_ACC1, BUSINESS_ACC2, BUSINESS_ACC3,
-            VIRTUAL_VOLUME_IN_OHIO, STORAGE_TIER);
+            VM_IN_OHIO, VM_IN_HONG_KONG, BUSINESS_ACC1, BUSINESS_ACC2, BUSINESS_ACC3,
+            VIRTUAL_VOLUME_IN_OHIO, VIRTUAL_VOLUME_IN_LONDON, VIRTUAL_VOLUME_IN_HONG_KONG,
+            STORAGE_TIER, REGION_CENTRAL_US, REGION_CANADA, DB_CENTRAL_US, DBS_CENTRAL_US,
+            COMPUTE_TIER_2, STORAGE_TIER_2, VIRTUAL_VOLUME_IN_CENTRAL_US,
+            VM_IN_CENTRAL_US, VIRTUAL_VOLUME_IN_CANADA, VM_IN_CANADA, BUSINESS_ACC4);
 
-    private static final Set<TopologyEntity.Builder> EXPECTED_ENTITIES_FOR_REGION = Stream
+    private static final Set<TopologyEntity.Builder> EXPECTED_ENTITIES_FOR_AWS_REGION = Stream
         .of(AZ1_LONDON, AZ2_LONDON, REGION_LONDON, COMPUTE_TIER,
             VM1_IN_LONDON, VM2_IN_LONDON, DB_LONDON, DBS_LONDON, BUSINESS_ACC1,
-            BUSINESS_ACC2, STORAGE_TIER)
+            VIRTUAL_VOLUME_IN_LONDON, STORAGE_TIER)
         .collect(Collectors.collectingAndThen(Collectors.toSet(),
             Collections::unmodifiableSet));
+
+    private static final Set<TopologyEntity.Builder> EXPECTED_ENTITIES_FOR_AZURE_REGION = Stream
+                    .of(REGION_CENTRAL_US, DB_CENTRAL_US, DBS_CENTRAL_US, COMPUTE_TIER_2,
+                        STORAGE_TIER_2, VIRTUAL_VOLUME_IN_CENTRAL_US, VM_IN_CENTRAL_US)
+                    .collect(Collectors.collectingAndThen(Collectors.toSet(),
+                        Collections::unmodifiableSet));
 
     private static final Set<TopologyEntity.Builder> EXPECTED_ENTITIES_FOR_REGIONS_LIST = Stream
         .of(AZ1_LONDON, AZ2_LONDON, AZ_OHIO, REGION_LONDON, REGION_OHIO, COMPUTE_TIER,
-            VM1_IN_LONDON, VM2_IN_LONDON, VM_IN_OHIO, DB_LONDON, DBS_LONDON,
-            BUSINESS_ACC1, BUSINESS_ACC2, STORAGE_TIER, VIRTUAL_VOLUME_IN_OHIO)
+            VM1_IN_LONDON, VM2_IN_LONDON, VM_IN_OHIO, DB_LONDON, DBS_LONDON, BUSINESS_ACC1,
+            BUSINESS_ACC2, STORAGE_TIER, VIRTUAL_VOLUME_IN_LONDON, VIRTUAL_VOLUME_IN_OHIO)
         .collect(Collectors.collectingAndThen(Collectors.toSet(),
             Collections::unmodifiableSet));
+
+    private static final Set<TopologyEntity.Builder> EXPECTED_ENTITIES_FOR_BUSINESS_ACCOUNT = Stream
+                    .of(AZ1_HONG_KONG, VM_IN_HONG_KONG, STORAGE_TIER, REGION_HONG_KONG,
+                        BUSINESS_ACC1, BUSINESS_ACC3, VIRTUAL_VOLUME_IN_HONG_KONG)
+                    .collect(Collectors.collectingAndThen(Collectors.toSet(),
+                                                          Collections::unmodifiableSet));
+
+    private static final Set<TopologyEntity.Builder> EXPECTED_ENTITIES_FOR_BUSINESS_ACCOUNTS_LIST = Stream
+                    .of(AZ_OHIO, VM_IN_OHIO, BUSINESS_ACC1, COMPUTE_TIER, STORAGE_TIER,
+                        BUSINESS_ACC2, BUSINESS_ACC3, AZ1_HONG_KONG, VM_IN_HONG_KONG,
+                        REGION_OHIO, REGION_HONG_KONG, VIRTUAL_VOLUME_IN_HONG_KONG, VIRTUAL_VOLUME_IN_OHIO)
+                    .collect(Collectors.collectingAndThen(Collectors.toSet(),
+                                                          Collections::unmodifiableSet));
+
+    private static final Set<TopologyEntity.Builder> EXPECTED_ENTITIES_FOR_BILLING_FAMILY = Stream
+                    .of(AZ1_LONDON, VM1_IN_LONDON, DBS_LONDON,
+                        DB_LONDON, COMPUTE_TIER, STORAGE_TIER, BUSINESS_ACC1, BUSINESS_ACC3,
+                        AZ1_HONG_KONG, VM_IN_HONG_KONG, REGION_LONDON, REGION_HONG_KONG,
+                        VIRTUAL_VOLUME_IN_HONG_KONG, VIRTUAL_VOLUME_IN_LONDON)
+                    .collect(Collectors.collectingAndThen(Collectors.toSet(),
+                                                          Collections::unmodifiableSet));
 
     private static final GroupResolver groupResolver = mock(GroupResolver.class);
     private PlanTopologyScopeEditor planTopologyScopeEditor;
@@ -140,28 +185,42 @@ public class PlanTopologyScopeEditorTest {
 
     /**
      * Tests scope cloud topology for the plan scope with single region.
-     * Topology graph contains entities for 2 targets: hypervisor and cloud.
+     * Topology graph contains entities for 3 targets: hypervisor and 2 clouds.
+     * AWS target has Availability Zone entities.
      * EXPECTED_ENTITIES_FOR_REGION - set of cloud entities expected as result of applying plan scope to the topology.
      */
     @Test
-    public void testScopeCloudTopologyForRegion() {
+    public void testScopeCloudTopologyForAWSRegion() {
 
         final PlanScope planScope = PlanScope.newBuilder()
             .addScopeEntries(PlanScopeEntry.newBuilder()
                 .setClassName(StringConstants.REGION)
                 .setScopeObjectOid(2001L).setDisplayName("London").build())
             .build();
-        testScopeCloudTopology(planScope, EXPECTED_ENTITIES_FOR_REGION);
+        testScopeCloudTopology(planScope, EXPECTED_ENTITIES_FOR_AWS_REGION);
+    }
+
+    /**
+     * Tests scope cloud topology for the plan scope with single region.
+     * Topology graph contains entities for 3 targets: hypervisor and 2 clouds.
+     * Azure target doesn't have Availability Zone entities.
+     * EXPECTED_ENTITIES_FOR_REGION - set of cloud entities expected as result of applying plan scope to the topology.
+     */
+    @Test
+    public void testScopeCloudTopologyForAzureRegion() {
+
+        final PlanScope planScope = PlanScope.newBuilder()
+            .addScopeEntries(PlanScopeEntry.newBuilder()
+                .setClassName(StringConstants.REGION)
+                .setScopeObjectOid(2004L).setDisplayName("Central US").build())
+            .build();
+        testScopeCloudTopology(planScope, EXPECTED_ENTITIES_FOR_AZURE_REGION);
     }
 
     /**
      * Tests scope cloud topology for the plan scope with 2 regions.
-     * Topology graph contains entities for 2 targets: hypervisor and cloud.
+     * Topology graph contains entities for 3 targets: hypervisor and 2 clouds.
      * EXPECTED_ENTITIES_FOR_REGIONS_LIST - set of cloud entities expected as result of applying plan scope to the topology.
-     * Scenario: scope on pm1 and pm2 which consumes on dc1.
-     * Expected: the entities in scope should be vm1, vm2, pm1, pm2, dc1, vv, st1, da1, app1, as1, ba
-     *
-     * @throws PipelineStageException An exception thrown when a stage of the pipeline fails.
      */
     @Test
     public void testScopeCloudTopologyForRegionsList() {
@@ -174,6 +233,54 @@ public class PlanTopologyScopeEditorTest {
                                          .setScopeObjectOid(2002L).setDisplayName("Ohio").build())
                         .build();
         testScopeCloudTopology(planScope, EXPECTED_ENTITIES_FOR_REGIONS_LIST);
+    }
+
+    /**
+     * Tests scope cloud topology for the plan scope with 2 regions.
+     * Topology graph contains entities for 3 targets: hypervisor and 2 clouds.
+     * EXPECTED_ENTITIES_FOR_BUSINESS_ACCOUNT - set of cloud entities expected as result of applying plan scope to the topology.
+     */
+    @Test
+    public void testScopeCloudTopologyForBusinessAccount() {
+        final PlanScope planScope = PlanScope.newBuilder()
+                        .addScopeEntries(PlanScopeEntry.newBuilder()
+                                        .setClassName(StringConstants.BUSINESS_ACCOUNT)
+                                        .setScopeObjectOid(5003L).setDisplayName("Business account 3").build())
+                        .build();
+        testScopeCloudTopology(planScope, EXPECTED_ENTITIES_FOR_BUSINESS_ACCOUNT);
+    }
+
+    /**
+     * Tests scope cloud topology for the plan scope with 2 regions.
+     * Topology graph contains entities for 3 targets: hypervisor and 2 clouds.
+     * EXPECTED_ENTITIES_FOR_BUSINESS_ACCOUNT - set of cloud entities expected as result of applying plan scope to the topology.
+     */
+    @Test
+    public void testScopeCloudTopologyForBusinessAccountsList() {
+        final PlanScope planScope = PlanScope.newBuilder()
+                        .addScopeEntries(PlanScopeEntry.newBuilder()
+                                        .setClassName(StringConstants.BUSINESS_ACCOUNT)
+                                        .setScopeObjectOid(5002L).setDisplayName("Business account 2").build())
+                        .addScopeEntries(PlanScopeEntry.newBuilder()
+                                         .setClassName(StringConstants.BUSINESS_ACCOUNT)
+                                         .setScopeObjectOid(5003L).setDisplayName("Business account 3").build())
+                        .build();
+        testScopeCloudTopology(planScope, EXPECTED_ENTITIES_FOR_BUSINESS_ACCOUNTS_LIST);
+    }
+
+    /**
+     * Tests scope cloud topology for the plan scope with 2 regions.
+     * Topology graph contains entities for 3 targets: hypervisor and 2 clouds.
+     * EXPECTED_ENTITIES_FOR_BUSINESS_ACCOUNT - set of cloud entities expected as result of applying plan scope to the topology.
+     */
+    @Test
+    public void testScopeCloudTopologyForBillingFamily() {
+        final PlanScope planScope = PlanScope.newBuilder()
+                        .addScopeEntries(PlanScopeEntry.newBuilder()
+                                        .setClassName(StringConstants.BILLING_FAMILY)
+                                        .setScopeObjectOid(5001L).setDisplayName("Business account 1").build())
+                        .build();
+        testScopeCloudTopology(planScope, EXPECTED_ENTITIES_FOR_BILLING_FAMILY);
     }
 
     private void testScopeCloudTopology(PlanScope planScope, Set<TopologyEntity.Builder> expectedEntities) {
@@ -273,14 +380,22 @@ public class PlanTopologyScopeEditorTest {
 
     private static TopologyEntity.Builder createCloudTopologyAvailabilityZone(long oid,
                                                                               String displayName) {
-        return TopologyEntityUtils.topologyEntity(oid, CLOUD_TARGET, 0, displayName, EntityType.AVAILABILITY_ZONE);
+        return TopologyEntityUtils.topologyEntity(oid, CLOUD_TARGET_1, 0, displayName, EntityType.AVAILABILITY_ZONE);
     }
 
     private static TopologyEntity.Builder createCloudConnectedTopologyEntity(long oid,
                                                                              String displayName,
                                                                              EntityType entityType,
                                                                              long... connectedToEntities) {
-        return TopologyEntityUtils.connectedTopologyEntity(oid, CLOUD_TARGET, 0, displayName,
+        return TopologyEntityUtils.connectedTopologyEntity(oid, CLOUD_TARGET_1, 0, displayName,
+                                                           entityType, connectedToEntities);
+    }
+
+    private static TopologyEntity.Builder createCloud2ConnectedTopologyEntity(long oid,
+                                                                             String displayName,
+                                                                             EntityType entityType,
+                                                                             long... connectedToEntities) {
+        return TopologyEntityUtils.connectedTopologyEntity(oid, CLOUD_TARGET_2, 0, displayName,
                                                            entityType, connectedToEntities);
     }
 

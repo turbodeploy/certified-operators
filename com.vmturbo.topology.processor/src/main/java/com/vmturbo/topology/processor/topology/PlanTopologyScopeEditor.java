@@ -1,7 +1,8 @@
 package com.vmturbo.topology.processor.topology;
 
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -44,22 +45,31 @@ public class PlanTopologyScopeEditor {
     private final GroupServiceBlockingStub groupServiceClient;
 
     // a set of entity type that represent cloud service tiers
-    private static final Set<EntityType> serviceTiers = new HashSet<>(Arrays
-            .asList(EntityType.DATABASE_TIER, EntityType.DATABASE_SERVER_TIER,
-                    EntityType.COMPUTE_TIER, EntityType.STORAGE_TIER));
+    private static final Set<EntityType> SERVICE_TIERS = Collections.unmodifiableSet(EnumSet
+                    .of(EntityType.DATABASE_TIER, EntityType.DATABASE_SERVER_TIER,
+                        EntityType.COMPUTE_TIER, EntityType.STORAGE_TIER));
     // a set of on-prem application entity type
-    private static final Set<Integer> applicationEntityTypes = new HashSet<>(Arrays
-                    .asList(EntityType.APPLICATION_VALUE, EntityType.APPLICATION_SERVER_VALUE,
+    private static final Set<Integer> APPLICATION_ENTITY_TYPES = Stream
+                    .of(EntityType.APPLICATION_VALUE, EntityType.APPLICATION_SERVER_VALUE,
                             EntityType.BUSINESS_APPLICATION_VALUE, EntityType.DATABASE_SERVER_VALUE,
                             EntityType.DATABASE_VALUE, EntityType.CONTAINER_VALUE,
-                            EntityType.CONTAINER_POD_VALUE));
+                            EntityType.CONTAINER_POD_VALUE)
+                    .collect(Collectors.collectingAndThen(Collectors.toSet(),
+                                                          Collections::unmodifiableSet));
     // a set of entity type which indicates the entities to be preserved in scope
-    private static final Set<Integer> inScopeConnectedEntityTypes = new HashSet<>(Arrays
-            .asList(EntityType.VIRTUAL_VOLUME_VALUE));
+    private static final Set<Integer> IN_SCOPE_CONNECTED_ENTITY_TYPES = Stream
+                    .of(EntityType.VIRTUAL_VOLUME_VALUE)
+                    .collect(Collectors.collectingAndThen(Collectors.toSet(),
+                                                          Collections::unmodifiableSet));
     // The overlapping entity type in infrastructure and application layer. Currently, VM is
     // used to find application entities if user scoped in infrastructure layer, or is used
     // to find infrastructure entities if user scoped in application layer.
     private static final int OVERLAPPING_ENTITY_TYPE_VALUE = EntityType.VIRTUAL_MACHINE_VALUE;
+
+    private static final Set<EntityType> ENTITY_TYPES_TO_SKIP = Stream
+                    .concat(SERVICE_TIERS.stream(), Stream.of(EntityType.REGION))
+                    .collect(Collectors.collectingAndThen(Collectors.toSet(),
+                                                          Collections::unmodifiableSet));
 
     public PlanTopologyScopeEditor(@Nonnull final GroupServiceBlockingStub groupServiceClient) {
         this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
@@ -106,16 +116,11 @@ public class PlanTopologyScopeEditor {
                         + cloudConsumers.stream()
                         .map(TopologyEntity::getDisplayName)
                         .collect(Collectors.toList()));
-                Set<TopologyEntity> azSet = cloudConsumers.stream()
-                                .filter(e -> e.getEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
-                                .collect(Collectors.toSet());
-                Set<TopologyEntity> regionSet = cloudConsumers.stream()
-                                .filter(e -> e.getEntityType() == EntityType.REGION_VALUE)
-                                .collect(Collectors.toSet());
-                if (!azSet.isEmpty()) {
+                final Set<TopologyEntity> entitiesToFindProviders = filterAzOrRegionEntities(cloudConsumers);
+                if (!entitiesToFindProviders.isEmpty()) {
                     // we need to add all cloud providers which are the service tiers and regions
-                    // we can start from AZ to go upward to get them
-                    for (TopologyEntity a : azSet) {
+                    // we can start from AZ/Region to go upward to get them
+                    for (TopologyEntity a : entitiesToFindProviders) {
                         cloudProviders.addAll(findConnectedEntities(a, filteredEntities, true));
                     }
                     // for service tiers such as storage and compute, they are generally connected
@@ -123,29 +128,15 @@ public class PlanTopologyScopeEditor {
                     // from outside of scope can be included. For examples, GP2 may bring VM
                     // from London into scope even if user selects only Ohio. We need to verify
                     // entities from cloudProviders to filter out unnecessary VM and VV.
-                    Set<TopologyEntity> entityBeyondScope =
-                            entityBeyondScope(azSet, EntityType.AVAILABILITY_ZONE, cloudProviders);
-                    cloudProviders.removeAll(entityBeyondScope);
-                } else if (!regionSet.isEmpty()) {
-                    // in case of azure, there could be no availability zone, if the scope starts
-                    // with region, we can use region to traverse upwards to get service tiers
-                    for (TopologyEntity r : regionSet) {
-                        cloudProviders.addAll(findConnectedEntities(r, filteredEntities, true));
-                    }
-                    // for service tiers such as storage and compute, they are generally connected
-                    // with all region and az, therefore, virtual volumes and virtual machines
-                    // from outside of scope can be included. For examples, GP2 may bring VM
-                    // from London into scope even if user selects only Ohio. We need to verify
-                    // entities from cloudProviders to filter out unnecessary VM and VV.
-                    Set<TopologyEntity> entityBeyondScope =
-                                    entityBeyondScope(regionSet, EntityType.REGION, cloudProviders);
+                    final Set<TopologyEntity> entityBeyondScope =
+                            entityBeyondScope(entitiesToFindProviders, cloudProviders);
                     cloudProviders.removeAll(entityBeyondScope);
                 } else {
                     // in case of azure, there could be no availability zone, if the scope starts
                     // with ba, we add all service tiers into topology. VM will find the service tier
                     // with correct ba in market analysis
                     cloudProviders.addAll(filteredEntities.values().stream()
-                            .filter(e -> serviceTiers.contains(e.getEntityType()))
+                            .filter(e -> SERVICE_TIERS.contains(e.getEntityType()))
                             .collect(Collectors.toSet()));
                 }
                 logger.trace("Tracing cloud service tiers after scoping on the following entities: " +
@@ -166,6 +157,25 @@ public class PlanTopologyScopeEditor {
     }
 
     /**
+     * Gets all availability zones from cloud consumers. There is no availability zone in case of Azure.
+     * In this case it returns all regions.
+     *
+     * @param cloudConsumers entities to search for availability zones or regions.
+     * @return set of availability zones or regions.
+     */
+    private static Set<TopologyEntity> filterAzOrRegionEntities(Set<TopologyEntity> cloudConsumers) {
+        final Set<TopologyEntity> result = cloudConsumers.stream()
+                        .filter(e -> e.getEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
+                        .collect(Collectors.toSet());
+        if (!result.isEmpty()) {
+            return result;
+        }
+        return cloudConsumers.stream()
+                        .filter(e -> e.getEntityType() == EntityType.REGION_VALUE)
+                        .collect(Collectors.toSet());
+    }
+
+    /**
      * A helper method to print the entities by type count in log.
      * @param entities the list of entities
      */
@@ -180,20 +190,24 @@ public class PlanTopologyScopeEditor {
 
     /**
      * Filter {@link TopologyStitchingEntity} that are connectedTo other entities with same types as scopedEntity.
+     * Candidates with type from ENTITY_TYPES_TO_SKIP should be omitted as this entities can be connected to
+     * scoped entities. For example, if scoped entities are availability zones region candidate can be
+     * connected to all this zones.
      *
      * @param scopedEntity the scoped entity set
-     * @param type the type of scoped entity
      * @param candidates the {@link TopologyStitchingEntity} to be filtered
      * @return a set of TopologyStitchingEntity
      */
-    private @Nonnull Set<TopologyEntity> entityBeyondScope(@Nonnull Set<TopologyEntity> scopedEntity,
-                                                           @Nonnull EntityType type,
-                                                           @Nonnull Set<TopologyEntity> candidates) {
-        Set<TopologyEntity> beyondScopeSet = new HashSet<>();
+    @Nonnull
+    private static Set<TopologyEntity> entityBeyondScope(@Nonnull Set<TopologyEntity> scopedEntity,
+                                                         @Nonnull Set<TopologyEntity> candidates) {
+        final int scopedEntityTypeValue = scopedEntity.iterator().next().getEntityType();
+        final Set<TopologyEntity> beyondScopeSet = new HashSet<>();
         for (TopologyEntity entity : candidates) {
-            if (entity.getConnectedToEntities().stream()
-                    .filter(e -> e.getEntityType() == type.getNumber())
-                    .anyMatch(c -> !scopedEntity.contains(c))) {
+            if (!ENTITY_TYPES_TO_SKIP.contains(EntityType.forNumber(entity.getEntityType()))
+                && entity.getConnectedToEntities().stream()
+                                .filter(e -> e.getEntityType() == scopedEntityTypeValue)
+                                .anyMatch(c -> !scopedEntity.contains(c))) {
                 beyondScopeSet.add(entity);
             }
         }
@@ -206,30 +220,34 @@ public class PlanTopologyScopeEditor {
      * @param seed the start point of traverse
      * @param input oid to TopologyStitchingEntity mapping
      * @param traverseUp whether to go up or go down supply chain
+     *
+     * @return a set of connected entities.
      */
-    private @Nonnull Set<TopologyEntity> findConnectedEntities(@Nonnull final TopologyEntity seed,
+    @Nonnull
+    private Set<TopologyEntity> findConnectedEntities(@Nonnull final TopologyEntity seed,
                                                              @Nonnull final Map<Long, TopologyEntity> input,
                                                              boolean traverseUp) {
-        Set<TopologyEntity> seedConnectedSet = new HashSet<>();
-        if (!traverseUp && seed.getConnectedToEntities().isEmpty()) {
-            return seedConnectedSet;
-        } else if (traverseUp && seed.getConnectedFromEntities().isEmpty()){
-            return seedConnectedSet;
-        } else {
-            Set<Long> connectedEntityOid = new HashSet<>();
-            connectedEntityOid.addAll(traverseUp ? seed.getConnectedFromEntities()
-                    .stream().map(TopologyEntity::getOid).collect(Collectors.toSet())
-                    : seed.getConnectedToEntities().stream().map(TopologyEntity::getOid)
-                    .collect(Collectors.toSet()));
-            for (long oid : connectedEntityOid) {
-                TopologyEntity connectedEntity = input.get(oid);
-                if (connectedEntity != null) {
-                    seedConnectedSet.add(connectedEntity);
-                    seedConnectedSet.addAll(findConnectedEntities(connectedEntity, input, traverseUp));
-                }
-            }
+        final Set<TopologyEntity> seedConnectedSet = new HashSet<>();
+        if (SERVICE_TIERS.stream()
+                        .map(EntityType::getNumber).filter(t -> t == seed.getEntityType())
+                        .findAny().isPresent() ||
+            !traverseUp && seed.getConnectedToEntities().isEmpty() ||
+            traverseUp && seed.getConnectedFromEntities().isEmpty()) {
             return seedConnectedSet;
         }
+        Set<Long> connectedEntityOid = new HashSet<>();
+        connectedEntityOid.addAll(traverseUp ? seed.getConnectedFromEntities()
+                        .stream().map(TopologyEntity::getOid).collect(Collectors.toSet())
+                        : seed.getConnectedToEntities().stream().map(TopologyEntity::getOid)
+                                        .collect(Collectors.toSet()));
+        for (long oid : connectedEntityOid) {
+            TopologyEntity connectedEntity = input.get(oid);
+            if (connectedEntity != null) {
+                seedConnectedSet.add(connectedEntity);
+                seedConnectedSet.addAll(findConnectedEntities(connectedEntity, input, traverseUp));
+            }
+        }
+        return seedConnectedSet;
     }
     /**
      * Filter input entities by target id.
@@ -285,7 +303,7 @@ public class PlanTopologyScopeEditor {
             if (e.getEntityType() == OVERLAPPING_ENTITY_TYPE_VALUE) {
                 appLayerEntities.add(e);
                 infraLayerEntities.add(e);
-            } else if (applicationEntityTypes.contains(e.getEntityType())) {
+            } else if (APPLICATION_ENTITY_TYPES.contains(e.getEntityType())) {
                 appLayerEntities.add(e);
             } else {
                 infraLayerEntities.add(e);
@@ -332,7 +350,7 @@ public class PlanTopologyScopeEditor {
         Map<EntityType, Set<TopologyEntity>> allSeed = getSeedEntities(groupResolver, planScope, graph);
         // application layer seed
         Set<TopologyEntity> appSeed = allSeed.entrySet().stream()
-                .filter(e -> applicationEntityTypes.contains(e.getKey().getNumber()))
+                .filter(e -> APPLICATION_ENTITY_TYPES.contains(e.getKey().getNumber()))
                 .map(Entry::getValue)
                 .flatMap(set -> set.stream())
                 .collect(Collectors.toSet());
@@ -524,7 +542,7 @@ public class PlanTopologyScopeEditor {
     /**
      * Parse entities into a list of entity sets. Entities in each set will have a provider/consumer
      * relationship between each other, or have a connectedTo/connectedFrom relationship if the entity
-     * type exists in inScopeConnectedEntityTypes set. An entity in one set does not have provider
+     * type exists in IN_SCOPE_CONNECTED_ENTITY_TYPES set. An entity in one set does not have provider
      * or consumer relationship with an entity from another set, no matter such relationship is a
      * direct association or an indirect association.
      *
@@ -563,7 +581,7 @@ public class PlanTopologyScopeEditor {
                 connectedEntities.addAll(currentNode.getConsumers());
                 connectedEntities.addAll(currentNode.getProviders());
                 // we want to keep entities that are connectedTo/connectedFrom current node
-                // if the entity type present in inScopeConnectedEntityTypes. Typically,
+                // if the entity type present in IN_SCOPE_CONNECTED_ENTITY_TYPES. Typically,
                 // a virtual volume is not a consumer nor a provider, yet it is referenced
                 // during move action interpretation, that is why we need to include it in scope.
                 Stream.concat(currentNode.getConnectedFromEntities().stream(),
@@ -575,8 +593,8 @@ public class PlanTopologyScopeEditor {
                         // it will be part of the topology. If the scope starts from a vm
                         // we should associate the vm with vv by getting the vm's connected
                         // entities.
-                        if (inScopeConnectedEntityTypes.contains(currentNode.getEntityType()) ||
-                            inScopeConnectedEntityTypes.contains(c.getEntityType())) {
+                        if (IN_SCOPE_CONNECTED_ENTITY_TYPES.contains(currentNode.getEntityType()) ||
+                            IN_SCOPE_CONNECTED_ENTITY_TYPES.contains(c.getEntityType())) {
                             connectedEntities.add(c);
                         }
                     });
