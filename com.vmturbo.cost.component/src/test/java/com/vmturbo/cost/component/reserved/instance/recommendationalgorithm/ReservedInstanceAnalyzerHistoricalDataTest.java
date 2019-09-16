@@ -28,8 +28,14 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
  * This class tests methods in the ReservedInstanceAnalyzerUtils class.
- *
- * Currently the test testComputeAnalysisClustersAccountScoping fails.
+ * <p>
+ * There are a number of tests with the @Ignore tag.  These tags should be removed as the corresponding
+ * Jiras are closed:
+ * 1) OM-50459: testGetComputeTierToBuyForDedicated
+ * 2) OM-50131: testComputeAnalysisClustersAccountScoping
+ * 3) OM-50131: testComputeAnalysisClustersMultipleRecordsScopeToAccount
+ * 4) OM-49957: testGetDemandFromRecordsConsumption
+ * </p>
  */
 public class ReservedInstanceAnalyzerHistoricalDataTest {
 
@@ -69,12 +75,6 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
             ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OHIO_OID);
         Assert.assertTrue(result.keySet().contains(regionalContext));
 
-        ReservedInstanceZonalContext zonalContext = new ReservedInstanceZonalContext(
-            ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID,
-            OSType.LINUX,
-            Tenancy.DEFAULT,
-            ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_M5_LARGE,
-            ReservedInstanceAnalyzerConstantsTest.ZONE_AWS_OHIO_1_OID);
 
         List<ReservedInstanceZonalContext> zones = null;
         for (ReservedInstanceRegionalContext key : result.keySet()) {
@@ -84,6 +84,12 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         }
         Assert.assertTrue(zones != null);
         Assert.assertTrue(zones.size() == 1);
+        ReservedInstanceZonalContext zonalContext = new ReservedInstanceZonalContext(
+            ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID,
+            OSType.LINUX,
+            Tenancy.DEFAULT,
+            ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_M5_LARGE,
+            ReservedInstanceAnalyzerConstantsTest.ZONE_AWS_OHIO_1_OID);
         Assert.assertTrue("expected zonalContext=" + zonalContext + " not in results=" + zones,
             zones.contains(zonalContext));
 
@@ -382,7 +388,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         Assert.assertTrue(result.keySet().contains(regionOregonContext));
     }
 
-    /*
+    /**
      * Scope by account with multiple records.
      * This fails because scoping by account is not working.
      */
@@ -422,7 +428,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         Assert.assertTrue(zones.size() == 1);
     }
 
-    /*
+    /**
      * Create historical demand with multiple records.
      */
     private Set<ComputeTierTypeHourlyByWeekRecord> createMultiRecordSet() {
@@ -465,7 +471,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         return recordSet;
     }
 
-    /*
+    /**
      * Create cloud topology.
      * Only includes mocked responses for m5.large and t2.micro compute tiers OIDs
      * and Ohio and Oregon regions OIDs.
@@ -488,7 +494,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         return cloudTopology;
     }
 
-    /*
+    /**
      * create the tier families map.
      */
     private Map<String, List<TopologyEntityDTO>> createTierFamilies() {
@@ -501,6 +507,9 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         return map;
     }
 
+    /**
+     * Test getComputeTierToBuyFor method.
+     */
     @Test
     public void testGetComputeTierToBuyFor() {
         Map<String, List<TopologyEntityDTO>> computeTierFamilies = createTierFamilies();
@@ -565,8 +574,8 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         Assert.assertTrue(profile.equals(ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_NANO));
     }
 
-    /*
-     * Test the getDemandFromRecords method for Allocation data
+    /**
+     * Test the getDemandFromRecords method for Allocation data.
      */
     @Test
     public void testGetDemandFromRecordsAllocation() {
@@ -591,8 +600,8 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         Assert.assertTrue(map.get(ReservedInstanceAnalyzerConstantsTest.VALUE_ALLOCATION.floatValue()) == 3);
     }
 
-    /*
-     * Test the getDemandFromRecords method for Consumption data
+    /**
+     * Test the getDemandFromRecords method for Consumption data.
      * This test fails because the ReservedInstanceHistoricalDemandDataType enumerate type has
      * the demand type and field in DB record swapped.
      */

@@ -29,17 +29,18 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 /**
  * This class provides functionality, which was originally in ReservedInstanceAnalyzer, and has been
  * refactored into this class to make JUnit testing easier.
- *
+ * <p>
  * This class is intended to provide the facade to the ComputeTierDemandStatsStore, or the historical
  * demand data.  This would allow the ReservedInstanceAnalyzer to not need the
  * ComputeTierDemandStatsStore.  Not all the functionality that uses the ComputeTierDemandStatsStore
  * has been moved out of ReservedInstanceAnalyzer to here.
- *
+ * </p><p>
  * The ReservedInstanceAnalyzer constructor takes many parameters, which are Autowired.  Therefore,
  * JUnit testing the ReservedInstanceAnalyzer is an Autowire mess.
  * For example, while trying to dependency inject the PriceTableStore using a bean defined in
  * PricingConfig, there are nine levels of exceptions culminating in a BeanInstantiationException
  * with the message "Failed to construct kafka consumer".
+ * </p>
  */
 public class ReservedInstanceAnalyzerHistoricalData {
 
@@ -74,12 +75,13 @@ public class ReservedInstanceAnalyzerHistoricalData {
      * Given a set of database contexts, compute the clusters of database contexts, such that a
      * cluster is a region and set of zones associated with that region, and the clusters are within
      * scope.
-     *
+     * <p>
      * NOTE: this was a private method that was moved to package accessible for JUnit testing.
      * TODO: currently, this method reads all the records from the historical data and computes the
      * clusters. The method should only read the database constexts, which will be a subset of the
      * records.
      * TODO: Computing the region associated with a zone is inefficient, and shoud be improved.
+     * </p>
      *
      * @param scope What is allowed.  Used for testing.
      * @param computeTierFamilies mapping from family name to list of compute tiers in that family.

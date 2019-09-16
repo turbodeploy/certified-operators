@@ -15,8 +15,6 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -37,16 +35,6 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
     private final Map<Long, Long> ownedBy;
 
     private final Map<Long, Long> serviceForEntity;
-
-    /**
-     * For JUnit testing only
-     */
-    @VisibleForTesting
-    TopologyEntityCloudTopology() {
-        topologyEntitiesById = new HashMap<Long, TopologyEntityDTO>();
-        ownedBy = new HashMap<>();
-        serviceForEntity = new HashMap<>();
-    }
 
     /**
      * Do not call directly, except in tests. Use {@link TopologyEntityCloudTopology}.
