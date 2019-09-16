@@ -35,6 +35,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
@@ -80,6 +81,7 @@ public class SupplyChainsService implements ISupplyChainsService {
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
     private final long realtimeTopologyContextId;
     private final GroupExpander groupExpander;
+    private final EntityAspectMapper entityAspectMapper;
     private final PlanServiceBlockingStub planRpcService;
     private final UserSessionContext userSessionContext;
     private final ActionSpecMapper actionSpecMapper;
@@ -97,6 +99,7 @@ public class SupplyChainsService implements ISupplyChainsService {
                         @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
                         final long realtimeTopologyContextId,
                         @Nonnull final GroupExpander groupExpander,
+                        @Nonnull final EntityAspectMapper entityAspectMapper,
                         @Nonnull final UserSessionContext userSessionContext) {
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
         this.planRpcService = planRpcService;
@@ -104,6 +107,7 @@ public class SupplyChainsService implements ISupplyChainsService {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.groupExpander = Objects.requireNonNull(groupExpander);
+        this.entityAspectMapper = entityAspectMapper;
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
     }
 
@@ -124,6 +128,7 @@ public class SupplyChainsService implements ISupplyChainsService {
                 .entityTypes(entityTypes)
                 .apiEnvironmentType(environmentType)
                 .entityDetailType(entityDetailType)
+                .entityAspectMapper(entityAspectMapper)
                 .includeHealthSummary(includeHealthSummary);
 
         //if the request is for a plan supply chain, the "seed uuid" should instead be used as the topology context ID.

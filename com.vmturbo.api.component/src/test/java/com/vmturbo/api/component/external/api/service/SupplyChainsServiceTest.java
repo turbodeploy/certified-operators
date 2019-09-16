@@ -11,6 +11,7 @@ import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -39,7 +40,9 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.service.SupplyChainsService.FilterSet;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -80,6 +83,12 @@ public class SupplyChainsServiceTest {
     private GroupExpander groupExpanderMock;
 
     @Mock
+    private EntityAspectMapper entityAspectMapperMock;
+
+    @Mock
+    private RepositoryApi repositoryApi = mock(RepositoryApi.class);
+
+    @Mock
     private SupplychainApiDTOFetcherBuilder supplyChainFetcherOperationBuilderMock;
 
     private PlanServiceMole planServiceMole = Mockito.spy(new PlanServiceMole());
@@ -112,17 +121,19 @@ public class SupplyChainsServiceTest {
                 .thenReturn(supplyChainFetcherOperationBuilderMock);
         when(supplyChainFetcherOperationBuilderMock.entityDetailType(any(EntityDetailType.class)))
                 .thenReturn(supplyChainFetcherOperationBuilderMock);
+        when(supplyChainFetcherOperationBuilderMock.entityAspectMapper(any(EntityAspectMapper.class)))
+                .thenReturn(supplyChainFetcherOperationBuilderMock);
         when(supplyChainFetcherOperationBuilderMock.includeHealthSummary(anyBoolean()))
                 .thenReturn(supplyChainFetcherOperationBuilderMock);
 
         final PlanServiceBlockingStub planServiceMock =
-            PlanServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
+                PlanServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
 
         actionsRpcService = ActionsServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         actionSpecMapper = Mockito.mock(ActionSpecMapper.class);
 
         service = new SupplyChainsService(supplyChainsFetcherMock, planServiceMock, actionSpecMapper,
-            actionsRpcService,LIVE_TOPOLOGY_CONTEXT_ID, groupExpanderMock, userSessionContext);
+                actionsRpcService,LIVE_TOPOLOGY_CONTEXT_ID, groupExpanderMock, mock(EntityAspectMapper.class), userSessionContext);
 
 
     }
@@ -161,7 +172,7 @@ public class SupplyChainsServiceTest {
         when(planServiceMole.getPlan(planIdObj)).thenReturn(planInstance);
 
         service.getSupplyChainByUuids(Collections.singletonList(Long.toString(planId)),
-            null, null, null, null, false);
+                null, null, null, null, false);
 
         verify(supplyChainFetcherOperationBuilderMock).topologyContextId(planId);
     }
@@ -274,12 +285,12 @@ public class SupplyChainsServiceTest {
         final PlanId planIdObj = PlanId.newBuilder().setPlanId(planId).build();
         final OptionalPlanInstance planInstance = OptionalPlanInstance.newBuilder()
                 .setPlanInstance(PlanInstance.newBuilder()
-                        .setPlanId(planId)
-                        .setScenario(Scenario.newBuilder()
-                                .setScenarioInfo(ScenarioInfo.newBuilder()
-                                    .setScope(PlanScope.newBuilder()
-                                        .addScopeEntries(PlanScopeEntry.newBuilder()
-                                            .setScopeObjectOid(1)))))
+                    .setPlanId(planId)
+                    .setScenario(Scenario.newBuilder()
+                        .setScenarioInfo(ScenarioInfo.newBuilder()
+                            .setScope(PlanScope.newBuilder()
+                                .addScopeEntries(PlanScopeEntry.newBuilder()
+                                    .setScopeObjectOid(1)))))
                     .setStatus(PlanStatus.READY))
                 .build();
 
@@ -534,8 +545,8 @@ public class SupplyChainsServiceTest {
                         } else if (statApiDTO.getFilters().get(1).getValue().equals("VirtualMachine")) {
                             assertThat(statApiDTO.getValue(), equalTo(1.0F));
                         } else {
-                        fail("Unexpected entityType: " + statApiDTO.getFilters().get(1).getValue());
-                    }
+                            fail("Unexpected entityType: " + statApiDTO.getFilters().get(1).getValue());
+                        }
                         break;
                     case "major":
                         // switch on the second filter - entityType

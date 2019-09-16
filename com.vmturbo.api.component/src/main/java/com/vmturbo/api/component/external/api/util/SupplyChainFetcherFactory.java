@@ -30,7 +30,9 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.EntityDetailType;
@@ -255,6 +257,7 @@ public class SupplyChainFetcherFactory {
     public class SupplychainApiDTOFetcherBuilder extends SupplyChainFetcherBuilder<SupplychainApiDTOFetcherBuilder, SupplychainApiDTO> {
         protected EntityDetailType entityDetailType;
         protected Boolean includeHealthSummary = false;
+        protected EntityAspectMapper entityAspectMapper = null;
 
         /**
          * Specify the level of service entity detail to include in the result
@@ -269,6 +272,19 @@ public class SupplyChainFetcherFactory {
         public SupplychainApiDTOFetcherBuilder entityDetailType(
                 @Nullable final EntityDetailType entityDetailType) {
             this.entityDetailType = entityDetailType;
+            return this;
+        }
+
+        /**
+         * Assign an {@link EntityAspectMapper} to map aspects to supply chain SEs
+         *
+         * @param entityAspectMapper an {@link EntityAspectMapper} to use for assigning aspects to supply chain SEs
+         * @return the flow-style OperationBuilder for this SupplyChainFetcher
+         */
+        @Nonnull
+        public SupplychainApiDTOFetcherBuilder entityAspectMapper(
+                @Nullable final EntityAspectMapper entityAspectMapper) {
+            this.entityAspectMapper = entityAspectMapper;
             return this;
         }
 
@@ -294,7 +310,7 @@ public class SupplyChainFetcherFactory {
             try {
                 final SupplychainApiDTO dto = new SupplychainApiDTOFetcher(topologyContextId,
                     seedUuids, entityTypes, environmentType, entityDetailType, includeHealthSummary,
-                    supplyChainRpcService, severityRpcService, repositoryApi, groupExpander,
+                    supplyChainRpcService, severityRpcService, repositoryApi, groupExpander, entityAspectMapper,
                     enforceUserScope).fetch();
                 return dto;
             } catch (ExecutionException | TimeoutException e) {
@@ -311,7 +327,7 @@ public class SupplyChainFetcherFactory {
                     new SupplychainApiDTOFetcher(
                             topologyContextId, seedUuids, entityTypes, environmentType,
                             entityDetailType, includeHealthSummary, supplyChainRpcService,
-                            severityRpcService, repositoryApi, groupExpander, enforceUserScope)
+                            severityRpcService, repositoryApi, groupExpander, entityAspectMapper, enforceUserScope)
                         .fetchEntityIds();
             } catch (ExecutionException | TimeoutException e) {
                 throw new OperationFailedException("Failed to fetch supply chain! Error: "
@@ -681,6 +697,8 @@ public class SupplyChainFetcherFactory {
 
         private final RepositoryApi repositoryApi;
 
+        private final EntityAspectMapper entityAspectMapper;
+
         private boolean actionOrchestratorAvailable;
 
         private SupplychainApiDTOFetcher(final long topologyContextId,
@@ -693,12 +711,14 @@ public class SupplyChainFetcherFactory {
                                          @Nonnull final EntitySeverityServiceBlockingStub severityRpcService,
                                          @Nonnull final RepositoryApi repositoryApi,
                                          @Nonnull final GroupExpander groupExpander,
+                                         @Nullable final EntityAspectMapper entityAspectMapper,
                                          final boolean enforceUserScope) {
             super(topologyContextId, seedUuids, entityTypes, environmentType, supplyChainRpcService,
                     groupExpander, enforceUserScope);
             this.entityDetailType = entityDetailType;
             this.includeHealthSummary = includeHealthSummary;
             this.severityRpcService = Objects.requireNonNull(severityRpcService);
+            this.entityAspectMapper = entityAspectMapper;
             this.repositoryApi = Objects.requireNonNull(repositoryApi);
 
             actionOrchestratorAvailable = true;
@@ -762,6 +782,26 @@ public class SupplyChainFetcherFactory {
                 compileSupplyChainNode(supplyChainNode, severities, serviceEntityApiDTOS, resultApiDTO);
             }
 
+            if (Objects.equals(entityDetailType, EntityDetailType.aspects)) {
+                List<ServiceEntityApiDTO> serviceEntityApiDTOs = resultApiDTO.getSeMap()
+                    .values().stream()
+                    .flatMap(supplychainEntryDTO -> supplychainEntryDTO.getInstances().values().stream())
+                    .collect(Collectors.toList());
+
+                // Get TopologyEntityDTOs from ServiceEntityDTO UUIDs
+                Set<Long> uuids = serviceEntityApiDTOs.stream()
+                    .map(serviceEntityApiDTO -> Long.valueOf(serviceEntityApiDTO.getUuid()))
+                    .collect(Collectors.toSet());
+
+                // Get the entity aspects, mapped from entity UUID to aspect map
+                Map<Long, Map<String, EntityAspect>> entityAspectMap = entityAspectMapper.getAspectsByEntities(
+                    repositoryApi.entitiesRequest(uuids)
+                        .getFullEntities()
+                        .collect(Collectors.toList()));
+
+                serviceEntityApiDTOs.forEach(serviceEntityApiDTO -> serviceEntityApiDTO.setAspects(
+                        entityAspectMap.get(Long.valueOf(serviceEntityApiDTO.getUuid()))));
+            }
             return resultApiDTO;
         }
 

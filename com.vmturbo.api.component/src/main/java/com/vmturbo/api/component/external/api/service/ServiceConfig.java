@@ -452,6 +452,7 @@ public class ServiceConfig {
             communicationConfig.actionsRpcService(),
             communicationConfig.getRealtimeTopologyContextId(),
             communicationConfig.groupExpander(),
+            mapperConfig.entityAspectMapper(),
             userSessionConfig.userSessionContext());
     }
 

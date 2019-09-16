@@ -171,4 +171,18 @@ public class EntityAspectMapper {
             .map(applicableMapper -> applicableMapper.mapEntitiesToAspect(members))
             .orElse(null);
     }
+
+    /**
+     * Get all aspects for an arbitrary {@link TopologyEntityDTO} and return as
+     * a mapping from OID to aspect name to aspect DTO.
+     *
+     * @param entities the entities for which to return aspects
+     * @return A map of entity OID, to a map of aspect name to EntityAspect DTO
+     */
+    @Nonnull
+    public Map<Long, Map<String, EntityAspect>> getAspectsByEntities(@Nonnull List<TopologyEntityDTO> entities) {
+        final Map<Long, Map<String, EntityAspect>> oidToAspectMapMap = new HashMap<>();
+        entities.stream().forEach(entity -> oidToAspectMapMap.put(entity.getOid(), getAspectsByEntity(entity)));
+        return oidToAspectMapMap;
+    }
 }

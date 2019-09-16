@@ -6,17 +6,22 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.spy;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.HashMap;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -27,18 +32,24 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
+import com.vmturbo.api.component.external.api.service.SupplyChainTestUtils;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.entityaspect.EntityAspect;
+import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
+import com.vmturbo.api.dto.entityaspect.VirtualDisksAspectApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
+import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
@@ -55,25 +66,35 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO;
 
 public class SupplyChainFetcherFactoryTest {
     private static final String VM = "VirtualMachine";
+    private static final String VV = "VirtualVolume";
     private static final String PM = "PhysicalMachine";
     private static final long LIVE_TOPOLOGY_ID = 1234;
 
     private SupplyChainFetcherFactory supplyChainFetcherFactory;
 
     private final EntitySeverityServiceMole severityServiceBackend =
-        Mockito.spy(new EntitySeverityServiceMole());
+        spy(new EntitySeverityServiceMole());
+
+    private final SupplyChainTestUtils supplyChainTestUtils = new SupplyChainTestUtils();
+
+    private final EntityAspectMapper entityAspectMapperMock = mock(EntityAspectMapper.class);
+
+    private SupplyChainServiceGrpc.SupplyChainServiceBlockingStub supplyChainRpcService;
+
     /**
      * The backend the API forwards calls to (i.e. the part that's in the plan orchestrator).
      */
 
     private final SupplyChainServiceMole supplyChainServiceBackend =
-        Mockito.spy(new SupplyChainServiceMole());
+        spy(new SupplyChainServiceMole());
 
     private RepositoryApi repositoryApiBackend = mock(RepositoryApi.class);
     private GroupExpander groupExpander = mock(GroupExpander.class);
@@ -83,10 +104,11 @@ public class SupplyChainFetcherFactoryTest {
 
     @Before
     public void setup() throws IOException {
+        supplyChainRpcService = SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
         // set up the ActionsService under test
         supplyChainFetcherFactory = new SupplyChainFetcherFactory(
-            SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            supplyChainRpcService,
             EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             repositoryApiBackend,
             groupExpander,
@@ -113,6 +135,99 @@ public class SupplyChainFetcherFactoryTest {
         // assert
         assertThat(result.getSeMap(), notNullValue());
         assertThat(result.getSeMap().size(), equalTo(0));
+    }
+
+    /**
+     * Verifies that the proper execution order, and return values when detail_type == EntityDetailType.aspects
+     *
+     * @throws Exception should never happen in this test
+     */
+    @Test
+    public void testGetSupplyChainByUuidsWithAspects() throws Exception {
+        // arrange
+        final ImmutableList<String> searchUuids = ImmutableList.of("1");
+        final String volumeName = "vol1";
+        final Set<String> searchUuidSet = Sets.newHashSet(searchUuids);
+        final String virtualVolume = "VirtualVolume";
+
+        // Set up to return a VirtualVolume
+        SupplychainApiDTO answer = new SupplychainApiDTO();
+        Long volumeId = 1L;
+        final SupplychainEntryDTO pmSupplyChainEntryDTO = supplyChainTestUtils
+                .createSupplyChainEntryDTO(virtualVolume, volumeId);
+        supplyChainTestUtils.addHealthSummary(pmSupplyChainEntryDTO, ImmutableMap.of(
+                volumeId, "NORMAL"));
+
+        answer.setSeMap(ImmutableMap.of(
+                "PhysicalMachine", pmSupplyChainEntryDTO
+        ));
+
+        TopologyDTO.TopologyEntityDTO virtualVolumeTopologyEntity = TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setOid(volumeId)
+                .setDisplayName(volumeName)
+                .setEntityType(CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME_VALUE)
+                .build();
+
+        ServiceEntityApiDTO virtualVolumeServiceEntity = new ServiceEntityApiDTO();
+        virtualVolumeServiceEntity.setUuid(volumeId.toString());
+        virtualVolumeServiceEntity.setDisplayName(volumeName);
+
+        RepositoryApi.MultiEntityRequest volumeRequest = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(virtualVolumeServiceEntity));
+        RepositoryApi.MultiEntityRequest volumeFullEntitiesRequest = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList(virtualVolumeTopologyEntity));
+        when(repositoryApiBackend.entitiesRequest(Sets.newHashSet(volumeId))).thenReturn(volumeRequest, volumeFullEntitiesRequest);
+
+        VirtualDisksAspectApiDTO virtualDisksAspectApiDTO = new VirtualDisksAspectApiDTO();
+        VirtualDiskApiDTO virtualDiskApiDTO = new VirtualDiskApiDTO();
+        virtualDiskApiDTO.setDisplayName(volumeName);
+        virtualDiskApiDTO.setUuid(volumeName);
+        virtualDisksAspectApiDTO.setVirtualDisks(Lists.newArrayList(virtualDiskApiDTO));
+
+        Map<Long, Map<String, EntityAspect>> entityAspectMap = new HashMap<Long, Map<String, EntityAspect>>() {{
+            put(1L, new HashMap<String, EntityAspect>() {{
+                put(virtualVolume, virtualDisksAspectApiDTO);
+            }});
+        }};
+
+        final SupplyChainNode virtualVolumes = SupplyChainNode.newBuilder()
+                .setEntityType(VV)
+                .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
+                        .addMemberOids(1L)
+                        .build())
+                .build();
+
+        when(entityAspectMapperMock.getAspectsByEntities(Lists.newArrayList(virtualVolumeTopologyEntity))).thenReturn(entityAspectMap);
+
+        when(groupExpander.expandUuids(searchUuidSet)).thenReturn(ImmutableSet.of(1L));
+
+        when(supplyChainServiceBackend.getSupplyChain(any()))
+            .thenReturn(GetSupplyChainResponse.newBuilder()
+                    .setSupplyChain(SupplyChain.newBuilder()
+                            .addSupplyChainNodes(virtualVolumes))
+                    .build());
+
+        SupplychainApiDTO result = supplyChainFetcherFactory.newApiDtoFetcher()
+                .addSeedUuids(ImmutableList.of(volumeId.toString()))
+                .entityDetailType(EntityDetailType.aspects)
+                .entityAspectMapper(entityAspectMapperMock)
+                .fetch();
+
+        Collection<SupplychainEntryDTO> supplychainEntryDTOs = result.getSeMap().values();
+        assertFalse(supplychainEntryDTOs.isEmpty());
+
+        Map<String, ServiceEntityApiDTO> serviceEntityApiDTOMap = supplychainEntryDTOs.iterator().next()
+                .getInstances();
+        assertFalse(serviceEntityApiDTOMap.isEmpty());
+
+        Map<String, EntityAspect> resultEntityAspectMap = serviceEntityApiDTOMap
+                .values().iterator().next()
+                .getAspects();
+        assertFalse(resultEntityAspectMap.isEmpty());
+
+        Map.Entry<String, EntityAspect> mapEntry = resultEntityAspectMap.entrySet().iterator().next();
+
+        assertEquals(mapEntry.getKey(), virtualVolume);
+        assertEquals(mapEntry.getValue().getType(), "VirtualDisksAspectApiDTO");
+        assertEquals(((VirtualDisksAspectApiDTO)mapEntry.getValue()).getVirtualDisks().get(0), virtualDiskApiDTO);
     }
 
     /**
