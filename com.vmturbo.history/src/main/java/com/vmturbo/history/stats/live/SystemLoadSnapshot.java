@@ -133,7 +133,7 @@ public class SystemLoadSnapshot extends AbstractStatsWriter implements IComplete
                         } else {
                             savedData = true;
                             for (String slice : slices) {
-                                updateOverallSoldCommodityUsage(slice, new Pair<>(commmSold, topologyEntity));
+                                updateOverallSoldCommodityUsage(slice, commmSold, topologyEntity);
                             }
                         }
                     }
@@ -147,7 +147,7 @@ public class SystemLoadSnapshot extends AbstractStatsWriter implements IComplete
                             } else {
                                 savedData = true;
                                 for (String slice : slices) {
-                                    updateOverallBoughtCommodityUsage(slice, new Pair<>(commBought, topologyEntity));
+                                    updateOverallBoughtCommodityUsage(slice, commBought, topologyEntity);
                                 }
                             }
                         }
@@ -268,12 +268,18 @@ public class SystemLoadSnapshot extends AbstractStatsWriter implements IComplete
      * The method updates the sums of used values and capacities for each commodity sold
      * by a VM and adds this commodity to the commodities of the slice.
      *
+     * <p>N.B> Reader must ensure that commodity is of a type appearing in
+     * {@link SystemLoadCommodities}.</p>
+     *
      * @param slice The slice that will be updated.
      * @param commodity The commodity to read the used value and the capacity.
+     * @param entity    the VM entity
      */
-    public void updateOverallSoldCommodityUsage(String slice, Pair<CommoditySoldDTO, TopologyEntityDTO> commodity) {
+    public void updateOverallSoldCommodityUsage(
+        String slice, CommoditySoldDTO commodity, TopologyEntityDTO entity) {
 
-        SystemLoadCommodities loadComm = SystemLoadCommodities.toSystemLoadCommodity(commodity.first.getCommodityType().getType());
+        SystemLoadCommodities loadComm = SystemLoadCommodities.toSystemLoadCommodity(
+            commodity.getCommodityType().getType());
 
         // Update sums of used values for the system load commodities
         Double[] used = slice2sumUsed.get(slice);
@@ -281,8 +287,8 @@ public class SystemLoadSnapshot extends AbstractStatsWriter implements IComplete
             used = new Double[SystemLoadCommodities.SIZE];
             slice2sumUsed.put(slice, used);
         }
-        used[loadComm.idx] = (used[loadComm.idx] == null) ? commodity.first.getUsed()
-                : used[loadComm.idx] + commodity.first.getUsed();
+        used[loadComm.ordinal()] = (used[loadComm.ordinal()] == null) ? commodity.getUsed()
+            : used[loadComm.ordinal()] + commodity.getUsed();
 
         // Update sums of capacities for the system load commodities
         Double[] capacities = slice2sumCapacities.get(slice);
@@ -290,23 +296,30 @@ public class SystemLoadSnapshot extends AbstractStatsWriter implements IComplete
             capacities = new Double[SystemLoadCommodities.SIZE];
             slice2sumCapacities.put(slice, capacities);
         }
-        capacities[loadComm.idx] = (capacities[loadComm.idx] == null) ? commodity.first.getCapacity()
-                : capacities[loadComm.idx] + commodity.first.getCapacity();
+        capacities[loadComm.ordinal()] = (capacities[loadComm.ordinal()] == null)
+            ? commodity.getCapacity()
+            : capacities[loadComm.ordinal()] + commodity.getCapacity();
 
         // Keep track of the commodities
-        updatedSoldCommodities.put(slice, commodity);
+        updatedSoldCommodities.put(slice, new Pair<>(commodity, entity));
     }
 
     /**
      * The method updates the sums of used values for each commodity bought
      * by a VM and adds this commodity to the commodities of the slice.
      *
+     * <p>N.B. Caller must ensure that the commodity is of a type found in
+     * {@link SystemLoadCommodities}.</p>
+     *
      * @param slice The slice that will be updated.
      * @param commodity The commodity to read the used value and the capacity.
+     * @param entity    the VM entity
      */
-    public void updateOverallBoughtCommodityUsage(String slice, Pair<CommodityBoughtDTO, TopologyEntityDTO> commodity) {
+    public void updateOverallBoughtCommodityUsage(
+        String slice, CommodityBoughtDTO commodity, TopologyEntityDTO entity) {
 
-        SystemLoadCommodities loadComm = SystemLoadCommodities.toSystemLoadCommodity(commodity.first.getCommodityType().getType());
+        SystemLoadCommodities loadComm = SystemLoadCommodities.toSystemLoadCommodity(
+            commodity.getCommodityType().getType());
 
         // Update sums of used values for the system load commodities
         Double[] used = slice2sumUsed.get(slice);
@@ -314,8 +327,8 @@ public class SystemLoadSnapshot extends AbstractStatsWriter implements IComplete
             used = new Double[SystemLoadCommodities.SIZE];
             slice2sumUsed.put(slice, used);
         }
-        used[loadComm.idx] = (used[loadComm.idx] == null) ? commodity.first.getUsed()
-                : used[loadComm.idx] + commodity.first.getUsed();
+        used[loadComm.ordinal()] = (used[loadComm.ordinal()] == null) ? commodity.getUsed()
+            : used[loadComm.ordinal()] + commodity.getUsed();
 
         // Update sums of capacities for the system load commodities
         Double[] capacities = slice2sumCapacities.get(slice);
@@ -323,10 +336,10 @@ public class SystemLoadSnapshot extends AbstractStatsWriter implements IComplete
             capacities = new Double[SystemLoadCommodities.SIZE];
             slice2sumCapacities.put(slice, capacities);
         }
-        capacities[loadComm.idx] = 0.0;
+        capacities[loadComm.ordinal()] = 0.0;
 
         // Keep track of the commodities
-        updatedBoughtCommodities.put(slice, commodity);
+        updatedBoughtCommodities.put(slice, new Pair<>(commodity, entity));
     }
 
 }

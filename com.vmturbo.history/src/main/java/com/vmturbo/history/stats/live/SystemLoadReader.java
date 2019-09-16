@@ -1,15 +1,18 @@
 package com.vmturbo.history.stats.live;
 
-import javax.annotation.Nonnull;
 import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.List;
-import java.util.Date;
-import java.util.Map;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
+import javax.annotation.Nonnull;
+
+import jersey.repackaged.com.google.common.collect.Maps;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.SelectConditionStep;
@@ -19,10 +22,8 @@ import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.tables.SystemLoad;
 import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
-import com.vmturbo.history.utils.SystemLoadHelper;
 import com.vmturbo.history.utils.SystemLoadCommodities;
-
-import jersey.repackaged.com.google.common.collect.Maps;
+import com.vmturbo.history.utils.SystemLoadHelper;
 
 /**
  * The class SystemLoadReader reads the system load information from the DB.
@@ -88,26 +89,35 @@ public class SystemLoadReader {
                 Double used = record.getAvgValue();
                 Double capacity = record.getCapacity();
                 String propertySubtype = record.getPropertySubtype();
-                SystemLoadCommodities commodity = SystemLoadCommodities.toSystemLoadCommodity(propertySubtype);
 
-                if (slice2used.containsKey(slice)) {
-                    Double[] tempUsed = slice2used.get(slice);
-                    tempUsed[commodity.idx] = used;
-                    slice2used.put(slice, tempUsed);
-                } else {
-                    Double[] tempUsed = new Double[SystemLoadCommodities.SIZE];
-                    tempUsed[commodity.idx] = used;
-                    slice2used.put(slice, tempUsed);
-                }
+                Optional<SystemLoadCommodities> optCommodity
+                    = SystemLoadCommodities.toSystemLoadCommodity(propertySubtype);
+                // ignore unrecognized commodities. They can appear during upgrades when we have
+                // changed what is considered a system load commodity
+                if (optCommodity.isPresent()) {
+                    final SystemLoadCommodities commodity = optCommodity.get();
+                    if (commodity != null) {
 
-                if (slice2capacities.containsKey(slice)) {
-                    Double[] tempCapacities = slice2capacities.get(slice);
-                    tempCapacities[commodity.idx] = capacity;
-                    slice2capacities.put(slice, tempCapacities);
-                } else {
-                    Double[] tempCapacities = new Double[SystemLoadCommodities.SIZE];
-                    tempCapacities[commodity.idx] = capacity;
-                    slice2capacities.put(slice, tempCapacities);
+                        if (slice2used.containsKey(slice)) {
+                            Double[] tempUsed = slice2used.get(slice);
+                            tempUsed[commodity.ordinal()] = used;
+                            slice2used.put(slice, tempUsed);
+                        } else {
+                            Double[] tempUsed = new Double[SystemLoadCommodities.SIZE];
+                            tempUsed[commodity.ordinal()] = used;
+                            slice2used.put(slice, tempUsed);
+                        }
+
+                        if (slice2capacities.containsKey(slice)) {
+                            Double[] tempCapacities = slice2capacities.get(slice);
+                            tempCapacities[commodity.ordinal()] = capacity;
+                            slice2capacities.put(slice, tempCapacities);
+                        } else {
+                            Double[] tempCapacities = new Double[SystemLoadCommodities.SIZE];
+                            tempCapacities[commodity.ordinal()] = capacity;
+                            slice2capacities.put(slice, tempCapacities);
+                        }
+                    }
                 }
             }
 
