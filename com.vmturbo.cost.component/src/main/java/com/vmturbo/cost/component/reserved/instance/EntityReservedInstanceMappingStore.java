@@ -4,24 +4,30 @@ import static org.jooq.impl.DSL.sum;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.collections4.MultiValuedMap;
+import org.apache.commons.collections4.multimap.HashSetValuedHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Record2;
 import org.jooq.Result;
+import org.stringtemplate.v4.ST;
 
 import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
+import com.vmturbo.cost.component.db.enums.EntityToReservedInstanceMappingRiSourceCoverage;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.pojos.EntityToReservedInstanceMapping;
 import com.vmturbo.cost.component.db.tables.records.EntityToReservedInstanceMappingRecord;
@@ -46,6 +52,26 @@ public class EntityReservedInstanceMappingStore {
     private final DSLContext dsl;
 
     private final ReservedInstanceBoughtStore reservedInstanceBoughtStore;
+
+    private static final String ENTITY_RI_COVERAGE_LOGGING_TEMPLATE_ENTITY_INFO =
+            "\n================== NEW MAPPING =====================\n" +
+                    "| Entity ID: <entityId>\n";
+    private static final String ENTITY_RI_COVERAGE_LOGGING_TEMPLATE_COVERAGE_INFO =
+            "============== COVERAGE INFORMATION ================\n" +
+                    "| Reserved Instance ID: <riId>\n" +
+                    "| Used Coupons : <usedCoupons>\n" +
+                    "| Coverage Source : <coverageSource>\n";
+    private static final String LOGGING_TEMPLATE_TERMINATE =
+            "====================================================\n";
+
+    private static final String RI_ENTITY_LOGGING_TEMPLATE_ENTITY_INFO =
+            "\n================= NEW MAPPING ====================\n" +
+                    "| Reserved Instance ID: <riId>\n";
+    private static final String RI_ENTITY_COVERAGE_LOGGING_TEMPLATE_COVERAGE_INFO =
+            "============== COVERAGE INFORMATION ================\n" +
+                    "| Entity ID: <entityId>\n" +
+                    "| Used Coupons : <usedCoupons>\n" +
+                    "| Coverage Source : <coverageSource>\n";
 
     public EntityReservedInstanceMappingStore(
             @Nonnull final DSLContext dsl,
@@ -114,15 +140,7 @@ public class EntityReservedInstanceMappingStore {
     public Map<Long, EntityReservedInstanceCoverage> getEntityRiCoverage() {
         final Map<Long, EntityReservedInstanceCoverage> retMap = new HashMap<>();
 
-        final List<EntityToReservedInstanceMapping> riCoverageRows =
-            // There should only be one set of RI coverage in the table at a time, so
-            // we can just get everything from the table.
-            dsl.selectFrom(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING)
-                    // This is important - lets us process one entity completely before
-                    // moving on to the next one.
-                    .orderBy(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID)
-                    .fetch()
-                    .into(EntityToReservedInstanceMapping.class);
+        final List<EntityToReservedInstanceMapping> riCoverageRows = getEntityRICoverageFromDB();
 
         EntityReservedInstanceCoverage.Builder curEntityCoverageBldr = null;
         for (final EntityToReservedInstanceMapping reCoverageRow : riCoverageRows) {
@@ -182,7 +200,221 @@ public class EntityReservedInstanceMappingStore {
                         context.newRecord(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING,
                                 new EntityToReservedInstanceMappingRecord(currentTime, entityId,
                                         probeStrIdToIdMap.get(riCoverage.getProbeReservedInstanceId()),
-                                        riCoverage.getCoveredCoupons(), riCoverage.getRiCoverageSource().toString())))
+                                        riCoverage.getCoveredCoupons(), EntityToReservedInstanceMappingRiSourceCoverage.valueOf(riCoverage.getRiCoverageSource().toString()))))
                 .collect(Collectors.toList());
+    }
+
+    private List<EntityToReservedInstanceMapping> getEntityRICoverageFromDB() {
+        final List<EntityToReservedInstanceMapping> riCoverageRows =
+                // There should only be one set of RI coverage in the table at a time, so
+                // we can just get everything from the table.
+                dsl.selectFrom(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING)
+                        // This is important - lets us process one entity completely before
+                        // moving on to the next one.
+                        .orderBy(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID)
+                        .fetch()
+                        .into(EntityToReservedInstanceMapping.class);
+        return riCoverageRows;
+    }
+
+    /**
+     * Logs the entity-RI coverage information for the list of entities passed from swagger API. If list
+     * is empty, all entity-ri coverage information found in the db table entity_to_reserved_instance_mapping
+     * are logged.
+     *
+     * @param entityIds List of entityID obtained from the api request.
+     */
+    public void logEntityCoverage(@Nonnull List<Long> entityIds) {
+        // Get the values from DB
+        final Collection<EntityToReservedInstanceMapping> entityRICoverageFromDB = getEntityRICoverageFromDB();
+        // Organize data in a multiValuedMap
+        final MultiValuedMap<Long, EntityToReservedInstanceMapping> entityRIMultiMap = new HashSetValuedHashMap<>();
+        for (EntityToReservedInstanceMapping entityToReservedInstanceMapping : entityRICoverageFromDB) {
+            entityRIMultiMap.put(entityToReservedInstanceMapping.getEntityId(), entityToReservedInstanceMapping);
+        }
+
+        // if entityIds is empty, log all entity-RI coverage info else only log for requested set of entities.
+        if (entityIds.isEmpty()) {
+            logAllEntities(entityRIMultiMap);
+        } else {
+            logFilteredEntities(entityIds, entityRIMultiMap);
+        }
+    }
+
+    /**
+     * Logs the RI-entity coverage information for the list of RIs passed from swagger API. If list
+     * is empty, all RI-entity coverage information found in the db table entity_to_reserved_instance_mapping
+     * are logged.
+     *
+     * @param riIds List of riID obtained from the api request.
+     */
+    public void logRICoverage(@Nonnull List<Long> riIds) {
+        //Get the values from DB
+        final Collection<EntityToReservedInstanceMapping> entityRICoverageFromDB = getEntityRICoverageFromDB();
+        // Organize data in a multiValuedMap
+        final MultiValuedMap<Long, EntityToReservedInstanceMapping> riEntityMultiMap = new HashSetValuedHashMap<>();
+        for (EntityToReservedInstanceMapping entityToReservedInstanceMapping : entityRICoverageFromDB) {
+            riEntityMultiMap.put(entityToReservedInstanceMapping.getReservedInstanceId(), entityToReservedInstanceMapping);
+        }
+
+        // if riIds is empty, log all RI-entity coverage info else only log for requested set of RIs.
+        if (riIds.isEmpty()) {
+            logAllReservedInstances(riEntityMultiMap);
+        } else {
+            logFilteredReservedInstances(riIds, riEntityMultiMap);
+        }
+    }
+
+    /**
+     * Logs all the Entity - RI Coverage information when the list of entity ids obtained from the api request is empty.
+     *
+     * @param entitiesRIMultiMap MultiValuedMap where key is of type Long and value is a collection of EntityToReservedInstanceMapping.
+     */
+    private void logAllEntities(@Nonnull MultiValuedMap<Long, EntityToReservedInstanceMapping> entitiesRIMultiMap) {
+        // if entityIdList is empty, log info for all entities
+        final Set<Long> entityKeySet = entitiesRIMultiMap.keySet();
+        for (Long entityId : entityKeySet) {
+            final Collection<EntityToReservedInstanceMapping> entityToRIMappings = entitiesRIMultiMap.get(entityId);
+            logEntityRIMapping(entityToRIMappings, entityId);
+        }
+    }
+
+    /**
+     * Logs Entity - RI Coverage information for entity IDs listed in the api request.
+     *
+     * @param entityIdList List of entityID obtained from the api request.
+     * @param entitiesRIMultiMap MultiValuedMap containing the Entity - RI Coverage mapping.
+     */
+    private void logFilteredEntities(@Nonnull List<Long> entityIdList,
+                                    @Nonnull MultiValuedMap<Long, EntityToReservedInstanceMapping> entitiesRIMultiMap) {
+        // Log data as part of the incoming list
+        for (Long entityId : entityIdList) {
+            final Collection<EntityToReservedInstanceMapping> entityToReservedInstanceMappings = entitiesRIMultiMap.get(entityId);
+            if (!entityToReservedInstanceMappings.isEmpty()) {
+                logEntityRIMapping(entityToReservedInstanceMappings, entityId);
+            } else {
+                StringBuilder strBuilder = new StringBuilder("\n");
+                strBuilder.append(new ST(ENTITY_RI_COVERAGE_LOGGING_TEMPLATE_ENTITY_INFO)
+                                .add("entityId", entityId).render());
+                strBuilder.append(new ST(ENTITY_RI_COVERAGE_LOGGING_TEMPLATE_COVERAGE_INFO)
+                                .add("riId", "-")
+                                .add("usedCoupons", 0)
+                                .add("coverageSource", "-")
+                                .render());
+                strBuilder.append(new ST(LOGGING_TEMPLATE_TERMINATE).render());
+                logger.info(strBuilder.toString());
+            }
+        }
+    }
+
+    /**
+     * Logs information about an Entity and all the RIs used to cover it including the Coverage Source and Used Coupons.
+     * | ================== NEW MAPPING =====================
+     * | | Entity ID: 73122743345226
+     * | ============== COVERAGE INFORMATION ================
+     * | | Reserved Instance ID: 706441439968464
+     * | | Used Coupons : 14.0
+     * | | Coverage Source : BILLING
+     * | ============== COVERAGE INFORMATION ================
+     * | | Reserved Instance ID: 706441439968160
+     * | | Used Coupons : 1.33333
+     * | | Coverage Source : BILLING
+     * | ====================================================
+     *
+     * @param entityToReservedInstanceMappings Collection of type EntityToReservedInstanceMapping containing the EntityRICoverage information.
+     * @param entityId Entity ID whose information needs to be logged.
+     */
+    private void logEntityRIMapping(@Nonnull Collection<EntityToReservedInstanceMapping> entityToReservedInstanceMappings,
+                    @Nonnull Long entityId) {
+        if (!entityToReservedInstanceMappings.isEmpty()) {
+            StringBuilder strBuilder = new StringBuilder("\n");
+            strBuilder.append(new ST(ENTITY_RI_COVERAGE_LOGGING_TEMPLATE_ENTITY_INFO)
+                    .add("entityId", entityId).render());
+            for (EntityToReservedInstanceMapping entityToReservedInstanceMapping : entityToReservedInstanceMappings) {
+                strBuilder.append(new ST(ENTITY_RI_COVERAGE_LOGGING_TEMPLATE_COVERAGE_INFO)
+                        .add("riId", entityToReservedInstanceMapping.getReservedInstanceId())
+                        .add("usedCoupons", entityToReservedInstanceMapping.getUsedCoupons())
+                        .add("coverageSource", entityToReservedInstanceMapping.getRiSourceCoverage())
+                        .render());
+            }
+            strBuilder.append(new ST(LOGGING_TEMPLATE_TERMINATE).render());
+            logger.info(strBuilder.toString());
+        }
+    }
+
+    /**
+     * Logs all the RI - Entity Coverage information when the list of RI ids obtained from the api request is empty.
+     *
+     * @param riEntitiesMultiMap MultiValuedMap where key is of type Long and value is a collection of EntityToReservedInstanceMapping.
+     */
+    private void logAllReservedInstances(@Nonnull MultiValuedMap<Long, EntityToReservedInstanceMapping> riEntitiesMultiMap) {
+        // If no RI List was sent from swagger, log info of all RIs.
+        final Set<Long> riKeySet = riEntitiesMultiMap.keySet();
+        for (Long riId : riKeySet) {
+            final Collection<EntityToReservedInstanceMapping> entityToRIMappings = riEntitiesMultiMap.get(riId);
+            logRIEntityMapping(entityToRIMappings, riId);
+        }
+    }
+
+    /**
+     * Logs RI - Entity Coverage information for entity IDs listed in the api request.
+     *
+     * @param riIdList List of riID obtained from the api request.
+     * @param riEntitiesMultiMap MultiValuedMap where key is of type Long and value is a collection of EntityToReservedInstanceMapping.
+     */
+    private void logFilteredReservedInstances(@Nonnull List<Long> riIdList,
+                    @Nonnull MultiValuedMap<Long, EntityToReservedInstanceMapping> riEntitiesMultiMap) {
+        for (Long riId : riIdList) {
+            final Collection<EntityToReservedInstanceMapping> entityToReservedInstanceMappings = riEntitiesMultiMap.get(riId);
+            if (!entityToReservedInstanceMappings.isEmpty()) {
+                logRIEntityMapping(entityToReservedInstanceMappings, riId);
+            } else {
+                StringBuilder stringBuilder = new StringBuilder("\n");
+                stringBuilder.append(new ST(RI_ENTITY_LOGGING_TEMPLATE_ENTITY_INFO)
+                                .add("riId", riId).render());
+                stringBuilder.append(new ST(RI_ENTITY_COVERAGE_LOGGING_TEMPLATE_COVERAGE_INFO)
+                                .add("entityId", "-")
+                                .add("usedCoupons", 0)
+                                .add("coverageSource", "-")
+                                .render());
+                stringBuilder.append(new ST(LOGGING_TEMPLATE_TERMINATE).render());
+                logger.info(stringBuilder.toString());
+            }
+        }
+    }
+
+    /**
+     * Logs information about an RI and all the entities it covers including the Coverage Source and Used Coupons.
+     * | ================== NEW MAPPING =====================
+     * | | Reserved Instance ID: 706441439968160
+     * | ============== COVERAGE INFORMATION ================
+     * | | Entity ID: 73122741996605
+     * | | Used Coupons : 14.0
+     * | | Coverage Source : BILLING
+     * | ============== COVERAGE INFORMATION ================
+     * | | Entity ID: 73122743345226
+     * | | Used Coupons : 1.33333
+     * | | Coverage Source : BILLING
+     * | ====================================================
+     *
+     * @param riToEntityMappings Collection of type EntityToReservedInstanceMapping containing the EntityRICoverage information.
+     * @param riId Reserved Instance ID whose information needs to be logged.
+     */
+    private void logRIEntityMapping(@Nonnull Collection<EntityToReservedInstanceMapping> riToEntityMappings,
+                    @Nonnull Long riId) {
+        if (!riToEntityMappings.isEmpty()) {
+            StringBuilder strBuilder = new StringBuilder("\n");
+            strBuilder.append(new ST(RI_ENTITY_LOGGING_TEMPLATE_ENTITY_INFO)
+                    .add("riId", riId).render());
+            for (EntityToReservedInstanceMapping entityToReservedInstanceMapping : riToEntityMappings) {
+                strBuilder.append(new ST(RI_ENTITY_COVERAGE_LOGGING_TEMPLATE_COVERAGE_INFO)
+                        .add("entityId", entityToReservedInstanceMapping.getEntityId())
+                        .add("usedCoupons", entityToReservedInstanceMapping.getUsedCoupons())
+                        .add("coverageSource", entityToReservedInstanceMapping.getRiSourceCoverage())
+                        .render());
+            }
+            strBuilder.append(new ST(LOGGING_TEMPLATE_TERMINATE).render());
+            logger.info(strBuilder.toString());
+        }
     }
 }

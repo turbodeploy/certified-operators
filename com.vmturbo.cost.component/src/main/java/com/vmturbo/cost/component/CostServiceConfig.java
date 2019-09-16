@@ -43,7 +43,8 @@ public class CostServiceConfig {
 
     @Bean
     public CostDebugRpcService costDebugRpcService() {
-        return new CostDebugRpcService(topologyListenerConfig.costJournalRecorder());
+        return new CostDebugRpcService(topologyListenerConfig.costJournalRecorder(),
+                        reservedInstanceConfig.entityReservedInstanceMappingStore());
     }
 
     @Bean

@@ -1,10 +1,13 @@
 package com.vmturbo.cost.component.rpc;
 
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
-
+import com.vmturbo.common.protobuf.cost.CostDebug;
+import com.vmturbo.cost.component.reserved.instance.EntityReservedInstanceMappingStore;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.cost.CostDebug.DisableCostRecordingRequest;
@@ -23,8 +26,12 @@ public class CostDebugRpcService extends CostDebugServiceImplBase {
 
     private final CostJournalRecorder costJournalRecording;
 
-    public CostDebugRpcService(@Nonnull final CostJournalRecorder costJournalRecording) {
+    private final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore;
+
+    public CostDebugRpcService(@Nonnull final CostJournalRecorder costJournalRecording,
+                    @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore) {
         this.costJournalRecording = costJournalRecording;
+        this.entityReservedInstanceMappingStore = entityReservedInstanceMappingStore;
     }
 
     @Override
@@ -57,6 +64,22 @@ public class CostDebugRpcService extends CostDebugServiceImplBase {
                         .setCostJournalDescription(cost)
                         .build())
                 .forEach(responseObserver::onNext);
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void logEntityRIMapping(CostDebug.LogEntityRIMappingRequest request, StreamObserver<CostDebug.LogEntityRIMappingResponse> responseObserver) {
+        final List<Long> entityIdList = request.getEntityIdList();
+        entityReservedInstanceMappingStore.logEntityCoverage(entityIdList);
+        responseObserver.onNext(CostDebug.LogEntityRIMappingResponse.getDefaultInstance());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void logRIEntityMapping(CostDebug.LogRIEntityMappingRequest request, StreamObserver<CostDebug.LogRIEntityMappingResponse> responseObserver) {
+        final List<Long> riIdList = request.getRiIdList();
+        entityReservedInstanceMappingStore.logRICoverage(riIdList);
+        responseObserver.onNext(CostDebug.LogRIEntityMappingResponse.getDefaultInstance());
         responseObserver.onCompleted();
     }
 }
