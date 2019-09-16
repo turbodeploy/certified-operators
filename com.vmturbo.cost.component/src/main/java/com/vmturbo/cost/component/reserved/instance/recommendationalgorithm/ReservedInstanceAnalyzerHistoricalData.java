@@ -237,7 +237,8 @@ public class ReservedInstanceAnalyzerHistoricalData {
                                              Tenancy tenancy,
                                              Map<String, List<TopologyEntityDTO>> computeTierFamilies) {
 
-        boolean isComputeTierFlexible = platform.equals(OSType.LINUX) && tenancy.equals(Tenancy.DEFAULT);
+        boolean isComputeTierFlexible = platform.equals(OSType.LINUX) &&
+            (tenancy.equals(Tenancy.DEFAULT) || tenancy.equals(Tenancy.DEDICATED));
         if (!isComputeTierFlexible) {
             return profile;
         }

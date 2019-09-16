@@ -31,10 +31,9 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
  * <p>
  * There are a number of tests with the @Ignore tag.  These tags should be removed as the corresponding
  * Jiras are closed:
- * 1) OM-50459: testGetComputeTierToBuyForDedicated
- * 2) OM-50131: testComputeAnalysisClustersAccountScoping
- * 3) OM-50131: testComputeAnalysisClustersMultipleRecordsScopeToAccount
- * 4) OM-49957: testGetDemandFromRecordsConsumption
+ * 1) OM-50131: testComputeAnalysisClustersAccountScoping
+ * 2) OM-50131: testComputeAnalysisClustersMultipleRecordsScopeToAccount
+ * 3) OM-49957: testGetDemandFromRecordsConsumption
  * </p>
  */
 public class ReservedInstanceAnalyzerHistoricalDataTest {
@@ -559,7 +558,6 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
      * Currently, not checking Dedicated tenancy for instance size flexible.
      */
     @Test
-    @Ignore
     public void testGetComputeTierToBuyForDedicated() {
         Map<String, List<TopologyEntityDTO>> computeTierFamilies = createTierFamilies();
         ComputeTierDemandStatsStore store = Mockito.spy(ComputeTierDemandStatsStore.class);
