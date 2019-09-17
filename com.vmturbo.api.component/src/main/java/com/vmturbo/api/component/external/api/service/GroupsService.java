@@ -37,7 +37,6 @@ import io.grpc.StatusRuntimeException;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
-import com.vmturbo.api.component.external.api.mapper.SearchMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
@@ -88,7 +87,6 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest;
-import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMemberOrderBy;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMembersPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
@@ -142,7 +140,6 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Service implementation of Groups functionality.
@@ -298,7 +295,7 @@ public class GroupsService implements IGroupsService {
         // check if scope is real time market, return all entities in the market
         if (apiId.isRealtimeMarket()) {
             return repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
-                    SearchProtoUtil.entityTypeFilter(SearchMapper.SEARCH_ALL_TYPES))
+                    SearchProtoUtil.entityTypeFilter(SearchProtoUtil.SEARCH_ALL_TYPES))
                     .build())
                 .getSEList();
         }

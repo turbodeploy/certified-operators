@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -10,6 +11,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -75,7 +78,6 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirect
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -96,21 +98,21 @@ public class GroupMapper {
         StringConstants.CLUSTER, StringConstants.STORAGE_CLUSTER,
             StringConstants.VIRTUAL_MACHINE_CLUSTER);
 
-    public static final String GROUPS_FILTER_TYPE = "groupsByName";
+    private static final String GROUPS_FILTER_TYPE = "groupsByName";
 
     public static final String CLUSTERS_FILTER_TYPE = "clustersByName";
 
     public static final String CLUSTERS_BY_TAGS_FILTER_TYPE = "clustersByTag";
 
-    public static final String STORAGE_CLUSTERS_FILTER_TYPE = "storageClustersByName";
+    private static final String STORAGE_CLUSTERS_FILTER_TYPE = "storageClustersByName";
 
-    public static final String VIRTUALMACHINE_CLUSTERS_FILTER_TYPE = "virtualMachineClustersByName";
+    private static final String VIRTUALMACHINE_CLUSTERS_FILTER_TYPE = "virtualMachineClustersByName";
 
-    public static final Set<String> GROUP_NAME_FILTER_TYPES = ImmutableSet.of(
+    private static final Set<String> GROUP_NAME_FILTER_TYPES = ImmutableSet.of(
             GROUPS_FILTER_TYPE, CLUSTERS_FILTER_TYPE,
             STORAGE_CLUSTERS_FILTER_TYPE, VIRTUALMACHINE_CLUSTERS_FILTER_TYPE);
 
-    public static final Set<String> GROUP_TAG_FILTER_TYPES =
+    private static final Set<String> GROUP_TAG_FILTER_TYPES =
         Collections.singleton(CLUSTERS_BY_TAGS_FILTER_TYPE);
 
     /**
@@ -201,17 +203,21 @@ public class GroupMapper {
                         final String key = keyval[0];
                         final String value = keyval[1];
                         final PropertyFilter tagsFilter =
-                                SearchMapper.mapPropertyFilterForMultimapsRegex(
+                                mapPropertyFilterForMultimapsRegex(
                                         StringConstants.TAGS_ATTR, key, value, positiveMatch);
                         return Collections.singletonList(SearchProtoUtil.searchFilterProperty(tagsFilter));
                     } else {
                         // exact match is required
                         final PropertyFilter tagsFilter =
-                                SearchMapper.mapPropertyFilterForMultimapsExact(
+                                mapPropertyFilterForMultimapsExact(
                                         StringConstants.TAGS_ATTR,
                                         context.getFilter().getExpVal(),
                                         positiveMatch);
-                        return Collections.singletonList(SearchProtoUtil.searchFilterProperty(tagsFilter));
+                        if (tagsFilter != null) {
+                            return Collections.singletonList(SearchProtoUtil.searchFilterProperty(tagsFilter));
+                        } else {
+                            return Collections.emptyList();
+                        }
                     }
                 });
         filterTypesToProcessors.put(
@@ -257,6 +263,149 @@ public class GroupMapper {
         this.groupExpander = Objects.requireNonNull(groupExpander);
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
+    }
+
+    /**
+     * Create a map filter for the specified property name and
+     * specified expression field coming from the UI.
+     *
+     * <p>The form of the value of the expression field is expected to be
+     * "k=v1|k=v2|...", where k is the key and v1, v2, ... are the possible values.
+     * If the expression does not conform to the expected format,
+     * then a filter with empty key and values fields is generated.</p>
+     *
+     * <p>The filter created allows for multimap properties.  The values of such
+     * properties are maps, in which multiple values may correspond to a single key.
+     * For example key "user" -> ["peter" and "paul"].</p>
+     *
+     * @param propName property name to use for the search.
+     * @param expField expression field coming from the UI.
+     * @param positiveMatch if false, then negate the result of the filter.
+     * @return the property filter; {@code null} when the expression cannot be parsed.
+     */
+    @Nullable
+    private static PropertyFilter mapPropertyFilterForMultimapsExact(
+            @Nonnull String propName,
+            @Nonnull String expField,
+            boolean positiveMatch) {
+        final List<String> keyValuePairs = splitWithEscapes(expField, '|');
+        String key = null;
+        final List<String> values = new ArrayList<>();
+        for (String kvp : keyValuePairs) {
+            final List<String> kv = splitWithEscapes(kvp, '=');
+            if (kv.size() != 2) {
+                logger.error("Cannot parse {} as a key/value pair", kvp);
+                return null;
+            }
+            if (key == null) {
+                key = removeEscapes(kv.get(0));
+            } else if (!key.equals(removeEscapes(kv.get(0)))) {
+                logger.error("Map filter {} contains more than one key", expField);
+                return null;
+            }
+            if (!kv.get(1).isEmpty()) {
+                values.add(removeEscapes(kv.get(1)));
+            } else {
+                logger.error("Cannot parse {} as a key/value pair", kvp);
+                return null;
+            }
+        }
+
+        if (key == null) {
+            logger.error("Cannot parse {} to generate a string filter", expField);
+            return null;
+        }
+
+        final PropertyFilter propertyFilter = PropertyFilter.newBuilder()
+            .setPropertyName(propName)
+            .setMapFilter(MapFilter.newBuilder()
+                .setKey(key)
+                .addAllValues(values)
+                .setPositiveMatch(positiveMatch)
+                .build())
+            .build();
+        logger.debug("Property filter constructed: {}", propertyFilter);
+        return propertyFilter;
+    }
+
+    /**
+     * Split a string into a list of strings, given the breaking character.
+     * The breaking character may be escaped (with a backlash), in which case
+     * it gets treated as a regular character. Backslashes are kept in the
+     * resulting lists, except those that escape the breaking character.
+     *
+     * <p>Example: if the breaking character is '=' and the string to break is
+     * "AA\==B\+", then the method will return a list of two strings: "AA="
+     * and "B\+".</p>
+     *
+     * @param string the string to split.
+     * @param breakingChar the character to break at.
+     * @return the breaking character.
+     */
+    @Nonnull
+    private static List<String> splitWithEscapes(@Nonnull String string, char breakingChar) {
+        // create a regex that describes the breaking character
+        // even if that character is a Java regex metacharacter
+        final String breakingCharacterPattern = Pattern.quote(Character.toString(breakingChar));
+
+        // create a pattern that describes the pieces of the string
+        // when broken at the unescaped breaking character
+        final Pattern stringPartsPattern =
+                Pattern.compile("([^\\\\" + breakingCharacterPattern + "]|\\\\.)+");
+
+        // find all matches and return them as a list
+        final Matcher matcher = stringPartsPattern.matcher(string);
+        final List<String> stringParts = new ArrayList<>();
+        while (matcher.find()) {
+            stringParts.add(matcher.group());
+        }
+        return stringParts;
+    }
+
+    /**
+     * Takes a string and removes all backslashes that are used to escape
+     * characters.  For example \\a\b will be changed to \ab
+     *
+     * @param string string to handle.
+     * @return the string without the backlashes that are used to escape characters
+     */
+    @Nonnull
+    private static String removeEscapes(@Nonnull String string) {
+        return string.replaceAll("\\\\(.)", "$1");
+    }
+
+    /**
+     * Create a map filter for the specified property name
+     * and specified regex coming from the UI.
+     *
+     * <p>This filter should match values to the regex expression.</p>
+     *
+     * <p>The filter created allows for multimap properties.  The values of such
+     * properties are maps, in which multiple values may correspond to a single key.
+     * For example key "user" -> ["peter" and "paul"].</p>
+     *
+     * @param propName the property name to use for the search.
+     * @param key the key to search for.
+     * @param regex the regex to match values against.
+     * @param positiveMatch if false, then negate the result of the filter.
+     * @return the property filter.
+     */
+    @Nonnull
+    private static PropertyFilter mapPropertyFilterForMultimapsRegex(
+            @Nonnull String propName, @Nonnull String key,
+            @Nonnull String regex, boolean positiveMatch) {
+        final PropertyFilter propertyFilter = PropertyFilter.newBuilder()
+            .setPropertyName(propName)
+            .setMapFilter(MapFilter.newBuilder()
+                // The key is not a regex, so remove backslashes.
+                .setKey(key.replaceAll("\\\\", ""))
+                .setRegex(SearchProtoUtil.makeFullRegex(regex))
+                .setPositiveMatch(positiveMatch)
+                .build())
+            .build();
+        logger.debug("Property filter constructed: {}", propertyFilter);
+
+        return propertyFilter;
     }
 
     /**
@@ -678,12 +827,12 @@ public class GroupMapper {
                 final String[] kv = filter.getExpVal().split("=");
                 return
                     Optional.of(
-                        SearchMapper.mapPropertyFilterForMultimapsRegex(
+                        mapPropertyFilterForMultimapsRegex(
                                 StringConstants.TAGS_ATTR, kv[0], kv[1], positiveMatch));
             } else {
                 return
-                    Optional.of(
-                        SearchMapper.mapPropertyFilterForMultimapsExact(
+                    Optional.ofNullable(
+                        mapPropertyFilterForMultimapsExact(
                                 StringConstants.TAGS_ATTR, filter.getExpVal(), positiveMatch));
             }
         }
@@ -700,7 +849,7 @@ public class GroupMapper {
      * @return The {@link GroupPropertyFilterList}.
      */
     @Nonnull
-    public GroupPropertyFilterList apiFiltersToGroupPropFilters(
+    private GroupPropertyFilterList apiFiltersToGroupPropFilters(
             @Nonnull final NestedGroupInfoOrBuilder groupInfo,
             @Nullable List<FilterApiDTO> criteria) {
         if (CollectionUtils.isEmpty(criteria)) {

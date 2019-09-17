@@ -42,7 +42,6 @@ import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
-import com.vmturbo.api.component.external.api.mapper.SearchMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -373,7 +372,7 @@ public class SearchService implements ISearchService {
     private List<BaseApiDTO> searchAll() throws Exception {
         Future<Collection<ServiceEntityApiDTO>> entities = executor.submit(
             () -> repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
-                SearchProtoUtil.entityTypeFilter(SearchMapper.SEARCH_ALL_TYPES)).build())
+                SearchProtoUtil.entityTypeFilter(SearchProtoUtil.SEARCH_ALL_TYPES)).build())
                     .getSEList());
         Future<List<GroupApiDTO>> groups = executor.submit(groupsService::getGroups);
         Future<List<TargetApiDTO>> targets = executor.submit(() -> targetsService.getTargets(null));

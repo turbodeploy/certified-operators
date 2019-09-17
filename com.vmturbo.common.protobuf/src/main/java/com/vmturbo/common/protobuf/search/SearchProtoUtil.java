@@ -3,9 +3,13 @@ package com.vmturbo.common.protobuf.search;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
@@ -22,6 +26,17 @@ import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 
 public class SearchProtoUtil {
+
+    private static final ImmutableList<UIEntityType> EXCLUDE_FROM_SEARCH_ALL =
+                    ImmutableList.of(UIEntityType.INTERNET, UIEntityType.HYPERVISOR_SERVER, UIEntityType.UNKNOWN);
+
+    /**
+     * All entity types that can be used in a search.
+     */
+    public static final List<String> SEARCH_ALL_TYPES = Stream.of(UIEntityType.values())
+                    .filter(e -> !EXCLUDE_FROM_SEARCH_ALL.contains(e))
+                    .map(UIEntityType::apiStr)
+                    .collect(Collectors.toList());
 
     /**
      * Wrap an instance of {@link PropertyFilter} with a {@link SearchFilter}.
@@ -300,10 +315,10 @@ public class SearchProtoUtil {
      *              when the match fails.
      * @return a property filter
      */
-    public static PropertyFilter nameFilterExact(
-        @Nonnull final String displayName,
-        final boolean match,
-        final boolean caseSensitive) {
+    private static PropertyFilter nameFilterExact(
+            @Nonnull final String displayName,
+            final boolean match,
+            final boolean caseSensitive) {
         return
             stringPropertyFilterExact(SearchableProperties.DISPLAY_NAME, Collections.singleton(displayName), match, caseSensitive);
     }

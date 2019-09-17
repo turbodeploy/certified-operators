@@ -1,11 +1,14 @@
 package com.vmturbo.common.protobuf.search;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 
 import java.util.Collections;
+
+import com.google.common.collect.ImmutableList;
 
 import org.junit.Test;
 
@@ -18,11 +21,30 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 
 public class SearchProtoUtilTest {
 
-    static final String FOO = "foo";
-    static final String BAR = "bar";
-    static final String VM = "VirtualMachine";
-    static final UIEntityType VM_TYPE = UIEntityType.fromString(VM);
+    private static final String FOO = "foo";
+    private static final String BAR = "bar";
+    private static final String VM = "VirtualMachine";
+    private static final UIEntityType VM_TYPE = UIEntityType.fromString(VM);
 
+    /**
+     * Check the value of {@link SearchProtoUtil#SEARCH_ALL_TYPES}.
+     */
+    @Test
+    public void testSearchAllTypes() {
+        ImmutableList<String> expectedTypes = ImmutableList.of(
+                "VirtualMachine", "PhysicalMachine", "Storage", "DiskArray", "DataCenter", "VirtualDataCenter",
+                "BusinessApplication", "ApplicationServer", "Application", "VirtualApplication",
+                "Container", "ContainerPod", "VPod", "DPod", "StorageController", "IOModule", "Switch", "Chassis",
+                "Network", "LogicalPool", "Database", "DatabaseServer", "LoadBalancer",
+                "BusinessAccount", "CloudService", "ComputeTier", "StorageTier", "DatabaseTier",
+                "DatabaseServerTier", "AvailabilityZone", "Region", "VirtualVolume", "ProcessorPool",
+                "ViewPod", "DesktopPool", "BusinessUser");
+        assertThat(SearchProtoUtil.SEARCH_ALL_TYPES, containsInAnyOrder(expectedTypes.toArray()));
+    }
+
+    /**
+     * Test name filters.
+     */
     @Test
     public void testNameFilter() {
         PropertyFilter fooSearch = SearchProtoUtil.nameFilterRegex(FOO);
@@ -31,6 +53,9 @@ public class SearchProtoUtilTest {
         assertEquals(0, fooSearch.getStringFilter().getOptionsCount());
     }
 
+    /**
+     * Test name filters.
+     */
     @Test
     public void testNameFilterWithMatch() {
         PropertyFilter fooSearch = SearchProtoUtil.nameFilterRegex(FOO, false, false);
@@ -39,6 +64,9 @@ public class SearchProtoUtilTest {
         assertEquals(0, fooSearch.getStringFilter().getOptionsCount());
     }
 
+    /**
+     * Test entity filters.
+     */
     @Test
     public void testEntityFilter() {
         PropertyFilter vmSearch = SearchProtoUtil.entityTypeFilter(VM);
@@ -47,6 +75,9 @@ public class SearchProtoUtilTest {
             vmSearch.getNumericFilter().getValue());
     }
 
+    /**
+     * Test string regex filters.
+     */
     @Test
     public void testRegexPropertyFilter() {
         PropertyFilter fooBar = SearchProtoUtil.stringPropertyFilterRegex(BAR, FOO);
@@ -54,6 +85,9 @@ public class SearchProtoUtilTest {
         assertEquals("^" + FOO + "$", fooBar.getStringFilter().getStringPropertyRegex());
     }
 
+    /**
+     * Test exact string matching filters.
+     */
     @Test
     public void testPropertyFilter() {
         PropertyFilter fooBar = SearchProtoUtil.stringPropertyFilterExact(BAR, Collections.singletonList(FOO));
@@ -63,6 +97,9 @@ public class SearchProtoUtilTest {
         assertFalse(fooBar.getStringFilter().hasStringPropertyRegex());
     }
 
+    /**
+     * Test that there is no double {@code ^} in the beginning of a regex in a filter.
+     */
     @Test
     public void testStringFilterNoDoublePrefix() {
         assertThat(
@@ -71,6 +108,9 @@ public class SearchProtoUtilTest {
             is("^val$"));
     }
 
+    /**
+     * Test that there is no double {@code $} in the end of a regex in a filter.
+     */
     @Test
     public void testStringFilterNoDoubleSuffix() {
         assertThat(
@@ -79,6 +119,9 @@ public class SearchProtoUtilTest {
             is("^val$"));
     }
 
+    /**
+     * Test traversal to type filter.
+     */
     @Test
     public void testTraverseToType() {
         TraversalFilter traversalFilter =
@@ -89,6 +132,9 @@ public class SearchProtoUtilTest {
             traversalFilter.getStoppingCondition().getStoppingPropertyFilter());
     }
 
+    /**
+     * Test search property filter creation.
+     */
     @Test
     public void testSearchProperty() {
         PropertyFilter fooBar = SearchProtoUtil.stringPropertyFilterRegex(BAR, FOO);
@@ -96,6 +142,9 @@ public class SearchProtoUtilTest {
         assertEquals(fooBar, searchFilter.getPropertyFilter());
     }
 
+    /**
+     * Test search traversal filter creation.
+     */
     @Test
     public void testSearchTraversal() {
         TraversalFilter traversalFilter =
@@ -104,7 +153,9 @@ public class SearchProtoUtilTest {
         assertEquals(traversalFilter, searchFilter.getTraversalFilter());
     }
 
-
+    /**
+     * Test state filter.
+     */
     @Test
     public void testStateFilter() {
         final PropertyFilter propertyFilter = SearchProtoUtil.stateFilter("a|b|c");
@@ -116,7 +167,9 @@ public class SearchProtoUtilTest {
         assertEquals("c", propertyFilter.getStringFilter().getOptions(2));
     }
 
-
+    /**
+     * Test regex stripping.
+     */
     @Test
     public void testStripFullRegex() {
         assertEquals("ACTIVE", SearchProtoUtil.stripFullRegex("^ACTIVE$"));

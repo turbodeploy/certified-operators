@@ -1344,17 +1344,7 @@ public class GroupMapperTest {
      */
     @Test
     public void testByTagSearch() {
-        final GroupApiDTO inputDTO = new GroupApiDTO();
-        inputDTO.setCriteriaList(
-                Collections.singletonList(filterDTO(GroupMapper.NOT_EQUAL, "k=v1|k=v2", "vmsByTag")));
-        inputDTO.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
-        final List<SearchParameters> parameters =
-                groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), null);
-        assertEquals(1, parameters.size());
-        final SearchParameters byName = parameters.get(0);
-        assertEquals(TYPE_IS_VM, byName.getStartingFilter());
-        assertEquals(1, byName.getSearchFilterCount());
-        final MapFilter tagFilter = byName.getSearchFilter(0).getPropertyFilter().getMapFilter();
+        final MapFilter tagFilter = testByTagSearchGoodExpVal(GroupMapper.NOT_EQUAL, "k=v1|k=v2");
         assertEquals("k", tagFilter.getKey());
         assertEquals(2, tagFilter.getValuesCount());
         assertEquals("v1", tagFilter.getValues(0));
@@ -1368,17 +1358,7 @@ public class GroupMapperTest {
      */
     @Test
     public void testByTagSearchRegex() {
-        final GroupApiDTO inputDTO = new GroupApiDTO();
-        inputDTO.setCriteriaList(
-                Collections.singletonList(filterDTO(GroupMapper.REGEX_MATCH, "k=.*a.*", "vmsByTag")));
-        inputDTO.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
-        final List<SearchParameters> parameters =
-                groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), null);
-        assertEquals(1, parameters.size());
-        final SearchParameters byName = parameters.get(0);
-        assertEquals(TYPE_IS_VM, byName.getStartingFilter());
-        assertEquals(1, byName.getSearchFilterCount());
-        final MapFilter tagFilter = byName.getSearchFilter(0).getPropertyFilter().getMapFilter();
+        final MapFilter tagFilter = testByTagSearchGoodExpVal(GroupMapper.REGEX_MATCH, "k=.*a.*");
         assertEquals("k", tagFilter.getKey());
         assertEquals(0, tagFilter.getValuesCount());
         assertTrue(tagFilter.getPositiveMatch());
@@ -1439,5 +1419,115 @@ public class GroupMapperTest {
                                         .build())
                         .build(),
                 tagsPropertyFilter);
+    }
+
+    /**
+     * This test verifies that the expression value that comes from the UI is translated properly
+     * into a map filter, in various cases.
+     */
+    @Test
+    public void testMapFilter() {
+        final MapFilter filter1 = testByTagSearchGoodExpVal(GroupMapper.EQUAL, "AA=B");
+        assertEquals("AA", filter1.getKey());
+        assertEquals(1, filter1.getValuesCount());
+        assertEquals("B", filter1.getValues(0));
+        assertTrue(filter1.getPositiveMatch());
+        assertFalse(filter1.hasRegex());
+
+        final MapFilter filter2 = testByTagSearchGoodExpVal(GroupMapper.NOT_EQUAL, "AA=BB|AA=CC");
+        assertEquals("AA", filter2.getKey());
+        assertEquals(2, filter2.getValuesCount());
+        assertTrue(filter2.getValuesList().contains("BB"));
+        assertTrue(filter2.getValuesList().contains("CC"));
+        assertFalse(filter2.getPositiveMatch());
+        assertFalse(filter2.hasRegex());
+
+        final MapFilter filter4 = testByTagSearchGoodExpVal(GroupMapper.REGEX_NO_MATCH, "k=.*");
+        assertEquals("k", filter4.getKey());
+        assertEquals(0, filter4.getValuesCount());
+        assertEquals("^.*$", filter4.getRegex());
+        assertFalse(filter4.getPositiveMatch());
+
+        final MapFilter filter5 = testByTagSearchGoodExpVal(GroupMapper.REGEX_MATCH, "k=.*");
+        assertEquals("k", filter5.getKey());
+        assertEquals(0, filter5.getValuesCount());
+        assertEquals("^.*$", filter5.getRegex());
+        assertTrue(filter5.getPositiveMatch());
+    }
+
+    /**
+     * The expression value that comes from the UI during the creation of a map filter
+     * should be well-formed. Otherwise no filter will be created.
+     */
+    @Test
+    public void testBadMapFilter1() {
+        testByTagSearchBadExpVal(GroupMapper.NOT_EQUAL, "AA=B|DD");
+    }
+
+    /**
+     * The expression value that comes from the UI during the creation of a map filter
+     * should be well-formed. Otherwise no filter will be created.
+     */
+    @Test
+    public void testBadMapFilter2() {
+        testByTagSearchBadExpVal(GroupMapper.NOT_EQUAL, "AA=BB|C=D");
+    }
+
+    /**
+     * The expression value that comes from the UI during the creation of a map filter
+     * should be well-formed. Otherwise no filter will be created.
+     */
+    @Test
+    public void testBadMapFilter3() {
+        testByTagSearchBadExpVal(GroupMapper.NOT_EQUAL, "=B|foo=DD");
+    }
+
+    /**
+     * This test verifies that the expression value that comes from the UI is translated properly
+     * into a map filter, when special characters = | \ are present in the keys or values.
+     */
+    @Test
+    public void testMapFilterSpecialCharacters() {
+        final MapFilter filter1 = testByTagSearchGoodExpVal(GroupMapper.EQUAL, "AA\\==B|AA\\==\\=C\\|D");
+        assertEquals("AA=", filter1.getKey());
+        assertEquals(2, filter1.getValuesCount());
+        assertEquals("B", filter1.getValues(0));
+        assertEquals("=C|D", filter1.getValues(1));
+        assertTrue(filter1.getPositiveMatch());
+        assertFalse(filter1.hasRegex());
+
+        final MapFilter filter2 = testByTagSearchGoodExpVal(GroupMapper.EQUAL, "AA\\=\\\\B=C");
+        assertEquals("AA=\\B", filter2.getKey());
+        assertEquals(1, filter2.getValuesCount());
+        assertEquals("C", filter2.getValues(0));
+        assertTrue(filter2.getPositiveMatch());
+        assertFalse(filter2.hasRegex());
+    }
+
+    private MapFilter testByTagSearchGoodExpVal(@Nonnull String operator, @Nonnull String expVal) {
+        final GroupApiDTO inputDTO = new GroupApiDTO();
+        inputDTO.setCriteriaList(
+                Collections.singletonList(filterDTO(operator, expVal, "vmsByTag")));
+        inputDTO.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        final List<SearchParameters> parameters =
+                groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), null);
+        assertEquals(1, parameters.size());
+        final SearchParameters byName = parameters.get(0);
+        assertEquals(TYPE_IS_VM, byName.getStartingFilter());
+        assertEquals(1, byName.getSearchFilterCount());
+        return byName.getSearchFilter(0).getPropertyFilter().getMapFilter();
+    }
+
+    private void testByTagSearchBadExpVal(@Nonnull String operator, @Nonnull String expVal) {
+        final GroupApiDTO inputDTO = new GroupApiDTO();
+        inputDTO.setCriteriaList(
+                Collections.singletonList(filterDTO(operator, expVal, "vmsByTag")));
+        inputDTO.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        final List<SearchParameters> parameters =
+                groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), null);
+        assertEquals(1, parameters.size());
+        final SearchParameters byName = parameters.get(0);
+        assertEquals(TYPE_IS_VM, byName.getStartingFilter());
+        assertEquals(0, byName.getSearchFilterCount());
     }
 }
