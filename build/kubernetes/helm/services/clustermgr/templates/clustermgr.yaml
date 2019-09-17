@@ -67,6 +67,9 @@ spec:
         volumeMounts:
         - mountPath: /home/turbonomic/data
           name: clustermgr
+        - mountPath: /etc/turbonomic
+          name: turbo-volume
+          readOnly: true
         - mountPath: /tmp
           name: clustermgr-tmpfs0
 {{- if .Values.global }}
@@ -82,6 +85,10 @@ spec:
       - name: clustermgr
         persistentVolumeClaim:
           claimName: {{ .Chart.Name }}
+      - name: turbo-volume
+        configMap:
+          name: global-properties-{{ .Release.Name }}
+          optional: true
       - name: clustermgr-tmpfs0
         emptyDir: {}
   selector:

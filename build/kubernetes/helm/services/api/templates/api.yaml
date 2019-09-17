@@ -85,6 +85,9 @@ spec:
           name: api
         - mountPath: /tmp/certs
           name: api-certs
+        - mountPath: /etc/turbonomic
+          name: turbo-volume
+          readOnly: true
         - mountPath: /tmp
           name: api-tmpfs0
 {{- if .Values.global }}
@@ -103,6 +106,10 @@ spec:
       - name: api-certs
         persistentVolumeClaim:
           claimName: {{ .Chart.Name }}-certs
+      - name: turbo-volume
+        configMap:
+          name: global-properties-{{ .Release.Name }}
+          optional: true
       - name: api-tmpfs0
         emptyDir: {}
   selector:

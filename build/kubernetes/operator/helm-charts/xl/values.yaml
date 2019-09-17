@@ -137,6 +137,18 @@ resources: {}
   #  cpu: 100m
   #  memory: 128Mi
 
+properties: {}
+  # global:
+  #   realtimeTopologyContextId : 666666
+  # topology_processor:
+  #   broadcast_interval: 1min
+
+#properties:
+  # global:
+  #   realtimeTopologyContextId : 666666
+  # topology_processor:
+  #   broadcast_interval: 1min
+
 nodeSelector: {}
 
 tolerations: []
