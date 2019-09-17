@@ -1,19 +1,3 @@
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: {{ .Chart.Name }}-certs
-  labels:
-    zone: public
-    app.kubernetes.io/name: {{ .Chart.Name }}-certs
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -49,7 +33,7 @@ spec:
           - containerPort: 8443
         readinessProbe:
           httpGet:
-            path: {{ .Values.global.apiReadinessProbePath | default "/healthz/ready" | quote }}
+            path: "/healthz/ready"
             port: 8443
             scheme: HTTPS
         securityContext:
@@ -79,8 +63,9 @@ spec:
         fsGroup: 2000
       volumes:
       - name: nginx-certs
-        persistentVolumeClaim:
-          claimName: {{ .Chart.Name }}-certs
+        secret:
+          secretName: "nginx-ingressgateway-certs"
+          optional: true
       - name: nginx-load-status
         emptyDir: {}
       - name: nginx-data
@@ -94,8 +79,6 @@ spec:
       app.kubernetes.io/name: {{ .Chart.Name }}
       app.kubernetes.io/instance: {{ .Release.Name }}
 ---
-{{- if .Values.global }}
-  {{- if not .Values.global.defaultNginxIngress }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -118,63 +101,46 @@ spec:
   selector:
     app.kubernetes.io/name: {{ .Chart.Name }}
     app.kubernetes.io/instance: {{ .Release.Name }}
+{{- if .Values.global }}
     {{- if .Values.global.externalIP }}
   externalIPs:
     - {{ .Values.global.externalIP }}
-    {{- end -}}
-  {{- if .Values.global.apiLoadBalancerIP }}
-    loadBalancerIP: {{ .Values.global.apiLoadBalancerIP }}
-  {{- end }}
-  {{- else }}
-apiVersion: v1
-kind: Service
+  {{ end }}
+---
+  {{- if .Values.global.certmanager }}
+apiVersion: certmanager.k8s.io/v1alpha1
+kind: Certificate
 metadata:
-  name: {{ .Chart.Name }}-nodeport-service
-  labels:
-    zone: internal
-    app.kubernetes.io/name: {{ .Chart.Name }}-nodeport-service
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
-  annotations:
-    {{- if eq (default .Values.global.cloudProvider "") "gcp" }}
-    cloud.google.com/app-protocols: {{ .Values.global.gcpApiAppProtocols | default "{\"https\":\"HTTP2\"}" | quote }}
-      {{- if .Values.global.gcpApiBackendConfig }}
-    beta.cloud.google.com/backend-config: {{ .Values.global.gcpApiBackendConfig | quote }}
-      {{- end }}
-    {{- end }}
+  name: t8c-nginx-gateway
 spec:
-  type: NodePort
-  ports:
-  - port: 8000
-    targetPort: 8000
-    name: http
-  - port: 8443
-    targetPort: 8443
-    name: https
-  selector:
+  secretName: nginx-ingressgateway-certs
+  issuerRef:
+    name: letsencrypt-prod
+  commonName: {{ .Values.global.ingress.domain | default "*.turbonomic.com" | quote }}
+  acme:
+    config:
+      - dns01:
+          provider: cloud-dns
+        domains:
+          - {{ .Values.global.ingress.domain | default "*.turbonomic.com" | quote }}
+---
+  {{ else }}
+    {{- if .Values.global }}
+      {{- range .Values.global.ingress.secrets }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .name }}
+  labels:
     app.kubernetes.io/name: {{ .Chart.Name }}
     app.kubernetes.io/instance: {{ .Release.Name }}
----
-apiVersion: extensions/v1beta1
-kind: Ingress
-metadata:
-  name: {{ .Chart.Name }}-ingress
-  labels:
-    zone: internal
-    app.kubernetes.io/name: {{ .Chart.Name }}-ingress
-    app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
-  annotations:
-    kubernetes.io/ingress.allow-http: {{ .Values.global.apiIngressAllowHttp | default "false" | quote }}
-    {{- if .Values.global.apiIngressGlobalStaticIpName }}
-    kubernetes.io/ingress.global-static-ip-name: {{ .Values.global.apiIngressGlobalStaticIpName }}
+type: kubernetes.io/tls
+data:
+  tls.crt: {{ .certificate | b64enc }}
+  tls.key: {{ .key | b64enc }}
+---
+      {{- end }}
     {{- end }}
-    {{- if .Values.global.gkeApiManagedCertificate }}
-    networking.gke.io/managed-certificates: {{ .Values.global.gkeApiManagedCertificate }}
-    {{- end }}
-spec:
-  backend:
-    serviceName: {{ .Chart.Name }}-nodeport-service
-    servicePort: 8443
   {{- end -}}
 {{- end -}}

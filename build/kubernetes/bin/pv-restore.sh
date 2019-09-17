@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# incremental or complete restore of t8c
+ACTION=incremental
+if [ $# -eq 1 ]
+  then
+    ACTION=$1
+fi
+
 # Scale DOWN all turbo pods to 0
 function turbo_stop_all_pods {
     turbo_stop_all_pods=$(kubectl get deploy -n turbonomic --no-headers=true | cut -d ' ' -f1 | xargs -I % kubectl scale --replicas=0 deployment/% -n turbonomic)
@@ -56,11 +63,26 @@ do
   echo ${VOL_NAME}
   sudo mkdir -p /mnt/${PVC_NAME[i]}
   sudo mount -t glusterfs localhost:${VOL_NAME} /mnt/${PVC_NAME[i]}
-  pushd /mnt/${PVC_NAME[i]}
-  sudo rsync -a --info=progress2 /opt/pv/${PVC_NAME[i]}/ . --delete
+  case $ACTION in
+  incremental)
+    pushd /mnt/${PVC_NAME[i]}
+    sudo rsync -a --info=progress2 /opt/pv/${PVC_NAME[i]}/ . --delete;;
+  full)
+    pushd /mnt/
+    sudo tar xf /opt/pv/${PVC_NAME[i]}.tar;;
+  *)
+    echo "$0 [incremental|full]"
+  esac
   if [ ${PVC_NAME[i]} = consul-data ]
   then
-    sudo rsync -a --info=progress2 /opt/pv/consuldata/ . --delete
+    case $ACTION in
+    incremental)
+      sudo rsync -a --info=progress2 /opt/pv/consuldata/ . --delete;;
+    full)
+      sudo tar xf /opt/pv/consuldata.tar;;
+    *)
+      echo "$0 [incremental|full]"
+    esac
   fi
   if [ ${PVC_NAME[i]} = arangodb ]
   then

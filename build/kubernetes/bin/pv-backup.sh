@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# incremental or full backup of t8c
+ACTION=incremental
+if [ $# -eq 1 ]
+  then
+    ACTION=$1
+fi
+
 # Get all the pv's for turbo
 PVC_NAME=($(kubectl get pv | egrep -v POLICY | awk '{print $6}'| awk -F/ '{print $2}'))
 PV_NAME=($(kubectl get pv | egrep -v NAME | awk '{print $1}'))
@@ -35,7 +42,15 @@ do
   sudo mkdir -p /mnt/${PVC_NAME[i]}
   sudo mount -t glusterfs localhost:${VOL_NAME} /mnt/${PVC_NAME[i]}
   pushd /mnt
-  sudo rsync -a --info=progress2 ${PVC_NAME[i]} /opt/pv/
+  case $ACTION in
+  incremental)
+    sudo rsync -a --info=progress2 ${PVC_NAME[i]} /opt/pv/;;
+  full)
+    sudo tar cf /opt/pv/${PVC_NAME[i]}.tar ${PVC_NAME[i]};;
+  *)
+    echo "$0 [incremental|full]"
+    exit 0
+  esac
   popd
   sudo umount /mnt/${PVC_NAME[i]}
   sudo rm -rf /mnt/${PVC_NAME[i]}
@@ -43,15 +58,15 @@ do
 done
 
 # Delete the helm install
-echo "Deleting the xl-release helm version"
-/usr/local/bin/helm del --purge xl-release
-echo
+#echo "Deleting the xl-release helm version"
+#/usr/local/bin/helm del --purge xl-release
+#echo
 
 # Check and wait for the pv's to be deleted
-PV_ALIVE=$(kubectl get pv | wc -l)
-while [ ! $PV_ALIVE = 0 ]
-do
-  echo "Still deleting volumes"
-  sleep 30
-  PV_ALIVE=$(kubectl get pv | wc -l)
-done
+#PV_ALIVE=$(kubectl get pv | wc -l)
+#while [ ! $PV_ALIVE = 0 ]
+#do
+#  echo "Still deleting volumes"
+#  sleep 30
+#  PV_ALIVE=$(kubectl get pv | wc -l)
+#done

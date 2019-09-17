@@ -37,31 +37,18 @@ fi
 
 echo "Configuring" $WORKER_PROCESSES "and" $WORKER_CONNECTIONS "connections per process." 2>&1 | ${LOGGER_COMMAND}
 
-mkdir -p /tmp/certs
-
-# extract the cert and key from a pkcs12 file, if one was provided
-if [[ -f "/etc/nginx/certs/key.pkcs12" ]]; then
-    # extract a cert and key from the pkcs12 file
-    echo "Extracting cert from key.pkcs12" 2>&1 | ${LOGGER_COMMAND}
-    if [ -z "$KEYPASS" ]; then
-        KEYPASS="jumpy-crazy-experience"
-    fi
-    pushd /etc/nginx/certs
-    openssl pkcs12 -in key.pkcs12 -nocerts -nodes -out /tmp/certs/cert.key -passin pass:${KEYPASS}
-    openssl pkcs12 -in key.pkcs12 -nokeys -out /tmp/certs/cert.pem -passin pass:${KEYPASS}
-    popd
-fi
-
 # Generate a certificate if there isn't one yet
-if [[ ! -f "/tmp/certs/cert.pem" ]]; then
+if [ ! -f "/etc/nginx/certs/tls.crt" ] | [ ! -f "/etc/nginx/certs/tls.key" ]; then
     # generate a cert
     echo "Generating certs" 2>&1 | ${LOGGER_COMMAND}
     rm -f /tmp/certs/*
+    mkdir -p /tmp/certs
     pushd /tmp/certs
     openssl genrsa -out cert.key 2048
-    openssl req -new -sha256 -key cert.key -out csr.csr -subj '/CN=turbonomic'
-    openssl req -x509 -sha256 -days 3650 -key cert.key -in csr.csr -out cert.pem
+    openssl req -new -sha256 -key tls.key -out csr.csr -subj '/CN=turbonomic'
+    openssl req -x509 -sha256 -days 3650 -key tls.key -in csr.csr -out tls.crt
     popd
+    sed -i "s/etc\/nginx\/certs/tmp\/certs/" /tmp/nginx.conf
 fi
 
 start_nginx() {

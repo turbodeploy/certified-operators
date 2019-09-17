@@ -8,7 +8,7 @@ spec:
         istio: t8c-ingressgateway-{{ .Release.Name }}
     servers:
         - hosts:
-              - {{ .Values.istioingress.domain | default "*.turbonomic.com" | quote }}
+              - {{ .Values.global.ingress.domain | default "*.turbonomic.com" | quote }}
           port:
               number: 80
               name: http
@@ -16,7 +16,7 @@ spec:
           tls:
               httpsRedirect: true
         - hosts:
-              - {{ .Values.istioingress.domain | default "*.turbonomic.com" | quote }}
+              - {{ .Values.global.ingress.domain | default "*.turbonomic.com" | quote }}
           port:
               number: 443
               name: https
@@ -34,7 +34,7 @@ spec:
     gateways:
         - t8c-gateway
     hosts:
-        - {{ .Values.istioingress.domain | default "*.turbonomic.com" | quote }}
+        - {{ .Values.global.ingress.domain | default "*.turbonomic.com" | quote }}
     http:
         - match:
               - uri:
@@ -254,6 +254,8 @@ spec:
     - name: tls
       port: 15443
 ---
+{{- end }}
+{{- if .Values.global.certmanager }}
 apiVersion: certmanager.k8s.io/v1alpha1
 kind: Certificate
 metadata:
@@ -262,13 +264,31 @@ spec:
     secretName: istio-ingressgateway-certs
     issuerRef:
         name: letsencrypt-prod
-    commonName: {{ .Values.istioingress.domain | default "*.turbonomic.com" | quote }}
+    commonName: {{ .Values.global.ingress.domain | default "*.turbonomic.com" | quote }}
     acme:
         config:
             - dns01:
                   provider: cloud-dns
               domains:
-                  - {{ .Values.istioingress.domain | default "*.turbonomic.com" | quote }}
+                  - {{ .Values.global.ingress.domain | default "*.turbonomic.com" | quote }}
 
 ---
+{{ else }}
+  {{- if .Values.global }}
+    {{- range .Values.global.ingress.secrets }}
+apiVersion: v1
+kind: Secret
+metadata:
+    name: {{ .name }}
+    labels:
+        app.kubernetes.io/name: {{ .Chart.Name }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/managed-by: {{ .Release.Service }}
+type: kubernetes.io/tls
+data:
+    tls.crt: {{ .certificate | b64enc }}
+    tls.key: {{ .key | b64enc }}
+---
+    {{- end }}
+  {{- end }}
 {{- end }}
