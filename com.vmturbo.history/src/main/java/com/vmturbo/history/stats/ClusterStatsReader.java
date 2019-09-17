@@ -7,6 +7,7 @@ import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_TYPE;
 import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByDay.CLUSTER_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByMonth.CLUSTER_STATS_BY_MONTH;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -14,7 +15,6 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import org.jooq.Condition;
-import org.jooq.SelectConditionStep;
 
 import com.vmturbo.history.db.BasedbIO.Style;
 import com.vmturbo.history.db.HistorydbIO;
@@ -25,10 +25,10 @@ import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByMonth
 /**
  * This class is responsible for reading data from the cluster_stats tables.
  */
-public class ClusterStatsReader {
+class ClusterStatsReader {
     private final HistorydbIO historydbIO;
 
-    public ClusterStatsReader(HistorydbIO historydbIO) {
+    ClusterStatsReader(HistorydbIO historydbIO) {
         this.historydbIO = historydbIO;
     }
 
@@ -42,9 +42,9 @@ public class ClusterStatsReader {
      * @param commodityNames Names in the property_type of each record
      * @return A list of statistics records within the date range and with record property_types
      *         that match commodity names.
-     * @throws VmtDbException
+     * @throws VmtDbException vmtdb exception
      */
-    public @Nonnull List<ClusterStatsByDayRecord> getStatsRecordsByDay (
+    @Nonnull List<ClusterStatsByDayRecord> getStatsRecordsByDay(
             @Nonnull Long clusterUuid,
             @Nonnull Long startDate,
             @Nonnull Long endDate,
@@ -55,31 +55,31 @@ public class ClusterStatsReader {
         Objects.requireNonNull(endDate);
         Objects.requireNonNull(commodityNames);
 
-        final Condition whereInCommodityNames = str(dField(CLUSTER_STATS_BY_DAY, PROPERTY_TYPE))
-                .in(commodityNames);
-
-        final SelectConditionStep<ClusterStatsByDayRecord> queryBuilder = historydbIO.JooqBuilder()
-                .selectFrom(CLUSTER_STATS_BY_DAY)
-                .where(whereInCommodityNames)
-                .and(CLUSTER_STATS_BY_DAY.INTERNAL_NAME.eq(Long.toString(clusterUuid)));
+        List<Condition> conditions = new ArrayList<>();
+        conditions.add(CLUSTER_STATS_BY_DAY.INTERNAL_NAME.eq(Long.toString(clusterUuid)));
+        // Don't add inCommodityNames condition if commodityNames is empty.
+        if (!commodityNames.isEmpty()) {
+            conditions.add(str(dField(CLUSTER_STATS_BY_DAY, PROPERTY_TYPE)).in(commodityNames));
+        }
 
         final Condition dateCondition;
         if (startDate.equals(endDate)) {
             // Fetch the most recent records for this cluster
             dateCondition = CLUSTER_STATS_BY_DAY.RECORDED_ON.eq(
                 historydbIO.JooqBuilder()
-                   .select(CLUSTER_STATS_BY_DAY.RECORDED_ON.max())
-                   .from(CLUSTER_STATS_BY_DAY)
-                   .where(CLUSTER_STATS_BY_DAY.INTERNAL_NAME.eq(Long.toString(clusterUuid)))
-                   .and(whereInCommodityNames)
-                   .and(CLUSTER_STATS_BY_DAY.RECORDED_ON.lessOrEqual(new java.sql.Date(startDate))));
+                    .select(CLUSTER_STATS_BY_DAY.RECORDED_ON.max())
+                    .from(CLUSTER_STATS_BY_DAY)
+                    .where(conditions)
+                    .and(CLUSTER_STATS_BY_DAY.RECORDED_ON.lessOrEqual(new java.sql.Date(startDate))));
         } else {
             dateCondition = date(CLUSTER_STATS_BY_DAY.RECORDED_ON)
                 .between(new java.sql.Date(startDate), new java.sql.Date(endDate));
         }
-        queryBuilder.and(dateCondition);
+        conditions.add(dateCondition);
+
         return historydbIO.execute(Style.FORCED,
-                queryBuilder.getQuery()).into(ClusterStatsByDayRecord.class);
+            historydbIO.JooqBuilder().selectFrom(CLUSTER_STATS_BY_DAY)
+                .where(conditions).getQuery()).into(ClusterStatsByDayRecord.class);
     }
 
     /**
@@ -92,27 +92,25 @@ public class ClusterStatsReader {
      * @param commodityNames Names in the property_type of each record
      * @return A list of statistics records within the date range and with record property_types
      *         that match commodity names.
-     * @throws VmtDbException
+     * @throws VmtDbException vmtdb exception
      */
-    public @Nonnull List<ClusterStatsByMonthRecord> getStatsRecordsByMonth(
+    @Nonnull List<ClusterStatsByMonthRecord> getStatsRecordsByMonth(
             @Nonnull Long clusterUuid,
             @Nonnull Long startDate,
             @Nonnull Long endDate,
             @Nonnull Set<String> commodityNames)
             throws VmtDbException {
-        final Condition whereInCommodityNames = str(dField(CLUSTER_STATS_BY_MONTH, PROPERTY_TYPE))
-                .in(commodityNames);
-
-        final Condition dateCondition = date(CLUSTER_STATS_BY_MONTH.RECORDED_ON)
-                .between(new java.sql.Date(startDate), new java.sql.Date(endDate));
-
-        final SelectConditionStep<ClusterStatsByMonthRecord> queryBuilder = historydbIO.JooqBuilder()
-                .selectFrom(CLUSTER_STATS_BY_MONTH)
-                .where(whereInCommodityNames)
-                .and(CLUSTER_STATS_BY_MONTH.INTERNAL_NAME.eq(Long.toString(clusterUuid)))
-                .and(dateCondition);
+        List<Condition> conditions = new ArrayList<>();
+        conditions.add(CLUSTER_STATS_BY_MONTH.INTERNAL_NAME.eq(Long.toString(clusterUuid)));
+        // Don't add inCommodityNames condition if commodityNames is empty.
+        if (!commodityNames.isEmpty()) {
+            conditions.add(str(dField(CLUSTER_STATS_BY_MONTH, PROPERTY_TYPE)).in(commodityNames));
+        }
+        conditions.add(date(CLUSTER_STATS_BY_MONTH.RECORDED_ON)
+            .between(new java.sql.Date(startDate), new java.sql.Date(endDate)));
 
         return historydbIO.execute(Style.FORCED,
-                queryBuilder.getQuery()).into(ClusterStatsByMonthRecord.class);
+            historydbIO.JooqBuilder().selectFrom(CLUSTER_STATS_BY_MONTH)
+                .where(conditions).getQuery()).into(ClusterStatsByMonthRecord.class);
     }
 }

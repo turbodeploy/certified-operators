@@ -6,6 +6,7 @@ import static org.junit.Assert.assertEquals;
 
 import java.math.BigDecimal;
 import java.sql.Date;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -142,10 +143,43 @@ public class ClusterStatsReaderTest {
     }
 
     /**
+     * Date range is provided. The start and end dates are within the range in the dataset.
+     * CommodityNames is empty. Show that all types of commodities will be returned.
+     *
+     * @throws VmtDbException vmtdb exception
+     */
+    @Test
+    public void testGetStatsRecordsByDayWithoutCommodityName() throws VmtDbException {
+        List<ClusterStatsByDayRecord> result =
+            clusterStatsReader.getStatsRecordsByDay(Long.parseLong(clusterId1),
+                Date.valueOf("2017-12-14").getTime(),
+                Date.valueOf("2017-12-15").getTime(),
+                Collections.emptySet());
+        assertEquals(4, result.size());
+    }
+
+    /**
+     * Date range is provided. The start and end dates are within the range in the dataset.
+     * One commodity name is specified.
+     *
+     * @throws VmtDbException vmtdb exception
+     */
+    @Test
+    public void testGetStatsRecordsByDayWithOneCommodityName() throws VmtDbException {
+        Set<String> commodityNames = Sets.newHashSet("headroomVMs");
+        List<ClusterStatsByDayRecord> result =
+            clusterStatsReader.getStatsRecordsByDay(Long.parseLong(clusterId1),
+                Date.valueOf("2017-12-14").getTime(),
+                Date.valueOf("2017-12-15").getTime(),
+                commodityNames);
+        assertEquals(2, result.size());
+    }
+
+    /**
      * Date range is provided.  The start and end dates are within the range in the dataset.
      * Show that the range is inclusive of both end dates.
      *
-     * @throws VmtDbException
+     * @throws VmtDbException vmtdb exception
      */
     @Test
     public void testGetStatsRecordsByDayWithDateRange1() throws VmtDbException {
@@ -161,7 +195,7 @@ public class ClusterStatsReaderTest {
     /**
      * Date range is provided.  The start and end dates are outside of the range of the dataset.
      *
-     * @throws VmtDbException
+     * @throws VmtDbException vmtdb exception
      */
     @Test
     public void testGetStatsRecordsByDayWithDateRange2() throws VmtDbException {
@@ -183,6 +217,39 @@ public class ClusterStatsReaderTest {
                         Date.valueOf("2017-12-15").getTime(),
                         commodityNames);
         assertEquals(6, result.size());
+    }
+
+    /**
+     * Date range is provided. The start and end dates are within the range in the dataset.
+     * CommodityNames is empty. Show that all types of commodities will be returned.
+     *
+     * @throws VmtDbException vmtdb exception
+     */
+    @Test
+    public void testGetStatsRecordsByMonthWithoutCommodityName() throws VmtDbException {
+        List<ClusterStatsByMonthRecord> result =
+            clusterStatsReader.getStatsRecordsByMonth(Long.parseLong(clusterId1),
+                Date.valueOf("2017-09-10").getTime(),
+                Date.valueOf("2017-12-15").getTime(),
+                Collections.emptySet());
+        assertEquals(6, result.size());
+    }
+
+    /**
+     * Date range is provided. The start and end dates are within the range in the dataset.
+     * CommodityNames is empty. Show that all types of commodities will be returned.
+     *
+     * @throws VmtDbException vmtdb exception
+     */
+    @Test
+    public void testGetStatsRecordsByMonthWithOneCommodityName() throws VmtDbException {
+        Set<String> commodityNames = Sets.newHashSet("headroomVMs");
+        List<ClusterStatsByMonthRecord> result =
+            clusterStatsReader.getStatsRecordsByMonth(Long.parseLong(clusterId1),
+                Date.valueOf("2017-09-10").getTime(),
+                Date.valueOf("2017-12-15").getTime(),
+                commodityNames);
+        assertEquals(3, result.size());
     }
 
     @Test
