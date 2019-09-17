@@ -1199,18 +1199,19 @@ public class TopologyConverter {
             @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO,
             @Nonnull final TopologyDTO.CommodityBoughtDTO commBought,
             @Nullable final Long providerOid) {
-        final float used =
+
+        final float histUsed =
                 CommodityConverter.getUsedValue(commBought, TopologyDTO.CommodityBoughtDTO::getUsed,
                         commBought.hasHistoricalUsed() ?
                                 TopologyDTO.CommodityBoughtDTO::getHistoricalUsed : null);
-        final float peak =
+        final float histPeak =
                 CommodityConverter.getUsedValue(commBought, TopologyDTO.CommodityBoughtDTO::getPeak,
                         commBought.hasHistoricalPeak() ?
                                 TopologyDTO.CommodityBoughtDTO::getHistoricalPeak : null);
 
         // TODO: Need to add check for Cloud migration here. This will apply to Cloud Migration too.
         if (topologyDTO.getEnvironmentType() != EnvironmentType.CLOUD) {
-            return new double[]{used, peak};
+            return new double[]{histUsed, histPeak};
         }
 
         final Integer drivingCommSoldType =
@@ -1251,8 +1252,12 @@ public class TopologyConverter {
                         .filter(CommoditySoldDTO::hasCapacity)
                         .findFirst();
                 if (commoditySoldDTO.isPresent()) {
-                    final double[] resizedQuantity = calculateResizedQuantity(commBought.getUsed(),
-                            getWeightedUsed(commBought), commBought.getUsed(), commBought.getPeak(),
+                    // We want to use the historical used (already smoothened) for both the resize-up
+                    // and resize-down demand calculations. We do not want to consider the
+                    // historical max or the peaks to avoid a one-time historic max value to cause
+                    // resize decisions.
+                    final double[] resizedQuantity = calculateResizedQuantity(histUsed, histUsed,
+                            commBought.getUsed(), histPeak,
                             commoditySoldDTO.get().getCapacity(),
                             commBought.getResizeTargetUtilization());
                     cert.logCommodityResize(topologyDTO.getOid(), commBought.getCommodityType(),
@@ -1269,7 +1274,7 @@ public class TopologyConverter {
             }
         }
 
-        return new double[]{used, peak};
+        return new double[]{histUsed, histPeak};
     }
 
     private double[] calculateResizedQuantity(double resizeUpDemand, double resizeDownDemand,
@@ -1308,18 +1313,6 @@ public class TopologyConverter {
         return getWeightedUsed(commodity.getUsed(), max, commodity.getPeak());
     }
 
-    /**
-     * Calculates the weighted usage which will be used for resize down for cloud resource.
-     *
-     * @param commodity the {@link TopologyDTO.CommodityBoughtDTO}
-     */
-    private double getWeightedUsed(@Nonnull final TopologyDTO.CommodityBoughtDTO commodity) {
-        final Double maxQuantity =
-                commodity.hasHistoricalUsed() && commodity.getHistoricalUsed().hasMaxQuantity() ?
-                        commodity.getHistoricalUsed().getMaxQuantity() : null;
-        final float max = maxQuantity == null ? 0f : maxQuantity.floatValue();
-        return getWeightedUsed(commodity.getUsed(), max, commodity.getPeak());
-    }
 
     /**
      * Calculates the weighted usage which will be used for resize down for cloud resource.
