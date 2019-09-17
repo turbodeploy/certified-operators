@@ -138,11 +138,11 @@ public class WastedFilesAnalysisTest {
     }
 
     private Map<Long, TopologyEntityDTO> createTestCloudTopology() {
-        final long vmOid = 1l;
-        final long wastedFileVolume1Oid = 2l;
-        final long wastedFileVolume2Oid = 3l;
-        final long connectedVolumeOid = 4l;
-        final long storageTierOid = 5l;
+        final long vmOid = 1L;
+        final long wastedFileVolume1Oid = 2L;
+        final long wastedFileVolume2Oid = 3L;
+        final long connectedVolumeOid = 4L;
+        final long storageTierOid = 5L;
         final TopologyEntityDTO.Builder vm = createCloudEntity(vmOid, EntityType.VIRTUAL_MACHINE);
         final TopologyEntityDTO.Builder wastedFileVolume1 = createCloudEntity(wastedFileVolume1Oid,
             EntityType.VIRTUAL_VOLUME);
@@ -235,31 +235,46 @@ public class WastedFilesAnalysisTest {
 
         assertEquals("There should be two actions for cloud wasted storage", 2, analysis.getActions().size());
 
-        assertEquals("Ensure Action has the right vol",
-                ImmutableSet.of("Vol-2", "Vol-3"),
-                analysis.getActions().stream()
-                    .map(Action::getInfo)
-                    .map(ActionInfo::getDelete)
-                    .map(Delete::getFilePath)
-                    .collect(Collectors.toSet()));
+        assertEquals("Ensure Action has the virtual volume oid as the delete target",
+            ImmutableSet.of(2L, 3L),
+            analysis.getActions().stream()
+                .map(Action::getInfo)
+                .map(ActionInfo::getDelete)
+                .map(Delete::getTarget)
+                .map(ActionEntity::getId)
+                .collect(Collectors.toSet()));
 
-        Map<String, Double> costMap = ImmutableMap.<String, Double>builder()
-            .put("Vol-2", 20d)
-            .put("Vol-3", 30d)
-            .put("Vol-4", 40d)
+        assertEquals("Ensure Action has the storage tier oid as the source target",
+            ImmutableSet.of(5L, 5L),
+            analysis.getActions().stream()
+                .map(Action::getInfo)
+                .map(ActionInfo::getDelete)
+                .map(Delete::getSource)
+                .map(ActionEntity::getId)
+                .collect(Collectors.toSet()));
+
+        Map<Long, Double> costMap = ImmutableMap.<Long, Double>builder()
+            .put(2L, 20d)
+            .put(3L, 30d)
+            .put(4L, 40d)
             .build();
         analysis.getActions().forEach(action ->
             assertEquals("Ensure action has the right savings",
-                costMap.get(action.getInfo().getDelete().getFilePath()),
+                costMap.get(action.getInfo().getDelete().getTarget().getId()),
                 Double.valueOf(action.getSavingsPerHour().getAmount()))
         );
 
         // make sure storage tier is the target of each action
         analysis.getActions().forEach(action -> {
+            assertEquals("Each file path are empty", "", action.getInfo().getDelete().getFilePath());
+
             ActionEntity target = action.getInfo().getDelete().getTarget();
-            assertEquals(EntityType.STORAGE_TIER_VALUE, target.getType());
+            assertEquals(EntityType.VIRTUAL_VOLUME_VALUE, target.getType());
             assertEquals(EnvironmentType.CLOUD, target.getEnvironmentType());
-            assertEquals(5l, target.getId());
+
+            ActionEntity source = action.getInfo().getDelete().getSource();
+            assertEquals(EntityType.STORAGE_TIER_VALUE, source.getType());
+            assertEquals(5L, source.getId());
         });
     }
 }

@@ -295,12 +295,16 @@ message Deactivate {
 }
 
 message Delete {
-    // The oid of the Storage or Storage Tier that the virtual volume that is wasted (for cloud)
-    // or the virtual volume which contains the wasted file (for on prem) is connected to.
+    // The oid of the entity going be deleted in the Action.
+    // In case of storage, it is the Storage or Virtual Volume that the virtual volume that is wasted (for cloud)
+    //   or the virtual volume which contains the wasted file (for on prem) is connected to.
     optional ActionEntity target = 1;
 
     // The path to the wasted file (on prem) or volume (cloud)
     optional string file_path = 2;
+
+    // The oid of the Storage Tier which the wasted virtual volume belongs to (for cloud)
+    optional ActionEntity source = 3;
 }
 
 // Represents an action to reconfigure an entity shopping list of a trader that contains a mix of

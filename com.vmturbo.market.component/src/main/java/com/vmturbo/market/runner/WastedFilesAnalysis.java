@@ -11,9 +11,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import com.google.common.base.Strings;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -167,28 +169,43 @@ public class WastedFilesAnalysis {
      * fields between on prem and cloud.  This builder must later be refined with details specific
      * to on prem or cloud by the calling method.
      *
-     * @param storageOid the id of the Storage or StorageTier hosting the file
-     * @param entityType {@link EntityType} - either Storage (on prem) or StorageTier (cloud)
-     * @param filePath The file path (on prem) or volume to be deleted
+     * @param targetEntityOid id of the storage hosting the file (on-perm) or virtual volume wasted (cloud)
+     * @param targetEntityType {@link EntityType} - either Storage (on prem) or Virtual Volume (cloud)
+     * @param sourceEntityOid - storage tier which the Virtual Volume sits (cloud)
+     * @param sourceEntityType - {@link EntityType} Storage Tier for cloud
+     * @param filePath The file path to be deleted (on prem)
      * @param environmentType {@link EnvironmentType} of target
      * @return {@link Action.Builder} with the common fields for the delete action populated
      */
-    private Action.Builder newActionFromVolume(final long storageOid,
-                                               final EntityType entityType,
-                                               final String filePath,
+    private Action.Builder newActionFromVolume(final long targetEntityOid,
+                                               final EntityType targetEntityType,
+                                               @Nullable final Long sourceEntityOid,
+                                               @Nullable final EntityType sourceEntityType,
+                                               @Nullable final String filePath,
                                                final EnvironmentType environmentType) {
+        final Delete.Builder deleteBuilder = Delete.newBuilder()
+            .setTarget(ActionEntity.newBuilder()
+                .setId(targetEntityOid)
+                .setType(targetEntityType.getNumber())
+                .setEnvironmentType(environmentType));
+
+        if (!Strings.isNullOrEmpty(filePath)) {
+            deleteBuilder.setFilePath(filePath);
+        }
+
+        if (sourceEntityOid != null) {
+            deleteBuilder.setSource(ActionEntity.newBuilder()
+                .setId(sourceEntityOid)
+                .setType(sourceEntityType.getNumber())
+                .setEnvironmentType(environmentType));
+        }
+
         final Action.Builder action = Action.newBuilder()
                 // Assign a unique ID to each generated action.
                 .setId(IdentityGenerator.next())
                 .setDeprecatedImportance(0.0D)
                 .setExecutable(false)
-                .setInfo(ActionInfo.newBuilder().setDelete(Delete.newBuilder()
-                        .setTarget(ActionEntity.newBuilder()
-                                .setId(storageOid)
-                                .setType(entityType.getNumber())
-                                .setEnvironmentType(environmentType))
-                        .setFilePath(filePath)
-                ));
+                .setInfo(ActionInfo.newBuilder().setDelete(deleteBuilder));
         Metrics.WASTED_FILES_ACTION_COUNTER.increment();
         return action;
     }
@@ -205,6 +222,7 @@ public class WastedFilesAnalysis {
                                              final VirtualVolumeFileDescriptor fileDescr,
                                              final EnvironmentType environmentType) {
         Action.Builder action = newActionFromVolume(storageOid, EntityType.STORAGE,
+                null, null, // TODO need to update source entity for on-perm in the future
                 fileDescr.getPath(), environmentType);
         action.setExplanation(Explanation.newBuilder()
                 .setDelete(getOnPremWastedFilesDeleteExplanation(fileDescr.getSizeKb())));
@@ -240,8 +258,11 @@ public class WastedFilesAnalysis {
                 logger.debug("Unable to get cost for volume", volume.getDisplayName());
             }
 
-            return Collections.singletonList(newActionFromVolume(storageOid.get(),
-                EntityType.STORAGE_TIER, volume.getDisplayName(), volume.getEnvironmentType())
+            return Collections.singletonList(newActionFromVolume(
+                    volume.getOid(), EntityType.VIRTUAL_VOLUME,
+                    storageOid.get(), EntityType.STORAGE_TIER,
+                    null,
+                    volume.getEnvironmentType())
                 .setExplanation(Explanation.newBuilder().setDelete(
                     DeleteExplanation.newBuilder().build()))
                 .setSavingsPerHour(CurrencyAmount.newBuilder()
