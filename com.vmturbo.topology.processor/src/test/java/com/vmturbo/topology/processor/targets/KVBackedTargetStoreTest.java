@@ -362,7 +362,7 @@ public class KVBackedTargetStoreTest {
         return kvStore;
     }
 
-    private void prepareInitialProbe() throws Exception {
+    private void prepareInitialProbe() {
         final ProbeInfo probeInfo = ProbeInfo.newBuilder(this.probeInfo)
                         .addTargetIdentifierField(FIELD_NAME)
                         .addAccountDefinition(AccountDefEntry.newBuilder()
@@ -375,7 +375,7 @@ public class KVBackedTargetStoreTest {
         Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
     }
 
-    private TargetSpec createTargetSpec(long probeId, int fieldValue) throws Exception {
+    private TargetSpec createTargetSpec(long probeId, int fieldValue) {
         final TargetSpec.Builder builder = TargetSpec.newBuilder().setProbeId(probeId);
         builder.addAllAccountValue(createAccountValue(fieldValue));
         return builder.build();
@@ -545,6 +545,26 @@ public class KVBackedTargetStoreTest {
         Assert.assertTrue(targetStore.getTarget(derived1.getId()).isPresent());
         Assert.assertFalse(targetStore.getTarget(derived2.getId()).isPresent());
         Assert.assertEquals(1, targetStore.getAll().size());
+    }
+
+    /**
+     * Test that derived target is not deleted when updateTarget is called on the parent target.
+     *
+     * @throws Exception if createTarget or updateTarget throws an exception.
+     */
+    @Test
+    public void testParentTargetUpdateRetainsDerivedTarget() throws Exception {
+        prepareInitialProbe();
+        final Target parent = targetStore.createTarget(createTargetSpec(0L, 666));
+        final long derivedProbeId = 1L;
+        final TargetSpec derivedTargetSpec = TargetSpec.newBuilder()
+                .setProbeId(derivedProbeId)
+                .setParentId(parent.getId())
+                .addAllAccountValue(createAccountValue(555))
+                .build();
+        final Target derived = targetStore.createTarget(derivedTargetSpec);
+        targetStore.updateTarget(parent.getId(), parent.getSpec().getAccountValueList());
+        Assert.assertTrue(targetStore.getTarget(derived.getId()).isPresent());
     }
 
     @Test

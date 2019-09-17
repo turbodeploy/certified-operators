@@ -233,23 +233,23 @@ public class KVBackedTargetStore implements TargetStore {
             final Map<TargetSpec, Long> oldItems = identityStoreUpdate.getOldItems();
             final Map<TargetSpec, Long> newItems = identityStoreUpdate.getNewItems();
             // Iterate created oids and update the existing derived targets.
-            oldItems.entrySet().forEach(entry -> {
+            oldItems.forEach((key, value) -> {
                 try {
-                    updateTarget(entry.getValue(), entry.getKey().getAccountValueList());
-                    existingDerivedTargetIds.remove(entry.getValue());
+                    updateTarget(value, key.getAccountValueList());
+                    existingDerivedTargetIds.remove(value);
                 } catch (InvalidTargetException | TargetNotFoundException |
-                    IdentityStoreException | IdentifierConflictException e) {
-                    logger.error("Update derived target {} failed! {}", entry.getValue(), e);
+                        IdentityStoreException | IdentifierConflictException e) {
+                    logger.error(String.format("Update derived target %s failed!", value), e);
                 }
             });
             // Iterate new assigned oids and create new derived targets.
-            newItems.entrySet().forEach(entry -> {
+            newItems.forEach((key, value) -> {
                 try {
-                    final Target retTarget = new Target(entry.getValue(), probeStore,
-                        Objects.requireNonNull(entry.getKey()), true);
+                    final Target retTarget = new Target(value, probeStore,
+                            Objects.requireNonNull(key), true);
                     registerTarget(retTarget);
                 } catch (InvalidTargetException e) {
-                    logger.error("Create new derived target {} failed! {}", entry.getValue(), e);
+                    logger.error(String.format("Create new derived target %s failed!", value), e);
                 }
             });
             // Remove all the derived targets which are not in the latest response DTO.
@@ -330,9 +330,6 @@ public class KVBackedTargetStore implements TargetStore {
             targetsById.put(targetId, retTarget);
             keyValueStore.put(TARGET_KV_STORE_PREFIX + Long.toString(retTarget.getId()),
                 retTarget.toJsonString());
-            // In case of target identifiers changing, we need to remove the relations with its derived
-            // targets and rediscover them in next cycle.
-            removeDerivedTargetsRelationships(targetId);
         }
 
         logger.info("Updated target {} for probe {}", targetId, retTarget.getProbeId());
