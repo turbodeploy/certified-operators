@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.util.stats;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -169,6 +170,24 @@ public class StatsQueryScopeExpanderTest {
 
         assertThat(expandedScope.getGlobalScope(), is(Optional.empty()));
         assertThat(expandedScope.getEntities(), is(Collections.singleton(1L)));
+    }
+
+    /**
+     * Tests expanding a group without members.
+     */
+    @Test
+    public void testExpandEmptyScopeGroup() throws OperationFailedException {
+        ApiId scope = mock(ApiId.class);
+        when(scope.oid()).thenReturn(7L);
+        when(scope.isRealtimeMarket()).thenReturn(false);
+        when(scope.isGroup()).thenReturn(true);
+
+        when(groupExpander.expandOids(Collections.singleton(7L))).thenReturn(Collections.emptySet());
+
+        StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.emptyList());
+
+        assertThat(expandedScope.getGlobalScope(), is(Optional.empty()));
+        assertThat(expandedScope.getEntities(), empty());
     }
 
     @Test

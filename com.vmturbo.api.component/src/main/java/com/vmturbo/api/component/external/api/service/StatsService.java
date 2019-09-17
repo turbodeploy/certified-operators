@@ -569,8 +569,13 @@ public class StatsService implements IStatsService {
             // Expand groups and perform supply chain traversal with the resulting seed
             // Note that supply chain traversal will not happen if the list of related entity
             // types is empty
+
+            Set<Long> uuids = groupExpander.expandUuids(seedUuids);
+            if (uuids.isEmpty()) {
+                return Collections.emptySet();
+            }
             expandedUuids =
-                performSupplyChainTraversal(groupExpander.expandUuids(seedUuids), relatedEntityTypes);
+                performSupplyChainTraversal(uuids, relatedEntityTypes);
 
             // if the user is scoped, we will filter the entities according to their scope
             if (userSessionContext.isUserScoped()) {

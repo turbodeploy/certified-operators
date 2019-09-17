@@ -20,6 +20,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.HashMap;
 import java.util.stream.Collectors;
@@ -43,6 +44,7 @@ import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.service.SupplyChainTestUtils;
+import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
@@ -59,6 +61,9 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
@@ -69,6 +74,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO;
 
@@ -337,6 +343,35 @@ public class SupplyChainFetcherFactoryTest {
         assertThat(nodes.get(VM).containsMembersByState(EntityState.POWERED_ON.getNumber()), is(true));
     }
 
+    /**
+     * Tests fetching a group without members.
+     */
+    @Test
+    public void testEmptyGroupNodeFetcher() throws Exception {
+        GroupAndMembers groupAndMembers = mock(GroupAndMembers.class);
+        when(groupAndMembers.group()).thenReturn(Group.newBuilder().setId(1).setType(Type.GROUP).setGroup(GroupInfo.newBuilder().setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()).build()).build());
+        when(groupAndMembers.members()).thenReturn(Arrays.asList());
+        when(groupExpander.getGroupWithMembers("group1")).thenReturn(Optional.of(groupAndMembers));
+
+        final SupplyChainNode vms = SupplyChainNode.newBuilder()
+            .setEntityType(VM)
+            .putMembersByState(EntityState.POWERED_ON.getNumber(),
+                MemberList.newBuilder().addMemberOids(1L).build())
+            .build();
+        when(supplyChainServiceBackend.getSupplyChain(GetSupplyChainRequest.newBuilder()
+            .addEntityTypesToInclude(VM)
+            .setEnforceUserScope(true)
+            .build()))
+            .thenReturn(GetSupplyChainResponse.newBuilder()
+                .setSupplyChain(SupplyChain.newBuilder()
+                    .addSupplyChainNodes(vms))
+                .build());
+        final Map<String, SupplyChainNode> nodes =
+            supplyChainFetcherFactory.newNodeFetcher().addSeedUuids(Arrays.asList("group1"))
+            .entityTypes(Collections.singletonList(VM))
+            .fetch();
+        assertThat(nodes.size(), is(0));
+    }
     /**
      * Tests that, when {@link SupplyChainNodeFetcherBuilder#expandScope} is called,
      * a supply chain fetcher will be created, that the two requirements will be passed

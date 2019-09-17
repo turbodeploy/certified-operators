@@ -31,6 +31,7 @@ import com.google.common.collect.Sets;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
+import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
@@ -577,12 +578,17 @@ public class SupplyChainFetcherFactory {
                 if (seedUuids.size() == 1 && CollectionUtils.size(entityTypes) == 1) {
                     final String groupUuid = seedUuids.iterator().next();
                     final String desiredEntityType = entityTypes.iterator().next();
-                    final Optional<Group> group = groupExpander.getGroup(groupUuid);
-                    if (group.isPresent()) {
+                    final Optional<GroupAndMembers> groupWithMembers =
+                        groupExpander.getGroupWithMembers(groupUuid);
+                    if (groupWithMembers.isPresent()) {
+                        final Group group = groupWithMembers.get().group();
                         final String groupType = UIEntityType.fromType(
-                                GroupProtoUtil.getEntityType(group.get())).apiStr();
+                                GroupProtoUtil.getEntityType(group)).apiStr();
 
                         if (groupType.equals(desiredEntityType)) {
+                            if (groupWithMembers.get().members().isEmpty()) {
+                                return Collections.emptyList();
+                            }
                             return Collections.singletonList(SupplyChainNode.newBuilder()
                                 .setEntityType(groupType)
                                 .putMembersByState(EntityState.POWERED_ON_VALUE,

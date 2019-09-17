@@ -151,8 +151,12 @@ public class StatsQueryScopeExpander {
                 .entityTypes(entityTypes)
                 .environmentType(scope.getCachedGroupInfo().get().getGlobalEnvType())
                 .build());
-        } if (scope.isGroup()) {
+        }
+        if (scope.isGroup()) {
             immediateOidsInScope = groupExpander.expandOids(Collections.singleton(scope.oid()));
+            if (immediateOidsInScope.size() == 0) {
+                return StatsQueryScope.some(immediateOidsInScope);
+            }
         } else if (scope.isTarget()) {
             immediateOidsInScope = repositoryApi.newSearchRequest(
                 SearchProtoUtil.makeSearchParameters(

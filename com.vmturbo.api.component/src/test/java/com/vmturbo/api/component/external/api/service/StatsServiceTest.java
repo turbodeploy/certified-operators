@@ -543,7 +543,7 @@ public class StatsServiceTest {
         when(statsMapper.normalizeRelatedType(inputDto.getRelatedType())).thenReturn(inputDto.getRelatedType());
 
         when(groupExpander.getGroup(any())).thenReturn(Optional.empty());
-
+        when(groupExpander.expandUuids(any())).thenReturn(new HashSet<>(Arrays.asList(1L)));
         SingleEntityRequest req = ApiTestUtils.mockSingleEntityEmptyRequest();
         when(repositoryApi.entityRequest(anyLong())).thenReturn(req);
         expectedEntityIdsAfterSupplyChainTraversal(Collections.singleton(pmId));
