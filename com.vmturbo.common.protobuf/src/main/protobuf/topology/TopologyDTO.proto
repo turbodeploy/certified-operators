@@ -98,7 +98,7 @@ message TypeSpecificInfo {
         // The account id used by the third party provider.  For example, for Azure this would be
         // the subscription ID.
         optional string account_id = 2;
-        
+
         // A list of provider specific account attributes that are used to identify the pricing
         // applied to an account.  For example, Azure uses offer ID and enrollment number.
         repeated .common_dto.EntityDTO.BusinessAccountData.PricingIdentifier pricing_identifiers = 3;

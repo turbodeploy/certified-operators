@@ -137,8 +137,8 @@ public class FakeRemoteMediation implements RemoteMediation {
 
     private String getAvId(long targetId) {
         final GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
-        Mockito.when(groupScopeResolver.processGroupScope(any(), any()))
-                .then(AdditionalAnswers.returnsFirstArg());
+        Mockito.when(groupScopeResolver.processGroupScope(any(), any(), any()))
+                .then(AdditionalAnswers.returnsSecondArg());
         final Target target = targetStore.getTarget(targetId).get();
         final String tgtId = target.getMediationAccountVals(groupScopeResolver).stream()
                         .filter(av -> av.getKey().equals(TGT_ID)).findFirst().get()

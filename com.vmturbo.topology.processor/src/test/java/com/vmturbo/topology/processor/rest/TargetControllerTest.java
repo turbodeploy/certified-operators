@@ -144,8 +144,8 @@ public class TargetControllerTest {
         @Bean
         public TargetStore targetStore() {
             GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
-            Mockito.when(groupScopeResolver.processGroupScope(any(), any()))
-                    .then(AdditionalAnswers.returnsFirstArg());
+            Mockito.when(groupScopeResolver.processGroupScope(any(), any(), any()))
+                    .then(AdditionalAnswers.returnsSecondArg());
             return new KVBackedTargetStore(keyValueStore(), probeStore(),
                     targetIdentityStore());
         }

@@ -96,6 +96,7 @@ public class AccountValueAdaptor {
         public AccountFieldValueType getValueType() {
             switch (customEntry.getFieldTypeCase()) {
                 case GROUP_SCOPE:
+                case ENTITY_SCOPE:
                     return AccountFieldValueType.GROUP_SCOPE;
                 case PRIMITIVE_VALUE:
                     switch (customEntry.getPrimitiveValue()) {

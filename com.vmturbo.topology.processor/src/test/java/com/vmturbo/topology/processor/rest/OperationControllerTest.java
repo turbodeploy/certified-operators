@@ -198,8 +198,8 @@ public class OperationControllerTest {
         @Bean
         GroupScopeResolver groupScopeResolver() {
             GroupScopeResolver grpScopeResolver = Mockito.mock(GroupScopeResolver.class);
-            Mockito.when(grpScopeResolver.processGroupScope(any(), any()))
-                    .then(AdditionalAnswers.returnsFirstArg());
+            Mockito.when(grpScopeResolver.processGroupScope(any(), any(), any()))
+                    .then(AdditionalAnswers.returnsSecondArg());
             return grpScopeResolver;
         }
 

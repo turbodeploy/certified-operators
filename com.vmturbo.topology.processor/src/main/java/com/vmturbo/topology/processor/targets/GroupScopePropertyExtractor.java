@@ -17,6 +17,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.BusinessAccountData.PricingIdentifier;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.BusinessAccountData.PricingIdentifier.PricingIdentifierName;
 import com.vmturbo.platform.sdk.common.EntityPropertyName;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver.GroupScopedEntity;
@@ -112,6 +114,34 @@ public class GroupScopePropertyExtractor {
                         return Optional.of(VC_VSTORAGE_UUID_PREFIX + BACKSLASH +
                             targetAddress.get() + BACKSLASH + localName.get());
                     })
+                .put(EntityPropertyName.OFFER_ID, groupScopedEntity -> {
+                    final TopologyEntityDTO topologyEntityDTO =
+                        groupScopedEntity.getTopologyEntityDTO();
+                    if (topologyEntityDTO.hasTypeSpecificInfo() &&
+                        topologyEntityDTO.getTypeSpecificInfo().hasBusinessAccount()) {
+                        return topologyEntityDTO.getTypeSpecificInfo()
+                            .getBusinessAccount().getPricingIdentifiersList().stream()
+                            .filter(pricingId -> pricingId.getIdentifierName() ==
+                                PricingIdentifierName.OFFER_ID)
+                            .map(PricingIdentifier::getIdentifierValue)
+                            .findFirst();
+                    }
+                    return Optional.empty();
+                })
+                .put(EntityPropertyName.ENROLLMENT_NUMBER, groupScopedEntity -> {
+                    final TopologyEntityDTO topologyEntityDTO =
+                        groupScopedEntity.getTopologyEntityDTO();
+                    if (topologyEntityDTO.hasTypeSpecificInfo() &&
+                        topologyEntityDTO.getTypeSpecificInfo().hasBusinessAccount()) {
+                        return topologyEntityDTO.getTypeSpecificInfo()
+                            .getBusinessAccount().getPricingIdentifiersList().stream()
+                            .filter(pricingId -> pricingId.getIdentifierName() ==
+                                PricingIdentifierName.ENROLLMENT_NUMBER)
+                            .map(PricingIdentifier::getIdentifierValue)
+                            .findFirst();
+                    }
+                    return Optional.empty();
+                })
                     .build();
 
     /**

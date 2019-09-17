@@ -11,6 +11,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -98,6 +99,7 @@ public class GroupScopeResolver {
     private final Set<ProbeCategory> guestLoadOriginProbeCategories = Sets.immutableEnumSet(
             ProbeCategory.HYPERVISOR, ProbeCategory.CLOUD_MANAGEMENT);
 
+    private final CustomScopingOperationLibrary scopingOperationLibrary = new CustomScopingOperationLibrary();
 
     /**
      * Constructor of a GroupScopeResolver.
@@ -125,7 +127,8 @@ public class GroupScopeResolver {
         return accountDefList.stream()
                 .filter(AccountDefEntry::hasCustomDefinition)
                 .map(AccountDefEntry::getCustomDefinition)
-                .filter(CustomAccountDefEntry::hasGroupScope)
+                .filter(customAcctDefEntry -> customAcctDefEntry.hasEntityScope() ||
+                    customAcctDefEntry.hasGroupScope())
                 .collect(Collectors.toMap(CustomAccountDefEntry::getName, Function.identity()));
 
     }
@@ -134,6 +137,10 @@ public class GroupScopeResolver {
      * Take a collection of account values and probe info for a probe and return a collection of
      * account values with any group scope account values properly populated.
      *
+     * @param probeType the {@link SDKProbeType} that the account values and account definition list
+     *                  belong to.  May be null if the probe type is not listed in the enum.  This
+     *                  will not be an issue for group scope, but entity scope will fail if the
+     *                  probe type is not in the enum.
      * @param newAccountValues a collection of {@link AccountValue} that needs to have its group
      *                         scope account values populated.
      * @param accountDefinitionList the list of {@link AccountDefEntry} that contains the account
@@ -143,16 +150,65 @@ public class GroupScopeResolver {
      * scope.
      */
     public List<AccountValue> processGroupScope(
+            @Nullable SDKProbeType probeType,
             @Nonnull List<AccountValue> newAccountValues,
             @Nonnull List<AccountDefEntry> accountDefinitionList) {
         Map<String, CustomAccountDefEntry> keyToGroupScopeMap =
                 generateGroupScopeMap(accountDefinitionList);
+        logger.debug("Found {} account definitions with scope.",
+            () -> keyToGroupScopeMap.keySet().size());
+
         return newAccountValues.stream()
                 .map(accountValue -> keyToGroupScopeMap.keySet().contains(accountValue.getKey()) ?
-                        populatePropertyValueList(keyToGroupScopeMap.get(accountValue.getKey()),
-                                accountValue)
+                        populatePropertyValueList(probeType,
+                            keyToGroupScopeMap.get(accountValue.getKey()),
+                            accountValue)
                         : accountValue)
                 .collect(Collectors.toList());
+    }
+
+    private Set<Long> getScopeOids(@Nullable SDKProbeType probeType,
+                                    @Nonnull CustomAccountDefEntry customAcctDef,
+                                    @Nonnull AccountValue accountVal) {
+        if (customAcctDef.hasGroupScope()) {
+            String groupId = accountVal.getStringValue();
+            logger.debug("Getting OIDs for group scope with group ID: {}", groupId);
+            GetMembersResponse membersResponse = groupService.getMembers(GetMembersRequest.newBuilder()
+                .setId(Long.parseLong(groupId))
+                .setExpectPresent(true)
+                .build());
+            if (!membersResponse.hasMembers() || membersResponse.getMembers().getIdsCount() == 0) {
+                logger.warn("Group {} has no members.  "
+                    + "No property values will be returned for group scope.", groupId);
+                return Collections.emptySet();
+            }
+            logger.debug("Group {} has members {} in group scope processing.",
+                groupId, membersResponse.getMembers());
+            // need to check if entityType of group is same as entityType of accountDef
+            GetGroupResponse groupResponse =
+                groupService.getGroup(GroupID.newBuilder().setId(Long.parseLong(groupId)).build());
+            if (customAcctDef.getGroupScope().getEntityType().getNumber() !=
+                groupResponse.getGroup().getGroup().getEntityType()) {
+                logger.error("Group {} contains the wrong entity type for group scope.  "
+                        + "Expected type {}, but got type {}",
+                    customAcctDef.getGroupScope().getEntityType(),
+                    groupResponse.getGroup().getGroup().getEntityType());
+                return Collections.emptySet();
+            }
+            logger.trace("Group type matches group scope type.");
+            return Sets.newHashSet(membersResponse.getMembers().getIdsList());
+        } else if (customAcctDef.hasEntityScope() && probeType != null) {
+            final String entityProperty = accountVal.getStringValue();
+            logger.debug("Getting entity scope OID for property value {}", entityProperty);
+            Optional<CustomScopingOperation> scopingOp =
+                scopingOperationLibrary.getCustomScopingOperation(probeType);
+            if (scopingOp.isPresent()) {
+                logger.debug("Found custom scoping operation {}",
+                    () -> scopingOp.get().getClass().getSimpleName());
+                return scopingOp.get().convertScopeValueToOid(entityProperty, searchService);
+            }
+        }
+        return Collections.emptySet();
     }
 
     /**
@@ -160,58 +216,49 @@ public class GroupScopeResolver {
      * into the {@link AccountValue} that is passed in and return it.  If there is no Group Scope
      * in the {@link CustomAccountDefEntry} just return the {@link AccountValue} as is.
      *
+     * @param probeType The {@link SDKProbeType} that this scope belongs to.  This is used in the
+     *                  case of an entity scope to access the custom operation to convert the
+     *                  account value to an OID.
      * @param customAcctDef the {@link CustomAccountDefEntry} corresponding to accountVal
      * @param accountVal the {@link AccountValue} to populate with group scope values if
      *                   necessary
      * @return either the original {@link AccountValue} or the {@link AccountValue} populated with
      * values extracted from the group scope
      */
-    private AccountValue populatePropertyValueList(@Nonnull CustomAccountDefEntry customAcctDef,
-                                                   AccountValue accountVal) {
+    private AccountValue populatePropertyValueList(@Nullable SDKProbeType probeType,
+                                                   @Nonnull CustomAccountDefEntry customAcctDef,
+                                                   @Nonnull AccountValue accountVal) {
         Objects.requireNonNull(customAcctDef);
-        String groupId = accountVal.getStringValue();
-        GetMembersResponse membersResponse = groupService.getMembers(GetMembersRequest.newBuilder()
-                .setId(Long.parseLong(groupId))
-                .setExpectPresent(true)
-                .build());
-        if (!membersResponse.hasMembers() || membersResponse.getMembers().getIdsCount() == 0) {
-            logger.warn("Group {} has no members.  "
-                    + "No property values will be returned for group scope.", groupId);
-            return accountVal;
-        }
-        logger.debug("Group {} has members {} in group scope processing.",
-                groupId, membersResponse.getMembers());
-        // need to check if entityType of group is same as entityType of accountDef
-        GetGroupResponse groupResponse =
-                groupService.getGroup(GroupID.newBuilder().setId(Long.parseLong(groupId)).build());
-        if (customAcctDef.getGroupScope().getEntityType().getNumber() !=
-                groupResponse.getGroup().getGroup().getEntityType()) {
-            logger.error("Group {} contains the wrong entity type for group scope.  "
-                            + "Expected type {}, but got type {}",
-                    customAcctDef.getGroupScope().getEntityType(),
-                    groupResponse.getGroup().getGroup().getEntityType());
-            return accountVal;
-        }
-        logger.debug("Group type matches group scope type.");
+        Objects.requireNonNull(accountVal);
+        final List<GroupScopeProperty> scopeProperties = customAcctDef.hasGroupScope() ?
+            customAcctDef.getGroupScope().getPropertyList()
+            : customAcctDef.getEntityScope().getPropertyList();
         List<Pair<EntityPropertyName, Boolean>> entityPropsPairs =
-                getGroupScopePropertyNames(
-                        customAcctDef.getGroupScope().getPropertyList());
-
-        // retrieve all the group scoped Topology Entity DTOs
-        final List<TopologyEntityDTO> groupScopedTopologyEntityDTOs = retrieveGroupScopedTopologyEntityDTOs(
-                membersResponse.getMembers().getIdsList());
-        // retrieve all the group scoped Topology Entity DTOs
-        final List<TopologyEntityDTO> guestLoadTopologyEntityDTOs = retrieveGuestLoadTopologyEntityDTOs(
-                membersResponse.getMembers().getIdsList());
-        logger.debug("Retrieved {} group scoped entities and {} guest load entities " +
-                        "from repository service.", groupScopedTopologyEntityDTOs.size(),
-                guestLoadTopologyEntityDTOs.size());
+                getGroupScopePropertyNames(scopeProperties);
+        Set<Long> scopeOids = getScopeOids(probeType, customAcctDef, accountVal);
+        if (scopeOids.size() == 0) {
+            return accountVal;
+        }
+        // retrieve all the scoped Topology Entity DTOs
+        final List<TopologyEntityDTO> scopedTopologyEntityDTOs = retrieveScopedTopologyEntityDTOs(
+                scopeOids);
+        // retrieve related GuestLoad Topology Entity DTOs if the scoped entities are VMs
+        final EntityType scopedEntityType = customAcctDef.hasGroupScope() ?
+            customAcctDef.getGroupScope().getEntityType()
+            : customAcctDef.getEntityScope().getEntityType();
+        final List<TopologyEntityDTO> guestLoadTopologyEntityDTOs =
+            scopedEntityType == EntityType.VIRTUAL_MACHINE ?
+                retrieveGuestLoadTopologyEntityDTOs(scopeOids)
+                : Collections.emptyList();
+        logger.debug("Retrieved {} scoped entities and {} guest load entities " +
+                        "from repository service.", () -> scopedTopologyEntityDTOs.size(),
+            () -> guestLoadTopologyEntityDTOs.size());
 
         // retrieve the relationship between group scoped entity DTO and guest load entity DTO, and
         // wrap the result into GroupScopedEntity
         final List<GroupScopedEntity> groupScopedEntities = constructGroupScopedEntities(
                 guestLoadTopologyEntityDTOs,
-                groupScopedTopologyEntityDTOs.stream()
+                scopedTopologyEntityDTOs.stream()
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Functions.identity())));
 
         final List<PropertyValueList> propertyValueLists = Lists.newArrayList();
@@ -246,23 +293,23 @@ public class GroupScopeResolver {
     }
 
     /**
-     * Function to get all the group scoped topology entity DTOs based on the given scoped entity DTO
+     * Function to get all the scoped topology entity DTOs based on the given scoped entity DTO
      * OIDs.
      *
-     * @param groupScopedEntitiesOids the group scoped entity OIDs
-     * @return list of group scoped topology entity DTOs
+     * @param scopedEntitiesOids the scoped entity OIDs
+     * @return list of scoped topology entity DTOs
      */
     @Nonnull
-    private List<TopologyEntityDTO> retrieveGroupScopedTopologyEntityDTOs(
-            @Nonnull final Collection<Long> groupScopedEntitiesOids) {
-        if (groupScopedEntitiesOids.isEmpty()) {
+    private List<TopologyEntityDTO> retrieveScopedTopologyEntityDTOs(
+            @Nonnull final Collection<Long> scopedEntitiesOids) {
+        if (scopedEntitiesOids.isEmpty()) {
             // return empty list immediately since repository returns all entities for empty oids
             return Collections.emptyList();
         }
         // build search group scoped entities request
         final SearchEntitiesRequest.Builder searchTopologyRequest = SearchEntitiesRequest.newBuilder()
             .setReturnType(Type.FULL)
-            .addAllEntityOid(groupScopedEntitiesOids);
+            .addAllEntityOid(scopedEntitiesOids);
 
         try {
             return RepositoryDTOUtil.topologyEntityStream(searchService.searchEntitiesStream(
@@ -270,7 +317,7 @@ public class GroupScopeResolver {
                 .map(PartialEntity::getFullEntity)
                 .collect(Collectors.toList());
         } catch (StatusRuntimeException e) {
-            logger.error("Unable to fetch entities {} from repository", groupScopedEntitiesOids, e);
+            logger.error("Unable to fetch entities {} from repository", scopedEntitiesOids, e);
             return Collections.emptyList();
         }
     }

@@ -240,8 +240,8 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public GroupScopeResolver groupScopeResolver() {
         GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
-        Mockito.when(groupScopeResolver.processGroupScope(any(), any()))
-                .then(AdditionalAnswers.returnsFirstArg());
+        Mockito.when(groupScopeResolver.processGroupScope(any(), any(), any()))
+                .then(AdditionalAnswers.returnsSecondArg());
         return groupScopeResolver;
     }
 

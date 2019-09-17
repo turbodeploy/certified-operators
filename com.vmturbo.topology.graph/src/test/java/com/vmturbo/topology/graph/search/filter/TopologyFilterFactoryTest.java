@@ -38,6 +38,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
@@ -1091,7 +1092,7 @@ public class TopologyFilterFactoryTest {
                     .build())
                 .build();
         final TestGraphEntity storageEntityNotMatching =
-        TestGraphEntity.newBuilder(4567L, UIEntityType.STORAGE)
+            TestGraphEntity.newBuilder(4567L, UIEntityType.STORAGE)
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                     .setStorage(StorageInfo.newBuilder().setIsLocal(false))
                     .build())
@@ -1105,6 +1106,58 @@ public class TopologyFilterFactoryTest {
         assertFalse(propertyFilter.test(pmEntity));
         assertTrue(propertyFilter.test(storageEntityMatching));
         assertFalse(propertyFilter.test(storageEntityNotMatching));
+    }
+
+    /**
+     * Test that the search for finding a BusinessAccount by subscription ID works properly.
+     */
+    @Test
+    public void testSearchFilterForBusinessAccountId() {
+        final String subscriptionId = "subId22";
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.BUSINESS_ACCOUNT_INFO_REPO_DTO_PROPERTY_NAME)
+                .setObjectFilter(ObjectFilter.newBuilder()
+                    .addFilters(Search.PropertyFilter.newBuilder()
+                        .setPropertyName(SearchableProperties.BUSINESS_ACCOUNT_INFO_ACCOUNT_ID)
+                        .setStringFilter(StringFilter.newBuilder()
+                            .addOptions(subscriptionId)))))
+            .build();
+
+        final TestGraphEntity vmEntity =
+            TestGraphEntity.newBuilder(11111L, UIEntityType.VIRTUAL_MACHINE).build();
+        final TestGraphEntity pmEntity =
+            TestGraphEntity.newBuilder(22222L, UIEntityType.PHYSICAL_MACHINE).build();
+        final TestGraphEntity businessEntityMatching =
+            TestGraphEntity.newBuilder(33333L, UIEntityType.BUSINESS_ACCOUNT)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setBusinessAccount(BusinessAccountInfo.newBuilder()
+                        .setAccountId(subscriptionId))
+                    .build())
+                .build();
+        final TestGraphEntity businessEntityNotMatching =
+            TestGraphEntity.newBuilder(44444L, UIEntityType.BUSINESS_ACCOUNT)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setBusinessAccount(BusinessAccountInfo.newBuilder().setAccountId("Id22"))
+                    .build())
+                .build();
+
+        final TestGraphEntity businessEntityNoAccountId =
+            TestGraphEntity.newBuilder(44444L, UIEntityType.BUSINESS_ACCOUNT)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setBusinessAccount(BusinessAccountInfo.newBuilder())
+                    .build())
+                .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        assertFalse(propertyFilter.test(vmEntity));
+        assertFalse(propertyFilter.test(pmEntity));
+        assertTrue(propertyFilter.test(businessEntityMatching));
+        assertFalse(propertyFilter.test(businessEntityNotMatching));
+        assertFalse(propertyFilter.test(businessEntityNoAccountId));
     }
 
     private PropertyFilter<TestGraphEntity> makeDiscoveringTargetFilter(StringFilter stringFilter) {

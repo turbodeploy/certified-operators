@@ -87,8 +87,8 @@ public class KVBackedTargetStoreTest {
         keyValueStore = Mockito.mock(KeyValueStore.class);
         probeStore = Mockito.mock(ProbeStore.class);
         groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
-        Mockito.when(groupScopeResolver.processGroupScope(any(), any()))
-                .then(AdditionalAnswers.returnsFirstArg());
+        Mockito.when(groupScopeResolver.processGroupScope(any(), any(), any()))
+                .then(AdditionalAnswers.returnsSecondArg());
         targetIdentityStore = new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore));
         targetStore = new KVBackedTargetStore(keyValueStore, probeStore, targetIdentityStore);
     }

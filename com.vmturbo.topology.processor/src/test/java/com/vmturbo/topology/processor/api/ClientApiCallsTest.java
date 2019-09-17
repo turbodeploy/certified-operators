@@ -103,8 +103,8 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         identityProviderSpy = integrationTestServer.getBean(IdentityProvider.class);
         repositoryClientFake = integrationTestServer.getBean(FakeRepositoryClient.class);
         groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
-        Mockito.when(groupScopeResolver.processGroupScope(Matchers.any(), Matchers.any()))
-                .then(AdditionalAnswers.returnsFirstArg());
+        Mockito.when(groupScopeResolver.processGroupScope(Matchers.any(), Matchers.any(), Matchers.any()))
+                .then(AdditionalAnswers.returnsSecondArg());
     }
 
     /**

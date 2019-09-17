@@ -44,5 +44,16 @@ public class SearchableProperties {
 
     public static final String DS_LOCAL = "local";
 
+    /**
+     * BusinessAccountInfo class in the repository.
+     */
+    public static final String BUSINESS_ACCOUNT_INFO_REPO_DTO_PROPERTY_NAME =
+        "businessAccountInfoRepoDTO";
+
+    /**
+     * Account ID field within the BusinessAccountInfoRepoDTO class.
+     */
+    public static final String BUSINESS_ACCOUNT_INFO_ACCOUNT_ID = "accountId";
+
     private SearchableProperties() {}
 }

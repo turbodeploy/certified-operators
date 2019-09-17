@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.targets;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -27,8 +28,14 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceImplBase;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -40,10 +47,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.BusinessAccountData.PricingIdentifier;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.BusinessAccountData.PricingIdentifier.PricingIdentifierName;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
@@ -90,6 +100,16 @@ public class GroupScopeResolverTest {
 
     private static String[] IP_ADDRESS = {"10.10.150.140", "10.10.150.125"};
 
+    private static final String SCOPE_ACCOUNT_VALUE_NAME = "businessAccountBySubscriptionIdScope";
+
+    private static final long[] BUSINESS_ACCOUNT_OID = {333L, 3333L};
+
+    private static final String[] SUBSCRIPTION_ID = {"ABCD", "EFGH"};
+
+    private static final String OFFER_ID = "offerId123";
+
+    private static final String ENROLLMENT_NUMBER = "enrollment123";
+
     private static SDKProbeType validProbeType = SDKProbeType.AWS;
 
     private static SDKProbeType invalidProbeType = SDKProbeType.SNMP;
@@ -105,42 +125,61 @@ public class GroupScopeResolverTest {
             .build();
 
     private static AccountDefEntry groupScopeAccountDefEntry = AccountDefEntry.newBuilder()
-            .setCustomDefinition(
-                    CustomAccountDefEntry.newBuilder()
-                            .setName(PredefinedAccountDefinition.ScopedVms.name().toLowerCase())
-                            .setDisplayName("Scope to VMs")
-                            .setDescription("A scope containing all supported VM properties")
-                            .setIsSecret(false)
-                            .setGroupScope(GroupScopePropertySet.newBuilder()
-                                    .setEntityType(EntityType.VIRTUAL_MACHINE)
-                                    .addProperty(GroupScopeProperty.newBuilder()
-                                            .setPropertyName(EntityPropertyName.DISPLAY_NAME.name())
-                                            .setIsMandatory(true))
-                                    .addProperty(GroupScopeProperty.newBuilder()
-                                            .setPropertyName(EntityPropertyName.STATE.name())
-                                            .setIsMandatory(true))
-                                    .addProperty(GroupScopeProperty.newBuilder()
-                                            .setPropertyName(EntityPropertyName.UUID.name())
-                                            .setIsMandatory(true))
-                                    .addProperty(GroupScopeProperty.newBuilder()
-                                            .setPropertyName(EntityPropertyName.GUEST_LOAD_UUID.name())
-                                            .setIsMandatory(true))
-                                    .addProperty(GroupScopeProperty.newBuilder()
-                                            .setPropertyName(EntityPropertyName.IP_ADDRESS.name())
-                                            .setIsMandatory(true))
-                                    .addProperty(GroupScopeProperty.newBuilder()
-                                            .setPropertyName(EntityPropertyName.VMEM_CAPACITY.name())
-                                            .setIsMandatory(true))
-                                    .addProperty(GroupScopeProperty.newBuilder()
-                                            .setPropertyName(EntityPropertyName.VCPU_CAPACITY.name())
-                                            .setIsMandatory(true))
-                                    .addProperty(GroupScopeProperty.newBuilder()
-                                            .setPropertyName(EntityPropertyName.VSTORAGE_KEY_PREFIX
-                                                    .name())
-                                            .setIsMandatory(true)))
-                            .setIsSecret(false))
-            .setMandatory(true)
-            .build();
+        .setCustomDefinition(
+            CustomAccountDefEntry.newBuilder()
+                .setName(PredefinedAccountDefinition.ScopedVms.name().toLowerCase())
+                .setDisplayName("Scope to VMs")
+                .setDescription("A scope containing all supported VM properties")
+                .setIsSecret(false)
+                .setGroupScope(GroupScopePropertySet.newBuilder()
+                    .setEntityType(EntityType.VIRTUAL_MACHINE)
+                    .addProperty(GroupScopeProperty.newBuilder()
+                        .setPropertyName(EntityPropertyName.DISPLAY_NAME.name())
+                        .setIsMandatory(true))
+                    .addProperty(GroupScopeProperty.newBuilder()
+                        .setPropertyName(EntityPropertyName.STATE.name())
+                        .setIsMandatory(true))
+                    .addProperty(GroupScopeProperty.newBuilder()
+                        .setPropertyName(EntityPropertyName.UUID.name())
+                        .setIsMandatory(true))
+                    .addProperty(GroupScopeProperty.newBuilder()
+                        .setPropertyName(EntityPropertyName.GUEST_LOAD_UUID.name())
+                        .setIsMandatory(true))
+                    .addProperty(GroupScopeProperty.newBuilder()
+                        .setPropertyName(EntityPropertyName.IP_ADDRESS.name())
+                        .setIsMandatory(true))
+                    .addProperty(GroupScopeProperty.newBuilder()
+                        .setPropertyName(EntityPropertyName.VMEM_CAPACITY.name())
+                        .setIsMandatory(true))
+                    .addProperty(GroupScopeProperty.newBuilder()
+                        .setPropertyName(EntityPropertyName.VCPU_CAPACITY.name())
+                        .setIsMandatory(true))
+                    .addProperty(GroupScopeProperty.newBuilder()
+                        .setPropertyName(EntityPropertyName.VSTORAGE_KEY_PREFIX
+                            .name())
+                        .setIsMandatory(true)))
+                .setIsSecret(false))
+        .setMandatory(true)
+        .build();
+
+    private static AccountDefEntry entityScopeAccountDefEntry = AccountDefEntry.newBuilder()
+        .setCustomDefinition(
+            CustomAccountDefEntry.newBuilder()
+                .setName(SCOPE_ACCOUNT_VALUE_NAME)
+                .setDisplayName("Scope to BusinessAccount by Subscription ID")
+                .setDescription("A scope containing all supported BusinessAccount properties")
+                .setIsSecret(false)
+                .setEntityScope(GroupScopePropertySet.newBuilder()
+                    .setEntityType(EntityType.BUSINESS_ACCOUNT)
+                    .addProperty(GroupScopeProperty.newBuilder()
+                        .setPropertyName(EntityPropertyName.OFFER_ID.name())
+                        .setIsMandatory(true))
+                    .addProperty(GroupScopeProperty.newBuilder()
+                        .setPropertyName(EntityPropertyName.ENROLLMENT_NUMBER.name())
+                        .setIsMandatory(true)))
+                .setIsSecret(false))
+        .setMandatory(true)
+        .build();
 
     private static AccountDefEntry groupScopeMissingMandatory =
             addGroupScopeProperty(groupScopeAccountDefEntry,
@@ -231,6 +270,43 @@ public class GroupScopeResolverTest {
                 .build();
     }
 
+    private static PartialEntityBatch getRetrieveScopeBusinessAccountResponse(String subscriptionId) {
+        PartialEntityBatch.Builder builder = PartialEntityBatch.newBuilder();
+        if (subscriptionId == SUBSCRIPTION_ID[1]) {
+            builder.addEntities(PartialEntity.newBuilder()
+                .setFullEntity(TopologyEntityDTO.newBuilder()
+                    .setOrigin(Origin.newBuilder()
+                        .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                            .addDiscoveringTargetIds(targetId[0])))
+                    .setOid(BUSINESS_ACCOUNT_OID[1])
+                    .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                    .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                        .setBusinessAccount(BusinessAccountInfo.newBuilder()
+                            .setAccountId(subscriptionId)))));
+        } else if (subscriptionId == SUBSCRIPTION_ID[0]) {
+            builder.addEntities(PartialEntity.newBuilder()
+                .setFullEntity(TopologyEntityDTO.newBuilder()
+                    .setOrigin(Origin.newBuilder()
+                        .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                            .addDiscoveringTargetIds(targetId[0])))
+                    .setOid(BUSINESS_ACCOUNT_OID[0])
+                    .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                    .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                        .setBusinessAccount(BusinessAccountInfo.newBuilder()
+                            .setAccountId(subscriptionId)
+                            .addAllPricingIdentifiers(Arrays.asList(
+                                PricingIdentifier.newBuilder()
+                                    .setIdentifierName(PricingIdentifierName.OFFER_ID)
+                                    .setIdentifierValue(OFFER_ID)
+                                    .build(),
+                                PricingIdentifier.newBuilder()
+                                    .setIdentifierName(PricingIdentifierName.ENROLLMENT_NUMBER)
+                                    .setIdentifierValue(ENROLLMENT_NUMBER)
+                                    .build()))))));
+        }
+        return builder.build();
+    }
+
     private GroupScopeResolver groupScopeResolver;
 
     @Rule
@@ -268,6 +344,22 @@ public class GroupScopeResolverTest {
                 .setName(SupplyChainConstants.LOCAL_NAME)
                 .setValue("vm-22"))
             .build());
+        Mockito.when(entityStore.chooseEntityDTO(BUSINESS_ACCOUNT_OID[0])).thenReturn(EntityDTO.newBuilder()
+            .setId("fakeId3")
+            .setEntityType(EntityType.BUSINESS_ACCOUNT)
+            .addEntityProperties(EntityProperty.newBuilder()
+                .setNamespace(SDKUtil.DEFAULT_NAMESPACE)
+                .setName(SupplyChainConstants.LOCAL_NAME)
+                .setValue("ba-00"))
+            .build());
+        Mockito.when(entityStore.chooseEntityDTO(BUSINESS_ACCOUNT_OID[1])).thenReturn(EntityDTO.newBuilder()
+            .setId("fakeId4")
+            .setEntityType(EntityType.BUSINESS_ACCOUNT)
+            .addEntityProperties(EntityProperty.newBuilder()
+                .setNamespace(SDKUtil.DEFAULT_NAMESPACE)
+                .setName(SupplyChainConstants.LOCAL_NAME)
+                .setValue("ba-01"))
+            .build());
     }
 
     @Test
@@ -275,13 +367,14 @@ public class GroupScopeResolverTest {
 
         ProbeInfo pi = ProbeInfo.newBuilder()
                 .setProbeCategory("test")
-                .setProbeType("vc")
+                .setProbeType("VCENTER")
                 .addTargetIdentifierField(PredefinedAccountDefinition.Address.name().toLowerCase())
                 .addAccountDefinition(addressAccountDefEntry)
                 .build();
         Collection<AccountValue> retVal = groupScopeResolver
-                .processGroupScope(Collections.singletonList(addressAccountVal),
-                        pi.getAccountDefinitionList());
+                .processGroupScope(SDKProbeType.VCENTER,
+                    Collections.singletonList(addressAccountVal),
+                    pi.getAccountDefinitionList());
         assertEquals(addressAccountVal, retVal.iterator().next());
     }
 
@@ -320,13 +413,43 @@ public class GroupScopeResolverTest {
             .addAccountDefinition(groupScopeAccountDefEntry)
             .build();
         List<AccountValue> retVal = groupScopeResolver
-            .processGroupScope(ImmutableList.of(getGroupScopeAccountVal(2)),
+            .processGroupScope(SDKProbeType.VCENTER,
+                ImmutableList.of(getGroupScopeAccountVal(2)),
                 pi.getAccountDefinitionList());
         assertEquals(1, retVal.size());
         assertEquals(PredefinedAccountDefinition.ScopedVms.name().toLowerCase(), retVal.get(0).getKey());
         // check that no exception is thrown when processing empty scope and property values count
         // after processing is 0
         assertEquals(0, retVal.get(0).getGroupScopePropertyValuesCount());
+    }
+
+    /**
+     * Test an entity scope where the subscription ID matches a BusinessAccount that has OfferID
+     * and enrollment number fields populated.
+     */
+    @Test
+    public void testSuccessfulEntityScope() {
+        entityScopeAcctDefEntryTester(entityScopeAccountDefEntry, true,
+            SUBSCRIPTION_ID[0]);
+    }
+
+    /**
+     * Test an entity scope where the subscription ID matches an existing BusinessAccount, but
+     * that BusinessAccount has no values populated for OfferID and enrollment number.
+     */
+    @Test
+    public void testEmptyEntityScope() {
+        entityScopeAcctDefEntryTester(entityScopeAccountDefEntry, false,
+            SUBSCRIPTION_ID[1]);
+    }
+
+    /**
+     * Test an entity scope where no BusinessAccount exists with a matching subscription ID.
+     */
+    @Test
+    public void testNonmatchingSubscriptionIdEntityScope() {
+        entityScopeAcctDefEntryTester(entityScopeAccountDefEntry, false,
+            "missing");
     }
 
     private void acctDefEntryTester(AccountDefEntry groupScopeAcctDefToTest, boolean expectSuccess,
@@ -355,14 +478,15 @@ public class GroupScopeResolverTest {
             throws Exception {
         ProbeInfo pi = ProbeInfo.newBuilder()
                 .setProbeCategory("test")
-                .setProbeType("vc")
+                .setProbeType("VCENTER")
                 .addTargetIdentifierField(PredefinedAccountDefinition.Address.name().toLowerCase())
                 .addAccountDefinition(addressAccountDefEntry)
                 .addAccountDefinition(groupScopeAcctDefToTest)
                 .build();
 
         Collection<AccountValue> retVal = groupScopeResolver
-                .processGroupScope(ImmutableList.of(addressAccountVal,
+                .processGroupScope(SDKProbeType.VCENTER,
+                    ImmutableList.of(addressAccountVal,
                         getGroupScopeAccountVal(indexForGroupScopeAccountDef)),
                         pi.getAccountDefinitionList());
         assertEquals(2, retVal.size());
@@ -394,7 +518,42 @@ public class GroupScopeResolverTest {
                 .getValue(7));
     }
 
-    private static AccountValue createAccountValue(@Nonnull String key, @Nonnull String value) {
+    private void entityScopeAcctDefEntryTester(AccountDefEntry entityScopeAcctDefToTest,
+                                               boolean expectSuccess,
+                                     String subscriptionId) {
+        ProbeInfo pi = ProbeInfo.newBuilder()
+            .setProbeCategory("test")
+            .setProbeType(SDKProbeType.AZURE.getProbeType())
+            .addTargetIdentifierField(PredefinedAccountDefinition.Address.name().toLowerCase())
+            .addAccountDefinition(addressAccountDefEntry)
+            .addAccountDefinition(entityScopeAcctDefToTest)
+            .build();
+        Collection<AccountValue> retVal = groupScopeResolver
+            .processGroupScope(SDKProbeType.AZURE,
+                ImmutableList.of(addressAccountVal,
+                    createAccountValue(SCOPE_ACCOUNT_VALUE_NAME,
+                        subscriptionId)),
+                pi.getAccountDefinitionList());
+        assertEquals(2, retVal.size());
+        assertTrue(retVal.contains(addressAccountVal));
+        Optional<AccountValue> entityScope = retVal.stream()
+            .filter(acctVal -> acctVal.getKey()
+                .equalsIgnoreCase(SCOPE_ACCOUNT_VALUE_NAME))
+            .findFirst();
+        assertTrue(entityScope.isPresent());
+        if (!expectSuccess) {
+            assertEquals(0, entityScope.get().getGroupScopePropertyValuesCount());
+            return;
+        }
+        assertEquals(2,
+            entityScope.get().getGroupScopePropertyValues(0).getValueCount());
+        assertEquals(OFFER_ID, entityScope.get().getGroupScopePropertyValues(0).getValue(0));
+        assertEquals(ENROLLMENT_NUMBER,
+            entityScope.get().getGroupScopePropertyValues(0).getValue(1));
+    }
+
+
+        private static AccountValue createAccountValue(@Nonnull String key, @Nonnull String value) {
         return AccountValue.newBuilder().setKey(key)
                 .setStringValue(value)
                 .build();
@@ -467,14 +626,74 @@ public class GroupScopeResolverTest {
             responseObserver.onCompleted();
         }
 
+        @Override
+        public void searchEntityOids(final SearchEntityOidsRequest request,
+                                     final StreamObserver<SearchEntityOidsResponse> responseObserver) {
+            responseObserver.onNext(retrieveSearchEntitiesOids(request));
+            responseObserver.onCompleted();
+        }
+
         @Nonnull
         private PartialEntityBatch retrieveSearchEntities(long oid) {
             PartialEntityBatch response = PartialEntityBatch.getDefaultInstance();
+            for (int j = 0; j < BUSINESS_ACCOUNT_OID.length; j++) {
+                if (BUSINESS_ACCOUNT_OID[j] == oid) {
+                    response = getRetrieveScopeBusinessAccountResponse(SUBSCRIPTION_ID[j]);
+                }
+            }
             for (int i = 0; i < memberId.length; i ++) {
                 if (memberId[i] == oid) {
                     response = (entitiesRetrievingIndicator ++ % 2 == 0)
                             ? getRetrieveScopedVMEntitiesResponse(i)
                             : getRetrieveGuestLoadAppEntitiesResponse(i);
+                }
+            }
+            return response;
+        }
+
+        @Nonnull
+        private SearchEntityOidsResponse retrieveSearchEntitiesOids(SearchEntityOidsRequest request) {
+            // Make sure this is a properly formatted request for one of the business account whose
+            // subscription ID we know about.  If so, return its OID.  If not, return an empty
+            // response.
+            SearchEntityOidsResponse response = SearchEntityOidsResponse.getDefaultInstance();
+            if (request.getSearchParametersCount() == 1) {
+                SearchParameters searchParams = request.getSearchParameters(0);
+                if (searchParams.hasStartingFilter()) {
+                    PropertyFilter startingPropFilter = searchParams.getStartingFilter();
+                    if ("entityType".equals(startingPropFilter.getPropertyName())
+                        && startingPropFilter.hasNumericFilter()
+                        && startingPropFilter.getNumericFilter().getValue()
+                        == EntityType.BUSINESS_ACCOUNT_VALUE) {
+                        if (searchParams.getSearchFilterCount() == 1) {
+                            SearchFilter searchFilter = searchParams.getSearchFilter(0);
+                            if (searchFilter.hasPropertyFilter() &&
+                                SearchableProperties.BUSINESS_ACCOUNT_INFO_REPO_DTO_PROPERTY_NAME
+                                    .equals(searchFilter.getPropertyFilter().getPropertyName())) {
+                                PropertyFilter propFilter = searchFilter.getPropertyFilter();
+                                if (propFilter.hasObjectFilter() &&
+                                    propFilter.getObjectFilter().getFiltersCount() == 1) {
+                                    PropertyFilter accountFilter =
+                                        propFilter.getObjectFilter().getFilters(0);
+                                    if (SearchableProperties.BUSINESS_ACCOUNT_INFO_ACCOUNT_ID
+                                        .equals(accountFilter.getPropertyName())) {
+                                        if (accountFilter.hasStringFilter() &&
+                                            accountFilter.getStringFilter().getOptionsCount() == 1) {
+                                            String subscriptionId =
+                                                accountFilter.getStringFilter().getOptions(0);
+                                            for (int i = 0; i < SUBSCRIPTION_ID.length; i++) {
+                                                if (SUBSCRIPTION_ID[i].equals(subscriptionId)) {
+                                                    response = SearchEntityOidsResponse.newBuilder()
+                                                        .addEntities(BUSINESS_ACCOUNT_OID[i])
+                                                        .build();
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
             return response;

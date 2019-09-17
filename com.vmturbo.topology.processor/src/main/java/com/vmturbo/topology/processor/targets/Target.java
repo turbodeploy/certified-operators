@@ -33,6 +33,7 @@ import com.vmturbo.platform.common.dto.Discovery.AccountValue;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue.PropertyValueList;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetInfo;
@@ -205,7 +206,8 @@ public class Target {
         return accountDefs.stream()
                 .filter(Discovery.AccountDefEntry::hasCustomDefinition)
                 .map(Discovery.AccountDefEntry::getCustomDefinition)
-                .anyMatch(CustomAccountDefEntry::hasGroupScope);
+                .anyMatch(customAcctDefEntry -> customAcctDefEntry.hasGroupScope() ||
+                    customAcctDefEntry.hasEntityScope());
     }
 
     public void setAccountDefEntryList(final List<Discovery.AccountDefEntry> accountDefEntryList) {
@@ -373,9 +375,12 @@ public class Target {
      * @return The list of {@link AccountValue} objects.
      */
     public List<AccountValue> getMediationAccountVals(GroupScopeResolver groupScopeResolver) {
-        return hasGroupScope ?
-                groupScopeResolver.processGroupScope(mediationAccountVals, accountDefEntryList)
-                : mediationAccountVals;
+        if (!hasGroupScope) {
+            return mediationAccountVals;
+        }
+        final SDKProbeType probeType = SDKProbeType.create(this.probeInfo.getProbeType());
+        return groupScopeResolver.processGroupScope(probeType, mediationAccountVals,
+                    accountDefEntryList);
     }
 
     @Nonnull

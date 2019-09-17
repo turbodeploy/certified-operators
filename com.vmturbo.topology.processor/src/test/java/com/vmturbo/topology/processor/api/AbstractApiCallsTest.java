@@ -119,8 +119,8 @@ public abstract class AbstractApiCallsTest {
 
     protected static TargetInfo wrapTarget(@Nonnull final Target target) {
         final GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
-        Mockito.when(groupScopeResolver.processGroupScope(any(), any()))
-                .then(AdditionalAnswers.returnsFirstArg());
+        Mockito.when(groupScopeResolver.processGroupScope(any(), any(), any()))
+                .then(AdditionalAnswers.returnsSecondArg());
 
         final List<InputField> fields = target.getMediationAccountVals(groupScopeResolver).stream()
                         .map(AbstractApiCallsTest::convertToRest).collect(Collectors.toList());
