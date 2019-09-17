@@ -27,10 +27,19 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
+import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.RISetting;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.test.IntegrationTestServer;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
 import com.vmturbo.plan.orchestrator.api.PlanListener;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
@@ -77,6 +86,50 @@ public class PlanNotificationsTest {
     public void shutdown() throws Exception {
         server.close();
         threadPool.shutdownNow();
+    }
+
+    /**
+     * Verify that resizeEnabled is calculated correctly based on ScenarioChanges.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testResizeEnabled() throws Exception {
+        PlanInstance planInstance = PlanInstance.newBuilder().setPlanId(1L).setStatus(PlanStatus.QUEUED)
+                .setScenario(Scenario.newBuilder().setScenarioInfo(ScenarioInfo.newBuilder()
+                        .setType(StringConstants.OPTIMIZE_CLOUD_PLAN_TYPE)
+                        .addChanges(getResizeScenarioChanges(StringConstants.AUTOMATIC))
+                        .addChanges(ScenarioChange.newBuilder()
+                                .setRiSetting(RISetting.newBuilder().build())))).build();
+        Assert.assertTrue(actionsListener.resizeEnabled(planInstance));
+    }
+
+    /**
+     * Verify that resizeEnabled is calculated correctly based on ScenarioChanges.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testResizeDisabled() throws Exception {
+        PlanInstance planInstance = PlanInstance.newBuilder().setPlanId(3L).setStatus(PlanStatus.QUEUED)
+                .setScenario(Scenario.newBuilder().setScenarioInfo(ScenarioInfo.newBuilder()
+                        .setType(StringConstants.OPTIMIZE_CLOUD_PLAN_TYPE)
+                        .addChanges(getResizeScenarioChanges(StringConstants.DISABLED))
+                        .addChanges(ScenarioChange.newBuilder()
+                                .setRiSetting(RISetting.newBuilder().build())))).build();
+        Assert.assertTrue(!actionsListener.resizeEnabled(planInstance));
+    }
+
+    private ScenarioChange getResizeScenarioChanges(String actionSetting) {
+        final EnumSettingValue settingValue = EnumSettingValue.newBuilder()
+                .setValue(actionSetting).build();
+        final String resizeSettingName = EntitySettingSpecs.Resize.getSettingName();
+        final Setting resizeSetting = Setting.newBuilder().setSettingSpecName(resizeSettingName)
+                .setEnumSettingValue(settingValue).build();
+        return ScenarioChange.newBuilder()
+                .setSettingOverride(SettingOverride.newBuilder()
+                        .setSetting(resizeSetting).build())
+                .build();
     }
 
     /**
@@ -200,7 +253,6 @@ public class PlanNotificationsTest {
         final PlanListener listener = Mockito.mock(PlanListener.class);
         client.addPlanListener(listener);
         final long planId = planDao.createPlanInstance(CreatePlanRequest.getDefaultInstance()).getPlanId();
-
         actionsListener.onActionsUpdated(actionsUpdated(ACT_PLAN_ID, planId));
 
         actionsListener.onStatsAvailable(StatsAvailable.newBuilder()

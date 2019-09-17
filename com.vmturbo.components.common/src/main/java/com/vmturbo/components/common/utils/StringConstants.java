@@ -285,7 +285,14 @@ public class StringConstants {
     public static final String PROPERTY = "property";
     public static final String OPTIMIZE_CLOUD_PLAN_TYPE = "OPTIMIZE_CLOUD";
     public static final String CLOUD_MIGRATION_PLAN_TYPE = "CLOUD_MIGRATION";
+    /**
+     * DISABLED action mode. This is used to check if VM scale actions are disabled in OCP.
+     */
     public static final String DISABLED = "DISABLED";
+    /**
+     * AUTOMATIC action mode.  This is used to check if VM scale actions are enabled in OCP.
+     */
+    public static final String AUTOMATIC = "AUTOMATIC";
     public static final String RESIZE = "resize";
     public static final String BUSINESS_ACCOUNT = "BUSINESSACCOUNT";
     public final static String RESULTS_TYPE = "resultsType";
