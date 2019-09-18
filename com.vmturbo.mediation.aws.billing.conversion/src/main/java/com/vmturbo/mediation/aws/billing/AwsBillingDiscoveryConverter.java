@@ -49,6 +49,7 @@ public class AwsBillingDiscoveryConverter {
             item.toBuilder()
                 .clone()
                 .setOrigin(EntityOrigin.PROXY)
+                .setKeepStandalone(false)
                 .build()
         ).collect(Collectors.toList());
         if (logger.isDebugEnabled()) {

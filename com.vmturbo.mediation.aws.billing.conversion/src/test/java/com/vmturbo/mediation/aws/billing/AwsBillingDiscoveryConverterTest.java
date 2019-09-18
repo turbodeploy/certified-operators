@@ -1,6 +1,7 @@
 package com.vmturbo.mediation.aws.billing;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 import java.net.URL;
 import java.util.List;
@@ -14,6 +15,7 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.mediation.cloud.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 
@@ -47,6 +49,12 @@ public class AwsBillingDiscoveryConverterTest {
         newResponse.getNonMarketEntityDTOList().forEach(nonMarketEntityDTO -> vmList.addAll(
             nonMarketEntityDTO.getCloudServiceData().getBillingData().getVirtualMachinesList()));
         Assert.assertEquals(143, vmList.size());
+
+        // verify flags set correctly
+        entitiesByType.get(EntityType.VIRTUAL_MACHINE).forEach(vm -> {
+            assertEquals(EntityOrigin.PROXY, vm.getOrigin());
+            assertFalse(vm.getKeepStandalone());
+        });
 
     }
 }
