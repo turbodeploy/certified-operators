@@ -1,6 +1,9 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+
+import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -8,7 +11,6 @@ import java.util.List;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
-import org.junit.Test;
 
 import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
@@ -30,7 +32,7 @@ public class ReservedInstanceAnalysisScopeTest {
      * The purchase profile has RI type, and purchase date (long).
      */
     @Test
-    public void testListConstructor() {
+    public void testListConstructorFromRequest() {
 
         StartBuyRIAnalysisRequest.Builder requestBuilder =
                 com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest.newBuilder();
@@ -87,7 +89,7 @@ public class ReservedInstanceAnalysisScopeTest {
      * The purchase profile has RI type, and purchase date (long).
      */
     @Test
-    public void testSingletonConstructor() {
+    public void testSingletonConstructorFromRequest() {
 
         StartBuyRIAnalysisRequest.Builder requestBuilder =
                 com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest.newBuilder();
@@ -141,7 +143,7 @@ public class ReservedInstanceAnalysisScopeTest {
      * Build an empty StartBuyRIAnalysisRequest.
      */
     @Test
-    public void testNullConstructor() {
+    public void testNullConstructorFromRequest() {
 
         StartBuyRIAnalysisRequest.Builder requestBuilder =
                 com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest.newBuilder();
@@ -165,6 +167,36 @@ public class ReservedInstanceAnalysisScopeTest {
         assertTrue(scope.getPlatforms().isEmpty());
         assertTrue("scope.getRiPurchaseProfile()=" + scope.getRiPurchaseProfile() + " != null",
                 riPurchaseProfilesEqual(riPurchaseProfile, scope.getRiPurchaseProfile()));
+    }
+
+    /**
+     * Test that OSType does not include UNKNOWN.
+     */
+    @Test
+    public void testConstructorWithNullOSType() {
+        ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(null, null,
+            null, null, 1.0f, false, null);
+        assertFalse(scope.getPlatforms().contains(OSType.UNKNOWN_OS));
+        for (OSType type: OSType.values()) {
+            if (type != OSType.UNKNOWN_OS) {
+                assertTrue(scope.getPlatforms().contains(type));
+            }
+        }
+    }
+
+    /**
+     * Test that OSType does not include UNKNOWN.
+     */
+    @Test
+    public void testConstructorWithNullTenancy() {
+        ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(null, null,
+            null, null, 1.0f, false, null);
+        assertFalse(scope.getTenancies().contains(Tenancy.HOST));
+        for (Tenancy tenancy: Tenancy.values()) {
+            if (tenancy != Tenancy.HOST) {
+                assertTrue(scope.getTenancies().contains(tenancy));
+            }
+        }
     }
 
     private boolean longListEqual(List<Long> l1, ImmutableSet<Long> s2) {

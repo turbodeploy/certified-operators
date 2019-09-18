@@ -1,8 +1,10 @@
 package com.vmturbo.cost.component.reserved.instance.recommendationalgorithm;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -13,7 +15,6 @@ import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
-
 
 /**
  * This class describes the scope within which the recommendation algorithm should operate -- it will consider
@@ -87,8 +88,8 @@ public class ReservedInstanceAnalysisScope {
                          float preferredCoverage,
                          boolean overrideRICoverage,
                          @Nullable RIPurchaseProfile profile) {
-            this.platforms = (platforms==null) ?
-                    ImmutableSet.copyOf(OSType.values()) :
+            this.platforms = (platforms == null) ?
+                    ImmutableSet.copyOf(Arrays.stream(OSType.values()).filter(x -> x != OSType.UNKNOWN_OS).collect(Collectors.toSet())) :
                     ImmutableSet.copyOf(platforms);
             this.regions = (regions == null) ?
                     ImmutableSet.copyOf(getAllSupportedRegions())
