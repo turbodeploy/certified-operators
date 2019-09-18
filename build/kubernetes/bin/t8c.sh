@@ -252,12 +252,15 @@ cp "${glusterStorageJson}.template" "${glusterStorageJson}"
 sed -i '/nodes/r /tmp/topology.json' "${glusterStorageJson}"
 rm -rf /tmp/topology.json
 
+# Set the heketi admin key (used also in the turboEnv.sh script
+export ADMIN_KEY=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+
 # Run the heketi/gluster setup
 pushd ${glusterStorage}/deploy > /dev/null
 if (( ${tLen} >= 1 ))
 then
   # This is for a single node setup.
-  /opt/gluster-kubernetes/deploy/gk-deploy --single-node -gyv
+  /opt/gluster-kubernetes/deploy/gk-deploy --single-node -gyv --admin-key ${ADMIN_KEY}
   heketiStatus=$?
   if [ "X${heketiStatus}" == "X0" ]
   then
@@ -280,7 +283,7 @@ then
     exit 0
   fi
 else
-  /opt/gluster-kubernetes/deploy/gk-deploy -gyv
+  /opt/gluster-kubernetes/deploy/gk-deploy -gyv --admin-key ${ADMIN_KEY}
   heketiStatus=$?
   if [ "X${heketiStatus}" == "X0" ]
   then
