@@ -7,7 +7,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
-/*
+/**
  * This abstract class provides Reserved Instance contextual support for Platform and Tenancy.
  */
 public abstract class ReservedInstanceContext {
@@ -16,7 +16,7 @@ public abstract class ReservedInstanceContext {
      * Billing family (master account) id of the reserved instance.
      * Each reserved instance belongs to an account, each account belongs to a billing family.
      */
-    protected long masterAccount;
+    protected long masterAccountId;
 
     /**
      * Operating Systems such as Linux, Windows.
@@ -32,29 +32,32 @@ public abstract class ReservedInstanceContext {
      * Instance type or template; e.g. m4.xlarge. This is the instance type that the RI analyzer
      * is recommending to buy RIs for.  For instance size flexible RI, the instance type is the
      * smallest instance type in the family; otherwise,the instance type is the type of the demand.
+     * This instance variable is the TopologyEntityDTO instead of the OID, because the lookup returns
+     * an Optional, which makes checking for isPresent() ugly for each use, instead of checking only
+     * once at the definition.
      */
     protected final TopologyEntityDTO computeTier;
 
     /**
-     * Constructor
+     * Constructor.
      *
-     * @param masterAccount master account
+     * @param masterAccountId master account ID
      * @param platform what is the OS? e.g. LINUX or WINDOWS
      * @param tenancy how are underlying resources used? e.g. DEFAULT (shared), DEDICATED
      * @param computeTier computeTier
      */
-    public ReservedInstanceContext(@Nonnull long masterAccount,
+    public ReservedInstanceContext(@Nonnull long masterAccountId,
                                    @Nonnull OSType platform,
                                    @Nonnull Tenancy tenancy,
                                    @Nonnull TopologyEntityDTO computeTier) {
-        this.masterAccount = masterAccount;
+        this.masterAccountId = masterAccountId;
         this.platform = Objects.requireNonNull(platform, "Platform is null for RI.");
         this.tenancy = Objects.requireNonNull(tenancy, "Tenancy is null for RI.");
-        this.computeTier= Objects.requireNonNull(computeTier, "Compute Tier is null for RI.");
+        this.computeTier = computeTier;
     }
 
-    public long getMasterAccount() {
-        return masterAccount;
+    public long getMasterAccountId() {
+        return masterAccountId;
     }
 
     @Nonnull
@@ -67,16 +70,16 @@ public abstract class ReservedInstanceContext {
         return tenancy;
     }
 
-    @Nonnull
     public TopologyEntityDTO getComputeTier() {
         return computeTier;
     }
 
     /**
      * Determine if a Reserved Instance is instance size flexible.
+     * @return always return false as default.
      */
     public boolean isInstanceSizeFlexible() {
-        return platform == OSType.LINUX && tenancy == Tenancy.DEFAULT;
+        return false;
     }
 
     @Override
@@ -84,8 +87,8 @@ public abstract class ReservedInstanceContext {
         if (!(o instanceof ReservedInstanceContext)) {
             return false;
         }
-        final ReservedInstanceContext context = (ReservedInstanceContext) o;
-        return  Objects.equals(masterAccount, context.getMasterAccount()) &&
+        final ReservedInstanceContext context = (ReservedInstanceContext)o;
+        return  Objects.equals(masterAccountId, context.getMasterAccountId()) &&
                 Objects.equals(platform, context.getPlatform()) &&
                 Objects.equals(tenancy, context.getTenancy()) &&
                 Objects.equals(computeTier, context.getComputeTier());

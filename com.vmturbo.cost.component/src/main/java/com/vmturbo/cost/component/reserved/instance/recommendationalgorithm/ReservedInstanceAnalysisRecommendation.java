@@ -24,7 +24,6 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -187,15 +186,15 @@ public class ReservedInstanceAnalysisRecommendation {
         // If this changes, consider switching to using Apache Commons CSV.
 
         // From context get master account and linked account, if any
-        long masterAccountId = context.getMasterAccount();
+        long masterAccountId = context.getMasterAccountId();
 
         StringJoiner joiner = new StringJoiner(",");
 
         joiner.add(logTag)
                 .add(actionGoal)
-                .add(Long.toString(context.getMasterAccount()))
+                .add(Long.toString(context.getMasterAccountId()))
                 .add(context.getComputeTier().getDisplayName())
-                .add(Long.toString(context.getRegion()))
+                .add(Long.toString(context.getRegionId()))
                 .add(context.getPlatform().toString())
                 .add(context.getTenancy().name())
                 .add(constraints.getOfferingClass().toString())
@@ -227,7 +226,7 @@ public class ReservedInstanceAnalysisRecommendation {
 
     @Nonnull
     public long getRegion() {
-        return context.getRegion();
+        return context.getRegionId();
     }
 
     @Nonnull
@@ -344,7 +343,7 @@ public class ReservedInstanceAnalysisRecommendation {
         ReservedInstanceBoughtCoupons.Builder riBoughtCoupons = ReservedInstanceBoughtCoupons.newBuilder()
             .setNumberOfCoupons(riNormalizedCoupons);
         ReservedInstanceBoughtInfo.Builder riBoughtInfoBuilder = ReservedInstanceBoughtInfo.newBuilder()
-            .setBusinessAccountId(context.getMasterAccount())
+            .setBusinessAccountId(context.getMasterAccountId())
             .setNumBought(getCount())
             .setReservedInstanceSpec(getRiSpec().getId())
             .setReservedInstanceBoughtCost(riBoughtCost)
@@ -366,7 +365,7 @@ public class ReservedInstanceAnalysisRecommendation {
             .setCount(getCount())
             .setRegionId(ActionEntity.newBuilder().setId(getRegion())
                     .setType(EntityType.REGION_VALUE).build())
-            .setMasterAccount(ActionEntity.newBuilder().setId(context.getMasterAccount())
+            .setMasterAccount(ActionEntity.newBuilder().setId(context.getMasterAccountId())
                     .setType(EntityType.BUSINESS_ACCOUNT_VALUE).build())
             .build();
 

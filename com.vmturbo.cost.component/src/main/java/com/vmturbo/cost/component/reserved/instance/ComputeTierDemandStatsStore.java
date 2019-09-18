@@ -152,9 +152,9 @@ public class ComputeTierDemandStatsStore {
         // TODO: karthikt - Ignore accountNumbers for now as we don't yet support account scopes
         // introduced by OM-38894.
         return dslContext.selectFrom(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK)
-                .where(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.ACCOUNT_ID.eq(context.getMasterAccount()))
+                .where(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.ACCOUNT_ID.eq(context.getMasterAccountId()))
                     .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.COMPUTE_TIER_ID.eq(context.getComputeTier().getOid()))
-                    .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.AVAILABILITY_ZONE.eq(context.getAvailabilityZone()))
+                    .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.AVAILABILITY_ZONE.eq(context.getAvailabilityZoneId()))
                     .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.PLATFORM.eq((byte)context.getPlatform().getNumber()))
                     .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.TENANCY.eq((byte)context.getTenancy().getNumber()))
                 .fetch();

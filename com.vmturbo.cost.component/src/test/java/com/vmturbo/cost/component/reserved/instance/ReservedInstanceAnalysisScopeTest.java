@@ -170,7 +170,7 @@ public class ReservedInstanceAnalysisScopeTest {
     }
 
     /**
-     * Test that OSType does not include UNKNOWN.
+     * Test that OSType does not include UNKNOWN and includes all the other OSTypes.
      */
     @Test
     public void testConstructorWithNullOSType() {
@@ -185,7 +185,7 @@ public class ReservedInstanceAnalysisScopeTest {
     }
 
     /**
-     * Test that OSType does not include UNKNOWN.
+     * Test that Tenancy does not include HOST, but includes all the other Tenancies.
      */
     @Test
     public void testConstructorWithNullTenancy() {

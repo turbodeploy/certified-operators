@@ -526,12 +526,12 @@ public class ReservedInstanceAnalyzer {
                           @Nonnull Map<Long, ReservedInstanceSpec> reservedInstanceSpecMap) {
 
         List<ReservedInstanceBoughtInfo> risBought =
-                reserveInstanceBoughtTable.get(zonalContext.getMasterAccount(),
-                zonalContext.getAvailabilityZone());
+                reserveInstanceBoughtTable.get(zonalContext.getMasterAccountId(),
+                zonalContext.getAvailabilityZoneId());
 
         if (risBought == null) {
             logger.error("Couldn't get RI Bought record for MasterAccount: {} and AvailabilityZone: {}",
-                    zonalContext.getMasterAccount(), zonalContext.getAvailabilityZone());
+                    zonalContext.getMasterAccountId(), zonalContext.getAvailabilityZoneId());
            return normalizedDemand;
         }
 
@@ -601,7 +601,7 @@ public class ReservedInstanceAnalyzer {
                 regionalContext.getPlatform().equals(OSType.LINUX) && regionalContext.getTenancy().equals(Tenancy.DEFAULT);
 
         Map<Long, List<ReservedInstanceBoughtInfo>> risBought =
-                reserveInstanceBoughtTable.rowMap().get(regionalContext.getMasterAccount());
+                reserveInstanceBoughtTable.rowMap().get(regionalContext.getMasterAccountId());
 
         int normalizedCoupons = risBought.values()
                 .stream()
@@ -614,8 +614,8 @@ public class ReservedInstanceAnalyzer {
                         return 0;
                     }
                     ReservedInstanceSpecInfo riSpecInfo = riSpec.getReservedInstanceSpecInfo();
-                    if (riSpecInfo.getRegionId() == regionalContext.getRegion()
-                            && riBoughtInfo.getBusinessAccountId() == regionalContext.getMasterAccount()
+                    if (riSpecInfo.getRegionId() == regionalContext.getRegionId()
+                            && riBoughtInfo.getBusinessAccountId() == regionalContext.getMasterAccountId()
                             && riSpecInfo.getTenancy() == regionalContext.getTenancy()
                             && riSpecInfo.getOs() == regionalContext.getPlatform()
                             && (isInstanceSizeFlexible ?
@@ -762,7 +762,7 @@ public class ReservedInstanceAnalyzer {
             @Nonnull Map<ReservedInstanceSpecInfo, ReservedInstanceSpec> riSpecLookupMap) {
         ReservedInstanceSpecInfo riSpecInfoToLookup = ReservedInstanceSpecInfo.newBuilder()
                 .setOs(regionalContext.getPlatform())
-                .setRegionId(regionalContext.getRegion())
+                .setRegionId(regionalContext.getRegionId())
                 .setTenancy(regionalContext.getTenancy())
                 .setTierId(regionalContext.getComputeTier().getOid())
                 .setType(riType)
