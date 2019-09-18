@@ -107,6 +107,9 @@ public class EntitySettingSpecsTest {
                     }
                     break;
                 }
+                case LIST_OF_OID_SETTING_VALUE_TYPE:
+                    // No default.
+                    break;
                 default: {
                     Assert.fail("Data structure type is unknown for policy setting " + setting);
                 }

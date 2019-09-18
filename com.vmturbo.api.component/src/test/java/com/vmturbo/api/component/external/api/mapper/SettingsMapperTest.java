@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -73,6 +74,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.ListOfOidSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.ListOfOidSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Schedule;
@@ -99,6 +102,7 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class SettingsMapperTest {
@@ -137,9 +141,7 @@ public class SettingsMapperTest {
             .setName("alternativeMoveVM")
             .build();
 
-    private final SettingSpec settingSpec3 = SettingSpec.newBuilder(settingSpec1)
-            .setName("thirdMoveVM")
-            .build();
+    private final SettingSpec settingSpec3 = EntitySettingSpecs.ExcludedTemplates.getSettingSpec();
 
     private SettingsManagerMapping settingMgrMapping = mock(SettingsManagerMapping.class);
 
@@ -176,8 +178,11 @@ public class SettingsMapperTest {
                 (new SettingSpecStyleMappingLoader("settingSpecStyleTest.json")).getMapping());
 
         final List<SettingsManagerApiDTO> ret =
-                mapper.toManagerDtos(Collections.singletonList(settingSpec1), Optional.empty());
-        assertEquals(1, ret.size());
+                mapper.toManagerDtos(Arrays.asList(settingSpec1, settingSpec3), Optional.empty());
+        assertEquals(2, ret.size());
+        if ("marketsettingsmanager".equals(ret.get(0).getUuid())) {
+            ret.set(1, ret.set(0, ret.get(1)));
+        }
 
         final SettingsManagerApiDTO mgr = ret.get(0);
         assertEquals("automationmanager", mgr.getUuid());
@@ -205,6 +210,21 @@ public class SettingsMapperTest {
         assertThat(settingApiDTO.getRange().getCustomStepValues(), containsInAnyOrder(90, 30, 7));
         assertThat(settingApiDTO.getRange().getLabels(),
             containsInAnyOrder("Performance", "Efficiency"));
+
+        final SettingsManagerApiDTO mktomgr = ret.get(1);
+        assertEquals("marketsettingsmanager", mktomgr.getUuid());
+        assertEquals("Operational Constraints", mktomgr.getDisplayName());
+        assertEquals("Analysis", mktomgr.getCategory());
+        assertEquals(3, mktomgr.getSettings().size());
+
+        final SettingApiDTO<?> teSettingApiDTO = mktomgr.getSettings().get(0);
+        assertEquals("excludedTemplatesOids", teSettingApiDTO.getUuid());
+        assertEquals("Excluded templates", teSettingApiDTO.getDisplayName());
+        assertNull(teSettingApiDTO.getDefaultValue());
+
+        assertThat(mktomgr.getSettings().stream().map(SettingApiDTO::getEntityType).collect(Collectors.toList()),
+            containsInAnyOrder("VirtualMachine", "Database", "DatabaseServer"));
+        assertEquals(InputValueType.LIST, teSettingApiDTO.getValueType());
     }
 
     @Test
@@ -481,10 +501,31 @@ public class SettingsMapperTest {
         return setting;
     }
 
+    /**
+     * Make the default {@link SettingsPolicyApiDTO}.
+     *
+     * @return a {@link SettingsPolicyApiDTO}
+     */
+    private SettingsPolicyApiDTO makeSettingsPolicyApiDto() {
+        final SettingApiDTO boolSetting = makeSetting("bool setting", "true");
+
+        final SettingApiDTO numSetting = makeSetting("num setting", "10");
+
+        final SettingApiDTO stringSetting = makeSetting("string setting", "foo");
+
+        final SettingApiDTO enumSetting = makeSetting("enum setting", "VAL");
+
+        final SettingApiDTO listSetting = makeSetting("list setting", "1,2,3");
+
+        return makeSettingsPolicyApiDto(
+            boolSetting, numSetting, stringSetting, enumSetting, listSetting);
+    }
+
     private SettingsPolicyApiDTO makeSettingsPolicyApiDto(SettingApiDTO<?> boolSetting,
                                                           SettingApiDTO<?> numSetting,
                                                           SettingApiDTO<?> stringSetting,
-                                                          SettingApiDTO<?> enumSetting) {
+                                                          SettingApiDTO<?> enumSetting,
+                                                          SettingApiDTO<?> listSetting) {
         final SettingsPolicyApiDTO settingsPolicyApiDTO = new SettingsPolicyApiDTO();
 
         when(settingBackend.searchSettingSpecs(any())).thenReturn(ImmutableList.of(
@@ -503,12 +544,17 @@ public class SettingsMapperTest {
             SettingSpec.newBuilder()
                 .setName(enumSetting.getUuid())
                 .setEnumSettingValueType(EnumSettingValueType.getDefaultInstance())
-                .build()));
+                .build(),
+            SettingSpec.newBuilder()
+                .setName(listSetting.getUuid())
+                .setListOfOidSettingValueType(ListOfOidSettingValueType.getDefaultInstance())
+                .build()
+        ));
 
         final SettingsManagerApiDTO settingMgr1 = new SettingsManagerApiDTO();
         settingMgr1.setSettings(Arrays.asList(boolSetting, numSetting));
         final SettingsManagerApiDTO settingMgr2 = new SettingsManagerApiDTO();
-        settingMgr2.setSettings(Arrays.asList(stringSetting, enumSetting));
+        settingMgr2.setSettings(Arrays.asList(stringSetting, enumSetting, listSetting));
 
         settingsPolicyApiDTO.setSettingsManagers(Arrays.asList(settingMgr1, settingMgr2));
         settingsPolicyApiDTO.setDefault(false);
@@ -554,8 +600,14 @@ public class SettingsMapperTest {
                 .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("VAL"))
                 .build();
 
+        final SettingApiDTO listOfOidSetting = makeSetting("list setting", "1,2,3");
+        final Setting listSettingProto = Setting.newBuilder()
+            .setSettingSpecName(listOfOidSetting.getUuid())
+            .setListOfOidSettingValue(ListOfOidSettingValue.newBuilder().addAllOids(Arrays.asList(1L, 2L, 3L)))
+            .build();
+
         final SettingsPolicyApiDTO settingsPolicyApiDTO = makeSettingsPolicyApiDto(boolSetting, numSetting,
-                stringSetting, enumSetting);
+                stringSetting, enumSetting, listOfOidSetting);
 
         final int entityType = EntityType.VIRTUAL_MACHINE.getNumber();
 
@@ -570,7 +622,7 @@ public class SettingsMapperTest {
         assertThat(info.getScope().getGroupsList(), containsInAnyOrder(7L));
         assertThat(info.getSettingsList(),
                 containsInAnyOrder(boolSettingProto, numSettingProto,
-                        strSettingProto, enumSettingProto));
+                        strSettingProto, enumSettingProto, listSettingProto));
         assertTrue(info.hasSchedule());
         final Schedule schedule = info.getSchedule();
         verifyBasicSchedule(schedule);
@@ -582,16 +634,7 @@ public class SettingsMapperTest {
 
         final SettingsMapper mapper = setUpMapper();
 
-        final SettingApiDTO boolSetting = makeSetting("bool setting", "true");
-
-        final SettingApiDTO numSetting = makeSetting("num setting", "10");
-
-        final SettingApiDTO stringSetting = makeSetting("string setting", "foo");
-
-        final SettingApiDTO enumSetting = makeSetting("enum setting", "VAL");
-
-        final SettingsPolicyApiDTO settingsPolicyApiDTO = makeSettingsPolicyApiDto(boolSetting, numSetting,
-                stringSetting, enumSetting);
+        final SettingsPolicyApiDTO settingsPolicyApiDTO = makeSettingsPolicyApiDto();
 
         final int entityType = EntityType.VIRTUAL_MACHINE.getNumber();
 
@@ -616,16 +659,7 @@ public class SettingsMapperTest {
     public void testMapInputPolicyDailyPerpetual() throws InvalidOperationException {
         final SettingsMapper mapper = setUpMapper();
 
-        final SettingApiDTO boolSetting = makeSetting("bool setting", "true");
-
-        final SettingApiDTO numSetting = makeSetting("num setting", "10");
-
-        final SettingApiDTO stringSetting = makeSetting("string setting", "foo");
-
-        final SettingApiDTO enumSetting = makeSetting("enum setting", "VAL");
-
-        final SettingsPolicyApiDTO settingsPolicyApiDTO = makeSettingsPolicyApiDto(boolSetting, numSetting,
-                stringSetting, enumSetting);
+        final SettingsPolicyApiDTO settingsPolicyApiDTO = makeSettingsPolicyApiDto();
 
         final int entityType = EntityType.VIRTUAL_MACHINE.getNumber();
 
@@ -647,16 +681,7 @@ public class SettingsMapperTest {
     public void testMapInputPolicyWeeklyUnspecifiedDay() throws InvalidOperationException {
         final SettingsMapper mapper = setUpMapper();
 
-        final SettingApiDTO boolSetting = makeSetting("bool setting", "true");
-
-        final SettingApiDTO numSetting = makeSetting("num setting", "10");
-
-        final SettingApiDTO stringSetting = makeSetting("string setting", "foo");
-
-        final SettingApiDTO enumSetting = makeSetting("enum setting", "VAL");
-
-        final SettingsPolicyApiDTO settingsPolicyApiDTO = makeSettingsPolicyApiDto(boolSetting, numSetting,
-                stringSetting, enumSetting);
+        final SettingsPolicyApiDTO settingsPolicyApiDTO = makeSettingsPolicyApiDto();
 
         final int entityType = EntityType.VIRTUAL_MACHINE.getNumber();
 
@@ -687,16 +712,7 @@ public class SettingsMapperTest {
     public void testMapInputPolicyWeeklySpecificDay() throws InvalidOperationException {
         final SettingsMapper mapper = setUpMapper();
 
-        final SettingApiDTO boolSetting = makeSetting("bool setting", "true");
-
-        final SettingApiDTO numSetting = makeSetting("num setting", "10");
-
-        final SettingApiDTO stringSetting = makeSetting("string setting", "foo");
-
-        final SettingApiDTO enumSetting = makeSetting("enum setting", "VAL");
-
-        final SettingsPolicyApiDTO settingsPolicyApiDTO = makeSettingsPolicyApiDto(boolSetting, numSetting,
-                stringSetting, enumSetting);
+        final SettingsPolicyApiDTO settingsPolicyApiDTO = makeSettingsPolicyApiDto();
 
         final int entityType = EntityType.VIRTUAL_MACHINE.getNumber();
 
@@ -721,16 +737,7 @@ public class SettingsMapperTest {
     public void testMapInputPolicyMonthlyUnspecifiedDay() throws InvalidOperationException {
         final SettingsMapper mapper = setUpMapper();
 
-        final SettingApiDTO boolSetting = makeSetting("bool setting", "true");
-
-        final SettingApiDTO numSetting = makeSetting("num setting", "10");
-
-        final SettingApiDTO stringSetting = makeSetting("string setting", "foo");
-
-        final SettingApiDTO enumSetting = makeSetting("enum setting", "VAL");
-
-        final SettingsPolicyApiDTO settingsPolicyApiDTO = makeSettingsPolicyApiDto(boolSetting, numSetting,
-                stringSetting, enumSetting);
+        final SettingsPolicyApiDTO settingsPolicyApiDTO = makeSettingsPolicyApiDto();
 
         final int entityType = EntityType.VIRTUAL_MACHINE.getNumber();
 
@@ -761,16 +768,7 @@ public class SettingsMapperTest {
     public void testMapInputPolicyMonthlySpecificDay() throws InvalidOperationException {
         final SettingsMapper mapper = setUpMapper();
 
-        final SettingApiDTO boolSetting = makeSetting("bool setting", "true");
-
-        final SettingApiDTO numSetting = makeSetting("num setting", "10");
-
-        final SettingApiDTO stringSetting = makeSetting("string setting", "foo");
-
-        final SettingApiDTO enumSetting = makeSetting("enum setting", "VAL");
-
-        final SettingsPolicyApiDTO settingsPolicyApiDTO = makeSettingsPolicyApiDto(boolSetting, numSetting,
-                stringSetting, enumSetting);
+        final SettingsPolicyApiDTO settingsPolicyApiDTO = makeSettingsPolicyApiDto();
 
         final int entityType = EntityType.VIRTUAL_MACHINE.getNumber();
 

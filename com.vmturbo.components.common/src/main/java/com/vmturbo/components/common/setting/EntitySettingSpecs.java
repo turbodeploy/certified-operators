@@ -22,6 +22,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.AllEntityType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.ListOfOidSettingValueType.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -384,6 +385,15 @@ public enum EntitySettingSpecs {
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE),
             numeric(0.0f/*min*/, 999999.0f/*max*/, 999999.0f/*default*/), true),
+
+    /**
+     * Excluded Templates.
+     */
+    ExcludedTemplates("excludedTemplatesOids", "Excluded templates",
+        Collections.singletonList("resizeRecommendationsConstants"),
+        SettingTiebreaker.UNION,
+        EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER),
+        listOfOid(Type.ENTITY), true),
 
     /**
      * Storage Increment.
@@ -946,4 +956,14 @@ public enum EntitySettingSpecs {
         return new StringSettingDataType(defaultValue, MATCH_ANYTHING_REGEX);
     }
 
+    @Nonnull
+    private static SettingDataStructure<?> listOfOid(@Nonnull final Type type) {
+        return new ListOfOidSettingDataType(type, Collections.emptyList());
+    }
+
+    @Nonnull
+    private static SettingDataStructure<?> listOfOid(@Nonnull final Type type,
+                                                     @Nonnull final List<Long> defaultValue) {
+        return new ListOfOidSettingDataType(type, defaultValue);
+    }
 }

@@ -64,8 +64,8 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
                 this::processBooleanSetting);
         processors.put(SettingValueTypeCase.ENUM_SETTING_VALUE_TYPE, this::processEnumSetting);
         processors.put(SettingValueTypeCase.STRING_SETTING_VALUE_TYPE, this::processStringSetting);
-        processors.put(SettingValueTypeCase.NUMERIC_SETTING_VALUE_TYPE,
-                this::processNumericSetting);
+        processors.put(SettingValueTypeCase.NUMERIC_SETTING_VALUE_TYPE, this::processNumericSetting);
+        processors.put(SettingValueTypeCase.LIST_OF_OID_SETTING_VALUE_TYPE, this::processListSetting);
         settingProcessors = Collections.unmodifiableMap(processors);
     }
 
@@ -317,6 +317,26 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
         if (!type.getEnumValuesList().contains(value)) {
             return Collections.singleton("Value " + value + " is not in the allowable list: " +
                     StringUtils.join(type.getEnumValuesList(), ", "));
+        }
+        return Collections.emptySet();
+    }
+
+    /**
+     * Validate settings with {@link ValueCase.LIST_OF_OID_SETTING_VALUE}.
+     *
+     * @param setting the {@link Setting} to validate
+     * @param settingSpec the {@link SettingSpec} corresponds to the setting
+     * @return a {@link Collection} of errors
+     */
+    private Collection<String> processListSetting(@Nonnull Setting setting,
+                                                  @Nonnull SettingSpec settingSpec) {
+        final Optional<String> typeError = matchType(setting, ValueCase.LIST_OF_OID_SETTING_VALUE);
+        if (typeError.isPresent()) {
+            return Collections.singleton(typeError.get());
+        }
+        final List<Long> value = setting.getListOfOidSettingValue().getOidsList();
+        if (value.isEmpty()) {
+            return Collections.singleton("Value " + value + " can't be empty.");
         }
         return Collections.emptySet();
     }

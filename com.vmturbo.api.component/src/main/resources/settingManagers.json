@@ -104,6 +104,7 @@
         "usedIncrement_VMEM",
         "usedIncrement_VStorage",
         "usedIncrement_StAmt",
+        "excludedTemplatesOids",
         "responseTimeCapacity",
         "slaCapacity",
         "transactionsCapacity",

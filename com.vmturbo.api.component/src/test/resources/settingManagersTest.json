@@ -13,6 +13,13 @@
           }
         }
       }
+    },
+    "marketsettingsmanager": {
+      "displayName": "Operational Constraints",
+      "defaultCategory": "Analysis",
+      "settings": [
+        "excludedTemplatesOids"
+      ]
     }
   }
 }

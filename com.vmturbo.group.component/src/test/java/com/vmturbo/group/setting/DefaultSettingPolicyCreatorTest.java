@@ -30,6 +30,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.Entit
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.ListOfOidSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
@@ -129,6 +130,24 @@ public class DefaultSettingPolicyCreatorTest {
         final Setting setting = info.getSettings(0);
         Assert.assertEquals(spec.getName(), setting.getSettingSpecName());
         Assert.assertEquals("ENUM", setting.getEnumSettingValue().getValue());
+    }
+
+    /**
+     * Tests default setting creation for list setting.
+     *
+     * @throws Exception if exception occurs
+     */
+    @Test
+    public void testDefSettingFromSpecList() throws Exception {
+        final SettingSpec spec = SettingSpec.newBuilder(defaultSetting)
+            .setListOfOidSettingValueType(
+                ListOfOidSettingValueType.newBuilder().setType(ListOfOidSettingValueType.Type.ENTITY))
+            .build();
+        final SettingPolicyInfo info = getPolicyInfo(spec);
+        Assert.assertEquals(1, info.getSettingsCount());
+        final Setting setting = info.getSettings(0);
+        Assert.assertEquals(spec.getName(), setting.getSettingSpecName());
+        Assert.assertTrue(setting.getListOfOidSettingValue().getOidsList().isEmpty());
     }
 
     /**

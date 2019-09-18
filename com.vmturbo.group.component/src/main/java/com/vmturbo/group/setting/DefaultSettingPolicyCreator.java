@@ -26,6 +26,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingProto.ListOfOidSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.ListOfOidSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -251,6 +253,11 @@ public class DefaultSettingPolicyCreator implements Runnable {
                         .setValue(specificTypeDefault.orElse(valueType.getDefault())));
                 break;
             }
+            case LIST_OF_OID_SETTING_VALUE_TYPE:
+                final ListOfOidSettingValueType valueType = spec.getListOfOidSettingValueType();
+                retBuilder.setListOfOidSettingValue(ListOfOidSettingValue.newBuilder()
+                    .addAllOids(valueType.getDefaultList()));
+                break;
             default: {
                 /**
                  * It is a error, if we have pre-defined settings wrongly configured.

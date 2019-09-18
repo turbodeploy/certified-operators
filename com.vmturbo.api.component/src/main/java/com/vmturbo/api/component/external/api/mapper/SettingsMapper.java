@@ -4,6 +4,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -69,6 +70,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.ListOfOidSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Schedule;
@@ -100,6 +102,10 @@ public class SettingsMapper {
 
     private static final Logger logger = LogManager.getLogger();
 
+    /**
+     * This is used to inject the value of the {@link SettingApiDTO} into the corresponding
+     * {@link Setting} according to the value type of the {@link SettingSpec}.
+     */
     private static final Map<SettingValueTypeCase, ProtoSettingValueInjector> PROTO_SETTING_VALUE_INJECTORS =
         ImmutableMap.<SettingValueTypeCase, ProtoSettingValueInjector>builder()
             .put(SettingValueTypeCase.BOOLEAN_SETTING_VALUE_TYPE,
@@ -114,8 +120,17 @@ public class SettingsMapper {
             .put(SettingValueTypeCase.ENUM_SETTING_VALUE_TYPE,
                 (val, builder) -> builder.setEnumSettingValue(EnumSettingValue.newBuilder()
                 .setValue(ActionDTOUtil.mixedSpacesToUpperUnderScore(val))))
+            .put(SettingValueTypeCase.LIST_OF_OID_SETTING_VALUE_TYPE,
+                (val, builder) -> builder.setListOfOidSettingValue(ListOfOidSettingValue.newBuilder()
+                    .addAllOids(() -> Arrays.stream(StringUtils.split(val, ","))
+                        .mapToLong(Long::valueOf).iterator())))
             .build();
 
+    /**
+     * This is used to inject the value of the {@link Setting} into the corresponding
+     * {@link SettingApiDTO} according to the value type of the {@link Setting}.
+     * This can be used to create default settings, such as Virtual Machine Defaults.
+     */
     private static final Map<ValueCase, ApiSettingValueInjector> API_SETTING_VALUE_INJECTORS =
         ImmutableMap.<ValueCase, ApiSettingValueInjector>builder()
             .put(ValueCase.BOOLEAN_SETTING_VALUE, (setting, apiDTO) -> {
@@ -133,6 +148,11 @@ public class SettingsMapper {
             .put(ValueCase.ENUM_SETTING_VALUE, (setting, apiDTO) -> {
                 apiDTO.setValue(setting.getEnumSettingValue().getValue());
                 apiDTO.setValueType(InputValueType.STRING);
+            })
+            .put(ValueCase.LIST_OF_OID_SETTING_VALUE, (setting, apiDTO) -> {
+                apiDTO.setValue(setting.getListOfOidSettingValue().getOidsList().stream()
+                    .map(String::valueOf).collect(Collectors.joining(",")));
+                apiDTO.setValueType(InputValueType.LIST);
             })
             .build();
 
@@ -1273,12 +1293,17 @@ public class SettingsMapper {
                             })
                             .collect(Collectors.toList()));
                     break;
+                case LIST_OF_OID_SETTING_VALUE_TYPE:
+                    dtoSkeleton.setValueType(InputValueType.LIST);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Illegal settingValueType " +
+                        settingSpec.getSettingValueTypeCase());
             }
 
             settingVal.ifPresent(setting -> API_SETTING_VALUE_INJECTORS.get(setting.getValueCase())
                     .setSettingValue(setting, dtoSkeleton));
         }
-
     }
 
     /**
