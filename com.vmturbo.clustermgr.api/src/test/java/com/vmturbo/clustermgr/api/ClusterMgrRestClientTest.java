@@ -10,6 +10,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
@@ -561,6 +562,19 @@ public class ClusterMgrRestClientTest {
         boolean result = testRestClient.exportComponentDiagnostics(httpProxyDTO);
         // Assert
         assertTrue(result);
+    }
+
+    // for OM-50555
+    @Test
+    public void testJacksonSerialization() throws IOException {
+        HttpProxyConfig proxyConfig = new HttpProxyConfig(false, null, null, null, null);
+        // serialize
+        ObjectMapper writeMapper = new ObjectMapper();
+        String serializedObject = writeMapper.writeValueAsString(proxyConfig);
+
+        // deserialize
+        ObjectMapper readMapper = new ObjectMapper();
+        readMapper.readValue(serializedObject, HttpProxyConfig.class);
     }
 
     private String writeValueAsJsonString(final Object objectToConvert) {

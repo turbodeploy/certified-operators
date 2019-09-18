@@ -5,10 +5,12 @@ import java.io.Serializable;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Joiner;
 
 import io.swagger.annotations.ApiModel;
@@ -51,8 +53,12 @@ public class HttpProxyConfig implements Serializable {
      * @param username proxy server user name
      * @param password proxy server user password
      */
-    public HttpProxyConfig(boolean isProxyEnabled, @Nullable String proxyHost,
-            @Nullable Integer proxyPort, @Nullable String username, @Nullable String password) {
+    @JsonCreator
+    public HttpProxyConfig(@JsonProperty("isProxyEnabled") boolean isProxyEnabled,
+                           @JsonProperty("proxyHost") @Nullable String proxyHost,
+                           @JsonProperty("proxyPort") @Nullable Integer proxyPort,
+                           @JsonProperty("username") @Nullable String username,
+                           @JsonProperty("password") @Nullable String password) {
         this.isProxyEnabled = isProxyEnabled;
         this.proxyHost = proxyHost;
         this.proxyPortNumber = proxyPort;
