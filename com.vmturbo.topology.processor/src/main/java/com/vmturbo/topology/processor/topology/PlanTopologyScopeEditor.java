@@ -617,9 +617,11 @@ public class PlanTopologyScopeEditor {
             entityCountByType.entrySet().forEach(count -> {
                 logger.debug("Entity type {} with {} entities", count.getKey(), count.getValue());
             });
-            logger.trace(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
-            subGraph.forEach(e -> logger.trace("{}", e.getDisplayName()));
-            logger.trace("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
+            if (logger.isTraceEnabled()) {
+                logger.trace(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+                subGraph.forEach(e -> logger.trace("{}", e.getDisplayName()));
+                logger.trace("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
+            }
         }
         return subsetList;
     }
@@ -639,15 +641,13 @@ public class PlanTopologyScopeEditor {
                                                                  throws PipelineStageException {
         // create seed entity set by adding scope entries representing individual entities.
         Set<Long> seedEntityIdSet = planScope.getScopeEntriesList().stream()
-                .filter(s -> !s.getClassName().equals(StringConstants.CLUSTER)
-                        && !s.getClassName().equals(StringConstants.GROUP))
+                .filter(s -> !StringConstants.GROUP_TYPES.contains(s.getClassName()))
                 .map(PlanScopeEntry::getScopeObjectOid)
                 .collect(Collectors.toSet());
-        // get the group or cluster id in the scope, resolve their members and
+        // get the group or cluster or storage_cluster id in the scope, resolve their members and
         // add into seedEntityIdSet
         Set<Long> groupIds = planScope.getScopeEntriesList().stream()
-                .filter(s -> s.getClassName().equals(StringConstants.CLUSTER)
-                        || s.getClassName().equals(StringConstants.GROUP))
+                .filter(s -> StringConstants.GROUP_TYPES.contains(s.getClassName()))
                 .map(PlanScopeEntry::getScopeObjectOid)
                 .collect(Collectors.toSet());
         groupServiceClient.getGroups(GetGroupsRequest.newBuilder().addAllId(groupIds)

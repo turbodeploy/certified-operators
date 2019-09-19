@@ -21,7 +21,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -573,9 +572,6 @@ public class Stages {
     public static class ScopeResolutionStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
         private static final Logger logger = LogManager.getLogger();
 
-        private static final String GROUP_TYPE = "Group";
-        private static final String CLUSTER_TYPE = "Cluster";
-        private static final Set<String> GROUP_TYPES = Sets.newHashSet(GROUP_TYPE, CLUSTER_TYPE);
         private final PlanScope planScope;
 
         private final GroupServiceBlockingStub groupServiceClient;
@@ -603,7 +599,7 @@ public class Stages {
             for (PlanScopeEntry scopeEntry : planScope.getScopeEntriesList()) {
                 // if it's an entity, add it right to the seed entity list. Otherwise queue it for
                 // group resolution.
-                if (GROUP_TYPES.contains(scopeEntry.getClassName())) {
+                if (StringConstants.GROUP_TYPES.contains(scopeEntry.getClassName())) {
                     groupsToResolve.add(scopeEntry.getScopeObjectOid());
                 } else {
                     // this is an entity -- add it right to the seedEntities
