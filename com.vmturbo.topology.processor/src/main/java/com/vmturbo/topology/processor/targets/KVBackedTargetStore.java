@@ -228,7 +228,7 @@ public class KVBackedTargetStore implements TargetStore {
             // occurred in this discovery cycle.
             final Set<Long> existingDerivedTargetIds = getDerivedTargetIds(parentTargetId);
             final IdentityStoreUpdate<TargetSpec> identityStoreUpdate =
-                identityStore.fetchOrAssignItemOids(targetSpecs);
+                    identityStore.fetchOrAssignItemOids(targetSpecs);
             // Save the created or new assigned oids which the derived target specs have into item maps.
             final Map<TargetSpec, Long> oldItems = identityStoreUpdate.getOldItems();
             final Map<TargetSpec, Long> newItems = identityStoreUpdate.getNewItems();
@@ -236,10 +236,12 @@ public class KVBackedTargetStore implements TargetStore {
             oldItems.forEach((key, value) -> {
                 try {
                     updateTarget(value, key.getAccountValueList());
+                    updateDerivedTargetIds(value);
                     existingDerivedTargetIds.remove(value);
                 } catch (InvalidTargetException | TargetNotFoundException |
                         IdentityStoreException | IdentifierConflictException e) {
-                    logger.error(String.format("Update derived target %s failed!", value), e);
+                    logger.error(
+                            String.format("Update derived target %s failed!", value), e);
                 }
             });
             // Iterate new assigned oids and create new derived targets.
@@ -257,11 +259,18 @@ public class KVBackedTargetStore implements TargetStore {
                 try {
                     removeTarget(targetId);
                 } catch (TargetNotFoundException e) {
-                    logger.error("Derived target {} was not found. {}", targetId, e);
+                    logger.error(String.format("Derived target %s was not found.", targetId), e);
                 } catch (IdentityStoreException e) {
-                    logger.error("Remove identitfiers of target {} from database failed. {}", targetId, e);
+                    logger.error(
+                        String.format(
+                            "Remove identifiers of target %s from database failed.", targetId), e);
                 }
             });
+            try {
+                updateDerivedTargetIds(parentTargetId);
+            } catch (TargetNotFoundException e) {
+                logger.error(String.format("Target %s was not found.", parentTargetId), e);
+            }
         }
     }
 
@@ -325,7 +334,8 @@ public class KVBackedTargetStore implements TargetStore {
             if (oldTarget == null) {
                 throw new TargetNotFoundException(targetId);
             }
-            retTarget = oldTarget.withUpdatedFields(updatedFields, probeStore);
+            retTarget =
+                    oldTarget.withUpdatedFields(updatedFields, probeStore);
             identityStore.updateItemAttributes(ImmutableMap.of(targetId, retTarget.getSpec()));
             targetsById.put(targetId, retTarget);
             keyValueStore.put(TARGET_KV_STORE_PREFIX + Long.toString(retTarget.getId()),
@@ -335,6 +345,42 @@ public class KVBackedTargetStore implements TargetStore {
         logger.info("Updated target {} for probe {}", targetId, retTarget.getProbeId());
         listeners.forEach(listener -> listener.onTargetUpdated(retTarget));
         return retTarget;
+    }
+
+
+    /**
+     * Updates "derived target IDs" field for a given parent {@link Target}.
+     * Maintains the logic of updating targets in the target store, identity store and consul.
+     *
+     * @param targetId parent {@link Target}'s ID.
+     * @throws TargetNotFoundException When the requested target cannot be found.
+     */
+    private void updateDerivedTargetIds(long targetId)
+            throws TargetNotFoundException {
+        synchronized (storeLock) {
+            final Target oldTarget = targetsById.get(targetId);
+            if (oldTarget == null) {
+                throw new TargetNotFoundException(targetId);
+            }
+            try {
+                final Target retTarget = oldTarget.withUpdatedDerivedTargetIds(
+                                getDerivedTargetIds(targetId)
+                                        .stream()
+                                        .map(String::valueOf)
+                                        .collect(Collectors.toList()),
+                                probeStore);
+                identityStore.updateItemAttributes(ImmutableMap.of(targetId, retTarget.getSpec()));
+                targetsById.put(targetId, retTarget);
+                keyValueStore.put(TARGET_KV_STORE_PREFIX + Long.toString(retTarget.getId()),
+                        retTarget.toJsonString());
+            } catch (IdentityStoreException | IdentifierConflictException e) {
+                logger.error(String.format(
+                        "Remove identifiers of target %s from database failed.",
+                        oldTarget.getId()), e);
+            } catch (InvalidTargetException e) {
+                logger.error(String.format("Target %s could not be created.", oldTarget.getId()), e);
+            }
+        }
     }
 
     /**

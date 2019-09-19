@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.api;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import javax.annotation.Nullable;
@@ -64,4 +65,11 @@ public interface TargetInfo extends TargetData {
      * @return true if a target is read-only, otherwise false.
      */
     boolean isReadOnly();
+
+    /**
+     * Returns a List of the derived target IDs associated with this target.
+     *
+     * @return List of the derived target IDs associated with this target.
+     */
+    List<String> getDerivedTargetIds();
 }

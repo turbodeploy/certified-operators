@@ -14,8 +14,10 @@ message TargetSpec {
     optional int64 parent_id = 3;
     // This field indicates whether the target should be show on UI.
     optional bool is_hidden = 4 [default = false];
-    // This field indicates whether the target cannot be changed through public APIs."
+    // This field indicates whether the target cannot be changed through public APIs.
     optional bool read_only = 5 [default = false];
+    // This field stores the derived target IDs associated with this target.
+    repeated string derived_target_ids = 6;
 }
 
 message TargetInfo {

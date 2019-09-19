@@ -29,6 +29,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 import org.junit.Before;
@@ -369,6 +371,35 @@ public class TargetsServiceTest {
             final TargetApiDTO dto = map.get(target.getId());
             assertEquals(target, probe, dto);
         }
+    }
+
+    /**
+     * Tests the case where the user's environment includes a "parent" target and two derived targets.
+     * Verifies that the parent's derivedTarget Dtos have been created correctly.
+     *
+     * @throws Exception Not expected to happen.
+     */
+    @Test
+    public void testGetAllTargets_withDerivedTargetRelationships() throws Exception {
+        final ProbeInfo probe = createMockProbeInfo(1, "type", "category");
+        final TargetInfo parentTargetInfo = createMockTargetInfo(probe.getId(), 2);
+        final TargetInfo childTargetInfo1 = createMockTargetInfo(probe.getId(), 3);
+        final TargetInfo childTargetInfo2 = createMockTargetInfo(probe.getId(), 4);
+        when(parentTargetInfo.getDerivedTargetIds()).thenReturn(Lists.newArrayList("3", "4"));
+
+        final MvcResult result = mockMvc
+                .perform(get("/targets").accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final TargetApiDTO[] resp = GSON.fromJson(result.getResponse().getContentAsString(),
+                TargetApiDTO[].class);
+        final Map<Long, TargetApiDTO> allTargetDtosMap =
+                Maps.uniqueIndex(Arrays.asList(resp), targetInfo -> Long.valueOf(targetInfo.getUuid()));
+        final TargetApiDTO parentDto = allTargetDtosMap.get(parentTargetInfo.getId());
+        final Map<Long, TargetApiDTO> derivedTargetDtosMap =
+                Maps.uniqueIndex(parentDto.getDerivedTargets(), targetInfo -> Long.valueOf(targetInfo.getUuid()));
+
+        assertEquals(childTargetInfo1, probe, derivedTargetDtosMap.get(childTargetInfo1.getId()));
+        assertEquals(childTargetInfo2, probe, derivedTargetDtosMap.get(childTargetInfo2.getId()));
     }
 
     /**

@@ -6,6 +6,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -20,7 +21,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.validation.constraints.NotNull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -30,6 +30,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
@@ -250,13 +251,7 @@ public class TargetsService implements ITargetsService {
             final List<TargetApiDTO> answer = targets.stream()
                 .filter(target -> environmentTypeFilter(target, environmentType))
                 .filter(target -> !target.isHidden())
-                .map(targetInfo -> {
-                    try {
-                        return mapTargetInfoToDTO(targetInfo);
-                    } catch (CommunicationException e) {
-                        throw new CommunicationError(e);
-                    }
-                })
+                .map(targetInfo -> createTargetDtoWithRelationships(targetInfo, targets))
                 .collect(Collectors.toList());
             return answer;
         } catch (CommunicationException e) {
@@ -299,7 +294,8 @@ public class TargetsService implements ITargetsService {
         // assumes target uuid's are long's in XL
         long targetId = Long.valueOf(uuid);
         try {
-            return mapTargetInfoToDTO(topologyProcessor.getTarget(targetId));
+            return createTargetDtoWithRelationships(
+                    topologyProcessor.getTarget(targetId), Collections.emptySet());
         } catch (TopologyProcessorException e) {
             throw new UnknownObjectException(e);
         } catch (CommunicationException e) {
@@ -508,7 +504,8 @@ public class TargetsService implements ITargetsService {
                         targetSizeBeforeValidation == 0) {
                     apiComponentTargetListener.triggerBroadcastAfterNextDiscovery();
                 }
-                return mapTargetInfoToDTO(validatedTargetInfo);
+                return createTargetDtoWithRelationships(
+                        validatedTargetInfo, Collections.emptySet());
             } catch (TopologyProcessorException e) {
                 throw new OperationFailedException(e);
             }
@@ -578,12 +575,11 @@ public class TargetsService implements ITargetsService {
                 result = Optional.of(discoverTargetSynchronously(targetId));
             }
 
-            // Because mapTargetInfoToDTO throws an exception, using the if else instead
-            // of map().OrElse idiom on the optional.
             if (result.isPresent()) {
-                return mapTargetInfoToDTO(result.get());
+                return createTargetDtoWithRelationships(result.get(), Collections.emptySet());
             } else {
-                return mapTargetInfoToDTO(topologyProcessor.getTarget(targetId));
+                return createTargetDtoWithRelationships(
+                        topologyProcessor.getTarget(targetId), Collections.emptySet());
             }
         } catch (CommunicationException e) {
             throw new CommunicationError(e);
@@ -618,7 +614,7 @@ public class TargetsService implements ITargetsService {
                         "Target " + targetId + " cannot be changed through public APIs.");
             }
             topologyProcessor.modifyTarget(targetId, updatedTargetData);
-            return mapTargetInfoToDTO(targetInfo);
+            return createTargetDtoWithRelationships(targetInfo, Collections.emptySet());
         } catch (CommunicationException e) {
             throw new CommunicationError(e);
         } catch (TopologyProcessorException e) {
@@ -664,6 +660,24 @@ public class TargetsService implements ITargetsService {
     private Map<Long, ProbeInfo> getProbeIdToProbeInfoMap() throws CommunicationException {
         // create a map of ID -> probeInfo
         return Maps.uniqueIndex(topologyProcessor.getAllProbes(), probeInfo -> probeInfo.getId());
+    }
+
+    /**
+     * Populate a Map from target id to target info for all known targets in order to facilitate lookup
+     * by target id.
+     *
+     * @param allTargetInfos All targets in scope that returned from Topology-Processor in case we
+     * made an API call, otherwise an empty set.
+     * @return a Map from target Id to targetInfo for all known targets.
+     * @throws CommunicationException if there is a problem making the REST API call
+     */
+    private Map<String, TargetInfo> getTargetIdToTargetInfoMap(
+                                    @Nonnull final Set<TargetInfo> allTargetInfos)
+            throws CommunicationException {
+        if (allTargetInfos.isEmpty()) {
+            allTargetInfos.addAll(topologyProcessor.getAllTargets());
+        }
+        return Maps.uniqueIndex(allTargetInfos, targetInfo -> String.valueOf(targetInfo.getId()));
     }
 
     /**
@@ -945,6 +959,72 @@ public class TargetsService implements ITargetsService {
         }
 
         return targetInfo;
+    }
+
+    /**
+     * Creates a {@link TargetApiDTO} instance from information in a {@link TargetInfo} object
+     * by mapProbeInfoToDTO() and sets the "derived targets" attribute of the target.
+     *
+     * @param targetInfo the {@link TargetInfo} structure returned from the Topology-Processor.
+     * @param allTargetInfos All targets in scope that returned from Topology-Processor in case we
+     * made an API call, otherwise an empty set.
+     * @return a {@link TargetApiDTO} containing the target information and its derived targets
+     * relationships.
+     */
+    private TargetApiDTO createTargetDtoWithRelationships(@Nonnull final TargetInfo targetInfo,
+                                                 @Nonnull final Set<TargetInfo> allTargetInfos) {
+        try {
+            TargetApiDTO targetApiDTO = mapTargetInfoToDTO(targetInfo);
+            targetApiDTO.setDerivedTargets(
+                convertDerivedTargetInfosToDtos(targetInfo.getDerivedTargetIds(), allTargetInfos));
+            return targetApiDTO;
+        } catch (CommunicationException e) {
+            throw new CommunicationError(e);
+        }
+    }
+
+    /**
+     * Creates a List of {@link TargetApiDTO}s to be set as the derived targets of
+     * their parent target.
+     *
+     * @param derivedTargetIds a List of derived target's ids that associated with a parent target.
+     * @param allTargetInfos All targets in scope that returned from Topology-Processor in case we
+     * made an API call, otherwise an empty set.
+     * @return List of {@link TargetApiDTO}s containing the target information from their
+     * {@link TargetInfo}s.
+     */
+    private List<TargetApiDTO> convertDerivedTargetInfosToDtos(
+                                @Nonnull final List<String> derivedTargetIds,
+                                @Nonnull final Set<TargetInfo> allTargetInfos) {
+        if (derivedTargetIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        final Map<String, TargetInfo> targetInfosByTargetId;
+        try {
+            targetInfosByTargetId = getTargetIdToTargetInfoMap(allTargetInfos);
+        } catch (CommunicationException e) {
+            throw new CommunicationError(e);
+        }
+        List<TargetApiDTO> derivedTargetsDtos = Lists.newArrayList();
+        derivedTargetIds.forEach(targetId -> {
+            TargetInfo targetInfo = targetInfosByTargetId.get(targetId);
+            if (targetInfo != null) {
+                if (targetInfo.isHidden()) {
+                    logger.debug("Skip the conversion of a hidden derived target: {}", targetId);
+                } else {
+                    try {
+                        derivedTargetsDtos.add(mapTargetInfoToDTO(targetInfo));
+                    } catch (CommunicationException e) {
+                        throw new CommunicationError(e);
+                    }
+                }
+            } else {
+                logger.warn(
+                    "Derived Target {} no longer exists, but appears as a derived target in the " +
+                            "target store", targetId);
+            }
+        });
+        return derivedTargetsDtos;
     }
 
     /**

@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import com.vmturbo.topology.processor.api.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
@@ -153,6 +154,11 @@ public class TargetRESTApi {
         public boolean isReadOnly() {
             return spec.getReadOnly();
         }
+
+        @Override
+        public List<String> getDerivedTargetIds() {
+            return spec.getDerivedTargetIds();
+        }
     }
 
     /**
@@ -173,12 +179,15 @@ public class TargetRESTApi {
         private final boolean isHidden;
         @ApiModelProperty(value = "Whether the target cannot be changed through public APIs")
         private final boolean readOnly;
+        @ApiModelProperty(value = "The derived target IDs associated with this target")
+        private final List<String> derivedTargetIds;
 
         protected TargetSpec() {
             probeId = null;
             parentId = Optional.empty();
             isHidden = false;
             readOnly = false;
+            derivedTargetIds = Lists.newArrayList();
         }
 
         public TargetSpec(@Nonnull final Long probeId,
@@ -188,6 +197,7 @@ public class TargetRESTApi {
             this.parentId = Optional.empty();
             this.isHidden = false;
             this.readOnly = false;
+            this.derivedTargetIds = Lists.newArrayList();
         }
 
         public TargetSpec(@Nonnull final TopologyProcessorDTO.TargetSpec targetSpec) {
@@ -199,6 +209,7 @@ public class TargetRESTApi {
                     : Optional.empty();
             this.isHidden = targetSpec.getIsHidden();
             this.readOnly = targetSpec.getReadOnly();
+            this.derivedTargetIds = targetSpec.getDerivedTargetIdsList();
         }
 
         public Long getProbeId() {
@@ -215,6 +226,10 @@ public class TargetRESTApi {
 
         public boolean getReadOnly() {
             return readOnly;
+        }
+
+        public List<String> getDerivedTargetIds() {
+            return derivedTargetIds;
         }
 
         /**

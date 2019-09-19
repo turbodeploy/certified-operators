@@ -140,7 +140,8 @@ public class Target {
         mediationAccountVals = accountValBuilder.build();
 
         final TargetSpec.Builder targetSpec = TargetSpec.newBuilder().setProbeId(probeId)
-                .addAllAccountValue(inputSpec.getAccountValueList());
+                .addAllAccountValue(inputSpec.getAccountValueList())
+                .addAllDerivedTargetIds(inputSpec.getDerivedTargetIdsList());
         if (inputSpec.hasParentId()) {
             targetSpec.setParentId(inputSpec.getParentId());
         }
@@ -172,21 +173,24 @@ public class Target {
     }
 
     /**
-     * Create a {@link TargetSpec} builder from a given {@link TargetInfo} and Collection of
-     * {@link AccountValue}s.
+     * Create a {@link TargetSpec} builder from a given {@link TargetInfo},  Collection of
+     * {@link AccountValue}s and Collection of derived target Ids.
      *
      * @param targetInfo A {@link TargetInfo}.
      * @param values Collection of {@link AccountValue}s.
+     * @param derivedTargetsIds Collection of derived target IDs.
      * @return A {@link TargetSpec} builder.
      */
     private static TargetSpec.Builder createTargetSpecBuilder(
                                         TargetInfo targetInfo,
-                                        Collection<TopologyProcessorDTO.AccountValue> values) {
+                                        Collection<TopologyProcessorDTO.AccountValue> values,
+                                        Collection<String> derivedTargetsIds) {
         final TargetSpec.Builder targetSpec = TargetSpec.newBuilder()
                 .setProbeId(targetInfo.getSpec().getProbeId())
                 .addAllAccountValue(values)
                 .setIsHidden(targetInfo.getSpec().getIsHidden())
-                .setReadOnly(targetInfo.getSpec().getReadOnly());
+                .setReadOnly(targetInfo.getSpec().getReadOnly())
+                .addAllDerivedTargetIds(derivedTargetsIds);
         if (targetInfo.getSpec().hasParentId()) {
             targetSpec.setParentId(targetInfo.getSpec().getParentId());
         }
@@ -230,10 +234,29 @@ public class Target {
         TargetInfo targetInfo = info.targetInfo;
 
 
-        final TargetSpec.Builder newSpec = createTargetSpecBuilder(
-                    targetInfo, mergeUpdatedAccountValues(
-                            targetInfo.getSpec().getAccountValueList(), updatedFields)
+        final TargetSpec.Builder newSpec = createTargetSpecBuilder(targetInfo,
+                mergeUpdatedAccountValues(
+                    targetInfo.getSpec().getAccountValueList(), updatedFields),
+                targetInfo.getSpec().getDerivedTargetIdsList()
         );
+        return new Target(getId(), probeStore, newSpec.build(), true);
+    }
+
+    /**
+     * Create a new {@link Target} with its updated derived Target's IDs.
+     *
+     * @param derivedTargetsIds List of derived target's IDs to be set.
+     * @param probeStore The store containing the collection of known probes.
+     * @return A new target with its updated derived Target's IDs.
+     * @throws InvalidTargetException When the updated target is invalid.
+     */
+    public Target withUpdatedDerivedTargetIds(@Nonnull final List<String> derivedTargetsIds,
+                                              @Nonnull final ProbeStore probeStore)
+        throws InvalidTargetException {
+        TargetInfo targetInfo = info.targetInfo;
+
+        final TargetSpec.Builder newSpec = createTargetSpecBuilder(targetInfo,
+                                targetInfo.getSpec().getAccountValueList(), derivedTargetsIds);
         return new Target(getId(), probeStore, newSpec.build(), true);
     }
 
@@ -284,8 +307,8 @@ public class Target {
                 info, info.getSpec().getAccountValueList()
                         .stream()
                         .filter(val -> !secretVals.contains(val.getKey()))
-                        .collect(Collectors.toList())
-        );
+                        .collect(Collectors.toList()), info.getSpec().getDerivedTargetIdsList()
+                );
         return TargetInfo.newBuilder().setId(info.getId()).setSpec(targetSpec).build();
     }
 
@@ -313,7 +336,8 @@ public class Target {
             }
         }
 
-        final TargetSpec.Builder targetSpec = createTargetSpecBuilder(info, accountValues);
+        final TargetSpec.Builder targetSpec =
+            createTargetSpecBuilder(info, accountValues, info.getSpec().getDerivedTargetIdsList());
         return TargetInfo.newBuilder().setId(info.getId()).setSpec(targetSpec).build();
     }
 
@@ -441,7 +465,9 @@ public class Target {
                     values.add(av);
                 }
             });
-            final TargetSpec.Builder targetSpec = createTargetSpecBuilder(targetInfo, values);
+            final TargetSpec.Builder targetSpec =
+                    createTargetSpecBuilder(
+                            targetInfo, values, targetInfo.getSpec().getDerivedTargetIdsList());
             return TargetInfo.newBuilder().setId(targetInfo.getId()).setSpec(targetSpec).build();
         }
 
@@ -463,7 +489,9 @@ public class Target {
                     values.add(av);
                 }
             });
-            final TargetSpec.Builder targetSpec = createTargetSpecBuilder(targetInfo, values);
+            final TargetSpec.Builder targetSpec =
+                    createTargetSpecBuilder(
+                            targetInfo, values, targetInfo.getSpec().getDerivedTargetIdsList());
             return TargetInfo.newBuilder().setId(targetInfo.getId()).setSpec(targetSpec).build();
         }
 

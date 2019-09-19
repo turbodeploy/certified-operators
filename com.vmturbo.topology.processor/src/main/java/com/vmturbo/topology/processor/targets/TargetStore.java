@@ -168,5 +168,4 @@ public interface TargetStore {
      * @return ProbeCategory for the target if it exists
      */
     Optional<ProbeCategory> getProbeCategoryForTarget(long targetId);
-
 }

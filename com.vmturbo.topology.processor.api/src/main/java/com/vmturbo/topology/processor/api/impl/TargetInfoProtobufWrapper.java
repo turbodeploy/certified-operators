@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.api.impl;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -65,5 +66,10 @@ public class TargetInfoProtobufWrapper implements TargetInfo {
     @Override
     public boolean isReadOnly() {
         return targetInfo.getSpec().getReadOnly();
+    }
+
+    @Override
+    public List<String> getDerivedTargetIds() {
+        return targetInfo.getSpec().getDerivedTargetIdsList().stream().map(String::valueOf).collect(Collectors.toList());
     }
 }

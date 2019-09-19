@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -24,6 +25,7 @@ import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.TypeAdapter;
@@ -57,6 +59,8 @@ import com.vmturbo.topology.processor.util.Probes;
 public class KVBackedTargetStoreTest {
 
     private static final String FIELD_NAME = "targetId";
+
+    private static final long DERIVED_PROBE_ID = 1L;
 
     private KeyValueStore keyValueStore;
 
@@ -409,6 +413,77 @@ public class KVBackedTargetStoreTest {
                                 .iterator().next().getStringValue());
     }
 
+    /**
+     * Tests that derivedTargetIds field has populated correctly after "CreateOrUpdateDerivedTargets"
+     * getting called.
+     *
+     * @throws Exception Not expected to happen.
+     */
+    @Test
+    public void testDerivedTargetIdsPopulation() throws Exception {
+        prepareInitialProbe();
+        final Target parent = targetStore.createTarget(createTargetSpec(0L, 666));
+        final TargetSpec derivedTargetSpec1 = TargetSpec.newBuilder()
+                .setProbeId(DERIVED_PROBE_ID)
+                .setParentId(parent.getId())
+                .setIsHidden(true)
+                .addAllAccountValue(createAccountValue(100))
+                .build();
+        final Target derived1 = targetStore.createTarget(derivedTargetSpec1);
+        final TargetSpec derivedTargetSpec2 = TargetSpec.newBuilder()
+                .setProbeId(DERIVED_PROBE_ID)
+                .addAllAccountValue(createAccountValue(200))
+                .setParentId(parent.getId())
+                .setIsHidden(true)
+                .build();
+        final Target derived2 = targetStore.createTarget(derivedTargetSpec2);
+
+        targetStore.createOrUpdateDerivedTargets(Lists.newArrayList(derivedTargetSpec1, derivedTargetSpec2));
+
+        // "derived1" and "derived2" are derived targets of "parent".
+        verifyDerivedTargetIdsList(
+                Lists.newArrayList(String.valueOf(derived1.getId()), String.valueOf(derived2.getId())),
+                getDerivedTargetIds(parent));
+
+        final TargetSpec derivedTargetSpec3 = TargetSpec.newBuilder()
+                .setProbeId(DERIVED_PROBE_ID)
+                .addAllAccountValue(createAccountValue(300))
+                .setParentId(derived1.getId())
+                .setIsHidden(true)
+                .build();
+        final Target derived3 = targetStore.createTarget(derivedTargetSpec3);
+
+        targetStore.createOrUpdateDerivedTargets(Lists.newArrayList(derivedTargetSpec3));
+
+        // "derived3" is a derived target of "derived1" (similar to cost targets in Azure).
+        verifyDerivedTargetIdsList(
+                Lists.newArrayList(String.valueOf(derived3.getId())),
+                getDerivedTargetIds(derived1));
+    }
+
+    /**
+     * Verifies that all derivedTargetIds got populated as expected.
+     * @param expectedDerivedTargetIds List of expected derivedTargetIds.
+     * @param derivedTargetIds List of derivedTargetIds of a {@link Target} from the target store.
+     *
+     */
+    private void verifyDerivedTargetIdsList(final List<String> expectedDerivedTargetIds,
+                                            final List<String> derivedTargetIds) {
+        Assert.assertTrue(
+                derivedTargetIds.size() == expectedDerivedTargetIds.size() &&
+                expectedDerivedTargetIds.containsAll(derivedTargetIds));
+    }
+
+    /**
+     * Get derivedTargetIds of a given {@link Target}.
+     *
+     * @param target A {@link Target} from the target store.
+     * @return derivedTargetIds of a given {@link Target}.
+     */
+    private List<String> getDerivedTargetIds(Target target) {
+        return targetStore.getTarget(target.getId()).get().getSpec().getDerivedTargetIdsList();
+    }
+
     @Test
     public void testPartialUpdateTarget() throws Exception {
         final String fooName = "foo";
@@ -523,13 +598,12 @@ public class KVBackedTargetStoreTest {
     public void testDerivedTargetsDeletion() throws Exception {
         prepareInitialProbe();
         final Target parent = targetStore.createTarget(createTargetSpec(0L, 666));
-        final long derivedProbeId = 1L;
         final TargetSpec derivedTargetSpec1 = TargetSpec.newBuilder()
-                .setProbeId(derivedProbeId)
+                .setProbeId(DERIVED_PROBE_ID)
                 .addAllAccountValue(createAccountValue(555))
                 .build();
         final TargetSpec derivedTargetSpec2 = TargetSpec.newBuilder()
-                .setProbeId(derivedProbeId)
+                .setProbeId(DERIVED_PROBE_ID)
                 .addAllAccountValue(createAccountValue(2333))
                 .setParentId(parent.getId())
                 .setIsHidden(true)
