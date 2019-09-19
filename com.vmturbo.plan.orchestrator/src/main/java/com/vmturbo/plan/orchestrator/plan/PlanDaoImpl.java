@@ -50,6 +50,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
@@ -120,6 +121,7 @@ public class PlanDaoImpl implements PlanDao {
      * @param repositoryClient gRPC client for the repository component
      * @param actionOrchestratorClient gRPC client for action orchestrator
      * @param statsClient gRPC client for the stats/history component
+     * @param searchServiceBlockingStub gRPC client for search service
      * @param planTimeOutHours plan time out hours
      */
     public PlanDaoImpl(@Nonnull final DSLContext dsl,
@@ -128,6 +130,7 @@ public class PlanDaoImpl implements PlanDao {
                        @Nonnull final StatsHistoryServiceBlockingStub statsClient,
                        @Nonnull final Channel groupChannel,
                        @Nonnull final UserSessionContext userSessionContext,
+                       @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
                        final int planTimeOutHours) {
         this.dsl = Objects.requireNonNull(dsl);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
@@ -136,8 +139,8 @@ public class PlanDaoImpl implements PlanDao {
         this.settingService = SettingServiceGrpc.newBlockingStub(groupChannel);
         this.userSessionContext = userSessionContext;
         this.planTimeOutHours = planTimeOutHours;
-        scenarioScopeAccessChecker = new ScenarioScopeAccessChecker(userSessionContext,
-                GroupServiceGrpc.newBlockingStub(groupChannel));
+        this.scenarioScopeAccessChecker = new ScenarioScopeAccessChecker(userSessionContext,
+                GroupServiceGrpc.newBlockingStub(groupChannel), searchServiceBlockingStub);
     }
 
     @Override

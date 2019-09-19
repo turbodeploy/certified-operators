@@ -17,7 +17,6 @@ import io.grpc.Channel;
 import com.vmturbo.action.orchestrator.api.ActionOrchestrator;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
-import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc;
@@ -100,6 +99,7 @@ public class PlanConfig {
                 statsRpcService(),
                 groupClientConfig.groupChannel(),
                 userSessionConfig.userSessionContext(),
+                repositoryClientConfig.searchServiceClient(),
                 planTimeOutHours);
     }
 

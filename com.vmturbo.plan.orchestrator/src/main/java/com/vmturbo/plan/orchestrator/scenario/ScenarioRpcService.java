@@ -1,30 +1,20 @@
 package com.vmturbo.plan.orchestrator.scenario;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
-import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
-import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
-import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -37,9 +27,9 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTO.UpdateScenarioResponse;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceImplBase;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
-import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.Scenario;
 
 /**
@@ -55,12 +45,14 @@ public class ScenarioRpcService extends ScenarioServiceImplBase {
     public ScenarioRpcService(@Nonnull final ScenarioDao scenarioDao,
                               @Nonnull final IdentityInitializer identityInitializer,
                               @Nonnull final UserSessionContext userSessionContext,
-                              @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub) {
+                              @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
+                              @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub) {
         this.scenarioDao = scenarioDao;
         Objects.requireNonNull(identityInitializer); // Ensure identity generator is initialized
         this.userSessionContext = userSessionContext;
         this.groupServiceStub = groupServiceBlockingStub;
-        scenarioScopeAccessChecker = new ScenarioScopeAccessChecker(userSessionContext, groupServiceStub);
+        this.scenarioScopeAccessChecker = new ScenarioScopeAccessChecker(userSessionContext,
+            groupServiceStub, searchServiceBlockingStub);
     }
 
     @Override
@@ -68,30 +60,42 @@ public class ScenarioRpcService extends ScenarioServiceImplBase {
         LocalDateTime curTime = LocalDateTime.now();
 
         // if the user is scoped, we need to check to make sure they have access to the plan scope.
-        if (userSessionContext.isUserScoped()) {
-            // if the plan is NOT scoped (e.g. is a "market" plan), we will scope it to the user's
-            // scope groups. Otherwise, we'll make sure they have access to the plan scope.
-            if (info.hasScope()) {
-                // validate that the user has access to all of the scope entries.
-                scenarioScopeAccessChecker.checkScenarioAccess(info);
-            } else {
-                // set the scenario scope to the user's scope groups
-                Iterator<Group> groups = groupServiceStub.getGroups(GetGroupsRequest.newBuilder()
-                        .addAllId(userSessionContext.getUserAccessScope().getScopeGroupIds())
+        // if the plan is NOT scoped (e.g. is a "market" plan), we will scope it to the user's
+        // scope groups. Otherwise, we'll make sure they have access to the plan scope.
+        if (userSessionContext.isUserScoped() && !info.hasScope()) {
+            // set the scenario scope to the user's scope groups
+            Iterator<Group> groups = groupServiceStub.getGroups(GetGroupsRequest.newBuilder()
+                    .addAllId(userSessionContext.getUserAccessScope().getScopeGroupIds())
+                    .build());
+            PlanScope.Builder planScopeBuilder = PlanScope.newBuilder();
+            groups.forEachRemaining(group -> {
+                planScopeBuilder.addScopeEntries(PlanScopeEntry.newBuilder()
+                        .setScopeObjectOid(group.getId())
+                        .setClassName("Group")
+                        .setDisplayName(GroupProtoUtil.getGroupDisplayName(group))
                         .build());
-                PlanScope.Builder planScopeBuilder = PlanScope.newBuilder();
-                groups.forEachRemaining(group -> {
-                    planScopeBuilder.addScopeEntries(PlanScopeEntry.newBuilder()
-                            .setScopeObjectOid(group.getId())
-                            .setClassName("Group")
-                            .setDisplayName(GroupProtoUtil.getGroupDisplayName(group))
-                            .build());
-                });
-                logger.info("Setting plan scope to {} groups in user scope.",
-                        planScopeBuilder.getScopeEntriesCount());
-                info = info.toBuilder()
-                        .setScope(planScopeBuilder)
-                        .build();
+            });
+            logger.info("Setting plan scope to {} groups in user scope.",
+                    planScopeBuilder.getScopeEntriesCount());
+            info = info.toBuilder()
+                    .setScope(planScopeBuilder)
+                    .build();
+        } else {
+            // validate that the user has access to all of the scope entries, and verify that all
+            // the scope entries exist in the system, if any of them do not exist, then the whole
+            // scenario scope is invalid, and we should prevent scenario from being created
+            try {
+                scenarioScopeAccessChecker.checkScenarioAccessAndValidateScopes(info);
+            } catch (ScenarioScopeNotFoundException e) {
+                logger.error(e.getMessage());
+                responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(
+                    e.getMessage()).asException());
+                return;
+            } catch (UserAccessScopeException e) {
+                logger.error(e.getMessage());
+                responseObserver.onError(Status.PERMISSION_DENIED.withDescription(
+                    e.getMessage()).asException());
+                return;
             }
         }
 

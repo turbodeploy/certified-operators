@@ -9,6 +9,10 @@ import java.util.concurrent.ThreadFactory;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import io.grpc.Channel;
+
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -16,10 +20,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
-
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import io.grpc.Channel;
 
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
@@ -29,11 +29,12 @@ import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc.BuyRIAnalysisSe
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
@@ -148,6 +149,16 @@ public class PlanTestConfig {
         return reposOkClient;
     }
 
+    /**
+     * An instance of the search rpc service used for testing.
+     *
+     * @return search rpc stub
+     */
+    @Bean
+    public SearchServiceBlockingStub searchClient() {
+        return SearchServiceGrpc.newBlockingStub(Mockito.mock(Channel.class));
+    }
+
     @Bean
     public ActionsServiceBlockingStub actionServiceClient() {
         return ActionsServiceGrpc.newBlockingStub(
@@ -187,7 +198,7 @@ public class PlanTestConfig {
         return Mockito.spy(
                 new PlanDaoImpl(dbConfig.dsl(), repositoryClient(),
                         actionServiceClient(), statsServiceClient(), settingGrpcServer().getChannel(),
-                        userSessionContext(),6));
+                        userSessionContext(), searchClient(), 6));
     }
 
     @Bean

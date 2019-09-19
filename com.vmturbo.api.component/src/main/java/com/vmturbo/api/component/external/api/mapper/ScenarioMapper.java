@@ -743,14 +743,20 @@ public class ScenarioMapper {
 
     @Nonnull
     private IgnoreConstraint toIgnoreConstraint(@Nonnull RemoveConstraintApiDTO constraint) {
+        ConstraintGroup.Builder constraintGroup = ConstraintGroup.newBuilder();
+        ConstraintType constraintType = constraint.getConstraintType();
+        if (constraintType == null || constraintType == ConstraintType.GlobalIgnoreConstraint) {
+            constraintGroup.setCommodityType(ConstraintType.GlobalIgnoreConstraint.name());
+        } else {
+            constraintGroup.setCommodityType(constraintType.name());
+            // group uuid is only available if it's not global constraint
+            constraintGroup.setGroupUuid(Long.parseLong(constraint.getTarget().getUuid()));
+        }
         return IgnoreConstraint.newBuilder()
-                .setIgnoreGroup(ConstraintGroup.newBuilder()
-                        .setCommodityType(constraint.getConstraintType() == null ? ConstraintType
-                                        .GlobalIgnoreConstraint.name() : constraint.getConstraintType().name())
-                        .setGroupUuid(Long.parseLong(constraint.getTarget().getUuid()))
-                        .build())
+                .setIgnoreGroup(constraintGroup)
                 .build();
     }
+
     /**
      * Check if storage suspension and host provision exist in the ScenarioApiDTO. If not, creating a
      * default setting for storage suspension disabled in all plans and a default setting for host

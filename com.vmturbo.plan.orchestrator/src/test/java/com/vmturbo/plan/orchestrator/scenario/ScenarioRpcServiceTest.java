@@ -47,6 +47,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.UpdateScenarioRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.UpdateScenarioResponse;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
@@ -76,6 +77,8 @@ public class ScenarioRpcServiceTest {
     private GroupServiceMole groupServiceMole = spy(GroupServiceMole.class);
 
     private GroupServiceBlockingStub groupServiceClient;
+
+    private SearchServiceBlockingStub searchServiceClient;
 
     private GrpcTestServer groupGrpcServer;
 
@@ -113,7 +116,7 @@ public class ScenarioRpcServiceTest {
 
         scenarioDao = new ScenarioDao(dbConfig.dsl());
         scenarioRpcService = new ScenarioRpcService(scenarioDao, new IdentityInitializer(0),
-                userSessionContext, groupServiceClient);
+                userSessionContext, groupServiceClient, searchServiceClient);
         grpcServer = GrpcTestServer.newServer(scenarioRpcService);
         grpcServer.start();
         scenarioServiceClient = ScenarioServiceGrpc.newBlockingStub(grpcServer.getChannel());
