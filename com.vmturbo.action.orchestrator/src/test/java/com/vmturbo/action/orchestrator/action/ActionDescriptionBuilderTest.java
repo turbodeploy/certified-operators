@@ -348,7 +348,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeRecommendation);
 
-        Assert.assertEquals(description, "Resize up Vcpu for Virtual Machine vm1_test from 10 to 20");
+        Assert.assertEquals(description, "Resize up VCPU for Virtual Machine vm1_test from 10 to 20");
     }
 
     @Test

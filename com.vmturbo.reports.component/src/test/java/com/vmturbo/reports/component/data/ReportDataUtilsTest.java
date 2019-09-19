@@ -17,7 +17,7 @@ public class ReportDataUtilsTest {
         assertEquals("0", rightSizingInfo.getSavings());
         // "dummy name" is not used but required to populate for reporting
         assertEquals("dummy name", rightSizingInfo.getTargetName());
-        assertEquals("Resize Vmem on the entity from 0 GB to 0 GB", rightSizingInfo.getExplanation());
+        assertEquals("Resize VMem on the entity from 0 GB to 0 GB", rightSizingInfo.getExplanation());
         assertEquals("0 GB", rightSizingInfo.getFrom());
         assertEquals("0 GB", rightSizingInfo.getTo());
         assertFalse(rightSizingInfo.getCloudAction());

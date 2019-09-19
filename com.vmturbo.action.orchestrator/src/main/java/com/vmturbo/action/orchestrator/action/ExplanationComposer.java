@@ -233,7 +233,7 @@ public class ExplanationComposer {
     @Nonnull
     private static String commodityDisplayName(@Nonnull final CommodityType commType, final boolean keepItShort) {
         if (keepItShort) {
-            return UICommodityType.fromType(commType).apiStr();
+            return UICommodityType.fromType(commType).displayName();
         } else {
             return getCommodityDisplayName(commType);
         }

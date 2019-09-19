@@ -80,7 +80,7 @@ public class ExplanationComposerTest {
                                 .addMissingCommodities(CPU)))))
                 .build();
 
-        assertEquals("(^_^)~{entity:1:displayName:Physical Machine} can not satisfy the request for resource(s) Mem Cpu",
+        assertEquals("(^_^)~{entity:1:displayName:Physical Machine} can not satisfy the request for resource(s) Mem CPU",
             ExplanationComposer.composeExplanation(action));
         assertEquals("Current supplier can not satisfy the request for resource(s) Mem CPU",
             ExplanationComposer.shortExplanation(action));
@@ -175,7 +175,7 @@ public class ExplanationComposerTest {
                         .setPerformance(Performance.newBuilder()))))
             .build();
 
-        assertEquals("(^_^)~Current supplier can not satisfy the request for resource(s) Mem Cpu",
+        assertEquals("(^_^)~Current supplier can not satisfy the request for resource(s) Mem CPU",
             ExplanationComposer.composeExplanation(action));
         assertEquals("Current supplier can not satisfy the request for resource(s) Mem CPU",
             ExplanationComposer.shortExplanation(action));
@@ -233,16 +233,16 @@ public class ExplanationComposerTest {
                                         .addReconfigureCommodity(NETWORK_WITH_PREFIX_IN_KEY)))
                 .build();
 
-        assertEquals("Enable supplier to offer requested resource(s) Segmentation, Network " +
+        assertEquals("Enable supplier to offer requested resource(s) Segmentation Commodity, Network Commodity " +
                         "testNetwork1",
             ExplanationComposer.composeExplanation(reconfigure));
-        assertEquals("Enable supplier to offer requested resource(s) SegmentationCommodity, NetworkCommodity",
+        assertEquals("Enable supplier to offer requested resource(s) Segmentation Commodity, Network Commodity",
             ExplanationComposer.shortExplanation(reconfigure));
 
-        assertEquals("Enable supplier to offer requested resource(s) Segmentation, Network " +
+        assertEquals("Enable supplier to offer requested resource(s) Segmentation Commodity, Network Commodity " +
                         "testNetwork2",
                 ExplanationComposer.composeExplanation(reconfigureWithPrefix));
-        assertEquals("Enable supplier to offer requested resource(s) SegmentationCommodity, NetworkCommodity",
+        assertEquals("Enable supplier to offer requested resource(s) Segmentation Commodity, Network Commodity",
             ExplanationComposer.shortExplanation(reconfigureWithPrefix));
     }
 
@@ -279,9 +279,9 @@ public class ExplanationComposerTest {
                             .setCommodityBaseType(21).setMaxAmountAvailable(0).setRequestedAmount(0)))))
             .build();
 
-        assertEquals("(^_^)~Cpu, Mem congestion in '{entity:1:displayName:Physical Machine}'",
+        assertEquals("(^_^)~CPU, Mem congestion in '{entity:1:displayName:Physical Machine}'",
             ExplanationComposer.composeExplanation(provision));
-        assertEquals("Cpu, Mem congestion",
+        assertEquals("CPU, Mem congestion",
             ExplanationComposer.shortExplanation(provision));
     }
 
@@ -302,14 +302,14 @@ public class ExplanationComposerTest {
                         .setEndUtilization(0.4f)));
 
         // test a resize up
-        assertEquals("(^_^)~Underutilized Vmem in Virtual Machine {entity:0:displayName:}",
+        assertEquals("(^_^)~Underutilized VMem in Virtual Machine {entity:0:displayName:}",
             ExplanationComposer.composeExplanation(action.build()));
         assertEquals("Underutilized VMem",
             ExplanationComposer.shortExplanation(action.build()));
 
         // test a resize down
         action.getExplanationBuilder().getResizeBuilder().setStartUtilization(1).setEndUtilization(0);
-        assertEquals("(^_^)~Vmem congestion in Virtual Machine {entity:0:displayName:}",
+        assertEquals("(^_^)~VMem congestion in Virtual Machine {entity:0:displayName:}",
                 ExplanationComposer.composeExplanation(action.build()));
         assertEquals("VMem congestion",
             ExplanationComposer.shortExplanation(action.build()));

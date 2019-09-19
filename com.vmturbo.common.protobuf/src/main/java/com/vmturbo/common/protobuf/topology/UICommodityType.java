@@ -15,109 +15,164 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
  * to provide an intra-XL representation for the types.
  */
 public enum UICommodityType {
-    ACTION_PERMIT("ActionPermit", CommodityType.ACTION_PERMIT),
-    ACTIVE_SESSIONS("ActiveSessions", CommodityType.ACTIVE_SESSIONS),
-    APPLICATION("ApplicationCommodity", CommodityType.APPLICATION),
-    BALLOONING("Ballooning", CommodityType.BALLOONING),
-    BUFFER_COMMODITY("BufferCommodity", CommodityType.BUFFER_COMMODITY),
-    CLUSTER("ClusterCommodity", CommodityType.CLUSTER),
-    COLLECTION_TIME("CollectionTime", CommodityType.COLLECTION_TIME),
-    COOLING("Cooling", CommodityType.COOLING),
-    CONNECTION("Connection", CommodityType.CONNECTION),
-    CPU("CPU", CommodityType.CPU),
-    CPU_ALLOCATION("CPUAllocation", CommodityType.CPU_ALLOCATION),
-    CPU_PROVISIONED("CPUProvisioned", CommodityType.CPU_PROVISIONED),
-    CPU_REQUEST_ALLOCATION("CPURequestAllocation", CommodityType.CPU_REQUEST_ALLOCATION),
-    CROSS_CLOUD_MOVE_SVC("CrossCloudMoveSvc", CommodityType.CROSS_CLOUD_MOVE_SVC),
-    CROSS_CLUSTER_MOVE_SVC("CrossClusterMoveSvc", CommodityType.CROSS_CLUSTER_MOVE_SVC),
-    DATACENTER("DataCenterCommodity", CommodityType.DATACENTER),
-    DATASTORE("DatastoreCommodity", CommodityType.DATASTORE),
-    DB_CACHE_HIT_RATE("DBCacheHitRate", CommodityType.DB_CACHE_HIT_RATE),
-    DB_MEM("DBMem", CommodityType.DB_MEM),
-    DISK_ARRAY_ACCESS("DISK_ARRAY_ACCESS", CommodityType.DISK_ARRAY_ACCESS),
-    DRS_SEGMENTATION("DrsSegmentationCommodity", CommodityType.DRS_SEGMENTATION),
-    DSPM_ACCESS("DSPMAccessCommodity", CommodityType.DSPM_ACCESS),
-    EXTENT("Extent", CommodityType.EXTENT),
-    FLOW("Flow", CommodityType.FLOW),
-    FLOW_ALLOCATION("FlowAllocation", CommodityType.FLOW_ALLOCATION),
-    HEAP("Heap", CommodityType.HEAP),
-    HOST_LUN_ACCESS("HOST_LUN_ACCESS", CommodityType.HOST_LUN_ACCESS),
-    IMAGE_CPU("ImageCPU", CommodityType.IMAGE_CPU),
-    IMAGE_MEM("ImageMem", CommodityType.IMAGE_MEM),
-    IMAGE_STORAGE("ImageStorage", CommodityType.IMAGE_STORAGE),
-    IO_THROUGHPUT("IOThroughput", CommodityType.IO_THROUGHPUT),
-    LICENSE_ACCESS("LICENSE_ACCESS", CommodityType.LICENSE_ACCESS),
-    MEM("Mem", CommodityType.MEM),
-    MEM_ALLOCATION("MemAllocation", CommodityType.MEM_ALLOCATION),
-    MEM_REQUEST_ALLOCATION("MemRequestAllocation", CommodityType.MEM_REQUEST_ALLOCATION),
-    MEM_PROVISIONED("MemProvisioned", CommodityType.MEM_PROVISIONED),
-    NET_THROUGHPUT("NetThroughput", CommodityType.NET_THROUGHPUT),
-    NETWORK("NetworkCommodity", CommodityType.NETWORK),
-    POOL_CPU("PoolCPU", CommodityType.POOL_CPU),
-    POOL_MEM("PoolMem", CommodityType.POOL_MEM),
-    POOL_STORAGE("PoolStorage", CommodityType.POOL_STORAGE),
-    PORT_CHANEL("PORT_CHANEL", CommodityType.PORT_CHANEL),
-    POWER("Power", CommodityType.POWER),
-    Q16_VCPU("Q16VCPU", CommodityType.Q16_VCPU),
-    Q1_VCPU("Q1VCPU", CommodityType.Q1_VCPU),
-    Q2_VCPU("Q2VCPU", CommodityType.Q2_VCPU),
-    Q32_VCPU("Q32VCPU", CommodityType.Q32_VCPU),
-    Q4_VCPU("Q4VCPU", CommodityType.Q4_VCPU),
-    Q64_VCPU("Q64VCPU", CommodityType.Q64_VCPU),
-    Q8_VCPU("Q8VCPU", CommodityType.Q8_VCPU),
-    RESPONSE_TIME("ResponseTime", CommodityType.RESPONSE_TIME),
-    SAME_CLUSTER_MOVE_SVC("SameClusterMoveSvc", CommodityType.SAME_CLUSTER_MOVE_SVC),
-    SEGMENTATION("SegmentationCommodity", CommodityType.SEGMENTATION),
-    SLA_COMMODITY("SLACommodity", CommodityType.SLA_COMMODITY),
-    SOFTWARE_LICENSE_COMMODITY("SoftwareLicenseCommodity", CommodityType.SOFTWARE_LICENSE_COMMODITY),
-    SPACE("Space", CommodityType.SPACE),
-    STORAGE_ACCESS("StorageAccess", CommodityType.STORAGE_ACCESS),
-    STORAGE_ALLOCATION("StorageAllocation", CommodityType.STORAGE_ALLOCATION),
-    STORAGE_AMOUNT("StorageAmount", CommodityType.STORAGE_AMOUNT),
-    STORAGE_CLUSTER("StorageClusterCommodity", CommodityType.STORAGE_CLUSTER),
-    STORAGE_LATENCY("StorageLatency", CommodityType.STORAGE_LATENCY),
-    STORAGE_PROVISIONED("StorageProvisioned", CommodityType.STORAGE_PROVISIONED),
-    SWAPPING("Swapping", CommodityType.SWAPPING),
-    THREADS("Threads", CommodityType.THREADS),
-    TRANSACTION("Transaction", CommodityType.TRANSACTION),
-    TRANSACTION_LOG("TransactionLog", CommodityType.TRANSACTION_LOG),
-    VCPU("VCPU", CommodityType.VCPU),
-    VCPU_REQUEST("VCPURequest", CommodityType.VCPU_REQUEST),
-    VDC("VDCCommodity", CommodityType.VDC),
-    VMEM("VMem", CommodityType.VMEM),
-    VMEM_REQUEST("VMemRequest", CommodityType.VMEM_REQUEST),
-    VMPM_ACCESS("VMPMAccessCommodity", CommodityType.VMPM_ACCESS),
-    VSTORAGE("VStorage", CommodityType.VSTORAGE),
-
-    /**
-     * Zone commodity - reported by cloud probes.
-     */
-    ZONE("Zone", CommodityType.ZONE),
-
-    /**
-     * Coupon commodity - commonly reported by cloud probes for reserved instance objects.
-     */
-    COUPON("Coupon", CommodityType.COUPON),
-
-    /**
-     * Number of Disks - commonly reported by cloud probes.
-     */
-    NUM_DISK("NumDisk", CommodityType.NUM_DISK),
-
-    /**
-     * Instance disk size - reported by cloud probes.
-     */
-    INSTANCE_DISK_SIZE("InstanceDiskSize", CommodityType.INSTANCE_DISK_SIZE),
-
-    /**
-     * Instance disk type - reported by cloud probes.
-     */
-    INSTANCE_DISK_TYPE("InstanceDiskType", CommodityType.INSTANCE_DISK_TYPE),
-
-    /**
-     * Unknown - fallback for all unrecognized commodities.
-     */
-    UNKNOWN("Unknown", CommodityType.UNKNOWN);
+    /** The commodity ACTION_PERMIT. */
+    ACTION_PERMIT("ActionPermit", CommodityType.ACTION_PERMIT, "Action Permit"),
+    /** The commodity ACTIVE_SESSIONS. */
+    ACTIVE_SESSIONS("ActiveSessions", CommodityType.ACTIVE_SESSIONS, "Active Sessions"),
+    /** The commodity APPLICATION. */
+    APPLICATION("ApplicationCommodity", CommodityType.APPLICATION, "Application Commodity"),
+    /** The commodity BALLOONING. */
+    BALLOONING("Ballooning", CommodityType.BALLOONING, "Ballooning"),
+    /** The commodity BUFFER_COMMODITY. */
+    BUFFER_COMMODITY("BufferCommodity", CommodityType.BUFFER_COMMODITY, "Buffer Commodity"),
+    /** The commodity CLUSTER. */
+    CLUSTER("ClusterCommodity", CommodityType.CLUSTER, "Cluster Commodity"),
+    /** The commodity COLLECTION_TIME. */
+    COLLECTION_TIME("CollectionTime", CommodityType.COLLECTION_TIME, "Collection Time"),
+    /** The commodity COOLING. */
+    COOLING("Cooling", CommodityType.COOLING, "Cooling"),
+    /** The commodity CONNECTION. */
+    CONNECTION("Connection", CommodityType.CONNECTION, "Connection"),
+    /** The commodity COUPON. */
+    COUPON("Coupon", CommodityType.COUPON, "Coupon"),
+    /** The commodity CPU. */
+    CPU("CPU", CommodityType.CPU, "CPU"),
+    /** The commodity CPU_ALLOCATION. */
+    CPU_ALLOCATION("CPUAllocation", CommodityType.CPU_ALLOCATION, "CPU Allocation"),
+    /** The commodity CPU_PROVISIONED. */
+    CPU_PROVISIONED("CPUProvisioned", CommodityType.CPU_PROVISIONED, "CPU Provisioned"),
+    /** The commodity CPU_REQUEST_ALLOCATION. */
+    CPU_REQUEST_ALLOCATION("CPURequestAllocation", CommodityType.CPU_REQUEST_ALLOCATION, "CPU Request Allocation"),
+    /** The commodity CROSS_CLOUD_MOVE_SVC. */
+    CROSS_CLOUD_MOVE_SVC("CrossCloudMoveSvc", CommodityType.CROSS_CLOUD_MOVE_SVC, "Cross Cloud Move SVC"),
+    /** The commodity CROSS_CLUSTER_MOVE_SVC. */
+    CROSS_CLUSTER_MOVE_SVC("CrossClusterMoveSvc", CommodityType.CROSS_CLUSTER_MOVE_SVC, "Cross Cluster Move SVC"),
+    /** The commodity DATACENTER. */
+    DATACENTER("DataCenterCommodity", CommodityType.DATACENTER, "Data Center Commodity"),
+    /** The commodity DATASTORE. */
+    DATASTORE("DatastoreCommodity", CommodityType.DATASTORE, "Data Store Commodity"),
+    /** The commodity DB_CACHE_HIT_RATE. */
+    DB_CACHE_HIT_RATE("DBCacheHitRate", CommodityType.DB_CACHE_HIT_RATE, "DB Cache Hit Rate"),
+    /** The commodity DB_MEM. */
+    DB_MEM("DBMem", CommodityType.DB_MEM, "DB Mem"),
+    /** The commodity DISK_ARRAY_ACCESS. */
+    DISK_ARRAY_ACCESS("DISK_ARRAY_ACCESS", CommodityType.DISK_ARRAY_ACCESS, "Disk Array Access"),
+    /** The commodity DRS_SEGMENTATION. */
+    DRS_SEGMENTATION("DrsSegmentationCommodity", CommodityType.DRS_SEGMENTATION, "DRS Segmentation Commodity"),
+    /** The commodity DSPM_ACCESS. */
+    DSPM_ACCESS("DSPMAccessCommodity", CommodityType.DSPM_ACCESS, "DSPM Access Commodity"),
+    /** The commodity EXTENT. */
+    EXTENT("Extent", CommodityType.EXTENT, "Extent"),
+    /** The commodity FLOW. */
+    FLOW("Flow", CommodityType.FLOW, "Flow"),
+    /** The commodity FLOW_ALLOCATION. */
+    FLOW_ALLOCATION("FlowAllocation", CommodityType.FLOW_ALLOCATION, "Flow Allocation"),
+    /** The commodity HEAP. */
+    HEAP("Heap", CommodityType.HEAP, "Heap"),
+    /** The commodity HOST_LUN_ACCESS. */
+    HOST_LUN_ACCESS("HOST_LUN_ACCESS", CommodityType.HOST_LUN_ACCESS, "Host LUN Access"),
+    /** The commodity IMAGE_CPU. */
+    IMAGE_CPU("ImageCPU", CommodityType.IMAGE_CPU, "Image CPU"),
+    /** The commodity IMAGE_MEM. */
+    IMAGE_MEM("ImageMem", CommodityType.IMAGE_MEM, "Image Mem"),
+    /** The commodity IMAGE_STORAGE. */
+    IMAGE_STORAGE("ImageStorage", CommodityType.IMAGE_STORAGE, "Image Storage"),
+    /** The commodity INSTANCE_DISK_SIZE. */
+    INSTANCE_DISK_SIZE("InstanceDiskSize", CommodityType.INSTANCE_DISK_SIZE, "Instance Disk Size"),
+    /** The commodity INSTANCE_DISK_TYPE. */
+    INSTANCE_DISK_TYPE("InstanceDiskType", CommodityType.INSTANCE_DISK_TYPE, "Instance Disk Type"),
+    /** The commodity IO_THROUGHPUT. */
+    IO_THROUGHPUT("IOThroughput", CommodityType.IO_THROUGHPUT, "IO Throughput"),
+    /** The commodity LICENSE_ACCESS. */
+    LICENSE_ACCESS("LICENSE_ACCESS", CommodityType.LICENSE_ACCESS, "License Access"),
+    /** The commodity MEM. */
+    MEM("Mem", CommodityType.MEM, "Mem"),
+    /** The commodity MEM_ALLOCATION. */
+    MEM_ALLOCATION("MemAllocation", CommodityType.MEM_ALLOCATION, "Mem Allocation"),
+    /** The commodity MEM_REQUEST_ALLOCATION. */
+    MEM_REQUEST_ALLOCATION("MemRequestAllocation", CommodityType.MEM_REQUEST_ALLOCATION, "Mem Request Allocation"),
+    /** The commodity MEM_PROVISIONED. */
+    MEM_PROVISIONED("MemProvisioned", CommodityType.MEM_PROVISIONED, "Mem Provisioned"),
+    /** The commodity NET_THROUGHPUT. */
+    NET_THROUGHPUT("NetThroughput", CommodityType.NET_THROUGHPUT, "Net Throughput"),
+    /** The commodity NETWORK. */
+    NETWORK("NetworkCommodity", CommodityType.NETWORK, "Network Commodity"),
+    /** The commodity NUM_DISK. */
+    NUM_DISK("NumDisk", CommodityType.NUM_DISK, "Num Disk"),
+    /** The commodity POOL_CPU. */
+    POOL_CPU("PoolCPU", CommodityType.POOL_CPU, "Pool CPU"),
+    /** The commodity POOL_MEM. */
+    POOL_MEM("PoolMem", CommodityType.POOL_MEM, "Pool Mem"),
+    /** The commodity POOL_STORAGE. */
+    POOL_STORAGE("PoolStorage", CommodityType.POOL_STORAGE, "Pool Storage"),
+    /** The commodity PORT_CHANEL. */
+    PORT_CHANEL("PORT_CHANNEL", CommodityType.PORT_CHANEL, "Port Channel"),
+    /** The commodity POWER. */
+    POWER("Power", CommodityType.POWER, "Power"),
+    /** The commodity Q16_VCPU. */
+    Q16_VCPU("Q16VCPU", CommodityType.Q16_VCPU, "Q16 VCPU"),
+    /** The commodity Q1_VCPU. */
+    Q1_VCPU("Q1VCPU", CommodityType.Q1_VCPU, "Q1 VCPU"),
+    /** The commodity Q2_VCPU. */
+    Q2_VCPU("Q2VCPU", CommodityType.Q2_VCPU, "Q2 VCPU"),
+    /** The commodity Q32_VCPU. */
+    Q32_VCPU("Q32VCPU", CommodityType.Q32_VCPU, "Q32 VCPU"),
+    /** The commodity Q4_VCPU. */
+    Q4_VCPU("Q4VCPU", CommodityType.Q4_VCPU, "Q4 VCPU"),
+    /** The commodity Q64_VCPU. */
+    Q64_VCPU("Q64VCPU", CommodityType.Q64_VCPU, "Q64 VCPU"),
+    /** The commodity Q8_VCPU. */
+    Q8_VCPU("Q8VCPU", CommodityType.Q8_VCPU, "Q8 VCPU"),
+    /** The commodity RESPONSE_TIME. */
+    RESPONSE_TIME("ResponseTime", CommodityType.RESPONSE_TIME, "Response Time"),
+    /** The commodity SAME_CLUSTER_MOVE_SVC. */
+    SAME_CLUSTER_MOVE_SVC("SameClusterMoveSvc", CommodityType.SAME_CLUSTER_MOVE_SVC, "Same Cluster Move SVC"),
+    /** The commodity SEGMENTATION. */
+    SEGMENTATION("SegmentationCommodity", CommodityType.SEGMENTATION, "Segmentation Commodity"),
+    /** The commodity SLA_COMMODITY. */
+    SLA_COMMODITY("SLACommodity", CommodityType.SLA_COMMODITY, "SLA Commodity"),
+    /** The commodity SOFTWARE_LICENSE_COMMODITY. */
+    SOFTWARE_LICENSE_COMMODITY("SoftwareLicenseCommodity", CommodityType.SOFTWARE_LICENSE_COMMODITY, "Software License Commodity"),
+    /** The commodity SPACE. */
+    SPACE("Space", CommodityType.SPACE, "Space"),
+    /** The commodity STORAGE_ACCESS. */
+    STORAGE_ACCESS("StorageAccess", CommodityType.STORAGE_ACCESS, "Storage Access"),
+    /** The commodity STORAGE_ALLOCATION. */
+    STORAGE_ALLOCATION("StorageAllocation", CommodityType.STORAGE_ALLOCATION, "Storage Allocation"),
+    /** The commodity STORAGE_AMOUNT. */
+    STORAGE_AMOUNT("StorageAmount", CommodityType.STORAGE_AMOUNT, "Storage Amount"),
+    /** The commodity STORAGE_CLUSTER. */
+    STORAGE_CLUSTER("StorageClusterCommodity", CommodityType.STORAGE_CLUSTER, "Storage Cluster Commodity"),
+    /** The commodity STORAGE_LATENCY. */
+    STORAGE_LATENCY("StorageLatency", CommodityType.STORAGE_LATENCY, "Storage Latency"),
+    /** The commodity STORAGE_PROVISIONED. */
+    STORAGE_PROVISIONED("StorageProvisioned", CommodityType.STORAGE_PROVISIONED, "Storage Provisioned"),
+    /** The commodity SWAPPING. */
+    SWAPPING("Swapping", CommodityType.SWAPPING, "Swapping"),
+    /** The commodity THREADS. */
+    THREADS("Threads", CommodityType.THREADS, "Threads"),
+    /** The commodity TRANSACTION. */
+    TRANSACTION("Transaction", CommodityType.TRANSACTION, "Transaction"),
+    /** The commodity TRANSACTION_LOG. */
+    TRANSACTION_LOG("TransactionLog", CommodityType.TRANSACTION_LOG, "Transaction Log"),
+    /** The commodity VCPU. */
+    VCPU("VCPU", CommodityType.VCPU, "VCPU"),
+    /** The commodity VCPU_REQUEST. */
+    VCPU_REQUEST("VCPURequest", CommodityType.VCPU_REQUEST, "VCPU Request"),
+    /** The commodity VDC. */
+    VDC("VDCCommodity", CommodityType.VDC, "VDC Commodity"),
+    /** The commodity VMEM. */
+    VMEM("VMem", CommodityType.VMEM, "VMem"),
+    /** The commodity VMEM_REQUEST. */
+    VMEM_REQUEST("VMemRequest", CommodityType.VMEM_REQUEST, "VMem Request"),
+    /** The commodity VMPM_ACCESS. */
+    VMPM_ACCESS("VMPMAccessCommodity", CommodityType.VMPM_ACCESS, "VMPM Access Commodity"),
+    /** The commodity VSTORAGE. */
+    VSTORAGE("VStorage", CommodityType.VSTORAGE, "VStorage"),
+    /** The commodity ZONE. */
+    ZONE("Zone", CommodityType.ZONE, "Zone"),
+    /** The commodity UNKNOWN. */
+    UNKNOWN("Unknown", CommodityType.UNKNOWN, "Unknown");
 
     private final String apiStr;
     private final CommodityType sdkType;
@@ -125,11 +180,11 @@ public enum UICommodityType {
     // method instead of generating these here.
     private final String displayName;
 
-    UICommodityType(@Nonnull final String apiStr, @Nonnull final CommodityType sdkType) {
+    UICommodityType(@Nonnull final String apiStr, @Nonnull final CommodityType sdkType,
+                    @Nonnull final String displayName) {
         this.apiStr = apiStr;
         this.sdkType = sdkType;
-        this.displayName = StringUtil.getSpaceSeparatedWordsFromCamelCaseString(
-                CaseFormat.UPPER_UNDERSCORE.to(CaseFormat.UPPER_CAMEL, name()));
+        this.displayName = displayName;
     }
 
     @Nonnull

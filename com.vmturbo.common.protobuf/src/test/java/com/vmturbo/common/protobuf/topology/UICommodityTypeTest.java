@@ -27,10 +27,10 @@ public class UICommodityTypeTest {
         public static Collection<Object[]> cases() {
             return Arrays.asList(new Object[][]{
                     {UICommodityType.STORAGE_AMOUNT, "Storage Amount"},
-                    {UICommodityType.CPU_ALLOCATION, "Cpu Allocation"},
+                    {UICommodityType.CPU_ALLOCATION, "CPU Allocation"},
                     {UICommodityType.DISK_ARRAY_ACCESS, "Disk Array Access"},
-                    {UICommodityType.VCPU, "Vcpu"},
-                    {UICommodityType.VDC, "Vdc"},
+                    {UICommodityType.VCPU, "VCPU"},
+                    {UICommodityType.VDC, "VDC Commodity"},
             });
         }
 
