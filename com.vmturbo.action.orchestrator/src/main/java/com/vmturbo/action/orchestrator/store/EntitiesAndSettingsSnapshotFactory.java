@@ -23,6 +23,12 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEnti
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
@@ -31,6 +37,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 
 /**
@@ -47,6 +55,10 @@ public class EntitiesAndSettingsSnapshotFactory {
 
     private final RepositoryServiceBlockingStub repositoryService;
 
+    // TODO this is a temporary implementation.  Roman will have the Business Account in the Snapshot
+    //      so that no explicitly call need to be made.
+    private final SearchServiceBlockingStub searchService;
+
     private final int entityRetrievalRetryIntervalMillis;
 
     private final int entityRetrievalMaxRetries;
@@ -60,6 +72,7 @@ public class EntitiesAndSettingsSnapshotFactory {
                                        @Nonnull final long realtimeTopologyContextId) {
         this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupChannel);
         this.repositoryService = RepositoryServiceGrpc.newBlockingStub(repoChannel);
+        this.searchService = SearchServiceGrpc.newBlockingStub(repoChannel);
         this.entityRetrievalRetryIntervalMillis = entityRetrievalRetryIntervalMillis;
         this.entityRetrievalMaxRetries = entityRetrievalMaxRetries;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -75,12 +88,18 @@ public class EntitiesAndSettingsSnapshotFactory {
         private final Map<Long, ActionPartialEntity> oidToEntityMap;
         private final long topologyContextId;
 
+        // TODO this is a temporary implementation.  Roman will have the Business Account in the Snapshot
+        //      so that no explicitly call need to be made.
+        private final SearchServiceBlockingStub searchService;
+
         public EntitiesAndSettingsSnapshot(@Nonnull final Map<Long, Map<String, Setting>> settings,
                                            @Nonnull final Map<Long, ActionPartialEntity> entityMap,
-                                           @Nonnull final long topologyContextId) {
+                                           @Nonnull final long topologyContextId,
+                                           @Nonnull final SearchServiceBlockingStub searchService) {
             this.settingsByEntityAndSpecName = settings;
             this.oidToEntityMap = entityMap;
             this.topologyContextId = topologyContextId;
+            this.searchService = searchService;
         }
 
         /**
@@ -108,6 +127,28 @@ public class EntitiesAndSettingsSnapshotFactory {
         public long getToologyContextId() {
             return topologyContextId;
         }
+
+        /**
+         * TODO this method will be updated such that we don't need
+         *      to make explicitly call to SearchService.  This is only a temporary implementation
+         *
+         * @param entityId the entity which is looking for the owner
+         * @return Business Account
+         */
+        @Nonnull
+        public Optional<TopologyEntityDTO> getOwnerAccountOfEntity(final long entityId) {
+
+            SearchParameters params = SearchProtoUtil.neighborsOfType(entityId,
+                TraversalDirection.CONNECTED_FROM,
+                UIEntityType.BUSINESS_ACCOUNT);
+
+            SearchEntitiesRequest request = SearchEntitiesRequest.newBuilder().addSearchParameters(params).build();
+
+            return RepositoryDTOUtil.topologyEntityStream(searchService.searchEntitiesStream(request))
+                .map(PartialEntity::getFullEntity)
+                .collect(Collectors.toList()).stream().findFirst();
+        }
+
     }
 
     /**
@@ -130,7 +171,7 @@ public class EntitiesAndSettingsSnapshotFactory {
             topologyContextId, topologyId);
         final Map<Long, ActionPartialEntity> entityMap = retrieveOidToEntityMap(entities,
             topologyContextId, topologyId);
-        return new EntitiesAndSettingsSnapshot(newSettings, entityMap, topologyContextId);
+        return new EntitiesAndSettingsSnapshot(newSettings, entityMap, topologyContextId, searchService);
     }
 
     /**
@@ -141,7 +182,7 @@ public class EntitiesAndSettingsSnapshotFactory {
      */
     @Nonnull
     public EntitiesAndSettingsSnapshot emptySnapshot(final long topologyContextId) {
-        return new EntitiesAndSettingsSnapshot(Collections.emptyMap(), Maps.newHashMap(), topologyContextId);
+        return new EntitiesAndSettingsSnapshot(Collections.emptyMap(), Maps.newHashMap(), topologyContextId, searchService);
     }
 
     /**

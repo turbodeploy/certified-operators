@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.io.FileUtils;
@@ -31,9 +32,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.Units;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -73,6 +76,8 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_ACTIVATE("Start {0} due to increased demand for resources"),
         ACTION_DESCRIPTION_DEACTIVATE("{0} {1}"),
         ACTION_DESCRIPTION_DELETE("Delete wasted file ''{0}'' from {1} to free up {2}"),
+        ACTION_DESCRIPTION_DELETE_CLOUD_NO_ACCOUNT("Delete Unattached {0} Volume {1}"),
+        ACTION_DESCRIPTION_DELETE_CLOUD("Delete Unattached {0} Volume {1} from {2}"),
         ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT("Remove {0} limit on entity {1}"),
         ACTION_DESCRIPTION_RESIZE("Resize {0} {1} for {2} from {3} to {4}"),
         ACTION_DESCRIPTION_RECONFIGURE_WITH_SOURCE("Reconfigure {0} which requires {1} but is hosted by {2} which does not provide {1}"),
@@ -366,24 +371,45 @@ public class ActionDescriptionBuilder {
      *
      * @param entitiesSnapshot {@link EntitiesAndSettingsSnapshot} object that contains entities
      * information.
+     * @param recommendation {@link ActionDTO.Action} the action object
      * @return The Delete action description.
      */
     private static String getDeleteActionDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
-                                                     @Nonnull final ActionDTO.Action recommendation) {
-        // TODO need to give savings in terms of cost instead of file size for Cloud entities
-        String deleteFilePath = recommendation.getInfo().getDelete().getFilePath();
-        long entityId = recommendation.getInfo().getDelete().getTarget().getId();
-        Optional<ActionPartialEntity> optionalEntity = entitiesSnapshot.getEntityFromOid(entityId);
-        if (!optionalEntity.isPresent()) {
-            logger.debug(ENTITY_NOT_FOUND_WARN_MSG, entityId);
+                                                     @Nonnull final ActionDTO.Action recommendation)  {
+
+        long targetEntityId = recommendation.getInfo().getDelete().getTarget().getId();
+        if (!entitiesSnapshot.getEntityFromOid(targetEntityId).isPresent()) {
+            logger.debug(MessageFormat.format(ENTITY_NOT_FOUND_WARN_MSG, targetEntityId));
             return "";
         }
-        return ActionMessageFormat.ACTION_DESCRIPTION_DELETE.format(
-            deleteFilePath.substring(deleteFilePath.lastIndexOf('/') + 1),
-            beautifyEntityTypeAndName(optionalEntity.get()),
-            FileUtils.byteCountToDisplaySize(
-                recommendation.getExplanation().getDelete().getSizeKb()
-                    * FileUtils.ONE_KB));
+
+        if (recommendation.getInfo().getDelete().getTarget().getEnvironmentType() == EnvironmentType.CLOUD) {
+            ActionPartialEntity targetEntity = entitiesSnapshot.getEntityFromOid(targetEntityId).get();
+
+            Optional<TopologyEntityDTO> businessAccountTopologyEntityOpt = entitiesSnapshot.getOwnerAccountOfEntity(targetEntityId);
+
+            if (businessAccountTopologyEntityOpt.isPresent() && !Strings.isNullOrEmpty(businessAccountTopologyEntityOpt.get().getDisplayName())) {
+                return ActionMessageFormat.ACTION_DESCRIPTION_DELETE_CLOUD.format(
+                    entitiesSnapshot.getEntityFromOid(recommendation.getInfo().getDelete().getSource().getId()).get().getDisplayName(),
+                    targetEntity.getDisplayName(),
+                    businessAccountTopologyEntityOpt.get().getDisplayName());
+            } else {
+                logger.warn("Unable to get Business Account Name from repository for Virtual Volume Oid: {}", targetEntityId);
+                return ActionMessageFormat.ACTION_DESCRIPTION_DELETE_CLOUD_NO_ACCOUNT.format(
+                    entitiesSnapshot.getEntityFromOid(recommendation.getInfo().getDelete().getSource().getId()).get().getDisplayName(),
+                    targetEntity.getDisplayName());
+            }
+        } else {
+            String deleteFilePath = recommendation.getInfo().getDelete().getFilePath();
+
+            return ActionMessageFormat.ACTION_DESCRIPTION_DELETE.format(
+                deleteFilePath.substring(deleteFilePath.lastIndexOf('/') + 1),
+                beautifyEntityTypeAndName(entitiesSnapshot.getEntityFromOid(
+                    recommendation.getInfo().getDelete().getTarget().getId()).get()),
+                FileUtils.byteCountToDisplaySize(
+                    recommendation.getExplanation().getDelete().getSizeKb()
+                        * FileUtils.ONE_KB));
+        }
     }
 
     /**

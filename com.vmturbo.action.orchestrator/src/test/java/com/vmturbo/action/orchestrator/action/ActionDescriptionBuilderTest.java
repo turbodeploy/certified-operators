@@ -33,8 +33,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -55,6 +57,7 @@ public class ActionDescriptionBuilderTest {
     private ActionDTO.Action provisionBySupplyRecommendation;
     private ActionDTO.Action provisionByDemandRecommendation;
     private ActionDTO.Action deleteRecommendation;
+    private ActionDTO.Action deleteCloudStorageRecommendation;
     private ActionDTO.Action buyRIRecommendation;
 
     private final Long VM1_ID = 11L;
@@ -67,6 +70,8 @@ public class ActionDescriptionBuilderTest {
     private final String ST_SOURCE_DISPLAY_NAME = "storage_source_test";
     private final Long ST_DESTINATION_ID = 55L;
     private final String ST_DESTINATION_DISPLAY_NAME = "storage_destination_test";
+    private final Long VV_ID = 66L;
+    private final String VV_DISPLAY_NAME = "volume_display_name";
     private final Long COMPUTE_TIER_ID = 100L;
     private final String COMPUTE_TIER_DISPLAY_NAME = "tier_t1";
     private final Long MASTER_ACCOUNT_ID = 101L;
@@ -103,6 +108,8 @@ public class ActionDescriptionBuilderTest {
         provisionByDemandRecommendation = makeRec(makeProvisionInfo(PM_SOURCE_ID),
             SupportLevel.SUPPORTED, explanation2).build();
         deleteRecommendation = makeRec(makeDeleteInfo(ST_SOURCE_ID),
+            SupportLevel.SUPPORTED).build();
+        deleteCloudStorageRecommendation = makeRec(makeDeleteCloudStorageInfo(VV_ID, ST_SOURCE_ID),
             SupportLevel.SUPPORTED).build();
         buyRIRecommendation = makeRec(makeBuyRIInfo(COMPUTE_TIER_ID,MASTER_ACCOUNT_ID,REGION_ID),
             SupportLevel.SUPPORTED).build();
@@ -192,6 +199,21 @@ public class ActionDescriptionBuilderTest {
                 .setType(EntityType.STORAGE_VALUE)
                 .build())
             .setFilePath("/file/to/delete/filename.test")
+            .build());
+    }
+
+    private ActionInfo.Builder makeDeleteCloudStorageInfo(long targetId, long sourceId) {
+        return ActionInfo.newBuilder().setDelete(Delete.newBuilder()
+            .setTarget(ActionEntity.newBuilder()
+                .setId(targetId)
+                .setType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .build())
+            .setSource(ActionEntity.newBuilder()
+                .setId(sourceId)
+                .setType(EntityType.STORAGE_TIER_VALUE)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .build())
             .build());
     }
 
@@ -438,6 +460,51 @@ public class ActionDescriptionBuilderTest {
             entitySettingsCache, deleteRecommendation);
 
         Assert.assertEquals(description, "Delete wasted file 'filename.test' from Storage storage_source_test to free up 0 bytes");
+    }
+
+    @Test
+    public void testBuildDeleteCloudStorageActionDescription_whenSearchServiceHasNoBAInfo() {
+        when(entitySettingsCache.getEntityFromOid(eq(VV_ID)))
+            .thenReturn((createEntity(VV_ID,
+                EntityType.VIRTUAL_VOLUME.getNumber(),
+                VV_DISPLAY_NAME)));
+        when(entitySettingsCache.getEntityFromOid(eq(ST_SOURCE_ID)))
+            .thenReturn((createEntity(ST_SOURCE_ID,
+                EntityType.STORAGE_TIER.getNumber(),
+                ST_SOURCE_DISPLAY_NAME)));
+
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VV_ID)))
+            .thenReturn(Optional.empty());
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+            entitySettingsCache, deleteCloudStorageRecommendation);
+
+        Assert.assertEquals(description, "Delete Unattached storage_source_test Volume volume_display_name");
+    }
+
+    @Test
+    public void testBuildDeleteCloudStorageActionDescription_whenSearchServiceHasBAInfo() {
+        final long BUSINESS_ACCOUNT_OID = 88L;
+        final String BUSINESS_ACCOUNT_NAME = "business_account_name";
+        when(entitySettingsCache.getEntityFromOid(eq(VV_ID)))
+            .thenReturn((createEntity(VV_ID,
+                EntityType.VIRTUAL_VOLUME.getNumber(),
+                VV_DISPLAY_NAME)));
+        when(entitySettingsCache.getEntityFromOid(eq(ST_SOURCE_ID)))
+            .thenReturn((createEntity(ST_SOURCE_ID,
+                EntityType.STORAGE_TIER.getNumber(),
+                ST_SOURCE_DISPLAY_NAME)));
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VV_ID)))
+            .thenReturn(Optional.of(TopologyEntityDTO.newBuilder()
+                .setOid(BUSINESS_ACCOUNT_OID)
+                .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
+                .setDisplayName(BUSINESS_ACCOUNT_NAME)
+                .build()));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+            entitySettingsCache, deleteCloudStorageRecommendation);
+
+        Assert.assertEquals(description, "Delete Unattached storage_source_test Volume volume_display_name from business_account_name");
     }
 
     @Test
