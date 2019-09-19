@@ -36,10 +36,7 @@ public class ClusterStatsSubQuery implements StatsSubQuery {
             StringConstants.MEM_EXHAUSTION,
             StringConstants.STORAGE_EXHAUSTION,
             StringConstants.VM_GROWTH,
-            StringConstants.HEADROOM_VMS,
-            StringConstants.NUM_VMS,
-            StringConstants.NUM_HOSTS,
-            StringConstants.NUM_STORAGES);
+            StringConstants.HEADROOM_VMS);
 
     private final StatsMapper statsMapper;
     private final StatsHistoryServiceBlockingStub statsServiceRpc;
