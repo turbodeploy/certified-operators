@@ -63,6 +63,8 @@ public class EntityActionDaoImp implements EntityActionDao {
         if (entityIds.isEmpty()) {
             return;
         }
+        logger.info("Start transaction to insert action into controllable table. actionId: {}," +
+                        " actionType: {}, numEntities: {}", actionId, actionType, entityIds.size());
         dsl.transaction(configuration -> {
             final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
             final DSLContext transactionDsl = DSL.using(configuration);
@@ -74,12 +76,16 @@ public class EntityActionDaoImp implements EntityActionDao {
                 Optional<EntityActionRecord> existingRecord =
                     getRecord(transactionDsl, actionId, entityId);
                 if (existingRecord.isPresent()) {
+                    logger.info("Action already existing in controllable table. actionId: {}, entityId: {}",
+                                    actionId, entityId);
                     EntityActionRecord actionRecord = existingRecord.get();
                     actionRecord.setStatus(initialEntityStatus);
                     actionRecord.setUpdateTime(now);
                     transactionDsl.batchUpdate(actionRecord).execute();
                 } else {
                     // Insert a new row for this aciton/entity combination.
+                    logger.info("Insert new action in controllable table. actionId: {}, entityId: {}",
+                                    actionId, entityId);
                     transactionDsl.insertInto(ENTITY_ACTION)
                         .set(ENTITY_ACTION.ACTION_ID, actionId)
                         .set(ENTITY_ACTION.ENTITY_ID, entityId)

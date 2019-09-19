@@ -58,17 +58,21 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
     @Override
     public void executeAction(ExecuteActionRequest request,
                     StreamObserver<ExecuteActionResponse> responseObserver) {
+        final long actionId = request.getActionId();
+        logger.info("ExecuteActionRequest received. ActionId: {}", actionId);
         try {
             // Construct a context to pull in additional data for action execution
             ActionExecutionContext actionExecutionContext =
                     actionExecutionContextFactory.getActionExecutionContext(request);
 
             // Get the list of action items to execute
+            logger.info("Convert actionId: {} to SDK actions", actionId);
             final List<ActionItemDTO> sdkActions = actionExecutionContext.getActionItems();
 
             // Ensure we have a sensible sdkActions result
             if (CollectionUtils.isEmpty(sdkActions)) {
-                throw new ActionExecutionException("Cannot execute an action with no action items!");
+                throw new ActionExecutionException(
+                                "Cannot execute actionId: " + actionId + " with no action items!");
             }
 
             // Get the type of action being executed
@@ -78,7 +82,7 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
             Optional<WorkflowDTO.WorkflowInfo> workflowOptional = request.hasWorkflowInfo() ?
                     Optional.of(request.getWorkflowInfo()) : Optional.empty();
 
-            logger.debug("Start action {}", sdkActions);
+            logger.info("Start execution of action {} after conversion to SDK actions ", actionId);
             operationManager.requestActions(request.getActionId(),
                     request.getTargetId(),
                     actionExecutionContext.getSecondaryTargetId(),
@@ -87,6 +91,7 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
                     actionExecutionContext.getAffectedEntities(),
                     workflowOptional);
 
+            logger.info("ExecuteActionRequest completed for action: {}", actionId);
             responseObserver.onNext(ExecuteActionResponse.getDefaultInstance());
             responseObserver.onCompleted();
         } catch (ProbeException e) {

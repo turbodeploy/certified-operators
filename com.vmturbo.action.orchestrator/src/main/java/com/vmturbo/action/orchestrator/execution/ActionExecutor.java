@@ -144,6 +144,7 @@ public class ActionExecutor implements ActionExecutionListener {
         try {
             // TODO (roman, July 30 2019): OM-49080 - persist the state of in-progress actions in
             // the database, so that we don't lose the information across restarts.
+            logger.info("Starting action {}", action.getId());
             actionExecutionService.executeAction(executionRequestBuilder.build());
             logger.info("Action: {} started.", action.getId());
         } catch (StatusRuntimeException e) {

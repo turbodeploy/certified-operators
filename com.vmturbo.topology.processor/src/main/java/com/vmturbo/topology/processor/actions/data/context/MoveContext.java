@@ -199,6 +199,8 @@ public class MoveContext extends AbstractActionExecutionContext {
         List<ActionItemDTO.Builder> builders = Lists.newArrayList();
         // TODO: Assess whether the performance benefits warrant aggregating all the entities
         // involved in the move and making a bulk call to lookup the TopologyEntityDTOs.
+        logger.info("Get target entity {} from repository for action {}", move.getTarget().getId(),
+                        getActionId());
         final EntityDTO fullEntityDTO = getFullEntityDTO(getPrimaryEntityId());
         // sort the changes list so host change comes first, and then others (storage move), since
         // the list coming from AO may be any order, but probe is assuming host move comes first
@@ -211,6 +213,7 @@ public class MoveContext extends AbstractActionExecutionContext {
             builders.addAll(getActionItemsForUnchangedStorageProviders(fullEntityDTO,
                 move.getChangesList()));
         }
+        logger.info("ActionDTO builders created for action {}", getActionId());
         return builders;
     }
 
@@ -300,8 +303,11 @@ public class MoveContext extends AbstractActionExecutionContext {
     private ActionItemDTO.Builder actionItemDtoBuilder(final ChangeProvider change,
                                                        final long actionId,
                                                        final EntityDTO primaryEntity) {
-        EntityDTO sourceEntity = getFullEntityDTO(change.getSource().getId());
-        EntityDTO destinationEntity = getFullEntityDTO(change.getDestination().getId());
+        long sourceId = change.getSource().getId();
+        long destId = change.getDestination().getId();
+        logger.info("Retrieve Source id {} and destination id {} from repository", sourceId, destId);
+        EntityDTO sourceEntity = getFullEntityDTO(sourceId);
+        EntityDTO destinationEntity = getFullEntityDTO(destId);
 
         // Check that the source and destination are the same type
         final EntityType srcEntityType = sourceEntity.getEntityType();

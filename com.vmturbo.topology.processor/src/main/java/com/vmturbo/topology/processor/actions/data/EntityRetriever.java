@@ -4,10 +4,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -26,6 +28,11 @@ import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
  * the repository and then converted into an SDK EntityDTO.
  */
 public class EntityRetriever {
+
+    /**
+     * logger
+     */
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * Converts topology processor's entity DTOs to entity DTOs used by SDK probes.
@@ -54,11 +61,13 @@ public class EntityRetriever {
     @Nonnull
     public EntityDTO fetchAndConvertToEntityDTO(final long entityId) throws EntityRetrievalException {
         // Get the full (stitched) entity from the Repository Service
+        logger.info("Fetch entity oid {} from repository", entityId);
         final TopologyEntityDTO topologyEntityDTO = retrieveTopologyEntity(entityId)
                 .orElseThrow(() -> new EntityRetrievalException("No entity found for id "
                         + entityId));
         // Convert the entity to an SDK EntityDTO and return it
         try {
+            logger.info("Entity {} retrieved from repository ", topologyEntityDTO.getDisplayName());
             return entityConverter.convertToEntityDTO(topologyEntityDTO);
         } catch (EntityConversionException e) {
             throw new EntityRetrievalException("Could not retrieve full entity data for entity id "

@@ -329,13 +329,16 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 remoteMediationServer.getMessageHandlerExpirationClock(),
                 actionTimeoutMs);
 
+        logger.info("Insert controllable flag for action {} which is of type {}", actionId,
+                        actionType);
         // Update the ENTITY_ACTION table in preparation for executing the action
         insertControllableAndSuspendableState(actionId, actionType, affectedEntities);
 
+        logger.info("Sending action {} execution request to probe", actionId);
         remoteMediationServer.sendActionRequest(target.getProbeId(),
                 request, messageHandler);
 
-        logger.info("Beginning " + action);
+        logger.info("Beginning {}", action);
         logger.debug("Action execution DTO:\n" + request.getActionExecutionDTO().toString());
         operationStart(action);
         return action;
