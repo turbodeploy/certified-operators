@@ -202,6 +202,7 @@ public class SettingsMapperTest {
 
         //verify style info
         assertThat(settingApiDTO.getRange().getStep(), is(5.0));
+        assertThat(settingApiDTO.getRange().getCustomStepValues(), containsInAnyOrder(90, 30, 7));
         assertThat(settingApiDTO.getRange().getLabels(),
             containsInAnyOrder("Performance", "Efficiency"));
     }

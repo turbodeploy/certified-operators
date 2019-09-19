@@ -137,6 +137,11 @@ public class SettingSpecStyleMappingLoader {
         private final double step;
 
         /**
+         * The custom step values by which the UI slider can move.
+         */
+        private final List<Integer> customStepValues;
+
+        /**
          * The lables corresponding to the max and min values of the range.
          *
          */
@@ -147,11 +152,16 @@ public class SettingSpecStyleMappingLoader {
          */
         private Range() {
             this.step = 0;
+            this.customStepValues = new ArrayList<>();
             this.labels = new ArrayList<>();
         }
 
         double getStep() {
             return step;
+        }
+
+        List<Integer> getCustomStepValues() {
+            return new ArrayList<Integer>(customStepValues);
         }
 
         List<String> getLabels() {
@@ -162,6 +172,7 @@ public class SettingSpecStyleMappingLoader {
         RangeApiDTO getRangeApiDTO() {
             RangeApiDTO rangeDTO = new RangeApiDTO();
             rangeDTO.setStep(step);
+            rangeDTO.setCustomStepValues(customStepValues);
             rangeDTO.setLabels(labels);
             return rangeDTO;
         }

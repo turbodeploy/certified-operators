@@ -273,6 +273,38 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0.0f/*min*/, 100.0f/*max*/, 10.0f/*default*/), true),
 
     /**
+     * Percentile aggressiveness for business user.
+     */
+    PercentileAggressivenessBusinessUser("percentileAggressivenessBusinessUser",
+            "Percentile Aggressiveness",
+            Collections.singletonList("resizeRecommendationsConstants"), SettingTiebreaker.BIGGER,
+            EnumSet.of(EntityType.BUSINESS_USER), numeric(90.0f, 100.0f, 95.0f), true),
+
+    /**
+     * Percentile aggressiveness for virtual machine.
+     */
+    PercentileAggressivenessVirtualMachine("percentileAggressivenessVirtualMachine",
+            "Percentile Aggressiveness",
+            Collections.singletonList("resizeRecommendationsConstants"), SettingTiebreaker.BIGGER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(90.0f, 100.0f, 95.0f), true),
+
+    /**
+     * Percentile observation period for business user.
+     */
+    PercentileObservationPeriodBusinessUser("percentileObservationPeriodBusinessUser",
+            "Percentile Observation Period",
+            Collections.singletonList("resizeRecommendationsConstants"), SettingTiebreaker.BIGGER,
+            EnumSet.of(EntityType.BUSINESS_USER), numeric(7.0f, 90.0f, 30.0f), true),
+
+    /**
+     * Percentile observation period for virtual machine.
+     */
+    PercentileObservationPeriodVirtualMachine("percentileObservationPeriodVirtualMachine",
+            "Percentile Observation Period",
+            Collections.singletonList("resizeRecommendationsConstants"), SettingTiebreaker.BIGGER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(7.0f, 90.0f, 30.0f), true),
+
+    /**
      * Resize target Utilization for Net Throughput.
      */
     ResizeTargetUtilizationNetThroughput("resizeTargetUtilizationNetThroughput",
