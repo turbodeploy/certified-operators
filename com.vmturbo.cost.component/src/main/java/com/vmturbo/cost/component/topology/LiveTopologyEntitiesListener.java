@@ -87,6 +87,11 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
 
             storeBusinessAccountIdToTargetIdMapping(cloudTopology.getEntities());
 
+            // update reserved instance coverage data. RI coverage must be updated
+            // before cost calculation to accurately reflect costs based on up-to-date
+            // RI coverage
+            reservedInstanceCoverageUpdate.updateAllEntityRICoverageIntoDB(topologyInfo.getTopologyId(), cloudTopology);
+
             final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory.newCalculator(topologyInfo);
             final Map<Long, CostJournal<TopologyEntityDTO>> costs =
                 topologyCostCalculator.calculateCosts(cloudTopology);
@@ -98,9 +103,6 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
             } catch (DbException e) {
                 logger.error("Failed to persist entity costs.", e);
             }
-
-            // update reserved instance coverage data.
-            reservedInstanceCoverageUpdate.updateAllEntityRICoverageIntoDB(topologyInfo.getTopologyId(), cloudTopology);
         } else {
             logger.info("live topology with topologyId: {}  doesn't have Cloud entity, skip processing",
                 topologyInfo.getTopologyId());

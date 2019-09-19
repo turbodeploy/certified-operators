@@ -155,6 +155,7 @@ public class ReservedInstanceConfig {
     public ReservedInstanceCoverageUpdate reservedInstanceCoverageUpload() {
         return new ReservedInstanceCoverageUpdate(databaseConfig.dsl(), entityReservedInstanceMappingStore(),
                 reservedInstanceUtilizationStore(), reservedInstanceCoverageStore(),
+                reservedInstanceCoverageValidatorFactory(),
                 riCoverageCacheExpireMinutes);
     }
 
@@ -184,6 +185,14 @@ public class ReservedInstanceConfig {
     @Bean
     public ActionContextRIBuyStore actionContextRIBuyStore() {
         return new ActionContextRIBuyStore(databaseConfig.dsl());
+    }
+
+    @Bean
+    public ReservedInstanceCoverageValidatorFactory reservedInstanceCoverageValidatorFactory() {
+        return new ReservedInstanceCoverageValidatorFactory(
+                reservedInstanceBoughtStore(),
+                reservedInstanceSpecStore());
+
     }
 
     @Bean

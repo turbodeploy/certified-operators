@@ -1,19 +1,37 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Map;
 
+import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
+import org.mockito.MockitoAnnotations;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
@@ -24,18 +42,29 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
+import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
+import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(
+        classes = {TestSQLDatabaseConfig.class}
+)
+@TestPropertySource(properties = {"originalSchemaName=cost"})
 public class ReservedInstanceCoverageUpdateTest {
 
-    private DSLContext dsl = mock(DSLContext.class);
+    @Autowired
+    protected TestSQLDatabaseConfig dbConfig;
+
+    private DSLContext dsl;
 
     private EntityReservedInstanceMappingStore entityReservedInstanceMappingStore =
             mock(EntityReservedInstanceMappingStore.class);
@@ -45,6 +74,17 @@ public class ReservedInstanceCoverageUpdateTest {
 
     private ReservedInstanceCoverageStore reservedInstanceCoverageStore =
             mock(ReservedInstanceCoverageStore.class);
+
+    private ReservedInstanceCoverageValidatorFactory reservedInstanceCoverageValidatorFactory =
+            mock(ReservedInstanceCoverageValidatorFactory.class);
+
+    private ReservedInstanceCoverageValidator reservedInstanceCoverageValidator =
+            mock(ReservedInstanceCoverageValidator.class);
+
+    @Captor
+    private ArgumentCaptor<List<EntityRICoverageUpload>> entityRIMappingStoreCoverageCaptor;
+
+    @Captor ArgumentCaptor<List<ServiceEntityReservedInstanceCoverageRecord>> riCoverageStoreCoverageCaptor;
 
     private ReservedInstanceCoverageUpdate reservedInstanceCoverageUpdate;
 
@@ -78,6 +118,9 @@ public class ReservedInstanceCoverageUpdateTest {
     private final TopologyEntityDTO COMPUTE_TIER = TopologyEntityDTO.newBuilder()
             .setOid(99L)
             .setDisplayName("r3.xlarge")
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setComputeTier(ComputeTierInfo.newBuilder()
+                            .setNumCoupons(50)))
             .setEntityType(EntityType.COMPUTE_TIER_VALUE)
             .setOrigin(AWS_ORIGIN)
             .setEnvironmentType(EnvironmentType.CLOUD)
@@ -176,9 +219,19 @@ public class ReservedInstanceCoverageUpdateTest {
 
     @Before
     public void setup() throws CommunicationException {
+
+        MockitoAnnotations.initMocks(this);
+
+        // we just need the DSL setup
+        dsl = dbConfig.dsl();
+
         reservedInstanceCoverageUpdate = new ReservedInstanceCoverageUpdate(dsl,
                 entityReservedInstanceMappingStore, reservedInstanceUtilizationStore,
-                reservedInstanceCoverageStore, 120);
+                reservedInstanceCoverageStore, reservedInstanceCoverageValidatorFactory,
+                120);
+
+        when(reservedInstanceCoverageValidatorFactory.newValidator(any()))
+                .thenReturn(reservedInstanceCoverageValidator);
     }
 
     @Test
@@ -205,8 +258,54 @@ public class ReservedInstanceCoverageUpdateTest {
         assertEquals(0, firstRecord.getAvailabilityZoneId());
         assertEquals(8, secondRecord.getAvailabilityZoneId());
         assertEquals(100, firstRecord.getTotalCoupons(), DELTA);
-        assertEquals(32, secondRecord.getTotalCoupons(), DELTA);
+        // this should match the compute tier capacity
+        assertEquals(50, secondRecord.getTotalCoupons(), DELTA);
         assertEquals(20, firstRecord.getUsedCoupons(), DELTA);
         assertEquals(0, secondRecord.getUsedCoupons(), DELTA);
+    }
+
+    @Test
+    public void testUpdateAllEntityRICoverageIntoDB() {
+        // Input setup
+        final long topologyId = 123456789L;
+        final TopologyEntityCloudTopology cloudTopology =
+                cloudTopologyFactory.newCloudTopology(topology.values().stream());
+
+        final List<EntityRICoverageUpload> coverageInput =
+                ImmutableList.of(entityRICoverageOne);
+
+        // mock setup
+        when(reservedInstanceCoverageValidator.validateCoverageUploads(eq(coverageInput)))
+                .thenReturn(coverageInput);
+
+        // setup SUT
+        reservedInstanceCoverageUpdate.storeEntityRICoverageOnlyIntoCache(topologyId,
+                coverageInput);
+
+        // invoke SUT
+        reservedInstanceCoverageUpdate.updateAllEntityRICoverageIntoDB(topologyId,
+                cloudTopology);
+
+
+        // setup captors
+        verify(entityReservedInstanceMappingStore).updateEntityReservedInstanceMapping(
+                any(), entityRIMappingStoreCoverageCaptor.capture());
+        verify(reservedInstanceCoverageStore).updateReservedInstanceCoverageStore(
+                any(), riCoverageStoreCoverageCaptor.capture());
+        verify(reservedInstanceUtilizationStore).updateReservedInstanceUtilization(
+                any());
+
+
+        // asserts
+        List<EntityRICoverageUpload> entityRIMappingStoreInput =
+                entityRIMappingStoreCoverageCaptor.getValue();
+        assertThat(entityRIMappingStoreInput.size(), equalTo(1));
+        final EntityRICoverageUpload entityRICoverageUpload = entityRIMappingStoreInput.get(0);
+        // verify the capacity is overridden to match the compute tier
+        assertThat(entityRICoverageUpload.getTotalCouponsRequired(), equalTo(100.0));
+
+        List<ServiceEntityReservedInstanceCoverageRecord> coverageRecords =
+                riCoverageStoreCoverageCaptor.getValue();
+        assertThat(coverageRecords.size(), equalTo(2));
     }
 }

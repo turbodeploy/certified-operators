@@ -19,6 +19,8 @@ import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
  */
 public class ReservedInstanceBoughtFilter extends ReservedInstanceFilter {
 
+    public static final ReservedInstanceBoughtFilter SELECT_ALL_FILTER = newBuilder().build();
+
     private final List<Condition> conditions;
 
     // Needs to set to true, if any filter needs to get from reserved instance spec table.

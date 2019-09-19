@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -17,6 +18,7 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
@@ -42,16 +44,22 @@ public class ReservedInstanceCoverageUpdate {
 
     private final ReservedInstanceCoverageStore reservedInstanceCoverageStore;
 
+    @Nonnull
+    private final ReservedInstanceCoverageValidatorFactory reservedInstanceCoverageValidatorFactory;
+
+
     public ReservedInstanceCoverageUpdate(
             @Nonnull final DSLContext dsl,
             @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
             @Nonnull final ReservedInstanceUtilizationStore reservedInstanceUtilizationStore,
             @Nonnull final ReservedInstanceCoverageStore reservedInstanceCoverageStore,
+            @Nonnull final ReservedInstanceCoverageValidatorFactory reservedInstanceCoverageValidatorFactory,
             final long riCoverageCacheExpireMinutes) {
         this.dsl = dsl;
         this.entityReservedInstanceMappingStore = entityReservedInstanceMappingStore;
         this.reservedInstanceUtilizationStore = reservedInstanceUtilizationStore;
         this.reservedInstanceCoverageStore = reservedInstanceCoverageStore;
+        this.reservedInstanceCoverageValidatorFactory = reservedInstanceCoverageValidatorFactory;
         this.riCoverageEntityCache = CacheBuilder.newBuilder()
                 .expireAfterAccess(riCoverageCacheExpireMinutes, TimeUnit.MINUTES)
                 .build();
@@ -87,8 +95,24 @@ public class ReservedInstanceCoverageUpdate {
             return;
         }
 
+
+        // Before storing the RI coverage, validate the entries, removing any that are deemed invalid.
+        // Invalid entries may occur if the entity's state has recently changed (e.g. the tier has changed or
+        // it's been shutdown, but not terminated), the RI's state has recently changed (switched from ISF to
+        // non-isf), or the RI has expired.
+        final ReservedInstanceCoverageValidator coverageValidator =
+                reservedInstanceCoverageValidatorFactory.newValidator(cloudTopology);
+        final List<EntityRICoverageUpload> validEntityRICoverageEntries =
+                coverageValidator.validateCoverageUploads(
+                        // The validator requires accurate coupon capacity to be reflected
+                        // in the EntityRICoverageUpload::totalCouponsRequired field. The
+                        // topology-processor uploads the capacity received from the cloud
+                        // provider. However, for Azure, this value will always be 0. For AWS,
+                        // it may reflect stale data (e.g. if the VM has changed its compute tier)
+                        stitchCoverageCouponCapacityToTier(cloudTopology, entityRICoverageList));
+
         final List<ServiceEntityReservedInstanceCoverageRecord> seRICoverageRecord =
-                createServiceEntityReservedInstanceCoverageRecords(entityRICoverageList, cloudTopology);
+                createServiceEntityReservedInstanceCoverageRecords(validEntityRICoverageEntries, cloudTopology);
 
         dsl.transaction(configuration -> {
             final DSLContext transactionContext = DSL.using(configuration);
@@ -119,8 +143,6 @@ public class ReservedInstanceCoverageUpdate {
                     @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology) {
         final Map<Long, ServiceEntityReservedInstanceCoverageRecord> seRICoverageRecords =
                 entityRICoverageList.stream()
-                        .filter(entityRICoverage ->
-                                cloudTopology.getEntity(entityRICoverage.getEntityId()).isPresent())
                         .collect(Collectors.toMap(EntityRICoverageUpload::getEntityId,
                                 entityRICoverage ->
                                         createRecordFromEntityRICoverage(entityRICoverage, cloudTopology)));
@@ -163,6 +185,8 @@ public class ReservedInstanceCoverageUpdate {
     /**
      * Generate a list of {@link ServiceEntityReservedInstanceCoverageRecord} based on the input
      * real time topology, note that, for now, it only consider the VM entity.
+     *
+     *
      * @param seRICoverageRecords a Map which key is entity id, value is
      *                            {@link ServiceEntityReservedInstanceCoverageRecord} which created
      *                            by {@link EntityRICoverageUpload}.
@@ -177,35 +201,68 @@ public class ReservedInstanceCoverageUpdate {
                         // only keep VM entity for now.
                          .filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
                          .filter(entity -> !seRICoverageRecords.containsKey(entity.getOid()))
-                         .map(entity -> ServiceEntityReservedInstanceCoverageRecord.newBuilder()
-                                 .setId(entity.getOid())
-                                 .setAvailabilityZoneId(
-                                         cloudTopology.getConnectedAvailabilityZone(entity.getOid())
-                                                 .map(TopologyEntityDTO::getOid)
-                                                 .orElse(0L))
-                                 .setRegionId(
-                                         cloudTopology.getConnectedRegion(entity.getOid())
-                                                 .map(TopologyEntityDTO::getOid)
-                                                 .orElse(0L))
-                                 .setBusinessAccountId(
-                                         cloudTopology.getOwner(entity.getOid())
-                                                 .map(TopologyEntityDTO::getOid)
-                                                 .orElse(0L))
-                                 .setTotalCoupons(cloudTopology.getComputeTier(entity.getOid())
-                                         .map(computeTier ->
-                                                 // Right now, we don't have coupons number for
-                                                 // ComputerTier entity, after we keep the coupons
-                                                 // information for ComputerTier in TopologyEntityDTO,
-                                                 // we can remove this logic, and use it directly from
-                                                 // TopologyEntityDTO.
-                                                 AwsReservedInstanceCoupon.convertInstanceTypeToCoupons(
-                                                         computeTier.getDisplayName()))
-                                         .orElse(0))
-                                 .setUsedCoupons(0.0)
-                                 .build())
+                         .map(entity -> {
+                             // totalCoupons will only reflect the computeTier capacity, if the entity
+                             // is in a state in which it can be covered by an RI.
+                             final EntityState entityState = entity.getEntityState();
+                             final double totalCoupons = entityState == EntityState.POWERED_ON ?
+                                     cloudTopology.getComputeTier(entity.getOid())
+                                             .map(computeTier -> computeTier.getTypeSpecificInfo()
+                                                     .getComputeTier().getNumCoupons())
+                                             .orElse(0) : 0.0;
+
+                             return ServiceEntityReservedInstanceCoverageRecord.newBuilder()
+                                     .setId(entity.getOid())
+                                     .setAvailabilityZoneId(
+                                             cloudTopology.getConnectedAvailabilityZone(entity.getOid())
+                                                     .map(TopologyEntityDTO::getOid)
+                                                     .orElse(0L))
+                                     .setRegionId(
+                                             cloudTopology.getConnectedRegion(entity.getOid())
+                                                     .map(TopologyEntityDTO::getOid)
+                                                     .orElse(0L))
+                                     .setBusinessAccountId(
+                                             cloudTopology.getOwner(entity.getOid())
+                                                     .map(TopologyEntityDTO::getOid)
+                                                     .orElse(0L))
+                                     .setTotalCoupons(totalCoupons)
+                                     .setUsedCoupons(0.0)
+                                     .build();
+                         })
                 .collect(Collectors.toList());
         // add all records which come from entity reserved coverage data.
         allEntityRICoverageRecords.addAll(seRICoverageRecords.values());
         return allEntityRICoverageRecords;
     }
+
+    /**
+     * Based on <code>cloudTopology</code>, updates the total coupons of each coverage instance, matching
+     * the capacity to the tier covering the references entity. Currently, only virtual machine ->
+     * compute tier is the only supported relationship (all others will be ignored).
+     *
+     * @param cloudTopology An instance of {@link CloudTopology}. The topology is expected to contain
+     *                      both the direct entities of each {@link EntityRICoverageUpload} and their
+     *                      corresponding compute tiers
+     * @param entityRICoverageList A {@link Collection} of {@link EntityRICoverageUpload} instances
+     * @return A {@link List} of copied and modified {@link EntityRICoverageUpload} instances
+     */
+    private List<EntityRICoverageUpload> stitchCoverageCouponCapacityToTier(
+            @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
+            @Nonnull Collection<EntityRICoverageUpload> entityRICoverageList) {
+
+        return entityRICoverageList.stream()
+                .filter(entityRICoverage -> cloudTopology.getEntity(entityRICoverage.getEntityId())
+                        .map(entityDto -> entityDto.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                        .orElse(false))
+                .map(entityRICoverage -> EntityRICoverageUpload.newBuilder(entityRICoverage))
+                .peek(entityRICoverageBuilder -> entityRICoverageBuilder.setTotalCouponsRequired(
+                        cloudTopology.getComputeTier(entityRICoverageBuilder.getEntityId())
+                                .map(computeTier -> computeTier.getTypeSpecificInfo()
+                                        .getComputeTier().getNumCoupons())
+                                .orElse(0)))
+                .map(EntityRICoverageUpload.Builder::build)
+                .collect(Collectors.toList());
+
+    }
+
 }

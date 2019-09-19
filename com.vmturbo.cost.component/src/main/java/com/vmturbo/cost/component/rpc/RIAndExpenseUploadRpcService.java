@@ -21,12 +21,14 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.UploadAccountExpensesRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UploadAccountExpensesResponse;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataResponse;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc.RIAndExpenseUploadServiceImplBase;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceCoverageUpdate;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
+import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 
 public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplBase {
     private final Logger logger = LogManager.getLogger();
@@ -106,8 +108,17 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
         // need to update reserved instance bought and spec first, because reserved instance coverage
         // data will use them later.
         storeRIBoughtAndSpecIntoDB(request);
+
+        // need to update the reserved instance ID in each EntityRICoverageUpload's Coverage list
+        // The topology-processor currently uploads ReservedInstanceBought instances with a TP
+        // generated oid. However, the ReservedInstanceBoughtStore drops the TP's oid and assigns
+        // its own. Therefore, the only way to map a Coverage instance to a ReservedInstanceBought
+        // is through the ProbeReservedInstanceId. We normalize the Coverage records here to remove
+        // the dependency on downstream consumers.
+        final List<EntityRICoverageUpload> entityRiCoverageWithRIOid =
+                updateCoverageWithLocalRIBoughtIds(request.getReservedInstanceCoverageList());
         reservedInstanceCoverageUpdate.storeEntityRICoverageOnlyIntoCache(request.getTopologyId(),
-                request.getReservedInstanceCoverageList());
+                entityRiCoverageWithRIOid);
         lastProcessedRIDataChecksum = request.getChecksum();
         responseObserver.onNext(UploadRIDataResponse.getDefaultInstance());
         responseObserver.onCompleted();
@@ -158,6 +169,43 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
                         .setReservedInstanceSpec(riSpecIdMap.get(riBought.getReservedInstanceBoughtInfo()
                                 .getReservedInstanceSpec()))
                     .build())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Generates a list of {@link EntityRICoverageUpload}, in which the contained Coverage entries
+     * from <code>entityRICoverageList</code> have been updated with a reserved instance ID matching
+     * the {@link ReservedInstanceBought} IDs contained/assigned within {@link ReservedInstanceBoughtStore}
+     *
+     * @param entityRICoverageList a list of {@link EntityRICoverageUpload}, in which the underlying
+     *                             Coverage entries contain the ProbeReservedInstanceId attribute to map
+     *                             to a {@link ReservedInstanceBought}
+     * @return a list of updated {@link EntityRICoverageUpload}
+     */
+    private List<EntityRICoverageUpload> updateCoverageWithLocalRIBoughtIds(
+            @Nonnull final List<EntityRICoverageUpload> entityRICoverageList) {
+
+        final Map<String, Long> riProbeIdToOid = reservedInstanceBoughtStore
+                .getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter.SELECT_ALL_FILTER)
+                .stream()
+                .filter(ReservedInstanceBought::hasReservedInstanceBoughtInfo)
+                .collect(
+                        Collectors.toMap(
+                                ri -> ri.getReservedInstanceBoughtInfo()
+                                        .getProbeReservedInstanceId(),
+                                ReservedInstanceBought::getId
+                        ));
+
+        return entityRICoverageList.stream()
+                .map(entityRICoverage -> EntityRICoverageUpload.newBuilder(entityRICoverage))
+                // update the ReservedInstanceId for each Coverage record, mapping through
+                // the ProbeReservedInstanceId
+                .peek(entityRiCoverageBuilder -> entityRiCoverageBuilder
+                        .getCoverageBuilderList().stream()
+                        .forEach(coverageBuilder -> coverageBuilder
+                                .setReservedInstanceId(riProbeIdToOid.getOrDefault(
+                                        coverageBuilder.getProbeReservedInstanceId(), 0L))))
+                .map(EntityRICoverageUpload.Builder::build)
                 .collect(Collectors.toList());
     }
 }
