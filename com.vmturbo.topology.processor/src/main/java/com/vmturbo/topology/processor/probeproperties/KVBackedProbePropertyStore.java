@@ -21,7 +21,6 @@ import com.vmturbo.platform.sdk.common.MediationMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
-import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -55,15 +54,13 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
 
     /**
      * This maps probe names to maps of probe properties that are hard-coded, i.e., they are
-     * always set.  It is currently used to disable the listener feature in the vCenter probe
-     * (the feature is not supported in XL).
+     * always set.
      *
      * The maps are formatted so that they are ready to be added to a "set-properties"
      * mediation message, i.e., their keys conform to the format "probe.probeName.propertyName".
      */
     private static final Map<String, Map<String, String>> HARD_CODED_PROBE_PROPERTIES =
         ImmutableMap.<String, Map<String, String>>builder()
-            .put("vCenter", ImmutableMap.of("probe.vCenter.listener.enabled", "false"))
             // Disable saving the cost.usage.report for AWS and Azure. The SDK probes won't be
             // able to write the report to disk (because it's a read-only volume), so enabling
             // these will break discovery.
