@@ -227,7 +227,8 @@ public class RICostDataUploader {
                                     // round to the nearest number of years.
                                     .setTermYears((int)Math.round((double)riData.getDuration()/MILLIS_PER_YEAR)))
                             .setTenancy(Tenancy.forNumber(riData.getInstanceTenancy().getNumber()))
-                            .setOs(CloudCostUtils.platformToOSType(riData.getPlatform()));
+                            .setOs(CloudCostUtils.platformToOSType(riData.getPlatform()))
+                            .setPlatformFlexible(riData.getPlatformFlexible());
                     // haz region?
                     if (riData.hasRegion() && cloudEntitiesMap.containsKey(riData.getRegion())) {
                         riSpecInfoBuilder.setRegionId(cloudEntitiesMap.get(riData.getRegion()));
