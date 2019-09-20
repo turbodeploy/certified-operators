@@ -23,6 +23,26 @@ spec:
     enabled: true
   appdynamics:
     enabled: true
+  aws:
+    enabled: true
+  awsbilling:
+    enabled: true
+  awscost:
+    enabled: true
+  awslambda:
+    enabled: true
+  azure:
+    enabled: true
+  azurecost:
+    enabled: true
+  azureea:
+    enabled: true
+  azuresp:
+    enabled: true
+  azurevolumes:
+    enabled: true
+  dynatrace:
+    enabled: true
   hyperv:
     enabled: true
   actionscript:
@@ -41,4 +61,5 @@ spec:
     enabled: true
   vmm:
     enabled: true
+
 
