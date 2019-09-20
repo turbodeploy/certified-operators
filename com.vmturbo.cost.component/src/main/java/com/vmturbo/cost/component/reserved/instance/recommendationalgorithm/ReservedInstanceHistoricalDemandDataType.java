@@ -10,12 +10,12 @@ public enum ReservedInstanceHistoricalDemandDataType {
     /**
      * Implies that Allocation based data to be used for RI Buy Analysis.
      */
-    ALLOCATION("count_from_projected_topology"),
+    ALLOCATION("count_from_source_topology"),
 
     /**
      * Implies that Consumption based data to be used for RI Buy Analysis.
      */
-    CONSUMPTION("count_from_source_topology");
+    CONSUMPTION("count_from_projected_topology");
 
     /**
      * Stores field name from 'instance_type_hourly_by_week' DB table that contains corresponding

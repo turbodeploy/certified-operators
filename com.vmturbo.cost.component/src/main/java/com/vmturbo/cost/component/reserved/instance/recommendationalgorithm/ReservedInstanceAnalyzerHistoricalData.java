@@ -212,9 +212,10 @@ public class ReservedInstanceAnalyzerHistoricalData {
         for (ComputeTierTypeHourlyByWeekRecord record : records) {
             int index = record.getHour() + (record.getDay() - 1) * 24;
             demands[index] =
-                demandDataType.getDbFieldName().equals(ReservedInstanceHistoricalDemandDataType.ALLOCATION) ?
-                    record.getCountFromProjectedTopology().floatValue()
-                    : record.getCountFromSourceTopology().floatValue();
+                demandDataType.getDbFieldName().equals(
+                        ReservedInstanceHistoricalDemandDataType.ALLOCATION.getDbFieldName()) ?
+                        record.getCountFromSourceTopology().floatValue()
+                    : record.getCountFromProjectedTopology().floatValue();
         }
         return demands;
     }

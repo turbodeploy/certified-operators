@@ -118,8 +118,9 @@ public class BuyRIAnalysisRpcService extends BuyRIAnalysisServiceImplBase {
                 logger.info("Executing buy RI algorithm for plan {}.", planId);
                 ReservedInstanceAnalysisScope reservedInstanceAnalysisScope =
                                 new ReservedInstanceAnalysisScope(request);
+                // TODO: ReservedInstanceHistoricalDemandDataType should be based on OCP planType
                 reservedInstanceAnalyzer.runRIAnalysisAndSendActions(planId, reservedInstanceAnalysisScope,
-                                                                     ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
+                                                                     ReservedInstanceHistoricalDemandDataType.ALLOCATION);
            //}
         } catch (CommunicationException | InterruptedException e) {
             logger.error("Failed to send buy RI action plan to action orchestrator for plan {}", planId);
@@ -150,7 +151,8 @@ public class BuyRIAnalysisRpcService extends BuyRIAnalysisServiceImplBase {
                             new ReservedInstanceAnalysisScope(request);
             try {
                 reservedInstanceAnalyzer.runRIAnalysisAndSendActions(realtimeTopologyContextId,
-                                                                     reservedInstanceAnalysisScope, ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
+                                                                     reservedInstanceAnalysisScope,
+                        ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
             } catch (InterruptedException ie) {
                 logger.error("Interrupted publishing of buy RI actions", ie);
                 Thread.currentThread().interrupt();
