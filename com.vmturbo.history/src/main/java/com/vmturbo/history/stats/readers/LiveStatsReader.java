@@ -26,6 +26,7 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.protobuf.TextFormat;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
@@ -191,7 +192,9 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
 
         //  Only add records when next page is NOT empty, otherwise do an early return.
         if (nextPageInfo.getEntityOids().isEmpty()) {
-            logger.warn("Empty next page for scope {} and pagination params {}", entityStatsScope, paginationParams);
+            logger.warn("Empty next page for scope {} and pagination params {}",
+                TextFormat.shortDebugString(entityStatsScope),
+                paginationParams);
             return StatRecordPage.empty();
         }
 

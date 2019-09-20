@@ -171,7 +171,7 @@ public interface StatsQueryFactory {
                                                     @Nonnull final TimeRange timeRange,
                                                     @Nonnull final AGGREGATE aggregate) {
             // check there is a table for this entityType and tFrame; and it has a SNAPSHOT_TIME column
-            if (table.field(SNAPSHOT_TIME) == null) {
+            if (table == null || table.field(SNAPSHOT_TIME) == null) {
                 return Optional.empty();
             }
 

@@ -73,4 +73,10 @@ public class EntityStatsPaginationParams {
     public boolean isAscending() {
         return ascending;
     }
+
+    @Override
+    public String toString() {
+        return String.format("[limit=%d; sort by %s/%s]",
+            limit, sortCommodity, ascending ? "asc" : "desc");
+    }
 }

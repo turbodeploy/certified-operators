@@ -784,8 +784,13 @@ public class HistorydbIO extends BasedbIO {
                 .distinct()
                 .collect(Collectors.toList());
             if (entityTypes.isEmpty()) {
-                logger.error("No entity types resolved from provided list of {} entity IDs.", entityScope);
-                throw new IllegalArgumentException("Entity IDs do not resolve to entity type.");
+                // We don't want to treat this an error, because this may occur when the user
+                // scopes to an entity of a type for which we do not collect stats. We'll log
+                // a warning and send back an empty result.
+                logger.warn("No entity types resolved from entity IDs {}; " +
+                    "this is expected if entity type is one for which we do not collect stats.",
+                    entityScope.getEntityList().getEntitiesList());
+                return NextPageInfo.EMPTY_INSTANCE;
             }
             if (entityTypes.size() > 1) {
                 logger.error("Attempting to paginate across multiple entity types: {}",
@@ -1517,6 +1522,11 @@ public class HistorydbIO extends BasedbIO {
      */
     public static class NextPageInfo {
 
+        // this can be used as an empty first page for a query from which a table type cannot
+        // be determined. Take care that the caller does not depend on a non-null table.
+        static final NextPageInfo EMPTY_INSTANCE
+            = new NextPageInfo(Collections.emptyList(), null, null);
+
         private final List<String> entityOids;
 
         private final Table table;
@@ -1528,7 +1538,8 @@ public class HistorydbIO extends BasedbIO {
                              final SeekPaginationCursor seekPaginationCursor) {
             this.entityOids = Objects.requireNonNull(entityOids);
             this.table = table;
-            this.nextCursor = seekPaginationCursor.toCursorString();
+            this.nextCursor = seekPaginationCursor != null ? seekPaginationCursor.toCursorString()
+                : Optional.empty();
         }
 
         /**
@@ -1553,7 +1564,7 @@ public class HistorydbIO extends BasedbIO {
         /**
          * Get the table that the page is coming from.
          *
-         * @return A {@link Table}.
+         * @return A {@link Table}, or null if this is the special EMPTY_INSTANCE
          */
         public Table getTable() {
             return table;
