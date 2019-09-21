@@ -29,13 +29,23 @@
     <dependencies>
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.mediation.cloud.conversion</artifactId>
+            <artifactId>com.vmturbo.mediation.conversion</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.mediation.gcp</artifactId>
             <version>${vmturbo.mt.branch.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java-util</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
