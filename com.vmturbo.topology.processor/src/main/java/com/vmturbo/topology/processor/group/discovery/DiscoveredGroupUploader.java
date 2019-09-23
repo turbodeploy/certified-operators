@@ -378,9 +378,25 @@ public class DiscoveredGroupUploader {
         final Optional<TopologyEntityDTO.CommoditiesBoughtFromProvider> datacenterCommodity =
                 getDatacenterCommodityOfHost(host);
         if (!datacenterCommodity.isPresent()) {
-            logger.error("Host (oid:{},displayName:{}) has no commodities bought from datacenter",
+            final Optional<TopologyEntityDTO.CommoditiesBoughtFromProvider> chassisCommodity =
+                getChassisCommodityOfHost(host);
+            if (!chassisCommodity.isPresent()) {
+                logger.error("Host (oid:{},displayName:{}) has no commodities bought from " +
+                        "datacenter or chassis",
                     host.getOid(), host.getDisplayName());
+                return;
+            }
+            final TopologyEntity.Builder chassis =
+                topologyMap.get(chassisCommodity.get().getProviderId());
+            if (chassis == null) {
+                logger.error("Topology map doesn't contain chassis with OID {} for host (oid:{}," +
+                        "displayName:{})",
+                    chassisCommodity.get().getProviderId(), host.getOid(), host.getDisplayName());
+                return;
+            }
+            cluster.setDisplayName(chassis.getDisplayName() + "/" + cluster.getDisplayName());
             return;
+
         }
         final TopologyEntity.Builder datacenter = topologyMap.get(datacenterCommodity.get().getProviderId());
         if (datacenter == null) {
@@ -399,6 +415,14 @@ public class DiscoveredGroupUploader {
                 .findFirst();
     }
 
+    private Optional<TopologyEntityDTO.CommoditiesBoughtFromProvider> getChassisCommodityOfHost(
+        @Nonnull TopologyEntity.Builder host) {
+        return host.getEntityBuilder().getCommoditiesBoughtFromProvidersList()
+            .stream()
+            .filter(commodityBundle -> commodityBundle.getProviderEntityType() == EntityType.CHASSIS_VALUE)
+            .findFirst();
+    }
+    
     /**
      * Called when a target has been removed. Queue an empty Group list for that target.
      * This should effectively delete all previously discovered Groups and Clusters for the given
