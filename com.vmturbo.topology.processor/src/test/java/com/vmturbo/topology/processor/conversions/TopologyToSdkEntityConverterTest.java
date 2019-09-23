@@ -63,7 +63,7 @@ public class TopologyToSdkEntityConverterTest {
         matchingEntity.addTargetInfo(targetId, rawDiscoveredEntityDTO);
         Mockito.doReturn(Optional.of(matchingEntity)).when(entityStore).getEntity(oid);
 
-        Mockito.doReturn(Optional.of("vmm-01")).when(targetStore).getTargetAddress(targetId);
+        Mockito.doReturn(Optional.of(displayName)).when(targetStore).getTargetDisplayName(targetId);
         Mockito.doReturn(Optional.of(SDKProbeType.VMM))
                 .when(targetStore).getProbeTypeForTarget(targetId);
 
@@ -116,7 +116,7 @@ public class TopologyToSdkEntityConverterTest {
         matchingEntity.addTargetInfo(targetId, rawDiscoveredEntityDTO);
         Mockito.doReturn(Optional.of(matchingEntity)).when(entityStore).getEntity(oid);
 
-        Mockito.doReturn(Optional.of("vmm-01")).when(targetStore).getTargetAddress(targetId);
+        Mockito.doReturn(Optional.of(displayName)).when(targetStore).getTargetDisplayName(targetId);
         Mockito.doReturn(Optional.of(SDKProbeType.VMM))
                 .when(targetStore).getProbeTypeForTarget(targetId);
 

@@ -58,7 +58,7 @@ import com.vmturbo.topology.processor.util.Probes;
  */
 public class KVBackedTargetStoreTest {
 
-    private static final String FIELD_NAME = "targetId";
+    private static final String FIELD_NAME = "targetIdentifier";
 
     private static final long DERIVED_PROBE_ID = 1L;
 
@@ -140,7 +140,48 @@ public class KVBackedTargetStoreTest {
             new InputField(PredefinedAccountDefinition.Address.name().toLowerCase(), "foo", Optional.empty())));
         final Target target = targetStore.createTarget(spec.toDto());
 
-        Assert.assertEquals("foo", targetStore.getTargetAddress(target.getId()).get());
+        Assert.assertEquals("foo", target.getDisplayName());
+    }
+
+    @Test
+    public void testGetProbeNameWithIsTargetDisplayNameAttr() throws Exception {
+        AccountDefEntry addr = AccountDefEntry.newBuilder()
+                .setCustomDefinition(
+                        CustomAccountDefEntry.newBuilder()
+                                .setName(PredefinedAccountDefinition.Address.name().toLowerCase())
+                                .setDisplayName("this is my address")
+                                .setDescription("The address")
+                                .setIsSecret(false))
+                .setMandatory(true)
+                .build();
+
+        AccountDefEntry name = AccountDefEntry.newBuilder()
+                .setCustomDefinition(
+                        CustomAccountDefEntry.newBuilder()
+                                .setName("name")
+                                .setDisplayName("this is my name")
+                                .setDescription("Display Name")
+                                .setIsSecret(false))
+                .setMandatory(true)
+                .setIsTargetDisplayName(true)
+                .build();
+
+        ProbeInfo pi = ProbeInfo.newBuilder()
+                .setProbeCategory("test")
+                .setProbeType("vc")
+                .addTargetIdentifierField(PredefinedAccountDefinition.Address.name().toLowerCase())
+                .addAccountDefinition(addr)
+                .addAccountDefinition(name)
+                .build();
+
+        Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(pi));
+
+        final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Arrays.asList(
+                new InputField(PredefinedAccountDefinition.Address.name().toLowerCase(), "foo", Optional.empty()),
+                new InputField("name", "my name", Optional.empty())));
+        final Target target = targetStore.createTarget(spec.toDto());
+
+        Assert.assertEquals("my name", target.getDisplayName());
     }
 
     @Test
@@ -165,7 +206,8 @@ public class KVBackedTargetStoreTest {
     public void testInitialization() throws Exception {
         Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
         final long targetId = 0L;
-        final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(targetId, Collections.emptyList());
+        final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(targetId, Arrays.asList(
+                new InputField("name", "foo", Optional.empty())));
 
         final Target target = new Target(targetId, probeStore, spec.toDto(), false);
 
@@ -368,7 +410,6 @@ public class KVBackedTargetStoreTest {
 
     private void prepareInitialProbe() {
         final ProbeInfo probeInfo = ProbeInfo.newBuilder(this.probeInfo)
-                        .addTargetIdentifierField(FIELD_NAME)
                         .addAccountDefinition(AccountDefEntry.newBuilder()
                                         .setCustomDefinition(CustomAccountDefEntry.newBuilder()
                                                         .setName(FIELD_NAME)

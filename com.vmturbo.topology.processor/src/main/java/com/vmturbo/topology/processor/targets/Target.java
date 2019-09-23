@@ -6,7 +6,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -31,7 +30,6 @@ import com.vmturbo.crosstier.common.TargetUtil;
 import com.vmturbo.platform.common.dto.Discovery;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue.PropertyValueList;
-import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
@@ -97,6 +95,10 @@ public class Target {
                 .map(this::targetAccountValToMediationAccountVal)
                 .forEach(accountValBuilder::add);
         mediationAccountVals = accountValBuilder.build();
+
+        if (info.targetInfo.hasDisplayName()) {
+            logger.error("Empty target display name for target id " + this.id);
+        }
     }
 
     /**
@@ -139,6 +141,22 @@ public class Target {
 
         mediationAccountVals = accountValBuilder.build();
 
+        this.probeInfo = probeStore.getProbe(probeId).orElseThrow(() ->
+            new InvalidTargetException("No probe found in store for probe ID " + probeId));
+        accountDefEntryList = probeInfo.getAccountDefinitionList();
+
+        final ImmutableSet.Builder<String> secretFieldBuilder = new ImmutableSet.Builder<>();
+        hasGroupScope = checkForGroupScope(accountDefEntryList);
+        if (validateAccountValues) {
+            probeInfo.getAccountDefinitionList()
+                    .stream()
+                    .map(AccountValueAdaptor::wrap)
+                    .filter(AccountDefEntry::isSecret)
+                    .map(AccountDefEntry::getName)
+                    .forEach(secretFieldBuilder::add);
+        }
+        final Set<String> secretFields = secretFieldBuilder.build();
+
         final TargetSpec.Builder targetSpec = TargetSpec.newBuilder().setProbeId(probeId)
                 .addAllAccountValue(inputSpec.getAccountValueList())
                 .addAllDerivedTargetIds(inputSpec.getDerivedTargetIdsList());
@@ -148,23 +166,14 @@ public class Target {
         targetSpec.setIsHidden(inputSpec.getIsHidden());
         targetSpec.setReadOnly(inputSpec.getReadOnly());
 
-        final TargetInfo targetInfo = TargetInfo.newBuilder().setId(id).setSpec(targetSpec).build();
+        final String targetDisplayName = computeDisplayName(this.probeInfo,
+                inputSpec.getAccountValueList(), secretFields);
 
-        final ImmutableSet.Builder<String> secretFieldBuilder = new ImmutableSet.Builder<>();
-
-        this.probeInfo = probeStore.getProbe(probeId).orElseThrow(() ->
-            new InvalidTargetException("No probe found in store for probe ID " + probeId));
-        accountDefEntryList = probeInfo.getAccountDefinitionList();
-        hasGroupScope = checkForGroupScope(accountDefEntryList);
-        if (validateAccountValues) {
-            probeInfo.getAccountDefinitionList()
-                            .stream()
-                            .map(AccountValueAdaptor::wrap)
-                            .filter(AccountDefEntry::isSecret)
-                            .map(AccountDefEntry::getName)
-                            .forEach(secretFieldBuilder::add);
-        }
-        final Set<String> secretFields = secretFieldBuilder.build();
+        final TargetInfo targetInfo = TargetInfo.newBuilder()
+                .setId(id)
+                .setSpec(targetSpec)
+                .setDisplayName(targetDisplayName)
+                .build();
 
         noSecretDto = removeSecretAccountVals(targetInfo, secretFields);
         noSecretAnonymousDto = removeSecretAnonymousAccountVals(targetInfo, secretFields);
@@ -309,7 +318,12 @@ public class Target {
                         .filter(val -> !secretVals.contains(val.getKey()))
                         .collect(Collectors.toList()), info.getSpec().getDerivedTargetIdsList()
                 );
-        return TargetInfo.newBuilder().setId(info.getId()).setSpec(targetSpec).build();
+        TargetInfo.Builder targetInfoBuilder = TargetInfo.newBuilder().setId(info.getId())
+                .setSpec(targetSpec);
+        if (info.hasDisplayName()) {
+            targetInfoBuilder.setDisplayName(info.getDisplayName());
+        }
+        return targetInfoBuilder.build();
     }
 
     /**
@@ -338,7 +352,12 @@ public class Target {
 
         final TargetSpec.Builder targetSpec =
             createTargetSpecBuilder(info, accountValues, info.getSpec().getDerivedTargetIdsList());
-        return TargetInfo.newBuilder().setId(info.getId()).setSpec(targetSpec).build();
+        TargetInfo.Builder targetInfoBuilder = TargetInfo.newBuilder().setId(info.getId())
+                .setSpec(targetSpec);
+        if (info.hasDisplayName()) {
+            targetInfoBuilder.setDisplayName(info.getDisplayName());
+        }
+        return targetInfoBuilder.build();
     }
 
     /**
@@ -352,23 +371,90 @@ public class Target {
 
 
     /**
-     * Compute a display name for a this target, for a given probe.
+     * Compute a display name for a target, for a given probe.
      *
-     * @return display name, if it could be computed
+     * @param probeInfo the probe info of the targets probe type
+     * @param accountValues a list of the target account values
+     * @param secretFields a list of secret fields which we don't want to show in the display name
+     * @return display name
      */
-    public Optional<String> computeDisplayName() {
-        // this logic was adapted from RemoteMediationServer#getTargetid(...) in classic
-        final List<String> targetIdFields = probeInfo.getTargetIdentifierFieldList();
-        final Map<String, String> accountValuesMap = getSpec().getAccountValueList().stream()
-            .filter(av -> av.hasStringValue())
-            .collect(Collectors.toMap(av -> av.getKey(), av -> av.getStringValue()));
-        try {
-            return Optional.of(TargetUtil.getTargetId(probeInfo.getAccountDefinitionList(),
-                accountValuesMap, targetIdFields, TargetNameException::new));
-        } catch (TargetNameException e) {
-            logger.warn(String.format("Failed to compute target display name for [target,probe] [%s,%s]", id, probeId), e);
+    @Nonnull
+    private static String computeDisplayName(ProbeInfo probeInfo,
+                                     List<TopologyProcessorDTO.AccountValue> accountValues,
+                                     Set<String> secretFields) {
+
+        // If there are fields with "isTargetDisplayName" attribute - use them as display name
+        List<String> displayNameFields = probeInfo.getAccountDefinitionList().stream()
+                .filter(Discovery.AccountDefEntry::getIsTargetDisplayName)
+                .map(AccountValueAdaptor::wrap)
+                .map(AccountDefEntry::getName)
+                .collect(Collectors.toList());
+
+        // No field is marked as isTargetDisplayName - use identifierFields
+        if (displayNameFields.isEmpty()) {
+            displayNameFields = probeInfo.getTargetIdentifierFieldList();
         }
-        return Optional.empty();
+
+        if (displayNameFields.size() == 1) {
+            for (TopologyProcessorDTO.AccountValue accountValue : accountValues) {
+                if (accountValue.getKey().equals(displayNameFields.get(0))) {
+                    return accountValue.getStringValue();
+                }
+            }
+        } else {
+            final Map<String, String> accountValuesMap = accountValues.stream()
+                    .filter(TopologyProcessorDTO.AccountValue::hasStringValue)
+                    .collect(Collectors.toMap(TopologyProcessorDTO.AccountValue::getKey,
+                            TopologyProcessorDTO.AccountValue::getStringValue));
+            try {
+                // Concatenate all relevant fields
+                return TargetUtil.getTargetId(probeInfo.getAccountDefinitionList(),
+                        accountValuesMap, displayNameFields, TargetNameException::new);
+            } catch (TargetNameException e) {
+                logger.warn(String.format("Failed to compute target display name from identifierFields." +
+                        "probe type %s", probeInfo.getProbeType()), e);
+            }
+        }
+
+        // If TargetUtil.getTargetId failed, concatenate all non-secret fields
+        return accountValues.stream()
+                .filter(av -> av.hasStringValue() && !secretFields.contains(av.getKey()))
+                .map(TopologyProcessorDTO.AccountValue::getStringValue)
+                .collect(Collectors.joining("-"));
+    }
+
+    /**
+     * Compute a display name for a target, for a given probe.
+     * If the probe info was found, call computeDisplayName with the probe info and secret fields.
+     * Else, use the first account value as display name.
+     *
+     * @param targetSpec the target specifications
+     * @param probeStore the probe store from which to retrieve the probe info
+     * @return the target display name
+     */
+    @Nonnull
+    public static String computeDisplayName(TargetSpec targetSpec,
+                                            final @Nonnull ProbeStore probeStore) {
+        return probeStore.getProbe(targetSpec.getProbeId()).map(probeInfo -> {
+            final ImmutableSet.Builder<String> secretFieldBuilder = new ImmutableSet.Builder<>();
+            probeInfo.getAccountDefinitionList()
+                    .stream()
+                    .map(AccountValueAdaptor::wrap)
+                    .filter(AccountDefEntry::isSecret)
+                    .map(AccountDefEntry::getName)
+                    .forEach(secretFieldBuilder::add);
+            return computeDisplayName(probeInfo, targetSpec.getAccountValueList(), secretFieldBuilder.build());
+        }).orElse(targetSpec.getAccountValueList().get(0).getStringValue());
+    }
+
+    @Nonnull
+    public String getDisplayName() {
+        if (info.targetInfo.hasDisplayName()) {
+            return info.targetInfo.getDisplayName();
+        } else {
+            // should not happen.
+            return String.valueOf(this.id);
+        }
     }
 
     /**
@@ -468,7 +554,12 @@ public class Target {
             final TargetSpec.Builder targetSpec =
                     createTargetSpecBuilder(
                             targetInfo, values, targetInfo.getSpec().getDerivedTargetIdsList());
-            return TargetInfo.newBuilder().setId(targetInfo.getId()).setSpec(targetSpec).build();
+            TargetInfo.Builder targetInfoBuilder = TargetInfo.newBuilder().setId(targetInfo.getId())
+                    .setSpec(targetSpec);
+            if (targetInfo.hasDisplayName()) {
+                targetInfoBuilder.setDisplayName(targetInfo.getDisplayName());
+            }
+            return targetInfoBuilder.build();
         }
 
         /**
@@ -492,7 +583,12 @@ public class Target {
             final TargetSpec.Builder targetSpec =
                     createTargetSpecBuilder(
                             targetInfo, values, targetInfo.getSpec().getDerivedTargetIdsList());
-            return TargetInfo.newBuilder().setId(targetInfo.getId()).setSpec(targetSpec).build();
+            TargetInfo.Builder targetInfoBuilder = TargetInfo.newBuilder().setId(targetInfo.getId())
+                    .setSpec(targetSpec);
+            if (targetInfo.hasDisplayName()) {
+                targetInfoBuilder.setDisplayName(targetInfo.getDisplayName());
+            }
+            return targetInfoBuilder.build();
         }
 
         @Nonnull

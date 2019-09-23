@@ -99,7 +99,8 @@ public class EntityStore {
             @Override
             public void onTargetRemoved(@Nonnull final Target target) {
                 final long targetId = target.getId();
-                logger.info("Deleting target {} and all related entity data.", targetId);
+                logger.info("Deleting target '{}' ({}) and all related entity data.",
+                        target.getDisplayName(), targetId);
                 EntityStore.this.purgeTarget(targetId, null);
             }
         });

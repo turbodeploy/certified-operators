@@ -25,6 +25,9 @@ message TargetInfo {
     required int64 id = 1;
 
     optional TargetSpec spec = 2;
+
+    // The target display name, used for the UI and for logging.
+    optional string display_name = 3;
 }
 
 // Messages, sent by server side of API

@@ -270,19 +270,20 @@ public class TargetController {
 
     private static TargetInfo error(final Long targetId, @Nonnull final String err) {
         String error = Objects.requireNonNull(err);
-        return new TargetInfo(targetId, ImmutableList.of(error), null, null, null, null);
+        return new TargetInfo(targetId, null, ImmutableList.of(error), null, null, null, null);
     }
 
     private static TargetInfo error(@Nonnull final List<String> errors) {
-        return new TargetInfo(null, errors, null, null, null, null);
+        return new TargetInfo(null, null, errors, null, null, null, null);
     }
 
     public static TargetInfo success(@Nonnull final Target target, final boolean probeConnected,
             @Nonnull final String targetStatus, @Nullable final LocalDateTime lastValidation) {
         Objects.requireNonNull(target);
         Objects.requireNonNull(targetStatus);
-        return new TargetInfo(target.getId(), null, new TargetSpec(target.getNoSecretDto()
-                .getSpec()), probeConnected, targetStatus, lastValidation);
+        return new TargetInfo(target.getId(), target.getDisplayName(), null,
+                new TargetSpec(target.getNoSecretDto().getSpec()), probeConnected,
+                targetStatus, lastValidation);
     }
 
 }

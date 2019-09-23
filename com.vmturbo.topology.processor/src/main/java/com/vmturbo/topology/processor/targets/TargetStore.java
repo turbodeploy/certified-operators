@@ -39,7 +39,7 @@ public interface TargetStore {
      * @return The name of the target, or an empty optional if the target is not found or has no name.
      */
     @Nonnull
-    Optional<String> getTargetAddress(final long targetId);
+    Optional<String> getTargetDisplayName(long targetId);
 
     /**
      * Retrieve all stored targets.
