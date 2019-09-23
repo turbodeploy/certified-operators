@@ -8,7 +8,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -88,7 +87,7 @@ public class CommodityConverter {
     }
 
     /**
-     * Creates a {@link CommoditySoldTO} from the {@link TopologyDTO.CommoditySoldDTO}
+     * Creates a {@link CommoditySoldTO} from the {@link TopologyDTO.CommoditySoldDTO}.
      *
      * @param topologyCommSold the source {@link TopologyDTO.CommoditySoldDTO}
      * @param dto the {@link TopologyDTO.TopologyEntityDTO} selling the commSold
@@ -100,23 +99,17 @@ public class CommodityConverter {
             @Nonnull TopologyDTO.TopologyEntityDTO dto) {
         final CommodityType commodityType = topologyCommSold.getCommodityType();
         float capacity = (float)topologyCommSold.getCapacity();
-
         float used = getUsedValue(topologyCommSold, TopologyDTO.CommoditySoldDTO::getUsed,
                                   topologyCommSold.hasHistoricalUsed()
                                                   ? TopologyDTO.CommoditySoldDTO::getHistoricalUsed
                                                   : null);
-        float peak = getUsedValue(topologyCommSold, TopologyDTO.CommoditySoldDTO::getPeak,
-                                  topologyCommSold.hasHistoricalPeak()
-                                                  ? TopologyDTO.CommoditySoldDTO::getHistoricalPeak
-                                                  : null);
-
         // if this commodity has a scaling factor set, then scale up the
         // USED and CAPACITY by scalingFactor for use in the new CommoditySoldTO
         if (topologyCommSold.hasScalingFactor()) {
-            final float scalingFactor = (float) topologyCommSold.getScalingFactor();
+            final float scalingFactor = (float)topologyCommSold.getScalingFactor();
             if (logger.isDebugEnabled()) {
-                logger.debug("Scaling up comm {}, factor {}, for topology entity {}, prev used {}, new {}," +
-                                "prev capacity {}, new {}",
+                logger.debug("Scaling up comm {}, factor {}, for topology entity {},"
+                             + " prev used {}, new {}, prev capacity {}, new {}",
                         commodityType.getType(), scalingFactor, dto.getDisplayName(),
                         used, used * scalingFactor, capacity, capacity * scalingFactor
                 );
@@ -125,45 +118,46 @@ public class CommodityConverter {
             used *= scalingFactor;
         }
         final int type = commodityType.getType();
-        final CommodityDTO.CommodityType sdkCommType =
-            CommodityDTO.CommodityType.forNumber(commodityType.getType());
+        final CommodityDTO.CommodityType sdkCommType = CommodityDTO.CommodityType.forNumber(type);
+        final String comName = sdkCommType == null ? "UNKNOWN" : sdkCommType.name();
         boolean resizable = topologyCommSold.getIsResizeable();
         boolean capacityNaN = Double.isNaN(topologyCommSold.getCapacity());
         boolean usedNaN = Double.isNaN(topologyCommSold.getUsed());
         if (capacityNaN && usedNaN) {
             resizable = true;
-            logger.warn("Setting resizable for "
-                    + commodityType + " to false");
+            logger.warn("Setting resizable true for {} of entity {}",
+                        comName, dto.getDisplayName());
         }
         if (used < 0) {
             if (logger.isDebugEnabled() || used != -1) {
                 // We don't want to log every time we get used = -1 because mediation
                 // sets some values to -1 as default.
-                logger.warn("Setting negative used value for "
-                        + commodityType + " to 0.");
+                logger.warn("Setting negative used value to 0 for {} of entity {}.",
+                            comName, dto.getDisplayName());
             }
             used = 0f;
         } else if (used > capacity) {
             if (AnalysisUtil.COMMODITIES_TO_CAP.contains(type)) {
                 float cappedUsed = capacity * TopologyConversionConstants.CAPACITY_FACTOR;
                 conversionErrorCounts.recordError(ErrorCategory.USED_GT_CAPACITY_MEDIATION,
-                    sdkCommType == null ? "UNKNOWN" : sdkCommType.name());
-                logger.trace("Used > Capacity for {}. Used : {}, Capacity : {}, Capped used : {}." +
-                    " This is a mediation error and should be looked at.", sdkCommType.name(),
-                    used, capacity, cappedUsed);
+                                                  comName);
+                logger.trace("Used > Capacity for {} of entity {}. "
+                             + " Used: {}, Capacity: {}, Capped used: {}."
+                             + " This is a mediation error and should be looked at.",
+                             comName, dto.getDisplayName(), used, capacity, cappedUsed);
                 used = cappedUsed;
             } else if (AnalysisUtil.VALID_COMMODITIES_TO_CAP.contains(type)) {
                 float cappedUsed = capacity * TopologyConversionConstants.CAPACITY_FACTOR;
-                logger.trace("Used > Capacity for {}. Used : {}, Capacity : {}, Capped used : {}." +
-                        "Capping the used to be less than capacity",
-                        sdkCommType.name(), used, capacity, cappedUsed);
+                logger.trace("Used > Capacity for {} of entity {}. "
+                             + " Used: {}, Capacity: {}, Capped used: {}."
+                             + " Capping the used to be less than capacity.",
+                             comName, dto.getDisplayName(), used, capacity, cappedUsed);
                 used = cappedUsed;
             } else if (!(AnalysisUtil.COMMODITIES_TO_SKIP.contains(type) ||
                     AnalysisUtil.ACCESS_COMMODITY_TYPES.contains(type))) {
-                conversionErrorCounts.recordError(ErrorCategory.USED_GT_CAPACITY, sdkCommType == null ?
-                    "UNKNOWN" : sdkCommType.name());
-                logger.trace("Used > Capacity for {}. Used : {} and Capacity : {}",
-                        sdkCommType.name(), used, capacity);
+                conversionErrorCounts.recordError(ErrorCategory.USED_GT_CAPACITY, comName);
+                logger.trace("Used > Capacity for {} of entity {}. Used: {}, Capacity: {}",
+                             comName, dto.getDisplayName(), used, capacity);
             }
         }
         final CommodityDTOs.CommoditySoldSettingsTO economyCommSoldSettings =
@@ -185,21 +179,26 @@ public class CommodityConverter {
                                              : 0;
         float maxQuantityFloat;
         if (maxQuantity < 0) {
-            conversionErrorCounts.recordError(ErrorCategory.MAX_QUANTITY_NEGATIVE,
-                sdkCommType == null ? "UNKNOWN" : sdkCommType.name());
-            logger.trace("maxQuantity: {} is less than 0. Setting it 0.", maxQuantity);
+            conversionErrorCounts.recordError(ErrorCategory.MAX_QUANTITY_NEGATIVE, comName);
+            logger.trace("maxQuantity: {} is less than 0. Setting it 0 for {} of entity {}",
+                         maxQuantity, comName, dto.getDisplayName());
             maxQuantityFloat = 0;
         } else {
             maxQuantityFloat = (float)maxQuantity;
             if (maxQuantityFloat < 0) {
-                logger.warn("Float to double cast error. maxQuantity:{}. maxQuantityFloat:{}.",
-                            maxQuantity, maxQuantityFloat);
+                logger.warn("Float to double cast error. maxQuantity:{}. maxQuantityFloat:{}."
+                            + " for {} of entity {}",
+                            maxQuantity, maxQuantityFloat, comName, dto.getDisplayName());
                 maxQuantityFloat = 0;
             }
         }
         // if entry not present, initialize to 0
         int numConsumers = Optional.ofNullable(numConsumersOfSoldCommTable.get(dto.getOid(),
                 topologyCommSold.getCommodityType())).map(o -> o.intValue()).orElse(0);
+        float peak = getUsedValue(topologyCommSold, TopologyDTO.CommoditySoldDTO::getPeak,
+                                  topologyCommSold.hasHistoricalPeak()
+                                                  ? TopologyDTO.CommoditySoldDTO::getHistoricalPeak
+                                                  : null);
         return CommodityDTOs.CommoditySoldTO.newBuilder()
                 .setPeakQuantity(peak)
                 .setCapacity(capacity)
@@ -215,7 +214,7 @@ public class CommodityConverter {
     }
 
     /**
-     * Creates a {@link CommoditySoldTO} of specific type with a specific used and capacity
+     * Creates a {@link CommoditySoldTO} of specific type with a specific used and capacity.
      *
      * @param commodityType {@link CommodityType} of commodity to be created
      * @param capacity is the capacity of the commSold
@@ -338,7 +337,7 @@ public class CommodityConverter {
     }
 
     /**
-     * Concatenates the type and the key of the {@link CommodityType}
+     * Concatenates the type and the key of the {@link CommodityType}.
      *
      * @param commType the {@link CommodityType} for which string conversion is desired
      * @return string conversion of {@link CommodityType}
