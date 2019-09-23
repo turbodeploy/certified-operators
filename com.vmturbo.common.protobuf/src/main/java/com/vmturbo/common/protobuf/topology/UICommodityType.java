@@ -99,6 +99,8 @@ public enum UICommodityType {
     NETWORK("NetworkCommodity", CommodityType.NETWORK, "Network Commodity"),
     /** The commodity NUM_DISK. */
     NUM_DISK("NumDisk", CommodityType.NUM_DISK, "Num Disk"),
+    /** The commodity NUMBER_COMSUMERS. */
+    NUMBER_CONSUMERS("NumberConsumers", CommodityType.NUMBER_CONSUMERS, "Number Consumers"),
     /** The commodity POOL_CPU. */
     POOL_CPU("PoolCPU", CommodityType.POOL_CPU, "Pool CPU"),
     /** The commodity POOL_MEM. */

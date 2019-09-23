@@ -92,6 +92,7 @@ public class ClassicEnumMapper {
             .put("MemRequestAllocation",        CommodityType.MEM_REQUEST_ALLOCATION)
             .put("NetThroughput",               CommodityType.NET_THROUGHPUT)
             .put("NetworkCommodity",            CommodityType.NETWORK)
+            .put("NumberConsumers",             CommodityType.NUMBER_CONSUMERS)
             .put("PortChannel",                 CommodityType.PORT_CHANEL)
             .put("Power",                       CommodityType.POWER)
             .put("Q16VCPU",                     CommodityType.Q16_VCPU)
@@ -186,6 +187,7 @@ public class ClassicEnumMapper {
         NUM_SOCKETS("numSockets", ""),
         NUM_CORES("numCores", ""),
         NUM_VCPUS("numVCPUs", ""),
+        NUMBER_CONSUMERS("NumberConsumers", ""),
         POOL_CPU("PoolCPU", "MHz"),
         POOL_MEM("PoolMem", "KB"),
         POOL_STORAGE("PoolStorage", "MB"),
