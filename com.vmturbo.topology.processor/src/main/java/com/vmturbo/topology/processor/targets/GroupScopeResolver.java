@@ -390,7 +390,7 @@ public class GroupScopeResolver {
             final Optional<String> targetAddress = scopedEntityDTO.getOrigin().getDiscoveryOrigin()
                 .getDiscoveringTargetIdsList().stream()
                 .findAny()
-                .flatMap(targetStore::getTargetDisplayName);
+                .flatMap(targetStore::getTargetAddress);
             final Optional<String> localName = entityStore.chooseEntityDTO(scopedEntityDTO.getOid())
                 .getEntityPropertiesList().stream()
                 .filter(entityProperty -> SDKUtil.DEFAULT_NAMESPACE.equals(entityProperty.getNamespace()))

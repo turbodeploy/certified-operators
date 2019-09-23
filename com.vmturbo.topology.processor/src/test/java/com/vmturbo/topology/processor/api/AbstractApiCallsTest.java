@@ -126,7 +126,7 @@ public abstract class AbstractApiCallsTest {
                         .map(AbstractApiCallsTest::convertToRest).collect(Collectors.toList());
         final TargetSpec spec =
                         new TargetSpec(target.getProbeId(), fields);
-        return new TargetRESTApi.TargetInfo(target.getId(), target.getDisplayName(), null, spec, true, "Validated",
+        return new TargetRESTApi.TargetInfo(target.getId(), null, spec, true, "Validated",
                 LocalDateTime.now());
     }
 

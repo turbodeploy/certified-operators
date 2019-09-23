@@ -20,6 +20,7 @@ public class Probes {
      */
     public static final ProbeInfo emptyProbe;
     public static final AccountDefEntry mandatoryField;
+    public static final String TARGET_ID = "targetId";
     public static final AtomicLong counter = new AtomicLong();
 
     private Probes() {}
@@ -27,13 +28,15 @@ public class Probes {
     static {
         mandatoryField = AccountDefEntry.newBuilder()
                         .setCustomDefinition(CustomAccountDefEntry.newBuilder()
-                                        .setName(FakeRemoteMediation.TGT_ID)
-                                        .setDescription("This is the ID of the target")
-                                        .setDisplayName("Target ID")
+                                        .setName("name-" + counter.getAndIncrement())
+                                        .setDescription("description-" + counter.getAndIncrement())
+                                        .setDisplayName("display-name")
                                         .setPrimitiveValue(PrimitiveValue.STRING))
                         .build();
         emptyProbe = ProbeInfo.newBuilder().setProbeType("probe-type-" + counter.getAndIncrement())
                         .setProbeCategory("category")
+                        .addTargetIdentifierField(TargetSpecAttributeExtractor.PROBE_ID)
+                        .addTargetIdentifierField(TARGET_ID)
                         .addTargetIdentifierField(FakeRemoteMediation.TGT_ID)
                         .build();
         defaultProbe = ProbeInfo.newBuilder(emptyProbe)

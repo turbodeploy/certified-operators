@@ -63,7 +63,7 @@ public class ThinTargetCacheTest {
         TargetInfo targetInfo = mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(TARGET_ID);
         when(targetInfo.getProbeId()).thenReturn(PROBE_ID);
-        when(targetInfo.getDisplayName()).thenReturn(TARGET_DISPLAY_NAME);
+        when(targetInfo.getDisplayName()).thenReturn(Optional.of(TARGET_DISPLAY_NAME));
 
         thinTargetCache.onTargetChanged(targetInfo);
 
@@ -81,7 +81,7 @@ public class ThinTargetCacheTest {
         TargetInfo targetInfo = mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(TARGET_ID);
         when(targetInfo.getProbeId()).thenReturn(PROBE_ID);
-        when(targetInfo.getDisplayName()).thenReturn(TARGET_DISPLAY_NAME);
+        when(targetInfo.getDisplayName()).thenReturn(Optional.of(TARGET_DISPLAY_NAME));
 
         thinTargetCache.onTargetAdded(targetInfo);
 
@@ -118,7 +118,7 @@ public class ThinTargetCacheTest {
         final ProbeInfo probeInfo = mock(ProbeInfo.class);
         when(targetInfo.getId()).thenReturn(TARGET_ID);
         when(targetInfo.getProbeId()).thenReturn(PROBE_ID);
-        when(targetInfo.getDisplayName()).thenReturn(TARGET_DISPLAY_NAME);
+        when(targetInfo.getDisplayName()).thenReturn(Optional.of(TARGET_DISPLAY_NAME));
         when(probeInfo.getId()).thenReturn(PROBE_ID);
         when(probeInfo.getType()).thenReturn(PROBE_TYPE);
         when(probeInfo.getCategory()).thenReturn(PROBE_CATEGORY);
@@ -169,7 +169,7 @@ public class ThinTargetCacheTest {
         final ProbeInfo probeInfo = mock(ProbeInfo.class);
         when(targetInfo.getId()).thenReturn(TARGET_ID);
         when(targetInfo.getProbeId()).thenReturn(PROBE_ID);
-        when(targetInfo.getDisplayName()).thenReturn(TARGET_DISPLAY_NAME);
+        when(targetInfo.getDisplayName()).thenReturn(Optional.of(TARGET_DISPLAY_NAME));
         when(probeInfo.getId()).thenReturn(PROBE_ID);
         when(probeInfo.getType()).thenReturn(PROBE_TYPE);
         when(probeInfo.getCategory()).thenReturn(PROBE_CATEGORY);

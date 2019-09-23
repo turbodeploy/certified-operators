@@ -102,8 +102,7 @@ public class TopologyProcessorNotificationSender
 
     @Override
     public void onTargetAdded(@Nonnull final Target target) {
-        getLogger().debug(() -> "Sending onTargetAdded notifications for target '"
-                + target.getDisplayName() + "' (" + target.getId() + ")");
+        getLogger().debug(() -> "Sending onTargetAdded notifications for target " + target);
         final TopologyProcessorNotification message = createNewMessage()
             .setTargetAddedNotification(target.getNoSecretDto()).build();
         sendMessageSilently(message);
@@ -111,8 +110,7 @@ public class TopologyProcessorNotificationSender
 
     @Override
     public void onTargetUpdated(@Nonnull final Target target) {
-        getLogger().debug(() -> "Sending onTargetChanged notifications for target '"
-                + target.getDisplayName() + "' (" + target.getId() + ")");
+        getLogger().debug(() -> "Sending onTargetChanged notifications for target " + target);
         final TopologyProcessorNotification message =
                 createNewMessage().setTargetChangedNotification(target.getNoSecretDto()).build();
         sendMessageSilently(message);
@@ -120,8 +118,7 @@ public class TopologyProcessorNotificationSender
 
     @Override
     public void onTargetRemoved(@Nonnull final Target target) {
-        getLogger().debug(() -> "Sending onTargetRemoved notifications for target '"
-                + target.getDisplayName() + "' (" + target.getId() + ")");
+        getLogger().debug(() -> "Sending onTargetRemoved notifications for target " + target);
         final TopologyProcessorNotification message =
                 createNewMessage().setTargetRemovedNotification(target.getId()).build();
         sendMessageSilently(message);

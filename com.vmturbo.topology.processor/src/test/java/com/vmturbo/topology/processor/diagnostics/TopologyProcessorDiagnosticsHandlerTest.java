@@ -193,8 +193,6 @@ public class TopologyProcessorDiagnosticsHandlerTest {
     private static final String DISCOVERED_CLOUD_COST = "foo";
     private static final String DISCOVERED_PRICE_TABLE = "bar";
 
-    private static final String TARGET_DISPLAY_NAME = "target name";
-
     @Before
     public void setup() throws Exception {
         Map<Long, EntityDTO> map = ImmutableMap.of(199L, nwDto);
@@ -289,7 +287,6 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             .addTargetIdentifierField("field")
             .addAccountDefinition(AccountDefEntry.newBuilder()
                 .setMandatory(true)
-                .setIsTargetDisplayName(true)
                 .setCustomDefinition(CustomAccountDefEntry.newBuilder()
                     .setName("name")
                     .setDisplayName("displayName")
@@ -345,7 +342,6 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         final TargetInfo validTarget = TargetInfo.newBuilder()
                 .setId(targetId)
                 .setSpec(targetSpecBuilder.setProbeId(2))
-                .setDisplayName(TARGET_DISPLAY_NAME)
                 .build();
         final TopologyProcessorDiagnosticsHandler handler =
                 new TopologyProcessorDiagnosticsHandler(targetStore, targetPersistentIdentityStore, scheduler,
@@ -632,7 +628,6 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             this.targetInfo = TargetInfo.newBuilder()
                 .setId(targetId)
                 .setSpec(targetSpecBuilder.setProbeId(probeId))
-                .setDisplayName(TARGET_DISPLAY_NAME)
                 .build();
             return this;
         }
@@ -724,7 +719,6 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                 )
                 .addAccountDefinition(AccountDefEntry.newBuilder()
                     .setMandatory(true)
-                    .setIsTargetDisplayName(true)
                     .setCustomDefinition((testTopologyName.startsWith("123") ?
                             CustomAccountDefEntry.newBuilder().setPrimitiveValue(PrimitiveValue.BOOLEAN) :
                             CustomAccountDefEntry.newBuilder().setGroupScope(

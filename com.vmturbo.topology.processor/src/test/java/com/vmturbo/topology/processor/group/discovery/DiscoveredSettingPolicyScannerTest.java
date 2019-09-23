@@ -336,7 +336,7 @@ public class DiscoveredSettingPolicyScannerTest {
             .thenReturn(Optional.of(probeId));
         when(targetStore.getProbeTargets(probeId))
             .thenReturn(Collections.singletonList(target));
-        when(targetStore.getTargetDisplayName(targetId))
+        when(targetStore.getTargetAddress(targetId))
             .thenReturn(Optional.of(probeType.getProbeType()));
 
         return targetId;
@@ -412,7 +412,7 @@ public class DiscoveredSettingPolicyScannerTest {
         String clusterDisplayNames = targetId == VMM_TARGET_ID
             ? String.valueOf(hostId) : (DC_DISPLAY_NAME + "/" + CLUSTER_DISPLAY_NAME);
         return String.format(DiscoveredSettingPolicyScanner.IMPORTED_HA_SETTINGS_DISPLAY_NAME,
-            clusterDisplayNames, targetStore.getTargetDisplayName(targetId).get());
+            clusterDisplayNames, targetStore.getTargetAddress(targetId).get());
     }
 
     private static DiscoveredSettingPolicyInfo.Builder settingPolicy(@Nonnull String... groupNames) {
@@ -450,7 +450,7 @@ public class DiscoveredSettingPolicyScannerTest {
         String name = expectedMemValue.map(value -> "mem-" + value).orElse("");
         name += (name.isEmpty() ? "" : "-") +
                         expectedCpuValue.map(value -> "cpu-" + value).orElse("");
-        name += "/" + targetStore.getTargetDisplayName(targetId).get();
+        name += "/" + targetStore.getTargetAddress(targetId).get();
 
         return name;
     }

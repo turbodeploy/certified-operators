@@ -4,7 +4,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
@@ -19,15 +18,6 @@ public interface TargetInfo extends TargetData {
      * @return id of the target
      */
     long getId();
-
-
-    /**
-     * Return the target display name.
-     *
-     * @return the display name, if one exists.
-     */
-    @Nonnull
-    String getDisplayName();
 
     /**
      * Returns id of the probe this target is associated with.

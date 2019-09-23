@@ -72,14 +72,4 @@ public class TargetInfoProtobufWrapper implements TargetInfo {
     public List<String> getDerivedTargetIds() {
         return targetInfo.getSpec().getDerivedTargetIdsList().stream().map(String::valueOf).collect(Collectors.toList());
     }
-
-    @Override
-    public String getDisplayName() {
-        if (targetInfo.hasDisplayName()) {
-            return targetInfo.getDisplayName();
-        } else {
-            // should not happen.
-            return String.valueOf(getId());
-        }
-    }
 }

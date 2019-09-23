@@ -120,8 +120,6 @@ public class TargetsServiceTest {
     private static final String TGT_NOT_EDITABLE = "cannot be changed through public APIs.";
     private static final String PROBE_NOT_FOUND = "Probe not found: ";
 
-    private static final String TARGET_DISPLAY_NAME = "target name";
-
     @Autowired
     private TopologyProcessor topologyProcessor;
 
@@ -249,7 +247,6 @@ public class TargetsServiceTest {
                         new HashSet<>(Arrays.asList(accountValues)));
         when(targetInfo.getStatus()).thenReturn("Validated");
         when(targetInfo.isHidden()).thenReturn(false);
-        when(targetInfo.getDisplayName()).thenReturn(TARGET_DISPLAY_NAME);
         registeredTargets.put(targetId, targetInfo);
         return targetInfo;
     }
@@ -289,14 +286,14 @@ public class TargetsServiceTest {
     }
 
     /**
-     * Tests that 'displayName' is correct.
+     * Tests that 'displayName' is set from the 'address' property.
      *
      * @throws Exception on exceptions occur.
      */
     @Test
-    public void getTargetDisplayName() throws Exception {
+    public void getTargetDisplayname() throws Exception {
         final ProbeInfo probe = createMockProbeInfo(1, "type", "category",
-                createAccountDef("address"));
+                        createAccountDef("address"));
         final TargetInfo target = createMockTargetInfo(probe.getId(), 3,
                 createAccountValue("address", "targetAddress"));
 
@@ -305,7 +302,7 @@ public class TargetsServiceTest {
                         .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
         final TargetApiDTO resp = GSON.fromJson(result.getResponse().getContentAsString(),
                         TargetApiDTO.class);
-        assertThat(resp.getDisplayName(), equalTo(TARGET_DISPLAY_NAME));
+        assertThat(resp.getDisplayName(), equalTo("targetAddress"));
     }
 
     /**

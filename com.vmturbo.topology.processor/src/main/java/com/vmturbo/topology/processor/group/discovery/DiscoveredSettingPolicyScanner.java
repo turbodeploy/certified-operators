@@ -102,11 +102,11 @@ public class DiscoveredSettingPolicyScanner {
             final List<InterpretedGroup> groups = new ArrayList<>();
             final List<DiscoveredSettingPolicyInfo> settingPolicies = new ArrayList<>();
 
-            final Optional<String> targetDisplayName = targetStore.getTargetDisplayName(targetId);
-            if (targetDisplayName.isPresent()) {
+            final Optional<String> targetName = targetStore.getTargetAddress(targetId);
+            if (targetName.isPresent()) {
                 targetUtilizationThresholds.getSettingPolicyBuilders().stream()
                     .forEach(builder -> builder.addGroupsAndSettingPolicies(
-                        groups, settingPolicies, targetDisplayName.get()));
+                        groups, settingPolicies, targetName.get()));
                 groupUploader.addDiscoveredGroupsAndPolicies(targetId, groups, settingPolicies);
             } else {
                 logger.error("Unable to find targetName for target {}. Skipping " +

@@ -204,13 +204,12 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
         // put target-specific probe properties into the map
         for (Target target : targets) {
             final long targetId = target.getId();
-            final String targetName = target.getDisplayName();
+            final String targetName = targetStore.getTargetAddress(targetId).orElse(null);
             if (targetName == null) {
-                // should never happen
-                logger.warn("Target with id " + targetId + " has no display name");
+                logger.warn("Target with id " + targetId + " has no address");
                 continue;
             }
-            getTargetSpecificProbeProperties(target.getProbeId(), targetId)
+            getTargetSpecificProbeProperties(target.getProbeId(), target.getId())
                 .forEach(keyValuePair ->
                     resultBuilder.putProperties(
                         transformToMediationPropertyKey(false, targetName, keyValuePair.getKey()),

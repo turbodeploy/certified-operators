@@ -332,24 +332,6 @@ public class TopologyToSdkEntityConverter {
     }
 
     /**
-     * Construct a unique namespace for the target from the target display name and target ID.
-     * If there is no display name, use only the target ID.
-     *
-     * @param targetId the target ID
-     * @return a unique namespace for the target
-     */
-    @Nonnull
-    private String constructNamespace(long targetId) {
-        final Optional<String> targetDisplayName = targetStore.getTargetDisplayName(targetId);
-        if (!targetDisplayName.isPresent()) {
-            logger.warn("Target display name could not be determined for target " + targetId
-                    + ". Using only the target ID to populate the namespace of entity properties.");
-            return String.valueOf(targetId);
-        }
-        return targetDisplayName.get() + "_" + targetId;
-    }
-
-    /**
      * Get a list of all {@link EntityProperty}s related to the provided target.
      * The entity properties will be given a namespace relating to the target: the name/address of
      * the target (if available) or else the id of the target.
@@ -373,11 +355,16 @@ public class TopologyToSdkEntityConverter {
     private List<EntityProperty> getTargetSpecificEntityProperties(final Long targetId,
                                                                    final PerTargetInfo perTargetInfo) {
         // The namespace to use for all the entity properties gathered for this target.
-        // Use the target display name (if it is available) and the OID, else use only the target OID.
-        // The target OID won't mean anything to the probes, so it is better to have the display name.
-        String namespace = constructNamespace(targetId);
+        // Use the name/address for this target if it is available, else use the target OID.
+        // The target OID won't mean anything to the probes, so it is better to have the name/address.
+        final Optional<String> targetAddress = targetStore.getTargetAddress(targetId);
+        if ( ! targetAddress.isPresent()) {
+            logger.warn("Target name/address could not be determined for target " + targetId
+            + ". Using target ID to populate the namespace of entity properties instead.");
+        }
+        String namespace = targetAddress.orElse(String.valueOf(targetId));
 
-        // Create a new list of entity properties, based on the entity properties extracted from
+        // Create a new list of entitiy properties, based on the entity properties extracted from
         // the provided PerTargetInfo. The new list of entity properties will have the namespace set.
         List<EntityProperty> entityProperties =
                 perTargetInfo.getEntityInfo().getEntityPropertiesList().stream()

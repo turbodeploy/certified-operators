@@ -46,7 +46,8 @@ public class StitchingJournalTargetEntrySupplier {
 
                 return TargetEntry.newBuilder()
                     .setTargetId(target.getId())
-                    .setTargetName(target.getDisplayName())
+                    .setTargetName(targetStore.getTargetAddress(target.getId())
+                        .orElse("<unknown>"))
                     .setProbeName(probeStore.getProbe(spec.getProbeId())
                         .map(ProbeInfo::getProbeType)
                         .orElse("<unknown>"))

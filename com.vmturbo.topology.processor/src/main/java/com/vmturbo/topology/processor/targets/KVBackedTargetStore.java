@@ -91,8 +91,8 @@ public class KVBackedTargetStore implements TargetStore {
                     final Target newTarget = new Target(entry.getValue(), probeStore);
                     addDerivedTargetsRelationships(newTarget);
                     addAccountDefEntryList(newTarget);
-                    logger.info("Restored existing target '{}' ({}) for probe {}.", newTarget.getDisplayName(),
-                            newTarget.getId(), newTarget.getProbeId());
+                    logger.info("Restored existing target {} for probe {}.", newTarget.getId(),
+                        newTarget.getProbeId());
                     return newTarget;
                 } catch (TargetDeserializationException e) {
                     // It may make sense to delete the offending key here,
@@ -140,8 +140,24 @@ public class KVBackedTargetStore implements TargetStore {
      */
     @Nonnull
     @Override
-    public Optional<String> getTargetDisplayName(long targetId) {
-        return getTarget(targetId).map(Target::getDisplayName);
+    public Optional<String> getTargetAddress(final long targetId) {
+        return getTarget(targetId)
+            .flatMap(target -> getTargetAddress(target.getSpec()));
+    }
+
+    /**
+     * Get the name of a target if it exists from target spec.
+     *
+     * @param spec The target spec to look for.
+     * @return The name of the target, or an empty optional if the target is not found or has no name.
+     */
+    @Nonnull
+    private Optional<String> getTargetAddress(@Nonnull final TargetSpec spec) {
+        return spec.getAccountValueList().stream()
+            .filter(accountValue -> accountValue.getKey().equalsIgnoreCase(
+                PredefinedAccountDefinition.Address.name()))
+            .map(AccountValue::getStringValue)
+            .findFirst();
     }
 
     /**
@@ -160,6 +176,7 @@ public class KVBackedTargetStore implements TargetStore {
     @Override
     public Target createTarget(@Nonnull final TargetSpec spec) throws InvalidTargetException,
         DuplicateTargetException, IdentityStoreException {
+        final Optional<String> targetAddr = getTargetAddress(Objects.requireNonNull(spec));
         synchronized (storeLock) {
             final IdentityStoreUpdate<TargetSpec> identityStoreUpdate = identityStore
                 .fetchOrAssignItemOids(Arrays.asList(spec));
@@ -172,13 +189,11 @@ public class KVBackedTargetStore implements TargetStore {
                 return retTarget;
             } else if (!oldItems.isEmpty()) {
                 final long existingTargetId = oldItems.values().iterator().next();
-                throw new DuplicateTargetException(getTargetDisplayName(existingTargetId)
-                        .orElse(String.valueOf(existingTargetId)));
+                throw new DuplicateTargetException(targetAddr.orElse(String.valueOf(existingTargetId)));
             }
             // Should never happen
-            String targetDisplayName = Target.computeDisplayName(spec, probeStore);
-            throw new IdentityStoreException(String.format("New target neither added nor retrieved: '%s'",
-                    targetDisplayName));
+            throw new IdentityStoreException(String.format("New target neither added nor retrieved: %s",
+                targetAddr.orElse(spec.toString())));
         }
     }
 
@@ -277,8 +292,7 @@ public class KVBackedTargetStore implements TargetStore {
         keyValueStore.put(TARGET_KV_STORE_PREFIX + Long.toString(target.getId()), target.toJsonString());
         targetsById.put(target.getId(), target);
         addDerivedTargetsRelationships(target);
-        logger.info("Registered target '{}' ({}) for probe {}.", target.getDisplayName(), target.getId(),
-                target.getProbeId());
+        logger.info("Registered target {} for probe {}.", target.getId(), target.getProbeId());
         listeners.forEach(listener -> listener.onTargetAdded(target));
     }
 
@@ -328,8 +342,7 @@ public class KVBackedTargetStore implements TargetStore {
                 retTarget.toJsonString());
         }
 
-        logger.info("Updated target '{}' ({}) for probe {}", retTarget.getDisplayName(), targetId,
-                retTarget.getProbeId());
+        logger.info("Updated target {} for probe {}", targetId, retTarget.getProbeId());
         listeners.forEach(listener -> listener.onTargetUpdated(retTarget));
         return retTarget;
     }
@@ -406,18 +419,16 @@ public class KVBackedTargetStore implements TargetStore {
      */
     private Target removeTarget(final long targetId) throws TargetNotFoundException, IdentityStoreException {
         final Target oldTarget;
-        String targetName;
         synchronized (storeLock) {
             oldTarget = targetsById.remove(targetId);
             if (oldTarget == null) {
                 throw new TargetNotFoundException(targetId);
             }
-            targetName = oldTarget.getDisplayName();
             keyValueStore.removeKeysWithPrefix(TARGET_KV_STORE_PREFIX + Long.toString(targetId));
             identityStore.removeItemOids(ImmutableSet.of(targetId));
             removeDerivedTargetsRelationships(targetId);
         }
-        logger.info("Removed target '" + targetName + "' (" + targetId + ")");
+        logger.info("Removed target " + targetId);
         listeners.forEach(listener -> listener.onTargetRemoved(oldTarget));
         return oldTarget;
     }
@@ -440,7 +451,7 @@ public class KVBackedTargetStore implements TargetStore {
             try {
                 removeTarget(derivedTargetId);
             } catch (TargetNotFoundException | IdentityStoreException e) {
-                logger.error("Remove derived target " + derivedTargetId + " failed.", e);
+                logger.error("Remove derived target failed.", e);
             }
         });
     }
