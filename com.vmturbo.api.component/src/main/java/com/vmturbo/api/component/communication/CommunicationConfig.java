@@ -21,7 +21,6 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.auth.api.widgets.AuthClientConfig;
@@ -50,6 +49,8 @@ import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc.LicenseCheckServiceBlockingStub;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc.LicenseManagerServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileServiceGrpc;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileServiceGrpc.DeploymentProfileServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceFutureStub;
@@ -101,6 +102,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Configuration for the communication between the API component
@@ -318,6 +320,16 @@ public class CommunicationConfig {
     }
 
     @Bean
+    public DeploymentProfileServiceBlockingStub deploymentProfileServiceBlockingStub() {
+        return DeploymentProfileServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel());
+    }
+
+    /**
+     * A shared gRPC stub for the CPU capacity service.
+     *
+     * @return The {@link CpuCapacityServiceBlockingStub}.
+     */
+    @Bean
     public CpuCapacityServiceBlockingStub cpuCapacityServiceBlockingStub() {
         return CpuCapacityServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel());
     }
@@ -457,4 +469,5 @@ public class CommunicationConfig {
     public ThinTargetCache thinTargetCache() {
         return new ThinTargetCache(topologyProcessor());
     }
+
 }

@@ -2,6 +2,8 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static org.junit.Assert.assertEquals;
 
+import java.util.Collections;
+
 import org.junit.Test;
 
 import com.google.common.collect.Lists;
@@ -113,7 +115,8 @@ public class TemplateMapperTest {
 
     @Test
     public void testMapVMTemplateToApiDTO() {
-        TemplateApiDTO templateApiDTO = templateMapper.mapToTemplateApiDTO(TEMPLATE_VM, TEMPLATE_VM_SPEC);
+        final TemplateApiDTO templateApiDTO =
+            templateMapper.mapToTemplateApiDTO(TEMPLATE_VM, TEMPLATE_VM_SPEC, Collections.emptyList());
         assertEquals("test-VM-template", templateApiDTO.getDisplayName());
         assertEquals(1, templateApiDTO.getComputeResources().size());
         assertEquals(1, templateApiDTO.getComputeResources().get(0).getStats().size());
@@ -123,7 +126,8 @@ public class TemplateMapperTest {
 
     @Test
     public void testMapPMTemplateToApiDTO() {
-        TemplateApiDTO templateApiDTO = templateMapper.mapToTemplateApiDTO(TEMPLATE_PM, TEMPLATE_PM_SPEC);
+        final TemplateApiDTO templateApiDTO =
+            templateMapper.mapToTemplateApiDTO(TEMPLATE_PM, TEMPLATE_PM_SPEC, Collections.emptyList());
         assertEquals("test-PM-template", templateApiDTO.getDisplayName());
         assertEquals("cpu-model", templateApiDTO.getCpuModel());
         assertEquals(1, templateApiDTO.getInfrastructureResources().size());
@@ -134,7 +138,8 @@ public class TemplateMapperTest {
 
     @Test
     public void testMapSTTemplateToApiDTO() {
-        TemplateApiDTO templateApiDTO = templateMapper.mapToTemplateApiDTO(TEMPLATE_ST, TEMPLATE_ST_SPEC);
+        final TemplateApiDTO templateApiDTO =
+            templateMapper.mapToTemplateApiDTO(TEMPLATE_ST, TEMPLATE_ST_SPEC, Collections.emptyList());
         assertEquals("test-ST-template", templateApiDTO.getDisplayName());
         assertEquals(1, templateApiDTO.getStorageResources().size());
         assertEquals(1, templateApiDTO.getStorageResources().get(0).getStats().size());

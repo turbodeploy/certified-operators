@@ -1,7 +1,11 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import static junit.framework.TestCase.assertTrue;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -9,18 +13,20 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ReservationMapper.PlacementInfo;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -28,6 +34,7 @@ import com.vmturbo.api.dto.reservation.DemandEntityInfoDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiInputDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationParametersDTO;
+import com.vmturbo.api.dto.reservation.DeploymentParametersDTO;
 import com.vmturbo.api.dto.reservation.PlacementInfoDTO;
 import com.vmturbo.api.dto.reservation.PlacementParametersDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
@@ -38,7 +45,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
@@ -46,8 +52,15 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
-import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfile;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo.Scope;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo.ScopeAccessType;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.GetDeploymentProfileRequest;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTOMoles.DeploymentProfileServiceMole;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ReservationConstraintInfo;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ReservationConstraintInfo.Type;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
@@ -56,11 +69,13 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.SingleTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
-import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -71,21 +86,18 @@ public class ReservationMapperTest {
 
     private TemplateServiceMole templateServiceMole = Mockito.spy(new TemplateServiceMole());
 
-    private TemplateServiceBlockingStub templateServiceBlockingStub;
-
     private GroupServiceMole groupServiceMole = Mockito.spy(new GroupServiceMole());
-
-    private GroupServiceBlockingStub groupServiceBlockingStub;
 
     private PolicyServiceMole policyServiceMole = Mockito.spy(new PolicyServiceMole());
 
-    private PolicyServiceBlockingStub policyServiceBlockingStub;
+    private DeploymentProfileServiceMole deploymentProfileServiceMole =
+        Mockito.spy(DeploymentProfileServiceMole.class);
 
     private RepositoryApi repositoryApi;
 
     private ReservationMapper reservationMapper;
 
-    private final long TEMPLATE_ID = 123L;
+    private static final long TEMPLATE_ID = 123L;
 
     private ServiceEntityApiDTO vmServiceEntity = new ServiceEntityApiDTO();
 
@@ -93,30 +105,36 @@ public class ReservationMapperTest {
 
     private ServiceEntityApiDTO stServiceEntity = new ServiceEntityApiDTO();
 
-    private final String PLACEMENT_SUCCEEDED = "PLACEMENT_SUCCEEDED";
+    private static final String PLACEMENT_SUCCEEDED = "PLACEMENT_SUCCEEDED";
 
-    private final String PLACEMENT_FAILED = "PLACEMENT_FAILED";
+    private static final String PLACEMENT_FAILED = "PLACEMENT_FAILED";
 
-    final Template template = Template.newBuilder()
+    private static final Template TEMPLATE = Template.newBuilder()
             .setId(TEMPLATE_ID)
             .setTemplateInfo(TemplateInfo.newBuilder()
                     .setName("VM-template")
                     .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
             .build();
 
+    /**
+     * Utility gRPC server to mock out gRPC service dependencies.
+     */
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(templateServiceMole, groupServiceMole,
-            policyServiceMole);
+            policyServiceMole, deploymentProfileServiceMole);
 
+    /**
+     * Common setup code to run before each test.
+     */
     @Before
     public void setup() {
         repositoryApi = Mockito.mock(RepositoryApi.class);
-        templateServiceBlockingStub = TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        groupServiceBlockingStub = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        policyServiceBlockingStub = PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
-        reservationMapper = new ReservationMapper(repositoryApi, templateServiceBlockingStub,
-                groupServiceBlockingStub, policyServiceBlockingStub);
+        reservationMapper = new ReservationMapper(repositoryApi,
+            TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            DeploymentProfileServiceGrpc.newBlockingStub(grpcServer.getChannel()));
 
         vmServiceEntity.setClassName("VirtualMachine");
         vmServiceEntity.setDisplayName("VM-template Clone #1");
@@ -130,6 +148,12 @@ public class ReservationMapperTest {
 
     }
 
+    /**
+     * Test converting a {@link DemandReservationParametersDTO} to a list of scenario changes
+     * protobuf objects.
+     *
+     * @throws Exception If anything goes wrong.
+     */
     @Test
     public void testConvertToScenarioChange() throws Exception {
         final DemandReservationParametersDTO demandParameters = new DemandReservationParametersDTO();
@@ -146,6 +170,63 @@ public class ReservationMapperTest {
         assertEquals(123L, scenarioChange.getTopologyAddition().getTemplateId());
     }
 
+    /**
+     * Test converting a {@link DemandReservationParametersDTO} to a list of scenario changes
+     * protobuf objects when there is an associated deployment profile ID specified in the input.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testConvertToScenarioChangeWithDeploymentProfile() throws Exception {
+        final long dcId = 321123;
+        final DeploymentProfile deploymentProfile = DeploymentProfile.newBuilder()
+            .setId(7777)
+            .setDeployInfo(DeploymentProfileInfo.newBuilder()
+                .setName("foo")
+                .addScopes(Scope.newBuilder()
+                    .setScopeAccessType(ScopeAccessType.And)
+                    .addIds(dcId)))
+            .build();
+        doReturn(deploymentProfile).when(deploymentProfileServiceMole)
+            .getDeploymentProfile(GetDeploymentProfileRequest.newBuilder()
+                .setDeploymentProfileId(deploymentProfile.getId())
+                .build());
+        final DemandReservationParametersDTO demandParameters = new DemandReservationParametersDTO();
+        final PlacementParametersDTO placementParameter = new PlacementParametersDTO();
+        placementParameter.setCount(2);
+        placementParameter.setTemplateID(String.valueOf(TEMPLATE_ID));
+        final DeploymentParametersDTO deploymentParameter = new DeploymentParametersDTO();
+        deploymentParameter.setDeploymentProfileID(Long.toString(deploymentProfile.getId()));
+        demandParameters.setPlacementParameters(placementParameter);
+        demandParameters.setDeploymentParameters(deploymentParameter);
+
+        final SingleEntityRequest mockReq = ApiTestUtils.mockSingleEntityRequest(MinimalEntity.newBuilder()
+            .setOid(dcId)
+            .setEntityType(UIEntityType.DATACENTER.typeNumber())
+            .build());
+        when(repositoryApi.entityRequest(dcId)).thenReturn(mockReq);
+
+        final List<ScenarioChange> scenarioChangeList =
+            reservationMapper.placementToScenarioChange(Lists.newArrayList(demandParameters));
+
+        final ScenarioChange planChange = scenarioChangeList.stream()
+            .filter(ScenarioChange::hasPlanChanges)
+            .findFirst()
+            .get();
+        final List<ReservationConstraintInfo> constraints = planChange.getPlanChanges()
+            .getInitialPlacementConstraintsList();
+        assertThat(constraints, containsInAnyOrder(ReservationConstraintInfo.newBuilder()
+            .setType(Type.DATA_CENTER)
+            .setConstraintId(dcId)
+            .build()));
+    }
+
+    /**
+     * Test converting a {@link DemandReservationParametersDTO} to a list of scenario changes
+     * protobuf objects when there is a placement constraint in the input.
+     *
+     * @throws Exception If anything goes wrong.
+     */
     @Test
     public void testConvertToScenarioChangeWithConstraint() throws Exception {
         final DemandReservationParametersDTO demandParameters = new DemandReservationParametersDTO();
@@ -154,14 +235,14 @@ public class ReservationMapperTest {
         placementParameter.setTemplateID(String.valueOf(TEMPLATE_ID));
         placementParameter.setConstraintIDs(Sets.newHashSet("123", "456"));
         demandParameters.setPlacementParameters(placementParameter);
-        Mockito.when(groupServiceMole.getGroup(GroupID.newBuilder()
+        when(groupServiceMole.getGroup(GroupID.newBuilder()
                 .setId(123L)
                 .build()))
                 .thenReturn(GetGroupResponse.newBuilder()
                         .setGroup(Group.newBuilder()
                                 .setType(Group.Type.CLUSTER))
                         .build());
-        Mockito.when(policyServiceMole.getPolicy(PolicyRequest.newBuilder()
+        when(policyServiceMole.getPolicy(PolicyRequest.newBuilder()
                 .setPolicyId(456L).build()))
                 .thenReturn(PolicyResponse.newBuilder()
                         .setPolicy(Policy.newBuilder()
@@ -193,6 +274,12 @@ public class ReservationMapperTest {
                 .anyMatch(constraint -> constraint.getType() == ReservationConstraintInfo.Type.POLICY));
     }
 
+    /**
+     * Test converting a {@link ScenarioChange} protobuf object to a {@link DemandReservationApiDTO}
+     * that describes it in the API.
+     *
+     * @throws Exception If anything goes wrong.
+     */
     @Test
     public void testConvertToDemandReservationApiDTO() throws Exception {
         final ScenarioChange scenarioChange = ScenarioChange.newBuilder()
@@ -203,13 +290,15 @@ public class ReservationMapperTest {
 
         final PlacementInfo placementInfo = new PlacementInfo(1L, ImmutableList.of(2L, 3L));
 
-        Mockito.when(templateServiceMole.getTemplate(GetTemplateRequest.newBuilder()
+        when(templateServiceMole.getTemplate(GetTemplateRequest.newBuilder()
                 .setTemplateId(TEMPLATE_ID)
                 .build()))
-                .thenReturn(template);
+                .thenReturn(SingleTemplateResponse.newBuilder()
+                    .setTemplate(TEMPLATE)
+                    .build());
 
         MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(vmServiceEntity, pmServiceEntity, stServiceEntity));
-        Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req);
+        when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req);
 
         final DemandReservationApiDTO demandReservationApiDTO =
                 reservationMapper.convertToDemandReservationApiDTO(scenarioChange.getTopologyAddition(),
@@ -238,6 +327,12 @@ public class ReservationMapperTest {
         assertEquals(PLACEMENT_FAILED, emptyDemandReservationApiDTO.getStatus());
     }
 
+    /**
+     * Test converting a {@link DemandReservationApiInputDTO} to a {@link Reservation} protobuf
+     * object that describes it inside XL.
+     *
+     * @throws Exception If anything goes wrong.
+     */
     @Test
     public void testConvertToReservation() throws Exception {
         DemandReservationApiInputDTO demandApiInputDTO = new DemandReservationApiInputDTO();
@@ -262,6 +357,11 @@ public class ReservationMapperTest {
         assertEquals(nextMonth.getTime(), reservation.getExpirationDate(), 1000);
     }
 
+    /**
+     * Test converting a {@link Reservation} protobuf message to a {@link DemandReservationApiDTO}.
+     *
+     * @throws Exception If anything goes wrong.
+     */
     @Test
     public void testConvertReservationToApiDTO() throws Exception {
         final Date today = new Date();
@@ -287,13 +387,15 @@ public class ReservationMapperTest {
                 ReservationTemplateCollection.newBuilder()
                         .addReservationTemplate(reservationTemplate))
                 .build();
-        Mockito.when(templateServiceMole.getTemplate(GetTemplateRequest.newBuilder()
+        when(templateServiceMole.getTemplate(GetTemplateRequest.newBuilder()
                 .setTemplateId(TEMPLATE_ID)
                 .build()))
-                .thenReturn(template);
+                .thenReturn(SingleTemplateResponse.newBuilder()
+                    .setTemplate(TEMPLATE)
+                    .build());
 
         MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(vmServiceEntity, pmServiceEntity, stServiceEntity));
-        Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req);
+        when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req);
 
         final DemandReservationApiDTO reservationApiDTO =
                 reservationMapper.convertReservationToApiDTO(reservation);

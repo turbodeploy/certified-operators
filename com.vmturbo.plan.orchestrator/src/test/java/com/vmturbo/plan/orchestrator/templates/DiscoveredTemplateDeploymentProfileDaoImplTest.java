@@ -26,6 +26,7 @@ import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfile;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileDaoImpl;
@@ -117,7 +118,8 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
 
         discoveredTemplateDeploymentProfileDao.setDiscoveredTemplateDeploymentProfile(uploadMap, noReferenceMap);
 
-        Set<Template> allTemplates = templatesDao.getAllTemplates();
+        final Set<Template> allTemplates =
+            templatesDao.getFilteredTemplates(TemplatesFilter.getDefaultInstance());
         Set<DeploymentProfile> allDeploymentProfiles = deploymentProfileDao.getAllDeploymentProfiles();
 
         assertTrue(allTemplates.size() == 3);
@@ -154,7 +156,8 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
 
         discoveredTemplateDeploymentProfileDao.setDiscoveredTemplateDeploymentProfile(uploadMap, noReferenceMap);
 
-        Set<Template> allNewTemplates = templatesDao.getAllTemplates();
+        final Set<Template> allNewTemplates =
+            templatesDao.getFilteredTemplates(TemplatesFilter.getDefaultInstance());
         Set<DeploymentProfile> allNewDeploymentProfiles = deploymentProfileDao.getAllDeploymentProfiles();
         assertTrue(allTemplates.size() == 3);
         assertTrue(allNewTemplates.stream().anyMatch(template ->
@@ -225,7 +228,7 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
 
         discoveredTemplateDeploymentProfileDao.setDiscoveredTemplateDeploymentProfile(uploadMap, noReferenceMap);
 
-        Set<Template> allTemplates = templatesDao.getAllTemplates();
+        Set<Template> allTemplates = templatesDao.getFilteredTemplates(TemplatesFilter.getDefaultInstance());
         Set<DeploymentProfile> allDeploymentProfiles = deploymentProfileDao.getAllDeploymentProfiles();
 
         assertTrue(allTemplates.size() == 4);
@@ -269,7 +272,7 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
 
         discoveredTemplateDeploymentProfileDao.setDiscoveredTemplateDeploymentProfile(uploadMap, noReferenceMap);
 
-        Set<Template> allNewTemplates = templatesDao.getAllTemplates();
+        Set<Template> allNewTemplates = templatesDao.getFilteredTemplates(TemplatesFilter.getDefaultInstance());
         Set<DeploymentProfile> allNewDeploymentProfiles = deploymentProfileDao.getAllDeploymentProfiles();
 
         assertTrue(allNewTemplates.size() == 4);
@@ -316,7 +319,7 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
 
         discoveredTemplateDeploymentProfileDao.setDiscoveredTemplateDeploymentProfile(uploadMap, noReferenceMap);
 
-        Set<Template> allTemplates = templatesDao.getAllTemplates();
+        Set<Template> allTemplates = templatesDao.getFilteredTemplates(TemplatesFilter.getDefaultInstance());
 
         assertTrue(allTemplates.size() == 2);
         assertTrue(allTemplates.stream().anyMatch(template ->
@@ -368,7 +371,7 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
 
         discoveredTemplateDeploymentProfileDao.setDiscoveredTemplateDeploymentProfile(uploadMap, noReferenceMap);
 
-        Set<Template> allTemplates = templatesDao.getAllTemplates();
+        Set<Template> allTemplates = templatesDao.getFilteredTemplates(TemplatesFilter.getDefaultInstance());
         Set<DeploymentProfile> allDeploymentProfiles = deploymentProfileDao.getAllDeploymentProfiles();
 
         assertTrue(allTemplates.size() == 3);
@@ -393,7 +396,7 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
 
         discoveredTemplateDeploymentProfileDao.setDiscoveredTemplateDeploymentProfile(uploadMap, noReferenceMap);
 
-        Set<Template> allNewTemplates = templatesDao.getAllTemplates();
+        Set<Template> allNewTemplates = templatesDao.getFilteredTemplates(TemplatesFilter.getDefaultInstance());
         Set<DeploymentProfile> allNewDeploymentProfiles = deploymentProfileDao.getAllDeploymentProfiles();
 
         assertTrue(allNewTemplates.size() == 1);

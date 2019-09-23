@@ -16,8 +16,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -51,6 +51,7 @@ import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanInstanceQueue;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
@@ -87,12 +88,12 @@ public class PlanProjectExecutorTest {
         planProjectExecutor = new PlanProjectExecutor(planDao, planProjectDao, grpcServer.getChannel(),
                 planRpcService, registry, repositoryChannel, templatesDao, historyChannel,
                 planInstanceQueue, true);
-        when(templatesDao.getTemplatesByName("headroomVM"))
-            .thenReturn(Collections.singletonList(Template.newBuilder()
+        when(templatesDao.getFilteredTemplates(any()))
+            .thenReturn(Collections.singleton(Template.newBuilder()
                     .setId(7L)
                     .setType(Type.SYSTEM)
                     .setTemplateInfo(TemplateInfo.newBuilder()
-                        .setName("headroomVM"))
+                        .setName(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME))
                     .build()));
         when(planProjectDao.getSystemLoadInfo(any()))
             .thenReturn(SystemLoadInfoResponse.newBuilder()
@@ -204,7 +205,7 @@ public class PlanProjectExecutorTest {
         planProjectExecutor.createClusterPlanInstance(Collections.singleton(groupWithHeadroomTemplateId),
                 PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);
         verify(templatesDao).editTemplate(eq(headroomTempalteId), any());
-        verify(templatesDao, never()).getTemplatesByName("headroomVM");
+        verify(templatesDao, never()).getFilteredTemplates(any());
         verify(groupServiceMole, never()).updateClusterHeadroomTemplate(any(UpdateClusterHeadroomTemplateRequest.class));
     }
 

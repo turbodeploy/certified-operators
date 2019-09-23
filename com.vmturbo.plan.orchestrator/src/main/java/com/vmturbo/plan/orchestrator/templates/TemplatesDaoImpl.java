@@ -37,6 +37,7 @@ import com.google.gson.reflect.TypeToken;
 import com.vmturbo.common.protobuf.plan.TemplateDTO;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -84,9 +85,28 @@ public class TemplatesDaoImpl implements TemplatesDao {
      */
     @Nonnull
     @Override
-    public Set<TemplateDTO.Template> getAllTemplates() {
-        final List<Template> allTemplates = dsl.selectFrom(TEMPLATE).fetch().into(Template.class);
+    public Set<TemplateDTO.Template> getFilteredTemplates(@Nonnull final TemplatesFilter filter) {
+        // TODO (roman, Sept 20 2019) OM-50756: Add pagination parameters here (and all the way
+        // up to the UI) to retrieve large sets of templates in chunks.
+        final List<Template> allTemplates = dsl.selectFrom(TEMPLATE)
+            .where(filterToConditions(filter))
+            .fetch().into(Template.class);
         return templatesToProto(allTemplates);
+    }
+
+    @Nonnull
+    private List<Condition> filterToConditions(@Nonnull final TemplatesFilter filter) {
+        final List<Condition> conditions = new ArrayList<>();
+        if (!filter.getTemplateIdsList().isEmpty()) {
+            conditions.add(TEMPLATE.ID.in(filter.getTemplateIdsList()));
+        }
+        if (!filter.getTemplateNameList().isEmpty()) {
+            conditions.add(TEMPLATE.NAME.in(filter.getTemplateNameList()));
+        }
+        if (filter.hasEntityType()) {
+            conditions.add(TEMPLATE.ENTITY_TYPE.eq(filter.getEntityType()));
+        }
+        return conditions;
     }
 
     /**
@@ -98,25 +118,11 @@ public class TemplatesDaoImpl implements TemplatesDao {
     @Nonnull
     @Override
     public Optional<TemplateDTO.Template> getTemplate(long id) {
-        return getTemplate(dsl, id);
+        return getTemplateInTransaction(dsl, id);
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Nonnull
-    @Override
-    public List<TemplateDTO.Template> getTemplatesByName(@Nonnull final String name) {
-        return dsl.selectFrom(TEMPLATE)
-            .where(TEMPLATE.NAME.eq(name))
-            .fetch().into(Template.class)
-            .stream()
-            .map(this::templateToProto)
-            .collect(Collectors.toList());
-    }
-
-    /**
-     * Create a new template
+     * Create a new template.
      *
      * @param templateInfo describe the contents of one template
      * @return new created template
@@ -131,7 +137,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
     /**
      * Check template with the same name does not exist is current list of templates.
      *
-     * @param context
+     * @param context Transaction context.
      * @param templateName template display name.
      * @param id           while editing a template.
      * @throws DuplicateTemplateException if duplicate template name found
@@ -165,7 +171,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
             });
         } catch (DataAccessException e) {
             if (e.getCause() instanceof DuplicateTemplateException) {
-                throw (DuplicateTemplateException) e.getCause();
+                throw (DuplicateTemplateException)e.getCause();
             } else {
                 throw e;
             }
@@ -215,11 +221,11 @@ public class TemplatesDaoImpl implements TemplatesDao {
             });
         } catch (DataAccessException e) {
             if (e.getCause() instanceof NoSuchObjectException) {
-                throw (NoSuchObjectException) e.getCause();
+                throw (NoSuchObjectException)e.getCause();
             } else if (e.getCause() instanceof IllegalTemplateOperationException) {
-                throw (IllegalTemplateOperationException) e.getCause();
+                throw (IllegalTemplateOperationException)e.getCause();
             } else if (e.getCause() instanceof DuplicateTemplateException) {
-                throw (DuplicateTemplateException) e.getCause();
+                throw (DuplicateTemplateException)e.getCause();
             } else {
                 throw e;
             }
@@ -243,7 +249,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
                 //TODO: when delete a template, we need to delete relate reservations or modify related
                 // reservations status to invalid.
                 final DSLContext transactionDsl = DSL.using(configuration);
-                final TemplateDTO.Template template = getTemplate(transactionDsl, id)
+                final TemplateDTO.Template template = getTemplateInTransaction(transactionDsl, id)
                         .orElseThrow(() -> noSuchObjectException(id));
                 if (template.getType().equals(TemplateDTO.Template.Type.USER)) {
                     transactionDsl.deleteFrom(TEMPLATE).where(TEMPLATE.ID.eq(id)).execute();
@@ -257,7 +263,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
             if (e.getCause() instanceof NoSuchObjectException) {
                 throw (NoSuchObjectException)e.getCause();
             } else if (e.getCause() instanceof IllegalTemplateOperationException) {
-                throw (IllegalTemplateOperationException) e.getCause();
+                throw (IllegalTemplateOperationException)e.getCause();
             } else {
                 throw e;
             }
@@ -286,39 +292,6 @@ public class TemplatesDaoImpl implements TemplatesDao {
     }
 
     /**
-     * Get all templates by query entity type
-     *
-     * @param type entity type of template
-     * @return all selected Template object
-     */
-    @Nonnull
-    @Override
-    public Set<TemplateDTO.Template> getTemplatesByEntityType(int type) {
-        final List<Template> templates = dsl.selectFrom(TEMPLATE)
-            .where(TEMPLATE.ENTITY_TYPE.eq(type))
-            .fetch()
-            .into(Template.class);
-
-        return templatesToProto(templates);
-    }
-
-    /**
-     * Get a set of templates by template id list. The return templates size could be equal or less
-     * than request ids size. The client needs to check if there are missing templates.
-     *
-     * @param ids Set of template ids.
-     * @return  Set of templates.
-     */
-    @Override
-    @Nonnull
-    public Set<TemplateDTO.Template> getTemplates(@Nonnull Set<Long> ids) {
-        final List<Template> templateList =
-            dsl.selectFrom(TEMPLATE)
-                .where(TEMPLATE.ID.in(ids)).fetch().into(Template.class);
-        return templatesToProto(templateList);
-    }
-
-    /**
      * Get the count of matched templates which id is in the input id set.
      *
      * @param ids a set of template ids need check if exist.
@@ -330,8 +303,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
                 .where(TEMPLATE.ID.in(ids)));
     }
 
-    private Optional<TemplateDTO.Template> getTemplate(@Nonnull final DSLContext dsl,
-                                                       final long id) {
+    private Optional<TemplateDTO.Template> getTemplateInTransaction(@Nonnull final DSLContext dsl, final long id) {
         final TemplateRecord templateInstance =
             dsl.selectFrom(TEMPLATE).where(TEMPLATE.ID.eq(id)).fetchOne();
 
@@ -513,7 +485,8 @@ public class TemplatesDaoImpl implements TemplatesDao {
     @Nonnull
     @Override
     public List<String> collectDiags() throws DiagnosticsException {
-        final Set<TemplateDTO.Template> templates = getAllTemplates();
+        final Set<TemplateDTO.Template> templates =
+            getFilteredTemplates(TemplatesFilter.getDefaultInstance());
         logger.info("Collecting diagnostics for {} templates", templates.size());
         return templates.stream()
             .map(template -> GSON.toJson(template, TemplateDTO.Template.class))
@@ -537,7 +510,8 @@ public class TemplatesDaoImpl implements TemplatesDao {
 
         final List<String> errors = new ArrayList<>();
 
-        final Set<TemplateDTO.Template> preexistingTemplates = getAllTemplates();
+        final Set<TemplateDTO.Template> preexistingTemplates =
+            getFilteredTemplates(TemplatesFilter.getDefaultInstance());
         if (!preexistingTemplates.isEmpty()) {
             final int numPreexisting = preexistingTemplates.size();
             final String clearingMessage = "Clearing " + numPreexisting +
@@ -550,9 +524,10 @@ public class TemplatesDaoImpl implements TemplatesDao {
             final int deleted = deleteAllTemplates();
             if (deleted != numPreexisting) {
                 final String deletedMessage = "Failed to delete " + (numPreexisting - deleted) +
-                    " preexisting templates: " + getAllTemplates().stream()
-                        .map(template -> template.getTemplateInfo().getName())
-                        .collect(Collectors.toList());
+                    " preexisting templates: " + getFilteredTemplates(TemplatesFilter.getDefaultInstance())
+                    .stream()
+                    .map(template -> template.getTemplateInfo().getName())
+                    .collect(Collectors.toList());
                 logger.error(deletedMessage);
                 errors.add(deletedMessage);
             }
@@ -595,7 +570,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
             return r == 1 ? Optional.empty() : Optional.of("Failed to restore template " + template);
         } catch (DataAccessException e) {
             return Optional.of("Could not restore template " + template +
-                " because of DataAccessException "+ e.getMessage());
+                " because of DataAccessException " + e.getMessage());
         }
     }
 

@@ -1,8 +1,11 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static com.vmturbo.components.common.utils.StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -14,15 +17,9 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import org.apache.commons.lang.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.validation.Errors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -33,6 +30,11 @@ import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.validation.Errors;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
@@ -49,14 +51,6 @@ import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
-import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMemberOrderBy;
-import com.vmturbo.api.pagination.SearchOrderBy;
-import com.vmturbo.api.pagination.SearchPaginationRequest;
-import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
-import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
-import com.vmturbo.platform.common.dto.CommonDTOREST.GroupDTO.ConstraintType;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
@@ -87,11 +81,18 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest;
+import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMemberOrderBy;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMembersPaginationResponse;
+import com.vmturbo.api.pagination.SearchOrderBy;
+import com.vmturbo.api.pagination.SearchPaginationRequest;
+import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
@@ -124,8 +125,10 @@ import com.vmturbo.common.protobuf.group.GroupDTO.UpdateNestedGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateNestedGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByNameRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.SingleTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
@@ -140,6 +143,7 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Service implementation of Groups functionality.
@@ -166,7 +170,6 @@ public class GroupsService implements IGroupsService {
 
     private static final String CLUSTER_HEADROOM_GROUP_UUID = "GROUP-PhysicalMachineByCluster";
     private static final String STORAGE_CLUSTER_HEADROOM_GROUP_UUID = "GROUP-StorageByStorageCluster";
-    private static final String CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME = "headroomVM";
     private static final String CLUSTER_HEADROOM_SETTINGS_MANAGER = "capacityplandatamanager";
     private static final String CLUSTER_HEADROOM_TEMPLATE_SETTING_UUID = "templateName";
     private final ActionsServiceBlockingStub actionOrchestratorRpc;
@@ -412,6 +415,38 @@ public class GroupsService implements IGroupsService {
         return Collections.singletonList(settingsManager);
     }
 
+    private Template getHeadroomTemplate(@Nonnull final Group group) throws UnknownObjectException {
+        // Get the headroom template with the ID in ClusterInfo if available.
+        if (group.hasCluster() && group.getCluster().hasClusterHeadroomTemplateId()) {
+            Optional<Template> headroomTemplateOpt = getClusterHeadroomTemplate(
+                group.getCluster().getClusterHeadroomTemplateId());
+            if (headroomTemplateOpt.isPresent()) {
+                return headroomTemplateOpt.get();
+            }
+        }
+
+        // If the headroom template ID is not set in clusterInfo, or the template with the ID is
+        // not found, get the default headroom template.
+        final List<Template> headroomTemplates = TemplateProtoUtil.flattenGetResponse(
+            templateService.getTemplates(GetTemplatesRequest.newBuilder()
+                    .setFilter(TemplatesFilter.newBuilder()
+                        .addTemplateName(CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME))
+                    .build()))
+                .map(SingleTemplateResponse::getTemplate)
+                .filter(template -> template.getType().equals(Template.Type.SYSTEM))
+                // Stable sort of results. Normally there will only be one.
+                .sorted(Comparator.comparingLong(Template::getId))
+                .collect(Collectors.toList());
+        if (headroomTemplates.isEmpty()) {
+            throw new UnknownObjectException("No system headroom VM found!");
+        } else {
+            if (headroomTemplates.size() > 1) {
+                logger.warn("Multiple headroom templates. Choosing first. Templates: {}", headroomTemplates);
+            }
+            return headroomTemplates.get(0);
+        }
+    }
+
     /**
      * Gets the template ID and name from the template service, and return the values in a
      * SettingsApiDTO object.
@@ -422,28 +457,8 @@ public class GroupsService implements IGroupsService {
      */
     @Nonnull
     private SettingApiDTO<String> getTemplateSetting(@Nonnull Group group) throws UnknownObjectException {
-        Template headroomTemplate = null;
+        Template headroomTemplate = getHeadroomTemplate(group);
 
-        // Get the headroom template with the ID in ClusterInfo if available.
-        if (group.hasCluster() && group.getCluster().hasClusterHeadroomTemplateId()) {
-            Optional<Template> headroomTemplateOpt = getClusterHeadroomTemplate(
-                    group.getCluster().getClusterHeadroomTemplateId());
-            if (headroomTemplateOpt.isPresent()) {
-                headroomTemplate = headroomTemplateOpt.get();
-            }
-        }
-        // If the headroom template ID is not set in clusterInfo, or the template with the ID is
-        // not found, get the default headroom template.
-        if (headroomTemplate == null) {
-            Iterable<Template> templateIter = () -> templateService.getTemplatesByName(
-                    GetTemplatesByNameRequest.newBuilder()
-                            .setTemplateName(CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME)
-                            .build());
-            headroomTemplate = StreamSupport.stream(templateIter.spliterator(), false)
-                    .filter(template -> template.getType().equals(Template.Type.SYSTEM))
-                    .findFirst()
-                    .orElseThrow(() -> new UnknownObjectException("No system headroom VM found!"));
-        }
 
         String templateName = headroomTemplate.getTemplateInfo().getName();
         String templateId = Long.toString(headroomTemplate.getId());
@@ -466,9 +481,14 @@ public class GroupsService implements IGroupsService {
      */
     private Optional<Template> getClusterHeadroomTemplate(Long templateId) {
         try {
-            return Optional.of(templateService.getTemplate(GetTemplateRequest.newBuilder()
-                    .setTemplateId(templateId)
-                    .build()));
+            SingleTemplateResponse response = templateService.getTemplate(GetTemplateRequest.newBuilder()
+                .setTemplateId(templateId)
+                .build());
+            if (response.hasTemplate()) {
+                return Optional.of(response.getTemplate());
+            } else {
+                return Optional.empty();
+            }
         } catch (StatusRuntimeException e) {
             if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
                 // return empty to indicate that the system headroom plan should be used.

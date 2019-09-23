@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
@@ -106,7 +107,7 @@ public class TemplatesDaoImplTest {
             .build();
         Template createdFirstTemplate = templatesDao.createTemplate(firstTemplateInstance);
         Template createdSecondTemplate = templatesDao.createTemplate(secondTemplateInstance);
-        Set<Template> retrievedTemplates = templatesDao.getAllTemplates();
+        Set<Template> retrievedTemplates = templatesDao.getFilteredTemplates(TemplatesFilter.getDefaultInstance());
         assertTrue(retrievedTemplates.size() == 2);
         assertTrue(retrievedTemplates.stream()
             .anyMatch(template -> template.getId() == createdFirstTemplate.getId()));
@@ -163,7 +164,9 @@ public class TemplatesDaoImplTest {
                 .setName("bar")
                 .build();
         final Template createdTemplate = templatesDao.createTemplate(templateInstance);
-        final List<Template> byName = templatesDao.getTemplatesByName("bar");
+        final Set<Template> byName = templatesDao.getFilteredTemplates(TemplatesFilter.newBuilder()
+            .addTemplateName("bar")
+            .build());
         assertThat(byName, containsInAnyOrder(createdTemplate));
     }
 
@@ -188,7 +191,9 @@ public class TemplatesDaoImplTest {
 
     @Test
     public void testGetTemplatesByNameEmpty() {
-        assertTrue(templatesDao.getTemplatesByName("foo").isEmpty());
+        assertTrue(templatesDao.getFilteredTemplates(TemplatesFilter.newBuilder()
+            .addTemplateName("foo")
+            .build()).isEmpty());
     }
 
     @Test
@@ -196,9 +201,11 @@ public class TemplatesDaoImplTest {
         final TemplatesDao templatesDao =
                 new TemplatesDaoImpl(dbConfig.dsl(), "testDefaultTemplates.json",
                         new IdentityInitializer(0));
-        final List<Template> templates = templatesDao.getTemplatesByName("testVM");
+        final Set<Template> templates = templatesDao.getFilteredTemplates(TemplatesFilter.newBuilder()
+            .addTemplateName("testVM")
+            .build());
         assertThat(templates.size(), is(1));
-        Template defaultTemplate = templates.get(0);
+        Template defaultTemplate = templates.iterator().next();
         assertThat(defaultTemplate.getType(), is(Type.SYSTEM));
         assertThat(defaultTemplate.getTemplateInfo().getName(), is("testVM"));
     }
@@ -210,7 +217,7 @@ public class TemplatesDaoImplTest {
         final TemplatesDao templatesDao =
                 new TemplatesDaoImpl(dbConfig.dsl(), "emptyDefaultTemplates.json",
                         new IdentityInitializer(0));
-        assertTrue(templatesDao.getAllTemplates().isEmpty());
+        assertTrue(templatesDao.getFilteredTemplates(TemplatesFilter.getDefaultInstance()).isEmpty());
     }
 
     @Test
@@ -220,9 +227,11 @@ public class TemplatesDaoImplTest {
         final TemplatesDao templatesDao =
                 new TemplatesDaoImpl(dbConfig.dsl(), "testModifiedDefaultTemplates.json",
                         new IdentityInitializer(0));
-        final List<Template> templates = templatesDao.getTemplatesByName("testVM");
+        final Set<Template> templates = templatesDao.getFilteredTemplates(TemplatesFilter.newBuilder()
+            .addTemplateName("testVM")
+            .build());
         assertThat(templates.size(), is(1));
-        Template defaultTemplate = templates.get(0);
+        Template defaultTemplate = templates.iterator().next();
         final String memSizeValue = defaultTemplate.getTemplateInfo().getResourcesList().stream()
                 .filter(resource -> resource.getCategory().getName().equals(ResourcesCategoryName.Compute))
                 .map(resource -> resource.getFieldsList().stream()
@@ -238,9 +247,11 @@ public class TemplatesDaoImplTest {
     public void testGetTemplateByName() throws Exception {
         new TemplatesDaoImpl(dbConfig.dsl(), "testDefaultTemplates.json",
                 new IdentityInitializer(0));
-        List<Template> result = templatesDao.getTemplatesByName("testVM");
+        Set<Template> result = templatesDao.getFilteredTemplates(TemplatesFilter.newBuilder()
+            .addTemplateName("testVM")
+            .build());
         assertEquals(1, result.size());
-        assertEquals("testVM", result.get(0).getTemplateInfo().getName());
+        assertEquals("testVM", result.iterator().next().getTemplateInfo().getName());
     }
 
     @Test
@@ -283,7 +294,7 @@ public class TemplatesDaoImplTest {
         }
 
         assertFalse(templatesDao.getTemplate(preexisting.getId()).isPresent());
-        assertTrue(templatesDao.getAllTemplates().stream()
+        assertTrue(templatesDao.getFilteredTemplates(TemplatesFilter.getDefaultInstance()).stream()
             .map(template -> TemplatesDaoImpl.GSON.toJson(template, Template.class))
             .allMatch(serialized::contains));
     }

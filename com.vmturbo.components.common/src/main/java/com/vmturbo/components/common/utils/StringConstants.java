@@ -319,4 +319,15 @@ public class StringConstants {
     public static final String DATA = "data";
     public static final String TEMPLATE_TYPE = "template_type";
     public static final String NUMBER_OF_COUPONS = "numberOfCoupons";
+
+    /**
+     * Class name for deployment profiles in the API.
+     */
+    public static final String SERVICE_CATALOG_ITEM = "ServiceCatalogItem";
+
+    /**
+     * The default name of the cluster headroom VM template.
+     * Should be in sync with defaultTemplates.json in the plan orchestrator.
+     */
+    public static final String CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME = "headroomVM";
 }

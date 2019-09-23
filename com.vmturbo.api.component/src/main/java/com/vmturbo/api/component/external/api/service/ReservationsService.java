@@ -22,11 +22,11 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multimap;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.ReservationMapper;
 import com.vmturbo.api.component.external.api.mapper.ReservationMapper.PlacementInfo;
@@ -40,6 +40,7 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IReservationsService;
 import com.vmturbo.api.utils.ParamStrings;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
+import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -72,9 +73,11 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByIdsRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.SingleTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -85,8 +88,10 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
 public class ReservationsService implements IReservationsService {
     private static final Logger logger = LogManager.getLogger();
 
+    private static final long THREAD_SLEEP_INTERVAL_MS = 500;
+
     // TODO: It'd be nice if we had metrics on ALL of the REST endpoints, then this wouldn't be needed.
-    public static final DataMetricHistogram PLACEMENT_REQUEST_LATENCY = DataMetricHistogram.builder()
+    private static final DataMetricHistogram PLACEMENT_REQUEST_LATENCY = DataMetricHistogram.builder()
             .withName("reservation_placement_request_seconds")
             .withHelp("How long it takes to receive answers for initial placement requests.")
             .withBuckets(0.6, 0.8, 1.0, 2.0, 3.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0, 600.0)
@@ -112,9 +117,7 @@ public class ReservationsService implements IReservationsService {
 
     private final long initialPlacementTimeoutSeconds;
 
-    private final long THREAD_SLEEP_INTERVAL_MS = 500;
-
-    public ReservationsService(@Nonnull final ReservationServiceBlockingStub reservationService,
+    ReservationsService(@Nonnull final ReservationServiceBlockingStub reservationService,
                                @Nonnull final ReservationMapper reservationMapper,
                                final long initialPlacementTimeoutSeconds,
                                @Nonnull final PlanServiceBlockingStub planServiceBlockingStub,
@@ -439,13 +442,14 @@ public class ReservationsService implements IReservationsService {
                 .filter(TopologyAddition::hasTemplateId)
                 .map(TopologyAddition::getTemplateId)
                 .collect(Collectors.toSet());
-        GetTemplatesByIdsRequest getTemplatesRequest = GetTemplatesByIdsRequest.newBuilder()
-                .addAllTemplateIds(templateIds)
-                .build();
-        Iterable<Template> templates = () -> templateServiceBlockingStub.getTemplatesByIds(getTemplatesRequest);
-        return StreamSupport.stream(templates.spliterator(), false)
-                .map(Template::getTemplateInfo)
-                .map(TemplateInfo::getEntityType)
-                .collect(Collectors.toSet());
+        GetTemplatesRequest getTemplatesRequest = GetTemplatesRequest.newBuilder()
+            .setFilter(TemplatesFilter.newBuilder()
+                .addAllTemplateIds(templateIds))
+            .build();
+        return TemplateProtoUtil.flattenGetResponse(templateServiceBlockingStub.getTemplates(getTemplatesRequest))
+            .map(SingleTemplateResponse::getTemplate)
+            .map(Template::getTemplateInfo)
+            .map(TemplateInfo::getEntityType)
+            .collect(Collectors.toSet());
     }
 }

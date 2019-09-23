@@ -1,9 +1,11 @@
 package com.vmturbo.topology.processor.template;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -20,8 +22,11 @@ import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
 
-import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByIdsRequest;
+import com.vmturbo.common.protobuf.TemplateProtoUtil;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.SingleTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
@@ -116,15 +121,18 @@ public class TemplateConverterFactory {
      */
     private Stream<Template> getTemplatesByIds(@Nonnull Set<Long> templateIds) {
         try {
-            GetTemplatesByIdsRequest getTemplatesRequest = GetTemplatesByIdsRequest.newBuilder()
-                    .addAllTemplateIds(templateIds)
-                    .build();
-            Iterable<Template> templates = () -> templateService.getTemplatesByIds(getTemplatesRequest);
-            final int templatesFoundSize = Iterables.size(templates);
+            final List<Template> templates = TemplateProtoUtil.flattenGetResponse(
+                templateService.getTemplates(GetTemplatesRequest.newBuilder()
+                    .setFilter(TemplatesFilter.newBuilder()
+                        .addAllTemplateIds(templateIds))
+                    .build()))
+                .map(SingleTemplateResponse::getTemplate)
+                .collect(Collectors.toList());
+            final int templatesFoundSize = templates.size();
             if (templatesFoundSize != templateIds.size()) {
                 throw new TemplatesNotFoundException(templateIds.size(), templatesFoundSize);
             }
-            return StreamSupport.stream(templates.spliterator(), false);
+            return templates.stream();
         } catch (StatusRuntimeException e) {
             // TODO: (OM-28609) we should have mechanism to notify Plan component that some plan failed
             // at the middle of process (e.g topology processor). In this case, UI or API will not be

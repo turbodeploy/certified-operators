@@ -4,17 +4,16 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import io.grpc.Channel;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import io.grpc.Channel;
-
-import com.vmturbo.action.orchestrator.api.ActionOrchestrator;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
@@ -130,13 +129,6 @@ public class PlanConfig {
     }
 
     @Bean
-    public ActionOrchestrator actionOrchestrator() {
-        final ActionOrchestrator actionOrchestrator = aoClientConfig.actionOrchestratorClient();
-        actionOrchestrator.addActionsListener(planProgressListener());
-        return actionOrchestrator;
-    }
-
-    @Bean
     public ActionsServiceBlockingStub actionsRpcService() {
         return ActionsServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel());
     }
@@ -150,6 +142,7 @@ public class PlanConfig {
     public PlanProgressListener planProgressListener() {
         final PlanProgressListener listener =  new PlanProgressListener(planDao(), planService(),
                 reservationConfig.reservationPlacementHandler(), realtimeTopologyContextId);
+        aoClientConfig.actionOrchestratorClient().addActionsListener(listener);
         repositoryClientConfig.repository().addListener(listener);
         historyClientConfig.historyComponent().addStatsListener(listener);
         return listener;

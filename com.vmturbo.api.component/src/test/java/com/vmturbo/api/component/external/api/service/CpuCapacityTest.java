@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.service;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.mock;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -20,6 +21,7 @@ import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.TemplateMapper;
+import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.template.CpuModelApiDTO;
 import com.vmturbo.common.protobuf.cpucapacity.CpuCapacity.CpuModelListRequest;
 import com.vmturbo.common.protobuf.cpucapacity.CpuCapacity.CpuModelListResponse;
@@ -90,6 +92,8 @@ public class CpuCapacityTest {
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(cpuCapacityService);
 
+    private TemplatesUtils templatesUtils = mock(TemplatesUtils.class);
+
     @Before
     public void setup() {
         final CpuInfoMapper cpuInfoMapper = new CpuInfoMapper();
@@ -97,6 +101,7 @@ public class CpuCapacityTest {
             TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             new TemplateMapper(), TemplateSpecServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             CpuCapacityServiceGrpc.newBlockingStub(grpcServer.getChannel()), cpuInfoMapper,
+            templatesUtils,
             CPU_CATALOG_LIFE_HOURS);
     }
 

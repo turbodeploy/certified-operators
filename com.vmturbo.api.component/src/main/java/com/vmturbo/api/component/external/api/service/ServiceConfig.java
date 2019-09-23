@@ -484,7 +484,9 @@ public class ServiceConfig {
     public TemplatesService templatesService() {
         return new TemplatesService(communicationConfig.templateServiceBlockingStub(),
             mapperConfig.templateMapper(), communicationConfig.templateSpecServiceBlockingStub(),
-            communicationConfig.cpuCapacityServiceBlockingStub(), cpuInfoMapper(), cpuCatalogLifeHours);
+            communicationConfig.cpuCapacityServiceBlockingStub(), cpuInfoMapper(),
+            mapperConfig.templatesUtils(),
+            cpuCatalogLifeHours);
     }
 
     @Bean

@@ -83,7 +83,7 @@
         <module name="NoLineWrap"/>
         <!-- Coding Guide 3.3.3 Ordering and spacing -->
         <module name="ImportOrder">
-            <property name="groups" value="/^javax?\./,org,/^\w+\./,/^com\.vmturbo\./"/>
+            <property name="groups" value="/^java?\./,/^javax?\./,org,/^\w+\./,/^com\.vmturbo\./"/>
             <property name="ordered" value="true"/>
             <property name="separated" value="true"/>
             <property name="option" value="top"/>

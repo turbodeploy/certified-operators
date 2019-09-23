@@ -54,11 +54,9 @@ import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers
 import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
-import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
+import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
@@ -97,7 +95,9 @@ import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByNameRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesResponse;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.SingleTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
@@ -117,6 +117,8 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 public class GroupsServiceTest {
 
@@ -412,8 +414,11 @@ public class GroupsServiceTest {
                 .setTemplateInfo(TemplateInfo.newBuilder()
                         .setName("template name"))
                 .build();
-        when(templateServiceSpy.getTemplatesByName(any(GetTemplatesByNameRequest.class)))
-                .thenReturn(Arrays.asList(template));
+        when(templateServiceSpy.getTemplates(any(GetTemplatesRequest.class)))
+                .thenReturn(Arrays.asList(GetTemplatesResponse.newBuilder()
+                    .addTemplates(SingleTemplateResponse.newBuilder()
+                        .setTemplate(template))
+                    .build()));
         groupsService.putSettingByUuidAndName(groupUuid, "capacityplandatamanager",
                 "templateName", setting);
         verify(groupServiceSpy).updateClusterHeadroomTemplate(UpdateClusterHeadroomTemplateRequest.newBuilder()

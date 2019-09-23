@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -13,14 +14,16 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.ws.rs.NotSupportedException;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
@@ -30,6 +33,7 @@ import com.vmturbo.api.dto.reservation.DemandEntityInfoDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiInputDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationParametersDTO;
+import com.vmturbo.api.dto.reservation.DeploymentParametersDTO;
 import com.vmturbo.api.dto.reservation.PlacementInfoDTO;
 import com.vmturbo.api.dto.reservation.PlacementParametersDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
@@ -44,6 +48,11 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfile;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo.ScopeAccessType;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.GetDeploymentProfileRequest;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileServiceGrpc.DeploymentProfileServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
@@ -65,6 +74,16 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class ReservationMapper {
 
+    private static final String PLACEMENT_SUCCEEDED = "PLACEMENT_SUCCEEDED";
+
+    private static final String PLACEMENT_FAILED = "PLACEMENT_FAILED";
+
+    private static final Map<Integer, ReservationConstraintInfo.Type> ENTITY_TYPE_TO_CONSTRAINT_TYPE =
+        ImmutableMap.<Integer, ReservationConstraintInfo.Type>builder()
+            .put(UIEntityType.DATACENTER.typeNumber(), ReservationConstraintInfo.Type.DATA_CENTER)
+            .put(UIEntityType.VIRTUAL_DATACENTER.typeNumber(), ReservationConstraintInfo.Type.VIRTUAL_DATA_CENTER)
+            .build();
+
     private final Logger logger = LogManager.getLogger();
 
     private final RepositoryApi repositoryApi;
@@ -75,18 +94,18 @@ public class ReservationMapper {
 
     private final PolicyServiceBlockingStub policyService;
 
-    private static final String PLACEMENT_SUCCEEDED = "PLACEMENT_SUCCEEDED";
+    private final DeploymentProfileServiceBlockingStub deploymentProfileService;
 
-    private static final String PLACEMENT_FAILED = "PLACEMENT_FAILED";
-
-    public ReservationMapper(@Nonnull final RepositoryApi repositoryApi,
-                             @Nonnull final TemplateServiceBlockingStub templateService,
-                             @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
-                             @Nonnull final PolicyServiceBlockingStub policyService) {
+    ReservationMapper(@Nonnull final RepositoryApi repositoryApi,
+                      @Nonnull final TemplateServiceBlockingStub templateService,
+                      @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
+                      @Nonnull final PolicyServiceBlockingStub policyService,
+                      @Nonnull final DeploymentProfileServiceBlockingStub deploymentProfileService) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.templateService = Objects.requireNonNull(templateService);
         this.groupServiceBlockingStub = Objects.requireNonNull(groupServiceBlockingStub);
         this.policyService = Objects.requireNonNull(policyService);
+        this.deploymentProfileService = Objects.requireNonNull(deploymentProfileService);
     }
 
     /**
@@ -94,31 +113,78 @@ public class ReservationMapper {
      *
      * @param placementParameters a list of {@link DemandReservationParametersDTO}.
      * @return list of {@link ScenarioChange}.
+     * @throws UnknownObjectException If one of the objects specified in the constraints is unrecognized.
+     * @throws InvalidOperationException If arguments are not in the right format (e.g. numeric ids).
      */
     public List<ScenarioChange> placementToScenarioChange(
             @Nonnull final List<DemandReservationParametersDTO> placementParameters)
-            throws UnknownObjectException {
+        throws UnknownObjectException, InvalidOperationException {
         // TODO: right now, it only support one type of templates for initial placement and reservation.
         if (placementParameters.size() != 1) {
             throw new NotSupportedException("Placement parameter size should be one.");
         }
-        PlacementParametersDTO placementDTO = placementParameters.get(0).getPlacementParameters();
-        TopologyAddition topologyAddition = TopologyAddition.newBuilder()
+        final PlacementParametersDTO placementDTO = placementParameters.get(0).getPlacementParameters();
+        final TopologyAddition topologyAddition = TopologyAddition.newBuilder()
                 .setAdditionCount(placementDTO.getCount())
                 .setTemplateId(Long.valueOf(placementDTO.getTemplateID()))
                 .build();
-        final ScenarioChange ScenarioTopologyAddition = ScenarioChange.newBuilder()
+        final ScenarioChange scenarioTopologyAddition = ScenarioChange.newBuilder()
                 .setTopologyAddition(topologyAddition)
                 .build();
         final List<ScenarioChange> scenarioChanges = new ArrayList<>();
-        scenarioChanges.add(ScenarioTopologyAddition);
+        scenarioChanges.add(scenarioTopologyAddition);
+
+        final List<ReservationConstraintInfo> reservationConstraints = new ArrayList<>();
         if (placementDTO.getConstraintIDs() != null) {
-            final PlanChanges planChange = createPlanChanges(placementDTO.getConstraintIDs());
-            final ScenarioChange ScenarioPlanChange = ScenarioChange.newBuilder()
-                    .setPlanChanges(planChange)
-                    .build();
-            scenarioChanges.add(ScenarioPlanChange);
+            for (String constraintId : placementDTO.getConstraintIDs()) {
+                try {
+                    generateRelateConstraint(Long.valueOf(constraintId))
+                        .ifPresent(reservationConstraints::add);
+                } catch (NumberFormatException e) {
+                    final String message = "Constraint ID must be numeric. Got: " + constraintId;
+                    logger.error(message);
+                    throw new InvalidOperationException(message);
+                }
+            }
         }
+
+        final DeploymentParametersDTO deploymentParams =
+            placementParameters.get(0).getDeploymentParameters();
+        if (deploymentParams != null && !StringUtils.isEmpty(deploymentParams.getDeploymentProfileID())) {
+            final long deploymentProfileId;
+            try {
+                deploymentProfileId = Long.parseLong(deploymentParams.getDeploymentProfileID());
+            } catch (NumberFormatException e) {
+                final String message = "Deployment profile ID must be numeric. Got: " + deploymentParams.getDeploymentProfileID();
+                logger.error(message);
+                throw new InvalidOperationException(message);
+            }
+
+            final DeploymentProfile deploymentProfile =
+                deploymentProfileService.getDeploymentProfile(GetDeploymentProfileRequest.newBuilder()
+                    .setDeploymentProfileId(deploymentProfileId)
+                    .build());
+            for (DeploymentProfileInfo.Scope scope : deploymentProfile.getDeployInfo().getScopesList()) {
+                if (scope.getScopeAccessType() == ScopeAccessType.Or) {
+                    if (scope.getIdsCount() > 0) {
+                        // TODO (roman, Sept 5 2019) OM-50713: Add support for the OR context type.
+                        logger.error("Unhandled deployment profile scope: {}", scope);
+                    }
+                } else if (scope.getScopeAccessType() == ScopeAccessType.And) {
+                    for (Long scopeId : scope.getIdsList()) {
+                        generateRelateConstraint(scopeId).ifPresent(reservationConstraints::add);
+                    }
+                }
+            }
+        }
+
+        if (!reservationConstraints.isEmpty()) {
+            scenarioChanges.add(ScenarioChange.newBuilder()
+                .setPlanChanges(PlanChanges.newBuilder()
+                    .addAllInitialPlacementConstraints(reservationConstraints))
+                .build());
+        }
+
         return scenarioChanges;
     }
 
@@ -156,7 +222,7 @@ public class ReservationMapper {
                 .collect(Collectors.toSet());
         final List<ReservationConstraintInfo> constraintInfos = new ArrayList<>();
         for (Long constraintId : constraintIds) {
-            constraintInfos.add(generateRelateConstraint(constraintId));
+            generateRelateConstraint(constraintId).ifPresent(constraintInfos::add);
         }
         reservationBuilder.setConstraintInfoCollection(ConstraintInfoCollection.newBuilder()
                 .addAllReservationConstraintInfo(constraintInfos)
@@ -178,7 +244,7 @@ public class ReservationMapper {
             @Nonnull final List<PlacementInfo> placementInfos) throws UnknownObjectException {
         final Template template = templateService.getTemplate(GetTemplateRequest.newBuilder()
                 .setTemplateId(topologyAddition.getTemplateId())
-                .build());
+                .build()).getTemplate();
         final Map<Long, ServiceEntityApiDTO> serviceEntityMap = getServiceEntityMap(placementInfos);
         /// If there exists an unplaced VM, then the initial placement failed.
         final String placementStatus = placementInfos.size() == topologyAddition.getAdditionCount() ?
@@ -250,7 +316,7 @@ public class ReservationMapper {
         try {
             final Template template = templateService.getTemplate(GetTemplateRequest.newBuilder()
                     .setTemplateId(reservationTemplate.getTemplateId())
-                    .build());
+                    .build()).getTemplate();
             final List<PlacementInfo> placementInfos = reservationTemplate.getReservationInstanceList().stream()
                     .map(reservationInstance -> {
                         final List<Long> providerIds = reservationInstance.getPlacementInfoList().stream()
@@ -270,8 +336,7 @@ public class ReservationMapper {
             if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
                 logger.error("Error: " + e.getMessage());
                 return;
-            }
-            else {
+            } else {
                 throw e;
             }
         }
@@ -320,27 +385,6 @@ public class ReservationMapper {
     }
 
     /**
-     * Create {@link PlanChanges} object which only contains a list of
-     * {@link ReservationConstraintInfo}. The {@link PlanChanges} will contains all constraints
-     * which user specified when running initial placements.
-     *
-     * @param constraintIds a set of constraint ids.
-     * @return {@link PlanChanges}
-     * @throws UnknownObjectException if there are any unknown objects.
-     */
-    private PlanChanges createPlanChanges(@Nonnull final Set<String> constraintIds)
-            throws UnknownObjectException {
-        final PlanChanges.Builder planChanges = PlanChanges.newBuilder();
-        final List<ReservationConstraintInfo> constraints = new ArrayList<>();
-        for (String constraintId : constraintIds) {
-            constraints.add(generateRelateConstraint(Long.valueOf(constraintId)));
-        }
-        return planChanges
-                .addAllInitialPlacementConstraints(constraints)
-                .build();
-    }
-
-    /**
      * For input constraint id, try to create {@link ReservationConstraintInfo}. Right now, it only
      * support Cluster, Data center, Virtual data center constraints.
      *
@@ -348,7 +392,7 @@ public class ReservationMapper {
      * @return {@link ReservationConstraintInfo}
      * @throws UnknownObjectException if there are any unknown objects.
      */
-    private ReservationConstraintInfo generateRelateConstraint(final long constraintId)
+    private Optional<ReservationConstraintInfo> generateRelateConstraint(final long constraintId)
             throws UnknownObjectException {
         final ReservationConstraintInfo.Builder constraint = ReservationConstraintInfo.newBuilder()
                 .setConstraintId(constraintId);
@@ -361,24 +405,30 @@ public class ReservationMapper {
         // TODO: After UI changes to send constraint type, we can avoid these api calls.
         final GetGroupResponse getGroupResponse = groupServiceBlockingStub.getGroup(groupID);
         if (getGroupResponse.hasGroup() && getGroupResponse.getGroup().getType() == Group.Type.CLUSTER) {
-            return constraint.setType(ReservationConstraintInfo.Type.CLUSTER).build();
+            return Optional.of(constraint.setType(ReservationConstraintInfo.Type.CLUSTER).build());
         }
         // TODO: (OM-30821) implement validation check for policy constraint. For example: if reservation
         // entity type is VM, but the policy consumer and provider group doesn't related with VM
         // type, it should throw exception.
         if (getPolicyConstraint(constraintId).isPresent()) {
-            return constraint.setType(ReservationConstraintInfo.Type.POLICY).build();
+            return Optional.of(constraint.setType(ReservationConstraintInfo.Type.POLICY).build());
         }
         final int entityType = repositoryApi.entityRequest(constraintId)
             .getMinimalEntity()
             .orElseThrow(() -> new UnknownObjectException("Unknown constraint id: " + constraintId))
             .getEntityType();
-        if (entityType == EntityType.DATACENTER_VALUE) {
-            return constraint.setType(ReservationConstraintInfo.Type.DATA_CENTER).build();
-        } else if (entityType == EntityType.VIRTUAL_DATACENTER_VALUE) {
-            return constraint.setType(ReservationConstraintInfo.Type.VIRTUAL_DATA_CENTER).build();
+
+        final ReservationConstraintInfo.Type constraintType = ENTITY_TYPE_TO_CONSTRAINT_TYPE.get(entityType);
+        if (constraintType == null) {
+            if (entityType == EntityType.NETWORK_VALUE) {
+                // TODO (roman, Sept 19 2019): OM-50713 Support network constraints.
+                logger.warn("Network constraint not supported (network ID: {})", constraintId);
+                return Optional.empty();
+            } else {
+                throw new UnknownObjectException("Unknown type for constraint id: " + constraintId);
+            }
         } else {
-            throw new UnknownObjectException("Unknown type for constraint id: " + constraintId);
+            return Optional.of(constraint.setType(constraintType).build());
         }
     }
 
@@ -529,11 +579,11 @@ public class ReservationMapper {
     }
 
     private ResourceApiDTO generateResourcesApiDTO(@Nonnull final ServiceEntityApiDTO serviceEntityApiDTO) {
-        ResourceApiDTO resourceApiDTO = new ResourceApiDTO();
-        BaseApiDTO providerBaseApiDTO = new BaseApiDTO();
+        final BaseApiDTO providerBaseApiDTO = new BaseApiDTO();
         providerBaseApiDTO.setClassName(serviceEntityApiDTO.getClassName());
         providerBaseApiDTO.setDisplayName(serviceEntityApiDTO.getDisplayName());
         providerBaseApiDTO.setUuid(serviceEntityApiDTO.getUuid());
+        final ResourceApiDTO resourceApiDTO = new ResourceApiDTO();
         resourceApiDTO.setProvider(providerBaseApiDTO);
         return resourceApiDTO;
     }
@@ -548,9 +598,15 @@ public class ReservationMapper {
         // a list of oids which are the providers of entityId.
         private final List<Long> providerIds;
 
-        public PlacementInfo(@Nonnull final long entityId, @Nonnull final ImmutableList providerIdList) {
+        /**
+         * Constructor.
+         *
+         * @param entityId The ID of the template entity.
+         * @param providerIdList The list of provider OIDs.
+         */
+        public PlacementInfo(final long entityId, @Nonnull final List<Long> providerIdList) {
             this.entityId = entityId;
-            this.providerIds = providerIdList;
+            this.providerIds = Collections.unmodifiableList(providerIdList);
         }
 
         public long getEntityId() {
@@ -566,7 +622,7 @@ public class ReservationMapper {
      * A exception represents provider id is not recognized in current topology.
      */
     private static class ProviderIdNotRecognizedException extends Exception {
-        public ProviderIdNotRecognizedException(@Nonnull final long id) {
+        ProviderIdNotRecognizedException(@Nonnull final long id) {
             super("Provider Id: " + id + " not found.");
         }
     }

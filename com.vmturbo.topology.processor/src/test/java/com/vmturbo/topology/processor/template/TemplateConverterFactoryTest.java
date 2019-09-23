@@ -22,8 +22,11 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 
-import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByIdsRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesResponse;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.SingleTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -66,12 +69,16 @@ public class TemplateConverterFactoryTest {
     public void testTemplateAddition() {
         final Map<Long, Long> templateAdditions = ImmutableMap.of(TEMPLATE_ID, 2L);
         when(templateServiceMole
-               .getTemplatesByIds(GetTemplatesByIdsRequest.newBuilder()
-                        .addTemplateIds(TEMPLATE_ID).build()))
-                .thenReturn(Lists.newArrayList(Template.newBuilder()
-                        .setId(TEMPLATE_ID)
-                        .setTemplateInfo(TemplateConverterTestUtil.VM_TEMPLATE_INFO)
-                        .build()));
+               .getTemplates(GetTemplatesRequest.newBuilder()
+                   .setFilter(TemplatesFilter.newBuilder()
+                        .addTemplateIds(TEMPLATE_ID))
+                   .build()))
+                .thenReturn(Lists.newArrayList(GetTemplatesResponse.newBuilder()
+                    .addTemplates(SingleTemplateResponse.newBuilder()
+                        .setTemplate(Template.newBuilder()
+                            .setId(TEMPLATE_ID)
+                            .setTemplateInfo(TemplateConverterTestUtil.VM_TEMPLATE_INFO)))
+                    .build()));
         final Stream<TopologyEntityDTO.Builder> topologyEntityForTemplates =
                 templateConverterFactory.generateTopologyEntityFromTemplates(templateAdditions,
                         ArrayListMultimap.create(), topology);
@@ -117,13 +124,16 @@ public class TemplateConverterFactoryTest {
             TopologyEntity.newBuilder(originalTopologyEntityOne.toBuilder()));
         topology.put(originalTopologyEntityTwo.getOid(),
             TopologyEntity.newBuilder(originalTopologyEntityTwo.toBuilder()));
-        when(templateServiceMole
-                .getTemplatesByIds(GetTemplatesByIdsRequest.newBuilder()
-                        .addTemplateIds(TEMPLATE_ID).build()))
-                .thenReturn(Lists.newArrayList(Template.newBuilder()
+        when(templateServiceMole.getTemplates(GetTemplatesRequest.newBuilder()
+                .setFilter(TemplatesFilter.newBuilder()
+                    .addTemplateIds(TEMPLATE_ID))
+                .build()))
+            .thenReturn(Lists.newArrayList(GetTemplatesResponse.newBuilder()
+                .addTemplates(SingleTemplateResponse.newBuilder()
+                    .setTemplate(Template.newBuilder()
                         .setId(TEMPLATE_ID)
-                        .setTemplateInfo(TemplateConverterTestUtil.VM_TEMPLATE_INFO)
-                        .build()));
+                        .setTemplateInfo(TemplateConverterTestUtil.VM_TEMPLATE_INFO)))
+                .build()));
         final Multimap<Long, Long> templateToReplacedEntity = ArrayListMultimap.create();
         templateToReplacedEntity.put(TEMPLATE_ID, originalTopologyEntityOne.getOid());
         templateToReplacedEntity.put(TEMPLATE_ID, originalTopologyEntityTwo.getOid());
@@ -143,13 +153,16 @@ public class TemplateConverterFactoryTest {
     @Test
     public void testTemplateAdditionForReservation() {
         final Map<Long, Long> templateAdditions = ImmutableMap.of(TEMPLATE_ID, 3L);
-        when(templateServiceMole
-                .getTemplatesByIds(GetTemplatesByIdsRequest.newBuilder()
-                        .addTemplateIds(TEMPLATE_ID).build()))
-                .thenReturn(Lists.newArrayList(Template.newBuilder()
+        when(templateServiceMole.getTemplates(GetTemplatesRequest.newBuilder()
+                .setFilter(TemplatesFilter.newBuilder()
+                    .addTemplateIds(TEMPLATE_ID))
+                .build()))
+            .thenReturn(Lists.newArrayList(GetTemplatesResponse.newBuilder()
+                .addTemplates(SingleTemplateResponse.newBuilder()
+                    .setTemplate(Template.newBuilder()
                         .setId(TEMPLATE_ID)
-                        .setTemplateInfo(TemplateConverterTestUtil.VM_TEMPLATE_INFO)
-                        .build()));
+                        .setTemplateInfo(TemplateConverterTestUtil.VM_TEMPLATE_INFO)))
+                .build()));
         final Stream<TopologyEntityDTO.Builder> topologyEntityForTemplates =
                 templateConverterFactory.generateReservationEntityFromTemplates(templateAdditions, topology);
         final List<TopologyEntityDTO> topologyEntityDTOList = topologyEntityForTemplates

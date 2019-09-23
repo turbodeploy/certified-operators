@@ -14,18 +14,20 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Lists;
+
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.Lists;
-
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
+import com.vmturbo.api.dto.deploymentprofile.DeploymentProfileApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiInputDTO;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfile;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
@@ -37,6 +39,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpec;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpecField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpecResource;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * A Mapper class for template, it provide two convert functions: mapToTemplateApiDTO and
@@ -46,7 +49,7 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 public class TemplateMapper {
     private final Logger logger = LogManager.getLogger();
 
-    private final float ONE = 1.0f;
+    private static final float ONE = 1.0f;
 
     /**
      * Convert {@link Template} object to {@link TemplateApiDTO}. It will use matched template spec
@@ -54,10 +57,13 @@ public class TemplateMapper {
      *
      * @param template {@link Template}
      * @param templateSpec matched with template parameter.
-     * @return {@link TemplateApiDTO}
+     * @param deploymentProfiles The {@link DeploymentProfile}s associated with this template.
+     * @return API format - {@link TemplateApiDTO}.
      */
-    public TemplateApiDTO mapToTemplateApiDTO(Template template, TemplateSpec templateSpec) {
-        TemplateApiDTO dto = buildBasicTemplateApiDTO(template);
+    public TemplateApiDTO mapToTemplateApiDTO(@Nonnull final Template template,
+                                              @Nonnull final TemplateSpec templateSpec,
+                                              @Nonnull final List<DeploymentProfile> deploymentProfiles) {
+        final TemplateApiDTO dto = buildBasicTemplateApiDTO(template);
 
         dto.setComputeResources(Lists.newArrayList());
         dto.setStorageResources(Lists.newArrayList());
@@ -86,6 +92,20 @@ public class TemplateMapper {
                         resource.getCategory().getName());
             }
         });
+
+        // In XL the relationship between templates and deployment profiles is many-many but the
+        // API DTO only supports one. We just pick the first. Since users can't create templates
+        // associated with multiple deployment profiles, and we don't allow editing discovered
+        // deployment profiles, we don't need to worry about data loss from only keeping one here
+        // and saving the resulting DTO.
+        deploymentProfiles.stream().findFirst().ifPresent(profile -> {
+            final DeploymentProfileApiDTO apiDto = new DeploymentProfileApiDTO();
+            apiDto.setUuid(Long.toString(profile.getId()));
+            apiDto.setDisplayName(profile.getDeployInfo().getName());
+            apiDto.setClassName(StringConstants.SERVICE_CATALOG_ITEM);
+            dto.setDeploymentProfile(apiDto);
+        });
+
         return dto;
     }
 
@@ -96,10 +116,10 @@ public class TemplateMapper {
      *
      * @param templateInfo {@link TemplateInfo} that contains the fields
      * @param templateSpec matched with template parameter.
+     * @throws UnauthorizedObjectException If the template is invalid.
      */
-    public void checkIfValidTemplate(TemplateInfo templateInfo, TemplateSpec templateSpec) throws
-        UnauthorizedObjectException {
-
+    private void checkIfValidTemplate(TemplateInfo templateInfo, TemplateSpec templateSpec)
+            throws UnauthorizedObjectException {
         Map<String, TemplateSpecField> templateSpecFieldMap = templateSpec.getResourcesList().stream()
             .map(TemplateSpecResource::getFieldsList)
             .flatMap(List::stream)
@@ -125,6 +145,7 @@ public class TemplateMapper {
      * @param templateSpec matched template spec contains template field constant information.
      * @param entityType value of template entity type.
      * @return converted {@link TemplateInfo}
+     * @throws UnauthorizedObjectException If the template is invalid.
      */
     public TemplateInfo mapToTemplateInfo(TemplateApiInputDTO inputDTO,
                                           TemplateSpec templateSpec,
@@ -307,7 +328,7 @@ public class TemplateMapper {
                     logger.error("Category type {} is not supported yet.", categoryName);
                     throw new NotImplementedException(categoryName + " type is not supported yet.");
             }
-        } else if(!defaultTemplateFields.isEmpty()) {
+        } else if (!defaultTemplateFields.isEmpty()) {
             addDefaultTemplateField(templateInfo, categoryName, defaultTemplateFields);
         }
     }
@@ -368,13 +389,15 @@ public class TemplateMapper {
      * @param categoryName represent which category need to create.
      * @param type represent which category type.
      * @param defaultTemplateFields all the template fields which contains default value.
+     * @param multiplierMap Map of (stat name) -> multiplier to use when converting the stat to
+     *                      a template resource.
      * @return {@link TemplateResource}
      */
     private TemplateResource convertToTemplateResource(@Nonnull ResourceApiDTO resourceApiDTO,
                                                        @Nonnull ResourcesCategoryName categoryName,
                                                        Optional<String> type,
                                                        @Nonnull List<TemplateField> defaultTemplateFields,
-                                                       @Nonnull Map<String, Float> multiplierMap){
+                                                       @Nonnull Map<String, Float> multiplierMap) {
         TemplateResource.Builder templateResourceBuilder = TemplateResource.newBuilder();
         if (resourceApiDTO.getStats() != null) {
             final List<TemplateField> templateFields = resourceApiDTO.getStats().stream()
@@ -403,6 +426,8 @@ public class TemplateMapper {
      * @param templateSpec {@link TemplateSpec} object contains all template spec fields.
      * @param resourceApiDTO {@link ResourceApiDTO}.
      * @param name of resources category.
+     * @param multiplierMap Map of (stat name) -> multiplier to use when converting the stat to
+     *                      a template resource.
      * @return all template fields which belong to input category and also contains default value.
      */
     private List<TemplateField> getDefaultTemplateFields(@Nonnull TemplateSpec templateSpec,
@@ -416,8 +441,7 @@ public class TemplateMapper {
             .filter(templateSpecField -> {
                 if (resourceApiDTO == null) {
                     return true;
-                }
-                else {
+                } else {
                     Set<String> statName = resourceApiDTO.stream()
                         .map(ResourceApiDTO::getStats)
                         .flatMap(List::stream)

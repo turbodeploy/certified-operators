@@ -3,7 +3,11 @@ package com.vmturbo.plan.orchestrator.deployment.profile;
 import static com.vmturbo.plan.orchestrator.db.Tables.DEPLOYMENT_PROFILE;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -26,6 +30,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.plan.orchestrator.db.Tables;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.DeploymentProfile;
 import com.vmturbo.plan.orchestrator.plan.DiscoveredNotSupportedOperationException;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
@@ -57,6 +62,35 @@ public class DeploymentProfileDaoImpl implements Diagnosable {
     }
 
     /**
+     * Get the deployment profiles associated with specific templates.
+     *
+     * @param templateIds The OIDs of the target templates. If empty, the response will be empty.
+     * @return A map of (template id, set of {@link DeploymentProfile}s associated with the template).
+     *         Each template ID in the input that has associated profiles will have an entry in the
+     *         map.
+     */
+    @Nonnull
+    public Map<Long, Set<DeploymentProfileDTO.DeploymentProfile>> getDeploymentProfilesForTemplates(
+            @Nonnull final Set<Long> templateIds) {
+        if (templateIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        final Map<Long, Set<DeploymentProfileDTO.DeploymentProfile>> retMap = new HashMap<>();
+        dsl.selectFrom(DEPLOYMENT_PROFILE
+            .innerJoin(Tables.TEMPLATE_TO_DEPLOYMENT_PROFILE).onKey())
+            .where(Tables.TEMPLATE_TO_DEPLOYMENT_PROFILE.TEMPLATE_ID.in(templateIds))
+            .fetch()
+            .forEach(record -> {
+                DeploymentProfile deploymentProfile = record.into(DeploymentProfile.class);
+                final long templateId = record.get(Tables.TEMPLATE_TO_DEPLOYMENT_PROFILE.TEMPLATE_ID);
+                retMap.computeIfAbsent(templateId, k -> new HashSet<>())
+                    .add(convertToProtoDeploymentProfile(deploymentProfile));
+            });
+        return retMap;
+    }
+
+    /**
      * Get one deployment profile by id.
      *
      * @param id of deployment profile.
@@ -64,6 +98,15 @@ public class DeploymentProfileDaoImpl implements Diagnosable {
      */
     public Optional<DeploymentProfileDTO.DeploymentProfile> getDeploymentProfile(long id) {
         return getDeploymentProfile(dsl, id);
+    }
+
+    private Optional<DeploymentProfileDTO.DeploymentProfile> getDeploymentProfile(DSLContext dsl,
+                                                                                  long id) {
+        final DeploymentProfile deploymentProfile = dsl.selectFrom(DEPLOYMENT_PROFILE)
+            .where(DEPLOYMENT_PROFILE.ID.eq(id)).fetchOne().into(DeploymentProfile.class);
+
+        return Optional.ofNullable(deploymentProfile)
+            .map(this::convertToProtoDeploymentProfile);
     }
 
     /**
@@ -88,7 +131,9 @@ public class DeploymentProfileDaoImpl implements Diagnosable {
      * @param id of existing deployment profile.
      * @param deploymentProfileInfo contains new deployment profile need to updated.
      * @return new updated deployment profile.
-     * @throws NoSuchObjectException
+     * @throws NoSuchObjectException If no deployment profile with the id exists.
+     * @throws DiscoveredNotSupportedOperationException If the deployment profile was discovered.
+     *     Discovered profiles are immutable.
      */
     public DeploymentProfileDTO.DeploymentProfile editDeploymentProfile(long id,
                                                                          @Nonnull DeploymentProfileInfo deploymentProfileInfo)
@@ -120,7 +165,9 @@ public class DeploymentProfileDaoImpl implements Diagnosable {
      *
      * @param id ID of the deployment profile to be deleted.
      * @return new updated deployment profile.
-     * @throws NoSuchObjectException
+     * @throws NoSuchObjectException If the deployment profile doesn't exist.
+     * @throws DiscoveredNotSupportedOperationException If the deployment profile is discovered.
+     *     Discovered profiles are immutable.
      */
     public DeploymentProfileDTO.DeploymentProfile deleteDeploymentProfile(long id)
         throws NoSuchObjectException, DiscoveredNotSupportedOperationException {
@@ -132,15 +179,6 @@ public class DeploymentProfileDaoImpl implements Diagnosable {
         }
         dsl.deleteFrom(DEPLOYMENT_PROFILE).where(DEPLOYMENT_PROFILE.ID.eq(id)).execute();
         return deploymentProfile;
-    }
-
-    private Optional<DeploymentProfileDTO.DeploymentProfile> getDeploymentProfile(DSLContext dsl,
-                                                                                  long id) {
-        final DeploymentProfile deploymentProfile = dsl.selectFrom(DEPLOYMENT_PROFILE)
-            .where(DEPLOYMENT_PROFILE.ID.eq(id)).fetchOne().into(DeploymentProfile.class);
-
-        return Optional.ofNullable(deploymentProfile)
-            .map(this::convertToProtoDeploymentProfile);
     }
 
     private Set<DeploymentProfileDTO.DeploymentProfile> convertToProtoDeploymentProfileList(
@@ -260,7 +298,7 @@ public class DeploymentProfileDaoImpl implements Diagnosable {
                 Optional.of("Failed to restore deployment profile " + profile);
         } catch (DataAccessException e) {
             return Optional.of("Could not restore deployment profile " + profile +
-                " because of DataAccessException "+ e.getMessage());
+                " because of DataAccessException " + e.getMessage());
         }
     }
 

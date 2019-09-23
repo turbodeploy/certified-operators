@@ -38,6 +38,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
@@ -46,6 +47,7 @@ import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.plan.IntegrityException;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
@@ -409,7 +411,9 @@ public class PlanProjectExecutor {
             }
         } else {
             // Set headroomTemplate  to default template
-            avgHeadroomTemplate = templatesDao.getTemplatesByName("headroomVM").stream()
+            avgHeadroomTemplate = templatesDao.getFilteredTemplates(TemplatesFilter.newBuilder()
+                    .addTemplateName(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME)
+                    .build()).stream()
                 .filter(template -> template.getType().equals(Type.SYSTEM))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("No system headroom VM found!"));
