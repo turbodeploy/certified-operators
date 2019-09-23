@@ -450,7 +450,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         final String probeType = probeStore.getProbe(target.getProbeId())
                 .map(ProbeInfo::getProbeType)
                 .orElseThrow(() -> new ProbeException("Probe " + target.getProbeId()
-                        + " corresponding to target " + targetId + " is not registered"));
+                        + " corresponding to target '" + target.getDisplayName()
+                        + "' (" + targetId + ") is not registered"));
 
         final Validation validation = new Validation(target.getProbeId(),
                 target.getId(), identityProvider);
@@ -573,7 +574,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             final String probeType = probeStore.getProbe(target.getProbeId())
                     .map(ProbeInfo::getProbeType)
                     .orElseThrow(() -> new ProbeException("Probe " + target.getProbeId()
-                            + " corresponding to target " + targetId + " is not registered"));
+                            + " corresponding to target '" + target.getDisplayName()
+                            + "' (" + targetId + ") is not registered"));
 
 
             probeId = target.getProbeId();
@@ -1018,10 +1020,10 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 if (discoveryDumper != null) {
                     final Optional<Target> target = targetStore.getTarget(targetId);
                     final Optional<ProbeInfo> probeInfo = probeStore.getProbe(discovery.getProbeId());
-                    Optional<String> displayName = target.isPresent() && probeInfo.isPresent()
-                        ? target.get().computeDisplayName()
-                        : Optional.empty();
-                    String targetName = displayName.map(name -> probeInfo.get().getProbeType() + "_" + name).orElse(DiscoveryDumperSettings.UNIDENTIFIED_TARGET_NAME);
+                    String displayName = target.isPresent()
+                        ? target.get().getDisplayName()
+                        : "targetID-" + targetId;
+                    String targetName = probeInfo.get().getProbeType() + "_" + displayName;
                     if (discovery.getUserInitiated()) {
                         // make sure we have up-to-date settings if this is a user-initiated discovery
                         targetDumpingSettings.refreshSettings();

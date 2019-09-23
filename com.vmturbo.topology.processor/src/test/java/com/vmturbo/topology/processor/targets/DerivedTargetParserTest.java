@@ -74,11 +74,11 @@ public class DerivedTargetParserTest {
     private static final String addressField = PredefinedAccountDefinition.Address.name().toLowerCase();
     private static final String userNameField = PredefinedAccountDefinition.Username.name().toLowerCase();
 
-    private static final String name1 = "vmturbo";
-    private static final String name2 = "ABC";
-
-    private static final String addr1 = "1.2.3.4";
-    private static final String addr2 = "250.250.250.250";
+    private static final String nameValue = "ABC";
+    private static final String usernameValue1 = "vmturbo1";
+    private static final String usernameValue2 = "vmturbo2";
+    private static final String addrValue1 = "1.2.3.4";
+    private static final String addrValue2 = "250.250.250.250";
 
     final ProbeInfo probeInfo1 = ProbeInfo.newBuilder()
             .setProbeCategory(probeCategory).setProbeType(probeType1)
@@ -99,7 +99,7 @@ public class DerivedTargetParserTest {
 
     final ProbeInfo probeInfo2 = ProbeInfo.newBuilder()
             .setProbeCategory(probeCategory).setProbeType(probeType2)
-            .addTargetIdentifierField(nameField)
+            .addTargetIdentifierField(userNameField)
             .addAccountDefinition(AccountDefEntry.newBuilder()
                     .setCustomDefinition(CustomAccountDefEntry.newBuilder()
                             .setName(userNameField)
@@ -111,24 +111,25 @@ public class DerivedTargetParserTest {
                             .setName(nameField)
                             .setDisplayName("name-displayName")
                             .setDescription("name-desc"))
-                    .setMandatory(true))
+                    .setMandatory(true)
+                    .setIsTargetDisplayName(true))
             .build();
 
     final DerivedTargetSpecificationDTO dto1 =
-            createDerivedTargetSpecDTO(
-                    probeType1, true, true, true, userNameField, name1, addressField, addr1);
+            createDerivedTargetSpecDTO(probeType1, true, true, true,
+                    userNameField, usernameValue1, addressField, addrValue1);
 
     final DerivedTargetSpecificationDTO dto2 =
-            createDerivedTargetSpecDTO(
-                    probeType1, false, false, false, userNameField, name2, addressField, addr2);
+            createDerivedTargetSpecDTO(probeType1, false, false, false,
+                    userNameField, usernameValue2, addressField, addrValue2);
 
     final DerivedTargetSpecificationDTO dto3 =
-            createDerivedTargetSpecDTO(
-                    probeType1, false, true, true, userNameField, name1, addressField, addr2);
+            createDerivedTargetSpecDTO(probeType1, false, true, true,
+                    userNameField, usernameValue1, addressField, addrValue2);
 
     final DerivedTargetSpecificationDTO dto4 =
-            createDerivedTargetSpecDTO(
-                    probeType2, false, true, false, userNameField, name1, nameField, name2);
+            createDerivedTargetSpecDTO(probeType2, false, true, false,
+                    userNameField, usernameValue1, nameField, nameValue);
 
     /**
      * Create a {@link DerivedTargetSpecificationDTO} for test requirements with two associated
@@ -169,6 +170,8 @@ public class DerivedTargetParserTest {
         Assert.assertEquals(2, targetStore.getAll().size());
         targetStore.getAll().stream().anyMatch(target -> target.getSpec().hasParentId());
         targetStore.getAll().stream().anyMatch(target -> target.getSpec().getIsHidden());
+        targetStore.getAll().stream().anyMatch(target -> target.getDisplayName().equals(addrValue1));
+        targetStore.getAll().stream().anyMatch(target -> target.getDisplayName().equals(addrValue2));
     }
 
     /**
@@ -182,6 +185,7 @@ public class DerivedTargetParserTest {
         Assert.assertEquals(1, targetStore.getAll().size());
         targetStore.getAll().stream().allMatch(target -> target.getSpec().hasParentId());
         targetStore.getAll().stream().noneMatch(target -> target.getSpec().getIsHidden());
+        targetStore.getAll().stream().allMatch(target -> target.getDisplayName().equals(nameValue));
     }
 
     /**
@@ -198,11 +202,11 @@ public class DerivedTargetParserTest {
 
         Assert.assertEquals(1, targetStore.getAll().size());
         Assert.assertTrue(targetStore.getAll().get(0).getSpec().getAccountValueList().stream()
-                .anyMatch(av -> av.getKey().equals(addressField) && av.getStringValue().equals(addr2)));
+                .anyMatch(av -> av.getKey().equals(addressField) && av.getStringValue().equals(addrValue2)));
         Assert.assertTrue(targetStore.getAll().get(0).getSpec().getAccountValueList().stream()
-                .anyMatch(av -> av.getKey().equals(userNameField) && av.getStringValue().equals(name1)));
+                .anyMatch(av -> av.getKey().equals(userNameField) && av.getStringValue().equals(usernameValue1)));
         Assert.assertFalse(targetStore.getAll().get(0).getSpec().getAccountValueList().stream()
-                .anyMatch(av -> av.getKey().equals(addressField) && av.getStringValue().equals(addr1)));
+                .anyMatch(av -> av.getKey().equals(addressField) && av.getStringValue().equals(addrValue1)));
     }
 
     /**

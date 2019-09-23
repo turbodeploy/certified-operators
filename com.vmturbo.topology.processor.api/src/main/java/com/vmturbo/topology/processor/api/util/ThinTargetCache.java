@@ -173,11 +173,7 @@ public class ThinTargetCache implements TargetListener {
                                             @Nonnull final ThinProbeInfo probeInfo) {
         final ImmutableThinTargetInfo.Builder resultBldr = ImmutableThinTargetInfo.builder()
             .oid(targetInfo.getId());
-        resultBldr.displayName(targetInfo.getDisplayName()
-            .orElseGet(() -> {
-                logger.warn("Cannot find the display name of target with id {}", targetInfo.getId());
-                return "UNKNOWN";
-            }));
+        resultBldr.displayName(targetInfo.getDisplayName());
 
         // fetch information about the probe, and store the probe type in the result
         resultBldr.probeInfo(probeInfo);

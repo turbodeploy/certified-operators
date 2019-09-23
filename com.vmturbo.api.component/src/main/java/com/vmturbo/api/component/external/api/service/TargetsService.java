@@ -1097,16 +1097,14 @@ public class TargetsService implements ITargetsService {
                         + errorFields + " in probe with id: " + probeInfo.getId());
             }
 
+            targetApiDTO.setDisplayName(targetInfo.getDisplayName());
+
             final List<InputFieldApiDTO> inputFields = probeInfo.getAccountDefinitions().stream()
                     .map(this::accountDefEntryToInputField)
                     .map(inputFieldDTO -> {
                         final AccountValue value = accountValuesByName.get(inputFieldDTO.getName());
                         if (value != null) {
-                            final String valueString = value.getStringValue();
-                            inputFieldDTO.setValue(valueString);
-                            if (TargetData.TARGET_ADDRESS_KEYS.contains(inputFieldDTO.getName())) {
-                                targetApiDTO.setDisplayName(valueString);
-                            }
+                            inputFieldDTO.setValue(value.getStringValue());
                         }
                         return inputFieldDTO;
                     })

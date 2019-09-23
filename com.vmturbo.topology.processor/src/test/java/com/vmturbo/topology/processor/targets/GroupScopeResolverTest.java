@@ -327,7 +327,7 @@ public class GroupScopeResolverTest {
                 repositoryServer.getChannel(), targetStore, entityStore);
         Mockito.when(targetStore.getProbeTypeForTarget(Mockito.anyLong()))
                 .thenReturn(Optional.of(validProbeType));
-        Mockito.when(targetStore.getTargetAddress(Mockito.anyLong())).thenReturn(Optional.of(TARGET_ADDRESS));
+        Mockito.when(targetStore.getTargetDisplayName(Mockito.anyLong())).thenReturn(Optional.of(TARGET_ADDRESS));
         Mockito.when(entityStore.chooseEntityDTO(2)).thenReturn(EntityDTO.newBuilder()
             .setId("fakeId1")
             .setEntityType(EntityType.VIRTUAL_MACHINE)

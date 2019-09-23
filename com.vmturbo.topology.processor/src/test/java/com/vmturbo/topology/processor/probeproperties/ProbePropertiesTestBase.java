@@ -83,8 +83,8 @@ public class ProbePropertiesTestBase {
             .when(targetStore.getProbeTargets(PROBE_ID_1))
             .thenReturn(ImmutableList.of(target11, target12));
         Mockito.when(targetStore.getProbeTargets(PROBE_ID_2)).thenReturn(ImmutableList.of(target2));
-        Mockito.when(targetStore.getTargetAddress(TARGET_ID_11)).thenReturn(Optional.of(TARGET_ADD_11));
-        Mockito.when(targetStore.getTargetAddress(TARGET_ID_12)).thenReturn(Optional.of(TARGET_ADD_12));
-        Mockito.when(targetStore.getTargetAddress(TARGET_ID_2)).thenReturn(Optional.of(TARGET_ADD_2));
+        Mockito.when(target11.getDisplayName()).thenReturn(TARGET_ADD_11);
+        Mockito.when(target12.getDisplayName()).thenReturn(TARGET_ADD_12);
+        Mockito.when(target2.getDisplayName()).thenReturn(TARGET_ADD_2);
     }
 }

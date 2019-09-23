@@ -410,7 +410,8 @@ public class Scheduler implements TargetStoreListener {
         try {
             setBroadcastSynchedDiscoverySchedule(target.getId());
         } catch (TargetNotFoundException e) {
-            logger.error("Unable to add default data for target " + target.getId());
+            logger.error("Unable to add default data for target '{}' ({})",
+                    target.getDisplayName(), target.getId());
         }
     }
 

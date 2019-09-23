@@ -71,6 +71,7 @@ public class TargetRESTApi {
          * so that it's nullable.
          */
         private final Long targetId;
+        private final String displayName;
         private final TargetSpec spec;
         private final Boolean probeConnected;
         private final List<String> errors;
@@ -79,6 +80,7 @@ public class TargetRESTApi {
 
         protected TargetInfo() {
             targetId = null;
+            displayName = null;
             spec = null;
             probeConnected = null;
             errors = null;
@@ -86,9 +88,10 @@ public class TargetRESTApi {
             lastValidationTime = null;
         }
 
-        public TargetInfo(final Long id, final List<String> errors, final TargetSpec spec,
+        public TargetInfo(final Long id, String displayName, final List<String> errors, final TargetSpec spec,
                         final Boolean probeConnected, String status, LocalDateTime lastValidationTime) {
             this.targetId = id;
+            this.displayName = displayName;
             this.spec = spec;
             this.probeConnected = probeConnected;
             this.errors = errors;
@@ -99,6 +102,11 @@ public class TargetRESTApi {
         @ApiModelProperty(value = "If non-null, the id of the target. If null, errors should be non-null.")
         public Long getTargetId() {
             return targetId;
+        }
+
+        @ApiModelProperty(value = "The display name of the target.")
+        public String getDisplayName() {
+            return displayName;
         }
 
         @ApiModelProperty(value = "If non-null, the spec for this target. If null, errors should be non-null.")
