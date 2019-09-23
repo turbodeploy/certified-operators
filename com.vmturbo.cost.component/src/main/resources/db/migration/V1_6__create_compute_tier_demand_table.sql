@@ -25,11 +25,13 @@ CREATE TABLE compute_tier_type_hourly_by_week (
     tenancy                         TINYINT not NULL,
 
     -- This is the weighted average of the histogram of the compute
-    --  tier consumed by the VMs.
+    --  tier allocated to the VMs.
     -- This value is calculated from the live source topology.
     count_from_source_topology      DECIMAL(15, 3),
 
     -- Same as above. But the histogram is calculated from the projected topology.
+    --  This is the weighted average of the histogram of the compute
+    --  tier consumed by the VMs.
     count_from_projected_topology   DECIMAL(15, 3)  DEFAULT NULL,
 
     PRIMARY KEY (hour, day, account_id, compute_tier_id, availability_zone, platform, tenancy)
