@@ -8,10 +8,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.sql.DataSource;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.callback.FlywayCallback;
 import org.jooq.DSLContext;
 import org.jooq.SQLDialect;
 import org.jooq.conf.RenderNameStyle;
@@ -32,9 +34,6 @@ import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import com.google.common.annotations.VisibleForTesting;
-
-import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.components.common.utils.EnvironmentUtils;
 
 /**
@@ -133,12 +132,30 @@ public class SQLDatabaseConfig {
         return jooqConfiguration;
     }
 
+    /**
+     * Callbacks to be configured for our Flyway migrations.
+     *
+     * <p>These can be used to handle issues such as problematic migrations that have been released
+     * to customers and thus cannot generally be either replaced or removed from the migration
+     * sequence.</p>
+     *
+     * <p>A component should define a {@link Primary} bean elsewhere in order to override the
+     * empty default.</p>
+     *
+     * @return array of callback objects, in order in which they should be invoked
+     */
+    @Bean
+    public FlywayCallback[] flywayCallbacks() {
+        return new FlywayCallback[0];
+    }
+
     @Bean
     public Flyway flyway() {
         return new FlywayMigrator(Duration.ofMinutes(1),
-                Duration.ofSeconds(5),
-                dbSchemaName,
-                dataSource()
+            Duration.ofSeconds(5),
+            dbSchemaName,
+            dataSource(),
+            flywayCallbacks()
         ).migrate();
     }
 

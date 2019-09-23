@@ -10,8 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.FlywayException;
-
-import com.google.common.annotations.VisibleForTesting;
+import org.flywaydb.core.api.callback.FlywayCallback;
 
 /**
  * A utility class that attempts to connect to a database and run flyway migrations.
@@ -30,11 +29,13 @@ public class FlywayMigrator {
     public FlywayMigrator(@Nonnull final Duration maximumDatabaseWaitTime,
                           @Nonnull final Duration retryInterval,
                           @Nonnull final String dbSchemaName,
-                          @Nonnull final DataSource dataSource) {
+                          @Nonnull final DataSource dataSource,
+                          @Nonnull final FlywayCallback... callbacks) {
         this(maximumDatabaseWaitTime, retryInterval, () -> {
             final Flyway flyway = new Flyway();
             flyway.setSchemas(dbSchemaName);
             flyway.setDataSource(dataSource);
+            flyway.setCallbacks(callbacks);
             return flyway;
         });
     }
