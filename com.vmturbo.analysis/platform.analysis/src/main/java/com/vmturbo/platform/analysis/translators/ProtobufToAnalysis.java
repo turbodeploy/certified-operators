@@ -95,6 +95,10 @@ public final class ProtobufToAnalysis {
             case REMAINING_CONSTANT:
                 return PriceFunction.Cache.createRemainingConstantPriceFunction(input
                                                             .getRemainingConstant().getValue());
+            case SCALED_CAPACITY_STANDARD_WEIGHTED:
+                return PriceFunction.Cache.createScaledCapacityStandardWeightedPriceFunction(
+                        input.getScaledCapacityStandardWeighted().getWeight(),
+                                input.getScaledCapacityStandardWeighted().getScale());
             case PRICEFUNCTIONTYPE_NOT_SET:
             default:
                 throw new IllegalArgumentException("input = " + input);

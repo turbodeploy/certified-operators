@@ -42,6 +42,28 @@ class Cache {
         return Double.isNaN(utilization) || utilization > 1;
     }
 
+
+    /**
+     * The standard price function with the utilization of the commodity scaled.
+     * The formula is P(u) = min(w / (1-u')^2, MAX_UNIT_PRICE) for u' < 1, and
+     * Double.POSITIVE_INFINITY for isInvalid(u') where  u' = u/scale.
+     * @param weight weight associated with the commodity.
+     * @param scale scaling factor for the utilization of the commodity  u' = u / scale
+     * @return the scaled price function
+     */
+    public static synchronized PriceFunction createScaledCapacityStandardWeightedPriceFunction(double weight, double scale) {
+        String key = String.format("SCSWPF-%.10f,%.10f", weight, scale);
+        PriceFunction pf = pfMap.get(key);
+        if (pf == null) {
+            pf = (u, sl, seller, commSold, e) ->
+                    isInvalid((u / scale)) ? Double.POSITIVE_INFINITY : Math.min(weight / ((1.0f - (u / scale)) *
+                            (1.0f - (u / scale))), MAX_UNIT_PRICE);
+            pfMap.put(key, pf);
+        }
+        return pf;
+    }
+
+
     /**
      * The standard price function used by most commodities in the first incarnation of the market.
      * The formula is P(u) = min(w / (1-u)^2, MAX_UNIT_PRICE) for u < 1, and

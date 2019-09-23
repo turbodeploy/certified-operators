@@ -59,6 +59,11 @@ message PriceFunctionTO {
         optional float value = 1;
     }
 
+    message ScaledCapacityStandardWeighted {
+        optional float weight = 1 [default = 1.0];
+        optional float scale = 2 [default = 1.0];
+    }
+
     // Which one of the available functions this message contains.
     oneof price_function_type {
         StandardWeighted standard_weighted = 1;
@@ -70,5 +75,6 @@ message PriceFunctionTO {
         ExternalPriceFunction external_price_function = 7;
         SquaredReciprocalBought squared_reciprocal_bought = 8;
         RemainingConstant remaining_constant = 9;
+        ScaledCapacityStandardWeighted scaled_capacity_standard_weighted = 10;
     }
 }
