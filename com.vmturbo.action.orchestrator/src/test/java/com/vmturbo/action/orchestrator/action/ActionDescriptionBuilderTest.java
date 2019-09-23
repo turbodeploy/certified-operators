@@ -58,6 +58,7 @@ public class ActionDescriptionBuilderTest {
     private ActionDTO.Action provisionByDemandRecommendation;
     private ActionDTO.Action deleteRecommendation;
     private ActionDTO.Action deleteCloudStorageRecommendation;
+    private ActionDTO.Action deleteCloudStorageRecommendationWithNoSourceEntity;
     private ActionDTO.Action buyRIRecommendation;
 
     private final Long VM1_ID = 11L;
@@ -109,7 +110,9 @@ public class ActionDescriptionBuilderTest {
             SupportLevel.SUPPORTED, explanation2).build();
         deleteRecommendation = makeRec(makeDeleteInfo(ST_SOURCE_ID),
             SupportLevel.SUPPORTED).build();
-        deleteCloudStorageRecommendation = makeRec(makeDeleteCloudStorageInfo(VV_ID, ST_SOURCE_ID),
+        deleteCloudStorageRecommendation = makeRec(makeDeleteCloudStorageInfo(VV_ID, Optional.of(ST_SOURCE_ID)),
+            SupportLevel.SUPPORTED).build();
+        deleteCloudStorageRecommendationWithNoSourceEntity = makeRec(makeDeleteCloudStorageInfo(VV_ID, Optional.empty()),
             SupportLevel.SUPPORTED).build();
         buyRIRecommendation = makeRec(makeBuyRIInfo(COMPUTE_TIER_ID,MASTER_ACCOUNT_ID,REGION_ID),
             SupportLevel.SUPPORTED).build();
@@ -202,19 +205,23 @@ public class ActionDescriptionBuilderTest {
             .build());
     }
 
-    private ActionInfo.Builder makeDeleteCloudStorageInfo(long targetId, long sourceId) {
-        return ActionInfo.newBuilder().setDelete(Delete.newBuilder()
+    private ActionInfo.Builder makeDeleteCloudStorageInfo(long targetId, Optional<Long> sourceIdOpt) {
+        Delete.Builder deleteBuilder = Delete.newBuilder()
             .setTarget(ActionEntity.newBuilder()
                 .setId(targetId)
                 .setType(EntityType.VIRTUAL_VOLUME_VALUE)
                 .setEnvironmentType(EnvironmentType.CLOUD)
-                .build())
-            .setSource(ActionEntity.newBuilder()
-                .setId(sourceId)
+                .build());
+
+        if (sourceIdOpt.isPresent()) {
+            deleteBuilder.setSource(ActionEntity.newBuilder()
+                .setId(sourceIdOpt.get())
                 .setType(EntityType.STORAGE_TIER_VALUE)
                 .setEnvironmentType(EnvironmentType.CLOUD)
-                .build())
-            .build());
+                .build());
+        }
+
+        return ActionInfo.newBuilder().setDelete(deleteBuilder.build());
     }
 
     private ActionInfo.Builder makeBuyRIInfo(long computeTier, long masterAccount, long region) {
@@ -484,8 +491,8 @@ public class ActionDescriptionBuilderTest {
 
     @Test
     public void testBuildDeleteCloudStorageActionDescription_whenSearchServiceHasBAInfo() {
-        final long BUSINESS_ACCOUNT_OID = 88L;
-        final String BUSINESS_ACCOUNT_NAME = "business_account_name";
+        final long businessAccountOid = 88L;
+        final String businessAccountName = "business_account_name";
         when(entitySettingsCache.getEntityFromOid(eq(VV_ID)))
             .thenReturn((createEntity(VV_ID,
                 EntityType.VIRTUAL_VOLUME.getNumber(),
@@ -496,15 +503,65 @@ public class ActionDescriptionBuilderTest {
                 ST_SOURCE_DISPLAY_NAME)));
         when(entitySettingsCache.getOwnerAccountOfEntity(eq(VV_ID)))
             .thenReturn(Optional.of(TopologyEntityDTO.newBuilder()
-                .setOid(BUSINESS_ACCOUNT_OID)
+                .setOid(businessAccountOid)
                 .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
-                .setDisplayName(BUSINESS_ACCOUNT_NAME)
+                .setDisplayName(businessAccountName)
                 .build()));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, deleteCloudStorageRecommendation);
 
         Assert.assertEquals(description, "Delete Unattached storage_source_test Volume volume_display_name from business_account_name");
+    }
+
+    /**
+     * Test Delete Cloud Storage Action when snapshot has no BA info.
+     */
+    @Test
+    public void testBuildDeleteCloudStorageActionDescription_whenSnapshotDoesNotHaveSourceEntity_SearchServiceHasBAInfo() {
+        final long businessAccountOid = 88L;
+        final String businessAccountName = "business_account_name";
+        when(entitySettingsCache.getEntityFromOid(eq(VV_ID)))
+            .thenReturn((createEntity(VV_ID,
+                EntityType.VIRTUAL_VOLUME.getNumber(),
+                VV_DISPLAY_NAME)));
+        when(entitySettingsCache.getEntityFromOid(eq(ST_SOURCE_ID)))
+            .thenReturn(Optional.empty());
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VV_ID)))
+            .thenReturn(Optional.of(TopologyEntityDTO.newBuilder()
+                .setOid(businessAccountOid)
+                .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
+                .setDisplayName(businessAccountName)
+                .build()));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+            entitySettingsCache, deleteCloudStorageRecommendation);
+
+        Assert.assertEquals(description, "Delete Unattached  Volume volume_display_name from business_account_name");
+    }
+
+    /**
+     * Test Delete Cloud Storage Action Description when action has no source entity.
+     */
+    @Test
+    public void testBuildDeleteCloudStorageActionDescription_whenActionHasNoSourceEntity_SearchServiceHasBAInfo() {
+        final long businessAccountOid = 88L;
+        final String businessAccountName = "business_account_name";
+        when(entitySettingsCache.getEntityFromOid(eq(VV_ID)))
+            .thenReturn((createEntity(VV_ID,
+                EntityType.VIRTUAL_VOLUME.getNumber(),
+                VV_DISPLAY_NAME)));
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VV_ID)))
+            .thenReturn(Optional.of(TopologyEntityDTO.newBuilder()
+                .setOid(businessAccountOid)
+                .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
+                .setDisplayName(businessAccountName)
+                .build()));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+            entitySettingsCache, deleteCloudStorageRecommendationWithNoSourceEntity);
+
+        Assert.assertEquals(description, "Delete Unattached  Volume volume_display_name from business_account_name");
     }
 
     @Test

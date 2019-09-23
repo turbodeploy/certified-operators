@@ -4,9 +4,11 @@ import static com.vmturbo.common.protobuf.action.ActionDTOUtil.COMMODITY_KEY_SEP
 import static org.junit.Assert.assertEquals;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
+import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import org.junit.Test;
 
@@ -340,18 +342,55 @@ public class ExplanationComposerTest {
         assertEquals("Improve infrastructure efficiency", ExplanationComposer.shortExplanation(deactivate));
     }
 
+    /**
+     * Test Delete Storage Explanation
+     */
     @Test
     public void testDeleteExplanation() {
-        ActionDTO.Action delete = ActionDTO.Action.newBuilder()
-            .setId(0).setInfo(ActionInfo.getDefaultInstance()).setDeprecatedImportance(0)
+        // Test Cloud Delete Storage Action
+        ActionDTO.Action deleteVolume = ActionDTO.Action.newBuilder()
+            .setId(0)
+            .setInfo(ActionInfo.newBuilder()
+                .setDelete(Delete.newBuilder()
+                    .setTarget(ActionEntity.newBuilder()
+                        .setId(88L)
+                        .setType(EntityType.VIRTUAL_VOLUME.getNumber())
+                        .setEnvironmentType(EnvironmentType.CLOUD)
+                        .build())
+                    .build())
+                .build())
+            .setDeprecatedImportance(0)
+            .setExplanation(Explanation.newBuilder()
+                .setDelete(DeleteExplanation.getDefaultInstance()))
+            .build();
+
+        assertEquals("Increase savings",
+            ExplanationComposer.composeExplanation(deleteVolume));
+        assertEquals("Increase savings",
+            ExplanationComposer.shortExplanation(deleteVolume));
+
+
+        // Test On-Prem Delete Storage Action
+        ActionDTO.Action deleteFiles = ActionDTO.Action.newBuilder()
+            .setId(0)
+            .setInfo(ActionInfo.newBuilder()
+                .setDelete(Delete.newBuilder()
+                    .setTarget(ActionEntity.newBuilder()
+                        .setId(99L)
+                        .setType(EntityType.STORAGE.getNumber())
+                        .setEnvironmentType(EnvironmentType.ON_PREM)
+                        .build())
+                    .build())
+                .build())
+            .setDeprecatedImportance(0)
             .setExplanation(Explanation.newBuilder()
                 .setDelete(DeleteExplanation.getDefaultInstance()))
             .build();
 
         assertEquals("Idle or non-productive",
-            ExplanationComposer.composeExplanation(delete));
+            ExplanationComposer.composeExplanation(deleteFiles));
         assertEquals("Idle or non-productive",
-            ExplanationComposer.shortExplanation(delete));
+            ExplanationComposer.shortExplanation(deleteFiles));
     }
 
     private static ReasonCommodity createReasonCommodity(int baseType, String key) {

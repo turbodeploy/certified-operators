@@ -379,7 +379,7 @@ public class ActionDescriptionBuilder {
 
         long targetEntityId = recommendation.getInfo().getDelete().getTarget().getId();
         if (!entitiesSnapshot.getEntityFromOid(targetEntityId).isPresent()) {
-            logger.debug(MessageFormat.format(ENTITY_NOT_FOUND_WARN_MSG, targetEntityId));
+            logger.debug(ENTITY_NOT_FOUND_WARN_MSG, targetEntityId);
             return "";
         }
 
@@ -387,16 +387,33 @@ public class ActionDescriptionBuilder {
             ActionPartialEntity targetEntity = entitiesSnapshot.getEntityFromOid(targetEntityId).get();
 
             Optional<TopologyEntityDTO> businessAccountTopologyEntityOpt = entitiesSnapshot.getOwnerAccountOfEntity(targetEntityId);
+            String sourceDisplayName = "";
+
+            if (recommendation.getInfo().getDelete().hasSource()) {
+                long sourceEntityId = recommendation.getInfo().getDelete().getSource().getId();
+
+                Optional<ActionPartialEntity> sourceEntityOpt = entitiesSnapshot.getEntityFromOid(sourceEntityId);
+                if (sourceEntityOpt.isPresent()) {
+                    sourceDisplayName = sourceEntityOpt.get().getDisplayName();
+                } else {
+                    logger.debug(ENTITY_NOT_FOUND_WARN_MSG, sourceEntityId);
+                }
+
+            } else {
+                logger.error("No source entity for the DELETE action {} for volume {}",
+                    recommendation.getId(),
+                    targetEntityId);
+            }
 
             if (businessAccountTopologyEntityOpt.isPresent() && !Strings.isNullOrEmpty(businessAccountTopologyEntityOpt.get().getDisplayName())) {
                 return ActionMessageFormat.ACTION_DESCRIPTION_DELETE_CLOUD.format(
-                    entitiesSnapshot.getEntityFromOid(recommendation.getInfo().getDelete().getSource().getId()).get().getDisplayName(),
+                    sourceDisplayName,
                     targetEntity.getDisplayName(),
                     businessAccountTopologyEntityOpt.get().getDisplayName());
             } else {
                 logger.warn("Unable to get Business Account Name from repository for Virtual Volume Oid: {}", targetEntityId);
                 return ActionMessageFormat.ACTION_DESCRIPTION_DELETE_CLOUD_NO_ACCOUNT.format(
-                    entitiesSnapshot.getEntityFromOid(recommendation.getInfo().getDelete().getSource().getId()).get().getDisplayName(),
+                    sourceDisplayName,
                     targetEntity.getDisplayName());
             }
         } else {

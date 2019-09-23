@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
@@ -314,7 +315,13 @@ public class ActionDTOUtil {
                     return Collections.singletonList(reconfigure.getTarget());
                 }
             case DELETE:
-                return Collections.singletonList(action.getInfo().getDelete().getTarget());
+                final Delete delete = action.getInfo().getDelete();
+                List<ActionEntity> deleteActionEntities = new ArrayList<>();
+                deleteActionEntities.add(delete.getTarget());
+                if (delete.hasSource()) {
+                    deleteActionEntities.add(delete.getSource());
+                }
+                return deleteActionEntities;
             case BUYRI:
                 final BuyRI buyRi = action.getInfo().getBuyRi();
                 List<ActionEntity> actionEntities = new ArrayList<>();

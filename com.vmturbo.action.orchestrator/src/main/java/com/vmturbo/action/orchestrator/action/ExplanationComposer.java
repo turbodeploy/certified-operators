@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
@@ -65,6 +66,8 @@ public class ExplanationComposer {
             "Increase RI Utilization.";
     public static final String WASTED_COST = "Wasted Cost";
     private static final String DELETE_WASTED_FILES_EXPLANATION = "Idle or non-productive";
+    private static final String DELETE_WASTED_VOLUMES_EXPLANATION = "Increase savings";
+
     /**
      * Private to prevent instantiation.
      */
@@ -344,14 +347,17 @@ public class ExplanationComposer {
     }
 
     /**
-     * Build a delete explanation.  For now, this only handles wasted files all of which have the
-     * same static explanation.
+     * Build a delete explanation.
      *
      * @param action the delete action
      * @return String giving the explanation for the action
      */
     private static String buildDeleteExplanation(ActionDTO.Action action) {
-        return DELETE_WASTED_FILES_EXPLANATION;
+        if (action.getInfo().getDelete().getTarget().getEnvironmentType() == EnvironmentType.CLOUD) {
+            return DELETE_WASTED_VOLUMES_EXPLANATION;
+        } else {
+            return DELETE_WASTED_FILES_EXPLANATION;
+        }
     }
 
     /**

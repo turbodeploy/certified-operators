@@ -24,12 +24,14 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
+import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Congestion;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.InitialPlacement;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
@@ -84,6 +86,20 @@ public class ActionDTOUtilTest {
                     .setInitialPlacement(InitialPlacement.getDefaultInstance())
                     .build())
                 .build())
+            .build())
+        .build();
+
+    private static final Action deleteCloudStorageAction = Action.newBuilder()
+        .setId(9L)
+        .setDeprecatedImportance(1.0)
+        .setInfo(ActionInfo.newBuilder()
+            .setDelete(Delete.newBuilder()
+                .setTarget(createActionEntity(TARGET))
+                .setSource(createActionEntity(SOURCE_1))
+                .build())
+            .build())
+        .setExplanation(Explanation.newBuilder()
+            .setDelete(DeleteExplanation.newBuilder().build())
             .build())
         .build();
 
@@ -160,6 +176,17 @@ public class ActionDTOUtilTest {
     public void testInvolvedEntities() throws UnsupportedActionException {
         Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(action);
         assertEquals(Sets.newHashSet(TARGET, SOURCE_1, DEST_1, SOURCE_2, DEST_2), involvedEntities);
+    }
+
+    /**
+     * Verify that the involved entities for Delete Cloud Storage Action includes both target and source.
+     *
+     * @throws UnsupportedActionException is not supposed to happen
+     */
+    @Test
+    public void testDeleteStorageInvolvedEntities()  throws UnsupportedActionException {
+        Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(deleteCloudStorageAction);
+        assertEquals(Sets.newHashSet(TARGET, SOURCE_1), involvedEntities);
     }
 
     /**
