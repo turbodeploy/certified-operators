@@ -12,6 +12,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.jooq.DSLContext;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -85,6 +86,14 @@ public class V_01_00_03__Change_Default_Transactions_CapacityTest {
         settingStore = new SettingStore(settingSpecStore, dslContext, identityProviderSpy,
             settingPolicyValidator, groupStore);
         migration = new V_01_00_03__Change_Default_Transactions_Capacity(settingStore);
+    }
+
+    /**
+     * Release all resources occupied by test.
+     */
+    @After
+    public void tearDown() {
+        dbConfig.clean();
     }
 
     @Test

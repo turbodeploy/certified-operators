@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.stream.Collectors;
 
 import org.jooq.DSLContext;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -50,6 +51,14 @@ public class V_01_00_00__Group_Table_Add_Entity_TypeTest {
     public void setup() {
         dslContext = dbConfig.prepareDatabase();
         migration = new V_01_00_00__Group_Table_Add_Entity_Type(dslContext);
+    }
+
+    /**
+     * Release all resources occupied by test.
+     */
+    @After
+    public void tearDown() {
+        dbConfig.clean();
     }
 
     @Test

@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableSet;
 
 import org.jooq.DSLContext;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -129,6 +130,14 @@ public class GroupStoreTest {
         final DSLContext dslContext = dbConfig.prepareDatabase();
         groupStore = new GroupStore(dslContext, policyStore,
                 identityProvider, entityToClusterMapping);
+    }
+
+    /**
+     * Release all resources occupied by test.
+     */
+    @After
+    public void tearDown() {
+        dbConfig.clean();
     }
 
     /**
