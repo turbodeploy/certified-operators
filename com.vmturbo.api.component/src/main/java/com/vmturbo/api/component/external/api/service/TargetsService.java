@@ -674,10 +674,10 @@ public class TargetsService implements ITargetsService {
     private Map<String, TargetInfo> getTargetIdToTargetInfoMap(
                                     @Nonnull final Set<TargetInfo> allTargetInfos)
             throws CommunicationException {
-        if (allTargetInfos.isEmpty()) {
-            allTargetInfos.addAll(topologyProcessor.getAllTargets());
-        }
-        return Maps.uniqueIndex(allTargetInfos, targetInfo -> String.valueOf(targetInfo.getId()));
+        Set<TargetInfo> scopedTargetInfos = allTargetInfos.isEmpty() ?
+                topologyProcessor.getAllTargets() : allTargetInfos;
+        return Maps.uniqueIndex(
+                scopedTargetInfos, targetInfo -> String.valueOf(targetInfo.getId()));
     }
 
     /**
