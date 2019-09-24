@@ -1,0 +1,27 @@
+syntax = "proto2";
+package com.vmturbo.topology.processor;
+
+option java_package = "com.vmturbo.topology.processor.history.percentile";
+option java_outer_classname = "PercentileDto";
+
+// Internal representation of percentiles data record
+message PercentileCounts {
+    // Per-commodity record.
+    repeated PercentileRecord percentile_records = 1;
+
+    message PercentileRecord {
+        // Container entity oid.
+        required int64 entity_oid = 1;
+        // Commodity type.
+        required int32 commodity_type = 2;
+        // The key of this commodity type.
+        optional string key = 3;
+        // Commodity provider, if bought, unset if sold.
+        optional int64 provider_oid = 4;
+        // Capacity for this series.
+        required float capacity = 5;
+        // Utilization counts per percent value - an array of the number of configured
+        // percentile intervals for the metric (no more than 101).
+        repeated int32 utilization = 6 [packed = true];
+    }
+}
