@@ -116,8 +116,8 @@ public class TopologyConverterGuaranteedTest {
         TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable, ccd, CommodityIndex.newFactory());
         Set<TraderTO> traders = converter.convertToMarket(entities);
-        // VDCs are skipped, VMs in maintenance and unknown state are skipped
-        assertEquals(1, traders.size());
+        // VDCs are skipped, VMs in maintenance and unknown state are not skipped for trader creation
+        assertEquals(3, traders.size());
         List<Long> traderOids = traders.stream().map(TraderTO::getOid).collect(Collectors.toList());
         assertFalse(traderOids.contains(DPOD_OID));
         assertTrue(traderOids.contains(HOST_OID));
@@ -138,7 +138,7 @@ public class TopologyConverterGuaranteedTest {
                 AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory());
         Set<TraderTO> traders = converter.convertToMarket(entities);
-        assertEquals(4, traders.size());
+        assertEquals(6, traders.size());
         List<Long> guaranteedBuyers = traders.stream()
             .filter(trader ->  trader.getSettings().getGuaranteedBuyer())
             .map(TraderTO::getOid).collect(Collectors.toList());

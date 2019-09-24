@@ -316,6 +316,9 @@ public class Analysis {
                 }
             }
 
+            // remove skipped entities we don't want to send to market
+            converter.removeSkippedEntitiesFromTraderTOs(traderTOs);
+
             // remove any (scoped) traders that may have been flagged for removal
             // We are doing this after the convertToMarket() function because we need the original
             // traders available in the "old providers maps" so the biclique calculation can
@@ -470,8 +473,8 @@ public class Analysis {
     }
 
     /**
-     * Copy skipped entities (entities which did not go through market conversion) from the
-     * original topology to the projected topology
+     * Copy relevant entities (entities which did not go through market conversion) from the
+     * original topology to the projected topology.
      */
     private void copySkippedEntitiesToProjectedTopology() {
         Set<ProjectedTopologyEntity> projectedEntitiesFromOriginalTopo =
@@ -481,9 +484,9 @@ public class Analysis {
                     .setEntity(p).build())
                 .collect(Collectors.toSet());
         Set<ProjectedTopologyEntity> projectedEntitiesFromSkippedEntities =
-            converter.getSkippedEntities().stream()
-                .map(e ->  ProjectedTopologyEntity.newBuilder()
-                    .setEntity(e).build())
+            converter.getSkippedEntitiesInScope(scopeEntities.keySet()).stream()
+                .map(entityDTO ->  ProjectedTopologyEntity.newBuilder()
+                    .setEntity(entityDTO).build())
                 .collect(Collectors.toSet());
         Sets.union(projectedEntitiesFromOriginalTopo, projectedEntitiesFromSkippedEntities)
             .forEach(projectedEntity -> {

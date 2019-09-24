@@ -144,6 +144,11 @@ public class TopologyConverter {
     // index messages.
     private Map<Long, TopologyEntityDTO> skippedEntities = Maps.newHashMap();
 
+    @VisibleForTesting
+    protected Map<Long, TopologyEntityDTO> getSkippedEntities() {
+        return skippedEntities;
+    }
+
     // a map keeps shoppinglist oid to ShoppingListInfo which is a container for
     // shoppinglist oid, buyer oid, seller oid and commodity bought
     private final Map<Long, ShoppingListInfo> shoppingListOidToInfos = Maps.newHashMap();
@@ -359,13 +364,17 @@ public class TopologyConverter {
             for (TopologyDTO.TopologyEntityDTO entity : topology.values()) {
                 int entityType = entity.getEntityType();
                 if (AnalysisUtil.SKIPPED_ENTITY_TYPES.contains(entityType)
-                    || SKIPPED_ENTITY_STATES.contains(entity.getEntityState())
-                    || !includeByType(entityType)) {
+                        || !includeByType(entityType)) {
                     logger.debug("Skipping trader creation for entity name = {}, entity type = {}, " +
                             "entity state = {}", entity.getDisplayName(),
                         EntityType.forNumber(entity.getEntityType()), entity.getEntityState());
                     skippedEntities.put(entity.getOid(), entity);
                 } else {
+                    // Allow creation of traderTOs for traders discarded due to state or entityType.
+                    // We will remove them traderTO set after scoping but before sending to market.
+                    if (SKIPPED_ENTITY_STATES.contains(entity.getEntityState())) {
+                        skippedEntities.put(entity.getOid(), entity);
+                    }
                     entityOidToDto.put(entity.getOid(), entity);
                     if (isPlan() && CONTAINER_TYPES.contains(entityType)) {
                         // VMs and ContainerPods
@@ -397,11 +406,6 @@ public class TopologyConverter {
         } finally {
             conversionErrorCounts.endPhase();
         }
-    }
-
-    @Nonnull
-    public Collection<TopologyEntityDTO> getSkippedEntities() {
-        return Collections.unmodifiableCollection(skippedEntities.values());
     }
 
     /**
@@ -1558,7 +1562,7 @@ public class TopologyConverter {
                 // skip converting shoppinglist that buys from VDC
                 // TODO: we also skip the sl that consumes AZ which contains Zone commodity because zonal RI is not yet supported
                 .filter(commBoughtGrouping -> includeByType(commBoughtGrouping.getProviderEntityType())
-                        && commBoughtGrouping.getProviderEntityType() != EntityType.AVAILABILITY_ZONE_VALUE)
+                            && commBoughtGrouping.getProviderEntityType() != EntityType.AVAILABILITY_ZONE_VALUE)
                 .map(commBoughtGrouping -> createShoppingList(
                         topologyEntity,
                         topologyEntity.getEntityType(),
@@ -2171,5 +2175,37 @@ public class TopologyConverter {
      */
     public Map<Long, EntityReservedInstanceCoverage> getProjectedReservedInstanceCoverage() {
         return Collections.unmodifiableMap(projectedReservedInstanceCoverage);
+    }
+
+    /**
+     * Given TraderTOs to be sent to market remove skipped entities from this set.
+     * @param traderTOs set of TraderTOs sent to market.
+     */
+    public void removeSkippedEntitiesFromTraderTOs(Set<TraderTO> traderTOs) {
+        // Remove all skipped traders as we don't want to send them to market
+        // and only needed them for scoping.
+        for (long skippedEntityOid : skippedEntities.keySet()) {
+            traderTOs.remove(oidToOriginalTraderTOMap.get(skippedEntityOid));
+        }
+    }
+
+    /**
+     * Find intersection between skipped entities and entities in scope to return
+     * entities in scope but were skipped.
+     * @param scopeEntitiesSet set of entities in scope.
+     * @return set of entities that were skipped but were in scope.
+     */
+    public Set<TopologyEntityDTO> getSkippedEntitiesInScope(Set<Long> scopeEntitiesSet) {
+        // Filtering is required only when it is a plan
+        // as scoping is possible only in plans.
+        if (isPlan()) {
+            return skippedEntities.keySet().stream()
+                .filter(oid -> scopeEntitiesSet.contains(oid))
+                .map(oid -> skippedEntities.get(oid))
+                .collect(Collectors.toSet());
+        } else {
+            // For realtime we should return all skipped entities.
+            return skippedEntities.values().stream().collect(Collectors.toSet());
+        }
     }
 }

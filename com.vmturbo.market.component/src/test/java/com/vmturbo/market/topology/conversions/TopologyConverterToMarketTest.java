@@ -508,10 +508,11 @@ public class TopologyConverterToMarketTest {
         TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
             marketPriceTable,
             ccd, CommodityIndex.newFactory());
-        assertEquals(3, converter.convertToMarket(
+        assertEquals(4, converter.convertToMarket(
             Stream.of(container, virtualApp, actionManager, storage, unknownStorage)
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())))
                 .size());
+        converter.getSkippedEntities().containsKey(unknownStorage.getOid());
     }
 
     /**
