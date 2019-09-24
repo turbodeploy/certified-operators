@@ -353,8 +353,8 @@ public class ActionSpecMapper {
         // map the recommendation info
         final ActionDTO.Action recommendation = actionSpec.getRecommendation();
         LogEntryApiDTO risk = new LogEntryApiDTO();
-        actionApiDTO.setImportance((float) recommendation.getDeprecatedImportance());
-        risk.setImportance((float)recommendation.getDeprecatedImportance());
+        actionApiDTO.setImportance((float)0.0);
+        risk.setImportance((float)0.0);
         // set the explanation string
 
         risk.setDescription(createRiskDescription(actionSpec, context));

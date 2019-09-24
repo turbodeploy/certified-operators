@@ -251,6 +251,9 @@ public class ActionSpecMapperTest {
 
         assertEquals(ActionType.MOVE, actionApiDTO.getActionType());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
+
+        // Validate that the importance value is 0
+        assertEquals(0, actionApiDTO.getImportance(), 0.05);
     }
 
     @Test
