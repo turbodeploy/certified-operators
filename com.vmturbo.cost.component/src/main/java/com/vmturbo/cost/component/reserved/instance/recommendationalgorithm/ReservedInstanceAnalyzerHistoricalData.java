@@ -151,6 +151,11 @@ public class ReservedInstanceAnalyzerHistoricalData {
             }
 
             long masterAccount = riStatRecord.getAccountId();
+            if (!scope.getAccounts().contains(masterAccount)) {
+                logger.debug("master account {} not in scope ", masterAccount, scope.getAccounts());
+                continue;
+            }
+
             ReservedInstanceZonalContext zonalContext =
                 new ReservedInstanceZonalContext(
                     masterAccount,

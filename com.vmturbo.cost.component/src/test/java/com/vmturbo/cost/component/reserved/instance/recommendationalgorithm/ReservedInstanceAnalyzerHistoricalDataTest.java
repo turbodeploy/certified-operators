@@ -46,7 +46,8 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
          * Create input parameter: scope - defaults for everything
          */
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(null, null,
-            null, null, 0f, true, null);
+            null, Arrays.asList(ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID)
+            , 0f, true, null);
         // Create input parameter: tierFamilies
         Map<String, List<TopologyEntityDTO>> tierFamilies = createTierFamilies();
         // Create input parameter: cloudTopology
@@ -96,7 +97,8 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         scope = new ReservedInstanceAnalysisScope(Arrays.asList(OSType.LINUX),
             Arrays.asList(ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OHIO_OID),
             Arrays.asList(Tenancy.DEFAULT),
-            Arrays.asList(ReservedInstanceAnalyzerConstantsTest.BUSINESS_ACCOUNT_11_OID), 0f, true, null);
+            Arrays.asList(ReservedInstanceAnalyzerConstantsTest.BUSINESS_ACCOUNT_11_OID,
+                ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID), 0f, true, null);
         Mockito.doReturn(recordSet.stream()).when(store).getAllDemandStats();
         result = new ReservedInstanceAnalyzerHistoricalData(store).computeAnalysisClusters(scope,
             tierFamilies,
@@ -122,7 +124,8 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
                 ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OREGON_OID),
             Arrays.asList(Tenancy.DEFAULT, Tenancy.DEDICATED),
             Arrays.asList(ReservedInstanceAnalyzerConstantsTest.BUSINESS_ACCOUNT_11_OID,
-                          ReservedInstanceAnalyzerConstantsTest.BUSINESS_ACCOUNT_12_OID),
+                          ReservedInstanceAnalyzerConstantsTest.BUSINESS_ACCOUNT_12_OID,
+                            ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID),
             0f, true, null);
         Mockito.doReturn(recordSet.stream()).when(store).getAllDemandStats();
         result = new ReservedInstanceAnalyzerHistoricalData(store).computeAnalysisClusters(scope,
@@ -240,7 +243,6 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
      * scope.
      */
     @Test
-    @Ignore
     public void testComputeAnalysisClustersAccountScoping() {
         // Create input parameter: scope.
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(null, null,
@@ -305,7 +307,8 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
          * Create input parameter: scope - defaults for everything
          */
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(null, null,
-            null, null, 0f, true, null);
+            null, Arrays.asList(ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID,
+            ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_2_OID), 0f, true, null);
         // Create input parameter: tierFamilies
         Map<String, List<TopologyEntityDTO>> tierFamilies = createTierFamilies();
         // Create input parameter: cloudTopology
@@ -354,7 +357,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         scope = new ReservedInstanceAnalysisScope(null,
             Arrays.asList(ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OHIO_OID),
             Arrays.asList(Tenancy.DEFAULT),
-            null, 0f, true, null);
+            Arrays.asList(ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID), 0f, true, null);
         Mockito.doReturn(recordSet.stream()).when(store).getAllDemandStats();
         result = new ReservedInstanceAnalyzerHistoricalData(store).computeAnalysisClusters(scope,
             tierFamilies,
@@ -390,7 +393,6 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
      * This fails because scoping by account is not working.
      */
     @Test
-    @Ignore
     public void testComputeAnalysisClustersMultipleRecordsScopeToAccount() {
         /*
          * Create input parameter: scope - restrict master account
@@ -417,7 +419,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
             ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_2_OID,
             OSType.LINUX,
             Tenancy.DEFAULT,
-            ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_MICRO,
+            ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_NANO,
             ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OREGON_OID);
         Assert.assertTrue(result.keySet().contains(regionOregonContext));
         List<ReservedInstanceZonalContext> zones = result.get(regionOregonContext);
@@ -601,8 +603,8 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
      * This test fails because the ReservedInstanceHistoricalDemandDataType enumerate type has
      * the demand type and field in DB record swapped.
      */
-    @Ignore
     @Test
+    @Ignore
     public void testGetDemandFromRecordsConsumption() {
         Set<ComputeTierTypeHourlyByWeekRecord> recordSet = createOneRecordSet();
         ComputeTierDemandStatsStore store = Mockito.spy(ComputeTierDemandStatsStore.class);
