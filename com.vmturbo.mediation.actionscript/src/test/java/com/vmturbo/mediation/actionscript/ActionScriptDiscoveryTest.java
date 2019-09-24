@@ -148,6 +148,32 @@ public class ActionScriptDiscoveryTest extends ActionScriptTestBase {
         assertEquals(1, result.getErrorDTOCount());
     }
 
+    /**
+     * If the manifest file contains a null value for "scripts", validation should fail.
+     *
+     * @throws Exception if there's a problem running the test
+     */
+    @Test
+    public void testFailIfScriptsPropertyIsNull() throws Exception {
+        ValidationResponse result = new ActionScriptDiscovery(
+            createAccountValues("/scripts/manifest-null-scripts-property.yaml"))
+            .validateManifestFile();
+        assertEquals(1, result.getErrorDTOCount());
+    }
+
+    /**
+     * If the manifest file defines no scripts, validation should fail.
+     *
+     * @throws Exception if there's a problem running the test
+     */
+    @Test
+    public void testFailIfNoScriptsDefined() throws Exception {
+        ValidationResponse result = new ActionScriptDiscovery(
+            createAccountValues("/scripts/manifest-no-scripts-defined.yaml"))
+            .validateManifestFile();
+        assertEquals(1, result.getErrorDTOCount());
+    }
+
     private void checkScriptValues(DiscoveryResponse results, int index, String name, String path, String description, EntityType entityType, ActionType actionType, ActionScriptPhase actionPhase, Long timeLimitSeconds) {
         assertTrue("No valid script at position " + index + " in discovery response", index < results.getWorkflowCount());
         final Workflow workflow = results.getWorkflow(index);
