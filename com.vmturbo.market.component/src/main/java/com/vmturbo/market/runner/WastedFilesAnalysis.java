@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
@@ -73,6 +74,10 @@ public class WastedFilesAnalysis {
     private Collection<Action> actions;
 
     private final CloudTopology<TopologyEntityDTO> originalCloudTopology;
+    /**
+     * A map of key: storageOid -> value: total storage freed up for this storage by deleting files.
+     */
+    private final Map<Long, Long> storageToStorageAmountReleasedMap = new HashMap<>();
 
     public WastedFilesAnalysis(@Nonnull final TopologyInfo topologyInfo,
                                @Nonnull final Map<Long, TopologyEntityDTO> topologyDTOs,
@@ -134,7 +139,7 @@ public class WastedFilesAnalysis {
                             || connEntity.getConnectedEntityType() == EntityType.STORAGE_TIER_VALUE)))
                     .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
                 // remove any VirtualVolumes that have VMs which are connectedTo them
-                topologyDTOs.values().stream()
+                 topologyDTOs.values().stream()
                     .filter(topoEntity -> topoEntity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
                     .forEach(virtualMachine -> virtualMachine.getConnectedEntityListList().stream()
                         .filter(connEntity -> connEntity.hasConnectedEntityType())
@@ -279,9 +284,13 @@ public class WastedFilesAnalysis {
             // TODO add a setting to control the minimum file size.  For now, use 1MB
             return volume.getTypeSpecificInfo().getVirtualVolume().getFilesList().stream()
                 .filter(vvfd -> vvfd.getSizeKb() > Units.KBYTE)
-                .map(vvfd -> newActionFromFile(storageOid.get(), vvfd,
-                    volume.getEnvironmentType()).build())
-                .collect(Collectors.toList());
+                .map(vvfd -> {
+                    storageToStorageAmountReleasedMap.merge(storageOid.get(),
+                        vvfd.getSizeKb(), (v1, v2) -> v1 + v2);
+                    return newActionFromFile(storageOid.get(), vvfd, volume.getEnvironmentType())
+                        .build();
+                })
+            .collect(Collectors.toList());
         }
     }
 
@@ -314,4 +323,13 @@ public class WastedFilesAnalysis {
             .register();
     }
 
+
+    /**
+     * Storage amount freed up for given oid.
+     * @param oid to search for storage amount released.
+     * @return  storage amount or empty optional.
+     */
+    public Optional<Long> getStorageAmountReleasedForOid(long oid) {
+        return Optional.ofNullable(storageToStorageAmountReleasedMap.get(oid));
+    }
 }

@@ -205,8 +205,13 @@ public class WastedFilesAnalysisTest {
             ActionEntity target = action.getInfo().getDelete().getTarget();
             assertEquals(EntityType.STORAGE_VALUE, target.getType());
             assertEquals(EnvironmentType.ON_PREM, target.getEnvironmentType());
-            assertEquals(2l, target.getId());
+            assertEquals(2L, target.getId());
         });
+
+        // Verify total storage amount released for this oid
+        assertTrue(analysis.getStorageAmountReleasedForOid(2L).isPresent());
+        assertEquals(2400000L + 1100L,
+            analysis.getStorageAmountReleasedForOid(2L).get().longValue());
     }
 
     @Test

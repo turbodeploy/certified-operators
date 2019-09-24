@@ -61,6 +61,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedIn
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.runner.ReservedCapacityAnalysis;
+import com.vmturbo.market.runner.WastedFilesAnalysis;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.settings.EntitySettings;
 import com.vmturbo.market.settings.MarketSettings;
@@ -497,6 +498,7 @@ public class TopologyConverter {
      * @param priceIndexMessage the price index message
      * @param cloudCostData the cloud cost information
      * @param reservedCapacityAnalysis the reserved capacity information
+     * @param wastedFileAnalysis wasted file analysis handler
      * @return list of {@link TopologyDTO.ProjectedTopologyEntity}s
      */
     @Nonnull
@@ -505,7 +507,9 @@ public class TopologyConverter {
                 @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> originalTopology,
                 @Nonnull final PriceIndexMessage priceIndexMessage,
                 @Nonnull final CloudCostData cloudCostData,
-                @Nonnull final ReservedCapacityAnalysis reservedCapacityAnalysis) {
+                @Nonnull final ReservedCapacityAnalysis reservedCapacityAnalysis,
+                @Nonnull final WastedFilesAnalysis wastedFileAnalysis) {
+
         conversionErrorCounts.startPhase(Phase.CONVERT_FROM_MARKET);
         try {
             final Map<Long, PriceIndexMessagePayload> priceIndexByOid =
@@ -520,7 +524,7 @@ public class TopologyConverter {
                 projectedTraders.size());
             for (TraderTO projectedTrader : projectedTraders) {
                 final Set<TopologyEntityDTO> projectedEntities =
-                    traderTOtoTopologyDTO(projectedTrader, originalTopology, reservedCapacityAnalysis, projTraders);
+                    traderTOtoTopologyDTO(projectedTrader, originalTopology, reservedCapacityAnalysis, projTraders, wastedFileAnalysis);
                 for (TopologyEntityDTO projectedEntity : projectedEntities) {
                     final ProjectedTopologyEntity.Builder projectedEntityBuilder =
                         ProjectedTopologyEntity.newBuilder().setEntity(projectedEntity);
@@ -822,12 +826,15 @@ public class TopologyConverter {
      * @param traderOidToEntityDTO whose key is the traderOid and the value is the original
      * traderTO
      * @param reservedCapacityAnalysis the reserved capacity information
+     * @param projTraders projected traders
+     * @param wastedFileAnalysis handler for wasted file analysis
      * @return set of {@link TopologyDTO.TopologyEntityDTO}s
      */
     private Set<TopologyDTO.TopologyEntityDTO> traderTOtoTopologyDTO(EconomyDTOs.TraderTO traderTO,
                     @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> traderOidToEntityDTO,
                     @Nonnull final ReservedCapacityAnalysis reservedCapacityAnalysis,
-                    @Nonnull final Map<Long, EconomyDTOs.TraderTO> projTraders) {
+                    @Nonnull final Map<Long, EconomyDTOs.TraderTO> projTraders,
+                    @Nonnull final WastedFilesAnalysis wastedFileAnalysis) {
         Set<TopologyDTO.TopologyEntityDTO> topologyEntityDTOs = Sets.newHashSet();
         if (cloudTc.isMarketTier(traderTO.getOid())) {
             // Tiers and regions are added from the original topology into the projected traders
@@ -960,12 +967,24 @@ public class TopologyConverter {
 
         // get dspm and datastore commodity sold from the original trader, add
         // them to projected topology entity DTO
-        TopologyEntityDTO entityDTO = entityDTOBuilder.addAllCommoditySoldList(
+        entityDTOBuilder.addAllCommoditySoldList(
                 originalEntity.getCommoditySoldListList().stream()
                         .filter(c -> AnalysisUtil.DSPM_OR_DATASTORE
                                 .contains(c.getCommodityType().getType()))
-                        .collect(Collectors.toSet()))
-                .build();
+                        .collect(Collectors.toSet()));
+
+        // handle 'delete wasted file analysis' to update entity from market
+        wastedFileAnalysis.getStorageAmountReleasedForOid(traderTO.getOid())
+            .ifPresent(stAmt -> {
+                final long stAmtToReleaseInMB = stAmt / Units.NUM_OF_KB_IN_MB;
+                entityDTOBuilder.getCommoditySoldListBuilderList().stream()
+                    .filter(commSold -> commSold.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+                    .findFirst()
+                    .ifPresent(storageCommSold ->
+                        storageCommSold.setUsed(Math.max(0, storageCommSold.getUsed() - stAmtToReleaseInMB)));
+            });
+
+        TopologyEntityDTO entityDTO = entityDTOBuilder.build();
         topologyEntityDTOs.add(entityDTO);
         topologyEntityDTOs.addAll(createResources(entityDTO));
         return topologyEntityDTOs;

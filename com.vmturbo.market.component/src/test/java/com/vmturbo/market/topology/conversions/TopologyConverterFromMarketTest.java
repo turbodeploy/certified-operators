@@ -1,6 +1,7 @@
 package com.vmturbo.market.topology.conversions;
 
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ENTITY_VALUE;
+import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
@@ -45,10 +46,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.market.runner.ReservedCapacityAnalysis;
+import com.vmturbo.market.runner.WastedFilesAnalysis;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.conversions.CommodityIndex.CommodityIndexFactory;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
@@ -226,7 +229,8 @@ public class TopologyConverterFromMarketTest {
                         Collections.singletonList(trader),
                         ImmutableMap.of(expectedEntity.getOid(), expectedEntity,
                                         expectedEntity2.getOid(), expectedEntity2),
-                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis);
+                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis,
+                        setUpWastedFileAnalysis());
         assertEquals(1L, entity.size());
         assertThat(entity.get(PM_OID).getEntity().getCommoditySoldListList(),
                         contains(expectedEntity.getCommoditySoldListList().toArray()));
@@ -353,7 +357,8 @@ public class TopologyConverterFromMarketTest {
         Map<Long, TopologyDTO.ProjectedTopologyEntity> entity = converter.convertFromMarket(
                         Collections.singletonList(trader),
                         ImmutableMap.of(expectedEntity.getOid(), expectedEntity),
-                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis);
+                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis,
+                        setUpWastedFileAnalysis());
         assertEquals(1L, entity.size());
         // Ensure the entity is having SUSPENDED state.
         assertThat(entity.get(trader.getOid()).getEntity().getEntityState(),
@@ -383,12 +388,15 @@ public class TopologyConverterFromMarketTest {
         double stAmtCapacity = 1024000d;
         double stAmtBought = 102400d;
         float stAmoutScaledCapacity = 3072000f;
+        double originalStorageAmtUsed = 4096d;
         final TopologyDTO.CommoditySoldDTO topologyStAmtSold = TopologyDTO.CommoditySoldDTO
                         .newBuilder()
                         .setCommodityType(CommodityType.newBuilder()
                                         .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
                                         .build())
-                        .setCapacity(stAmtCapacity).build();
+                        .setCapacity(stAmtCapacity)
+                        .setUsed(originalStorageAmtUsed)
+                        .build();
         final List<CommodityBoughtDTO> topologyStAmtBought = Lists.newArrayList(CommodityBoughtDTO
                         .newBuilder()
                         .setCommodityType(CommodityType.newBuilder()
@@ -424,11 +432,15 @@ public class TopologyConverterFromMarketTest {
         CommoditySpecificationTO stAmtCommSpecTO = CommoditySpecificationTO.newBuilder()
                         .setBaseType(ST_AMT_TYPE_ID).setType(ST_AMT_TYPE_ID).build();
         final CommodityDTOs.CommoditySoldTO economyStAmtSold = CommodityDTOs.CommoditySoldTO
-                        .newBuilder().setSpecification(stAmtCommSpecTO).build();
+                        .newBuilder()
+                        .setSpecification(stAmtCommSpecTO)
+                        .setQuantity((float)originalStorageAmtUsed)
+                        .build();
 
         final CommodityDTOs.CommoditySoldTO economyStAmtBiggerSold =
                         CommodityDTOs.CommoditySoldTO.newBuilder().setSpecification(stAmtCommSpecTO)
-                                        .setCapacity(stAmoutScaledCapacity).build();
+                                        .setCapacity(stAmoutScaledCapacity)
+                                        .build();
 
         final CommodityDTOs.CommodityBoughtTO economyStAmtBought =
                         CommodityBoughtTO.newBuilder().setSpecification(stAmtCommSpecTO).build();
@@ -468,12 +480,21 @@ public class TopologyConverterFromMarketTest {
                         .when(mockCommodityConverter).economyToTopologyCommodity(
                                         Mockito.eq(economyStAmtSold.getSpecification()));
 
+        // Set wasted file for DS
+        WastedFilesAnalysis wastedFilesAnalysisMock = mock(WastedFilesAnalysis.class);
+        // Set up mock for any call other than DS
+        when(wastedFilesAnalysisMock.getStorageAmountReleasedForOid(anyLong()))
+            .thenReturn(Optional.empty());
+        // Set up mock for DS
+        Optional<Long> wastedFileSizeInKB = Optional.of(2048L);
+        when(wastedFilesAnalysisMock.getStorageAmountReleasedForOid(DS_OID)).thenReturn(wastedFileSizeInKB);
+
         // 5. Call TC.convertFromMarket
         List<TraderTO> traderTOs =
                         Lists.newArrayList(traderDS, traderDA, traderDSClone, traderDAClone);
         Map<Long, TopologyDTO.ProjectedTopologyEntity> projectedTopo = converter.convertFromMarket(
                         traderTOs, origTopoMap, PriceIndexMessage.getDefaultInstance(), mockCCD,
-                        reservedCapacityAnalysis);
+                        reservedCapacityAnalysis, wastedFilesAnalysisMock);
         // 6. Assert shoppingListInfo map
         assertNotNull(converter.getShoppingListOidToInfos().get(-DA_OID));
         assertNotNull(projectedTopo.get(DA_OID + 100L));
@@ -489,6 +510,28 @@ public class TopologyConverterFromMarketTest {
                         converter.interpretAction(provByDemandTO, projectedTopo, null, null, null);
         assertNotNull(provByDemandOptional.get());
 
+        //assert for wasted file actions
+        Optional<CommoditySoldDTO> daStorageAmtCommSold = projectedTopo.get(traderDS.getOid()).getEntity().getCommoditySoldListList().stream()
+            .filter(commSold -> commSold.getCommodityType().getType()
+                == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+            .findFirst();
+
+        // Check original entity has reduced st amt value
+        assertTrue(daStorageAmtCommSold.isPresent());
+        assertEquals(originalStorageAmtUsed - wastedFileSizeInKB.get() / Units.NUM_OF_KB_IN_MB,
+            daStorageAmtCommSold.get().getUsed(), 1e12);
+
+        // Check provisioned entity is unchanged
+        Optional<CommoditySoldDTO> daStorageAmtCommSoldForClone =
+            projectedTopo.get(traderDSClone.getOid()).getEntity().getCommoditySoldListList().stream()
+            .filter(commSold -> commSold.getCommodityType().getType()
+                == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+            .findFirst();
+
+
+        // Check clone is unchanged
+        assertTrue(daStorageAmtCommSoldForClone.isPresent());
+        assertEquals(originalStorageAmtUsed, daStorageAmtCommSoldForClone.get().getUsed(), 1e12);
     }
 
     /**
@@ -673,7 +716,8 @@ public class TopologyConverterFromMarketTest {
                         // map back to original TopologyEntityDTOs
                         ImmutableMap.of(expectedEntity.getOid(), expectedEntity,
                                         expectedEntity2.getOid(), expectedEntity2),
-                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis);
+                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis,
+                        setUpWastedFileAnalysis());
 
         // Assert two entities returned - they will be in the original order - VM and PM
         assertEquals(2L, entity.size());
@@ -811,7 +855,8 @@ public class TopologyConverterFromMarketTest {
                         // map back to original TopologyEntityDTOs
                         ImmutableMap.of(expectedEntity.getOid(), expectedEntity,
                                         expectedEntity2.getOid(), expectedEntity2),
-                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis);
+                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis,
+                        setUpWastedFileAnalysis());
 
         // Assert two entities returned - they will be in the original order - VM and PM
         assertEquals(2L, entity.size());
@@ -851,7 +896,8 @@ public class TopologyConverterFromMarketTest {
 
         final Map<Long, TopologyDTO.ProjectedTopologyEntity> entity = converter.convertFromMarket(
                         Collections.singletonList(vmTrader), ImmutableMap.of(VM_OID, originalVm),
-                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis);
+                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis,
+                        setUpWastedFileAnalysis());
 
         assertThat(entity.get(VM_OID).getEntity().getEnvironmentType(),
                         is(originalVm.getEnvironmentType()));
@@ -876,7 +922,8 @@ public class TopologyConverterFromMarketTest {
 
         final Map<Long, TopologyDTO.ProjectedTopologyEntity> entity = converter.convertFromMarket(
                         Collections.singletonList(vmTrader), ImmutableMap.of(VM_OID, originalVm),
-                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis);
+                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis,
+                        setUpWastedFileAnalysis());
 
         assertThat(entity.get(VM_OID).getEntity().getTypeSpecificInfo(),
                         is(originalVm.getTypeSpecificInfo()));
@@ -901,7 +948,8 @@ public class TopologyConverterFromMarketTest {
 
         final Map<Long, TopologyDTO.ProjectedTopologyEntity> entity = converter.convertFromMarket(
                         Collections.singletonList(vmTrader), ImmutableMap.of(VM_OID, originalVm),
-                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis);
+                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis,
+                        setUpWastedFileAnalysis());
 
         assertThat(entity.get(VM_OID).getEntity().getOrigin(), is(originalVm.getOrigin()));
     }
@@ -924,7 +972,8 @@ public class TopologyConverterFromMarketTest {
 
         final Map<Long, TopologyDTO.ProjectedTopologyEntity> entity = converter.convertFromMarket(
                         Collections.singletonList(cloneTrader), ImmutableMap.of(VM_OID, originalVm),
-                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis);
+                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis,
+                        setUpWastedFileAnalysis());
 
         assertThat(entity.get(cloneId).getEntity().getEnvironmentType(),
                         is(originalVm.getEnvironmentType()));
@@ -950,7 +999,8 @@ public class TopologyConverterFromMarketTest {
 
         final Map<Long, TopologyDTO.ProjectedTopologyEntity> entity = converter.convertFromMarket(
                         Collections.singletonList(cloneTrader), ImmutableMap.of(VM_OID, originalVm),
-                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis);
+                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis,
+                        setUpWastedFileAnalysis());
 
         assertThat(entity.get(cloneId).getEntity().getTypeSpecificInfo(),
                         is(originalVm.getTypeSpecificInfo()));
@@ -976,7 +1026,8 @@ public class TopologyConverterFromMarketTest {
 
         final Map<Long, TopologyDTO.ProjectedTopologyEntity> entity = converter.convertFromMarket(
                         Collections.singletonList(cloneTrader), ImmutableMap.of(VM_OID, originalVm),
-                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis);
+                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis,
+                        setUpWastedFileAnalysis());
 
         // The origin is NOT the same - it's a market origin since this is a clone.
         assertThat(entity.get(cloneId).getEntity().getOrigin().getAnalysisOrigin()
@@ -1056,7 +1107,8 @@ public class TopologyConverterFromMarketTest {
         Map<Long, TopologyDTO.ProjectedTopologyEntity> entity = converter.convertFromMarket(
                         Collections.singletonList(trader),
                         ImmutableMap.of(expectedEntity.getOid(), expectedEntity),
-                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis);
+                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis,
+                        setUpWastedFileAnalysis());
 
         assertEquals(1l, converter.getShoppingListOidToInfos().size());
         assertEquals(10000L, converter.getShoppingListOidToInfos().get(-1L).getBuyerId());
@@ -1139,7 +1191,8 @@ public class TopologyConverterFromMarketTest {
         Map<Long, TopologyDTO.ProjectedTopologyEntity> entity = converter.convertFromMarket(
                         Collections.singletonList(trader),
                         ImmutableMap.of(expectedEntity.getOid(), expectedEntity),
-                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis);
+                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis,
+                        setUpWastedFileAnalysis());
 
         assertEquals(1l, converter.getShoppingListOidToInfos().size());
         assertEquals(-1000L, converter.getShoppingListOidToInfos().get(-1L).getBuyerId());
@@ -1149,4 +1202,9 @@ public class TopologyConverterFromMarketTest {
                         entity.get(-1000L).getEntity().getEntityType());
     }
 
+    private WastedFilesAnalysis setUpWastedFileAnalysis() {
+        WastedFilesAnalysis wastedFilesAnalysisMock = mock(WastedFilesAnalysis.class);
+        when(wastedFilesAnalysisMock.getStorageAmountReleasedForOid(anyLong())).thenReturn(Optional.empty());
+        return wastedFilesAnalysisMock;
+    }
 }

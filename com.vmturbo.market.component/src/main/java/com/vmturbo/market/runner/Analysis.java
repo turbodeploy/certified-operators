@@ -20,15 +20,15 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -190,6 +190,11 @@ public class Analysis {
      * @param topologyDTOs the Set of {@link TopologyEntityDTO}s that make up the topology
      * @param groupServiceClient Used to look up groups to support suspension throttling
      * @param clock The clock used to time market analysis.
+     * @param analysisConfig configuration for analysis
+     * @param cloudTopologyFactory cloud topology factory
+     * @param cloudCostCalculatorFactory cost calculation factory
+     * @param priceTableFactory price table factory
+     * @param wastedFilesAnalysisFactory wasted file analysis handler
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
@@ -350,7 +355,12 @@ public class Analysis {
 
             // Calculate reservedCapacity and generate resize actions
             ReservedCapacityAnalysis reservedCapacityAnalysis = new ReservedCapacityAnalysis(scopeEntities);
-            reservedCapacityAnalysis.execute();
+                reservedCapacityAnalysis.execute();
+
+            // Execute wasted file analysis
+            WastedFilesAnalysis wastedFilesAnalysis = wastedFilesAnalysisFactory.newWastedFilesAnalysis(
+                topologyInfo, scopeEntities, this.clock, topologyCostCalculator, originalCloudTopology);
+            final Collection<Action> wastedFileActions = getWastedFilesActions(wastedFilesAnalysis);
 
             List<TraderTO> projectedTraderDTO = new ArrayList<>();
 
@@ -378,7 +388,9 @@ public class Analysis {
                     projectedTraderDTO,
                     topologyDTOs,
                     results.getPriceIndexMsg(), topologyCostCalculator.getCloudCostData(),
-                    reservedCapacityAnalysis);
+                    reservedCapacityAnalysis,
+                    wastedFilesAnalysis);
+
                 copySkippedEntitiesToProjectedTopology();
 
                     // Calculate the projected entity costs.
@@ -409,7 +421,7 @@ public class Analysis {
                         .forEach(actionPlanBuilder::addAction);
                 // TODO move wasted files action out of main analysis once we have a framework
                 // to support multiple analyses for the same topology ID
-                actionPlanBuilder.addAllAction(getWastedFilesActions());
+                actionPlanBuilder.addAllAction(wastedFileActions);
                 actionPlanBuilder.addAllAction(reservedCapacityAnalysis.getActions());
                 logger.info(logPrefix + "Completed successfully");
                 processResultTime.observe();
@@ -957,13 +969,11 @@ public class Analysis {
 
     /**
      * Get the WastedFilesAnalysis associated with this Analysis.
-     *
+     * @param wastedFilesAnalysis analysis to get wasted files actions.
      * @return {@link Collection} of actions representing the wasted files or volumes.
      */
-    private Collection<Action> getWastedFilesActions() {
+    private Collection<Action> getWastedFilesActions(WastedFilesAnalysis wastedFilesAnalysis) {
         if (topologyInfo.getAnalysisTypeList().contains(AnalysisType.WASTED_FILES)) {
-            WastedFilesAnalysis wastedFilesAnalysis = wastedFilesAnalysisFactory.newWastedFilesAnalysis(
-                topologyInfo, scopeEntities, this.clock, topologyCostCalculator, originalCloudTopology);
             wastedFilesAnalysis.execute();
             logger.debug("Getting wasted files actions.");
             if (wastedFilesAnalysis.getState() == AnalysisState.SUCCEEDED) {
