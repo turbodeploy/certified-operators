@@ -320,9 +320,6 @@ message ScenarioChange {
         // The number of times the entity will be cloned. Should be a positive number.
         optional int32 addition_count = 2;
 
-        // EntityType to add from addition_type group
-        optional int32 target_entity_type = 3;
-
         // The type of the object being added.
         oneof addition_type {
             int64 entity_id = 16;
@@ -333,11 +330,10 @@ message ScenarioChange {
 
     // A change to supply or demand made by removing an entity from the topology
     message TopologyRemoval {
-        // How many days in the future to apply the change, should be >= 0.
+        // How many days in the future to apply the change. More than one value in the list means that the change
+        // will be repeated, once at each time in the list. The list should be in ascending order and all members
+        // should be >= 0.
         optional int32 change_application_day = 1;
-
-        // EntityType to remove from removal_type group
-        optional int32 target_entity_type = 3;
 
         // The type of the object being removed.
         oneof removal_type {
@@ -350,14 +346,13 @@ message ScenarioChange {
     // With a replace, commodity constraints and relationships are copied from the removed entity
     // onto the entity being added.
     message TopologyReplace {
-        // How many days in the future to apply the change, should be >= 0.rrr
+        // How many days in the future to apply the change. More than one value in the list means that the change
+        // will be repeated, once at each time in the list. The list should be in ascending order and all members
+        // should be >= 0.
         optional int32 change_application_day = 1;
 
         // The id of the template to replace the items being removed in the change.
         optional int64 add_template_id = 2;
-
-        // EntityType to remove from replace_type group
-        optional int32 target_entity_type = 3;
 
         // The type of the object being replaced.
         oneof replace_type {

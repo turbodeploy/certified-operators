@@ -647,8 +647,7 @@ public class ScenarioMapper {
                 final SettingOverride.Builder settingOverride = SettingOverride.newBuilder()
                     .setSetting(protoSetting);
                 if (apiDto.getEntityType() != null) {
-                    settingOverride.setEntityType(
-                            UIEntityType.fromStringToSdkType(apiDto.getEntityType()));
+                    settingOverride.setEntityType(UIEntityType.fromString(apiDto.getEntityType()).typeNumber());
                 }
                 retChanges.add(ScenarioChange.newBuilder()
                         .setSettingOverride(settingOverride)
@@ -867,8 +866,7 @@ public class ScenarioMapper {
         return projDays == null ? Collections.emptyList() : projDays;
     }
 
-    @VisibleForTesting
-    List<ScenarioChange> mapTopologyAddition(@Nonnull final AddObjectApiDTO change,
+    private List<ScenarioChange> mapTopologyAddition(@Nonnull final AddObjectApiDTO change,
                                             @Nonnull final Set<Long> templateIds) {
 
         Preconditions.checkArgument(change.getTarget() != null,
@@ -882,12 +880,6 @@ public class ScenarioMapper {
         final TopologyAddition.Builder additionBuilder = TopologyAddition.newBuilder()
             .addAllChangeApplicationDays(projectionDays(change.getProjectionDays()))
             .setAdditionCount(count);
-
-        if (change.getTargetEntityType() != null) {
-            additionBuilder.setTargetEntityType(
-                    UIEntityType.fromStringToSdkType(change.getTargetEntityType()));
-        }
-
         if (templateIds.contains(uuid)) {
             additionBuilder.setTemplateId(uuid);
         } else {
@@ -906,8 +898,7 @@ public class ScenarioMapper {
         return changes;
     }
 
-    @VisibleForTesting
-    ScenarioChange mapTopologyRemoval(@Nonnull final RemoveObjectApiDTO change) {
+    private ScenarioChange mapTopologyRemoval(@Nonnull final RemoveObjectApiDTO change) {
         Preconditions.checkArgument(change.getTarget() != null,
                 "Topology removals must contain a target");
 
@@ -918,11 +909,6 @@ public class ScenarioMapper {
         final TopologyRemoval.Builder removalBuilder =
             TopologyRemoval.newBuilder()
                     .setChangeApplicationDay(projectionDay(change.getProjectionDay()));
-
-        if (change.getTargetEntityType() != null) {
-            removalBuilder.setTargetEntityType(UIEntityType.fromString(change.getTargetEntityType()).typeNumber());
-        }
-
         if (groupResponse.hasGroup()) {
             removalBuilder.setGroupId(uuid);
         } else {
@@ -933,8 +919,7 @@ public class ScenarioMapper {
                     .build();
     }
 
-    @VisibleForTesting
-    ScenarioChange mapTopologyReplace(@Nonnull final ReplaceObjectApiDTO change) {
+    private ScenarioChange mapTopologyReplace(@Nonnull final ReplaceObjectApiDTO change) {
         Preconditions.checkArgument(change.getTarget() != null,
                 "Topology replace must contain a target");
         Preconditions.checkArgument(change.getTemplate() != null,
@@ -948,12 +933,6 @@ public class ScenarioMapper {
             TopologyReplace.newBuilder()
                 .setChangeApplicationDay(projectionDay(change.getProjectionDay()))
                 .setAddTemplateId(Long.parseLong(change.getTemplate().getUuid()));
-
-        if (change.getTargetEntityType() != null) {
-            replaceBuilder.setTargetEntityType(
-                    UIEntityType.fromStringToSdkType(change.getTargetEntityType()));
-        }
-
         if (groupResponse.hasGroup()) {
             replaceBuilder.setRemoveGroupId(uuid);
         } else {
@@ -1191,10 +1170,6 @@ public class ScenarioMapper {
                 return;
         }
         changeApiDTO.setProjectionDays(addition.getChangeApplicationDaysList());
-        if (addition.hasTargetEntityType()) {
-            changeApiDTO.setTargetEntityType(
-                    UIEntityType.fromSdkTypeToEntityTypeString(addition.getTargetEntityType()));
-        }
 
         final List<AddObjectApiDTO> changeApiDTOs = MoreObjects.firstNonNull(outputChanges.getAddList(),
             new ArrayList<>());
@@ -1222,10 +1197,6 @@ public class ScenarioMapper {
         changeApiDTO.setProjectionDay(removal.getChangeApplicationDay());
 
         changeApiDTOs.add(changeApiDTO);
-        if (removal.hasTargetEntityType()) {
-            changeApiDTO.setTargetEntityType(
-                    UIEntityType.fromSdkTypeToEntityTypeString(removal.getTargetEntityType()));
-        }
         outputChanges.setRemoveList(changeApiDTOs);
     }
 
@@ -1246,11 +1217,6 @@ public class ScenarioMapper {
         }
         changeApiDTO.setTemplate(context.dtoForId(replace.getAddTemplateId()));
         changeApiDTO.setProjectionDay(replace.getChangeApplicationDay());
-
-        if (replace.hasTargetEntityType()) {
-            changeApiDTO.setTargetEntityType(
-                    UIEntityType.fromSdkTypeToEntityTypeString(replace.getTargetEntityType()));
-        }
 
         List<ReplaceObjectApiDTO> changeApiDTOs = MoreObjects.firstNonNull(outputChanges.getReplaceList(),
             new ArrayList<>());
