@@ -7,6 +7,7 @@ import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIPurchas
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIPurchaseDate;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
@@ -21,6 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -162,6 +164,140 @@ public class ScenarioMapperTest {
         assertEquals(6, addition.getAdditionCount());
         assertEquals(1, addition.getEntityId());
         assertEquals(Collections.singletonList(2), addition.getChangeApplicationDaysList());
+    }
+
+    /**
+     * Tests that {@link AddObjectApiDTO} converts to {@link TopologyAddition}.
+     */
+    @Test
+    public void testMapTopologyAdditionWithTargetEntityType() {
+        //GIVEN
+        AddObjectApiDTO dto = new AddObjectApiDTO();
+        dto.setProjectionDays(Collections.singletonList(2));
+        dto.setTarget(entity(1));
+        dto.setCount(6);
+        dto.setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+
+        //WHEN
+        final List<ScenarioChange> changes = scenarioMapper.mapTopologyAddition(dto, new HashSet<>());
+
+        //THEN
+        assertEquals(1, changes.size());
+        TopologyAddition addition = changes.get(0).getTopologyAddition();
+        assertEquals(6, addition.getAdditionCount());
+        assertEquals(1, addition.getEntityId());
+        assertEquals(Collections.singletonList(2), addition.getChangeApplicationDaysList());
+        assertEquals(UIEntityType.VIRTUAL_MACHINE.typeNumber(), addition.getTargetEntityType());
+    }
+
+    /**
+     * Tests that {@link AddObjectApiDTO} converts to {@link TopologyAddition}.
+     * Null of optional field should not throw error
+     */
+    @Test
+    public void testMapTopologyAdditionWithNullTargetEntityType() {
+        //GIVEN
+        AddObjectApiDTO dto = new AddObjectApiDTO();
+        dto.setProjectionDays(Collections.singletonList(2));
+        dto.setTarget(entity(1));
+        dto.setCount(6);
+
+        //WHEN
+        final List<ScenarioChange> changes = scenarioMapper.mapTopologyAddition(dto, new HashSet<>());
+
+        //THEN
+        TopologyAddition addition = changes.get(0).getTopologyAddition();
+        assertEquals(6, addition.getAdditionCount());
+        assertEquals(1, addition.getEntityId());
+        assertFalse(addition.hasTargetEntityType());
+        assertEquals(Collections.singletonList(2), addition.getChangeApplicationDaysList());
+    }
+
+    /**
+     * Tests that {@link RemoveObjectApiDTO} converts to {@link TopologyRemoval}.
+     */
+    @Test
+    public void testMapTopologyRemovalWithTargetEntityType() {
+        //GIVEN
+        RemoveObjectApiDTO dto = new RemoveObjectApiDTO();
+        dto.setProjectionDay(2);
+        dto.setTarget(entity(1));
+        dto.setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+
+        //WHEN
+        final ScenarioChange change = scenarioMapper.mapTopologyRemoval(dto);
+
+        //THEN;
+        TopologyRemoval removal = change.getTopologyRemoval();
+        assertEquals(1, removal.getEntityId());
+        assertEquals(UIEntityType.VIRTUAL_MACHINE.typeNumber(), removal.getTargetEntityType());
+        assertEquals(2, removal.getChangeApplicationDay());
+    }
+
+    /**
+     * Tests that {@link RemoveObjectApiDTO} converts to {@link TopologyRemoval}.
+     * Null of optional field should not throw error
+     */
+    @Test
+    public void testMapTopologyRemovalWithNullTargetEntityType() {
+        //GIVEN
+        RemoveObjectApiDTO dto = new RemoveObjectApiDTO();
+        dto.setProjectionDay(2);
+        dto.setTarget(entity(1));
+
+        //WHEN
+        final ScenarioChange change = scenarioMapper.mapTopologyRemoval(dto);
+
+        //THEN;
+        TopologyRemoval removal = change.getTopologyRemoval();
+        assertEquals(1, removal.getEntityId());
+        assertFalse(removal.hasTargetEntityType());
+        assertEquals(2, removal.getChangeApplicationDay());
+    }
+
+    /**
+     * Tests that {@link ReplaceObjectApiDTO} converts to {@link TopologyReplace}.
+     */
+    @Test
+    public void mapTopologyReplaceWithTargetEntityType() {
+        //GIVEN
+        ReplaceObjectApiDTO dto = new ReplaceObjectApiDTO();
+        dto.setProjectionDay(5);
+        dto.setTarget(entity(1));
+        dto.setTemplate(template(2));
+        dto.setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+
+        //WHEN
+        final ScenarioChange change = scenarioMapper.mapTopologyReplace(dto);
+
+        //THEN
+        TopologyReplace replace = change.getTopologyReplace();
+        assertEquals(5, replace.getChangeApplicationDay());
+        assertEquals(1, replace.getRemoveEntityId());
+        assertEquals(2, replace.getAddTemplateId());
+        assertEquals(UIEntityType.VIRTUAL_MACHINE.typeNumber(), replace.getTargetEntityType());
+    }
+
+    /**
+     * Tests that {@link ReplaceObjectApiDTO} converts to {@link TopologyReplace}.
+     */
+    @Test
+    public void mapTopologyReplaceWithNullTargetEntityType() {
+        //GIVEN
+        ReplaceObjectApiDTO dto = new ReplaceObjectApiDTO();
+        dto.setProjectionDay(5);
+        dto.setTarget(entity(1));
+        dto.setTemplate(template(2));
+
+        //WHEN
+        final ScenarioChange change = scenarioMapper.mapTopologyReplace(dto);
+
+        //THEN
+        TopologyReplace replace = change.getTopologyReplace();
+        assertEquals(5, replace.getChangeApplicationDay());
+        assertEquals(1, replace.getRemoveEntityId());
+        assertEquals(2, replace.getAddTemplateId());
+        assertFalse(replace.hasTargetEntityType());
     }
 
     @Test
@@ -559,7 +695,8 @@ public class ScenarioMapperTest {
             .setTopologyAddition(TopologyAddition.newBuilder()
                 .addChangeApplicationDays(3)
                 .setEntityId(1234)
-                .setAdditionCount(44))
+                .setAdditionCount(44)
+                .setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
             .build());
 
         ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
@@ -572,15 +709,43 @@ public class ScenarioMapperTest {
         assertEquals(Collections.singletonList(3), changeDto.getProjectionDays());
         assertEquals(new Integer(44), changeDto.getCount());
         assertEquals("1234", changeDto.getTarget().getUuid());
+        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), changeDto.getTargetEntityType());
+    }
+
+    /**
+     * Convert {@link TopologyAddition} to {@link AddObjectApiDTO}.
+     * Null targetEntityType should not throw error
+     */
+    @Test
+    public void testToApiAdditionChangeWithNullTargetEntityType() {
+        Scenario scenario = buildScenario(ScenarioChange.newBuilder()
+                .setTopologyAddition(TopologyAddition.newBuilder()
+                        .addChangeApplicationDays(3)
+                        .setEntityId(1234)
+                        .setAdditionCount(44))
+                .build());
+
+        ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
+        assertEquals(Long.toString(SCENARIO_ID), dto.getUuid());
+        assertEquals(SCENARIO_NAME, dto.getDisplayName());
+        assertNotNull(dto.getTopologyChanges());
+        assertEquals(1, dto.getTopologyChanges().getAddList().size());
+
+        AddObjectApiDTO changeDto = dto.getTopologyChanges().getAddList().get(0);
+        assertEquals(Collections.singletonList(3), changeDto.getProjectionDays());
+        assertEquals(new Integer(44), changeDto.getCount());
+        assertEquals("1234", changeDto.getTarget().getUuid());
+        assertTrue(changeDto.getTargetEntityType() == null);
     }
 
     @Test
     public void testToApiRemovalChange() {
         Scenario scenario = buildScenario(ScenarioChange.newBuilder()
-            .setTopologyRemoval(TopologyRemoval.newBuilder()
-                .setChangeApplicationDay(3)
-                .setEntityId(1234))
-            .build());
+                .setTopologyRemoval(TopologyRemoval.newBuilder()
+                        .setChangeApplicationDay(3)
+                        .setEntityId(1234)
+                        .setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                .build());
 
         ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
         assertNotNull(dto.getTopologyChanges());
@@ -589,6 +754,29 @@ public class ScenarioMapperTest {
         RemoveObjectApiDTO changeDto = dto.getTopologyChanges().getRemoveList().get(0);
         assertEquals("1234", changeDto.getTarget().getUuid());
         assertEquals(new Integer(3), changeDto.getProjectionDay());
+        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), changeDto.getTargetEntityType());
+    }
+
+    /**
+     * Convert {@link TopologyRemoval} to {@link RemoveObjectApiDTO}.
+     * Null targetEntityType should not throw error
+     */
+    @Test
+    public void testToApiRemovalChangeWithNullTargetEntityType() {
+        Scenario scenario = buildScenario(ScenarioChange.newBuilder()
+                .setTopologyRemoval(TopologyRemoval.newBuilder()
+                        .setChangeApplicationDay(3)
+                        .setEntityId(1234))
+                .build());
+
+        ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
+        assertNotNull(dto.getTopologyChanges());
+        assertEquals(1, dto.getTopologyChanges().getRemoveList().size());
+
+        RemoveObjectApiDTO changeDto = dto.getTopologyChanges().getRemoveList().get(0);
+        assertEquals("1234", changeDto.getTarget().getUuid());
+        assertEquals(new Integer(3), changeDto.getProjectionDay());
+        assertTrue(changeDto.getTargetEntityType() == null);
     }
 
     @Test
@@ -613,6 +801,7 @@ public class ScenarioMapperTest {
                 .setChangeApplicationDay(3)
                 .setAddTemplateId(1234)
                 .setRemoveEntityId(5678)
+                .setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
             ).build());
 
         ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
@@ -623,6 +812,31 @@ public class ScenarioMapperTest {
         assertEquals("1234", changeDto.getTemplate().getUuid());
         assertEquals("5678", changeDto.getTarget().getUuid());
         assertEquals(new Integer(3), changeDto.getProjectionDay());
+        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), changeDto.getTargetEntityType());
+    }
+
+    /**
+     * Convert {@link TopologyReplace} to {@link ReplaceObjectApiDTO}.
+     * Null targetEntityType should not throw error
+     */
+    @Test
+    public void testToApiReplaceChangeWithNullTargetEntityType() {
+        Scenario scenario = buildScenario(ScenarioChange.newBuilder()
+                .setTopologyReplace(TopologyReplace.newBuilder()
+                        .setChangeApplicationDay(3)
+                        .setAddTemplateId(1234)
+                        .setRemoveEntityId(5678))
+                .build());
+
+        ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
+        assertNotNull(dto.getTopologyChanges());
+        assertEquals(1, dto.getTopologyChanges().getReplaceList().size());
+
+        ReplaceObjectApiDTO changeDto = dto.getTopologyChanges().getReplaceList().get(0);
+        assertEquals("1234", changeDto.getTemplate().getUuid());
+        assertEquals("5678", changeDto.getTarget().getUuid());
+        assertEquals(new Integer(3), changeDto.getProjectionDay());
+        assertTrue(changeDto.getTargetEntityType() == null);
     }
 
     @Test
@@ -630,7 +844,8 @@ public class ScenarioMapperTest {
         Scenario scenario = buildScenario(ScenarioChange.newBuilder()
             .setTopologyAddition(TopologyAddition.newBuilder()
                 .setAdditionCount(1)
-                .setEntityId(1))
+                .setEntityId(1)
+                .setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
             .build());
 
         ServiceEntityApiDTO vmDto = new ServiceEntityApiDTO();

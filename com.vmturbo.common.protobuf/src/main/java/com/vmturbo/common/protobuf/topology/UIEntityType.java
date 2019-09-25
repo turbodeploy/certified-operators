@@ -113,11 +113,34 @@ public enum UIEntityType {
 
     /**
      * Converts type from a string to the enum type.
+     *
      * @param type string representation of service entity type
      * @return UI entity type enum
      */
     @Nonnull
     public static UIEntityType fromString(String type) {
         return ENTITY_STR_MAPPINGS.getOrDefault(type, UIEntityType.UNKNOWN);
+    }
+
+    /**
+     * Converts from a string to the {@link EntityType}.
+     *
+     * @param type string representation of service entity type
+     * @return int numeric representation of EnitityType
+     */
+    @Nonnull
+    public static int fromStringToSdkType(String type) {
+        return fromString(type).typeNumber();
+    }
+
+    /**
+     * Converts from a {@link EntityType} numeric value to {@link UIEntityType} string.
+     *
+     * @param sdkType numeric representation of EnitityType
+     * @return type String representation of service entity type
+     */
+    @Nonnull
+    public static String fromSdkTypeToEntityTypeString(int sdkType) {
+        return fromType(sdkType).apiStr();
     }
 }
