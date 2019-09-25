@@ -29,6 +29,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionPolicyElement;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -36,6 +38,7 @@ import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -47,16 +50,21 @@ public class MoveContext extends AbstractActionExecutionContext {
     private static final Logger logger = LogManager.getLogger();
 
     /**
+     * Used for determining the target type of a given target.
+     */
+    private final TargetStore targetStore;
+
+    /**
+     * Used for determining the action policy of a given target.
+     */
+    private final ProbeStore probeStore;
+
+    /**
      * Comparator used to sort the changes list so host change comes first, and then others (storage move)
      */
     private static final Comparator<ChangeProvider> CHANGE_LIST_COMPARATOR =
         Comparator.comparingInt(change -> change.getSource() != null &&
             change.getSource().getType() == EntityType.PHYSICAL_MACHINE_VALUE ? 0 : 1);
-
-    /**
-     * Used for determining the target type of a given target
-     */
-    private final TargetStore targetStore;
 
     /**
      * If true, this move action represents a cross-target move, which means the entity is being
@@ -72,9 +80,11 @@ public class MoveContext extends AbstractActionExecutionContext {
                        @Nonnull final EntityStore entityStore,
                        @Nonnull final EntityRetriever entityRetriever,
                        @Nonnull final TargetStore targetStore,
-                       @Nonnull final ActionDTO.ActionType actionType) {
+                       @Nonnull final ActionDTO.ActionType actionType,
+                       @Nonnull final ProbeStore probeStore) {
         super(request, dataManager, entityStore, entityRetriever,actionType);
         this.targetStore = Objects.requireNonNull(targetStore);
+        this.probeStore = Objects.requireNonNull(probeStore);
     }
 
     @Override
@@ -345,6 +355,28 @@ public class MoveContext extends AbstractActionExecutionContext {
 
     private boolean isCrossTargetMove() {
         if (crossTargetMove == null) {
+            final long probeId = targetStore.getTarget(getTargetId()).get().getProbeId();
+            final Optional<Entity> entity = getEntityStore().getEntity(getPrimaryEntityId());
+            if (!entity.isPresent()) {
+                logger.warn("Cannot find the primary entity with ID " + getPrimaryEntityId());
+                return false;
+            }
+            final EntityType entityType = entity.get().getEntityType();
+            boolean crossTargetSupported = probeStore.getProbe(probeId).get().getActionPolicyList()
+                .stream()
+                .filter(ActionPolicyDTO::hasEntityType)
+                .filter(actionPolicyDTO -> actionPolicyDTO.getEntityType().equals(entityType))
+                .map(ActionPolicyDTO::getPolicyElementList)
+                .flatMap(actionPolicyElements -> actionPolicyElements.stream())
+                .filter(ActionPolicyElement::hasActionType)
+                .map(ActionPolicyElement::getActionType)
+                .filter(actionType -> ActionType.CROSS_TARGET_MOVE == actionType)
+                .findAny()
+                .isPresent();
+
+            if (!crossTargetSupported) {
+                return false;
+            }
             try {
                 // Determine if the destination entity for this move action was discovered by the same
                 // target that is being used to execute this action. If not, this is considered a cross-

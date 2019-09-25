@@ -25,6 +25,7 @@ import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
 public class ActionExecutionContextTest {
@@ -37,6 +38,9 @@ public class ActionExecutionContextTest {
 
     private final TargetStore targetStoreMock = Mockito.mock(TargetStore.class);
 
+    private final ProbeStore probeStoreMock = Mockito.mock(ProbeStore.class);
+
+
     // Builds the class under test
     private ActionExecutionContextFactory actionExecutionContextFactory;
 
@@ -46,7 +50,8 @@ public class ActionExecutionContextTest {
                 actionDataManagerMock,
                 entityStoreMock,
                 entityRetrieverMock,
-                targetStoreMock);
+                targetStoreMock,
+                probeStoreMock);
     }
 
     @Test

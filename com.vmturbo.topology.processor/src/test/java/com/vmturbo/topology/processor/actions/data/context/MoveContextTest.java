@@ -1,6 +1,8 @@
 package com.vmturbo.topology.processor.actions.data.context;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
@@ -19,8 +21,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionCapability;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
+import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.actions.ActionExecutionTestUtils;
 import com.vmturbo.topology.processor.actions.data.EntityRetrievalException;
@@ -28,7 +36,10 @@ import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
+import com.vmturbo.topology.processor.util.SdkActionPolicyBuilder;
 
 public class MoveContextTest {
 
@@ -40,6 +51,14 @@ public class MoveContextTest {
 
     private final TargetStore targetStoreMock = Mockito.mock(TargetStore.class);
 
+    private final ProbeStore probeStoreMock = Mockito.mock(ProbeStore.class);
+
+    private final int targetId = 2;
+
+    private final int primaryTargetId = 2;
+    // In a cross-target move, the destination entity was discovered by a second target
+    private final int secondaryTargetId = 3;
+
     // Builds the class under test
     private ActionExecutionContextFactory actionExecutionContextFactory;
 
@@ -49,7 +68,22 @@ public class MoveContextTest {
                 actionDataManagerMock,
                 entityStoreMock,
                 entityRetrieverMock,
-                targetStoreMock);
+                targetStoreMock,
+                probeStoreMock);
+        Mockito.when(targetStoreMock.getProbeTypeForTarget(targetId))
+            .thenReturn(Optional.of(SDKProbeType.VCENTER));
+        final Target target = Mockito.mock(Target.class);
+        Mockito.when(targetStoreMock.getTarget(targetId))
+            .thenReturn(Optional.of(target));
+        final ActionPolicyDTO moveActionPolicy =
+            SdkActionPolicyBuilder.build(ActionCapability.SUPPORTED, EntityType.VIRTUAL_MACHINE,
+                ActionType.CROSS_TARGET_MOVE);
+
+        final ProbeInfo probeInfo = ProbeInfo.newBuilder()
+            .setProbeCategory(ProbeCategory.HYPERVISOR.toString()).setProbeType(SDKProbeType.VCENTER.toString())
+            .addActionPolicy(moveActionPolicy)
+            .build();
+        Mockito.when(probeStoreMock.getProbe(targetStoreMock.getTarget(targetId).get().getProbeId())).thenReturn(Optional.of(probeInfo));
     }
 
     @Test
@@ -70,7 +104,6 @@ public class MoveContextTest {
                                         .createActionEntity(destinationEntityId, destinationEntityType))
                                 .build()))
                 .build();
-        final int targetId = 2;
         final int actionId = 7;
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(actionId)
@@ -108,13 +141,7 @@ public class MoveContextTest {
 
         Assert.assertEquals(actionId, actionExecutionContext.getActionId());
         Assert.assertEquals(targetId, actionExecutionContext.getTargetId());
-
-        // Check that the raw entityInfo was retrieved (used only for setting the host field)
-        Mockito.verify(entityStoreMock).getEntity(entityId);
-        // Check that the destination entityInfo was retrieved (used for detecting cross target move)
-        Mockito.verify(entityStoreMock).getEntity(destinationEntityId);
-        Mockito.verifyNoMoreInteractions(entityStoreMock);
-
+        
         // Check that the full entity was retrieved
         Mockito.verify(entityRetrieverMock).fetchAndConvertToEntityDTO(entityId);
         // Source entity info will be retrieved once while building the actionItem and again for
@@ -146,7 +173,6 @@ public class MoveContextTest {
                                         .createActionEntity(destinationEntityId, destinationEntityType))
                                 .build()))
                 .build();
-        final int targetId = 2;
         final int actionId = 7;
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(actionId)
@@ -186,13 +212,7 @@ public class MoveContextTest {
 
         Assert.assertEquals(actionId, actionExecutionContext.getActionId());
         Assert.assertEquals(targetId, actionExecutionContext.getTargetId());
-
-        // Check that the raw entityInfo was retrieved (used only for setting the host field)
-        Mockito.verify(entityStoreMock).getEntity(entityId);
-        // Check that the destination entityInfo was retrieved (used for detecting cross target move)
-        Mockito.verify(entityStoreMock).getEntity(destinationEntityId);
-        Mockito.verifyNoMoreInteractions(entityStoreMock);
-
+        
         // Check that the full entity was retrieved
         Mockito.verify(entityRetrieverMock).fetchAndConvertToEntityDTO(entityId);
         // Source entity info will be retrieved once while building the actionItem and again for
@@ -226,9 +246,6 @@ public class MoveContextTest {
                                         .createActionEntity(destinationEntityId, destinationEntityType))
                                 .build()))
                 .build();
-        final int primaryTargetId = 2;
-        // In a cross-target move, the destination entity was discovered by a second target
-        final int secondaryTargetId = 3;
         final int actionId = 7;
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(actionId)
@@ -466,10 +483,6 @@ public class MoveContextTest {
                         .createActionEntity(destinationEntityId1, hostEntityType))
                     .build()))
             .build();
-
-        final int primaryTargetId = 2;
-        // In a cross-target move, the destination entity was discovered by a second target
-        final int secondaryTargetId = 3;
         final int actionId = 7;
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
             .setActionId(actionId)
@@ -555,6 +568,125 @@ public class MoveContextTest {
         Assert.assertEquals(ActionType.CHANGE, storageActionItem2.getActionType());
         Assert.assertEquals(String.valueOf(sourceEntityId3), storageActionItem2.getCurrentSE().getId());
         Assert.assertEquals(String.valueOf(sourceEntityId3), storageActionItem2.getNewSE().getId());
+    }
+
+    @Test
+    public void testCrossTargetMoveContext_NoActionPolicy() throws Exception {
+        // Construct an move action request
+        final long entityId = 22;
+        final long sourceEntityId = 12;
+        final EntityType sourceEntityType = EntityType.PHYSICAL_MACHINE;
+        final long destinationEntityId = 13;
+        final EntityType destinationEntityType = EntityType.PHYSICAL_MACHINE;
+
+        final ActionInfo move = ActionInfo.newBuilder()
+            .setMove(ActionDTO.Move.newBuilder()
+                .setTarget(ActionExecutionTestUtils.createActionEntity(entityId))
+                .addChanges(ChangeProvider.newBuilder()
+                    .setSource(ActionExecutionTestUtils
+                        .createActionEntity(sourceEntityId, sourceEntityType))
+                    .setDestination(ActionExecutionTestUtils
+                        .createActionEntity(destinationEntityId, destinationEntityType))
+                    .build()))
+            .build();
+        final int actionId = 7;
+        final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
+            .setActionId(actionId)
+            .setTargetId(primaryTargetId)
+            .setActionInfo(move)
+            .setActionType(ActionDTO.ActionType.MOVE)
+            .build();
+
+        // Set up the mocks
+        Mockito.when(actionDataManagerMock.getContextData(move))
+            .thenReturn(Collections.emptyList());
+
+        final EntityType entityType = EntityType.VIRTUAL_MACHINE;
+        mockEntity(entityId, entityType, primaryTargetId);
+
+
+        final ActionPolicyDTO moveActionPolicy =
+            SdkActionPolicyBuilder.build(ActionCapability.SUPPORTED, EntityType.VIRTUAL_MACHINE,
+                ActionType.MOVE);
+
+        final ProbeInfo probeInfo = ProbeInfo.newBuilder()
+            .setProbeCategory(ProbeCategory.HYPERVISOR.toString()).setProbeType(SDKProbeType.VCENTER.toString())
+            .addActionPolicy(moveActionPolicy)
+            .build();
+        Mockito.when(probeStoreMock.getProbe(targetStoreMock.getTarget(primaryTargetId).get().getProbeId())).thenReturn(Optional.of(probeInfo));
+        // Construct a move action context to pull in additional data for action execution
+        // This is the method call being tested
+        ActionExecutionContext actionExecutionContext =
+            actionExecutionContextFactory.getActionExecutionContext(request);
+
+        //Calling the getSDKActionType to make sure it's not returning ActionType.CrossTarget since it's not in actionPolicy
+        final ActionType sdkActionType = actionExecutionContext.getSDKActionType();
+        Assert.assertEquals(ActionType.MOVE, sdkActionType);
+    }
+
+    @Test
+    public void testCrossTargetMoveContext_WithActionPolicy() throws Exception {
+        // Construct an move action request
+        final long entityId = 22;
+        final long sourceEntityId = 12;
+        final EntityType sourceEntityType = EntityType.PHYSICAL_MACHINE;
+        final long destinationEntityId = 13;
+        final EntityType destinationEntityType = EntityType.PHYSICAL_MACHINE;
+        final long storageEntityId = 14;
+        final EntityType storageEntityType = EntityType.STORAGE;
+        final ActionInfo move = ActionInfo.newBuilder()
+            .setMove(ActionDTO.Move.newBuilder()
+                .setTarget(ActionExecutionTestUtils.createActionEntity(entityId))
+                .addChanges(ChangeProvider.newBuilder()
+                    .setSource(ActionExecutionTestUtils
+                        .createActionEntity(sourceEntityId, sourceEntityType))
+                    .setDestination(ActionExecutionTestUtils
+                        .createActionEntity(destinationEntityId, destinationEntityType))
+                    .build()))
+            .build();
+        final int actionId = 7;
+        final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
+            .setActionId(actionId)
+            .setTargetId(primaryTargetId)
+            .setActionInfo(move)
+            .setActionType(ActionDTO.ActionType.MOVE)
+            .build();
+
+        // Set up the mocks
+        Mockito.when(actionDataManagerMock.getContextData(move))
+            .thenReturn(Collections.emptyList());
+
+        // We need entity info for the primary entity and its source and destination providers
+        // Build the primary entity
+        final EntityType entityType = EntityType.VIRTUAL_MACHINE;
+        final Entity entity = mockEntity(entityId, entityType, primaryTargetId);
+        entity.setHostedBy(primaryTargetId, sourceEntityId);
+        // Build the source provider entity
+        mockEntity(sourceEntityId, sourceEntityType, primaryTargetId);
+        // Build the destination provider entity
+        mockEntity(destinationEntityId, destinationEntityType, secondaryTargetId);
+        // For a cross-target move, we also need entity info for the storage
+        mockEntity(storageEntityId, storageEntityType, primaryTargetId);
+        // We need to provide a mocked TopologyEntityDTO for the primary entity because that is how
+        // the cross-target logic will find the storage entity to retrieve
+        TopologyEntityDTO primaryTopologyEntityDTO = TopologyEntityDTO.newBuilder()
+            .setOid(entityId)
+            .setEntityType(entityType.getNumber())
+            .addCommoditiesBoughtFromProviders(
+                CommoditiesBoughtFromProvider.newBuilder()
+                    .setProviderId(storageEntityId)
+                    .setProviderEntityType(storageEntityType.getNumber()))
+            .build();
+        Mockito.when(entityRetrieverMock.retrieveTopologyEntity(entityId))
+            .thenReturn(Optional.of(primaryTopologyEntityDTO));
+        // Construct a move action context to pull in additional data for action execution
+        // This is the method call being tested
+        ActionExecutionContext actionExecutionContext =
+            actionExecutionContextFactory.getActionExecutionContext(request);
+
+        //Calling the getSDKActionType to make sure it's not returning ActionType.CrossTarget since it's not in actionPolicy
+        final ActionType sdkActionType = actionExecutionContext.getSDKActionType();
+        Assert.assertEquals(ActionType.CROSS_TARGET_MOVE, sdkActionType);
     }
 
     private Entity mockEntity(long entityId, EntityType entityType, long targetId)

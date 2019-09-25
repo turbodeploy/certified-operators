@@ -92,7 +92,9 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     /**
      * The SDK (probe-facing) type that will be sent to the probes.
      */
-    protected final ActionItemDTO.ActionType SDKActionType;
+    protected ActionItemDTO.ActionType SDKActionType;
+
+    protected ActionDTO.ActionType actionType;
 
     protected AbstractActionExecutionContext(@Nonnull final ExecuteActionRequest request,
                                              @Nonnull final ActionDataManager dataManager,
@@ -107,13 +109,16 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         this.dataManager = Objects.requireNonNull(dataManager);
         this.entityStore = Objects.requireNonNull(entityStore);
         this.entityRetriever = Objects.requireNonNull(entityRetriever);
-        SDKActionType = calculateSDKActionType(actionType);
+        this.actionType = Objects.requireNonNull(actionType);
     }
 
     @Nonnull
     @Override
     public ActionItemDTO.ActionType getSDKActionType() {
-        return this.SDKActionType;
+        if (SDKActionType == null) {
+            SDKActionType = calculateSDKActionType(actionType);
+        }
+        return SDKActionType;
     }
 
     /**

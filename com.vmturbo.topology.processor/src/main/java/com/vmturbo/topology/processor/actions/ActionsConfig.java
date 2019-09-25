@@ -16,6 +16,7 @@ import com.vmturbo.topology.processor.controllable.ControllableConfig;
 import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
+import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
 import com.vmturbo.topology.processor.rpc.TopologyProcessorRpcConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
@@ -43,6 +44,9 @@ public class ActionsConfig {
 
     @Autowired
     private TargetConfig targetConfig;
+
+    @Autowired
+    private ProbeConfig probeConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -72,7 +76,8 @@ public class ActionsConfig {
         return new ActionExecutionContextFactory(actionDataManager(),
                 entityConfig.entityStore(),
                 entityRetriever(),
-                targetConfig.targetStore());
+                targetConfig.targetStore(),
+                probeConfig.probeStore());
     }
 
     @Bean

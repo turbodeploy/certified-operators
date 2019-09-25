@@ -25,7 +25,7 @@ public class ActivateContext extends AbstractActionExecutionContext {
                            @Nonnull final EntityStore entityStore,
                            @Nonnull final EntityRetriever entityRetriever,
                            @Nonnull final ActionDTO.ActionType actionType) {
-        super(request, dataManager, entityStore, entityRetriever,actionType);
+        super(request, dataManager, entityStore, entityRetriever, actionType);
     }
 
     @Override

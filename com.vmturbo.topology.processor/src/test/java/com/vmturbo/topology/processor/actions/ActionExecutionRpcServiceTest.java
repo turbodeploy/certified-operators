@@ -35,9 +35,14 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.CommodityAttribute;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionCapability;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.actions.data.EntityRetrievalException;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
@@ -45,7 +50,10 @@ import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContex
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.operation.OperationManager;
+import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
+import com.vmturbo.topology.processor.util.SdkActionPolicyBuilder;
 
 public class ActionExecutionRpcServiceTest {
 
@@ -59,11 +67,14 @@ public class ActionExecutionRpcServiceTest {
 
     private final TargetStore targetStoreMock = Mockito.mock(TargetStore.class);
 
+    private final ProbeStore probeStoreMock = Mockito.mock(ProbeStore.class);
+
     private ActionExecutionContextFactory actionExecutionContextFactory =
             new ActionExecutionContextFactory(actionDataManager,
                     entityStore,
                     entityRetriever,
-                    targetStoreMock);
+                    targetStoreMock,
+                    probeStoreMock);
 
     private ActionExecutionRpcService actionExecutionBackend =
             new ActionExecutionRpcService(operationManager,
@@ -92,7 +103,6 @@ public class ActionExecutionRpcServiceTest {
         Mockito.when(entityStore.getEntity(Mockito.anyLong())).thenReturn(Optional.empty());
         Mockito.doThrow(new EntityRetrievalException("No entity found "))
                 .when(entityRetriever).fetchAndConvertToEntityDTO(Mockito.anyLong());
-
         actionExecutionStub = ActionExecutionServiceGrpc.newBlockingStub(server.getChannel());
     }
 
@@ -132,7 +142,20 @@ public class ActionExecutionRpcServiceTest {
                 NewEntityRequest.storage(changes.get(1).getSource().getId()),
                 NewEntityRequest.storage(changes.get(1).getDestination().getId()));
 
+        Mockito.when(targetStoreMock.getProbeTypeForTarget(targetId))
+            .thenReturn(Optional.of(SDKProbeType.VCENTER));
+        final Target target = Mockito.mock(Target.class);
+        Mockito.when(targetStoreMock.getTarget(targetId))
+            .thenReturn(Optional.of(target));
+        final ActionPolicyDTO moveActionPolicy =
+            SdkActionPolicyBuilder.build(ActionCapability.SUPPORTED, EntityType.VIRTUAL_MACHINE,
+                ActionType.CROSS_TARGET_MOVE);
 
+        final ProbeInfo probeInfo = ProbeInfo.newBuilder()
+            .setProbeCategory(ProbeCategory.HYPERVISOR.toString()).setProbeType(SDKProbeType.VCENTER.toString())
+            .addActionPolicy(moveActionPolicy)
+            .build();
+        Mockito.when(probeStoreMock.getProbe(targetStoreMock.getTarget(targetId).get().getProbeId())).thenReturn(Optional.of(probeInfo));
         actionExecutionStub.executeAction(request);
 
         Mockito.verify(operationManager).requestActions(Mockito.eq(request.getActionId()),
@@ -225,7 +248,20 @@ public class ActionExecutionRpcServiceTest {
                 NewEntityRequest.storage(moveSpec.getChanges(0).getSource().getId()),
                 NewEntityRequest.storage(moveSpec.getChanges(0).getDestination().getId()));
 
+        Mockito.when(targetStoreMock.getProbeTypeForTarget(targetId))
+            .thenReturn(Optional.of(SDKProbeType.VCENTER));
+        final Target target = Mockito.mock(Target.class);
+        Mockito.when(targetStoreMock.getTarget(targetId))
+            .thenReturn(Optional.of(target));
+        final ActionPolicyDTO moveActionPolicy =
+            SdkActionPolicyBuilder.build(ActionCapability.SUPPORTED, EntityType.VIRTUAL_MACHINE,
+                ActionType.CROSS_TARGET_MOVE);
 
+        final ProbeInfo probeInfo = ProbeInfo.newBuilder()
+            .setProbeCategory(ProbeCategory.HYPERVISOR.toString()).setProbeType(SDKProbeType.VCENTER.toString())
+            .addActionPolicy(moveActionPolicy)
+            .build();
+        Mockito.when(probeStoreMock.getProbe(targetStoreMock.getTarget(targetId).get().getProbeId())).thenReturn(Optional.of(probeInfo));
         actionExecutionStub.executeAction(request);
 
         Mockito.verify(operationManager).requestActions(Mockito.eq(request.getActionId()),
@@ -282,7 +318,20 @@ public class ActionExecutionRpcServiceTest {
                 NewEntityRequest.storage(moveSpec.getTarget().getId()),
                 NewEntityRequest.diskArray(moveSpec.getChanges(0).getSource().getId()),
                 NewEntityRequest.diskArray(moveSpec.getChanges(0).getDestination().getId()));
+        Mockito.when(targetStoreMock.getProbeTypeForTarget(targetId))
+            .thenReturn(Optional.of(SDKProbeType.VCENTER));
+        final Target target = Mockito.mock(Target.class);
+        Mockito.when(targetStoreMock.getTarget(targetId))
+            .thenReturn(Optional.of(target));
+        final ActionPolicyDTO moveActionPolicy =
+            SdkActionPolicyBuilder.build(ActionCapability.SUPPORTED, EntityType.VIRTUAL_MACHINE,
+                ActionType.CROSS_TARGET_MOVE);
 
+        final ProbeInfo probeInfo = ProbeInfo.newBuilder()
+            .setProbeCategory(ProbeCategory.HYPERVISOR.toString()).setProbeType(SDKProbeType.VCENTER.toString())
+            .addActionPolicy(moveActionPolicy)
+            .build();
+        Mockito.when(probeStoreMock.getProbe(targetStoreMock.getTarget(targetId).get().getProbeId())).thenReturn(Optional.of(probeInfo));
         actionExecutionStub.executeAction(request);
 
         Mockito.verify(operationManager).requestActions(Mockito.eq(request.getActionId()),

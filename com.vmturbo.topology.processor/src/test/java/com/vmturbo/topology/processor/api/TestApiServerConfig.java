@@ -319,7 +319,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
         return new ActionExecutionContextFactory(actionDataManager(),
                 entityRepository(),
                 entityRetriever(),
-                targetStore());
+                targetStore(), probeStore());
     }
 
     @Bean
