@@ -28,11 +28,6 @@ http {
     # turn off proxy buffering due to read-only fs
     proxy_buffering off;
 
-    proxy_temp_path /tmp/proxy 1 2;
-    fastcgi_temp_path /tmp/fastcgi 1 2;
-    uwsgi_temp_path /tmp/uwsgi 1 2;
-    scgi_temp_path /tmp/scgi 1 2;
-
     sendfile        on;
     #tcp_nopush     on;
 
@@ -40,7 +35,6 @@ http {
 
     # These two should be the same or nginx will start writing
     #  large request bodies to temp files
-    client_body_temp_path /tmp/client_body 1 2;
     client_body_buffer_size 10m;
     client_max_body_size    10m;
 
@@ -85,7 +79,11 @@ http {
             return 301 https://$host$request_uri;
         }
 
-        location /healthz/ready { return 200 OK; }
+        location = /metrics {
+            set $api_servers $API;
+            proxy_pass         http://$api_servers:8080/metrics;
+            proxy_set_header   Host $http_host;
+        }
 
         # include any additional server config files for the insecure port
         include /etc/nginx/userconf/insecure/*.conf;
@@ -100,14 +98,22 @@ http {
 
 
 	# swagger-ui paths without trailing slash do 302 redirect to add the slash
-	rewrite ^(/apidoc.*)$ $scheme://$host/swagger/index.html redirect;
-	rewrite ^(/swagger(/|/external)?)$ $scheme://$host/swagger/index.html redirect;
+	rewrite ^(/apidoc(/v2)?)$ $scheme://$host/$1/ redirect;
+	rewrite ^(/swagger(/external)?)$ $scheme://$host/$1/ redirect;
 
 	# swagger-ui paths without index.html get it added on (internal, no redirect)
+	rewrite ^(/apidoc(/v2)?)/$ $1/index.html;
+	rewrite ^(/swagger(/external)?)/$ $1/index.html;
+
+	# all swagger-ui paths are routed to /swagger/external
+	rewrite ^/apidoc(/v2)?(.+)$ /swagger/external$2;
 	rewrite ^/swagger(/external)?(.+)$ /swagger/external$2;
 
+	# /api and /api/v2 paths route internally to /vmturbo/rest
+	rewrite ^/api(/v2)?(.+)$ /vmturbo/rest$2;
+
 	# proxying default paths
-        location ~ (/$|/api|/app|/vmturbo/rest|/swagger/external) {
+        location ~ (/$|/index|/app|/vmturbo(?!/messages)|/rest|/cgi-bin|/swagger) {
             # we are using variables for the upstream servers instead of an upstream entry because
             # of the DNS caching problem -- only nginx plus will dynamically resolve the upstream
             # servers
@@ -119,6 +125,9 @@ http {
             proxy_connect_timeout 10s;
             proxy_read_timeout 6000s;
             proxy_intercept_errors on;
+
+            #Add cookie security and httponly headers
+            proxy_cookie_path / "/; HTTPOnly; Secure";
 
             # Ensure the proxy-side redirect from API gets rewritten to the gateway address
             proxy_set_header   X-Forwarded-Proto $scheme;
@@ -257,8 +266,6 @@ http {
 
             access_log  /var/log/nginx/access.log  upstream_ws;
         }
-
-        location /healthz/ready { return 200 OK; }
 
         # include any additional server config files for the secured block
         include /etc/nginx/userconf/secure/*.conf;
