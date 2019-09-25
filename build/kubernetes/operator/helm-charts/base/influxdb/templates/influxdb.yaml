@@ -1,3 +1,5 @@
+{{ if .Values.global }}
+  {{ if (not .Values.global.externalInfluxDBName) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -98,6 +100,8 @@ spec:
     matchLabels:
       app.kubernetes.io/name: {{ .Chart.Name }}
       app.kubernetes.io/instance: {{ .Release.Name }}
+  {{ end }}
+{{ end }}
 ---
 apiVersion: v1
 kind: Service
@@ -109,6 +113,12 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
+{{- if .Values.global }}
+  {{- if .Values.global.externalInfluxDBName }}
+  type: ExternalName
+  externalName: {{ .Values.global.externalInfluxDBName }}
+  {{- end -}}
+{{- end }}
   ports:
   - name: http-influxdb
     port: 8086
