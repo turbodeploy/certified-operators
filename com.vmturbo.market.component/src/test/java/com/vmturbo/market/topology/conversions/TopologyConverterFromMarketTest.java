@@ -7,8 +7,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -21,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
@@ -60,6 +61,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.conversions.CommodityIndex.CommodityIndexFactory;
+import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
@@ -105,7 +107,7 @@ public class TopologyConverterFromMarketTest {
     private CommodityConverter mockCommodityConverter = mock(CommodityConverter.class);
     private CloudCostData mockCCD = mock(CloudCostData.class);
     private final ReservedCapacityAnalysis reservedCapacityAnalysis =
-            new ReservedCapacityAnalysis(Collections.emptyMap());
+                    new ReservedCapacityAnalysis(Collections.emptyMap());
 
     CommodityType ioType = CommodityType.newBuilder()
             .setType(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE).build();
@@ -123,6 +125,7 @@ public class TopologyConverterFromMarketTest {
     private CommodityType topologyCommodity2;
 
     private static final NumericIDAllocator ID_ALLOCATOR = new NumericIDAllocator();
+    private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
 
     private static final int BICLIQUE_TYPE_ID = ID_ALLOCATOR.allocate("BICLIQUE");
     private static final int CPU_TYPE_ID = ID_ALLOCATOR.allocate("CPU");
@@ -137,6 +140,7 @@ public class TopologyConverterFromMarketTest {
         topologyCommodity1 = CommodityType.newBuilder().setType(CPU_TYPE_ID).setKey("blah").build();
         topologyCommodity2 =
                 CommodityType.newBuilder().setType(DSPM_TYPE_ID).setKey("blahblah").build();
+        when(tierExcluderFactory.newExcluder(any())).thenReturn(mock(TierExcluder.class));
     }
 
     /**
@@ -164,7 +168,7 @@ public class TopologyConverterFromMarketTest {
     public void testTraderWithBicliqueCommodityConversion() throws Exception {
         TopologyConverter converter = Mockito.spy(new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                 false, AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable, mockCommodityConverter, CommodityIndex.newFactory()));
+                marketPriceTable, mockCommodityConverter, CommodityIndex.newFactory(), tierExcluderFactory));
         final TopologyDTO.CommoditySoldDTO topologyDSPMSold = TopologyDTO.CommoditySoldDTO
                 .newBuilder()
                 .setCommodityType(CommodityType.newBuilder()
@@ -275,10 +279,10 @@ public class TopologyConverterFromMarketTest {
     public void testVMTraderToEntityConversion() throws Exception {
         when(mockCCD.getExistingRiBought()).thenReturn(Collections.emptyList());
         TopologyConverter converter = Mockito.spy(new TopologyConverter(
-                TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN).build(), false,
-                AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable, mockCommodityConverter, mockCCD,
-                CommodityIndex.newFactory()));
+                        TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN).build(), false,
+                        AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                        marketPriceTable, mockCommodityConverter, mockCCD,
+                        CommodityIndex.newFactory(), tierExcluderFactory));
         final TopologyDTO.CommoditySoldDTO topologyDSPMSold = TopologyDTO.CommoditySoldDTO
                 .newBuilder()
                 .setCommodityType(CommodityType.newBuilder()
@@ -404,10 +408,10 @@ public class TopologyConverterFromMarketTest {
     public void testProvByDemandTraderToEntityConversion() throws Exception {
         when(mockCCD.getExistingRiBought()).thenReturn(Collections.emptyList());
         TopologyConverter converter = Mockito.spy(new TopologyConverter(
-                TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME).build(),
-                false, AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable, mockCommodityConverter, mockCCD,
-                CommodityIndex.newFactory()));
+                        TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME).build(),
+                        false, AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                        marketPriceTable, mockCommodityConverter, mockCCD,
+                        CommodityIndex.newFactory(), tierExcluderFactory));
         // Commodities to use for the topology of test
         double stAmtCapacity = 1024000d;
         double stAmtBought = 102400d;
@@ -570,7 +574,7 @@ public class TopologyConverterFromMarketTest {
                 TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN).build(), false,
                 AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, mockCCD,
-                CommodityIndex.newFactory()));
+                CommodityIndex.newFactory(), tierExcluderFactory));
         long azOid = 1l;
         long volumeOid = 2l;
         long storageTierOid = 3l;
@@ -679,7 +683,7 @@ public class TopologyConverterFromMarketTest {
         // converter under test
         TopologyConverter converter = Mockito.spy(new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                 false, AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable, mockCommodityConverter, indexFactory));
+                marketPriceTable, mockCommodityConverter, indexFactory, tierExcluderFactory));
 
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
@@ -816,9 +820,10 @@ public class TopologyConverterFromMarketTest {
                 .build());
 
         TopologyConverter converter = Mockito.spy(new TopologyConverter(
-                TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN).build(), false,
-                AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable, mockCommodityConverter, mockCCD, indexFactory));
+                        TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN).build(), false,
+                        AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                        marketPriceTable, mockCommodityConverter, mockCCD, indexFactory,
+                        tierExcluderFactory));
 
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
@@ -905,11 +910,11 @@ public class TopologyConverterFromMarketTest {
 
     @Test
     public void testConvertFromMarketPreservesOriginalEnvType() {
-        final TopologyConverter converter = Mockito.spy(new TopologyConverter(
+        final TopologyConverter converter = spy(new TopologyConverter(
                 TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME).build(),
                 false, AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, mockCCD,
-                CommodityIndex.newFactory()));
+                CommodityIndex.newFactory(), tierExcluderFactory));
 
         final TopologyDTO.TopologyEntityDTO originalVm = TopologyDTO.TopologyEntityDTO.newBuilder()
                 .setOid(VM_OID).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -929,11 +934,11 @@ public class TopologyConverterFromMarketTest {
 
     @Test
     public void testConvertFromMarketPreservesOriginalTypeSpecificInfo() {
-        final TopologyConverter converter = Mockito.spy(new TopologyConverter(
+        final TopologyConverter converter = spy(new TopologyConverter(
                 TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME).build(),
                 false, AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, mockCCD,
-                CommodityIndex.newFactory()));
+                CommodityIndex.newFactory(), tierExcluderFactory));
 
         final TopologyDTO.TopologyEntityDTO originalVm = TopologyDTO.TopologyEntityDTO.newBuilder()
                 .setOid(VM_OID).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -955,11 +960,11 @@ public class TopologyConverterFromMarketTest {
 
     @Test
     public void testConvertFromMarketPreservesOriginalOrigin() {
-        final TopologyConverter converter = Mockito.spy(new TopologyConverter(
+        final TopologyConverter converter = spy(new TopologyConverter(
                 TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME).build(),
                 false, AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, mockCCD,
-                CommodityIndex.newFactory()));
+                CommodityIndex.newFactory(), tierExcluderFactory));
 
         final TopologyDTO.TopologyEntityDTO originalVm = TopologyDTO.TopologyEntityDTO.newBuilder()
                 .setOid(VM_OID).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -980,11 +985,11 @@ public class TopologyConverterFromMarketTest {
 
     @Test
     public void testConvertFromMarketCloneRetainsOriginalEnvType() {
-        final TopologyConverter converter = Mockito.spy(new TopologyConverter(
+        final TopologyConverter converter = spy(new TopologyConverter(
                 TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME).build(),
                 false, AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, mockCCD,
-                CommodityIndex.newFactory()));
+                CommodityIndex.newFactory(), tierExcluderFactory));
 
         final TopologyDTO.TopologyEntityDTO originalVm = TopologyDTO.TopologyEntityDTO.newBuilder()
                 .setOid(VM_OID).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -1005,11 +1010,11 @@ public class TopologyConverterFromMarketTest {
 
     @Test
     public void testConvertFromMarketCloneRetainsOriginalTypeSpecificInfo() {
-        final TopologyConverter converter = Mockito.spy(new TopologyConverter(
+        final TopologyConverter converter = spy(new TopologyConverter(
                 TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME).build(),
                 false, AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, mockCCD,
-                CommodityIndex.newFactory()));
+                CommodityIndex.newFactory(), tierExcluderFactory));
 
         final TopologyDTO.TopologyEntityDTO originalVm = TopologyDTO.TopologyEntityDTO.newBuilder()
                 .setOid(VM_OID).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -1032,11 +1037,11 @@ public class TopologyConverterFromMarketTest {
 
     @Test
     public void testConvertFromMarketCloneHasAnalysisOrigin() {
-        final TopologyConverter converter = Mockito.spy(new TopologyConverter(
+        final TopologyConverter converter = spy(new TopologyConverter(
                 TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME).build(),
                 false, AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, mockCCD,
-                CommodityIndex.newFactory()));
+                CommodityIndex.newFactory(), tierExcluderFactory));
 
         final TopologyDTO.TopologyEntityDTO originalVm = TopologyDTO.TopologyEntityDTO.newBuilder()
                 .setOid(VM_OID).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -1065,11 +1070,11 @@ public class TopologyConverterFromMarketTest {
      */
     @Test
     public void testInsertShoppingListInMapPositiveTrader() {
-        TopologyConverter converter = Mockito.spy(new TopologyConverter(
+        TopologyConverter converter = spy(new TopologyConverter(
                 TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN).build(), false,
                 AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, mockCCD,
-                CommodityIndex.newFactory()));
+                CommodityIndex.newFactory(), tierExcluderFactory));
         final TopologyDTO.CommoditySoldDTO topologyDSPMSold = TopologyDTO.CommoditySoldDTO
                 .newBuilder()
                 .setCommodityType(CommodityType.newBuilder()
@@ -1149,11 +1154,11 @@ public class TopologyConverterFromMarketTest {
      */
     @Test
     public void testInsertShoppingListInMapNegativeTrader() {
-        TopologyConverter converter = Mockito.spy(new TopologyConverter(
+        TopologyConverter converter = spy(new TopologyConverter(
                 TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN).build(), false,
                 AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, mockCCD,
-                CommodityIndex.newFactory()));
+                CommodityIndex.newFactory(), tierExcluderFactory));
         final TopologyDTO.CommoditySoldDTO topologyDSPMSold = TopologyDTO.CommoditySoldDTO
                 .newBuilder()
                 .setCommodityType(CommodityType.newBuilder()
@@ -1261,11 +1266,10 @@ public class TopologyConverterFromMarketTest {
         TopologyInfo topoInfo = TopologyInfo.newBuilder()
                 .setTopologyType(TopologyType.PLAN).build();
 
-        TopologyConverter converter = Mockito.spy(new TopologyConverter(
-                topoInfo, false,
+        TopologyConverter converter = Mockito.spy(new TopologyConverter(topoInfo, false,
                 AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, mockCCD,
-                CommodityIndex.newFactory()));
+                CommodityIndex.newFactory(), tierExcluderFactory));
         converter.cloudTc = mockCloudTc;
         converter.commodityIndex = mockINdex;
 
@@ -1310,7 +1314,7 @@ public class TopologyConverterFromMarketTest {
         Mockito.doReturn(true).when(mockCloudTc)
                 .isMarketTier(Mockito.eq(CLOUD_NEW_COMPUTE_TIER_OID));
         Mockito.doReturn(Collections.singleton(oldTierDTO)).when(mockCloudTc)
-                .getTopologyEntityDTOProvidersOfType(Mockito.any(), Mockito.anyInt());
+                .getTopologyEntityDTOProvidersOfType(any(), Mockito.anyInt());
         Mockito.doReturn(oldVMTO).when(converter).topologyDTOtoTraderTO(Mockito.eq(originalEntityDTO));
 
         Map<Long, ProjectedTopologyEntity> projectedTOs =

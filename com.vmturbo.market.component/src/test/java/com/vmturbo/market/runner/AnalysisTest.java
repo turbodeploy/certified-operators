@@ -39,7 +39,6 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
-import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -62,6 +61,8 @@ import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.topology.conversions.TierExcluder;
+import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -87,8 +88,6 @@ public class AnalysisTest {
     private final GroupServiceMole testGroupService = spy(new GroupServiceMole());
     private final SettingPolicyServiceMole testSettingPolicyService =
             spy(new SettingPolicyServiceMole());
-    private final SettingServiceMole testSettingService =
-                 spy(new SettingServiceMole());
     private GroupServiceBlockingStub groupServiceClient;
 
     private static final Instant START_INSTANT = Instant.EPOCH.plus(90, ChronoUnit.MINUTES);
@@ -107,10 +106,11 @@ public class AnalysisTest {
         .setDeprecatedImportance(0.0d)
         .setId(1234l).build();
 
+    private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
-                     testSettingPolicyService, testSettingService);
+                     testSettingPolicyService);
 
     @Before
     public void before() {
@@ -119,6 +119,7 @@ public class AnalysisTest {
                 .thenReturn(START_INSTANT)
                 .thenReturn(END_INSTANT);
         groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        when(tierExcluderFactory.newExcluder(any())).thenReturn(mock(TierExcluder.class));
     }
 
     private Map<String, Setting> getRateOfResizeSettingMap(float resizeValue) {
@@ -159,7 +160,7 @@ public class AnalysisTest {
         return new Analysis(topoInfo, topologySet,
             groupServiceClient, mockClock, analysisConfig,
             cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
-            wastedFilesAnalysisFactory);
+            wastedFilesAnalysisFactory, tierExcluderFactory);
     }
     /**
      * Convenience method to get an Analysis based on an analysisConfig and a set of

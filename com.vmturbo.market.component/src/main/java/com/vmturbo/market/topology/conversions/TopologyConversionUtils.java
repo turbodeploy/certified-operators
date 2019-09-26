@@ -150,5 +150,4 @@ public class TopologyConversionUtils {
         return !(TopologyConversionConstants.STATIC_INFRASTRUCTURE.contains(entityType)
                 || EntityType.VIRTUAL_VOLUME_VALUE == entityType);
     }
-
 }

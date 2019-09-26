@@ -70,7 +70,19 @@ public class CloudTopologyConverter {
     private final CloudCostData cloudCostData;
 
     /**
-     * This constructor will be used by tests. Mock converters can be passed in.
+     * The CloudTopologyConverter constructor
+     *
+     * @param topology the topologyEntityDTOs which came into market-component
+     * @param topologyInfo the topology info
+     * @param pmBasedBicliquer PM based bicliquer which stores connections between PM and DSs
+     * @param dsBasedBicliquer DS based bicliquer which stores connections between DS and PMs
+     * @param commodityConverter commodity converter
+     * @param azToRegionMap mapping of AZs to Regions
+     * @param businessAccounts The set of business accounts
+     * @param marketPriceTable The market price table
+     * @param cloudCostData Cloud Cost data
+     * @param tierExcluder tier exclusion applicator which is used to apply tier
+     *                                exclusion settings
      */
      @VisibleForTesting
      CloudTopologyConverter(
@@ -79,7 +91,8 @@ public class CloudTopologyConverter {
              @Nonnull CommodityConverter commodityConverter,
              @Nonnull Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap,
              @Nonnull Set<TopologyEntityDTO> businessAccounts, @Nonnull MarketPriceTable marketPriceTable,
-             @Nonnull CloudCostData cloudCostData) {
+             @Nonnull CloudCostData cloudCostData,
+             @Nonnull TierExcluder tierExcluder) {
          this.topology = topology;
          this.topologyInfo = topologyInfo;
          this.commodityConverter = commodityConverter;
@@ -87,9 +100,9 @@ public class CloudTopologyConverter {
          this.dsBasedBicliquer = dsBasedBicliquer;
          this.azToRegionMap = azToRegionMap;
          CostDTOCreator costDTOCreator = new CostDTOCreator(commodityConverter, marketPriceTable);
-         this.computeTierConverter = new ComputeTierConverter(topologyInfo, commodityConverter, costDTOCreator);
+         this.computeTierConverter = new ComputeTierConverter(topologyInfo, commodityConverter, costDTOCreator, tierExcluder);
          this.storageTierConverter = new StorageTierConverter(topologyInfo, commodityConverter, costDTOCreator);
-         this.riConverter = new ReservedInstanceConverter(topologyInfo, commodityConverter, costDTOCreator);
+         this.riConverter = new ReservedInstanceConverter(topologyInfo, commodityConverter, costDTOCreator, tierExcluder);
          this.businessAccounts = businessAccounts;
          this.cloudCostData = cloudCostData;
          converterMap = Collections.unmodifiableMap(createConverterMap());

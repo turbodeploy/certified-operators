@@ -45,6 +45,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
 import com.vmturbo.platform.analysis.utilities.NumericIDAllocator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
@@ -69,7 +70,7 @@ public class ReservedInstanceConverterTest {
         final CostDTOCreator costDTOCreator = mock(CostDTOCreator.class);
         final CostDTO cbtpCostDto = CostDTO.newBuilder().build();
         when(costDTOCreator.createCbtpCostDTO()).thenReturn(cbtpCostDto);
-        converter = new ReservedInstanceConverter(info, commodityConverter, costDTOCreator);
+        converter = new ReservedInstanceConverter(info, commodityConverter, costDTOCreator, mock(TierExcluder.class));
     }
 
     /**
@@ -182,11 +183,15 @@ public class ReservedInstanceConverterTest {
     private static RiDiscountedMarketTier mockRiDiscountedTier(boolean platformFlexible) {
         final RiDiscountedMarketTier riDiscountedTier = mock(RiDiscountedMarketTier.class);
         final ReservedInstanceAggregate aggregate = mock(ReservedInstanceAggregate.class);
+        final TopologyEntityDTO computeTier = TopologyEntityDTO.newBuilder()
+            .setOid(1L)
+            .setEntityType(EntityType.COMPUTE_TIER.getValue()).build();
         final ReservedInstanceKey riKey = mock(ReservedInstanceKey.class);
         when(riKey.getOs()).thenReturn(OSType.LINUX);
         when(riKey.getTenancy()).thenReturn(Tenancy.DEFAULT);
         when(aggregate.getRiKey()).thenReturn(riKey);
         when(aggregate.isPlatformFlexible()).thenReturn(platformFlexible);
+        when(aggregate.getComputeTier()).thenReturn(computeTier);
         when(riDiscountedTier.getRiAggregate()).thenReturn(aggregate);
         return riDiscountedTier;
     }

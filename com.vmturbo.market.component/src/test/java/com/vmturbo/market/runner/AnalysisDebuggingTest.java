@@ -36,9 +36,9 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
-import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.market.MarketDebug.AnalysisInput;
@@ -62,6 +62,8 @@ import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.topology.conversions.TierExcluder;
+import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
@@ -117,6 +119,8 @@ public class AnalysisDebuggingTest {
 
     private GroupServiceMole groupServiceMole = spy(new GroupServiceMole());
 
+    private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
+
     private final TopologyInfo topoInfo = TopologyInfo.newBuilder().setTopologyContextId(1000l).build();
     @Rule
     public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(groupServiceMole);
@@ -134,6 +138,7 @@ public class AnalysisDebuggingTest {
 
     @Before
     public void setup() {
+        when(tierExcluderFactory.newExcluder(any())).thenReturn(mock(TierExcluder.class));
         IdentityGenerator.initPrefix(0);
     }
 
@@ -266,7 +271,7 @@ public class AnalysisDebuggingTest {
             GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
             Clock.systemUTC(),
             analysisConfig.build(), cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
-            wastedFilesAnalysisFactory);
+            wastedFilesAnalysisFactory, tierExcluderFactory);
         return analysis;
     }
 

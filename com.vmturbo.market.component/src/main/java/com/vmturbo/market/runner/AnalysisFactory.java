@@ -12,24 +12,26 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 
 import io.grpc.StatusRuntimeException;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 
 /**
@@ -70,6 +72,8 @@ public interface AnalysisFactory {
 
         private final SettingServiceBlockingStub settingServiceClient;
 
+        private final TierExcluderFactory tierExcluderFactory;
+
         private final Clock clock;
 
         private final MarketPriceTableFactory priceTableFactory;
@@ -108,7 +112,8 @@ public interface AnalysisFactory {
                   final float alleviatePressureQuoteFactor,
                   final float standardQuoteFactor,
                   final float liveMarketMoveCostFactor,
-                  final boolean suspensionThrottlingPerCluster) {
+                  final boolean suspensionThrottlingPerCluster,
+                  @NonNull final TierExcluderFactory tierExcluderFactory) {
             Preconditions.checkArgument(alleviatePressureQuoteFactor >= 0f);
             Preconditions.checkArgument(alleviatePressureQuoteFactor <= 1.0f);
             Preconditions.checkArgument(standardQuoteFactor >= 0f);
@@ -127,6 +132,7 @@ public interface AnalysisFactory {
             this.cloudCostDataProvider = cloudCostDataProvider;
             this.suspensionsThrottlingConfig = suspensionThrottlingPerCluster ?
                     SuspensionsThrottlingConfig.CLUSTER : SuspensionsThrottlingConfig.DEFAULT;
+            this.tierExcluderFactory = tierExcluderFactory;
         }
 
         /**
@@ -146,7 +152,8 @@ public interface AnalysisFactory {
             return new Analysis(topologyInfo, topologyEntities,
                 groupServiceClient, clock,
                 configBuilder.build(), cloudTopologyFactory,
-                topologyCostCalculatorFactory, priceTableFactory, wastedFilesAnalysisFactory);
+                topologyCostCalculatorFactory, priceTableFactory, wastedFilesAnalysisFactory,
+                tierExcluderFactory);
         }
 
         /**

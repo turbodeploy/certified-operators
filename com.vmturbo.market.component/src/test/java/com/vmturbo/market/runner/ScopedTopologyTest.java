@@ -31,6 +31,12 @@ import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.junit.Before;
+import org.junit.Ignore;
+import org.junit.Rule;
+import org.junit.Test;
+import org.mockito.Mockito;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import com.google.gson.Gson;
@@ -38,17 +44,10 @@ import com.google.gson.stream.JsonReader;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
-import org.junit.Before;
-import org.junit.Ignore;
-import org.junit.Rule;
-import org.junit.Test;
-import org.mockito.Mockito;
-
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
-import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -73,6 +72,8 @@ import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.topology.conversions.CommodityIndex;
+import com.vmturbo.market.topology.conversions.TierExcluder;
+import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
@@ -104,8 +105,6 @@ public class ScopedTopologyTest {
     private static final Gson GSON = new Gson();
     private Set<TopologyEntityDTO.Builder> topologyDTOBuilderSet;
     private final GroupServiceMole testGroupService = spy(new GroupServiceMole());
-    private final SettingPolicyServiceMole testSettingPolicyService =
-            spy(new SettingPolicyServiceMole());
     private final SettingServiceMole testSettingService =
                  spy(new SettingServiceMole());
     private final float rightsizeLowerWatermark = 0.1f;
@@ -115,10 +114,10 @@ public class ScopedTopologyTest {
     Analysis testAnalysis;
     private MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
     private CloudCostData ccd = mock(CloudCostData.class);
+    private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
 
     @Rule
-    private GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
-                     testSettingPolicyService, testSettingService);
+    private GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService, testSettingService);
 
     /**
      * Read the test topology from a resource file (.json).
@@ -136,6 +135,7 @@ public class ScopedTopologyTest {
             .setIncludeVDC(INCLUDE_VDC)
             .build();
         groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
+
         final TopologyEntityCloudTopologyFactory cloudTopologyFactory = mock(TopologyEntityCloudTopologyFactory.class);
         final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
         final TopologyCostCalculator topologyCostCalculator = mock(TopologyCostCalculator.class);
@@ -147,7 +147,7 @@ public class ScopedTopologyTest {
         when(ccd.getExistingRiBought()).thenReturn(new ArrayList<>());
         final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
             mock(WastedFilesAnalysisFactory.class);
-
+        when(tierExcluderFactory.newExcluder(any())).thenReturn(mock(TierExcluder.class));
         testAnalysis = new Analysis(PLAN_TOPOLOGY_INFO,
             Collections.emptySet(),
             groupServiceClient,
@@ -156,7 +156,8 @@ public class ScopedTopologyTest {
             cloudTopologyFactory,
             cloudCostCalculatorFactory,
             priceTableFactory,
-            wastedFilesAnalysisFactory);
+            wastedFilesAnalysisFactory,
+            tierExcluderFactory);
     }
 
     /**
@@ -174,7 +175,8 @@ public class ScopedTopologyTest {
     public void testScopeTopologyCluster1() throws InvalidTopologyException {
 
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd, CommodityIndex.newFactory());
+            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd,
+                CommodityIndex.newFactory(), tierExcluderFactory);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
@@ -195,7 +197,8 @@ public class ScopedTopologyTest {
     public void testScopeTopologyBusinessApp() throws InvalidTopologyException {
 
         final TopologyConverter converter =
-                new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd, CommodityIndex.newFactory());
+                new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd,
+                    CommodityIndex.newFactory(), tierExcluderFactory);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
@@ -214,7 +217,7 @@ public class ScopedTopologyTest {
     public void testScopeTopologyOneHost() throws InvalidTopologyException {
         final TopologyConverter converter =
             new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable,
-                ccd, CommodityIndex.newFactory());
+                ccd, CommodityIndex.newFactory(), tierExcluderFactory);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
@@ -234,7 +237,7 @@ public class ScopedTopologyTest {
     public void testScopeTopologyTwoHosts() throws InvalidTopologyException {
         final TopologyConverter converter =
             new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable,
-                ccd, CommodityIndex.newFactory());
+                ccd, CommodityIndex.newFactory(), tierExcluderFactory);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
@@ -255,7 +258,7 @@ public class ScopedTopologyTest {
     public void testScopeTopologyUplacedEnities() throws InvalidTopologyException {
         final TopologyConverter converter =
             new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable,
-                ccd, CommodityIndex.newFactory());
+                ccd, CommodityIndex.newFactory(), tierExcluderFactory);
         // add an additional VM, which should be considered unplaced
         topologyDTOBuilderSet.add(TopologyEntityDTO.newBuilder()
                 .setDisplayName("VM-unplaced")
@@ -330,7 +333,7 @@ public class ScopedTopologyTest {
                 return new Analysis(topologyInfo, topologyDTOs,
                         groupServiceClient, Clock.systemUTC(), configBuilder.build(),
                         cloudTopologyFactory, topologyCostCalculatorFactory, priceTableFactory,
-                        wastedFilesAnalysisFactory);
+                        wastedFilesAnalysisFactory, tierExcluderFactory);
             });
 
         Analysis analysis =
@@ -384,7 +387,8 @@ public class ScopedTopologyTest {
         host12Builder.setEntityState(EntityState.MAINTENANCE);
 
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd, CommodityIndex.newFactory());
+            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd,
+                CommodityIndex.newFactory(), tierExcluderFactory);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
@@ -403,7 +407,8 @@ public class ScopedTopologyTest {
     public void testScopeWithVMSeed() throws InvalidTopologyException {
 
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd, CommodityIndex.newFactory());
+            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd,
+                CommodityIndex.newFactory(), tierExcluderFactory);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
@@ -428,7 +433,8 @@ public class ScopedTopologyTest {
         host12Builder.setEntityState(EntityState.MAINTENANCE);
 
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd, CommodityIndex.newFactory());
+            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd,
+                CommodityIndex.newFactory(), tierExcluderFactory);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,

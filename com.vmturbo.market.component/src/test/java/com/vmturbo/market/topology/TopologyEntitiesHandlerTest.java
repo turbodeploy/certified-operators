@@ -3,6 +3,7 @@ package com.vmturbo.market.topology;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -67,6 +68,8 @@ import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.Builder;
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle;
 import com.vmturbo.market.topology.conversions.CommodityIndex;
+import com.vmturbo.market.topology.conversions.TierExcluder;
+import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Deactivate;
@@ -127,9 +130,12 @@ public class TopologyEntitiesHandlerTest {
 
     private static final Logger logger = LogManager.getLogger();
 
+    private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
+
     @Before
     public void setup() {
         when(ccd.getExistingRiBought()).thenReturn(new ArrayList<ReservedInstanceData>());
+        when(tierExcluderFactory.newExcluder(any())).thenReturn(mock(TierExcluder.class));
     }
 
     /**
@@ -213,7 +219,7 @@ public class TopologyEntitiesHandlerTest {
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         Set<TraderTO> economyDTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                         AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
-                        marketPriceTable, ccd, CommodityIndex.newFactory())
+                        marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory)
                                         .convertToMarket(topoDTOs);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyContextId(7L)
                         .setTopologyType(TopologyType.REALTIME).setTopologyId(1L).build();
@@ -286,7 +292,7 @@ public class TopologyEntitiesHandlerTest {
                         SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(map);
         TopologyConverter topoConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                         AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
-                        marketPriceTable, ccd, CommodityIndex.newFactory());
+                        marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
 
         Set<TraderTO> traderDTOs = topoConverter.convertToMarket(topoDTOs.stream()
                         .map(TopologyEntityDTO.Builder::build)
@@ -330,7 +336,7 @@ public class TopologyEntitiesHandlerTest {
                         SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(map);
 
         Set<TraderTO> traderDTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable,
-                        ccd, CommodityIndex.newFactory()).convertToMarket(
+                        ccd, CommodityIndex.newFactory(), tierExcluderFactory).convertToMarket(
                                         topoDTOs.stream().map(TopologyEntityDTO.Builder::build)
                                                         .collect(Collectors.toMap(
                                                                         TopologyEntityDTO::getOid,
@@ -382,7 +388,7 @@ public class TopologyEntitiesHandlerTest {
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
         TopologyConverter togetherConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-                        marketPriceTable, ccd, CommodityIndex.newFactory());
+                        marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
         final Set<TraderTO> traderDTOs = togetherConverter.convertToMarket(nonShopTogetherTopoDTOs);
 
         // No DSPMAccess and Datastore commodities sold
@@ -419,7 +425,7 @@ public class TopologyEntitiesHandlerTest {
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
         TopologyConverter shopTogetherConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-                        marketPriceTable, ccd, CommodityIndex.newFactory());
+                        marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
         final Set<TraderTO> shopTogetherTraderDTOs =
                         shopTogetherConverter.convertToMarket(shopTogetherTopoDTOs);
 
@@ -463,7 +469,7 @@ public class TopologyEntitiesHandlerTest {
         List<TopologyEntityDTO.Builder> topoDTOs =
                         SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(map);
         new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable, ccd,
-                        CommodityIndex.newFactory()).convertToMarket(
+                        CommodityIndex.newFactory(), tierExcluderFactory).convertToMarket(
                                         topoDTOs.stream().map(TopologyEntityDTO.Builder::build)
                                                         .collect(Collectors.toMap(
                                                                         TopologyEntityDTO::getOid,
@@ -533,7 +539,7 @@ public class TopologyEntitiesHandlerTest {
                         .thenReturn(mockComputePriceBundle(ba.getOid(), m1MediumPrices));
         when(ccd.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-                        marketPriceTable, ccd, CommodityIndex.newFactory());
+                        marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
         final Set<EconomyDTOs.TraderTO> traderTOs = converter.convertToMarket(dtosToProcess.stream()
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
         traderTOs.forEach(t -> System.out.println(t));
@@ -635,7 +641,7 @@ public class TopologyEntitiesHandlerTest {
                             .thenReturn(mockDatabasePriceBundle(ba.getOid(), dbm3LargePrices));
             when(ccd.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
             final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-                            marketPriceTable, ccd, CommodityIndex.newFactory());
+                            marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
             final Set<EconomyDTOs.TraderTO> traderTOs = converter
                             .convertToMarket(dtosToProcess.stream().collect(Collectors.toMap(
                                             TopologyEntityDTO::getOid, Function.identity())));
@@ -763,7 +769,7 @@ public class TopologyEntitiesHandlerTest {
 
         Set<TraderTO> economyDTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                         AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
-                        marketPriceTable, ccd, CommodityIndex.newFactory())
+                        marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory)
                                         .convertToMarket(topoDTOs);
 
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyContextId(7L)

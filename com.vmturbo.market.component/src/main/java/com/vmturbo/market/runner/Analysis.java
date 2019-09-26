@@ -20,15 +20,15 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -64,6 +64,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
 import com.vmturbo.market.topology.conversions.CommodityIndex;
+import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -195,6 +196,7 @@ public class Analysis {
      * @param cloudCostCalculatorFactory cost calculation factory
      * @param priceTableFactory price table factory
      * @param wastedFilesAnalysisFactory wasted file analysis handler
+     * @param tierExcluderFactory the tier excluder factory
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
@@ -204,7 +206,8 @@ public class Analysis {
                     @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
                     @Nonnull final TopologyCostCalculatorFactory cloudCostCalculatorFactory,
                     @Nonnull final MarketPriceTableFactory priceTableFactory,
-                    @Nonnull final WastedFilesAnalysisFactory wastedFilesAnalysisFactory) {
+                    @Nonnull final WastedFilesAnalysisFactory wastedFilesAnalysisFactory,
+                    @Nonnull final TierExcluderFactory tierExcluderFactory) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
@@ -230,7 +233,7 @@ public class Analysis {
             this.marketPriceTable,
             null,
             this.topologyCostCalculator.getCloudCostData(),
-            CommodityIndex.newFactory());
+            CommodityIndex.newFactory(), tierExcluderFactory);
         this.wastedFilesAnalysisFactory = wastedFilesAnalysisFactory;
     }
 
@@ -358,7 +361,7 @@ public class Analysis {
 
             // Calculate reservedCapacity and generate resize actions
             ReservedCapacityAnalysis reservedCapacityAnalysis = new ReservedCapacityAnalysis(scopeEntities);
-                reservedCapacityAnalysis.execute();
+            reservedCapacityAnalysis.execute();
 
             // Execute wasted file analysis
             WastedFilesAnalysis wastedFilesAnalysis = wastedFilesAnalysisFactory.newWastedFilesAnalysis(

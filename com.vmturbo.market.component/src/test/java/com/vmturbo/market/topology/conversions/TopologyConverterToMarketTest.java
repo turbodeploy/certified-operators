@@ -6,6 +6,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -25,11 +26,11 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.google.protobuf.util.JsonFormat;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -57,6 +58,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
+import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
@@ -94,6 +96,7 @@ public class TopologyConverterToMarketTest {
     private CommodityType topologyCommodity2;
     private MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
     private CloudCostData ccd = mock(CloudCostData.class);
+    private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
 
     @Before
     public void setup() {
@@ -117,6 +120,7 @@ public class TopologyConverterToMarketTest {
                         .setBaseType(2)
                         .build();
         when(ccd.getExistingRiBought()).thenReturn(new ArrayList<>());
+        when(tierExcluderFactory.newExcluder(any())).thenReturn(mock(TierExcluder.class));
     }
 
     @Test
@@ -127,7 +131,7 @@ public class TopologyConverterToMarketTest {
             AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
             marketPriceTable,
             ccd,
-            CommodityIndex.newFactory());
+            CommodityIndex.newFactory(), tierExcluderFactory);
         TraderTO traderTO = converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto)).iterator().next();
         assertTrue(traderTO.getCommoditiesSold(1).getSpecification().getCloneWithNewType());
     }
@@ -155,7 +159,7 @@ public class TopologyConverterToMarketTest {
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
             AnalysisUtil.QUOTE_FACTOR,
             AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
-            marketPriceTable, ccd, CommodityIndex.newFactory());
+            marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
         TraderTO traderTO = converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto)).iterator().next();
         assertFalse(traderTO.getCommoditiesSold(0).getSettings().getResizable());
     }
@@ -358,7 +362,7 @@ public class TopologyConverterToMarketTest {
                 AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable,
                 ccd,
-                CommodityIndex.newFactory());
+                CommodityIndex.newFactory(), tierExcluderFactory);
         converter.convertToMarket(ImmutableMap.of(entityDTO.getOid(), entityDTO));
 
         assertEquals(topologyCommodity1, converter.getCommodityConverter()
@@ -388,7 +392,7 @@ public class TopologyConverterToMarketTest {
         return new TopologyConverter(topologyInfo, true, AnalysisUtil.QUOTE_FACTOR,
             AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
             marketPriceTable,
-            ccd, CommodityIndex.newFactory())
+            ccd, CommodityIndex.newFactory(), tierExcluderFactory)
             .convertToMarket(topology.stream()
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
     }
@@ -409,7 +413,7 @@ public class TopologyConverterToMarketTest {
             AnalysisUtil.QUOTE_FACTOR,
             AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
             marketPriceTable,
-            ccd, CommodityIndex.newFactory())
+            ccd, CommodityIndex.newFactory(), tierExcluderFactory)
             .convertToMarket(topologyDTOs);
         assertEquals(2, traderTOs.size());
         for (TraderTO traderTO : traderTOs) {
@@ -507,7 +511,7 @@ public class TopologyConverterToMarketTest {
             .setOid(1005L).setEntityType(2).setEntityState(TopologyDTO.EntityState.UNKNOWN).build();
         TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
             marketPriceTable,
-            ccd, CommodityIndex.newFactory());
+            ccd, CommodityIndex.newFactory(), tierExcluderFactory);
         assertEquals(4, converter.convertToMarket(
             Stream.of(container, virtualApp, actionManager, storage, unknownStorage)
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())))
@@ -726,7 +730,7 @@ public class TopologyConverterToMarketTest {
                 .build();
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
             AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
-            marketPriceTable, ccd, CommodityIndex.newFactory());
+            marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
         Map<Long, TopologyEntityDTO> topology = new HashMap<>();
         topology.put(pmEntityDTO.getOid(), pmEntityDTO);
         topology.put(vmEntityDTO.getOid(), vmEntityDTO);
@@ -831,7 +835,7 @@ public class TopologyConverterToMarketTest {
                     AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
                     marketPriceTable,
                     ccd,
-                    CommodityIndex.newFactory());
+                    CommodityIndex.newFactory(), tierExcluderFactory);
         return converter.getResizedCapacityForCloud(vmEntityDTO, commBought, PROVIDER_ID);
     }
 
@@ -942,7 +946,7 @@ public class TopologyConverterToMarketTest {
                 Mockito.mock(CloudTopologyConverter.class);
         final TopologyConverter converter = Mockito.mock(TopologyConverter.class);
         Mockito.when(
-                converter.getResizedCapacityForCloud(Mockito.any(), Mockito.any(), Mockito.any()))
+                converter.getResizedCapacityForCloud(any(), any(), any()))
                 .thenCallRealMethod();
         Whitebox.setInternalState(converter, "cloudTc", cloudTopologyConverter);
         Whitebox.setInternalState(converter, "cert", Mockito.mock(CloudEntityResizeTracker.class));

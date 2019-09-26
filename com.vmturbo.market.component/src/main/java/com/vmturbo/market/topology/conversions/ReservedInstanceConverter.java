@@ -24,6 +24,8 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import com.vmturbo.market.topology.MarketTier;
+import com.vmturbo.market.topology.TopologyConversionConstants;
+import com.vmturbo.market.topology.conversions.ReservedInstanceAggregate.ReservedInstanceKey;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
@@ -45,8 +47,9 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
 
     Map<Long, ReservedInstanceData> riDataMap = new HashMap<>();
     ReservedInstanceConverter(TopologyInfo topologyInfo, CommodityConverter commodityConverter,
-                         @Nonnull CostDTOCreator costDTOCreator) {
-        super(topologyInfo, commodityConverter, costDTOCreator);
+                         @Nonnull CostDTOCreator costDTOCreator,
+                         @Nonnull TierExcluder tierExcluder) {
+        super(topologyInfo, commodityConverter, costDTOCreator, tierExcluder);
     }
 
     public Map<TraderTO.Builder, MarketTier> createMarketTierTraderTOs(
@@ -137,6 +140,19 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
         UpdatingFunctionTO emptyUf = UpdatingFunctionTO.newBuilder().build();
         commoditiesSold.add(commodityConverter.createCommoditySoldTO(commType, capacity, used,
                 emptyUf));
+
+        // Create template exclusion segmentation commodities
+        ReservedInstanceKey riKey = marketTier.getRiAggregate().getRiKey();
+        if (riKey.isInstanceSizeFlexible()) {
+            commoditiesSold.addAll(tierExcluder.getTierExclusionCommoditiesToSell(riKey.getFamily()).stream()
+                .map(ct -> commodityConverter.createCommoditySoldTO(ct, TopologyConversionConstants.ACCESS_COMMODITY_CAPACITY, 0, emptyUf))
+                .collect(Collectors.toList()));
+        } else {
+            commoditiesSold.addAll(tierExcluder.getTierExclusionCommoditiesToSell(computeTier.getOid()).stream()
+                .map(ct -> commodityConverter.createCommoditySoldTO(
+                    ct, TopologyConversionConstants.ACCESS_COMMODITY_CAPACITY, 0, emptyUf))
+                .collect(Collectors.toList()));
+        }
         return commoditiesSold;
     }
 

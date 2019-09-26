@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -40,12 +41,15 @@ public class ComputeTierConverter implements TierConverter {
     TopologyInfo topologyInfo;
     CommodityConverter commodityConverter;
     CostDTOCreator costDTOCreator;
+    TierExcluder tierExcluder;
 
     ComputeTierConverter(TopologyInfo topologyInfo, CommodityConverter commodityConverter,
-                         @Nonnull CostDTOCreator costDTOCreator) {
+                         @Nonnull CostDTOCreator costDTOCreator,
+                         @Nonnull TierExcluder tierExcluder) {
         this.topologyInfo = topologyInfo;
         this.commodityConverter = commodityConverter;
         this.costDTOCreator = costDTOCreator;
+        this.tierExcluder = tierExcluder;
     }
 
     /**
@@ -108,6 +112,7 @@ public class ComputeTierConverter implements TierConverter {
     protected Collection<CommoditySoldTO> commoditiesSoldList(
             @Nonnull final TopologyDTO.TopologyEntityDTO computeTier, TopologyEntityDTO region) {
         Collection<CommoditySoldTO> commoditiesSold = commoditiesSoldFromTier(computeTier, region);
+        UpdatingFunctionTO emptyUf = UpdatingFunctionTO.newBuilder().build();
         if (computeTier.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
             // TODO: sell VMPM
             // A VM in zone1 can only use zonal RIs that are in zone1. Given a region with zonal and
@@ -152,7 +157,6 @@ public class ComputeTierConverter implements TierConverter {
                     .setType(CommodityDTO.CommodityType.TEMPLATE_ACCESS_VALUE)
                     .setKey(computeTier.getTypeSpecificInfo().getComputeTier().getFamily())
                     .build();
-            UpdatingFunctionTO emptyUf = UpdatingFunctionTO.newBuilder().build();
             commoditiesSold.add(commodityConverter.createCommoditySoldTO(commType, capacity, used,
                     emptyUf));
             commType = CommodityType.newBuilder()
@@ -169,6 +173,11 @@ public class ComputeTierConverter implements TierConverter {
             commoditiesSold.add(commodityConverter.createCommoditySoldTO(commType, capacity, used,
                     emptyUf));
         }
+        // Add template exclusion commodities sold
+        commoditiesSold.addAll(tierExcluder.getTierExclusionCommoditiesToSell(computeTier.getOid()).stream()
+            .map(ct -> commodityConverter.createCommoditySoldTO(
+                ct, TopologyConversionConstants.ACCESS_COMMODITY_CAPACITY, 0, emptyUf))
+            .collect(Collectors.toList()));
         return commoditiesSold;
     }
 

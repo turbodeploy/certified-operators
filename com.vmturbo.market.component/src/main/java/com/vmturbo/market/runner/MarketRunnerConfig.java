@@ -17,6 +17,8 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -41,6 +43,8 @@ import com.vmturbo.market.runner.cost.MarketCloudCostDataProvider;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory.DefaultMarketPriceTableFactory;
 import com.vmturbo.market.topology.TopologyProcessorConfig;
+import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
+import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory.DefaultTierExcluderFactory;
 
 /**
  * Configuration for market runner in the market component.
@@ -124,7 +128,27 @@ public class MarketRunnerConfig {
                 alleviatePressureQuoteFactor,
                 standardQuoteFactor,
                 liveMarketMoveCostFactor,
-                suspensionThrottlingPerCluster);
+                suspensionThrottlingPerCluster,
+                tierExcluderFactory());
+    }
+
+    /**
+     * Creates a new settingPolicyServiceBlockingStub which can be used to interact with setting
+     * policy rpc service in group-component.
+     * @return a new SettingPolicyServiceBlockingStub
+     */
+    @Bean
+    public SettingPolicyServiceBlockingStub settingPolicyRpcService() {
+        return SettingPolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
+    }
+
+    /**
+     * Creates a new {@link TierExcluderFactory}.
+     * @return a new {@link TierExcluderFactory}
+     */
+    @Bean
+    public TierExcluderFactory tierExcluderFactory() {
+        return new DefaultTierExcluderFactory(settingPolicyRpcService());
     }
 
     @Bean

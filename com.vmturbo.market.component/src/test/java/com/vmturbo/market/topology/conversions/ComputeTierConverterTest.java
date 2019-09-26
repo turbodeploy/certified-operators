@@ -50,7 +50,7 @@ public class ComputeTierConverterTest {
         commodityConverter = new CommodityConverter(new NumericIDAllocator(), new HashMap<>(),
                 false, new BiCliquer(), HashBasedTable.create(),
                 new ConversionErrorCounts());
-        computeTierConverter = new ComputeTierConverter(info, commodityConverter, costDTOCreator);
+        computeTierConverter = new ComputeTierConverter(info, commodityConverter, costDTOCreator, mock(TierExcluder.class));
     }
 
     /**

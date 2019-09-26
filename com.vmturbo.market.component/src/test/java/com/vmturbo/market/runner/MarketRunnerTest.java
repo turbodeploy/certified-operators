@@ -34,7 +34,6 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
-import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -57,6 +56,8 @@ import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.topology.conversions.TierExcluder;
+import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 
 /**
@@ -74,8 +75,6 @@ public class MarketRunnerTest {
     private long rtContextId = 777777;
     private long creationTime = 3000;
     private final GroupServiceMole testGroupService = spy(new GroupServiceMole());
-    private final SettingPolicyServiceMole testSettingPolicyService =
-            spy(new SettingPolicyServiceMole());
     private final SettingServiceMole testSettingService =
                  spy(new SettingServiceMole());
     private Optional<Integer> maxPlacementsOverride = Optional.empty();
@@ -83,8 +82,7 @@ public class MarketRunnerTest {
     private final static float rightsizeUpperWatermark = 0.7f;
 
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
-                     testSettingPolicyService, testSettingService);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService, testSettingService);
 
     private TopologyInfo topologyInfo = TopologyInfo.newBuilder()
             .setTopologyId(topologyId)
@@ -102,10 +100,7 @@ public class MarketRunnerTest {
 
     private AnalysisFactory analysisFactory = mock(AnalysisFactory.class);
 
-    private TopologyCostCalculator topologyCostCalculator = mock(TopologyCostCalculator.class);
-
-    private TopologyEntityCloudTopologyFactory cloudTopologyFactory =
-            mock(TopologyEntityCloudTopologyFactory.class);
+    private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
 
     @Before
     public void before() {
@@ -135,12 +130,13 @@ public class MarketRunnerTest {
             when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
             final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
                 mock(WastedFilesAnalysisFactory.class);
+            when(tierExcluderFactory.newExcluder(any())).thenReturn(mock(TierExcluder.class));
 
             return new Analysis(topologyInfo, entities,
                     GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                     Clock.systemUTC(), configBuilder.build(),
                     cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
-                    wastedFilesAnalysisFactory);
+                    wastedFilesAnalysisFactory, tierExcluderFactory);
         }).when(analysisFactory).newAnalysis(any(), any(), any());
     }
 

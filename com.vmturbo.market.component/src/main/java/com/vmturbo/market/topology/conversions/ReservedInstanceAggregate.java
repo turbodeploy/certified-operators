@@ -305,7 +305,7 @@ public class ReservedInstanceAggregate {
             }
         }
 
-        boolean isInstanceSizeFlexible() {
+        public boolean isInstanceSizeFlexible() {
             return instanceSizeFlexible;
         }
     }
