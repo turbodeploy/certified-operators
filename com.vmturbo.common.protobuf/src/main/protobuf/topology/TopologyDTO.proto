@@ -780,6 +780,9 @@ message TopologyInfo {
 
     // types of analyses to run with this topology
     repeated AnalysisType analysis_type = 7;
+
+    // Scope's Entity Type (can be one of the values in .common_dto.EntityDTO.EntityType)
+    optional int32 scopeEntityType = 8;
 }
 
 enum AnalysisType {

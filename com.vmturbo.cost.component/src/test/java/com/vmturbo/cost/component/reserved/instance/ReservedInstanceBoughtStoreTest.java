@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import static org.junit.Assert.assertEquals;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +50,10 @@ public class ReservedInstanceBoughtStoreTest {
     private ReservedInstanceBoughtStore reservedInstanceBoughtStore;
 
     private DSLContext dsl;
+
+    private static final int REGION_VALUE = 54;
+    private static final int AVAILABILITYZONE_VALUE = 55;
+    private static final int BUSINESS_ACCOUNT_VALUE = 28;
 
     final ReservedInstanceBoughtInfo riInfoOne = ReservedInstanceBoughtInfo.newBuilder()
             .setBusinessAccountId(123L)
@@ -167,15 +172,20 @@ public class ReservedInstanceBoughtStoreTest {
     public void testGetReservedInstanceByAZFilter() {
         final List<ReservedInstanceBoughtInfo> reservedInstanceInfos = Arrays.asList(riInfoOne, riInfoTwo);
         reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstanceInfos);
+        List<Long> scopeIds = new ArrayList<>();
+        scopeIds.add(0L);
         final ReservedInstanceBoughtFilter zeroAzFilter = ReservedInstanceBoughtFilter.newBuilder()
-                .addAvailabilityZoneId(0L)
+                .addAllScopeId(scopeIds)
+                .setScopeEntityType(AVAILABILITYZONE_VALUE)
                 .build();
         final List<ReservedInstanceBought> reservedInstancesByZeroAzFilter =
                 reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(zeroAzFilter);
         assertEquals(0, reservedInstancesByZeroAzFilter.size());
 
+        scopeIds.add(100L);
         final ReservedInstanceBoughtFilter azFilter = ReservedInstanceBoughtFilter.newBuilder()
-                .addAvailabilityZoneId(100L)
+                .addAllScopeId(scopeIds)
+                .setScopeEntityType(AVAILABILITYZONE_VALUE)
                 .build();
         final List<ReservedInstanceBought> reservedInstancesByAzFilter =
                 reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(azFilter);
@@ -187,16 +197,21 @@ public class ReservedInstanceBoughtStoreTest {
     public void testGetReservedInstanceByRegionFilter() {
         final List<ReservedInstanceBoughtInfo> reservedInstanceInfos = Arrays.asList(riInfoOne, riInfoFour);
         reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstanceInfos);
+        List<Long> scopeIds = new ArrayList<>();
+        scopeIds.add(0L);
         final ReservedInstanceBoughtFilter zeroRegionIdFilter = ReservedInstanceBoughtFilter.newBuilder()
-                .addRegionId(0L)
+                .addAllScopeId(scopeIds)
+                .setScopeEntityType(REGION_VALUE)
                 .setJoinWithSpecTable(true)
                 .build();
         final List<ReservedInstanceBought> reservedInstancesByZeroRegionIdFilter =
                 reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(zeroRegionIdFilter);
         assertEquals(0, reservedInstancesByZeroRegionIdFilter.size());
 
+        scopeIds.add(77L);
         final ReservedInstanceBoughtFilter regionIdFilter = ReservedInstanceBoughtFilter.newBuilder()
-                .addRegionId(77L)
+                .addAllScopeId(scopeIds)
+                .setScopeEntityType(REGION_VALUE)
                 .setJoinWithSpecTable(true)
                 .build();
         final List<ReservedInstanceBought> reservedInstancesByRegionIdFilter =
@@ -228,8 +243,11 @@ public class ReservedInstanceBoughtStoreTest {
         final List<ReservedInstanceBoughtInfo> reservedInstanceInfos =
                 Arrays.asList(riInfoOne, riInfoTwo, riInfoThree, riInfoFour);
         reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstanceInfos);
+        List<Long> scopeIds = new ArrayList<>();
+        scopeIds.add(77L);
         final ReservedInstanceBoughtFilter filter = ReservedInstanceBoughtFilter.newBuilder()
-                .addRegionId(77L)
+                .addAllScopeId(scopeIds)
+                .setScopeEntityType(REGION_VALUE)
                 .build();
         final Map<Long, Long> riCountMap = reservedInstanceBoughtStore.getReservedInstanceCountMap(filter);
         final long countForSpecOne = riCountMap.get(88L);
@@ -243,8 +261,11 @@ public class ReservedInstanceBoughtStoreTest {
         final List<ReservedInstanceBoughtInfo> reservedInstanceInfos =
                 Arrays.asList(riInfoOne, riInfoTwo, riInfoThree, riInfoFour);
         reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstanceInfos);
+        List<Long> scopeIds = new ArrayList<>();
+        scopeIds.add(100L);
         final ReservedInstanceBoughtFilter filter = ReservedInstanceBoughtFilter.newBuilder()
-                .addAvailabilityZoneId(100L)
+                .addAllScopeId(scopeIds)
+                .setScopeEntityType(AVAILABILITYZONE_VALUE)
                 .build();
         final Map<Long, Long> riCountMap = reservedInstanceBoughtStore.getReservedInstanceCountMap(filter);
         final long countForSpecOne = riCountMap.get(88L);

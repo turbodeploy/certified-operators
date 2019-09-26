@@ -613,14 +613,16 @@ message EntityTypeFilter {
 // A request to get reserved instance bought by some filter condition. If provider more than one
 // different filter type, it will perform AND logic.
 message GetReservedInstanceBoughtByFilterRequest {
-    // get reserved instance bought filter by region ids.
-    optional RegionFilter region_filter = 1;
+    // get reserved instance bought filter by scope oid, the OIDs specified here seed the scoping expansion.
+    // Combined with scopeEntityType, a scope oid can represent Region/BusinessAccount/AvailabilityZone or other scope.
+    // Currently this filter supports one scope entity type, as existing RIs are retrieved in plans and stats calls,
+    // by a single filter and in real-time, without a filter.  If multiple filters were desired in the future  
+    // (no use case of now), this request would need to be modified appropriately.  The scope seeds and scope type go together,
+    //  hence they could be combined into one message.
+    repeated int64 scope_seed_oids = 1;
 
-    // get reserved instance bought filter by availability zone ids.
-    optional AvailabilityZoneFilter availability_zone_filter = 2;
-
-    // get reserved instance bought filter by account ids.
-    optional AccountFilter account_filter = 3;
+    // Scope's Entity Type (can be one of the values in .common_dto.EntityDTO.EntityType)
+    optional int32 scopeEntityType = 2;
 }
 
 // A response contains a list reserved instance bought.

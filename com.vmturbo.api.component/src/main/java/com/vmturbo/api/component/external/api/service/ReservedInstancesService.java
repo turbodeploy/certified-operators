@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
@@ -78,6 +79,10 @@ public class ReservedInstancesService implements IReservedInstancesService {
     private final StatsQueryExecutor statsQueryExecutor;
 
     private final UuidMapper uuidMapper;
+
+    private static final Set<Integer> SUPPORTED_RI_FILTER_TYPES =
+                    ImmutableSet.of(EntityDTO.EntityType.REGION_VALUE, EntityDTO.EntityType.AVAILABILITY_ZONE_VALUE,
+                                    EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE);
 
     public ReservedInstancesService(
             @Nonnull final ReservedInstanceBoughtServiceBlockingStub reservedInstanceService,
@@ -233,18 +238,10 @@ public class ReservedInstancesService implements IReservedInstancesService {
             final int filterType) throws UnknownObjectException {
         final GetReservedInstanceBoughtByFilterRequest.Builder request =
                 GetReservedInstanceBoughtByFilterRequest.newBuilder();
-        if (filterType == EntityDTO.EntityType.REGION_VALUE) {
-            request.setRegionFilter(RegionFilter.newBuilder()
-                    .addAllRegionId(filterIds));
-        } else if (filterType == EntityDTO.EntityType.AVAILABILITY_ZONE_VALUE) {
-            request.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
-                    .addAllAvailabilityZoneId(filterIds));
-        } else if (filterType == EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE) {
-            request.setAccountFilter(AccountFilter.newBuilder()
-                    .addAllAccountId(filterIds));
-        } else {
-            throw new UnknownObjectException("filter type: "  + filterType + " is not supported.");
+        if (!SUPPORTED_RI_FILTER_TYPES.contains(filterType)) {
+           throw new UnknownObjectException("filter type: "  + filterType + " is not supported.");
         }
+        request.addAllScopeSeedOids(filterIds).setScopeEntityType(filterType);
         return request.build();
     }
 

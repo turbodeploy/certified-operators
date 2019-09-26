@@ -18,7 +18,7 @@ import org.jooq.Field;
 import org.jooq.Table;
 
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
-
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * A abstract class represent a filter object which will be used to query reserved instance stats
@@ -34,45 +34,57 @@ public abstract class ReservedInstanceStatsFilter extends ReservedInstanceFilter
 
     protected final TimeFrame timeFrame;
 
-    public ReservedInstanceStatsFilter(@Nonnull final Set<Long> regionIds,
-                                       @Nonnull final Set<Long> availabilityZoneIds,
-                                       @Nonnull final Set<Long> businessAccountIds,
+    /**
+     * Constructor for ReservedInstanceStatsFilter.
+     *
+     * @param scopeIds The scope(s) Ids.
+     * @param scopeEntityType The scope(s) entity type.
+     * @param startDateMillis Start time in ms.
+     * @param endDateMillis End time in ms.
+     * @param timeFrame The timeframe for which to obtain stats.
+     */
+    public ReservedInstanceStatsFilter(@Nonnull final Set<Long> scopeIds,
+                                       final int scopeEntityType,
                                        final long startDateMillis,
                                        final long endDateMillis,
                                        @Nullable final TimeFrame timeFrame) {
-        super(regionIds, availabilityZoneIds, businessAccountIds);
+        super(scopeIds, scopeEntityType);
         this.startDateMillis = startDateMillis;
         this.endDateMillis = endDateMillis;
         this.timeFrame = timeFrame;
-        this.conditions = generateConditions(regionIds, availabilityZoneIds, businessAccountIds);
+        this.conditions = generateConditions(scopeIds, scopeEntityType);
     }
 
     /**
      * Generate a list of {@link Condition} based on different fields.
      *
-     * @param regionIds regions ids need to filter by.
-     * @param availabilityZoneIds availability zone ids need to filter by.
-     * @param businessAccountIds business account ids need to filter by.
+     * Note that the where condition is only containing one filter clause at present.
+     * To have multiple filters, there would need to be AND's in the where clause.
+     *
+     * @param scopeIds scope ids need to filter by.
      * @return a list of {@link Condition}.
      */
     @Override
-    protected List<Condition> generateConditions(@Nonnull final Set<Long> regionIds,
-                                              @Nonnull final Set<Long> availabilityZoneIds,
-                                              @Nonnull final Set<Long> businessAccountIds) {
+    protected List<Condition> generateConditions(@Nonnull final Set<Long> scopeIds,
+                                                 @Nonnull final int scopeEntityType) {
         final List<Condition> conditions = new ArrayList<>();
+        if (scopeIds.isEmpty()) {
+            return conditions;
+        }
         final Table<?> table = getTableName();
-        if (!regionIds.isEmpty()) {
-            conditions.add(table.field(REGION_ID).in(regionIds));
+        switch (scopeEntityType) {
+            case EntityType.REGION_VALUE:
+                conditions.add(table.field(REGION_ID).in(scopeIds));
+                break;
+            case EntityType.AVAILABILITY_ZONE_VALUE:
+                conditions.add(table.field(AVAILABILITY_ZONE_ID).in(scopeIds));
+                break;
+            case EntityType.BUSINESS_ACCOUNT_VALUE:
+                conditions.add(table.field(BUSINESS_ACCOUNT_ID).in(scopeIds));
+                break;
+            default:
+                break;
         }
-
-        if (!availabilityZoneIds.isEmpty()) {
-            conditions.add(table.field(AVAILABILITY_ZONE_ID).in(availabilityZoneIds));
-        }
-
-        if (!businessAccountIds.isEmpty()) {
-            conditions.add(table.field(BUSINESS_ACCOUNT_ID).in(businessAccountIds));
-        }
-
         if (startDateMillis > 0 && endDateMillis > 0) {
             conditions.add(((Field<Timestamp>)table.field(SNAPSHOT_TIME))
                     .between(new Timestamp(startDateMillis), new Timestamp(endDateMillis)));

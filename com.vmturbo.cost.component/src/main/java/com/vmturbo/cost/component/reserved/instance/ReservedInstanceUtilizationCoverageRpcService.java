@@ -29,6 +29,7 @@ import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * A rpc service for get reserved instance utilization and coverage stats.
@@ -167,13 +168,14 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
             final TimeFrame timeFrame) {
         final ReservedInstanceUtilizationFilter.Builder filterBuilder = ReservedInstanceUtilizationFilter.newBuilder();
         if (regionFilter.isPresent()) {
-            regionFilter.get().getRegionIdList().forEach(filterBuilder::addRegionId);
-        }
-        if (azFilter.isPresent()) {
-            azFilter.get().getAvailabilityZoneIdList().forEach(filterBuilder::addAvailabilityZoneId);
-        }
-        if (accountFilter.isPresent()) {
-            accountFilter.get().getAccountIdList().forEach(filterBuilder::addBusinessAccountId);
+            filterBuilder.addAllScopeId(regionFilter.get().getRegionIdList())
+                       .setScopeEntityType(EntityType.REGION_VALUE);
+        } else if (azFilter.isPresent()) {
+            filterBuilder.addAllScopeId(azFilter.get().getAvailabilityZoneIdList())
+                        .setScopeEntityType(EntityType.AVAILABILITY_ZONE_VALUE);
+        } else if (accountFilter.isPresent()) {
+            filterBuilder.addAllScopeId(accountFilter.get().getAccountIdList())
+                        .setScopeEntityType(EntityType.BUSINESS_ACCOUNT_VALUE);
         }
         filterBuilder.setStartDateMillis(startDateMillis);
         filterBuilder.setEndDateMillis(endDateMillis);
@@ -201,13 +203,14 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
             final TimeFrame timeFrame) {
         final ReservedInstanceCoverageFilter.Builder filterBuilder = ReservedInstanceCoverageFilter.newBuilder();
         if (regionFilter.isPresent()) {
-            regionFilter.get().getRegionIdList().forEach(filterBuilder::addRegionId);
-        }
-        if (azFilter.isPresent()) {
-            azFilter.get().getAvailabilityZoneIdList().forEach(filterBuilder::addAvailabilityZoneId);
-        }
-        if (accountFilter.isPresent()) {
-            accountFilter.get().getAccountIdList().forEach(filterBuilder::addBusinessAccountId);
+            filterBuilder.addAllScopeId(regionFilter.get().getRegionIdList())
+                        .setScopeEntityType(EntityType.REGION_VALUE);
+        } else if (azFilter.isPresent()) {
+            filterBuilder.addAllScopeId(azFilter.get().getAvailabilityZoneIdList())
+                        .setScopeEntityType(EntityType.AVAILABILITY_ZONE_VALUE);
+        } else if (accountFilter.isPresent()) {
+            filterBuilder.addAllScopeId(accountFilter.get().getAccountIdList())
+                        .setScopeEntityType(EntityType.BUSINESS_ACCOUNT_VALUE);
         }
         filterBuilder.setStartDateMillis(startDateMillis);
         filterBuilder.setEndDateMillis(endDateMillis);

@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.reserved.instance.filter;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -9,6 +10,8 @@ import org.jooq.Table;
 
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter.Builder;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * A filter to restrict the reserved instance coverage records from the
@@ -18,14 +21,12 @@ import com.vmturbo.cost.component.db.Tables;
  */
 public class ReservedInstanceUtilizationFilter extends ReservedInstanceStatsFilter {
 
-    private ReservedInstanceUtilizationFilter(@Nonnull final Set<Long> regionIds,
-                                              @Nonnull final Set<Long> availabilityZoneIds,
-                                              @Nonnull final Set<Long> businessAccountIds,
+    private ReservedInstanceUtilizationFilter(@Nonnull final Set<Long> scopeIds,
+                                              final int scopeEntityType,
                                               final long startDateMillis,
                                               final long endDateMillis,
                                               final TimeFrame timeFrame) {
-        super(regionIds, availabilityZoneIds, businessAccountIds, startDateMillis, endDateMillis,
-                timeFrame);
+        super(scopeIds, scopeEntityType, startDateMillis, endDateMillis, timeFrame);
     }
 
     @Override
@@ -51,9 +52,10 @@ public class ReservedInstanceUtilizationFilter extends ReservedInstanceStatsFilt
     }
 
     public static class Builder {
-        private Set<Long> regionIds = new HashSet<>();
-        private Set<Long> availabilityZoneIds = new HashSet<>();
-        private Set<Long> businessAccountIds = new HashSet<>();
+        // The set of scope oids.
+        private Set<Long> scopeIds = new HashSet<>();
+        // The scope's entity type.
+        private int scopeEntityType = EntityType.UNKNOWN_VALUE;
         private long startDateMillis = 0;
         private long endDateMillis = 0;
         private TimeFrame timeFrame = null;
@@ -61,25 +63,32 @@ public class ReservedInstanceUtilizationFilter extends ReservedInstanceStatsFilt
         private Builder() {}
 
         public ReservedInstanceUtilizationFilter build() {
-            return new ReservedInstanceUtilizationFilter(regionIds, availabilityZoneIds, businessAccountIds,
+            return new ReservedInstanceUtilizationFilter(scopeIds, scopeEntityType,
                     startDateMillis, endDateMillis, timeFrame);
         }
 
+        /**
+         * Add all scope ids that are part of the plan sope.
+         *
+         * @param ids The scope oids that represent the filtering conditions.
+         * @return Builder for this class.
+         */
         @Nonnull
-        public ReservedInstanceUtilizationFilter.Builder addRegionId(final long id) {
-            this.regionIds.add(id);
+        public Builder addAllScopeId(final List<Long> ids) {
+            this.scopeIds.addAll(ids);
             return this;
         }
 
+        /**
+         * Set the plan scopes' entity type.
+         *
+         * @param entityType  The scope's entity type as defined in
+         *          @see com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType
+         * @return Builder for this class.
+         */
         @Nonnull
-        public ReservedInstanceUtilizationFilter.Builder addAvailabilityZoneId(final long id) {
-            this.availabilityZoneIds.add(id);
-            return this;
-        }
-
-        @Nonnull
-        public ReservedInstanceUtilizationFilter.Builder addBusinessAccountId(final long id) {
-            this.businessAccountIds.add(id);
+        public Builder setScopeEntityType(final int entityType) {
+            this.scopeEntityType = entityType;
             return this;
         }
 

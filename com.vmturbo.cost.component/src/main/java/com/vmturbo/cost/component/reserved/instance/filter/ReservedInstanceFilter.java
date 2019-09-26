@@ -6,28 +6,44 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.jooq.Condition;
+
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 /**
  * A abstract class represents the filter object which will be used to query reserved instance tables.
  */
 public abstract class ReservedInstanceFilter {
 
-    protected final Set<Long> regionIds;
+    protected final Set<Long> scopeIds;
+    protected final int scopeEntityType;
 
-    protected final Set<Long> availabilityZoneIds;
+    protected static final Set<Integer> SUPPORTED_RI_FILTER_TYPES =
+        ImmutableSet.of(EntityDTO.EntityType.REGION_VALUE,
+                        EntityDTO.EntityType.AVAILABILITY_ZONE_VALUE,
+                        EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE);
 
-    protected final Set<Long> businessAccountIds;
-
-    public ReservedInstanceFilter(@Nonnull final Set<Long> regionIds,
-                                       @Nonnull final Set<Long> availabilityZoneIds,
-                                       @Nonnull final Set<Long> businessAccountIds) {
-        this.regionIds = Objects.requireNonNull(regionIds);
-        this.availabilityZoneIds = Objects.requireNonNull(availabilityZoneIds);
-        this.businessAccountIds = Objects.requireNonNull(businessAccountIds);
+    /**
+     * Constructor that takes scopeId(s) and scopeEntityType as arguments.
+     *
+     * @param scopeIds The scope(s) ids.  Region/BusinessAccount/AvalilabilityZone etc.
+     * @param scopeEntityType  The scopes' enity type.
+     */
+    public ReservedInstanceFilter(@Nonnull final Set<Long> scopeIds,
+                                  @Nonnull final int scopeEntityType) {
+        this.scopeIds = Objects.requireNonNull(scopeIds);
+        this.scopeEntityType = Objects.requireNonNull(scopeEntityType);
     }
 
-    abstract List<Condition> generateConditions(@Nonnull final Set<Long> regionIds,
-                                                @Nonnull final Set<Long> availabilityZoneIds,
-                                                @Nonnull final Set<Long> businessAccountIds);
+    /**
+     * Generate a list of {@link Condition} based on different fields.
+     *
+     * @param scopeIds scope ids need to filter by.
+     * @param scopeEntityType scope(s) entity type.
+     * @return a list of {@link Condition}.
+     */
+    abstract List<Condition> generateConditions(@Nonnull Set<Long> scopeIds,
+                                                int scopeEntityType);
 }

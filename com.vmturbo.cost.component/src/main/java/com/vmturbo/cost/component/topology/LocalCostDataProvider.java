@@ -56,6 +56,8 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
                     .collect(Collectors.toMap(Discount::getAssociatedAccountId, Function.identity()));
             final Map<Long, ReservedInstanceBought> riBoughtById =
                 riBoughtStore.getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter.newBuilder()
+                        .addAllScopeId(topoInfo.getScopeSeedOidsList())
+                        .setScopeEntityType(topoInfo.getScopeEntityType())
                         .build()).stream()
                     .collect(Collectors.toMap(ReservedInstanceBought::getId, Function.identity()));
             final Map<Long, ReservedInstanceSpec> riSpecById = riSpecStore.getAllReservedInstanceSpec().stream()

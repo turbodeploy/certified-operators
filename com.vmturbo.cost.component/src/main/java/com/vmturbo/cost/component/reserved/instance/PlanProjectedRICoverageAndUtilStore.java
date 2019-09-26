@@ -39,6 +39,7 @@ import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityToReserve
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceCoverageRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceUtilizationRecord;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
+import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryListener;
 
@@ -157,9 +158,14 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
                         .stream().filter( v -> v.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE)
                         .collect(Collectors.toSet());
         List<PlanProjectedReservedInstanceCoverageRecord> coverageRcd = new ArrayList<>();
+        Builder reservedInstanceBoughtFilterBuilder = ReservedInstanceBoughtFilter.newBuilder();
+        final List<Long> scopeOids = topoInfo.getScopeSeedOidsList();
         final List<ReservedInstanceBought> allReservedInstancesBought =
                         reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(
-                                ReservedInstanceBoughtFilter.newBuilder().build());
+                                                  reservedInstanceBoughtFilterBuilder
+                                                  .addAllScopeId(topoInfo.getScopeSeedOidsList())
+                                                  .setScopeEntityType(topoInfo.getScopeEntityType())
+                                                  .build());
         Iterator<EntityReservedInstanceCoverage> it = entityRICoverage.iterator();
         while(it.hasNext()) {
             EntityReservedInstanceCoverage riCoverage = it.next();
@@ -197,7 +203,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
                     computeTiers.size());
                 continue;
             }
-            double usedCoupons = (double)AwsReservedInstanceCoupon
+            double usedCoupons = AwsReservedInstanceCoupon
                         .convertInstanceTypeToCoupons(computeTiers.get(0).getDisplayName());
             riCoverage.getCouponsCoveredByRiMap().entrySet().forEach(entry -> {
                 coverageRcd.add(context.newRecord(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE,
@@ -290,7 +296,10 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
         });
         final List<ReservedInstanceBought> projectedReservedInstancesBought =
                 reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter
-                        .newBuilder().build())
+                        .newBuilder()
+                        .addAllScopeId(topoInfo.getScopeSeedOidsList())
+                        .setScopeEntityType(topoInfo.getScopeEntityType())
+                        .build())
                 .stream()
                 .filter(ri -> riUsedCouponMap.containsKey(ri.getId()))
                 .collect(Collectors.toList());
@@ -360,6 +369,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
         }
     }
 
+    @Override
     public void onProjectedTopologyFailure(long projectedTopologyId, long topologyContextId,
             @Nonnull String failureDescription) {
         synchronized(newLock) {
@@ -377,8 +387,10 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
         }
     }
 
+    @Override
     public void onSourceTopologyAvailable(long topologyId, long topologyContextId) { }
 
+    @Override
     public void onSourceTopologyFailure(long topologyId, long topologyContextId,
             @Nonnull String failureDescription) {}
 }

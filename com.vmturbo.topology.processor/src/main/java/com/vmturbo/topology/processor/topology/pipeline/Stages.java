@@ -37,6 +37,7 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.matrix.component.external.MatrixInterface;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -596,7 +597,8 @@ public class Stages {
             // initialize the set with any existing seed oids
             final Set<Long> seedEntities = new HashSet<>(getContext().getTopologyInfo().getScopeSeedOidsList());
             final Set<Long> groupsToResolve = new HashSet<>();
-            for (PlanScopeEntry scopeEntry : planScope.getScopeEntriesList()) {
+            List<PlanScopeEntry> planScopeEntries = planScope.getScopeEntriesList();
+            for (PlanScopeEntry scopeEntry : planScopeEntries) {
                 // if it's an entity, add it right to the seed entity list. Otherwise queue it for
                 // group resolution.
                 if (StringConstants.GROUP_TYPES.contains(scopeEntry.getClassName())) {
@@ -630,9 +632,17 @@ public class Stages {
             }
 
             // now add the new seed entities to the list
+            // We can only filter by one scope entity type (e.g. REGION/BUSINESS ACCOUNT/AVAILABILITYZONE)
+            // hence each of the planScopeEntries will have the same scope entity type.
+            int scopeEntityType = planScopeEntries.isEmpty()
+                ? EntityType.UNKNOWN_VALUE
+                : EntityType.valueOf(planScopeEntries.get(0).getClassName()
+                                     .toUpperCase()).getNumber();
             getContext().editTopologyInfo(topologyInfoBuilder -> {
                 topologyInfoBuilder.clearScopeSeedOids();
-                topologyInfoBuilder.addAllScopeSeedOids(seedEntities);
+                topologyInfoBuilder
+                                .addAllScopeSeedOids(seedEntities)
+                                .setScopeEntityType(scopeEntityType);
             });
 
             return Status.success("Added " + seedEntities.size() +

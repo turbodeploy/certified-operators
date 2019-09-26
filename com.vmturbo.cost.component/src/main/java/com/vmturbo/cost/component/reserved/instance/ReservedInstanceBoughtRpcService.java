@@ -28,6 +28,7 @@ import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceImplBase;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServiceImplBase {
 
@@ -36,6 +37,7 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
     private final ReservedInstanceBoughtStore reservedInstanceBoughtStore;
 
     private final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore;
+
 
     public ReservedInstanceBoughtRpcService(
             @Nonnull final ReservedInstanceBoughtStore reservedInstanceBoughtStore,
@@ -51,20 +53,14 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
             GetReservedInstanceBoughtByFilterRequest request,
             StreamObserver<GetReservedInstanceBoughtByFilterResponse> responseObserver) {
         try {
-            final Optional<RegionFilter> regionFilter = request.hasRegionFilter()
-                    ? Optional.of(request.getRegionFilter())
-                    : Optional.empty();
-            final Optional<AvailabilityZoneFilter> azFilter = request.hasAvailabilityZoneFilter()
-                    ? Optional.of(request.getAvailabilityZoneFilter())
-                    : Optional.empty();
-            final Optional<AccountFilter> accountFilter = request.hasAccountFilter()
-                    ? Optional.of(request.getAccountFilter())
-                    : Optional.empty();
-
-            final ReservedInstanceBoughtFilter filter =
-                    createReservedInstanceBoughtFilter(regionFilter, azFilter, accountFilter);
+            final List<Long> scopeOids = request.getScopeSeedOidsList();
+            final int scopeEntityType = request.getScopeEntityType();
             final List<ReservedInstanceBought> reservedInstanceBoughts =
-                    reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(filter);
+                           reservedInstanceBoughtStore
+                               .getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter.newBuilder()
+                                                                  .addAllScopeId(scopeOids)
+                                                                  .setScopeEntityType(scopeEntityType)
+                                                                  .build());
             final GetReservedInstanceBoughtByFilterResponse.Builder responseBuilder =
                     GetReservedInstanceBoughtByFilterResponse.newBuilder();
             reservedInstanceBoughts.stream().forEach(responseBuilder::addReservedInstanceBoughts);
@@ -83,18 +79,18 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
             StreamObserver<GetReservedInstanceBoughtCountResponse> responseObserver) {
         try {
             final Optional<RegionFilter> regionFilter = request.hasRegionFilter()
-                    ? Optional.of(request.getRegionFilter())
-                    : Optional.empty();
-            final Optional<AvailabilityZoneFilter> azFilter = request.hasRegionFilter()
-                    ? Optional.of(request.getAvailabilityZoneFilter())
-                    : Optional.empty();
-            final Optional<AccountFilter> accountFilter = request.hasRegionFilter()
-                    ? Optional.of(request.getAccountFilter())
-                    : Optional.empty();
-            final ReservedInstanceBoughtFilter filter =
-                    createReservedInstanceBoughtFilter(regionFilter, azFilter, accountFilter);
+                            ? Optional.of(request.getRegionFilter())
+                            : Optional.empty();
+                    final Optional<AvailabilityZoneFilter> azFilter = request.hasRegionFilter()
+                            ? Optional.of(request.getAvailabilityZoneFilter())
+                            : Optional.empty();
+                    final Optional<AccountFilter> accountFilter = request.hasRegionFilter()
+                            ? Optional.of(request.getAccountFilter())
+                            : Optional.empty();
+                    final ReservedInstanceBoughtFilter filter =
+                            createReservedInstanceBoughtFilter(regionFilter, azFilter, accountFilter);
             final Map<Long, Long> reservedInstanceCountMap =
-                    reservedInstanceBoughtStore.getReservedInstanceCountMap(filter);
+                            reservedInstanceBoughtStore.getReservedInstanceCountMap(filter);
             final GetReservedInstanceBoughtCountResponse response =
                     GetReservedInstanceBoughtCountResponse.newBuilder()
                         .putAllReservedInstanceCountMap(reservedInstanceCountMap)
@@ -132,17 +128,19 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
             @Nonnull final Optional<RegionFilter> regionFilter,
             @Nonnull final Optional<AvailabilityZoneFilter> azFilter,
             @Nonnull final Optional<AccountFilter> accountFilter) {
-        final ReservedInstanceBoughtFilter.Builder filterBuilder = ReservedInstanceBoughtFilter.newBuilder();
+        final ReservedInstanceBoughtFilter.Builder filterBuilder = ReservedInstanceBoughtFilter
+                        .newBuilder();
         if (regionFilter.isPresent()) {
-            regionFilter.get().getRegionIdList().forEach(filterBuilder::addRegionId);
+            filterBuilder.addAllScopeId(regionFilter.get().getRegionIdList())
+                        .setScopeEntityType(EntityType.REGION_VALUE);
             // Because region id is stored at RI spec table, it needs join operation.
             filterBuilder.setJoinWithSpecTable(true);
-        }
-        if (azFilter.isPresent()) {
-            azFilter.get().getAvailabilityZoneIdList().forEach(filterBuilder::addAvailabilityZoneId);
-        }
-        if (accountFilter.isPresent()) {
-            accountFilter.get().getAccountIdList().forEach(filterBuilder::addBusinessAccountId);
+        } else if (azFilter.isPresent()) {
+            filterBuilder.addAllScopeId(azFilter.get().getAvailabilityZoneIdList())
+                        .setScopeEntityType(EntityType.AVAILABILITY_ZONE_VALUE);
+        } else if (accountFilter.isPresent()) {
+            filterBuilder.addAllScopeId(accountFilter.get().getAccountIdList())
+                        .setScopeEntityType(EntityType.BUSINESS_ACCOUNT_VALUE);
         }
         return filterBuilder.build();
     }

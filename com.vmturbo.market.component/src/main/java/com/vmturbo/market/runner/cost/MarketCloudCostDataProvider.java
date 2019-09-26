@@ -81,17 +81,20 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
             costServiceClient.getDiscounts(GetDiscountRequest.getDefaultInstance())
                 .forEachRemaining(discount -> discountsByAccount.put(discount.getAssociatedAccountId(), discount));
 
-            // Get the RI bought.
+            // Get the existing RI bought.
             final GetReservedInstanceBoughtByFilterResponse riBoughtResponse =
                 riBoughtServiceClient.getReservedInstanceBoughtByFilter(
-                    GetReservedInstanceBoughtByFilterRequest.getDefaultInstance());
+                    GetReservedInstanceBoughtByFilterRequest.newBuilder().addAllScopeSeedOids(topoInfo.getScopeSeedOidsList())
+                    .setScopeEntityType(topoInfo.getScopeEntityType())
+                    .build());
             final Map<Long, ReservedInstanceBought> riBoughtById =
                     new HashMap<>(riBoughtResponse.getReservedInstanceBoughtsCount());
 
-            // Get the RI bought.
+            // Get the new RI bought.
             final GetBuyReservedInstancesByFilterResponse buyRIBoughtResponse =
                     buyRIServiceClient.getBuyReservedInstancesByFilter(GetBuyReservedInstancesByFilterRequest
-                            .newBuilder().setTopologyContextId(topoInfo.getTopologyContextId()).build());
+                            .newBuilder().setTopologyContextId(topoInfo.getTopologyContextId())
+                            .build());
             final Map<Long, ReservedInstanceBought> buyRIBoughtById = new HashMap<>();
             // While processing the RI bought, collect the specs we need to retrieve.
             // There are A LOT of RI specs, and it would be very wasteful to retrieve all of them.
