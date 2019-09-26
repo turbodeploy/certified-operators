@@ -61,6 +61,7 @@ public class SystemLoadCalculatedProfile {
     private Group cluster = null;
     private String profileNamePostfix = null;
     private String profileDisplayNamePostfix = null;
+    private String profileName = null;
     private Optional<TemplateInfo> headroomTemplateInfo = Optional.empty();
 
     /**
@@ -245,7 +246,9 @@ public class SystemLoadCalculatedProfile {
     private Optional<TemplateInfo> generateTemplateInfoFromProfile() {
         TemplateInfo.Builder templateInfo = TemplateInfo.newBuilder();
         //replace \ with _ in profile name, so it can be used in REST API as parameter
-        templateInfo.setName(operation.name() + ":" + profileDisplayNamePostfix.replaceAll("\\\\", "_"));
+        String name = operation.name() + ":" + profileDisplayNamePostfix.replaceAll("\\\\", "_");
+        this.profileName = name;
+        templateInfo.setName(name);
         templateInfo.setDescription(operation.name() + ":" + profileNamePostfix.replaceAll("\\\\", "_"));
         templateInfo.setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
         templateInfo.setTemplateSpecId(1);
@@ -277,5 +280,9 @@ public class SystemLoadCalculatedProfile {
 
     public Optional<TemplateInfo> getHeadroomTemplateInfo() {
         return headroomTemplateInfo;
+    }
+
+    public String getProfileName() {
+        return profileName;
     }
 }

@@ -434,6 +434,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
             logger.error("Template not found for : " + cluster.getCluster().getDisplayName() +
                 " with template id : " + cluster.getCluster().getClusterHeadroomTemplateId());
             return;
+        } else {
+            logger.info("Template name is " + template.get().getTemplateInfo().getName());
         }
 
         // Map of commodities bought by template per relevant headroom commodities

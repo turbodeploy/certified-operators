@@ -182,37 +182,89 @@ public class PlanProjectExecutorTest {
     }
 
     /**
-     * When calling createPlanInstanceWithClusterHeadroomTemplate and the group has a headroom
+     * When calling createPlanInstanceWithClusterHeadroomTemplate and the group has a selected
      * template ID configured, and the template with that ID does exist, this template
-     * will be used for execution. We verify that edit template is called to persist
-     * with most updated information.
+     * will be used for execution. We verify that edit template is not called because
+     * the template is not a headroom template (it does not have an appropriate name).
      *
-     * @throws Exception
+     * @throws Exception if exception occurs
      */
     @Test
-    public void testCreatePlanInstanceWithClusterHeadroomTemplate() throws Exception {
-        long headroomTempalteId = 3333;
+    public void testCreatePlanInstanceWithClusterSelectedTemplate() throws Exception {
+        long selectedTemplateId = 3333;
         Group groupWithHeadroomTemplateId = Group.newBuilder()
                 .setId(12345)
                 .setType(Group.Type.CLUSTER)
                 .setCluster(ClusterInfo.newBuilder()
-                        .setClusterHeadroomTemplateId(headroomTempalteId)
+                        .setClusterHeadroomTemplateId(selectedTemplateId)
                         .build())
                 .build();
 
-        when(templatesDao.getTemplate(headroomTempalteId)).thenReturn(Optional.of(Template.getDefaultInstance()));
+        when(templatesDao.getTemplate(selectedTemplateId)).thenReturn(Optional.of(Template.getDefaultInstance()));
 
         planProjectExecutor.createClusterPlanInstance(Collections.singleton(groupWithHeadroomTemplateId),
                 PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);
-        verify(templatesDao).editTemplate(eq(headroomTempalteId), any());
+
+        // The use selects a template which is not a headroomVM or an average template and the code regarding
+        // headroomVM or average is not executed, thus editTemplate() and getFilteredTemplates() are not called
+        verify(templatesDao, never()).editTemplate(eq(selectedTemplateId), any());
         verify(templatesDao, never()).getFilteredTemplates(any());
+        // usedTemplate is not updated, thus the part of the code where usedTemplate != null
+        // is not executed and updateClusterHeadroomTemplate() is not called
         verify(groupServiceMole, never()).updateClusterHeadroomTemplate(any(UpdateClusterHeadroomTemplateRequest.class));
     }
 
+
+
+    /**
+     * When calling createPlanInstanceWithClusterHeadroomTemplate and the group has a selected
+     * template ID configured, and the template with that ID does exist, this template
+     * will be used for execution. We verify that edit template is called because
+     * the template is an average headroom template.
+     *
+     * @throws Exception if exception occurs
+     */
+    @Test
+    public void testCreatePlanInstanceWithClusterHeadroomTemplate() throws Exception {
+        long averageTemplateId = 3333;
+        Group groupWithHeadroomTemplateId = Group.newBuilder()
+                .setId(12345)
+                .setType(Group.Type.CLUSTER)
+                .setCluster(ClusterInfo.newBuilder()
+                        .setName("TestCluster")
+                        .setDisplayName("TestCluster")
+                        .setClusterHeadroomTemplateId(averageTemplateId)
+                        .build())
+                .build();
+
+        TemplateInfo templateInfo = TemplateInfo.newBuilder()
+                .setName("AVG:TestCluster for last 10 days")
+                .build();
+
+        Template template = Template.newBuilder()
+                .setId(averageTemplateId)
+                .setTemplateInfo(templateInfo)
+                .build();
+
+        when(templatesDao.getTemplate(averageTemplateId)).thenReturn(Optional.of(template));
+
+        planProjectExecutor.createClusterPlanInstance(Collections.singleton(groupWithHeadroomTemplateId),
+                PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);
+        // The user selects a template which is an average one thus the respective code is executed (where
+        // headroomTemplateInfo.isPresent) and editTemplate() is called while getFilteredTemplates() is not called
+        verify(templatesDao).editTemplate(eq(averageTemplateId), any());
+        verify(templatesDao, never()).getFilteredTemplates(any());
+        // usedTemplate is not updated, thus the part of code where usedTemplate != null is not executed and
+        // updateClusterHeadroomTemplate() is not called
+        verify(groupServiceMole, never()).updateClusterHeadroomTemplate(any(UpdateClusterHeadroomTemplateRequest.class));
+    }
+
+
+
     /**
      *  When calling createPlanInstanceWithClusterHeadroomTemplate, and the group does not have
-     * cluster information. In this case, we use newly created headroom template and update cluster
-     * information.
+     * cluster information. In this case, we don't identify the template as a headroomVM or
+     * average template and code for changing the template is not called at all
      *
      * @throws Exception
      */
@@ -227,13 +279,13 @@ public class PlanProjectExecutorTest {
 
         planProjectExecutor.createClusterPlanInstance(Collections.singleton(groupWithoutHeadroomClusterInfo),
                 PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);
-        verify(groupServiceMole).updateClusterHeadroomTemplate(any(UpdateClusterHeadroomTemplateRequest.class));
+        verify(groupServiceMole, never()).updateClusterHeadroomTemplate(any(UpdateClusterHeadroomTemplateRequest.class));
     }
 
     /**
      * When calling createPlanInstanceWithClusterHeadroomTemplate, and the group does not have
-     * a headroom template ID. In this case, we use newly created headroom template and update cluster
-     * information.
+     * a headroom template ID. In this case, we don't identify the template as a headroomVM or
+     * average template and code for changing the template is not called at all
      *
      * @throws Exception
      */
@@ -249,9 +301,9 @@ public class PlanProjectExecutorTest {
 
         planProjectExecutor.createClusterPlanInstance(Collections.singleton(groupWithHeadroomTemplateId),
                 PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);
-        verify(templatesDao, never()).getTemplate(anyLong());
-        verify(templatesDao).createTemplate(any());
-        verify(groupServiceMole).updateClusterHeadroomTemplate(any(UpdateClusterHeadroomTemplateRequest.class));
+        verify(templatesDao).getTemplate(anyLong());
+        verify(templatesDao, never()).createTemplate(any());
+        verify(groupServiceMole, never()).updateClusterHeadroomTemplate(any(UpdateClusterHeadroomTemplateRequest.class));
     }
 
     /**

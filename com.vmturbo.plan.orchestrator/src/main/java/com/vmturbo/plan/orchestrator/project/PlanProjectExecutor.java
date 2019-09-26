@@ -320,6 +320,7 @@ public class PlanProjectExecutor {
                                            @Nonnull final PlanProjectType type)
                                            throws IntegrityException {
         final PlanScope.Builder planScopeBuilder = PlanScope.newBuilder();
+
         for (Group cluster : clusters) {
             boolean addScopeEntry = true;
 
@@ -398,37 +399,58 @@ public class PlanProjectExecutor {
         // TODO (roman, Dec 5 2017): Project-type-specific logic should not be in the main
         // executor class. We should refactor this to separate the general and type-specific
         // processing steps.
-        Template avgHeadroomTemplate = null;
-        if (headroomTemplateInfo.isPresent()) {
-            if (cluster.hasCluster() && cluster.getCluster().hasClusterHeadroomTemplateId()) {
-                logger.debug("Updating template for : " + cluster.getCluster().getDisplayName() +
-                    " with template id : " + cluster.getCluster().getClusterHeadroomTemplateId());
-                // if template Id already exists, update template with new values
-                templatesDao.editTemplate(cluster.getCluster().getClusterHeadroomTemplateId(), headroomTemplateInfo.get());
+        Template usedTemplate = null;
+        long clusterHeadroomTemplateId = cluster.getCluster().getClusterHeadroomTemplateId();
+        Optional<Template> optionalTemplate = templatesDao.getTemplate(clusterHeadroomTemplateId);
+        // Change the template only if it is an average or a headroomVM template
+        if (isHeadroomVmOrAverageTemplate(clusterHeadroomTemplateId, avgProfile.getProfileName(), optionalTemplate)) {
+            if (headroomTemplateInfo.isPresent()) {
+                if (cluster.hasCluster() && cluster.getCluster().hasClusterHeadroomTemplateId()) {
+                    logger.debug("Updating template for : " + cluster.getCluster().getDisplayName() +
+                            " with template id : " + clusterHeadroomTemplateId);
+                    // if template Id already exists, update template with new values
+                    templatesDao.editTemplate(clusterHeadroomTemplateId, headroomTemplateInfo.get());
+                } else {
+                    // Create template using template info and set it as headroomTemplate.
+                    usedTemplate = templatesDao.createTemplate(headroomTemplateInfo.get());
+                }
             } else {
-                // Create template using template info and set it as headroomTemplate.
-                avgHeadroomTemplate = templatesDao.createTemplate(headroomTemplateInfo.get());
+                // Set headroomTemplate  to default template
+                usedTemplate = templatesDao.getFilteredTemplates(TemplatesFilter.newBuilder()
+                        .addTemplateName(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME)
+                        .build()).stream()
+                        .filter(template -> template.getType().equals(Type.SYSTEM))
+                        .findFirst()
+                        .orElseThrow(() -> new IllegalStateException("No system headroom VM found!"));
             }
-        } else {
-            // Set headroomTemplate  to default template
-            avgHeadroomTemplate = templatesDao.getFilteredTemplates(TemplatesFilter.newBuilder()
-                    .addTemplateName(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME)
-                    .build()).stream()
-                .filter(template -> template.getType().equals(Type.SYSTEM))
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("No system headroom VM found!"));
         }
-
-        if (avgHeadroomTemplate != null) {
-            logger.info("Setting template for : " + cluster.getCluster().getDisplayName() +
-                " with template id : " + avgHeadroomTemplate.getId());
+        if (usedTemplate != null) {
             // Update template with current headroomTemplate
             groupRpcService.updateClusterHeadroomTemplate(
                 UpdateClusterHeadroomTemplateRequest.newBuilder()
                     .setGroupId(cluster.getId())
-                    .setClusterHeadroomTemplateId(avgHeadroomTemplate.getId())
+                    .setClusterHeadroomTemplateId(usedTemplate.getId())
                     .build());
         }
+    }
+
+    private boolean isHeadroomVmOrAverageTemplate(long templateId, String profileName, Optional<Template> optionalTemplate) {
+        String headroomVMName = StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME;
+        if (optionalTemplate != null) {
+            if (optionalTemplate.isPresent()) {
+                Template template = optionalTemplate.get();
+                if (template.hasTemplateInfo()) {
+                    TemplateInfo templateInfo = template.getTemplateInfo();
+                    if (templateInfo.hasName()) {
+                        String name = templateInfo.getName();
+                        if (name.equals(profileName) || (name.equals(headroomVMName))) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     /**
