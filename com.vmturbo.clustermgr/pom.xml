@@ -97,6 +97,10 @@
             <build>
                 <plugins>
                     <plugin>
+                        <groupId>pl.project13.maven</groupId>
+                        <artifactId>git-commit-id-plugin</artifactId>
+                    </plugin>
+                    <plugin>
                         <groupId>com.spotify</groupId>
                         <artifactId>docker-maven-plugin</artifactId>
                         <configuration>
@@ -343,6 +347,11 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.components.common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>components-api-test</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

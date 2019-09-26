@@ -47,6 +47,7 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.auth.api.widgets.AuthClientConfig;
+import com.vmturbo.components.common.utils.BuildProperties;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 import com.vmturbo.kvstore.PublicKeyStoreConfig;
 import com.vmturbo.notification.api.impl.NotificationClientConfig;
@@ -172,7 +173,7 @@ public class ServiceConfig {
     public AdminService adminService() {
         return new AdminService(clusterService(), keyValueStoreConfig.keyValueStore(),
             communicationConfig.clusterMgr(), communicationConfig.serviceRestTemplate(),
-            websocketConfig.websocketHandler());
+            websocketConfig.websocketHandler(), BuildProperties.get());
     }
 
     @Bean

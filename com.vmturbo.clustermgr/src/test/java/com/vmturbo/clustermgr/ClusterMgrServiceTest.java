@@ -1,12 +1,10 @@
 package com.vmturbo.clustermgr;
 
-import static com.vmturbo.clustermgr.ClusterMgrService.HOME_TURBONOMIC_DATA_TURBO_FILE_ZIP;
 import static com.vmturbo.clustermgr.ClusterMgrService.UPLOAD_VMTURBO_COM_URL;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.anyByte;
 import static org.mockito.Matchers.anyInt;
@@ -28,6 +26,9 @@ import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import com.google.common.base.Optional;
+import com.orbitz.consul.model.kv.Value;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -40,9 +41,6 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 import org.springframework.test.context.web.WebAppConfiguration;
-
-import com.google.common.base.Optional;
-import com.orbitz.consul.model.kv.Value;
 
 import com.vmturbo.clustermgr.api.ComponentProperties;
 import com.vmturbo.clustermgr.api.HttpProxyConfig;
@@ -217,13 +215,6 @@ public class ClusterMgrServiceTest {
             when(v.getValueAsString()).thenReturn(Optional.absent());
         }
         return v;
-    }
-
-    @Test
-    public void testValidateDiagsName() {
-        final long currentEpoch = System.currentTimeMillis();
-        assertEquals("/home/turbonomic/data/turbonomic-diags-_" + currentEpoch + ".zip",
-            String.format(HOME_TURBONOMIC_DATA_TURBO_FILE_ZIP, currentEpoch));
     }
 
     @Test

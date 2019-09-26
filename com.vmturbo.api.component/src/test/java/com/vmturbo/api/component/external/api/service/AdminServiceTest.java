@@ -24,10 +24,12 @@ import java.util.Properties;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
@@ -36,13 +38,12 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.http.HttpEntity;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.api.component.external.api.mapper.LoggingMapper;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
@@ -60,6 +61,7 @@ import com.vmturbo.common.protobuf.logging.Logging.LogLevel;
 import com.vmturbo.common.protobuf.logging.Logging.SetLogLevelsRequest;
 import com.vmturbo.common.protobuf.logging.Logging.SetLogLevelsResponse;
 import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController.LogConfigurationServiceResponse;
+import com.vmturbo.components.common.utils.BuildProperties;
 import com.vmturbo.kvstore.KeyValueStore;
 
 /**
@@ -67,6 +69,7 @@ import com.vmturbo.kvstore.KeyValueStore;
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = AdminServiceTest.ServiceTestConfig.class)
+@DirtiesContext(classMode = ClassMode.BEFORE_EACH_TEST_METHOD)
 public class AdminServiceTest {
 
     private static final String PUBLIC_VERSION_STRING = "public-version";
@@ -78,37 +81,42 @@ public class AdminServiceTest {
     private static final String AUTH_COMPONENT = "auth";
     private static final String MARKET_COMPONENT = "market";
 
-    private static ClusterService clusterService = Mockito.mock(ClusterService.class);
-    private static KeyValueStore keyValueStore = Mockito.mock(KeyValueStore.class);
-    private static RestTemplate restTemplate = Mockito.mock(RestTemplate.class);
-    private AdminService adminService;
-    private KeyValueStore keyValueStoreTest;
-    private ClusterMgrRestClient clusterMgrClient;
-    private static ApiWebsocketHandler apiWebsocketHandler = Mockito.mock(ApiWebsocketHandler.class);
+    private static final String GIT_PROP_BRANCH = "testBranch";
+    private static final String GIT_BUILD_TIME = "123";
+    private static final String GIT_VERSION = "MyVersion";
+    private static final String GIT_COMMIT_ID = "someCommitHash!";
+    private static final String GIT_SHORT_COMMIT_ID = "shortCommitHash";
+    private static final boolean GIT_DIRTY = true;
 
-    @Before
-    public void setup(){
-        apiWebsocketHandler = Mockito.mock(ApiWebsocketHandler.class);
-        clusterMgrClient = Mockito.mock(ClusterMgrRestClient.class);
-        keyValueStoreTest = Mockito.mock(KeyValueStore.class);
-        when(keyValueStoreTest.get(anyString())).thenReturn(Optional.empty());
-        adminService = new AdminService(clusterService, keyValueStoreTest,
-            clusterMgrClient, restTemplate, apiWebsocketHandler);
-    }
+    private static ClusterService clusterService = Mockito.mock(ClusterService.class);
+    private static RestTemplate restTemplate = Mockito.mock(RestTemplate.class);
 
     @Autowired
-    AdminService serviceUnderTest;
+    private KeyValueStore keyValueStoreTest;
 
+    @Autowired
+    private ClusterMgrRestClient clusterMgrClient;
+
+    @Autowired
+    private ApiWebsocketHandler apiWebsocketHandler;
+
+    @Autowired
+    private AdminService serviceUnderTest;
+
+    /**
+     * Test that the {@link ProductVersionDTO} returned by the
+     * {@link AdminService#getVersionInfo(boolean)} call contains the right information.
+     */
     @Test
     public void testGetVersionInfo() {
-        String instance1 = "inst1";
-        String instance2 = "inst2";
-        String instance1Type = "inst1Type";
-        String instance2Type = "inst2Type";
-        String instance1Version = "1.0.0";
-        String instance2Version = "1.1.0";
+        final String instance1 = "inst1";
+        final String instance2 = "inst2";
+        final String instance1Type = "inst1Type";
+        final String instance2Type = "inst2Type";
+        final String instance1Version = "1.0.0";
+        final String instance2Version = "1.1.0";
 
-        ClusterConfigurationDTO clusterConfigurationDTO = new ClusterConfigurationDTO();
+        final ClusterConfigurationDTO clusterConfigurationDTO = new ClusterConfigurationDTO();
         final ComponentPropertiesDTO instance1Defaults = new ComponentPropertiesDTO();
         instance1Defaults.put("component.version", instance1Version);
         final ComponentPropertiesDTO instance2Defaults = new ComponentPropertiesDTO();
@@ -131,46 +139,70 @@ public class AdminServiceTest {
         assertTrue(versionInfo.contains(instance2Type + ": " + instance2Version));
 
         // Assert similarity to the git.properties file.
-        assertThat(answer.getVersion(), is("MyVersion"));
-        assertThat(answer.getBranch(), is("testBranch"));
-        assertThat(answer.getBuild(), is("123"));
-        assertThat(answer.getCommit(), is("someCommitHash!"));
-        assertThat(answer.hasCodeChanges(), is(true));
-        assertThat(answer.getGitDescription(), is("ShortMessage"));
+        assertThat(answer.getVersion(), is(GIT_VERSION));
+        assertThat(answer.getBranch(), is(GIT_PROP_BRANCH));
+        assertThat(answer.getBuild(), is(GIT_BUILD_TIME));
+        assertThat(answer.getCommit(), is(GIT_SHORT_COMMIT_ID));
+        assertThat(answer.hasCodeChanges(), is(GIT_DIRTY));
+        assertThat(answer.getGitDescription(), is(GIT_COMMIT_ID + " dirty"));
     }
 
+    /**
+     * Test that {@link AdminService#invokeSchedulerToExportDiags()} calls cluster manager to
+     * export diagnostics, and broadcasts a notification if the export succeeds.
+     *
+     * @throws Exception If anything is wrong.
+     */
     @Test
     public void testExportDialDataSucceed() throws Exception {
         when(clusterMgrClient.exportComponentDiagnostics(any())).thenReturn(true);
-        Future<Boolean> future = adminService.invokeSchedulerToExportDiags();
+        Future<Boolean> future = serviceUnderTest.invokeSchedulerToExportDiags();
         assertTrue(future.get(1000L, TimeUnit.SECONDS));
         verify(apiWebsocketHandler).broadcastDiagsExportNotification(AdminService.EXPORTED_DIAGNOSTICS_SUCCEED);
     }
 
+    /**
+     * Test that {@link AdminService#invokeSchedulerToExportDiags()} calls cluster manager to
+     * export diagnostics, and broadcasts a notification if the export fails.
+     *
+     * @throws Exception If anything is wrong.
+     */
     @Test
     public void testExportDiagDataFailed() throws Exception {
         when(clusterMgrClient.exportComponentDiagnostics(any())).thenReturn(false);
-        Future<Boolean> future = adminService.invokeSchedulerToExportDiags();
+        Future<Boolean> future = serviceUnderTest.invokeSchedulerToExportDiags();
         assertFalse(future.get(1000L, TimeUnit.SECONDS));
         verify(apiWebsocketHandler).broadcastDiagsExportNotification(AdminService.FAILED_TO_EXPORT_DIAGNOSTICS_FAILED);
     }
 
-    // Verify receiving runtime exception (e.g. clusterMgr is down) will return false.
+    /**
+     * Test that {@link AdminService#invokeSchedulerToExportDiags()} calls cluster manager to
+     * export diagnostics, and broadcasts a notification if the export fails with a runtime
+     * exception (e.g. clustermgr is down).
+     *
+     * @throws Exception If anything is wrong.
+     */
     @Test
     public void testExportDiagDataFailedWithRuntimeException() throws Exception {
         when(clusterMgrClient.exportComponentDiagnostics(any())).thenThrow(new RuntimeException());
-        Future<Boolean> future = adminService.invokeSchedulerToExportDiags();
+        Future<Boolean> future = serviceUnderTest.invokeSchedulerToExportDiags();
         assertFalse(future.get(1000L, TimeUnit.SECONDS));
         verify(apiWebsocketHandler).broadcastDiagsExportNotification(AdminService.FAILED_TO_EXPORT_DIAGNOSTICS_FAILED);
     }
 
+    /**
+     * Test that {@link AdminService#setProxyConfig(HttpProxyDTO)} puts the proxy information
+     * for an insecure proxy into the key value store.
+     *
+     * @throws Exception If anything is wrong.
+     */
     @Test
     public void testSetProxyConfigInsureProxy() throws Exception {
         HttpProxyDTO dto = new HttpProxyDTO();
         dto.setProxyHost("10.10.10.1");
         dto.setProxyPortNumber(3306);
         dto.setIsProxyEnabled(true);
-        adminService.setProxyConfig(dto);
+        serviceUnderTest.setProxyConfig(dto);
         verify(keyValueStoreTest).put(eq(PROXY_ENABLED), eq("true"));
         verify(keyValueStoreTest).put(eq(PROXY_HOST), eq("10.10.10.1"));
         verify(keyValueStoreTest).put(eq(PROXY_PORT_NUMBER), eq("3306"));
@@ -178,6 +210,12 @@ public class AdminServiceTest {
         verify(keyValueStoreTest, never()).put(eq(PROXY_USER_PASSWORD), anyString());
     }
 
+    /**
+     * Test that {@link AdminService#setProxyConfig(HttpProxyDTO)} throws an exception when given
+     * an invalid password.
+     *
+     * @throws Exception If anything is wrong.
+     */
     @Test(expected = IllegalArgumentException.class)
     public void testSetProxyConfigSureProxyWithAsterisksPassword() throws Exception {
         HttpProxyDTO dto = new HttpProxyDTO();
@@ -189,6 +227,12 @@ public class AdminServiceTest {
         serviceUnderTest.setProxyConfig(dto);
     }
 
+    /**
+     * Test that {@link AdminService#setProxyConfig(HttpProxyDTO)} throws an exception when the
+     * proxy is missing a port.
+     *
+     * @throws Exception If anything is wrong.
+     */
     @Test(expected = InvalidOperationException.class)
     public void testSetProxyConfigSureProxyMissingPort() throws Exception {
         HttpProxyDTO dto = new HttpProxyDTO();
@@ -197,15 +241,19 @@ public class AdminServiceTest {
         serviceUnderTest.setProxyConfig(dto);
     }
 
+    /**
+     * Test that {@link AdminService#storeProxyConfig(HttpProxyDTO, boolean, boolean)} properly
+     * stores secure proxy information in the key-value store.
+     */
     @Test
-    public void testSetProxyConfigSureProxy() {
+    public void testSetProxyConfigSecureProxy() {
         HttpProxyDTO dto = new HttpProxyDTO();
         dto.setProxyHost("10.10.10.1");
         dto.setProxyPortNumber(3306);
         dto.setIsProxyEnabled(true);
         dto.setUserName("user");
         dto.setPassword(ClusterService.ASTERISKS);
-        adminService.storeProxyConfig(dto, true, true);
+        serviceUnderTest.storeProxyConfig(dto, true, true);
         verify(keyValueStoreTest).put(eq(PROXY_ENABLED), eq("true"));
         verify(keyValueStoreTest).put(eq(PROXY_HOST), eq("10.10.10.1"));
         verify(keyValueStoreTest).put(eq(PROXY_PORT_NUMBER), eq("3306"));
@@ -213,6 +261,11 @@ public class AdminServiceTest {
         verify(keyValueStoreTest).put(eq(PROXY_USER_PASSWORD), eq(ClusterService.ASTERISKS));
     }
 
+    /**
+     * Test getting logging levels from the service.
+     *
+     * @throws Exception If anything goes wrong.
+     */
     @Test
     public void testGetLoggingLevels() throws Exception {
         Mockito.when(clusterService.getKnownComponents()).thenReturn(
@@ -234,6 +287,12 @@ public class AdminServiceTest {
         Configurator.setRootLevel(Level.INFO);
     }
 
+    /**
+     * Test that setting logging levels in the service propagates the calls to the requested
+     * components.
+     *
+     * @throws Exception If anything goes wrong.
+     */
     @Test
     public void testSetLoggingLevels() throws Exception {
         LoggingApiDTO loggingApiDTO = new LoggingApiDTO();
@@ -260,6 +319,10 @@ public class AdminServiceTest {
 
     /**
      * Mock getting logging level for the given component using the provided LogLevel.
+     *
+     * @param component The component name.
+     * @param logLevel The log level.
+     * @throws Exception If anything goes wrong.
      */
     private void mockGetLogLevelForComponent(String component, LogLevel logLevel) throws Exception {
         Constructor<LogConfigurationServiceResponse> constructor =
@@ -282,6 +345,10 @@ public class AdminServiceTest {
 
     /**
      * Mock setting logging level for the given component using the provided LoggingLevel.
+     *
+     * @param component The component name.
+     * @param logLevel The log level.
+     * @throws Exception If anything goes wrong.
      */
     private void mockSetLogLevelForComponent(String component, LoggingLevel logLevel) throws Exception {
         Constructor<LogConfigurationServiceResponse> constructor =
@@ -303,15 +370,60 @@ public class AdminServiceTest {
             LogConfigurationServiceResponse.class)).thenReturn(response);
     }
 
+    /**
+     * Configuration used to set up the testing harness.
+     */
     @Configuration
     public static class ServiceTestConfig {
 
+        /**
+         * Mock {@link ClusterMgrRestClient}.
+         *
+         * @return The mock object.
+         */
         @Bean
-        public AdminService adminService() {
-            final ClusterMgrRestClient clusterMgrClient = Mockito.mock(ClusterMgrRestClient.class);
-            return new AdminService(clusterService, keyValueStore, clusterMgrClient, restTemplate, apiWebsocketHandler);
+        public ClusterMgrRestClient clusterMgrClient() {
+            return Mockito.mock(ClusterMgrRestClient.class);
         }
 
+        /**
+         * Mock {@link KeyValueStore}.
+         *
+         * @return The mock object.
+         */
+        @Bean
+        public KeyValueStore keyValueStore() {
+            KeyValueStore keyValueStore = Mockito.mock(KeyValueStore.class);
+            when(keyValueStore.get(anyString())).thenReturn(Optional.empty());
+            return keyValueStore;
+        }
+
+        /**
+         * Mock {@link ApiWebsocketHandler}.
+         *
+         * @return The mock object.
+         */
+        @Bean
+        public ApiWebsocketHandler apiWebsocketHandler() {
+            return Mockito.mock(ApiWebsocketHandler.class);
+        }
+
+        /**
+         * Mock {@link AdminService}.
+         *
+         * @return The mock object.
+         */
+        @Bean
+        public AdminService adminService() {
+            return new AdminService(clusterService, keyValueStore(),
+                clusterMgrClient(), restTemplate, apiWebsocketHandler(), buildProperties());
+        }
+
+        /**
+         * The {@link PropertySourcesPlaceholderConfigurer}.
+         *
+         * @return The object.
+         */
         @Bean
         public static PropertySourcesPlaceholderConfigurer properties() {
             final PropertySourcesPlaceholderConfigurer propertiesConfigureer
@@ -328,6 +440,23 @@ public class AdminServiceTest {
 
             propertiesConfigureer.setProperties(properties);
             return propertiesConfigureer;
+        }
+
+        /**
+         * Mock {@link BuildProperties}.
+         *
+         * @return The mock object.
+         */
+        @Bean
+        public BuildProperties buildProperties() {
+            BuildProperties buildProperties = Mockito.mock(BuildProperties.class);
+            when(buildProperties.getShortCommitId()).thenReturn(GIT_SHORT_COMMIT_ID);
+            when(buildProperties.getVersion()).thenReturn(GIT_VERSION);
+            when(buildProperties.getBranch()).thenReturn(GIT_PROP_BRANCH);
+            when(buildProperties.getCommitId()).thenReturn(GIT_COMMIT_ID);
+            when(buildProperties.getBuildTime()).thenReturn(GIT_BUILD_TIME);
+            when(buildProperties.isDirty()).thenReturn(GIT_DIRTY);
+            return buildProperties;
         }
     }
 

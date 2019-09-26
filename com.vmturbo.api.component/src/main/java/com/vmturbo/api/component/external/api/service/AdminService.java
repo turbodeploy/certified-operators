@@ -2,14 +2,11 @@ package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.clustermgr.api.ClusterMgrClient.COMPONENT_VERSION_KEY;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.text.MessageFormat;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -18,6 +15,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.gson.Gson;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -29,9 +29,6 @@ import org.springframework.http.HttpEntity;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.gson.Gson;
 
 import com.vmturbo.api.ExportNotificationDTO.ExportNotification;
 import com.vmturbo.api.ExportNotificationDTO.ExportStatusNotification;
@@ -57,6 +54,7 @@ import com.vmturbo.common.protobuf.logging.Logging.LogLevel;
 import com.vmturbo.common.protobuf.logging.Logging.SetLogLevelsRequest;
 import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController.LogConfigurationServiceResponse;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.utils.BuildProperties;
 import com.vmturbo.components.common.utils.LoggingUtils;
 import com.vmturbo.components.common.utils.Strings;
 import com.vmturbo.components.crypto.CryptoFacility;
@@ -149,13 +147,14 @@ public class AdminService implements IAdminService {
                  @Nonnull final KeyValueStore keyValueStore,
                  @Nonnull final ClusterMgrRestClient clusterMgrApi,
                  @Nonnull final RestTemplate restTemplate,
-                 @Nonnull final ApiWebsocketHandler apiWebsocketHandler) {
+                 @Nonnull final ApiWebsocketHandler apiWebsocketHandler,
+                 @Nonnull final BuildProperties buildProperties) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
         this.clusterMgrApi = Objects.requireNonNull(clusterMgrApi);
         this.restTemplate = Objects.requireNonNull(restTemplate);
         this.apiWebsocketHandler = Objects.requireNonNull(apiWebsocketHandler);
-        this.buildProperties = new BuildProperties();
+        this.buildProperties = buildProperties;
     }
 
     @Override
@@ -332,7 +331,7 @@ public class AdminService implements IAdminService {
 
     @Override
     public ProductVersionDTO getVersionInfo(boolean checkForUpdates) {
-        final ProductVersionDTO product = buildProperties.makeProductVersion();
+        final ProductVersionDTO product = makeProductVersion(buildProperties);
         product.setVersionInfo(getVersionInfoString());
         // TODO: 'checkForUpdates' is not yet implemented
         product.setUpdates(UPDATES_NOT_IMPLEMENTED);
@@ -443,69 +442,20 @@ public class AdminService implements IAdminService {
     }
 
     /**
-     * Interesting properties about the build used to create this version of the API component,
-     * loaded from the git properties file generated at build-time by the git-commit-id plugin.
+     * Create a {@link ProductVersionDTO} filled with the git commit properties.
+     *
+     * @return The {@link ProductVersionDTO}.
      */
-    private static class BuildProperties {
-        private static final Logger logger = LogManager.getLogger();
-
-        /**
-         * The path to the git commit file, relative to the classpath.
-         * Must be in sync with the configuration of the git-commit-id-plugin in build/pom.xml.
-         */
-        private static final String GIT_PROPERTIES_PATH = "git.properties";
-
-        /**
-         * The prefix used for build properties.
-         * Must be in sync with the configuration of the git-commit-id-plugin in build/pom.xml
-         */
-        private static final String PREFIX = "turbo-version";
-
-        // START - the names of the properties we care about.
-        private static final String BRANCH = PREFIX + ".branch";
-        private static final String DIRTY = PREFIX + ".dirty";
-        private static final String VERSION = PREFIX + ".build.version";
-        private static final String BUILD_TIME = PREFIX + ".build.time";
-        private static final String SHORT_COMMIT_MSG = PREFIX + ".commit.message.short";
-        private static final String COMMIT_ID = PREFIX + ".commit.id";
-        // END - the names of the properties we care about.
-
-        /**
-         * The properties loaded from the git.properties file.
-         */
-        private final Properties properties;
-
-        private BuildProperties() {
-            properties = new Properties();
-            try (final InputStream configPropertiesStream = AdminService.class.getClassLoader()
-                .getResourceAsStream(GIT_PROPERTIES_PATH)) {
-                if (configPropertiesStream != null) {
-                    properties.load(configPropertiesStream);
-                } else {
-                    logger.warn("Cannot find git properties file: {} in class path", GIT_PROPERTIES_PATH);
-                }
-            } catch (IOException e) {
-                // if the component defaults cannot be found we still need to send an empty
-                // default properties to ClusterMgr where the global defaults will be used.
-                logger.warn("Cannot read git properties file: {}", GIT_PROPERTIES_PATH);
-            }
-        }
-
-        /**
-         * Create a {@link ProductVersionDTO} filled with the git commit properties.
-         *
-         * @return The {@link ProductVersionDTO}.
-         */
-        @Nonnull
-        ProductVersionDTO makeProductVersion() {
-            final ProductVersionDTO productVersion = new ProductVersionDTO();
-            productVersion.setBranch(properties.getProperty(BRANCH));
-            productVersion.setVersion(properties.getProperty(VERSION));
-            productVersion.setBuild(properties.getProperty(BUILD_TIME));
-            productVersion.setCommit(properties.getProperty(COMMIT_ID));
-            productVersion.setGitDescription(properties.getProperty(SHORT_COMMIT_MSG));
-            productVersion.setHasCodeChanges(Boolean.valueOf(properties.getProperty(DIRTY)));
-            return productVersion;
-        }
+    @Nonnull
+    private ProductVersionDTO makeProductVersion(@Nonnull final BuildProperties buildProperties) {
+        final ProductVersionDTO productVersion = new ProductVersionDTO();
+        productVersion.setBranch(buildProperties.getBranch());
+        productVersion.setVersion(buildProperties.getVersion());
+        productVersion.setBuild(buildProperties.getBuildTime());
+        productVersion.setCommit(buildProperties.getShortCommitId());
+        productVersion.setGitDescription(buildProperties.getCommitId() + " " +
+            (buildProperties.isDirty() ? "dirty" : ""));
+        productVersion.setHasCodeChanges(buildProperties.isDirty());
+        return productVersion;
     }
 }

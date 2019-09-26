@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Clock;
 import java.util.Base64;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -30,9 +31,11 @@ import com.vmturbo.clustermgr.aggregator.DataAggregator;
 import com.vmturbo.clustermgr.collectors.DataMetricLogs;
 import com.vmturbo.clustermgr.transfer.DataTransfer;
 import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController;
+import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.common.OsCommandProcessRunner;
 import com.vmturbo.components.common.OsProcessFactory;
 import com.vmturbo.components.common.logging.LogConfigurationService;
+import com.vmturbo.components.common.utils.BuildProperties;
 import com.vmturbo.proactivesupport.DataCollectorFramework;
 
 /**
@@ -41,6 +44,7 @@ import com.vmturbo.proactivesupport.DataCollectorFramework;
 @Configuration
 @EnableWebMvc
 public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
+
     @Value("${consul_host}")
     private String consulHost;
     @Value("${clustermgr.consul.port:8500}")
@@ -109,6 +113,11 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
             "//UmRakTbyByhkwwB3NbRUsxFWgeHAc8YxI9msdhliBa2R3b0rh4+fqrFI9DJc48u05L2bdD22mvr1StAl" +
             "+5l6GDQUrX09s3rU8JgZnOTY0ruj+GABnXfW7GT4L64llX64xbylJDGSjH1pAgMBAAE=";
 
+    /**
+     * The {@link RequestMappingHandlerAdapter} bean.
+     *
+     * @return The object.
+     */
     @Bean
     public RequestMappingHandlerAdapter requestMappingHandlerAdapter() {
         final RequestMappingHandlerAdapter adapter = new RequestMappingHandlerAdapter();
@@ -120,49 +129,105 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
         return adapter;
     }
 
+    /**
+     * The {@link ClusterMgrController} bean.
+     *
+     * @return The object.
+     */
     @Bean
     public ClusterMgrController clusterMgrController() {
         return new ClusterMgrController(clusterMgrService());
     }
 
+    /**
+     * The {@link DiagEnvironmentSummary} bean.
+     *
+     * @return The object.
+     */
+    @Bean
+    public DiagEnvironmentSummary diagFileNameFormatter() {
+        return new DiagEnvironmentSummary(BuildProperties.get(),
+            Clock.systemUTC(), (host, port) -> GrpcChannelFactory.newChannelBuilder(host, port).build());
+    }
+
+    /**
+     * The {@link ClusterMgrService} bean.
+     *
+     * @return The object.
+     */
     @Bean
     public ClusterMgrService clusterMgrService() {
         final ClusterMgrService clusterMgrService = new ClusterMgrService(consulService(),
-            osCommandProcessRunner());
+            osCommandProcessRunner(), diagFileNameFormatter());
         return clusterMgrService;
     }
 
-
+    /**
+     * The {@link LogConfigurationService} bean.
+     *
+     * @return The object.
+     */
     @Bean
     public LogConfigurationService logConfigurationService() {
         return new LogConfigurationService();
     }
 
+    /**
+     * The {@link LogConfigurationServiceController} bean.
+     *
+     * @return The object.
+     */
     @Bean
     public LogConfigurationServiceController logConfigurationServiceController() {
         return new LogConfigurationServiceController(logConfigurationService());
     }
 
+    /**
+     * The {@link ConsulService} bean.
+     *
+     * @return The object.
+     */
     @Bean
     public ConsulService consulService() {
         return new ConsulService(consulHost, consulPort);
     }
 
+    /**
+     * The {@link DataAggregator} bean.
+     *
+     * @return The object.
+     */
     @Bean
     public DataAggregator dataAggregator() {
         return new DataAggregator();
     }
 
+    /**
+     * The {@link TcpIpAggegatorReceiverBridge} bean.
+     *
+     * @return The object.
+     * @throws IOException If there is an initialization error.
+     */
     @Bean
     public TcpIpAggegatorReceiverBridge tcpIpAggegatorReceiverBridge() throws IOException {
         return new TcpIpAggegatorReceiverBridge(bridgePort, dataAggregator());
     }
 
+    /**
+     * The {@link OsCommandProcessRunner} bean.
+     *
+     * @return The object.
+     */
     @Bean
     public OsCommandProcessRunner osCommandProcessRunner() {
         return new OsCommandProcessRunner();
     }
 
+    /**
+     * The {@link OsProcessFactory} bean.
+     *
+     * @return The object.
+     */
     @Bean
     public OsProcessFactory scriptProcessFactory() {
         return new OsProcessFactory();

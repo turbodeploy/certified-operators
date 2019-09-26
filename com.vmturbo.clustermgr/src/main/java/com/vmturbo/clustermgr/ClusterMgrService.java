@@ -114,9 +114,10 @@ public class ClusterMgrService {
     private static final String CONSUL_HEALTH_CHECK_UNSUCCESSFUL_FRAGMENT = "no such host";
     private static final String GLOBAL_DEFAULT_COMPONENT_CONFIG_PROPERTIES_PATH =
         "config/global_defaults.properties";
+
     @VisibleForTesting
-    static final String HOME_TURBONOMIC_DATA_TURBO_FILE_ZIP =
-        "/home/turbonomic/data/turbonomic-diags-_%d.zip";
+    static final String HOME_TURBONOMIC_DATA_TURBO_FILE_PATH = "/home/turbonomic/data/";
+
     private static final String AT = "@";
 
 
@@ -163,6 +164,9 @@ public class ClusterMgrService {
     @VisibleForTesting
     static final String DIAGS_SUMMARY_FAIL_TXT = "DiagsSummary-Fail.txt";
 
+    @VisibleForTesting
+    static final String ENVIRONMENT_SUMMARY_TXT = "EnvironmentSummary.txt";
+
     // Custom diags collecting request configuration
     private final RequestConfig requestConfig = RequestConfig.custom()
         .setConnectTimeout(CONNECT_TIMEOUT)
@@ -186,6 +190,8 @@ public class ClusterMgrService {
      */
     private final ConsulService consulService;
 
+    private final DiagEnvironmentSummary diagEnvironmentSummary;
+
     private final AtomicBoolean kvInitialized = new AtomicBoolean(false);
 
     /**
@@ -193,11 +199,14 @@ public class ClusterMgrService {
      *
      * @param consulService the client API for calls to Consul
      * @param osCommandProcessRunner a utility object for running operating system commands
+     * @param diagEnvironmentSummary Utility to get summary information for diag collection.
      */
     public ClusterMgrService(@Nonnull final ConsulService consulService,
-                             @Nonnull final OsCommandProcessRunner osCommandProcessRunner) {
+                             @Nonnull final OsCommandProcessRunner osCommandProcessRunner,
+                             @Nonnull final DiagEnvironmentSummary diagEnvironmentSummary) {
         this.consulService = Objects.requireNonNull(consulService);
         this.osCommandProcessRunner = osCommandProcessRunner;
+        this.diagEnvironmentSummary = Objects.requireNonNull(diagEnvironmentSummary);
         loadGlobalDefaultProperties();
     }
 
@@ -577,6 +586,7 @@ public class ClusterMgrService {
             }
         }, errorMessagesBuild);
         getRsyslogDiags(diagnosticZip, acceptTypes, errorMessagesBuild);
+        insertDiagEnvironmentSummaryFile(diagnosticZip, errorMessagesBuild);
         insertDiagsSummaryFile(diagnosticZip, errorMessagesBuild);
 
         // finished all instances of all known components - finish the aggregate output .zip file
@@ -646,6 +656,38 @@ public class ClusterMgrService {
             }
         } catch (IOException e) {
             log.error(componentName + " --- Error fetching the information", e);
+        }
+    }
+
+    /**
+     * Insert an environment summary file into the diagnostics.
+     * For details about the contents of the file see: {@link DiagEnvironmentSummary}.
+     *
+     * @param diagnosticZip The output stream.
+     * @param errorMessagesBuild Builder for error messages encountered during the file insertion.
+     */
+    @VisibleForTesting
+    void insertDiagEnvironmentSummaryFile(@Nonnull final ZipOutputStream diagnosticZip,
+                                          @Nonnull final StringBuilder errorMessagesBuild) {
+        final ZipEntry zipEntry = new ZipEntry(ENVIRONMENT_SUMMARY_TXT);
+        try {
+            diagnosticZip.putNextEntry(zipEntry);
+            final byte[] data = diagEnvironmentSummary.getDiagSummary(globalDefaultProperties).getBytes();
+            diagnosticZip.write(data, 0, data.length);
+        } catch (IOException e) {
+            log.error("Error adding environment summary zip entry", e);
+            errorMessagesBuild.append("Failed to add environment summary due to error: ")
+                .append(e.getMessage())
+                .append("\n");
+        } finally {
+            try {
+                diagnosticZip.closeEntry();
+            } catch (IOException e) {
+                errorMessagesBuild.append("Failed to close environment summary entry to error: ")
+                    .append(e.getMessage())
+                    .append("\n");
+                log.error("Error closing environment summary zip entry", e);
+            }
         }
     }
 
@@ -1349,8 +1391,8 @@ public class ClusterMgrService {
     public synchronized boolean exportDiagnostics(final HttpProxyConfig httpProxy) {
         // export the diags file to /home/turbonomic/data/turbonomic-diags-_xxx.zip
         // xxx is current system time epoch.
-        final String fileName = String.format(HOME_TURBONOMIC_DATA_TURBO_FILE_ZIP,
-            System.currentTimeMillis());
+        final String fileName = HOME_TURBONOMIC_DATA_TURBO_FILE_PATH +
+            diagEnvironmentSummary.getDiagFileName(globalDefaultProperties);
         final File diagsFile = new File(fileName);
 
         // 1. write to file
@@ -1384,7 +1426,7 @@ public class ClusterMgrService {
             diagsFileOutputStream.close();
         } catch (IOException e) {
             log.error("Failed to write diagnostics file to {}. Error message: {}",
-                HOME_TURBONOMIC_DATA_TURBO_FILE_ZIP, e.getMessage() );
+                diagsFile.getPath(), e.getMessage() );
             return false;
         } finally {
             try {

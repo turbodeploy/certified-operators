@@ -1,5 +1,7 @@
 package com.vmturbo.clustermgr;
 
+import static org.mockito.Mockito.mock;
+
 import java.util.Collections;
 import java.util.Map;
 
@@ -36,7 +38,7 @@ public class ClusterMgrServiceIT {
     public void startup() {
         final ConsulService consulService = new ConsulService("localhost", consul.getHttpPort());
         final OsCommandProcessRunner runner = new OsCommandProcessRunner();
-        svc = new ClusterMgrService(consulService, runner);
+        svc = new ClusterMgrService(consulService, runner, mock(DiagEnvironmentSummary.class));
         svc.loadGlobalDefaultProperties();
         final ComponentProperties defaultProperties = new ComponentProperties();
         defaultProperties.put(PROP_1, PROP_1_DEF_VAL);
