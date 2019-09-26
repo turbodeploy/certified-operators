@@ -87,6 +87,9 @@ public class StatsConfig {
     @Value("${statsWritersMaxPoolSize}")
     private int statsWritersMaxPoolSize;
 
+    @Value("${systemLoadRecordsPerChunk}")
+    private int systemLoadRecordsPerChunk;
+
     @Bean
     public StatsHistoryRpcService statsRpcService() {
         return new StatsHistoryRpcService(realtimeTopologyContextId, liveStatsReader(),
@@ -94,7 +97,8 @@ public class StatsConfig {
                 historyDbConfig.historyDbIO(),
                 projectedStatsStore(), paginationParamsFactory(),
                 statSnapshotCreator(), statRecordBuilder(),
-                systemLoadReader(), systemLoadWriter());
+                systemLoadReader(), systemLoadWriter(),
+            systemLoadRecordsPerChunk);
     }
 
     @Bean

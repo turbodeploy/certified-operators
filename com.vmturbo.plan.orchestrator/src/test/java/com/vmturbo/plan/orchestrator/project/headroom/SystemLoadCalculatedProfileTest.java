@@ -2,7 +2,11 @@ package com.vmturbo.plan.orchestrator.project.headroom;
 
 import static org.junit.Assert.*;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
+
+import javax.annotation.Nonnull;
 
 import org.junit.Test;
 
@@ -10,7 +14,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
-import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
 import com.vmturbo.plan.orchestrator.project.headroom.SystemLoadCalculatedProfile.Operation;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -28,28 +31,30 @@ public class SystemLoadCalculatedProfileTest {
      */
     @Test
     public void testCreateVirtualMachineAvgProfile() {
-        SystemLoadInfoResponse.Builder resp = SystemLoadInfoResponse.newBuilder();
         int clusterId = 1;
-        // Records with VM id = 5 and cluster id 1
-        resp.addRecord(createRecord(0, 5, clusterId, "VCPU", 100));
-        resp.addRecord(createRecord(1, 5, clusterId, "CPU", 9));
-        resp.addRecord(createRecord(0, 5, clusterId, "VMEM", 50));
-        resp.addRecord(createRecord(1, 5, clusterId, "MEM", 10));
-        resp.addRecord(createRecord(1, 5, clusterId, "STORAGE_AMOUNT", 9));
-        resp.addRecord(createRecord(1, 5, clusterId, "NET_THROUGHPUT", 7));
-        resp.addRecord(createRecord(1, 5, clusterId, "IO_THROUGHPUT", 8));
-        resp.addRecord(createRecord(1, 5, clusterId, "STORAGE_ACCESS", 15));
-        // Records with VM id = 6 and cluster id 1
-        resp.addRecord(createRecord(0, 6, clusterId, "VMEM", 40));
-        resp.addRecord(createRecord(1, 6, clusterId, "MEM", 20));
-        resp.addRecord(createRecord(0, 6, clusterId, "VCPU", 50));
-        resp.addRecord(createRecord(1, 6, clusterId, "CPU", 6));
-        resp.addRecord(createRecord(1, 6, clusterId, "STORAGE_AMOUNT", 5));
-        resp.addRecord(createRecord(1, 6, clusterId, "NET_THROUGHPUT", 21));
-        resp.addRecord(createRecord(1, 6, clusterId, "IO_THROUGHPUT", 24));
-        resp.addRecord(createRecord(1, 6, clusterId, "STORAGE_ACCESS", 25));
-        SystemLoadCalculatedProfile profile =
-                        getSystemLoadCalculatedProfile(Operation.AVG, getClusterWithId(clusterId), resp.build());
+        List<SystemLoadRecord> systemLoadRecordList = Arrays.asList(
+            // Records with VM id = 5 and cluster id 1
+            createRecord(0, 5, clusterId, "VCPU", 100),
+            createRecord(1, 5, clusterId, "CPU", 9),
+            createRecord(0, 5, clusterId, "VMEM", 50),
+            createRecord(1, 5, clusterId, "MEM", 10),
+            createRecord(1, 5, clusterId, "STORAGE_AMOUNT", 9),
+            createRecord(1, 5, clusterId, "NET_THROUGHPUT", 7),
+            createRecord(1, 5, clusterId, "IO_THROUGHPUT", 8),
+            createRecord(1, 5, clusterId, "STORAGE_ACCESS", 15),
+            // Records with VM id = 6 and cluster id 1
+            createRecord(0, 6, clusterId, "VMEM", 40),
+            createRecord(1, 6, clusterId, "MEM", 20),
+            createRecord(0, 6, clusterId, "VCPU", 50),
+            createRecord(1, 6, clusterId, "CPU", 6),
+            createRecord(1, 6, clusterId, "STORAGE_AMOUNT", 5),
+            createRecord(1, 6, clusterId, "NET_THROUGHPUT", 21),
+            createRecord(1, 6, clusterId, "IO_THROUGHPUT", 24),
+            createRecord(1, 6, clusterId, "STORAGE_ACCESS", 25)
+        );
+
+        SystemLoadCalculatedProfile profile = getSystemLoadCalculatedProfile(
+            Operation.AVG, getClusterWithId(clusterId), systemLoadRecordList);
 
         profile.createVirtualMachineProfile();
 
@@ -104,27 +109,28 @@ public class SystemLoadCalculatedProfileTest {
         assertEquals(20d, Double.valueOf(accessSpeed.get().getValue()), delta);
     }
 
-
     /**
      * Set commodities across two virtual machines for avg profile
      *  and check for max consumption factor as used > capacity.
      */
     @Test
     public void testCreateVirtualMachineAvgProfileMaxConsumptionFactors() {
-        SystemLoadInfoResponse.Builder resp = SystemLoadInfoResponse.newBuilder();
         int clusterId = 1;
-        // Records with VM id = 5 and cluster id 1
-        resp.addRecord(createRecord(0, 5, clusterId, "VMEM", 50));
-        resp.addRecord(createRecord(1, 5, clusterId, "MEM", 100));
-        resp.addRecord(createRecord(0, 5, clusterId, "VCPU", 100));
-        resp.addRecord(createRecord(1, 5, clusterId, "CPU", 200));
-        // Records with VM id = 6 and cluster id 1
-        resp.addRecord(createRecord(0, 6, clusterId, "VMEM", 40));
-        resp.addRecord(createRecord(1, 6, clusterId, "MEM", 60));
-        resp.addRecord(createRecord(0, 6, clusterId, "VCPU", 50));
-        resp.addRecord(createRecord(1, 6, clusterId, "CPU", 60));
-        SystemLoadCalculatedProfile profile =
-                        getSystemLoadCalculatedProfile(Operation.AVG, getClusterWithId(clusterId), resp.build());
+        List<SystemLoadRecord> systemLoadRecordList = Arrays.asList(
+            // Records with VM id = 5 and cluster id 1
+            createRecord(0, 5, clusterId, "VMEM", 50),
+            createRecord(1, 5, clusterId, "MEM", 100),
+            createRecord(0, 5, clusterId, "VCPU", 100),
+            createRecord(1, 5, clusterId, "CPU", 200),
+            // Records with VM id = 6 and cluster id 1
+            createRecord(0, 6, clusterId, "VMEM", 40),
+            createRecord(1, 6, clusterId, "MEM", 60),
+            createRecord(0, 6, clusterId, "VCPU", 50),
+            createRecord(1, 6, clusterId, "CPU", 60)
+        );
+
+        SystemLoadCalculatedProfile profile = getSystemLoadCalculatedProfile(
+            Operation.AVG, getClusterWithId(clusterId), systemLoadRecordList);
 
         profile.createVirtualMachineProfile();
 
@@ -148,28 +154,30 @@ public class SystemLoadCalculatedProfileTest {
      */
     @Test
     public void testCreateVirtualMachineMaxProfile() {
-        SystemLoadInfoResponse.Builder resp = SystemLoadInfoResponse.newBuilder();
         int clusterId = 1;
-        // Records with VM id = 5 and cluster id 1
-        resp.addRecord(createRecord(0, 5, clusterId, "VMEM", 50));
-        resp.addRecord(createRecord(1, 5, clusterId, "MEM", 10));
-        resp.addRecord(createRecord(0, 5, clusterId, "VCPU", 100));
-        resp.addRecord(createRecord(1, 5, clusterId, "CPU", 9));
-        resp.addRecord(createRecord(1, 5, clusterId, "STORAGE_AMOUNT", 9));
-        resp.addRecord(createRecord(1, 5, clusterId, "NET_THROUGHPUT", 7));
-        resp.addRecord(createRecord(1, 5, clusterId, "IO_THROUGHPUT", 8));
-        resp.addRecord(createRecord(1, 5, clusterId, "STORAGE_ACCESS", 15));
-        // Records with VM id = 6 and cluster id 1
-        resp.addRecord(createRecord(0, 6, clusterId, "VMEM", 40));
-        resp.addRecord(createRecord(1, 6, clusterId, "MEM", 20));
-        resp.addRecord(createRecord(0, 6, clusterId, "VCPU", 50));
-        resp.addRecord(createRecord(1, 6, clusterId, "CPU", 6));
-        resp.addRecord(createRecord(1, 6, clusterId, "STORAGE_AMOUNT", 5));
-        resp.addRecord(createRecord(1, 6, clusterId, "NET_THROUGHPUT", 21));
-        resp.addRecord(createRecord(1, 6, clusterId, "IO_THROUGHPUT", 24));
-        resp.addRecord(createRecord(1, 6, clusterId, "STORAGE_ACCESS", 25));
-        SystemLoadCalculatedProfile profile =
-                        getSystemLoadCalculatedProfile(Operation.MAX, getClusterWithId(clusterId), resp.build());
+        List<SystemLoadRecord> systemLoadRecordList = Arrays.asList(
+            // Records with VM id = 5 and cluster id 1
+            createRecord(0, 5, clusterId, "VMEM", 50),
+            createRecord(1, 5, clusterId, "MEM", 10),
+            createRecord(0, 5, clusterId, "VCPU", 100),
+            createRecord(1, 5, clusterId, "CPU", 9),
+            createRecord(1, 5, clusterId, "STORAGE_AMOUNT", 9),
+            createRecord(1, 5, clusterId, "NET_THROUGHPUT", 7),
+            createRecord(1, 5, clusterId, "IO_THROUGHPUT", 8),
+            createRecord(1, 5, clusterId, "STORAGE_ACCESS", 15),
+            // Records with VM id = 6 and cluster id 1
+            createRecord(0, 6, clusterId, "VMEM", 40),
+            createRecord(1, 6, clusterId, "MEM", 20),
+            createRecord(0, 6, clusterId, "VCPU", 50),
+            createRecord(1, 6, clusterId, "CPU", 6),
+            createRecord(1, 6, clusterId, "STORAGE_AMOUNT", 5),
+            createRecord(1, 6, clusterId, "NET_THROUGHPUT", 21),
+            createRecord(1, 6, clusterId, "IO_THROUGHPUT", 24),
+            createRecord(1, 6, clusterId, "STORAGE_ACCESS", 25)
+        );
+
+        SystemLoadCalculatedProfile profile = getSystemLoadCalculatedProfile(
+            Operation.MAX, getClusterWithId(clusterId), systemLoadRecordList);
 
         profile.createVirtualMachineProfile();
 
@@ -229,20 +237,22 @@ public class SystemLoadCalculatedProfileTest {
      */
     @Test
     public void testCreateVirtualMachineMaxProfileMaxConsumptionFactors() {
-        SystemLoadInfoResponse.Builder resp = SystemLoadInfoResponse.newBuilder();
         int clusterId = 1;
-        // Records with VM id = 5 and cluster id 1
-        resp.addRecord(createRecord(0, 5, clusterId, "VMEM", 50));
-        resp.addRecord(createRecord(1, 5, clusterId, "MEM", 100));
-        resp.addRecord(createRecord(0, 5, clusterId, "VCPU", 100));
-        resp.addRecord(createRecord(1, 5, clusterId, "CPU", 200));
-        // Records with VM id = 6 and cluster id 1
-        resp.addRecord(createRecord(0, 6, clusterId, "VMEM", 40));
-        resp.addRecord(createRecord(1, 6, clusterId, "MEM", 60));
-        resp.addRecord(createRecord(0, 6, clusterId, "VCPU", 50));
-        resp.addRecord(createRecord(1, 6, clusterId, "CPU", 60));
-        SystemLoadCalculatedProfile profile =
-                        getSystemLoadCalculatedProfile(Operation.MAX, getClusterWithId(clusterId), resp.build());
+        List<SystemLoadRecord> systemLoadRecordList = Arrays.asList(
+            // Records with VM id = 5 and cluster id 1
+            createRecord(0, 5, clusterId, "VMEM", 50),
+            createRecord(1, 5, clusterId, "MEM", 100),
+            createRecord(0, 5, clusterId, "VCPU", 100),
+            createRecord(1, 5, clusterId, "CPU", 200),
+            // Records with VM id = 6 and cluster id 1
+            createRecord(0, 6, clusterId, "VMEM", 40),
+            createRecord(1, 6, clusterId, "MEM", 60),
+            createRecord(0, 6, clusterId, "VCPU", 50),
+            createRecord(1, 6, clusterId, "CPU", 60)
+        );
+
+        SystemLoadCalculatedProfile profile = getSystemLoadCalculatedProfile(
+            Operation.MAX, getClusterWithId(clusterId), systemLoadRecordList);
 
         profile.createVirtualMachineProfile();
 
@@ -268,9 +278,10 @@ public class SystemLoadCalculatedProfileTest {
         .findFirst();
     }
 
-    private SystemLoadCalculatedProfile getSystemLoadCalculatedProfile(Operation operation, Group cluster,
-                    SystemLoadInfoResponse sysLoadResponse) {
-        return new SystemLoadCalculatedProfile(operation, cluster, sysLoadResponse,
+    private SystemLoadCalculatedProfile getSystemLoadCalculatedProfile(
+            @Nonnull final Operation operation, @Nonnull final Group cluster,
+            @Nonnull final List<SystemLoadRecord> systemLoadRecordList) {
+        return new SystemLoadCalculatedProfile(operation, cluster, systemLoadRecordList,
                         cluster.getCluster().getName(), "");
     }
 

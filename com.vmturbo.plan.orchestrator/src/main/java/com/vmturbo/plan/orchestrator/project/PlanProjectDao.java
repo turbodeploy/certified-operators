@@ -44,7 +44,7 @@ public interface PlanProjectDao extends Diagnosable {
      * @return all plan projects of the specified type
      */
     @Nonnull
-    public List<PlanDTO.PlanProject> getPlanProjectsByType(@Nonnull PlanProjectType type);
+    List<PlanDTO.PlanProject> getPlanProjectsByType(@Nonnull PlanProjectType type);
 
     /**
      * Returns all the existing plan projects.
@@ -62,6 +62,4 @@ public interface PlanProjectDao extends Diagnosable {
      */
     @Nonnull
     Optional<PlanDTO.PlanProject> deletePlan(long id);
-
-    SystemLoadInfoResponse getSystemLoadInfo(SystemLoadInfoRequest request);
 }

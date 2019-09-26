@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multimap;
@@ -77,32 +79,31 @@ public class SystemLoadCalculatedProfile {
      *
      * @param operation can be MAX or AVG.
      * @param cluster for which we want to calculate profile and create template info for.
-     * @param records to process for system load calculation.
+     * @param systemLoadRecordList to process for system load calculation.
      * @param profileNamePostfix used to generate profile name.
      * @param profileDisplayNamePostfix used to generate profile name.
      */
-    public SystemLoadCalculatedProfile(final Operation operation, final Group cluster, final SystemLoadInfoResponse records,
-                    final String profileNamePostfix, final String profileDisplayNamePostfix) {
+    SystemLoadCalculatedProfile(
+            @Nonnull final Operation operation, @Nonnull final Group cluster,
+            @Nonnull final List<SystemLoadRecord> systemLoadRecordList,
+            final String profileNamePostfix, final String profileDisplayNamePostfix) {
         this.operation = operation;
         this.cluster = cluster;
         this.profileNamePostfix = profileNamePostfix;
         this.profileDisplayNamePostfix = profileDisplayNamePostfix;
-        createVirtualMachinesMap(records);
+        createVirtualMachinesMap(systemLoadRecordList);
     }
 
     /**
      * A map with VM uuid as key and records that belong to this uuid as value.
      *
-     * @param records to process.
+     * @param systemLoadRecordList to process.
      */
-    private void createVirtualMachinesMap(final SystemLoadInfoResponse records) {
-        if (records != null) {
-            List<SystemLoadRecord> recList = records.getRecordList();
-            for (SystemLoadRecord rec : recList) {
-                if (rec.getClusterId() == cluster.getId()) {
-                    String vmId = Long.toString(rec.getUuid());
-                    virtualMachinesMap.put(vmId, rec);
-                }
+    private void createVirtualMachinesMap(@Nonnull final List<SystemLoadRecord> systemLoadRecordList) {
+        for (SystemLoadRecord record : systemLoadRecordList) {
+            if (record.getClusterId() == cluster.getId()) {
+                String vmId = Long.toString(record.getUuid());
+                virtualMachinesMap.put(vmId, record);
             }
         }
     }
@@ -111,7 +112,7 @@ public class SystemLoadCalculatedProfile {
      * Based on operation type (AVG or MAX), iterate for all records for VMs' commodities and set values.
      * Use these values to create template info.
      */
-    public void createVirtualMachineProfile() {
+    void createVirtualMachineProfile() {
         // Assigning initial values to all of the variables to be placed in vm profile
         float vMemSize = 0;
         float vCPUSpeed = 0;

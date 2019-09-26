@@ -31,6 +31,7 @@ import org.springframework.util.CollectionUtils;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 
@@ -62,8 +63,6 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
-import com.vmturbo.common.protobuf.stats.Stats.MultiSystemLoadInfoRequest;
-import com.vmturbo.common.protobuf.stats.Stats.MultiSystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
@@ -79,7 +78,6 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
-import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.SharedMetrics;
@@ -123,6 +121,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     private final SystemLoadReader systemLoadReader;
     private final SystemLoadWriter systemLoadWriter;
 
+    private final int systemLoadRecordsPerChunk;
+
     private static final Set<String> HEADROOM_STATS =
                     ImmutableSet.of(StringConstants.CPU_HEADROOM,
                             StringConstants.MEM_HEADROOM,
@@ -159,7 +159,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                            @Nonnull final StatSnapshotCreator statSnapshotCreator,
                            @Nonnull final StatRecordBuilder statRecordBuilder,
                            @Nonnull final SystemLoadReader systemLoadReader,
-                           @Nonnull final SystemLoadWriter systemLoadWriter) {
+                           @Nonnull final SystemLoadWriter systemLoadWriter,
+                           final int systemLoadRecordsPerChunk) {
         this.realtimeContextId = realtimeContextId;
         this.liveStatsReader = Objects.requireNonNull(liveStatsReader);
         this.planStatsReader = Objects.requireNonNull(planStatsReader);
@@ -172,6 +173,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         this.statRecordBuilder = Objects.requireNonNull(statRecordBuilder);
         this.systemLoadReader = Objects.requireNonNull(systemLoadReader);
         this.systemLoadWriter = Objects.requireNonNull(systemLoadWriter);
+        this.systemLoadRecordsPerChunk = systemLoadRecordsPerChunk;
     }
 
     /**
@@ -1061,88 +1063,71 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     }
 
     /**
-     * The method reads all the system load related records for a slice.
-     *
-     * @param request It contains the id of the slice.
-     * @param responseObserver An indication that the request has completed.
-     */
-    @Override
-    public void getSystemLoadInfo(
-                    SystemLoadInfoRequest request,
-                    final StreamObserver<SystemLoadInfoResponse> responseObserver) {
-        final SystemLoadInfoResponse.Builder responseBuilder = SystemLoadInfoResponse.newBuilder();
-        final Stats.SystemLoadRecord.Builder recordBuilder = Stats.SystemLoadRecord.newBuilder();
-
-        List<SystemLoadRecord> records = systemLoadReader.getSystemLoadInfo(Long.toString(request.getClusterId()));
-        for (SystemLoadRecord record : records) {
-            Stats.SystemLoadRecord statsRecord = recordBuilder
-                    .setClusterId(record.getSlice() != null ? Long.parseLong(record.getSlice()) : 0L)
-                    .setSnapshotTime(record.getSnapshotTime() != null ? record.getSnapshotTime().getTime() : -1)
-                    .setUuid(record.getUuid() != null ? Long.parseLong(record.getUuid()) : 0L)
-                    .setProducerUuid(record.getProducerUuid() != null ? Long.parseLong(record.getProducerUuid()) : 0L)
-                    .setPropertyType(record.getPropertyType() != null ? record.getPropertyType() : "")
-                    .setPropertySubtype(record.getPropertySubtype() != null ? record.getPropertySubtype() : "")
-                    .setCapacity(record.getCapacity() != null ? record.getCapacity() : -1.0)
-                    .setAvgValue(record.getAvgValue() != null ? record.getAvgValue() : -1.0)
-                    .setMinValue(record.getMinValue() != null ? record.getMinValue() : -1.0)
-                    .setMaxValue(record.getMaxValue() != null ? record.getMaxValue() : -1.0)
-                    .setRelationType(record.getRelation() != null ? record.getRelation().ordinal() : -1)
-                    .setCommodityKey(record.getCommodityKey() != null ? record.getCommodityKey() : "").build();
-            responseBuilder.addRecord(statsRecord);
-        }
-        responseObserver.onNext(responseBuilder.build());
-        responseObserver.onCompleted();
-    }
-
-    /**
      * The method reads all the system load related records for all cluster ids.
      *
      * @param request It contains a list of cluster ids.
      * @param responseObserver An indication that the request has completed.
      */
     @Override
-    public void getMultiSystemLoadInfo(
-                    MultiSystemLoadInfoRequest request,
-                    final StreamObserver<MultiSystemLoadInfoResponse> responseObserver) {
-        // For now we essentially call the individual system load info RPC multiple times.
-        // In the future we can try to optimize this.
-        for (long clusterId : request.getClusterIdList()) {
-            final SystemLoadInfoRequest systemLoadInfoRequest =
-                SystemLoadInfoRequest.newBuilder().setClusterId(clusterId).build();
+    public void getSystemLoadInfo(
+                    final SystemLoadInfoRequest request,
+                    final StreamObserver<SystemLoadInfoResponse> responseObserver) {
+        if (request.getClusterIdList().size() == 0) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                .withDescription("No clusterId available")
+                .asException());
+            return;
+        }
 
-            getSystemLoadInfo(systemLoadInfoRequest, new StreamObserver<SystemLoadInfoResponse>() {
-                private final SetOnce<SystemLoadInfoResponse> response = new SetOnce<>();
-
-                @Override
-                public void onNext(final SystemLoadInfoResponse systemLoadInfoResponse) {
-                    this.response.trySetValue(systemLoadInfoResponse);
-                }
-
-                @Override
-                public void onError(final Throwable throwable) {
-                    logger.error("Encountered error for clusterId {}. Error: {}",
-                        clusterId, throwable.getMessage());
-                    responseObserver.onNext(MultiSystemLoadInfoResponse.newBuilder()
-                        .setClusterId(clusterId)
-                        .setError(throwable.getMessage())
-                        .build());
-                }
-
-                @Override
-                public void onCompleted() {
-                    final MultiSystemLoadInfoResponse.Builder builder =
-                        MultiSystemLoadInfoResponse.newBuilder().setClusterId(clusterId);
-
-                    response.getValue()
-                        .map(SystemLoadInfoResponse::getRecordList)
-                        .ifPresent(builder::addAllRecord);
-
-                    responseObserver.onNext(builder.build());
-                }
-            });
+        for (final long clusterId : request.getClusterIdList()) {
+            try {
+                // Chunking messages in order not to exceed gRPC message maximum size,
+                // which is 4MB by default. The size of each record is around 0.1KB.
+                Iterators.partition(
+                        systemLoadReader.getSystemLoadInfo(Long.toString(clusterId)).iterator(),
+                        systemLoadRecordsPerChunk)
+                    .forEachRemaining(chunkRecords -> {
+                        final SystemLoadInfoResponse.Builder chunkResponse =
+                            SystemLoadInfoResponse.newBuilder().setClusterId(clusterId);
+                        for (SystemLoadRecord record : chunkRecords) {
+                            chunkResponse.addRecord(systemLoadRecordToStatsSystemLoadRecord(record));
+                        }
+                        responseObserver.onNext(chunkResponse.build());
+                    });
+            } catch (RuntimeException e) {
+                logger.error("Encountered error for clusterId {}. Error: {}",
+                    clusterId, e.getMessage());
+                responseObserver.onNext(SystemLoadInfoResponse.newBuilder()
+                    .setClusterId(clusterId)
+                    .setError(e.getMessage())
+                    .build());
+            }
         }
 
         responseObserver.onCompleted();
+    }
+
+    /**
+     * Convert a {@link SystemLoadRecord} to a {@link Stats.SystemLoadRecord} for gRPC usage.
+     *
+     * @param record a {@link SystemLoadRecord}
+     * @return a {@link Stats.SystemLoadRecord}
+     */
+    private Stats.SystemLoadRecord systemLoadRecordToStatsSystemLoadRecord(
+            @Nonnull final SystemLoadRecord record) {
+        return Stats.SystemLoadRecord.newBuilder()
+            .setClusterId(record.getSlice() != null ? Long.parseLong(record.getSlice()) : 0L)
+            .setSnapshotTime(record.getSnapshotTime() != null ? record.getSnapshotTime().getTime() : -1)
+            .setUuid(record.getUuid() != null ? Long.parseLong(record.getUuid()) : 0L)
+            .setProducerUuid(record.getProducerUuid() != null ? Long.parseLong(record.getProducerUuid()) : 0L)
+            .setPropertyType(record.getPropertyType() != null ? record.getPropertyType() : "")
+            .setPropertySubtype(record.getPropertySubtype() != null ? record.getPropertySubtype() : "")
+            .setCapacity(record.getCapacity() != null ? record.getCapacity() : -1.0)
+            .setAvgValue(record.getAvgValue() != null ? record.getAvgValue() : -1.0)
+            .setMinValue(record.getMinValue() != null ? record.getMinValue() : -1.0)
+            .setMaxValue(record.getMaxValue() != null ? record.getMaxValue() : -1.0)
+            .setRelationType(record.getRelation() != null ? record.getRelation().ordinal() : -1)
+            .setCommodityKey(record.getCommodityKey() != null ? record.getCommodityKey() : "").build();
     }
 
     /**

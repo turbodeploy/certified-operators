@@ -45,9 +45,6 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
 
     private final Logger logger = LoggerFactory.getLogger(PlanProjectDaoImpl.class);
 
-    private final StatsHistoryServiceBlockingStub historyClient;
-
-
     /**
      * Database access context.
      */
@@ -57,13 +54,12 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
      * Constructs plan project DAO.
      *
      * @param dsl database access context
+     * @param identityInitializer identity generator
      */
     public PlanProjectDaoImpl(@Nonnull final DSLContext dsl,
-                              @Nonnull final IdentityInitializer identityInitializer,
-                              final StatsHistoryServiceBlockingStub historyClient) {
+                              @Nonnull final IdentityInitializer identityInitializer) {
         this.dsl = Objects.requireNonNull(dsl);
         Objects.requireNonNull(identityInitializer); // Ensure identity generator is initialized
-        this.historyClient = historyClient;
     }
 
     @Nonnull
@@ -283,11 +279,5 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
         } catch (DataAccessException e) {
             return 0;
         }
-    }
-
-    @Override
-    public SystemLoadInfoResponse getSystemLoadInfo(SystemLoadInfoRequest request) {
-        SystemLoadInfoResponse systemLoadInfo = historyClient.getSystemLoadInfo(request);
-        return systemLoadInfo;
     }
 }

@@ -77,7 +77,7 @@ public class PlanProjectRpcServiceTest {
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
-        planProjectDao = new PlanProjectDaoImpl(dbConfig.dsl(),new IdentityInitializer(0), null);
+        planProjectDao = new PlanProjectDaoImpl(dbConfig.dsl(), new IdentityInitializer(0));
         prepareDatabase();
         planProjectRpcService = new PlanProjectRpcService(planProjectDao, planProjectExecutor);
     }

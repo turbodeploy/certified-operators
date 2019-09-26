@@ -18,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.grpc.Channel;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
@@ -26,6 +27,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProject;
@@ -44,7 +46,9 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRe
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
-import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
+import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -69,8 +73,6 @@ public class PlanProjectExecutor {
 
     private final PlanDao planDao;
 
-    private final PlanProjectDao planProjectDao;
-
     private final PlanRpcService planService;
 
     private final ProjectPlanPostProcessorRegistry projectPlanPostProcessorRegistry;
@@ -83,11 +85,11 @@ public class PlanProjectExecutor {
 
     private final Channel groupChannel;
 
-    private final GroupServiceGrpc.GroupServiceBlockingStub groupRpcService;
+    private final GroupServiceBlockingStub groupRpcService;
 
     private final SettingServiceBlockingStub settingService;
 
-    private final PlanInstanceQueue planInstanceQueue;
+    private final StatsHistoryServiceBlockingStub statsHistoryService;
 
     // If true, calculate headroom for all clusters in one plan instance.
     // If false, calculate headroom for restricted number of clusters in multiple plan instances.
@@ -109,39 +111,35 @@ public class PlanProjectExecutor {
      * Constructor for {@link PlanProjectExecutor}
      *
      * @param planDao Plan DAO
-     * @param planProjectDao PlanProject DAO
      * @param groupChannel  Group service channel
      * @param planRpcService Plan RPC Service
      * @param projectPlanPostProcessorRegistry Registry for post processors of plans
      * @param repositoryChannel Repository channel
      * @param templatesDao templates DAO
      * @param historyChannel history channel
-     * @param planInstanceQueue a queue of plan instances
      * @param headroomCalculationForAllClusters specifies how to run cluster headroom plan
      */
     PlanProjectExecutor(@Nonnull final PlanDao planDao,
-                        @Nonnull final PlanProjectDao planProjectDao,
                         @Nonnull final Channel groupChannel,
                         @Nonnull final PlanRpcService planRpcService,
                         @Nonnull final ProjectPlanPostProcessorRegistry projectPlanPostProcessorRegistry,
                         @Nonnull final Channel repositoryChannel,
                         @Nonnull final TemplatesDao templatesDao,
                         @Nonnull final Channel historyChannel,
-                        @Nonnull final PlanInstanceQueue planInstanceQueue,
                         final boolean headroomCalculationForAllClusters) {
         this.groupChannel = Objects.requireNonNull(groupChannel);
         this.planService = Objects.requireNonNull(planRpcService);
         this.projectPlanPostProcessorRegistry = Objects.requireNonNull(projectPlanPostProcessorRegistry);
         this.repositoryChannel = Objects.requireNonNull(repositoryChannel);
         this.planDao = Objects.requireNonNull(planDao);
-        this.planProjectDao = Objects.requireNonNull(planProjectDao);
         this.templatesDao = Objects.requireNonNull(templatesDao);
         this.historyChannel = Objects.requireNonNull(historyChannel);
-        this.planInstanceQueue = Objects.requireNonNull(planInstanceQueue);
         this.headroomCalculationForAllClusters = headroomCalculationForAllClusters;
 
-        groupRpcService = GroupServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
-        settingService = SettingServiceGrpc.newBlockingStub(groupChannel);
+        this.groupRpcService = GroupServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
+        this.settingService = SettingServiceGrpc.newBlockingStub(groupChannel);
+        this.statsHistoryService =
+            StatsHistoryServiceGrpc.newBlockingStub(Objects.requireNonNull(historyChannel));
     }
 
     /**
@@ -335,6 +333,9 @@ public class PlanProjectExecutor {
                         logger.trace("Failed to update headroom template for cluster name {}, id {}: {}",
                             cluster.getCluster().getDisplayName(), cluster.getId(), e.getMessage());
                     }
+                } catch (StatusRuntimeException e) {
+                    logger.error("Failed to retrieve system load of cluster name {}, id {}: {}",
+                        cluster.getCluster().getDisplayName(), cluster.getId(), e.getMessage());
                 }
             }
 
@@ -383,15 +384,18 @@ public class PlanProjectExecutor {
     private void updateClusterHeadroomTemplate(@Nonnull Group cluster)
                 throws NoSuchObjectException, IllegalTemplateOperationException,
                        DuplicateTemplateException {
-        SystemLoadInfoRequest.Builder builder = SystemLoadInfoRequest.newBuilder();
-        SystemLoadInfoResponse response = planProjectDao.getSystemLoadInfo(builder.setClusterId(cluster.getId()).build());
+        List<SystemLoadRecord> systemLoadRecordList = new ArrayList<>();
+        statsHistoryService.getSystemLoadInfo(
+                SystemLoadInfoRequest.newBuilder().addClusterId(cluster.getId()).build())
+            .forEachRemaining(response -> systemLoadRecordList.addAll(response.getRecordList()));
 
-        if (response == null || response.getRecordCount() == 0) {
+        if (systemLoadRecordList.isEmpty()) {
             throw new NoSuchObjectException("No system load records found for cluster : "
                 + cluster.getCluster().getDisplayName());
         }
 
-        SystemLoadProfileCreator profiles = new SystemLoadProfileCreator(cluster, response, LOOPBACK_DAYS);
+        SystemLoadProfileCreator profiles = new SystemLoadProfileCreator(
+            cluster, systemLoadRecordList, LOOPBACK_DAYS);
         Map<Operation, SystemLoadCalculatedProfile> profilesMap = profiles.createAllProfiles();
         SystemLoadCalculatedProfile avgProfile = profilesMap.get(Operation.AVG);
         Optional<TemplateInfo> headroomTemplateInfo = avgProfile.getHeadroomTemplateInfo();

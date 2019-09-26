@@ -375,24 +375,12 @@ message GetEntityCommoditiesMaxValuesRequest {
 
 // Request for system load info.
 message SystemLoadInfoRequest {
-    // The ID of the cluster
-    optional int64 cluster_id = 1;
-}
-
-// Response for system load info.
-message SystemLoadInfoResponse {
-    // List of system load records.
-    repeated SystemLoadRecord record = 1;
-}
-
-// Request for system load info.
-message MultiSystemLoadInfoRequest {
     // A list of "cluster ids" - each cluster id is a request for a list of system load records.
     repeated int64 cluster_id = 1;
 }
 
 // Response for system load info.
-message MultiSystemLoadInfoResponse {
+message SystemLoadInfoResponse {
     // The ID of the cluster this response pertains to.
     optional int64 cluster_id = 1;
 
@@ -553,14 +541,7 @@ service StatsHistoryService {
     rpc GetEntityCommoditiesMaxValues(GetEntityCommoditiesMaxValuesRequest) returns (stream EntityCommoditiesMaxValues);
 
     // Get the system load information for a specific slice (cluster)
-    rpc GetSystemLoadInfo(SystemLoadInfoRequest) returns (SystemLoadInfoResponse);
-
-    // Retrieve multiple lists of system load records in one call.
-    // This is equivalent to calling GetSystemLoadInfo multiple times, but it provides an easier way
-    // to do it from the client's perspective and allows for optimizations on the server.
-    //
-    // The response streams back each list of system load records once it's computed.
-    rpc GetMultiSystemLoadInfo(MultiSystemLoadInfoRequest) returns (stream MultiSystemLoadInfoResponse);
+    rpc GetSystemLoadInfo(SystemLoadInfoRequest) returns (stream SystemLoadInfoResponse);
 
     // Get the entityId and the corresponding entityType.
     // NOTE: This rpc call is used for a specific upgrade use case. DON'T USE THIS FOR OTHER SCENARIOS.

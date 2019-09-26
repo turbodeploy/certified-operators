@@ -65,7 +65,7 @@ public class PlanProjectConfig {
 
     @Bean
     public PlanProjectDao planProjectDao() {
-        return new PlanProjectDaoImpl(databaseConfig.dsl(), globalConfig.identityInitializer(), historyRpcService());
+        return new PlanProjectDaoImpl(databaseConfig.dsl(), globalConfig.identityInitializer());
     }
 
     @Bean
@@ -83,14 +83,12 @@ public class PlanProjectConfig {
     @Bean
     public PlanProjectExecutor planProjectExecutor() {
         return new PlanProjectExecutor(planConfig.planDao(),
-                planProjectDao(),
                 groupClientConfig.groupChannel(),
                 planConfig.planService(),
                 planProjectRuntime(),
                 repositoryClientConfig.repositoryChannel(),
                 templatesConfig.templatesDao(),
                 historyClientConfig.historyChannel(),
-                planConfig.planInstanceQueue(),
                 headroomCalculationForAllClusters);
     }
 
@@ -98,5 +96,4 @@ public class PlanProjectConfig {
     public StatsHistoryServiceBlockingStub historyRpcService() {
         return StatsHistoryServiceGrpc.newBlockingStub(historyClientConfig.historyChannel());
     }
-
 }

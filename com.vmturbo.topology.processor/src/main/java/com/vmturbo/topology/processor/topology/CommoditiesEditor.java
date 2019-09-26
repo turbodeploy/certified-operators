@@ -23,7 +23,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
-import com.vmturbo.common.protobuf.stats.Stats.MultiSystemLoadInfoRequest;
+import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
@@ -352,11 +352,11 @@ public class CommoditiesEditor {
             return;
         }
 
-        MultiSystemLoadInfoRequest.Builder requestBuilder = MultiSystemLoadInfoRequest.newBuilder();
+        SystemLoadInfoRequest.Builder requestBuilder = SystemLoadInfoRequest.newBuilder();
         scope.getScopeEntriesList().stream().map(PlanScopeEntry::getScopeObjectOid)
             .forEach(requestBuilder::addClusterId);
 
-        historyClient.getMultiSystemLoadInfo(requestBuilder.build())
+        historyClient.getSystemLoadInfo(requestBuilder.build())
             .forEachRemaining(response -> {
                 final long clusterId = response.getClusterId();
                 if (response.hasError()) {

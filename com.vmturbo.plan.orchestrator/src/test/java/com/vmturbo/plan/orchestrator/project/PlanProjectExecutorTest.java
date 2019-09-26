@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateRequest;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
@@ -45,15 +46,14 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.setting.SettingProtoMoles;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
+import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
-import com.vmturbo.plan.orchestrator.plan.PlanInstanceQueue;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 
@@ -64,30 +64,27 @@ public class PlanProjectExecutorTest {
 
     private PlanDao planDao = mock(PlanDao.class);
 
-    private PlanProjectDao planProjectDao = mock(PlanProjectDao.class);
-
     private PlanProjectExecutor planProjectExecutor;
 
-    private GroupDTOMoles.GroupServiceMole groupServiceMole = spy(new GroupDTOMoles.GroupServiceMole());
+    private GroupServiceMole groupServiceMole = spy(new GroupDTOMoles.GroupServiceMole());
 
-    private SettingProtoMoles.SettingServiceMole settingServiceMole = spy(new SettingServiceMole());
+    private SettingServiceMole settingServiceMole = spy(new SettingServiceMole());
+
+    private StatsHistoryServiceMole statsHistoryServiceMole = spy(new StatsHistoryServiceMole());
 
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceMole, settingServiceMole);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceMole, settingServiceMole, statsHistoryServiceMole);
 
     private TemplatesDao templatesDao = mock(TemplatesDao.class);
 
     @Before
-    public void setup() throws Exception {
+    public void setup() {
         IdentityGenerator.initPrefix(0);
         ProjectPlanPostProcessorRegistry registry = mock(ProjectPlanPostProcessorRegistry.class);
         PlanRpcService planRpcService = mock(PlanRpcService.class);
         Channel repositoryChannel = mock(Channel.class);
-        Channel historyChannel = mock(Channel.class);
-        PlanInstanceQueue planInstanceQueue = mock(PlanInstanceQueue.class);
-        planProjectExecutor = new PlanProjectExecutor(planDao, planProjectDao, grpcServer.getChannel(),
-                planRpcService, registry, repositoryChannel, templatesDao, historyChannel,
-                planInstanceQueue, true);
+        planProjectExecutor = new PlanProjectExecutor(planDao, grpcServer.getChannel(),
+                planRpcService, registry, repositoryChannel, templatesDao, grpcServer.getChannel(), true);
         when(templatesDao.getFilteredTemplates(any()))
             .thenReturn(Collections.singleton(Template.newBuilder()
                     .setId(7L)
@@ -95,13 +92,13 @@ public class PlanProjectExecutorTest {
                     .setTemplateInfo(TemplateInfo.newBuilder()
                         .setName(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME))
                     .build()));
-        when(planProjectDao.getSystemLoadInfo(any()))
-            .thenReturn(SystemLoadInfoResponse.newBuilder()
+        when(statsHistoryServiceMole.getSystemLoadInfo(any()))
+            .thenReturn(Collections.singletonList(SystemLoadInfoResponse.newBuilder()
                 .addRecord(SystemLoadRecord.newBuilder()
                     .setPropertyType("VCPU")
                     .setAvgValue(10)
                     .setRelationType(0))
-                .build());
+                .build()));
     }
 
     @Test
