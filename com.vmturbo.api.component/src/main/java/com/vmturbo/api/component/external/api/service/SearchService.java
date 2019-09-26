@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.service;
 import static com.vmturbo.api.component.external.api.mapper.GroupMapper.ACCOUNT_OID;
 import static com.vmturbo.api.component.external.api.mapper.GroupMapper.STATE;
 import static com.vmturbo.components.common.utils.StringConstants.CLUSTER;
+import static com.vmturbo.components.common.utils.StringConstants.GROUP;
 import static com.vmturbo.components.common.utils.StringConstants.STORAGE_CLUSTER;
 import static com.vmturbo.components.common.utils.StringConstants.VIRTUAL_MACHINE_CLUSTER;
 
@@ -26,15 +27,15 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.util.CollectionUtils;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper;
@@ -51,6 +52,7 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
+import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
@@ -73,6 +75,7 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -280,7 +283,7 @@ public class SearchService implements ISearchService {
                 .collect(Collectors.toList()));
         } else if (types != null) {
             // Check for a type that requires a query to a specific service, vs. Repository search.
-            if (types.contains(StringConstants.GROUP)) {
+            if (types.contains(GROUP)) {
                 // IN Classic, this returns all Groups + Clusters. So we call getGroups which gets
                 // all Groups(supertype).
                 final Collection<GroupApiDTO> groups = groupsService.getGroups();
@@ -397,32 +400,74 @@ public class SearchService implements ISearchService {
                                                             SearchPaginationRequest paginationRequest)
         throws OperationFailedException, InvalidOperationException {
         // the query input is called a GroupApiDTO even though this search can apply to any type
-        // what sort of search is this
-        final List<? extends BaseApiDTO> result;
-        if (StringConstants.GROUP.equals(inputDTO.getClassName())) {
-            // this is a search for a group
-            return groupsService.getPaginatedGroupApiDTOS(inputDTO.getCriteriaList(),
-                paginationRequest);
-        } else if (CLUSTER.equals(inputDTO.getClassName())) {
-            // this is a search for a compute Cluster of physical machines
-            result = groupsService.getClusters(ClusterInfo.Type.COMPUTE, inputDTO.getScope(),
-                inputDTO.getCriteriaList());
-        } else if (STORAGE_CLUSTER.equals(inputDTO.getClassName())) {
-            // this is a search for a storage Cluster
-            result = groupsService.getClusters(ClusterInfo.Type.STORAGE, inputDTO.getScope(),
-                inputDTO.getCriteriaList());
-        } else if (VIRTUAL_MACHINE_CLUSTER.equals(inputDTO.getClassName())) {
-            // this is a search for a computer Cluster of virtual machines
-            result = groupsService.getClusters(ClusterInfo.Type.COMPUTE_VIRTUAL_MACHINE,
-                    inputDTO.getScope(), inputDTO.getCriteriaList());
-        } else {
-            return searchEntitiesByParameters(inputDTO, query, paginationRequest);
+        // if this is a group search, we need to know the right "name filter type" that can be used
+        // to search for a group by name. These come from the groupBuilderUsecases.json file.
+        switch (StringUtils.defaultIfEmpty(inputDTO.getClassName(),"")) {
+            case GROUP:
+                return groupsService.getPaginatedGroupApiDTOS(
+                        addNameMatcher(query, inputDTO.getCriteriaList(), GroupMapper.GROUPS_FILTER_TYPE),
+                        paginationRequest);
+            case CLUSTER:
+                // this is a search for a compute Cluster of physical machines
+                return paginationRequest.allResultsResponse(
+                        Collections.unmodifiableList(
+                            groupsService.getClusters(ClusterInfo.Type.COMPUTE,
+                                inputDTO.getScope(),
+                                addNameMatcher(query,
+                                        inputDTO.getCriteriaList(),
+                                        GroupMapper.CLUSTERS_FILTER_TYPE))));
+            case STORAGE_CLUSTER:
+                // this is a search for a storage Cluster
+                return paginationRequest.allResultsResponse(
+                        Collections.unmodifiableList(
+                            groupsService.getClusters(Type.STORAGE,
+                                inputDTO.getScope(),
+                                addNameMatcher(query,
+                                        inputDTO.getCriteriaList(),
+                                        GroupMapper.STORAGE_CLUSTERS_FILTER_TYPE))));
+            case VIRTUAL_MACHINE_CLUSTER:
+                // this is a search for a compute cluster of virtual machines
+                return paginationRequest.allResultsResponse(
+                        Collections.unmodifiableList(
+                                groupsService.getClusters(ClusterInfo.Type.COMPUTE_VIRTUAL_MACHINE,
+                                        inputDTO.getScope(),
+                                        addNameMatcher(query,
+                                                inputDTO.getCriteriaList(),
+                                                GroupMapper.VIRTUALMACHINE_CLUSTERS_FILTER_TYPE))));
+            default:
+                // this isn't a group search after all -- use a generic search method instead.
+                return searchEntitiesByParameters(inputDTO, query, paginationRequest);
         }
-        return paginationRequest.allResultsResponse(result.stream()
-                .filter(dto -> !StringUtils.isEmpty(query)
-                        ? StringUtils.containsIgnoreCase(dto.getDisplayName(), query)
-                        : true)
-                .collect(Collectors.toList()));
+    }
+
+    /**
+     * This utility method will add a group/cluster/storage cluster display name filter based on the
+     * input "string to match", if the "string to match" isn't empty. Otherwise, it does nothing.
+     *
+     * @param stringToMatch the potential string to match. Can be blank or null.
+     * @param originalFilters the existing filters
+     * @param filterTypeToUse the filter type to use when optionally creating the filter.
+     * @return the list of filters + an additional one for the "string to match"
+     */
+    @VisibleForTesting
+    protected List<FilterApiDTO> addNameMatcher(String stringToMatch,
+                                              List<FilterApiDTO> originalFilters,
+                                              String filterTypeToUse) {
+        if (StringUtils.isEmpty(stringToMatch)) {
+            return originalFilters;
+        }
+        // create a name filter for the 'query' and add it to the filters list.
+        FilterApiDTO nameFilter = new FilterApiDTO();
+        nameFilter.setExpVal(".*" + stringToMatch + ".*"); // turn it into a wildcard regex
+        nameFilter.setExpType(GroupMapper.REGEX_MATCH);
+        nameFilter.setCaseSensitive(true);
+        nameFilter.setFilterType(filterTypeToUse);
+        List<FilterApiDTO> returnFilters = new ArrayList<>();
+        returnFilters.add(nameFilter);
+        if (!CollectionUtils.isEmpty(originalFilters)) {
+            returnFilters.addAll(originalFilters);
+        }
+        return returnFilters;
     }
 
     /**

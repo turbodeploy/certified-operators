@@ -19,6 +19,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -30,16 +31,17 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -61,6 +63,7 @@ import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.Sup
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
+import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
@@ -594,4 +597,25 @@ public class SearchServiceTest {
         }
         assertEquals(3, resultCount);
     }
+
+    /**
+     * Tests to validate that logic to auto-create a display name matching filter on group searches
+     * is working as expected.
+     */
+    @Test
+    public void testAddGroupNameMatcher() {
+        List<FilterApiDTO> originalFilters = new ArrayList<>();
+        originalFilters.add(new FilterApiDTO());
+
+        // verify that an empty or null string doesn't alter the contents of the list.
+        Assert.assertEquals(1, searchService.addNameMatcher("", originalFilters, "Type").size());
+        Assert.assertEquals(1, searchService.addNameMatcher(null, originalFilters, "Type").size());
+
+        // a valid search string should increase the number of filters by 1
+        Assert.assertEquals(2, searchService.addNameMatcher("match me bro", originalFilters, "Type").size());
+
+        // verify that a null filter list but valid search string will give you a singleton list
+        Assert.assertEquals(1, searchService.addNameMatcher("match me bro", null, "Type").size());
+    }
+
 }

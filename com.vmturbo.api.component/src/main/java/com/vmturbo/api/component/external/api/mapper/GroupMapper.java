@@ -98,15 +98,15 @@ public class GroupMapper {
         StringConstants.CLUSTER, StringConstants.STORAGE_CLUSTER,
             StringConstants.VIRTUAL_MACHINE_CLUSTER);
 
-    private static final String GROUPS_FILTER_TYPE = "groupsByName";
+    public static final String GROUPS_FILTER_TYPE = "groupsByName";
 
     public static final String CLUSTERS_FILTER_TYPE = "clustersByName";
 
     public static final String CLUSTERS_BY_TAGS_FILTER_TYPE = "clustersByTag";
 
-    private static final String STORAGE_CLUSTERS_FILTER_TYPE = "storageClustersByName";
+    public static final String STORAGE_CLUSTERS_FILTER_TYPE = "storageClustersByName";
 
-    private static final String VIRTUALMACHINE_CLUSTERS_FILTER_TYPE = "virtualMachineClustersByName";
+    public static final String VIRTUALMACHINE_CLUSTERS_FILTER_TYPE = "virtualMachineClustersByName";
 
     private static final Set<String> GROUP_NAME_FILTER_TYPES = ImmutableSet.of(
             GROUPS_FILTER_TYPE, CLUSTERS_FILTER_TYPE,
