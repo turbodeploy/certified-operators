@@ -38,6 +38,7 @@ public class HistorydbIOTest {
     private DbTestConfig dbTestConfig;
     private String testDbName;
     private HistorydbIO historydbIO;
+    private static final int UTILIZATION_PRECISION = 3;
 
     @Before
     public void setup() {
@@ -94,7 +95,10 @@ public class HistorydbIOTest {
         Field<Double> field = seekPaginationCursor.getValueField(paginationParam, VmStatsLatest.VM_STATS_LATEST);
         // the filed type is org.jooq.impl.Expression which is not exposed. There seems no other way to validate
         // the output other than filed.toString.
-        assertEquals("(\"vmtdb\".\"vm_stats_latest\".\"avg_value\" / \"vmtdb\".\"vm_stats_latest\".\"capacity\")"
+        assertEquals("round(\n" +
+                "  (\"vmtdb\".\"vm_stats_latest\".\"avg_value\" / \"vmtdb\".\"vm_stats_latest\".\"capacity\"), \n" +
+                "  "+UTILIZATION_PRECISION+"\n" +
+                ")"
             , field.toString());
     }
 

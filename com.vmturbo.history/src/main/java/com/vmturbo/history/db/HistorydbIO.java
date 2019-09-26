@@ -111,7 +111,7 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig.SQLConfigObject;
 /**
  * Dbio Component for use within the History Component.
  **/
-public class HistorydbIO extends BasedbIO {
+public class  HistorydbIO extends BasedbIO {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -121,6 +121,7 @@ public class HistorydbIO extends BasedbIO {
 
     // min and max for numerical values for the statstables; must fit in DECIMAL(15,3), 12 digits
     private static final double MAX_STATS_VALUE = 1e12D - 1;
+    private static final int UTILIZATION_PRECISION = 3;
     private static final double MIN_STATS_VALUE = -MAX_STATS_VALUE;
     private final SQLConfigObject sqlConfigObject;
     private static final String SECURE_DB_URL = "?useSSL=true&trustServerCertificate=true";
@@ -815,12 +816,15 @@ public class HistorydbIO extends BasedbIO {
         conditions.add(str(dField(table, PROPERTY_TYPE)).eq(paginationParams.getSortCommodity()));
         if (!paginationParams.getSortCommodity().equals(PRICE_INDEX)) {
             // For "regular" commodities (e.g. CPU, Mem), we want to make sure to sort by the used
-            // value.
+            // value and only use commodities that are being sold.
             conditions.add(str(dField(table, PROPERTY_SUBTYPE)).eq(PROPERTY_SUBTYPE_USED));
+            conditions.add(relType(dField(table, RELATION)).eq(RelationType.COMMODITIES));
         }
 
         // This call adds the seek pagination parameters to the list of conditions.
-        seekPaginationCursor.toCondition(table, paginationParams).ifPresent(conditions::add);
+        seekPaginationCursor.toCondition(table, paginationParams)
+            .ifPresent(cursorConditions -> conditions.addAll(cursorConditions));
+
 
         final Field<String> uuidField = (Field<String>) dField(table, UUID);
         final Field<Double> valueField = seekPaginationCursor.getValueField(paginationParams,table);
@@ -838,10 +842,10 @@ public class HistorydbIO extends BasedbIO {
                 .from(table)
                 // The pagination is enforced by the conditions (see above).
                 .where(conditions)
-                .groupBy((Field<String>) dField(table, UUID))
-                .orderBy(paginationParams.isAscending() ? avg(valueField).asc().nullsLast() :
-                        avg(valueField).desc().nullsLast(),
-                    paginationParams.isAscending() ? uuidField.asc() : uuidField.desc())
+                .orderBy(paginationParams.isAscending() ? valueField.asc().nullsLast() :
+                        valueField.desc().nullsLast(),
+                    paginationParams.isAscending() ?
+                    uuidField.asc() : uuidField.desc())
                 // Add one to the limit so we can tests to see if there are more results.
                 .limit(paginationParams.getLimit() + 1)
                 .fetch();
@@ -1668,7 +1672,7 @@ public class HistorydbIO extends BasedbIO {
                                     @Nonnull final Table<?> table) {
             final Field<Double> avgValueField = (doubl(dField(table, AVG_VALUE)));
             return paginationParams.getSortCommodity().equals(PRICE_INDEX)
-                ? avgValueField : avgValueField.divide((doubl(dField(table, CAPACITY))));
+                ? avgValueField : avgValueField.divide((doubl(dField(table, CAPACITY)))).round(UTILIZATION_PRECISION);
         }
 
         /**
@@ -1683,14 +1687,26 @@ public class HistorydbIO extends BasedbIO {
          * the next page of results, or an empty optional if the cursor is empty (i.e.
          * we just want the first page of results).
          */
-        public Optional<Condition> toCondition(final Table<?> table, @Nonnull final EntityStatsPaginationParams paginationParams) {
+        public Optional<List<Condition>> toCondition(final Table<?> table,
+                                                @Nonnull final EntityStatsPaginationParams paginationParams) {
             if (lastId.isPresent() && lastValue.isPresent()) {
                 // See: https://blog.jooq.org/2013/10/26/faster-sql-paging-with-jooq-using-the-seek-method/
+                // In some cases, because of approximations in the utilization (since it's a
+                // ratio between two decimals), we might get the same element that is expressed
+                // in the cursor, when we evaluate a < or > expression. To avoid those edge cases
+                // we explicitly add a condition that states that the ids we fetch need
+                // to be different than the one passed in the cursor
+
+                List<Condition> conditions = new ArrayList<>();
+                conditions.add(row((Field<String>) dField(table, UUID)).ne(lastId.get()));
                 if (paginationParams.isAscending()) {
-                    return Optional.of(row(getValueField(paginationParams, table),
-                        (Field<String>) dField(table, UUID)).gt(lastValue.get(), lastId.get()));
+                    conditions.add(row(getValueField(paginationParams, table),
+                        (Field<String>) dField(table, UUID)).ge(lastValue.get(), lastId.get()));
+                    return Optional.of(conditions);
                 } else {
-                    return Optional.of(row(getValueField(paginationParams, table), (Field<String>) dField(table, UUID)).lt(lastValue.get(), lastId.get()));
+                    conditions.add(row(getValueField(paginationParams, table),
+                        (Field<String>) dField(table, UUID)).le(lastValue.get(), lastId.get()));
+                    return Optional.of(conditions);
                 }
             } else {
                 return Optional.empty();
