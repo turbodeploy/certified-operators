@@ -12,7 +12,8 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
-import com.vmturbo.mediation.hybrid.cloud.utils.OSType;
+import com.vmturbo.mediation.hybrid.cloud.common.OsDetailParser;
+import com.vmturbo.mediation.hybrid.cloud.common.OsType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -45,10 +46,20 @@ public class VirtualMachineConverter implements IEntityConverter {
 
     private SDKProbeType probeType;
 
+    /**
+     * Constructor for {@link VirtualMachineConverter}.
+     * @param probeType Probe Type
+     */
     public VirtualMachineConverter(@Nonnull SDKProbeType probeType) {
         this.probeType = probeType;
     }
 
+    /**
+     * Convert the specified entity.
+     * @param entity the entity to convert
+     * @param converter the {@link CloudDiscoveryConverter} instance which contains all info needed for entity specific converters
+     * @return true if conversion successful
+     */
     @Override
     public boolean convert(@Nonnull EntityDTO.Builder entity, @Nonnull CloudDiscoveryConverter converter) {
         // if the VM doesn't have profileId, then it's a fake VM created for hosting
@@ -105,8 +116,8 @@ public class VirtualMachineConverter implements IEntityConverter {
                 }
 
                 // buy License_Access commodity
-                OSType osType = OSType.lookupByPattern(Optional.ofNullable(
-                        entity.getVirtualMachineData().getGuestName()));
+                OsType osType = OsDetailParser.parseOsType(entity.getVirtualMachineData()
+                    .getGuestName());
                 cbBuilder.addBought(CommodityDTO.newBuilder()
                         .setCommodityType(CommodityType.LICENSE_ACCESS)
                         .setKey(osType.getName())

@@ -1,7 +1,6 @@
 package com.vmturbo.mediation.conversion.cloud.converter;
 
 import java.util.List;
-import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -9,7 +8,7 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
-import com.vmturbo.mediation.hybrid.cloud.utils.OSType;
+import com.vmturbo.mediation.hybrid.cloud.common.OsDetailParser;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -23,10 +22,10 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
  * The compute tier converter. COMPUTE_TIER comes from vm profile.
- *
+ *<p></p>
  * Connect ComputeTier to Region based on license info in profile dto. For AWS, those compute
  * tiers which are referenced in VM dto, are connected to AZ in {@link VirtualMachineConverter}.
- *
+ * <p></p>
  * CLOUD-TODO: figure out how to store info from EntityProfileDTO to EntityDTO
  * this is a general task for how to store entity specific information in XL
  */
@@ -34,6 +33,10 @@ public class ComputeTierConverter implements IEntityConverter {
 
     private SDKProbeType probeType;
 
+    /**
+     * Constructor for {@link ComputeTierConverter}.
+     * @param probeType Probe Type
+     */
     public ComputeTierConverter(@Nonnull SDKProbeType probeType) {
         this.probeType = probeType;
     }
@@ -179,7 +182,7 @@ public class ComputeTierConverter implements IEntityConverter {
                 .forEach(license -> soldCommodities.add(
                         CommodityDTO.newBuilder()
                                 .setCommodityType(CommodityType.LICENSE_ACCESS)
-                                .setKey(OSType.lookupByPattern(Optional.ofNullable(license)).getName())
+                                .setKey(OsDetailParser.parseOsType(license).getName())
                                 .build()));
 
         return soldCommodities;
