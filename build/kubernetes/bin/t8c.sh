@@ -28,10 +28,12 @@ source /opt/local/etc/turbo.conf
 #/opt/local/bin/offlineUpdate.sh
 
 # Create the ssh keys to run with
-if [ ! -f ~/.ssh/authorized_keys ]
+if [ ! -f ~/.ssh/id_rsa.pub ]
 then
   ssh-keygen -f ~/.ssh/id_rsa -t rsa -N ''
-  cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys
+  cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+  # Make sure authorized_keys has the appropriate permissions, otherwise sshd does not allow
+  # passwordless ssh.
   chmod 600 ~/.ssh/authorized_keys
 fi
 
