@@ -464,28 +464,26 @@ message GetEntityIdToEntityTypeMappingResponse {
     map<int64, common_dto.EntityDTO.EntityType> entityIdToEntityTypeMap = 1;
 }
 
-// Response for the percentile counts request.
-// Percentile feature design could be found
-// https://vmturbo.atlassian.net/wiki/spaces/PC/pages/592838759/Percentile+Service.
-message PercentileCountsResponse {
-    // Per-commodity record.
-    repeated PercentileRecord percentile_records = 1;
+message GetPercentileCountsRequest {
+    // unset to request whole observation window
+    optional int64 start_timestamp = 1;
+    // chunk size for streaming
+    required int32 chunk_size = 2;
+}
 
-    message PercentileRecord {
-        // Container entity oid.
-        required int64 oid = 1;
+message SetPercentileCountsResponse {
+}
 
-        // Commodity type.
-        required topology.CommodityType commodity_type = 2;
+message PercentileChunk {
+    // these two entries have to be redundant, repeated in each chunk
+    // to make use of server and client-side grpc streaming and avoid re-serializing
 
-        // Commodity provider, if bought, unset if sold.
-        optional int64 provider_oid = 3;
-
-        // Utilization counts per percent value - an array of 100 entries.
-        // To calculate percentile value we are collecting amount of
-        // utilization values in percents met for specified entity/commodity pair.
-        repeated int32 utilization = 5;
-    }
+    // unset to mark whole observation window
+    optional int64 start_timestamp = 1;
+    // length of a window for which these counts were calculated in seconds
+    required int64 period = 2;
+    // payload
+    required bytes content = 3;
 }
 
 // the gRPC API entry points for the Stats service
@@ -552,6 +550,9 @@ service StatsHistoryService {
     // Historical utilizations to be returned in current_value field of statistics records.
     rpc GetHistUtilization(GetEntityStatsRequest) returns (GetEntityStatsResponse);
 
-    // Get the percentile scores for the passed entities scope and time range.
-    rpc GetPercentileCounts(GetEntityStatsRequest) returns (PercentileCountsResponse);
+    // Get the percentile counts for the passed start timestamp or entire observation window
+    rpc GetPercentileCounts (GetPercentileCountsRequest) returns (stream PercentileChunk);
+
+    // Store the percentile counts for the passed start timestamp or entire observation window
+    rpc SetPercentileCounts (stream PercentileChunk) returns (SetPercentileCountsResponse);
 }

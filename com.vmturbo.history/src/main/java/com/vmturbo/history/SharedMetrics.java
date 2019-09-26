@@ -53,4 +53,24 @@ public class SharedMetrics {
                     .withLabelNames(ALL_AGGREGATORS_LABEL)
                     .build()
                     .register();
+
+    /**
+     * Prometheus metric to measure amount of time spent in percentile snapshot reading by history
+     * component.
+     */
+    public static final DataMetricSummary PERCENTILE_READING = DataMetricSummary.builder()
+                    .withName("percentile_reading_seconds")
+                    .withHelp("Duration in seconds it takes the history component to read percentile snapshot from database.")
+                    .build()
+                    .register();
+
+    /**
+     * Prometheus metric to measure amount of time spent in percentile snapshot writing by history
+     * component.
+     */
+    public static final DataMetricSummary PERCENTILE_WRITING = DataMetricSummary.builder()
+                    .withName("percentile_writing_seconds")
+                    .withHelp("Duration in seconds it takes the history component to store percentile snapshot in database.")
+                    .build()
+                    .register();
 }

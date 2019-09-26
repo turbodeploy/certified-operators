@@ -30,19 +30,19 @@ import com.vmturbo.history.stats.StatRecordBuilder.DefaultStatRecordBuilder;
 import com.vmturbo.history.stats.StatSnapshotCreator.DefaultStatSnapshotCreator;
 import com.vmturbo.history.stats.live.FullMarketRatioProcessor.FullMarketRatioProcessorFactory;
 import com.vmturbo.history.stats.live.HistoryTimeFrameCalculator;
-import com.vmturbo.history.stats.readers.LiveStatsReader;
-import com.vmturbo.history.stats.writers.LiveStatsWriter;
 import com.vmturbo.history.stats.live.RatioRecordFactory;
 import com.vmturbo.history.stats.live.StatsQueryFactory;
 import com.vmturbo.history.stats.live.StatsQueryFactory.DefaultStatsQueryFactory;
 import com.vmturbo.history.stats.live.SystemLoadReader;
-import com.vmturbo.history.stats.writers.SystemLoadSnapshot;
-import com.vmturbo.history.stats.writers.SystemLoadWriter;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.DefaultTimeRangeFactory;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
+import com.vmturbo.history.stats.readers.LiveStatsReader;
+import com.vmturbo.history.stats.readers.PercentileReader;
 import com.vmturbo.history.stats.writers.HistUtilizationWriter;
-import com.vmturbo.history.stats.writers.PercentileWriter;
+import com.vmturbo.history.stats.writers.LiveStatsWriter;
+import com.vmturbo.history.stats.writers.SystemLoadSnapshot;
+import com.vmturbo.history.stats.writers.SystemLoadWriter;
 import com.vmturbo.history.utils.SystemLoadHelper;
 
 /**
@@ -97,8 +97,14 @@ public class StatsConfig {
                 historyDbConfig.historyDbIO(),
                 projectedStatsStore(), paginationParamsFactory(),
                 statSnapshotCreator(), statRecordBuilder(),
-                systemLoadReader(), systemLoadWriter(),
-            systemLoadRecordsPerChunk);
+                systemLoadReader(),
+                systemLoadRecordsPerChunk,
+                percentileReader(), statsWritersPool());
+    }
+
+    @Bean
+    protected PercentileReader percentileReader() {
+        return new PercentileReader(historyDbConfig.historyDbIO());
     }
 
     @Bean
@@ -168,8 +174,7 @@ public class StatsConfig {
 
     @Bean
     public Collection<IStatsWriter> statsWriters() {
-        return ImmutableSet.of(systemLoadSnapshot(), histUtilizationWriter(), percentileWriter(),
-                        liveStatsWriter());
+        return ImmutableSet.of(systemLoadSnapshot(), histUtilizationWriter(), liveStatsWriter());
     }
 
     /**
@@ -206,17 +211,6 @@ public class StatsConfig {
     @Bean
     public IStatsWriter systemLoadSnapshot() {
         return new SystemLoadSnapshot(groupServiceClient(), systemLoadHelper());
-    }
-
-    /**
-     * {@link IStatsWriter} implementation which is going to save percentile information for
-     * commodities which have this information.
-     *
-     * @return instance of {@link PercentileWriter}.
-     */
-    @Bean
-    public IStatsWriter percentileWriter() {
-        return new PercentileWriter();
     }
 
     /**

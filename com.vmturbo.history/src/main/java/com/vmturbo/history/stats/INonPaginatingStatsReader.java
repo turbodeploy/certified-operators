@@ -9,8 +9,6 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import org.jooq.Record;
-
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.history.db.VmtDbException;
 
@@ -19,7 +17,7 @@ import com.vmturbo.history.db.VmtDbException;
  *
  * @param <R> type of the records which will be loaded by reader implementation.
  */
-public interface INonPaginatingStatsReader<R extends Record> {
+public interface INonPaginatingStatsReader<R> {
     /**
      * Reads and returns collection of records related to entities specified by entity identifiers
      * and filtered by conditions in {@link StatsFilter} instance.

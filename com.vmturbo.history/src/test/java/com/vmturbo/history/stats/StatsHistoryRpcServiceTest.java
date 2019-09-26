@@ -34,17 +34,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-
-import org.jooq.Record;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.mockito.Matchers;
-import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
@@ -52,6 +46,13 @@ import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
+
+import org.jooq.Record;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.mockito.Matchers;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
@@ -98,11 +99,10 @@ import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
 import com.vmturbo.history.stats.StatRecordBuilder.DefaultStatRecordBuilder;
 import com.vmturbo.history.stats.StatSnapshotCreator.DefaultStatSnapshotCreator;
+import com.vmturbo.history.stats.live.SystemLoadReader;
+import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 import com.vmturbo.history.stats.readers.LiveStatsReader;
 import com.vmturbo.history.stats.readers.LiveStatsReader.StatRecordPage;
-import com.vmturbo.history.stats.live.SystemLoadReader;
-import com.vmturbo.history.stats.writers.SystemLoadWriter;
-import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 
 /**
  * Test gRPC methods to handle snapshot requests.
@@ -137,8 +137,6 @@ public class StatsHistoryRpcServiceTest {
 
     private SystemLoadReader systemLoadReader = mock(SystemLoadReader.class);
 
-    private SystemLoadWriter systemLoadWriter = mock(SystemLoadWriter.class);
-
     private StatsHistoryRpcService statsHistoryRpcService =
         Mockito.spy(new StatsHistoryRpcService(REALTIME_CONTEXT_ID,
             mockLivestatsreader, mockPlanStatsReader,
@@ -147,7 +145,9 @@ public class StatsHistoryRpcServiceTest {
             paginationParamsFactory,
             statSnapshotCreatorSpy,
             statRecordBuilderSpy,
-            systemLoadReader, systemLoadWriter, 100));
+            systemLoadReader, 100,
+            Mockito.mock(RequestBasedReader.class),
+            Mockito.mock(ExecutorService.class)));
 
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(statsHistoryRpcService);
@@ -942,4 +942,5 @@ public class StatsHistoryRpcServiceTest {
             .setMinValue(-1).setMaxValue(-1).setRelationType(COMMODITIES.ordinal())
             .setCommodityKey("6").build();
     }
+
 }

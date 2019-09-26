@@ -881,13 +881,8 @@ message CommodityBoughtDTO {
 
     optional double reserved_capacity = 10 [default = 0.0];
 
-    // Collection of commodity utilization points. The collection contains series of usage points
-    // with given timestamp and interval between points.
-    // Certain probes may send more than one point per discovery request.
-    optional UtilizationData utilizationData = 11;
-
     // The resize target utilization used as a coefficient when resizing commodity quantity.
-    optional double resize_target_utilization = 12;
+    optional double resize_target_utilization = 11;
 }
 
 message CommoditySoldDTO {
@@ -953,11 +948,6 @@ message CommoditySoldDTO {
     // a port channel may be combined with multiple net throughputs, and these net throughputs are
     // the aggregates.
     repeated string aggregates = 22;
-
-    // Collection of commodity utilization points. The collection contains series of usage points
-    // with given timestamp and interval between points.
-    // Certain probes may send more than one point per discovery request.
-    optional UtilizationData utilizationData = 23;
 
     // The max amount resource will be decided by another commodity's usage on the consumer
     message RatioDependency {
@@ -1031,17 +1021,6 @@ message HistoricalValues {
 
     // Nth percentile of utilizations across specified observation window.
     optional double percentile = 5;
-}
-
-// Represents a collection of raw utilization data points.
-// Some probes send more points than one per discovery period.
-message UtilizationData {
-    // Array of data points. The last element in the array refers to the latest point in time.
-    repeated double point = 1;
-    // The timestamp of the last (the most recent) point in the array.
-    required int64 lastPointTimestampMs = 2;
-    // Interval in milliseconds between 2 consecutive points in the array.
-    required int32 intervalMs = 3;
 }
 
 // A short description of what a topology contains. The description is useful when you are interested
