@@ -120,6 +120,9 @@ http {
             proxy_read_timeout 6000s;
             proxy_intercept_errors on;
 
+            #Add cookie security and httponly headers
+            proxy_cookie_path / "/; HTTPOnly; Secure";
+
             # Ensure the proxy-side redirect from API gets rewritten to the gateway address
             proxy_set_header   X-Forwarded-Proto $scheme;
             proxy_redirect     http://$http_host/ $scheme://$http_host/;
