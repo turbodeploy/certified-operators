@@ -26,8 +26,8 @@ restAPIConfig:
   opsManagerPassword: administrator
 
 # Enabling targetConfig and providing a value will give a name to your cluster
-#targetConfig:
-#  targetName: Name_Each_Cluster
+targetConfig:
+  targetName: xl-k8s
 
 # In kubeturbo 6.3+, you can define how master nodes are identified. Use either or both
 # Master nodes are not identified by default and could suspend in plans.
