@@ -13,12 +13,16 @@ import org.springframework.context.annotation.Import;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
+import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.group.IdentityProviderConfig;
+import com.vmturbo.group.api.SettingMessages.SettingNotification;
+import com.vmturbo.group.api.SettingsUpdatesReciever;
 import com.vmturbo.group.group.GroupConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
-@Import({SQLDatabaseConfig.class, IdentityProviderConfig.class, GroupConfig.class})
+@Import({SQLDatabaseConfig.class, IdentityProviderConfig.class, GroupConfig.class, BaseKafkaProducerConfig.class})
 public class SettingConfig {
 
     @Autowired
@@ -52,7 +56,20 @@ public class SettingConfig {
                 databaseConfig.dsl(),
                 identityProviderConfig.identityProvider(),
                 settingPolicyValidator(),
-                groupConfig.groupStore());
+                groupConfig.groupStore(),
+                new SettingsUpdatesSender(settingMessageSender()));
+    }
+
+    /**
+     * BaseKafkaProducerConfig autowired reference.
+     */
+    @Autowired
+    private BaseKafkaProducerConfig baseKafkaProducerConfig;
+
+    @Bean
+    public IMessageSender<SettingNotification> settingMessageSender() {
+        return baseKafkaProducerConfig.kafkaMessageSender()
+                .messageSender(SettingsUpdatesReciever.SETTINGS_UPDATES_TOPIC);
     }
 
     @Bean
@@ -93,5 +110,4 @@ public class SettingConfig {
     public EntitySettingStore entitySettingStore() {
         return new EntitySettingStore(realtimeTopologyContextId, settingStore());
     }
-
 }

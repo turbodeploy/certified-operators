@@ -37,13 +37,13 @@ import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.enums.SettingPolicyPolicyType;
 import com.vmturbo.group.db.tables.records.SettingPolicyRecord;
 import com.vmturbo.group.group.GroupStore;
-import com.vmturbo.group.group.GroupStore.GroupStoreUpdateEvent;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.setting.FileBasedSettingsSpecStore;
 import com.vmturbo.group.setting.SettingPolicyFilter;
 import com.vmturbo.group.setting.SettingPolicyValidator;
 import com.vmturbo.group.setting.SettingSpecStore;
 import com.vmturbo.group.setting.SettingStore;
+import com.vmturbo.group.setting.SettingsUpdatesSender;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
@@ -75,6 +75,8 @@ public class V_01_00_03__Change_Default_Transactions_CapacityTest {
 
     private static final long POLICY_ID_2 = 2L;
 
+    private SettingsUpdatesSender settingsUpdatesSender = mock(SettingsUpdatesSender.class);
+
     @Before
     public void setup() {
         dslContext = dbConfig.prepareDatabase();
@@ -84,7 +86,7 @@ public class V_01_00_03__Change_Default_Transactions_CapacityTest {
         when(groupStore.getUpdateEventStream()).thenReturn(Flux.fromIterable(Collections.emptyList()));
 
         settingStore = new SettingStore(settingSpecStore, dslContext, identityProviderSpy,
-            settingPolicyValidator, groupStore);
+            settingPolicyValidator, groupStore, settingsUpdatesSender);
         migration = new V_01_00_03__Change_Default_Transactions_Capacity(settingStore);
     }
 

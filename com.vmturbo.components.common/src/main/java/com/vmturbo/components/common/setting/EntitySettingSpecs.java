@@ -168,26 +168,26 @@ public enum EntitySettingSpecs {
      * CPU utilization threshold.
      */
     CpuUtilization("cpuUtilization", "CPU Utilization",
-            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE_CONTROLLER),
             numeric(0f, 100f, 100f), true),
     /**
      * Memory utilization threshold.
      */
     MemoryUtilization("memoryUtilization", "Memory Utilization",
-            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 100f, 100f), true),
     /**
      * IO throughput utilization threshold.
      */
     IoThroughput("ioThroughput", "IO Throughput",
-            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 100f, 50f), true),
     /**
      * Network throughput utilization threshold.
      */
     NetThroughput("netThroughput", "Net Throughput",
-            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.SWITCH),
             new NumericSettingDataType(0f, 100f, 50f,
                     Collections.singletonMap(EntityType.SWITCH, 70f)), true),
@@ -195,19 +195,19 @@ public enum EntitySettingSpecs {
      * Swapping utilization threshold.
      */
     SwappingUtilization("swappingUtilization", "Swapping Utilization",
-            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 100f, 20f), true),
     /**
      * Ready queue utilization threshold.
      */
     ReadyQueueUtilization("readyQueueUtilization", "Ready Queue Utilization",
-            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 100f, 50f), true),
     /**
      * Storage utilization threshold.
      */
     StorageAmountUtilization("storageAmountUtilization", "Storage Amount Utilization",
-            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.DISK_ARRAY, EntityType.STORAGE_CONTROLLER),
             numeric(0f, 100f, 90f),
             true),
@@ -217,33 +217,33 @@ public enum EntitySettingSpecs {
      * conversion from kubernetes millicores to MHz.
      */
     VCPURequestUtilization("vcpuRequestUtilization", "VCPU Request Utilization",
-            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD),
             numeric(0f, 100f, 99.99f), true),
     /**
      * IOPS utilization threshold.
      */
     IopsUtilization("iopsUtilization", "IOPS Utilization",
-            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE), numeric(0f, 100f, 100f), true),
     /**
      * Storage latency utilization threshold.
      */
     LatencyUtilization("latencyUtilization", "Latency Utilization",
-            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE), numeric(0f, 100f, 100f), true),
     /**
      * CPU overprovisioned in percents.
      */
     CpuOverprovisionedPercentage("cpuOverprovisionedPercentage", "CPU Overprovisioned Percentage",
-            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(1f, 1000000f, 30000f), true),
     /**
      * Memory overprovisioned in percents.
      */
     MemoryOverprovisionedPercentage("memoryOverprovisionedPercentage",
             "Memory Overprovisioned Percentage",
-            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(1f, 1000000f, 1000f), true),
 
     /**
@@ -259,7 +259,7 @@ public enum EntitySettingSpecs {
      */
     UtilTarget("utilTarget", "Center",
             //path is needed for the UI to display this setting in a separate category
-            Arrays.asList("advanced", "utilTarget"), SettingTiebreaker.SMALLER,
+            Arrays.asList(CategoryPathConstants.ADVANCED, CategoryPathConstants.UTILTARGET), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE),
             numeric(0.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
 
@@ -268,7 +268,7 @@ public enum EntitySettingSpecs {
      */
     TargetBand("targetBand", "Diameter",
             //path is needed for the UI to display this setting in a separate category
-            Arrays.asList("advanced", "utilTarget"),
+            Arrays.asList(CategoryPathConstants.ADVANCED, CategoryPathConstants.UTILTARGET),
             SettingTiebreaker.BIGGER, /*this is related to the center setting. bigger diameter is more conservative*/
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0.0f/*min*/, 100.0f/*max*/, 10.0f/*default*/), true),
 
@@ -399,7 +399,7 @@ public enum EntitySettingSpecs {
      * Orchestration workflow to invoke when an activate action is generated and executed.
      */
     ActivateActionWorkflow("activateActionWorkflow", "Activate Workflow",
-            Collections.singletonList("automation"),
+            Collections.singletonList(CategoryPathConstants.AUTOMATION),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
                     EntityType.CONTAINER_POD, EntityType.CONTAINER,
@@ -415,7 +415,7 @@ public enum EntitySettingSpecs {
      *       So "Activate Pre Workflow" is okay, but "Pre Activate Workflow" is not.
      */
     PreActivateActionWorkflow("preActivateActionWorkflow", "Activate Pre Workflow",
-        Collections.singletonList("automation"),
+        Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
                     EntityType.CONTAINER_POD, EntityType.CONTAINER,
@@ -427,7 +427,7 @@ public enum EntitySettingSpecs {
      * Orchestration workflow to invoke after an activate action is executed (whether successful or not).
      */
     PostActivateActionWorkflow("postActivateActionWorkflow", "Activate Post Workflow",
-        Collections.singletonList("automation"),
+        Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
                     EntityType.CONTAINER_POD, EntityType.CONTAINER,
@@ -450,7 +450,7 @@ public enum EntitySettingSpecs {
      * Orchestration workflow to invoke before a resize action is executed.
      */
     PreMoveActionWorkflow("preMoveActionWorkflow", "Move Pre Workflow",
-        Collections.singletonList("automation"),
+        Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD,
                     EntityType.CONTAINER, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
@@ -461,7 +461,7 @@ public enum EntitySettingSpecs {
      * Orchestration workflow to invoke after a resize action is executed (whether successful or not).
      */
     PostMoveActionWorkflow("postMoveActionWorkflow", "Move Post Workflow",
-        Collections.singletonList("automation"),
+        Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD,
                     EntityType.CONTAINER, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
@@ -472,7 +472,7 @@ public enum EntitySettingSpecs {
      * Orchestration workflow to invoke when a provision action is generated and executed.
      */
     ProvisionActionWorkflow("provisionActionWorkflow", "Provision Workflow",
-            Collections.singletonList("automation"),
+            Collections.singletonList(CategoryPathConstants.AUTOMATION),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
                     EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
@@ -484,7 +484,7 @@ public enum EntitySettingSpecs {
      * Orchestration workflow to invoke before a provision action is executed.
      */
     PreProvisionActionWorkflow("preProvisionActionWorkflow", "Provision Pre Workflow",
-        Collections.singletonList("automation"),
+        Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
                     EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
@@ -496,7 +496,7 @@ public enum EntitySettingSpecs {
      * Orchestration workflow to invoke after a provision action is executed (whether successful or not).
      */
     PostProvisionActionWorkflow("postProvisionActionWorkflow", "Provision Post Workflow",
-        Collections.singletonList("automation"),
+        Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
                     EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
@@ -508,7 +508,7 @@ public enum EntitySettingSpecs {
      * Orchestration workflow to invoke when a resize action is generated and executed.
      */
     ResizeActionWorkflow("resizeActionWorkflow", "Resize Workflow",
-            Collections.singletonList("automation"),
+            Collections.singletonList(CategoryPathConstants.AUTOMATION),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
                     EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
@@ -520,7 +520,7 @@ public enum EntitySettingSpecs {
      * Orchestration workflow to invoke before a resize action is executed.
      */
     PreResizeActionWorkflow("preResizeActionWorkflow", "Resize Pre Workflow",
-        Collections.singletonList("automation"),
+        Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
                     EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
@@ -532,7 +532,7 @@ public enum EntitySettingSpecs {
      * Orchestration workflow to invoke after a resize action is executed (whether successful or not).
      */
     PostResizeActionWorkflow("postResizeActionWorkflow", "Resize Post Workflow",
-        Collections.singletonList("automation"),
+        Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
                     EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
@@ -544,7 +544,7 @@ public enum EntitySettingSpecs {
      * Orchestration workflow to invoke when a suspend action is generated and executed.
      */
     SuspendActionWorkflow("suspendActionWorkflow", "Suspend Workflow",
-        Collections.singletonList("automation"),
+        Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
                     EntityType.CONTAINER_POD, EntityType.CONTAINER,
@@ -556,7 +556,7 @@ public enum EntitySettingSpecs {
      * Orchestration workflow to invoke before a suspend action is executed.
      */
     PreSuspendActionWorkflow("preSuspendActionWorkflow", "Suspend Pre Workflow",
-        Collections.singletonList("automation"),
+        Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
                     EntityType.CONTAINER_POD, EntityType.CONTAINER,
@@ -568,7 +568,7 @@ public enum EntitySettingSpecs {
      * Orchestration workflow to invoke after a suspend action is executed (whether successful or not).
      */
     PostSuspendActionWorkflow("postSuspendActionWorkflow", "Suspend Post Workflow",
-        Collections.singletonList("automation"),
+        Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
                     EntityType.CONTAINER_POD, EntityType.CONTAINER,
@@ -580,7 +580,7 @@ public enum EntitySettingSpecs {
      * Orchestration workflow to invoke when a delete action is generated and executed.
      */
     DeleteActionWorkflow("deleteActionWorkflow", "Delete Workflow",
-        Collections.singletonList("automation"),
+        Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
         EnumSet.of(EntityType.STORAGE, EntityType.STORAGE_TIER),
         string(), true),
@@ -590,7 +590,7 @@ public enum EntitySettingSpecs {
      * Orchestration workflow to invoke before a delete action is executed.
      */
     PreDeleteActionWorkflow("preDeleteActionWorkflow", "Delete Pre Workflow",
-        Collections.singletonList("automation"),
+        Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
         EnumSet.of(EntityType.STORAGE, EntityType.STORAGE_TIER),
         string(), true),
@@ -600,7 +600,7 @@ public enum EntitySettingSpecs {
      * Orchestration workflow to invoke after a delete action is executed (whether successful or not).
      */
     PostDeleteActionWorkflow("postDeleteActionWorkflow", "Delete Post Workflow",
-        Collections.singletonList("automation"),
+        Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
         EnumSet.of(EntityType.STORAGE, EntityType.STORAGE_TIER),
         string(), true),
@@ -743,7 +743,7 @@ public enum EntitySettingSpecs {
      * TODO: remove this as part of fix OM-38669
      */
     ProvisionActionScript("provisionActionScript", "Provision",
-            Collections.singletonList("actionScript"),
+            Collections.singletonList(CategoryPathConstants.ACTIONSCRIPT),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.DISK_ARRAY,
                 EntityType.PHYSICAL_MACHINE,
