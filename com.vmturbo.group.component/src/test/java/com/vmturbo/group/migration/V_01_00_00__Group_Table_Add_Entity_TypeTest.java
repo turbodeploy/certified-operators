@@ -4,10 +4,9 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.stream.Collectors;
 
 import org.jooq.DSLContext;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -50,6 +49,14 @@ public class V_01_00_00__Group_Table_Add_Entity_TypeTest {
     public void setup() {
         dslContext = dbConfig.prepareDatabase();
         migration = new V_01_00_00__Group_Table_Add_Entity_Type(dslContext);
+    }
+
+    /**
+     * Release all resources occupied by test.
+     */
+    @AfterClass
+    public void tearDown() {
+        dbConfig.clean();
     }
 
     @Test

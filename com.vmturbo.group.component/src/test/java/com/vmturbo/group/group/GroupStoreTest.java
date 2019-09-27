@@ -15,13 +15,11 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableSet;
-
 import org.jooq.DSLContext;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -32,6 +30,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
+import com.google.common.collect.ImmutableSet;
 import reactor.test.StepVerifier;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
@@ -129,6 +128,14 @@ public class GroupStoreTest {
         final DSLContext dslContext = dbConfig.prepareDatabase();
         groupStore = new GroupStore(dslContext, policyStore,
                 identityProvider, entityToClusterMapping);
+    }
+
+    /**
+     * Release all resources occupied by test.
+     */
+    @AfterClass
+    public void tearDown() {
+        dbConfig.clean();
     }
 
     /**
