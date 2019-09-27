@@ -78,6 +78,7 @@ public class UserScopeUtilsTest {
         Assert.assertFalse(UserScopeUtils.containsSharedRole(Collections.emptyList()));
         Assert.assertFalse(UserScopeUtils.containsSharedRole(Arrays.asList("SHARED_J/K")));
         Assert.assertTrue(UserScopeUtils.containsSharedRole(Arrays.asList("SHARED_OBSERVER")));
+        Assert.assertTrue(UserScopeUtils.containsSharedRole(Arrays.asList("shared_observer")));
         Assert.assertFalse(UserScopeUtils.containsSharedRole(Arrays.asList("ADMIN", "SCHMADMIN")));
         Assert.assertTrue(UserScopeUtils.containsSharedRole(Arrays.asList("ADMIN", "SHARED_ADVISOR")));
     }

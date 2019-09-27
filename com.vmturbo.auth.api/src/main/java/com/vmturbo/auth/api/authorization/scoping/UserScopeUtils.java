@@ -68,7 +68,7 @@ public class UserScopeUtils {
         }
         logger.debug("Found roles {} in calling context", roles);
         for (String role : roles) {
-            if (SHARED_ROLES.contains(role)) {
+            if (SHARED_ROLES.contains(role.toUpperCase())) {
                 logger.debug("User is 'shared' because it has role {}", role);
                 return true;
             }
