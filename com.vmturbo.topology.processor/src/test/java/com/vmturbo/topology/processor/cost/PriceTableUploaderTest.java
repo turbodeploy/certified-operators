@@ -63,6 +63,7 @@ import com.vmturbo.topology.processor.targets.TargetStore;
 public class PriceTableUploaderTest {
 
     private static final double RHEL_LICENSE_PRICE = 5.1;
+    private static final double WINDOWS_LICENSE_PRICE = 4.5;
     private static final double DELTA = 1e-10;
     private static final String REGION_ONE = "region-1";
     private static final String COMPUTE_TIER_ONE = "compute-tier-1";
@@ -203,17 +204,26 @@ public class PriceTableUploaderTest {
     @Test
     public void testLicensePrices() {
         // Build a set of cost data that the license price table will be built from
+        LicensePriceByOsEntry rhelLicense = createLicensePriceByOsEntry(OSType.RHEL, 4, RHEL_LICENSE_PRICE);
+        LicensePriceByOsEntry windowsLicense = createLicensePriceByOsEntry(OSType.WINDOWS_SERVER, 4, WINDOWS_LICENSE_PRICE);
         PricingDTO.PriceTable sourcePriceTable = PricingDTO.PriceTable.newBuilder()
-                .addLicensePriceTable(createLicensePriceByOsEntry(OSType.RHEL, 4, RHEL_LICENSE_PRICE))
+                .addOnDemandLicensePriceTable(rhelLicense).addReservedLicensePriceTable(rhelLicense)
+                        .addReservedLicensePriceTable(windowsLicense)
                 .build();
         PriceTable priceTable = priceTableUploader.priceTableToCostPriceTable(sourcePriceTable,
                 cloudOidByLocalId, SDKProbeType.AZURE_COST);
         // should have an entry for RHEL licenses
-        Assert.assertEquals(1, priceTable.getLicensePricesCount());
-        Assert.assertEquals(OSType.RHEL, priceTable.getLicensePricesList().get(0).getOsType());
-        LicensePriceByOsEntry rhelEntry = priceTable.getLicensePricesList().get(0);
+        Assert.assertEquals(1, priceTable.getOnDemandLicensePricesCount());
+        Assert.assertEquals(OSType.RHEL, priceTable.getOnDemandLicensePricesList().get(0).getOsType());
+        LicensePriceByOsEntry rhelEntry = priceTable.getOnDemandLicensePricesList().get(0);
         Assert.assertEquals(RHEL_LICENSE_PRICE, rhelEntry.getLicensePrices(0).getPrice()
                 .getPriceAmount().getAmount(), DELTA);
+        // should have 2 entries including one from Windows.
+        Assert.assertEquals(2, priceTable.getReservedLicensePricesCount());
+        Assert.assertEquals(OSType.WINDOWS_SERVER, priceTable.getReservedLicensePricesList().get(1).getOsType());
+        LicensePriceByOsEntry windowsEntry = priceTable.getReservedLicensePricesList().get(1);
+        Assert.assertEquals(WINDOWS_LICENSE_PRICE, windowsEntry.getLicensePrices(0).getPrice()
+                        .getPriceAmount().getAmount(), DELTA);
     }
 
     /**
