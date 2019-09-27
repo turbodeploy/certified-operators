@@ -169,7 +169,9 @@ public final class Ede {
         }
         // Sort the buyers of each market based on the current quote (on-prem) or
         // current cost (cloud) sorted high to low.
-        economy.sortBuyersofMarket();
+        if (economy.getSettings().getSortShoppingLists()) {
+            economy.sortBuyersofMarket();
+        }
 
         // create a subset list of markets that have at least one buyer that can move
         economy.composeMarketSubsetForPlacement();
@@ -193,7 +195,9 @@ public final class Ede {
 
         //sort the PreferentialShoppingList
         long start = System.currentTimeMillis();
-        economy.sortPreferentialShoppingLists();
+        if (economy.getSettings().getSortShoppingLists()) {
+            economy.sortPreferentialShoppingLists();
+        }
         long end = System.currentTimeMillis();
         if (logger.isTraceEnabled()) {
             logger.trace("PSL Execution time of sortShoppingLists of size: "

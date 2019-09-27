@@ -796,9 +796,6 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * @return The sorted shopping list.
      */
     public List<ShoppingList> sortShoppingLists(List<ShoppingList> shoppingLists) {
-        if(!getSettings().getSortShoppingLists()) {
-            return shoppingLists;
-        }
         List<Entry<ShoppingList, Double>> currentQuote = new ArrayList<>();
         List<ShoppingList> sortedSLs = new ArrayList<>();
         for (@NonNull ShoppingList shoppingList : shoppingLists) {
