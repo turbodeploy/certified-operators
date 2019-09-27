@@ -12,7 +12,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.jooq.DSLContext;
-import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -22,6 +21,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.google.common.collect.ImmutableMap;
+
 import reactor.core.publisher.Flux;
 
 import com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo;
@@ -36,6 +36,7 @@ import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.enums.SettingPolicyPolicyType;
 import com.vmturbo.group.db.tables.records.SettingPolicyRecord;
 import com.vmturbo.group.group.GroupStore;
+import com.vmturbo.group.group.GroupStore.GroupStoreUpdateEvent;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.setting.FileBasedSettingsSpecStore;
 import com.vmturbo.group.setting.SettingPolicyFilter;
@@ -84,14 +85,6 @@ public class V_01_00_03__Change_Default_Transactions_CapacityTest {
         settingStore = new SettingStore(settingSpecStore, dslContext, identityProviderSpy,
             settingPolicyValidator, groupStore);
         migration = new V_01_00_03__Change_Default_Transactions_Capacity(settingStore);
-    }
-
-    /**
-     * Release all resources occupied by test.
-     */
-    @AfterClass
-    public void tearDown() {
-        dbConfig.clean();
     }
 
     @Test

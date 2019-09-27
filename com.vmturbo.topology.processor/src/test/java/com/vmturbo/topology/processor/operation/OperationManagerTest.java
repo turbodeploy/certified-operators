@@ -24,7 +24,6 @@ import java.util.Set;
 
 import org.hamcrest.CoreMatchers;
 import org.jooq.DSLContext;
-import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -192,14 +191,6 @@ public class OperationManagerTest {
 
         when(targetDumpingSettings.getDumpsToHold(any())).thenReturn(0);
         doNothing().when(targetDumpingSettings).refreshSettings();
-    }
-
-    /**
-     * Release all resources occupied by test.
-     */
-    @AfterClass
-    public void tearDown() {
-        dbConfig.clean();
     }
 
     /**

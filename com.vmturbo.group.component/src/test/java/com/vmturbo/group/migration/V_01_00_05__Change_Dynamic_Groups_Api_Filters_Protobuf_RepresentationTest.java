@@ -6,7 +6,6 @@ import static org.hamcrest.Matchers.is;
 import java.util.List;
 
 import org.jooq.DSLContext;
-import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -55,14 +54,6 @@ public class V_01_00_05__Change_Dynamic_Groups_Api_Filters_Protobuf_Representati
     public void setup() {
         dslContext = dbConfig.prepareDatabase();
         migration = new V_01_00_05__Change_Dynamic_Groups_Api_Filters_Protobuf_Representation(dslContext);
-    }
-
-    /**
-     * Release all resources occupied by test.
-     */
-    @AfterClass
-    public void tearDown() {
-        dbConfig.clean();
     }
 
     /**

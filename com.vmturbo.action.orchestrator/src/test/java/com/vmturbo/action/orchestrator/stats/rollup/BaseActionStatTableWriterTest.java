@@ -16,7 +16,6 @@ import javax.annotation.Nonnull;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
-import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -82,14 +81,6 @@ public class BaseActionStatTableWriterTest {
         });
 
         rollupTestUtils = new RollupTestUtils(dsl);
-    }
-
-    /**
-     * Release all resources occupied by tests.
-     */
-    @AfterClass
-    public void tearDown() {
-        dbConfig.clean();
     }
 
     private static final int MGMT_UNIT_SUBGROUP = 1;
