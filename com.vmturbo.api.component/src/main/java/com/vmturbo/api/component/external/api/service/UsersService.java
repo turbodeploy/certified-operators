@@ -16,6 +16,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.xml.parsers.ParserConfigurationException;
 
+import com.google.common.collect.ImmutableList;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -35,10 +39,6 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
-import com.google.common.collect.ImmutableList;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-
 import com.vmturbo.api.component.communication.RestAuthenticationProvider;
 import com.vmturbo.api.component.external.api.SAML.SAMLUtils;
 import com.vmturbo.api.component.external.api.mapper.LoginProviderMapper;
@@ -55,8 +55,6 @@ import com.vmturbo.api.serviceinterfaces.IUsersService;
 import com.vmturbo.auth.api.Base64CodecUtils;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
-import com.vmturbo.auth.api.auditing.AuditLogEntry;
-import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
@@ -81,9 +79,10 @@ public class UsersService implements IUsersService {
      * The HTTP accept header.
      */
     public static final List<MediaType> HTTP_ACCEPT = ImmutableList.of(MediaType.APPLICATION_JSON);
-    public static final String ENTITY_ID = "entityID";
-    public static final String SAML_IDP_ENTITY_NAME = "SAML IDP entity name: ";
-    public static final String MD_SINGLE_LOGOUT_SERVICE = "md:SingleLogoutService";
+    private static final String ENTITY_ID = "entityID";
+    private static final String SAML_IDP_ENTITY_NAME = "SAML IDP entity name: ";
+    private static final String MD_NAMESPACE_URI = "urn:oasis:names:tc:SAML:2.0:metadata";
+    private static final String MD_SINGLE_LOGOUT_SERVICE = "SingleLogoutService";
     private static final String NOT_ASSIGNED = "Not assigned";
     private static final String PERMISSION_CHANGED = "Permission changed, current role is %s, scope is %s";
 
@@ -110,9 +109,10 @@ public class UsersService implements IUsersService {
     /**
      * The GSON parser/builder.
      */
-    private final Gson GSON_ = new GsonBuilder().create();
+    private static final Gson GSON_ = new GsonBuilder().create();
     private final String idpURL;
-    private final boolean samlEnabled, isSingleLogoutEnabled;
+    private final boolean samlEnabled;
+    private final boolean isSingleLogoutEnabled;
 
     // Uses to expire deleted user active sessions
     @Autowired
@@ -145,7 +145,8 @@ public class UsersService implements IUsersService {
             throw new IllegalArgumentException("Invalid AUTH port.");
         }
         restTemplate_ = Objects.requireNonNull(restTemplate);
-        if (samlEnabled && samlIdpMetadata != null) {
+        Objects.requireNonNull(samlIdpMetadata);
+        if (samlEnabled) {
             final String idpMetadata = geIdpMetadataXML(samlIdpMetadata);
             this.idpURL = getIdpEntityName(idpMetadata).orElse("");
             this.samlEnabled = true;
@@ -177,8 +178,9 @@ public class UsersService implements IUsersService {
     /**
      * Parses the not fully parsed JSON object and creates the object of the class T.
      *
-     * @param o     The object.
-     * @param clazz The class.
+     * @param o The object to extract from
+     * @param clazz The class of the return type
+     * @param <T> the type of the return object
      * @return The fully parsed JSON object.
      */
     private <T> T parse(final @Nonnull Object o, final @Nonnull Class<T> clazz) {
@@ -231,7 +233,7 @@ public class UsersService implements IUsersService {
     }
 
     /**
-     * Get JWT token from Spring context
+     * Get JWT token from Spring context.
      *
      * @return JWT token
      */
@@ -341,7 +343,7 @@ public class UsersService implements IUsersService {
             return user;
         } catch (RuntimeException e) {
             // Intercept the possible exception for auditing
-            final String details = String.format("Failed to change permissions");
+            final String details = "Failed to change permissions";
             AuditLog.newEntry(AuditAction.CHANGE_ROLE,
                 details, false)
                 .targetName(userApiDTO.getUsername())
@@ -458,7 +460,7 @@ public class UsersService implements IUsersService {
     private void expireActiveSessions(@Nonnull final String uuid) {
         for (Object principal : sessionRegistry.getAllPrincipals()) {
             if (principal instanceof String) {
-                final String userUuid = (String) principal;
+                final String userUuid = (String)principal;
                 if (uuid.equals(userUuid)) {
                     sessionRegistry.getAllSessions(principal, false)
                             .forEach(SessionInformation::expireNow);
@@ -559,6 +561,7 @@ public class UsersService implements IUsersService {
      * objects so that we can provide the UI the group name and type information. Since we are only
      * starting with a group oid, this requires a fetch to the group service component.
      *
+     * @param groupOids a set of OIDs for groups to be mapped
      * @return a map of group oid -> {@link GroupApiDTO} based on the input group oids.
      */
     private Map<Long, GroupApiDTO> getApiGroupMap(Set<Long> groupOids) {
@@ -696,24 +699,12 @@ public class UsersService implements IUsersService {
     public ActiveDirectoryGroupApiDTO createActiveDirectoryGroup(
             final ActiveDirectoryGroupApiDTO adGroupInputDto) {
         try {
-            UriComponentsBuilder builder = baseRequest().path("/users/ad/groups");
-            String request = builder.build().toUriString();
             HttpHeaders headers = composeHttpHeaders();
             HttpEntity<SecurityGroupDTO> entity;
             entity = new HttpEntity<>(convertGroupInfoToAuth(adGroupInputDto), headers);
             Class<SecurityGroupDTO> clazz = SecurityGroupDTO.class;
-            // create a group oid -> object map for the conversion on the way back
-            Map<Long, GroupApiDTO> groupApiDTOMap = new HashMap<>();
-            if (adGroupInputDto.getScope() != null) {
-                adGroupInputDto.getScope().forEach(groupApiDTO ->
-                    groupApiDTOMap.put(Long.valueOf(groupApiDTO.getUuid()), groupApiDTO));
-            }
-            final String details = String.format("Created external group: %s with role: %s",
-                adGroupInputDto.getDisplayName(), adGroupInputDto.getRoleName());
-            AuditLog.newEntry(AuditAction.CREATE_GROUP,
-                details, true)
-                .targetName("EXTERNAL GROUP")
-                .audit();
+            final Map<Long, GroupApiDTO> groupApiDTOMap = buildGroupApiDtoMap(adGroupInputDto);
+            String request = baseRequest().path("/users/ad/groups").build().toUriString();
             return convertGroupInfoFromAuth(
                 restTemplate_.exchange(request, HttpMethod.POST, entity, clazz).getBody(),
                 groupApiDTOMap);
@@ -738,21 +729,10 @@ public class UsersService implements IUsersService {
     public ActiveDirectoryGroupApiDTO changeActiveDirectoryGroup(
             final ActiveDirectoryGroupApiDTO adGroupInputDto) {
         try {
-            String request = baseRequest().path("/users/ad/groups").build().toUriString();
             HttpEntity<SecurityGroupDTO> entity = new HttpEntity<>(
                 convertGroupInfoToAuth(adGroupInputDto), composeHttpHeaders());
-            // create a group oid -> object map for the conversion on the way back
-            Map<Long, GroupApiDTO> groupApiDTOMap = new HashMap<>();
-            if (adGroupInputDto.getScope() != null) {
-                adGroupInputDto.getScope().forEach(groupApiDTO ->
-                    groupApiDTOMap.put(Long.valueOf(groupApiDTO.getUuid()), groupApiDTO));
-            }
-            final String details = String.format("Created external group: %s with role: %s",
-                adGroupInputDto.getDisplayName(), adGroupInputDto.getRoleName());
-            AuditLog.newEntry(AuditAction.CREATE_GROUP,
-                details, true)
-                .targetName("EXTERNAL GROUP")
-                .audit();
+            final Map<Long, GroupApiDTO> groupApiDTOMap = buildGroupApiDtoMap(adGroupInputDto);
+            String request = baseRequest().path("/users/ad/groups").build().toUriString();
             return convertGroupInfoFromAuth(
                 restTemplate_.exchange(request, HttpMethod.PUT, entity, SecurityGroupDTO.class).getBody(),
                 groupApiDTOMap);
@@ -765,6 +745,27 @@ public class UsersService implements IUsersService {
                 .audit();
             throw e;
         }
+    }
+
+    /**
+     * Create a group oid -> object map for the conversion on the way back.
+     *
+     * @param adGroupInputDto set of AD groups to look up
+     * @return a map from group OID -> GroupApiDTO
+     */
+    private Map<Long, GroupApiDTO> buildGroupApiDtoMap(final ActiveDirectoryGroupApiDTO adGroupInputDto) {
+        Map<Long, GroupApiDTO> groupApiDTOMap = new HashMap<>();
+        if (adGroupInputDto.getScope() != null) {
+            adGroupInputDto.getScope().forEach(groupApiDTO ->
+                groupApiDTOMap.put(Long.valueOf(groupApiDTO.getUuid()), groupApiDTO));
+        }
+        final String details = String.format("Created external group: %s with role: %s",
+            adGroupInputDto.getDisplayName(), adGroupInputDto.getRoleName());
+        AuditLog.newEntry(AuditAction.CREATE_GROUP,
+            details, true)
+            .targetName("EXTERNAL GROUP")
+            .audit();
+        return groupApiDTOMap;
     }
 
     /**
@@ -895,7 +896,7 @@ public class UsersService implements IUsersService {
                 logger_.info(SAML_IDP_ENTITY_NAME + idpURL);
                 SAMLIdpApiDTO samlIdpApiDTO = new SAMLIdpApiDTO();
                 samlIdpApiDTO.setIdpURL(idpURL);
-                samlIdpApiDTO.setSAMLOnly(samlEnabled);
+                samlIdpApiDTO.setSAMLOnly(true);
                 samlIdpApiDTO.setSingleLogoutEnabled(isSingleLogoutEnabled);
                 return Optional.of(samlIdpApiDTO);
         }
@@ -906,16 +907,10 @@ public class UsersService implements IUsersService {
         try {
             Element element = SAMLUtils.loadXMLFromString(idpMetadata).getDocumentElement();
             return Optional.ofNullable(element.getAttribute(ENTITY_ID));
-        } catch (SAXException e) {
+        } catch (SAXException | ParserConfigurationException | RuntimeException | IOException e) {
             logger_.info(e);
-        } catch (ParserConfigurationException e) {
-            logger_.info(e);
-        } catch (IOException e) {
-            logger_.info(e);
-            // it's called from constructor, and we don't want it throw any RuntimeException.
-        } catch (RuntimeException e) {
-            logger_.info(e);
-        }
+        } // it's called from constructor, and we don't want it throw any RuntimeException.
+
         return Optional.empty();
     }
 
@@ -929,15 +924,10 @@ public class UsersService implements IUsersService {
     private boolean isSingleLogoutEnabled(@Nonnull final String idpMetadata) {
         try {
             final Document document = SAMLUtils.loadXMLFromString(idpMetadata);
-            final NodeList nodeList =  document.getElementsByTagName(MD_SINGLE_LOGOUT_SERVICE);
-            return nodeList != null && nodeList.getLength() >0;
-        } catch (IOException e) {
-            logger_.info(e);
-        } catch (SAXException e) {
-            logger_.info(e);
-        } catch (ParserConfigurationException e) {
-            logger_.info(e);
-        } catch (RuntimeException e) {
+            final NodeList nodeList =  document.getElementsByTagNameNS(MD_NAMESPACE_URI,
+                MD_SINGLE_LOGOUT_SERVICE);
+            return nodeList != null && nodeList.getLength() > 0;
+        } catch (IOException | SAXException | ParserConfigurationException | RuntimeException e) {
             logger_.info(e);
         }
         return false;
