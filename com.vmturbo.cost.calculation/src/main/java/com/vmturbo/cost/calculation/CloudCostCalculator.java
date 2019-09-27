@@ -219,8 +219,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                                 "calculation.", entityId, regionId, storageTierId);
                     }
                 } else {
-                    logger.error("Global price table has no entry for region {}. This means there" +
-                            " is some inconsistency between the topology and pricing data.", regionId);
+                    logger.error("calculateVirtualVolumeCost: Global price table has no entry for region {}." +
+                            "  This means there is some inconsistency between the topology and pricing data.", regionId);
                 }
             } else {
                 logger.error("Unable to find related storage tier for volume entity {}. " +
@@ -380,8 +380,9 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                     }
                     recordVMIpCost(entity, computeTier, onDemandPriceTable, journal);
                 } else {
-                    logger.warn("Global price table has no entry for region {}. This means there" +
-                        " is some inconsistency between the topology and pricing data.", regionId);
+                    logger.warn("calculateVirtualMachineCost: Global price table has no entry for region {}." +
+                            "  This means there is some inconsistency between the topology and pricing data.",
+                        regionId);
                 }
             });
         });
@@ -504,8 +505,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                         recordDatabaseCost(dbPriceList, journal, databaseTier, databaseConfig);
                     }
                 } else {
-                    logger.warn("Global price table has no entry for region {}. This means there" +
-                            " is some inconsistency between the topology and pricing data.", regionId);
+                    logger.warn("calculateDatabaseCost: Global price table has no entry for region {}." +
+                            "  This means there is some inconsistency between the topology and pricing data.", regionId);
                 }
             });
         });

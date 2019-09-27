@@ -12,10 +12,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -27,20 +25,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Stopwatch;
-import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.Table;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.BuyRIActionPlanInfo;
 import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
-import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
-import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
@@ -65,13 +58,11 @@ import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 import com.vmturbo.cost.component.reserved.instance.action.ReservedInstanceActionsSender;
-import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalyzerRateAndRIs.PricingProviderResult;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
  *
@@ -100,19 +91,11 @@ public class ReservedInstanceAnalyzer {
 
     private static final Logger logger = LogManager.getLogger();
 
-    // The inventory of RIs that have already been purchased
-    private final ReservedInstanceBoughtStore riBoughtStore;
-
     private final BuyReservedInstanceStore buyRiStore;
-
-    private final ReservedInstanceSpecStore riSpecStore;
 
     private final RepositoryServiceBlockingStub repositoryClient;
 
     private final SettingServiceBlockingStub settingsServiceClient;
-
-    // An interface for obtaining pricing
-    private final PriceTableStore priceTableStore;
 
     private final TopologyEntityCloudTopologyFactory cloudTopologyFactory;
 
@@ -134,13 +117,24 @@ public class ReservedInstanceAnalyzer {
     private final long realtimeTopologyContextId;
 
     /*
+     * Facade to access the historical demand.
      * Refatoring code to improve JUnit testing, because this class is highly dependent on the Spring
      * framework's dependency injection, which is difficult to JUnit test.
-     * The ReservedInstanceAnalyzerHistoricalData class's constructor takes a ReservedInstanceAnalyzerHistoricalData
-     * as a parameter.
-     * TOOD: @Autowired this instance variable.
+     *
+     * TODO: This object should be passed into the constructor and eliminate the computeTierDemandStatsStore
+     * parameter.
      */
     private final ReservedInstanceAnalyzerHistoricalData historicalData;
+
+    /*
+     * Facade to access the rate and reserved instances.
+     * Refatoring code to improve JUnit testing, because this class is highly dependent on the Spring
+     * framework's dependency injection, which is difficult to JUnit test.
+     *
+     * TODO: This object should be passed into the constructor and eliminate the priceTableStore,
+     * riSpecStore, and riBoughtStore parameters.
+     */
+    private final ReservedInstanceAnalyzerRateAndRIs rateAndRIProvider;
 
    /**
      *
@@ -170,26 +164,30 @@ public class ReservedInstanceAnalyzer {
                                     @Nonnull ActionContextRIBuyStore actionContextRIBuyStore,
                                     final long realtimeTopologyContextId) {
         this.settingsServiceClient = Objects.requireNonNull(settingsServiceClient);
-        this.riBoughtStore = Objects.requireNonNull(riBoughtStore);
-        this.riSpecStore = Objects.requireNonNull(riSpecStore);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
-        this.priceTableStore = Objects.requireNonNull(priceTableStore);
         this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
         this.actionsSender = Objects.requireNonNull(actionsSender);
         this.buyRiStore = Objects.requireNonNull(buyRiStore);
         this.actionContextRIBuyStore = Objects.requireNonNull(actionContextRIBuyStore);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+
+        /*
+         * accessors to historical data and rates and RIs.
+         */
         this.historicalData =
             new ReservedInstanceAnalyzerHistoricalData(Objects.requireNonNull(computeTierDemandStatsStore));
+
+        this.rateAndRIProvider =
+            new ReservedInstanceAnalyzerRateAndRIs(priceTableStore, riSpecStore, riBoughtStore);
     }
 
     public void runRIAnalysisAndSendActions(final long planId,
                 @Nonnull ReservedInstanceAnalysisScope scope,
                 @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType)
                                 throws CommunicationException, InterruptedException {
-        if (historicalData.containsDataOverWeek()) {
+       if (historicalData.containsDataOverWeek()) {
             @Nullable ReservedInstanceAnalysisResult result = analyze(planId, scope,
-                    historicalDemandDataType);
+                historicalDemandDataType);
             ActionPlan actionPlan;
             if (result == null) {
                 // when result is null, it may be that no need to buy any ri
@@ -197,19 +195,20 @@ public class ReservedInstanceAnalyzer {
                 // once action orchestrator receives buy RI ation plan, it will
                 // notify plan orchestrator it status
                 actionPlan = ActionPlan.newBuilder()
-                        .setId(IdentityGenerator.next())
-                        .setInfo(ActionPlanInfo.newBuilder()
-                                .setBuyRi(BuyRIActionPlanInfo.newBuilder()
-                                        .setTopologyContextId(planId)))
-                        .build();
+                    .setId(IdentityGenerator.next())
+                    .setInfo(ActionPlanInfo.newBuilder()
+                        .setBuyRi(BuyRIActionPlanInfo.newBuilder()
+                            .setTopologyContextId(planId)))
+                    .build();
             } else {
                 result.persistResults();
                 actionPlan = result.createActionPlan();
             }
             actionsSender.notifyActionsRecommended(actionPlan);
         } else {
-            logger.info("There is no over one week data available, waiting for more data to" +
-                    " trigger buy RI analysis.");
+            logger.info("There is less than one week of data available, waiting for more data to" +
+                " trigger buy RI analysis.");
+
         }
     }
 
@@ -229,28 +228,18 @@ public class ReservedInstanceAnalyzer {
     public ReservedInstanceAnalysisResult analyze(final long topologyContextId,
             @Nonnull ReservedInstanceAnalysisScope scope,
             @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType) {
+        Objects.requireNonNull(scope);
+        Objects.requireNonNull(historicalDemandDataType);
 
         final Date analysisStartTime = new Date();
         final Stopwatch overallTime = Stopwatch.createStarted();
         try {
-
-            // Fetch the latest topology from repository.
-            // What if repository is down? Should we keep re-trying until repository is up?
-            // TODO: karthikt - fetch just the entities needed instead of getting all the
-            // entities in the topology.
-            // we need to fetch the realtime topology even for plan because buy RI runs
-            // before any plan topology being constructed, if there is a plan topology
-            Stream<TopologyEntityDTO> entities = RepositoryDTOUtil.topologyEntityStream(
-                repositoryClient.retrieveTopologyEntities(
-                        RetrieveTopologyEntitiesRequest.newBuilder()
-                            .setTopologyContextId(realtimeTopologyContextId)
-                            .setReturnType(Type.FULL)
-                            .setTopologyType(TopologyType.SOURCE)
-                            .build()))
-                .map(PartialEntity::getFullEntity);
             TopologyEntityCloudTopology cloudTopology =
-                    cloudTopologyFactory.newCloudTopology(entities);
-
+                computeCloudTopology(repositoryClient, realtimeTopologyContextId, scope);
+            if (cloudTopology.size() == 0) {
+                logger.info("Something went wrong: no cloudTopology entities, time: {} ms");
+                return null;
+            }
             // Describes what kind of RIs can be considered for purchase
             final ReservedInstancePurchaseConstraints purchaseConstraints =
                     getPurchaseConstraints(scope);
@@ -259,14 +248,16 @@ public class ReservedInstanceAnalyzer {
             // Within each family, compute tiers are sorted by number of coupons.
             // This mapping is needed to find the compute tier type in a family with the least coupons,
             // which the algorithm buys RIs for.
-            Map<String, List<TopologyEntityDTO>> computeTierFamilies = computeComputeTierFamilies(cloudTopology);
+            Map<String, List<TopologyEntityDTO>> computeTierFamilies =
+                computeComputeTierFamilies(cloudTopology);
 
             // Find the historical demand by context and create analysis clusters.
             final Stopwatch stopWatch = Stopwatch.createStarted();
             Map<ReservedInstanceRegionalContext, List<ReservedInstanceZonalContext>> clusters =
                     historicalData.computeAnalysisClusters(scope, computeTierFamilies, cloudTopology);
             if (clusters.isEmpty()) {
-                logger.info("something went wrong: discovered 0 Analyzer clusters, time: {} ms");
+                logger.info("Something went wrong: discovered 0 Analyzer clusters, time: {} ms",
+                    stopWatch.elapsed(TimeUnit.MILLISECONDS));
             } else {
                 logger.info("discovered {} Analyzer clusters, time: {} ms",
                             clusters.size(), stopWatch.elapsed(TimeUnit.MILLISECONDS));
@@ -292,6 +283,36 @@ public class ReservedInstanceAnalyzer {
             logger.error("Buy RI analysis failed.", e);
         }
         return null;
+    }
+
+    /**
+     * Compute the TopologyEntityCloudTopology.
+     *
+     * @param repositoryClient access to the repository
+     * @param topologyContextId  realtime topology context ID.
+     * @param scope analysis scope to restrict what repository entities to consider.
+     * @return TopologyEntityCloudTopology
+     */
+    private TopologyEntityCloudTopology computeCloudTopology(RepositoryServiceBlockingStub repositoryClient,
+                                                             long topologyContextId,
+                                                             ReservedInstanceAnalysisScope scope) {
+        // Fetch the latest topology from repository.
+        // What if repository is down? Should we keep re-trying until repository is up?
+        // TODO: karthikt - fetch just the entities needed instead of getting all the
+        // entities in the topology.
+        // we need to fetch the realtime topology even for plan because buy RI runs
+        // before any plan topology being constructed, if there is a plan topology
+        Stream<TopologyEntityDTO> entities = RepositoryDTOUtil.topologyEntityStream(
+            repositoryClient.retrieveTopologyEntities(
+                RetrieveTopologyEntitiesRequest.newBuilder()
+                    .setTopologyContextId(topologyContextId)
+                    .setReturnType(Type.FULL)
+                    .setTopologyType(TopologyType.SOURCE)
+                    .build()))
+            .map(PartialEntity::getFullEntity);
+        TopologyEntityCloudTopology cloudTopology =
+            cloudTopologyFactory.newCloudTopology(entities);
+        return cloudTopology;
     }
 
     /**
@@ -329,9 +350,10 @@ public class ReservedInstanceAnalyzer {
      *
      * @param scope analysis scope
      * @param purchaseConstraints what RIs to buy
-     * @param regionalToZonalContextMap Mapping from regional context to set of zonal contexts in that region.
+     * @param regionalToZonalContextMap Cluster analysis mapping:
+     *                                  from regional context to set of zonal contexts in that region.
      * @param cloudTopology dictionary for cloud entities
-     * @param demandDataType what type of demand to use in the computation? e.g allocation or consumption
+     * @param demandDataType what type of demand to use in the computation? e.g. allocation or consumption.
      * @return list of RIs to buy
      */
     private List<ReservedInstanceAnalysisRecommendation> computeRecommendations(
@@ -347,18 +369,7 @@ public class ReservedInstanceAnalyzer {
                             + "This setting is ignored and the maximal savings algorithm is run.",
                     scope.getPreferredCoverage() * 100);
         }
-        List<ReservedInstanceAnalysisRecommendation> recommendations = new ArrayList<ReservedInstanceAnalysisRecommendation>();
-        Table<Long, Long, List<ReservedInstanceBoughtInfo>> reservedInstanceBoughtTable =
-                fetchReservedInstanceBought();
-        Map<Long, ReservedInstanceSpec> reservedInstanceSpecMap = fetchReservedInstanceSpecs();
-        Map<ReservedInstanceSpecInfo, ReservedInstanceSpec> riSpecLookupMap = reservedInstanceSpecMap.entrySet()
-                .stream().collect(Collectors.toMap(
-                        e -> e.getValue().getReservedInstanceSpecInfo(), e -> e.getValue()));
-
-        PriceTable priceTable = priceTableStore.getMergedPriceTable();
-        ReservedInstancePriceTable reservedInstancePriceTable =
-                priceTableStore.getMergedRiPriceTable();
-
+        List<ReservedInstanceAnalysisRecommendation> recommendations = new ArrayList<>();
         // For each cluster
         for (Entry<ReservedInstanceRegionalContext, List<ReservedInstanceZonalContext>> entry :
                 regionalToZonalContextMap.entrySet()) {
@@ -366,12 +377,13 @@ public class ReservedInstanceAnalyzer {
             // We want to tag all messages related to a context with a key so that we can grep in log
             final String logTag = generateLogTag();
             ReservedInstanceRegionalContext regionalContext = entry.getKey();
-            List<ReservedInstanceZonalContext> contexts = entry.getValue();
+            List<ReservedInstanceZonalContext> zonalContexts = entry.getValue();
             // Compute computeTier to buy RIs for.  If compute tier is flexible,
             // it must be the smallest compute tier for this family.
-            TopologyEntityDTO buyProfile = regionalContext.getComputeTier();
+            TopologyEntityDTO buyComputeTier = regionalContext.getComputeTier();
 
-            Map<ReservedInstanceZonalContext, float[]> dBDemand = getDemandFromDB(scope, contexts, demandDataType);
+            Map<ReservedInstanceZonalContext, float[]> dBDemand =
+                getDemandFromDB(scope, zonalContexts, demandDataType);
 
             /**
              * We are doing a deep copy here because the original map gets modified in subsequent
@@ -386,44 +398,40 @@ public class ReservedInstanceAnalyzer {
 
             // get the historical demand for each RI context
             Map<ReservedInstanceZonalContext, float[]> riContextDemand =
-                    getDemand(dBDemand, regionalContext, logTag);
+                    normalizeDemand(dBDemand, regionalContext, cloudTopology, logTag);
             // apply zonal RIs
             float[] normalizedDemand =
-                    applyZonalRIsToCluster(riContextDemand, regionalContext,
-                            reservedInstanceBoughtTable, reservedInstanceSpecMap);
+                    applyZonalRIsToCluster(riContextDemand, regionalContext, rateAndRIProvider);
             // apply regional RIs and return the normalized array of demands
             normalizedDemand =
-                    applyRegionalRIs(normalizedDemand, regionalContext,
-                            reservedInstanceBoughtTable, reservedInstanceSpecMap,
+                    applyRegionalRIs(normalizedDemand, regionalContext, rateAndRIProvider,
                             cloudTopology.getEntities());
             if (normalizedDemand == null) {
                 logger.info("{}no demand for cluster {}", logTag, regionalContext);
                 continue;
             }
-            logger.debug("{}Profile to buy RIs for is {} in cluster {}",
-                    logTag, buyProfile.getDisplayName(), regionalContext);
-            // Get the pricing for the first instance type we're considering.
+            logger.info("{}Buy RIs for profile={} in context={}",
+                    logTag, buyComputeTier.getDisplayName(), regionalContext);
+            // Get the rates for the first instance type we're considering.
             // This will either be the only one, or if instance size flexible
             // this will be the one with the smallest coupon value.
-            PricingProviderResult pricing = getPricing(regionalContext,
-                    purchaseConstraints, buyProfile);
-
-            if (pricing == null) {
-                // something went wrong with the price provider.
-                logger.warn("Pricing is null");
+            PricingProviderResult rates = rateAndRIProvider.findRates(regionalContext, purchaseConstraints);
+            if (rates == null) {
+                // something went wrong with the looking up rates.
+                logger.warn("analyze() rates are null for regionContext={} and constraints={}",
+                    regionalContext, purchaseConstraints);
                 continue;
             }
             numContextsAnalyzed++;
             RecommendationKernelAlgorithmResult kernelResult;
-            kernelResult = RecommendationKernelAlgorithm.computation(pricing.getOnDemandCost(),
-                    pricing.getReservedInstanceCost(), normalizedDemand, regionalContext.toString(), logTag);
+            kernelResult = RecommendationKernelAlgorithm.computation(rates.getOnDemandRate(),
+                rates.getReservedInstanceRate(), normalizedDemand, regionalContext.toString(), logTag);
             if (kernelResult == null) {
                 continue;
             }
             int activeHours = countActive(normalizedDemand, logTag);
             ReservedInstanceAnalysisRecommendation recommendation = generateRecommendation(scope,
-                    regionalContext, purchaseConstraints, kernelResult, pricing, activeHours,
-                    riSpecLookupMap);
+                    regionalContext, purchaseConstraints, kernelResult, rates, activeHours);
             if (recommendation != null) {
                 recommendations.add(recommendation);
                 if (recommendation.getCount() > 0) {
@@ -484,27 +492,24 @@ public class ReservedInstanceAnalyzer {
      *
      * @param zonalContextDemands a map of from zonal context to demand.
      * @param regionalContext       the scope of analysis, regionalContext.
-     * @param reserveInstanceBoughtTable table: business account OID X availability zone OID -> ReservedInstanceBoughtInfo.
-     * @param reservedInstanceSpecMap map from reserve instance spec OID to reserve instance spec.
+     * @param priceAndRIProvider   provider of rates and RIs.
      * @return a normalized array of demands.
      */
     @Nullable
     float[] applyZonalRIsToCluster(@Nonnull Map<ReservedInstanceZonalContext, float[]> zonalContextDemands,
                                    @Nonnull ReservedInstanceRegionalContext regionalContext,
-                                   @Nonnull Table<Long, Long, List<ReservedInstanceBoughtInfo>> reserveInstanceBoughtTable,
-                                   @Nonnull Map<Long, ReservedInstanceSpec> reservedInstanceSpecMap) {
+                                   @Nonnull ReservedInstanceAnalyzerRateAndRIs priceAndRIProvider) {
 
         List<float[]> demands = new ArrayList<>();
-        for (ReservedInstanceZonalContext context : zonalContextDemands.keySet()) {
-            float[] demand = applyZonalRIs(zonalContextDemands.get(context),
-                    context, regionalContext.getComputeTier(),
-                    reserveInstanceBoughtTable, reservedInstanceSpecMap);
+        for (ReservedInstanceZonalContext zonalContext : zonalContextDemands.keySet()) {
+            float[] demand = applyZonalRIs(zonalContextDemands.get(zonalContext),
+                    zonalContext, regionalContext.getComputeTier(), priceAndRIProvider);
             if (demand != null) {
                 demands.add(demand);
             }
         }
-        float[] normalizedDemand = combineDemand(demands);
-        return removeNegativeDataPoints(normalizedDemand);
+        float[] combinedDemand = combineDemand(demands);
+        return removeNegativeDataPoints(combinedDemand);
     }
 
     /**
@@ -514,30 +519,28 @@ public class ReservedInstanceAnalyzer {
      *
      * @param normalizedDemand historical demand, in normalized coupons.
      * @param zonalContext the context that is looking for zonal RIs.
-     * @param profile the profile buying RIs for and whose number of coupons normalizes RI coupons.
-     * @param reserveInstanceBoughtTable table: business account OID X availability zone OID -> ReservedInstanceBoughtInfo.
-     * @param reservedInstanceSpecMap map from reserve instance spec OID to reserve instance spec.
+     * @param buyComputeTier the compute tier buying RIs for and whose number of coupons normalizes RI coupons.
+     * @param priceAndRIProvider   provider of rates and RIs.
      * @return normalizedDemand adjust for zonal RIs.
      */
     float[] applyZonalRIs(@Nullable float[] normalizedDemand,
                           @Nonnull ReservedInstanceZonalContext zonalContext,
-                          @Nonnull TopologyEntityDTO profile,
-                          @Nonnull Table<Long, Long, List<ReservedInstanceBoughtInfo>> reserveInstanceBoughtTable,
-                          @Nonnull Map<Long, ReservedInstanceSpec> reservedInstanceSpecMap) {
-
+                          @Nonnull TopologyEntityDTO buyComputeTier,
+                          @Nonnull ReservedInstanceAnalyzerRateAndRIs priceAndRIProvider) {
         List<ReservedInstanceBoughtInfo> risBought =
-                reserveInstanceBoughtTable.get(zonalContext.getMasterAccountId(),
+            priceAndRIProvider.lookupReservedInstanceBoughtInfos(zonalContext.getMasterAccountId(),
                 zonalContext.getAvailabilityZoneId());
 
         if (risBought == null) {
-            logger.error("Couldn't get RI Bought record for MasterAccount: {} and AvailabilityZone: {}",
+            logger.debug("applyZonalRIs() no RI Bought records found for MasterAccount={} and AvailabilityZone={}",
                     zonalContext.getMasterAccountId(), zonalContext.getAvailabilityZoneId());
            return normalizedDemand;
         }
 
         int normalizedCoupons = risBought.stream()
                 .mapToInt(riBoughtInfo -> {
-                    ReservedInstanceSpec riSpec = reservedInstanceSpecMap.get(riBoughtInfo.getReservedInstanceSpec());
+                    ReservedInstanceSpec riSpec =
+                        priceAndRIProvider.lookupReservedInstanceSpecWithId(riBoughtInfo.getReservedInstanceSpec());
                     if (riSpec == null) {
                         logger.warn("RISpec is null. Skipping RI: {}", riBoughtInfo);
                         //skip this RI.
@@ -548,9 +551,8 @@ public class ReservedInstanceAnalyzer {
                             && riSpecInfo.getOs() == zonalContext.getPlatform()
                             && riSpecInfo.getTierId() == zonalContext.getComputeTier().getOid()) {
                         return (riBoughtInfo.getReservedInstanceBoughtCoupons().getNumberOfCoupons() /
-                                    profile.getTypeSpecificInfo().getComputeTier().getNumCoupons());
+                            buyComputeTier.getTypeSpecificInfo().getComputeTier().getNumCoupons());
                     }
-
                     return 0;
                 })
                 .sum();
@@ -583,54 +585,45 @@ public class ReservedInstanceAnalyzer {
     /**
      * Return demand adjusted by regional RIs.
      *
-     * @param normalizedDemand historical demand, in coupons normalized by profile.getNumberOfCoupons()
-     * @param regionalContext analysis cluster
-     * @param reserveInstanceBoughtTable table: business account OID X availability zone OID -> ReservedInstanceBoughtInfo.
-     * @param reservedInstanceSpecMap map from reserve instance spec OID to reserve instance spec.
-     * @param cloudEntities dictionary for cloud entities
+     * @param normalizedDemand historical demand, in coupons normalized by regional context's compute tier.
+     * @param regionalContext scope of analysis cluster.
+     * @param rateAndRIProvider provider of rates and RIs.
+     * @param cloudEntities dictionary for cloud entities.
      * @return normalized demand adjusted by regional RIs
      */
     float[] applyRegionalRIs(float[] normalizedDemand,
                              @Nonnull ReservedInstanceRegionalContext regionalContext,
-                             @Nonnull Table<Long, Long, List<ReservedInstanceBoughtInfo>> reserveInstanceBoughtTable,
-                             @Nonnull Map<Long, ReservedInstanceSpec> reservedInstanceSpecMap,
+                             @Nonnull ReservedInstanceAnalyzerRateAndRIs rateAndRIProvider,
                              @Nonnull Map<Long, TopologyEntityDTO> cloudEntities) {
 
-        // compute zonal RI coverage in coupons
-        boolean isInstanceSizeFlexible =
-                regionalContext.getPlatform().equals(OSType.LINUX) && regionalContext.getTenancy().equals(Tenancy.DEFAULT);
+        List<ReservedInstanceBoughtInfo> risBought =
+            rateAndRIProvider.lookupReservedInstancesBoughtInfos(regionalContext);
 
-        Map<Long, List<ReservedInstanceBoughtInfo>> risBought =
-                reserveInstanceBoughtTable.rowMap().get(regionalContext.getMasterAccountId());
-
-        int normalizedCoupons = risBought.values()
-                .stream()
-                .flatMap(List::stream)
-                .mapToInt(riBoughtInfo -> {
-                    ReservedInstanceSpec riSpec = reservedInstanceSpecMap.get(riBoughtInfo.getReservedInstanceSpec());
-                    if (riSpec == null || !riBoughtInfo.hasBusinessAccountId()) {
-                        logger.warn("Skipping RI: {}", riBoughtInfo);
-                        //skip this RI.
-                        return 0;
-                    }
-                    ReservedInstanceSpecInfo riSpecInfo = riSpec.getReservedInstanceSpecInfo();
-                    if (riSpecInfo.getRegionId() == regionalContext.getRegionId()
-                            && riBoughtInfo.getBusinessAccountId() == regionalContext.getMasterAccountId()
-                            && riSpecInfo.getTenancy() == regionalContext.getTenancy()
-                            && riSpecInfo.getOs() == regionalContext.getPlatform()
-                            && (isInstanceSizeFlexible ?
-                                (regionalContext.getComputeTier().getTypeSpecificInfo().getComputeTier().getFamily() ==
-                                        cloudEntities.get(riSpecInfo.getTierId()).getTypeSpecificInfo().getComputeTier().getFamily())
-                                : riSpecInfo.getTierId() == regionalContext.getComputeTier().getOid())
-                            && regionalContext.getComputeTier().getTypeSpecificInfo().getComputeTier().getNumCoupons() > 0) {
-                        return (riBoughtInfo.getReservedInstanceBoughtCoupons().getNumberOfCoupons() /
-                                regionalContext.getComputeTier().getTypeSpecificInfo().getComputeTier().getNumCoupons());
-                    }
-
-                    return 0;
-                })
-                .sum();
-
+        int buyComputeTierCoupons = regionalContext.getComputeTier().getTypeSpecificInfo().getComputeTier().getNumCoupons();
+        float normalizedCoupons = 0;
+        for (ReservedInstanceBoughtInfo boughtInfo: risBought) {
+            ReservedInstanceSpec riSpec =
+                rateAndRIProvider.lookupReservedInstanceSpecWithId(boughtInfo.getReservedInstanceSpec());
+            if (riSpec == null || !boughtInfo.hasBusinessAccountId()) {
+                logger.warn("applyRegionalRIs Skipping RI: {}", boughtInfo);
+                continue;
+            }
+            ReservedInstanceSpecInfo riSpecInfo = riSpec.getReservedInstanceSpecInfo();
+            if (riSpecInfo.getRegionId() == regionalContext.getRegionId()
+                // might have to look up master account for boughtInfo
+                && boughtInfo.getBusinessAccountId() == regionalContext.getMasterAccountId()
+                && riSpecInfo.getTenancy() == regionalContext.getTenancy()
+                && riSpecInfo.getOs() == regionalContext.getPlatform()
+                && (regionalContext.isInstanceSizeFlexible() ?
+                (regionalContext.getComputeTier().getTypeSpecificInfo().getComputeTier().getFamily() ==
+                    cloudEntities.get(riSpecInfo.getTierId()).getTypeSpecificInfo().getComputeTier().getFamily())
+                : riSpecInfo.getTierId() == regionalContext.getComputeTier().getOid())
+                && (regionalContext.getComputeTier().getTypeSpecificInfo().getComputeTier().getNumCoupons() > 0)) {
+                normalizedCoupons +=
+                    boughtInfo.getReservedInstanceBoughtCoupons().getNumberOfCoupons() /
+                        (float)buyComputeTierCoupons;
+            }
+        }
         if (normalizedCoupons == 0) {
             logger.debug("No regional RIs applicable in cluster {}", regionalContext);
             return normalizedDemand;
@@ -640,62 +633,14 @@ public class ReservedInstanceAnalyzer {
     }
 
     /**
-     * Get the reserved instance bought from the store.
-     *
-     * @return Table mapping : (BusinessAccountId, AvailabilityZoneId, List<ReservedInstanceBought>}
-     */
-    private Table<Long, Long, List<ReservedInstanceBoughtInfo>> fetchReservedInstanceBought() {
-
-        // map business account OID X availability zone OID -> ReservedInstanceBoughtInfo
-        Table<Long, Long, List<ReservedInstanceBoughtInfo>> riBoughtTable =
-                HashBasedTable.create();
-
-        riBoughtStore.getReservedInstanceBoughtByFilter(
-                // no special filter. get all records
-                ReservedInstanceBoughtFilter.newBuilder()
-                        .build())
-                .stream()
-                .map(ReservedInstanceBought::getReservedInstanceBoughtInfo)
-                .forEach(riBought -> {
-                    List<ReservedInstanceBoughtInfo> existingValue =
-                            riBoughtTable.get(riBought.getBusinessAccountId(), riBought.getAvailabilityZoneId());
-                    if (existingValue == null) {
-                        existingValue = new ArrayList<>();
-                    }
-                    existingValue.add(riBought);
-                    riBoughtTable.put(riBought.getBusinessAccountId(), riBought.getAvailabilityZoneId(),
-                            existingValue);
-            });
-
-        return riBoughtTable;
-    }
-
-    /**
-     * Get the reserved instance specs from the store.
-     *
-     * @return Mapping from ReservedInstanceSpecId -> ReservedInstanceSpec
-     */
-    private Map<Long, ReservedInstanceSpec> fetchReservedInstanceSpecs() {
-
-        Map<Long, ReservedInstanceSpec> riBoughtTable = new HashMap<>();
-
-        return riSpecStore.getAllReservedInstanceSpec()
-                .stream()
-                .collect(Collectors.toMap(ReservedInstanceSpec::getId,
-                        Function.identity()));
-
-    }
-
-    /**
      * Generate recommendation to buy RIs to provide coverage as specified by the kernel result.
      *
      * @param scope scope of analysis
      * @param regionalContext the context in which to buy (eg us-east-1 shared-tenancy Linux).
      * @param constraints the constraints under which to purchase RIs.
      * @param kernelResult the results from running the kernel algorithm
-     * @param pricing the hourly cost for on demand and RI.
+     * @param pricing provider of rates and RIs.
      * @param activeHours how many hours had data?
-     * @param riSpecLookupMap map of riSpec to riSpec. Used to look up riSpecId from the regionalContext.
      * @return a list of recommendations, which may be empty if no actions are necessary.
      */
     @Nullable
@@ -704,8 +649,8 @@ public class ReservedInstanceAnalyzer {
                                                                           @Nonnull ReservedInstancePurchaseConstraints constraints,
                                                                           @Nonnull RecommendationKernelAlgorithmResult kernelResult,
                                                                           @Nonnull PricingProviderResult pricing,
-                                                                          int activeHours,
-                                                                          @Nonnull Map<ReservedInstanceSpecInfo, ReservedInstanceSpec> riSpecLookupMap) {
+                                                                          int activeHours) {
+        Objects.requireNonNull(scope);
         Objects.requireNonNull(regionalContext);
         Objects.requireNonNull(constraints);
         Objects.requireNonNull(kernelResult);
@@ -721,15 +666,14 @@ public class ReservedInstanceAnalyzer {
 
         float riHourlyCost = kernelResult.getRiHourlyCost();
         if (riHourlyCost <= 0) {
-            logger.error("{}Reserved Instance Cluster {} has RI with hourly RI cost {} "
+            logger.error("{}Reserved Instance regionalContext={} has RI with hourly RI cost={} "
                             + "(less than or equal zero) and hourly cost saving {}. ",
                             logTag, regionalContext, riHourlyCost, hourlyCostSavings);
         }
 
-        logger.debug("{}numberOfRIsToBuy {} > 0  for computeTier {} in cluster {}",
-            logTag, numberOfRIsToBuy, regionalContext.getComputeTier(), regionalContext);
-        ReservedInstanceSpec riSpec = getRiSpec(
-                scope.getRiPurchaseProfile().getRiType(), regionalContext, riSpecLookupMap);
+        logger.debug("{}numberOfRIsToBuy {} > 0  for computeTierId={} in regionalContext={}",
+            logTag, numberOfRIsToBuy, regionalContext.getComputeTier().getOid(), regionalContext);
+        ReservedInstanceSpec riSpec = rateAndRIProvider.lookupReservedInstanceSpec(regionalContext, constraints);
         if (riSpec == null) {
             logger.error("Could not find riSpec for {}", regionalContext);
             return null;
@@ -743,8 +687,8 @@ public class ReservedInstanceAnalyzer {
                 constraints,
                 ReservedInstanceAnalysisRecommendation.Action.BUY,
                 numberOfRIsToBuy,
-                pricing.getOnDemandCost(), // onDemandCost
-                pricing.getReservedInstanceCost(), // RI cost
+                pricing.getOnDemandRate(),
+                pricing.getReservedInstanceRate(),
                 hourlyCostSavings,
                 kernelResult.getAverageHourlyCouponDemand(),
                 kernelResult.getTotalHours(),
@@ -756,55 +700,48 @@ public class ReservedInstanceAnalyzer {
         return recommendation;
     }
 
-    @Nullable
-    private ReservedInstanceSpec getRiSpec(@Nonnull ReservedInstanceType riType,
-            @Nonnull ReservedInstanceRegionalContext regionalContext,
-            @Nonnull Map<ReservedInstanceSpecInfo, ReservedInstanceSpec> riSpecLookupMap) {
-        ReservedInstanceSpecInfo riSpecInfoToLookup = ReservedInstanceSpecInfo.newBuilder()
-                .setOs(regionalContext.getPlatform())
-                .setRegionId(regionalContext.getRegionId())
-                .setTenancy(regionalContext.getTenancy())
-                .setTierId(regionalContext.getComputeTier().getOid())
-                .setType(riType)
-                .build();
-        return riSpecLookupMap.get(riSpecInfoToLookup);
-    }
-
     /**
-     * Gets the demand for a cluster partitioned by context.
-     * Getting data from database, the array may contain "-1" values.
-     * Want the number of coupons relative to profile, buying for.
+     * Normalize the demand for an analysis cluster.  This is required for instance size flexible
+     * where demand from different size templates are analyzed together.
+     * The demand for each zonal context is normalized by the number of coupons for the regional
+     * cluster's compute tier.
+     * Note dbDemand, which was obtained from the database, may contain "-1" values.
+     * Want the number of coupons relative to compute tier that RIs are bought for, buyComputeTier.
      * For example, "c4" family, minimum size if 'large', which is 8 coupons, want the
-     * number of coupons normalized to 8.
-     * Constraint: context.getInstanceType().getNumberOfCoupons() >=profile.getNumberOfCoupons()
+     * number of coupons normalized by 8.
+     * Constraint:
+     *   zonalContext.getInstanceType().getNumberOfCoupons() >= regionalContext.getInstanceType().getNumberOfCoupons()
      *
-     * @param dBDemand a map from zonal context to demand
-     * @param regionalContext  the scope of analysis, a regional context
-     * @param logTag tag for logging messages
-     * @return a map of reserved instance contexts and array of demands.
+     * @param dBDemand a map from zonal context to demand.
+     * @param regionalContext  the scope of analysis cluster, a regional context.
+     * @param cloudTopology topology entity dictionary for cloud entities.
+     * @param logTag tag for logging messages.
+     * @return a map from zonal context to array of demand.
      */
-    Map<ReservedInstanceZonalContext, float[]> getDemand(Map<ReservedInstanceZonalContext, float[]> dBDemand,
-                                                         ReservedInstanceRegionalContext regionalContext,
-                                                         String logTag) {
+    Map<ReservedInstanceZonalContext, float[]> normalizeDemand(Map<ReservedInstanceZonalContext, float[]> dBDemand,
+                                                               ReservedInstanceRegionalContext regionalContext,
+                                                               TopologyEntityCloudTopology cloudTopology,
+                                                               String logTag) {
 
         Map<ReservedInstanceZonalContext, float[]> demands = new HashMap<>();
+        // why isn't the next line: regionCoupons = regionalContext.getComputeTier().getNumCoupons();
         int regionCoupons = regionalContext.getComputeTier().getTypeSpecificInfo().getComputeTier().getNumCoupons();
         for (Entry<ReservedInstanceZonalContext, float[]> entry : dBDemand.entrySet()) {
             float[] demand = entry.getValue();
-            ReservedInstanceZonalContext context = entry.getKey();
+            ReservedInstanceZonalContext zonalContext = entry.getKey();
             int normalizedCoupons = 1;
-            int zonalCoupons = context.getComputeTier().getTypeSpecificInfo().getComputeTier().getNumCoupons();
+            int zonalCoupons = zonalContext.getComputeTier().getTypeSpecificInfo().getComputeTier().getNumCoupons();
             if (regionCoupons <= 0 || zonalCoupons < regionCoupons) {
                 logger.error("{}context.getInstanceType().getNumberOfCoupons() {} < profile" +
                         ".getNumberOfCoupons() {} for {}",
-                        logTag, zonalCoupons, regionCoupons, context.toString());
+                        logTag, zonalCoupons, regionCoupons, zonalContext.toString());
             } else {
                 normalizedCoupons = zonalCoupons / regionCoupons;
             }
             demand = multiplyByCoupons(demand, normalizedCoupons);
 
             if (demand != null) {
-                demands.put(context, demand);
+                demands.put(zonalContext, demand);
             }
         }
         return demands;
@@ -943,7 +880,7 @@ public class ReservedInstanceAnalyzer {
      * @return the adjusted historical demand.  The length is the same as the input demand array.
      */
     @Nullable
-    protected float[] subtractCouponsFromDemand(@Nullable float[] demand, int coupons) {
+    protected float[] subtractCouponsFromDemand(@Nullable float[] demand, float coupons) {
         if (demand == null) {
             return null;
         }
@@ -1063,40 +1000,5 @@ public class ReservedInstanceAnalyzer {
 
         return reservedInstancePurchaseConstraints;
 
-    }
-
-    private PricingProviderResult getPricing(@Nonnull ReservedInstanceRegionalContext regionalContext,
-                                             @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints,
-                                             @Nonnull TopologyEntityDTO profile) {
-
-        // TODO: karthikt - fix the pricing function.
-        Random r = new Random();
-        return new PricingProviderResult(0 + r.nextFloat() * (100 - 0),
-        0 + r.nextFloat() * (100 - 0));
-        //return new PricingProviderResult(0.0f, 0.0f);
-    }
-
-    /**
-     * A class to encapsulate teh on-demand and reserved instance price for a instance type.
-     */
-    public class PricingProviderResult {
-        // The hourly on-demand price for an instance of some type.
-        private final float onDemandCost;
-
-        // The effective hourly price (actual hourly + amortized up-front) cost.
-        private final float reservedInstanceCost;
-
-        public PricingProviderResult(float onDemandCost, float riCost) {
-            this.onDemandCost = onDemandCost;
-            this.reservedInstanceCost = riCost;
-        }
-
-        public float getOnDemandCost() {
-            return onDemandCost;
-        }
-
-        public float getReservedInstanceCost() {
-            return reservedInstanceCost;
-        }
     }
 }

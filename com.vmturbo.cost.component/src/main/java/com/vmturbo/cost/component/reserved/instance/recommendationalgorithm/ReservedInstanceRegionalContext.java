@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.reserved.instance.recommendationalgorithm;
 
 import java.util.Objects;
+
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
@@ -72,11 +73,11 @@ public class ReservedInstanceRegionalContext extends ReservedInstanceContext {
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append("masterAccountId=").append(masterAccountId)
+        builder.append("regionId=").append(regionId)
             .append(" computeTierId=").append(computeTier.getOid())
             .append(" platform=").append(platform.name())
             .append(" tenancy=").append(tenancy.name())
-            .append(" regionId=").append(regionId);
+            .append(" masterAccountId=").append(masterAccountId);
         return builder.toString();
     }
 }

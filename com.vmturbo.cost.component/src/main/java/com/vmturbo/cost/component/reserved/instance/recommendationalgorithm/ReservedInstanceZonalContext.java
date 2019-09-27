@@ -61,11 +61,11 @@ public class ReservedInstanceZonalContext extends ReservedInstanceContext {
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append("masterAccountId=").append(masterAccountId)
+        builder.append("zoneId=").append(availabilityZoneId)
             .append(" computeTierId=").append(computeTier.getOid())
             .append(" platform=").append(platform.name())
             .append(" tenancy=").append(tenancy.name())
-            .append(" zoneId=").append(availabilityZoneId);
+            .append(" masterAccountId=").append(masterAccountId);
         return builder.toString();
     }
 }

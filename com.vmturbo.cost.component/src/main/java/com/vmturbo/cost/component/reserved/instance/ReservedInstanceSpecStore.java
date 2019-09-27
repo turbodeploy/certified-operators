@@ -12,6 +12,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -27,11 +29,20 @@ import com.vmturbo.cost.component.identity.IdentityProvider;
  * part comes from reserved instance bought, second part comes from reserved instance cost price table.
  */
 public class ReservedInstanceSpecStore {
-    private final static Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
     private final IdentityProvider identityProvider;
 
     private final DSLContext dsl;
+
+    /**
+     * For JUnit testing only.
+     */
+    @VisibleForTesting
+    ReservedInstanceSpecStore() {
+        this.dsl = null;
+        this.identityProvider = null;
+    }
 
     public ReservedInstanceSpecStore(@Nonnull final DSLContext dsl,
                                      @Nonnull final IdentityProvider identityProvider) {
@@ -51,11 +62,12 @@ public class ReservedInstanceSpecStore {
      * duplicate, will not insert duplicate spec data into data. For those new
      * {@link ReservedInstanceSpecInfo}, it will insert them into reserved_instance_spec table as a
      * new reserved instance spec record, and will assign a new Id for them.
-     * <p>
-     * And this method will return a Map which key is the local id of reserved instance spec and the
+     *
+     * <p>And this method will return a Map which key is the local id of reserved instance spec and the
      * local id is set by Topology Processor in order to keep the relationship between reserved instance
      * bought with reserved instance bought spec. And the Map's value is the real id of reserved instance
      * spec after update spec table.
+     * </p>
      *
      * @param context {@link DSLContext} transactional context.
      * @param newReservedInstanceBoughtSpec if any reserved instance spec enum is not match.

@@ -13,13 +13,14 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Sets;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Record2;
 import org.jooq.Result;
-
-import com.google.common.collect.Sets;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
@@ -37,14 +38,14 @@ import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBough
  */
 public class ReservedInstanceBoughtStore {
 
-    private final static Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
     private final IdentityProvider identityProvider;
 
     private final DSLContext dsl;
 
     // A temporary column name used for query reserved instance count map.
-    private final static String RI_SUM_COUNT = "ri_sum_count";
+    private static final String RI_SUM_COUNT = "ri_sum_count";
 
     private final Flux<ReservedInstanceBoughtChangeType> updateEventFlux;
 
@@ -53,6 +54,9 @@ public class ReservedInstanceBoughtStore {
      */
     private FluxSink<ReservedInstanceBoughtChangeType> updateEventEmitter;
 
+    /**
+     * TODO: JavaDoc: What is this enum needed for?
+     */
     public enum ReservedInstanceBoughtChangeType {
         UPDATED;
     }
@@ -65,6 +69,17 @@ public class ReservedInstanceBoughtStore {
         updateEventFlux = Flux.create(emitter -> updateEventEmitter = emitter);
         // start publishing immediately w/o waiting for a consumer to signal demand.
         updateEventFlux.publish().connect();
+    }
+
+    /**
+     * Only used for JUnit tests.
+     */
+    @VisibleForTesting
+    ReservedInstanceBoughtStore() {
+        this.identityProvider = null;
+        this.dsl = null;
+        // create a flux that a listener can subscribe to group store update events on.
+        updateEventFlux = null;
     }
 
     /**
@@ -164,7 +179,7 @@ public class ReservedInstanceBoughtStore {
     /**
      * Get the Reserved Instance Bought store update event stream. A listener can .subscribe() to the {@link Flux} that
      * is returned and get access to any update events in the RI Inventory.
-     * @return
+     * @return flux for Reserved Instance Bought store update event
      */
     public Flux<ReservedInstanceBoughtChangeType> getUpdateEventStream() {
         return updateEventFlux;
@@ -207,8 +222,8 @@ public class ReservedInstanceBoughtStore {
     /**
      * Delete a list of {@link ReservedInstanceBoughtRecord} from table.
      *
-     * @param context
-     * @param reservedInstanceToRemove
+     * @param context DSL context.
+     * @param reservedInstanceToRemove set of ReservedInstanceBoughtRecord to be removed.
      */
     private void internalDelete(@Nonnull final DSLContext context,
                                 @Nonnull final Set<ReservedInstanceBoughtRecord> reservedInstanceToRemove) {
@@ -243,9 +258,9 @@ public class ReservedInstanceBoughtStore {
     /**
      * Create a new {@link ReservedInstanceBoughtRecord} based on input {@link ReservedInstanceBoughtInfo}.
      *
-     * @param context
-     * @param reservedInstanceInfo
-     * @return
+     * @param context context for DSL.
+     * @param reservedInstanceInfo bought information on an RI.
+     * @return a record for the ReservedInstance that was bought
      */
     private ReservedInstanceBoughtRecord createNewReservedInstance(
             @Nonnull final DSLContext context,
@@ -279,7 +294,7 @@ public class ReservedInstanceBoughtStore {
     }
 
     /**
-     * Convert {@link ReservedInstanceBoughtRecord} to {@link ReservedInstanceBought}
+     * Convert {@link ReservedInstanceBoughtRecord} to {@link ReservedInstanceBought}.
      *
      * @param reservedInstanceRecord {@link ReservedInstanceBoughtRecord}.
      * @return a {@link ReservedInstanceBought}.

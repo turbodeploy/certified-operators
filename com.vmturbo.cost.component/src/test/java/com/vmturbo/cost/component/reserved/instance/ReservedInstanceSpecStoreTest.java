@@ -31,6 +31,9 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.Payment
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
+/**
+ * This class tests methods in the ReservedInstanceSpecStore class.
+ */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(
         classes = {TestSQLDatabaseConfig.class}

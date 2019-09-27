@@ -13,7 +13,6 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -26,8 +25,8 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
  * This class tests methods in the ReservedInstanceAnalyzerUtils class.
- * <p>
- * There are a number of tests with the @Ignore tag.  These tags should be removed as the corresponding
+ *
+ * <p>There are a number of tests with the @Ignore tag.  These tags should be removed as the corresponding
  * Jiras are closed:
  * 1) OM-50131: testComputeAnalysisClustersAccountScoping
  * 2) OM-50131: testComputeAnalysisClustersMultipleRecordsScopeToAccount
@@ -429,6 +428,8 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
 
     /**
      * Create historical demand with multiple records.
+     *
+     * @return set of historical demand records
      */
     private Set<ComputeTierTypeHourlyByWeekRecord> createMultiRecordSet() {
         ComputeTierTypeHourlyByWeekRecord record1 = new ComputeTierTypeHourlyByWeekRecord(
@@ -474,6 +475,8 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
      * Create cloud topology.
      * Only includes mocked responses for m5.large and t2.micro compute tiers OIDs
      * and Ohio and Oregon regions OIDs.
+     *
+     * @return dictionary for cloud entities
      */
     private TopologyEntityCloudTopology createCloudTopology() {
 
@@ -495,6 +498,8 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
 
     /**
      * create the tier families map.
+     *
+     * @return map from family name to list of compute tiers in that family.
      */
     private Map<String, List<TopologyEntityDTO>> createTierFamilies() {
         Map<String, List<TopologyEntityDTO>> map = new HashMap<>();
@@ -631,7 +636,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         Map<Float, Integer> map = new HashMap<>();
         for (float f: array) {
             if (map.containsKey(f)) {
-                map.put(f, map.get(f) +1);
+                map.put(f, map.get(f) + 1);
             } else {
                 map.put(f, 1);
             }

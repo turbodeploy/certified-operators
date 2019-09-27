@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.reserved.instance.recommendationalgorithm;
 
 import java.util.Objects;
+
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
