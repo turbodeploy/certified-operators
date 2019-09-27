@@ -70,9 +70,7 @@ topics:
       segment.ms: 360000 # more frequent segment rolls to allow compaction of this tiny topic
       segment.bytes: 75000 # smaller segment sizes since the messages are small and single-keyed
       delete.retention.ms: 360000 # don't need to keep deletes for long on this topic
-  - topic: settings-updates
-    properties:
-          retention.ms: 360000
+
 # the following topics are not in use yet.
 #  - topic: action-status
 #    properties:

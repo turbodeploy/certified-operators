@@ -1,6 +1,6 @@
 package com.vmturbo.cost.component.reserved.instance.recommendationalgorithm;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -28,13 +28,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.components.common.setting.CategoryPathConstants;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.RISettingsEnum.PreferredTerm;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore.ReservedInstanceBoughtChangeType;
-import com.vmturbo.group.api.SettingMessages.SettingNotification;
-import com.vmturbo.group.api.SettingsListener;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
@@ -49,7 +46,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
  * - when the RI inventory changes.
  * - when RI Buy Settings change.
  */
-public class ReservedInstanceAnalysisInvoker implements SettingsListener {
+public class ReservedInstanceAnalysisInvoker {
 
     private final Logger logger = LogManager.getLogger();
 
@@ -63,16 +60,6 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
 
     // The inventory of RIs that have already been purchased
     private final ReservedInstanceBoughtStore riBoughtStore;
-
-    private static List<String> riSettingNames = new ArrayList<>();
-
-    static  {
-        for (GlobalSettingSpecs globalSettingSpecs : GlobalSettingSpecs.values()) {
-            if (globalSettingSpecs.getCategoryPaths().contains(CategoryPathConstants.RI)) {
-                riSettingNames.add(globalSettingSpecs.getSettingName());
-            }
-        }
-    }
 
     public ReservedInstanceAnalysisInvoker(ReservedInstanceAnalyzer reservedInstanceAnalyzer,
                                     RepositoryServiceBlockingStub repositoryClient,
@@ -107,16 +94,6 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         }
     }
 
-    /**
-     * Inovkes the RI Buy Algorithm when RI Buy Settings are updated.
-     */
-    @Override
-    public void onSettingsUpdated(SettingNotification notification) {
-        if (riSettingNames.contains(notification.getGlobal().getSetting().getSettingSpecName())) {
-            logger.info("RI Buy Settings were updated. Triggering RI Buy Analysis.");
-            invokeBuyRIAnalysis();
-        }
-     }
 
     private void onRIInventoryUpdated(final ReservedInstanceBoughtChangeType type) {
         logger.info("RI Inventory has been changed. Triggering RI Buy Analysis.");
@@ -184,14 +161,18 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
 
     /**
      * Gets the current RI Buy Settings.
-     * @param settingsServiceClient The Settings Service Client.
-     * @return RISetting The setting with which the RI Buy Algorithm is going to run.
+     * @return RISetting.
      */
-    protected RISetting getRIBuySettings(SettingServiceBlockingStub settingsServiceClient) {
+    private RISetting getRIBuySettings(SettingServiceBlockingStub settingsServiceClient) {
+        final List<String> settingNames =
+                Arrays.asList(GlobalSettingSpecs.AWSPreferredOfferingClass.getSettingName(),
+                        GlobalSettingSpecs.AWSPreferredPaymentOption.getSettingName(),
+                        GlobalSettingSpecs.AWSPreferredTerm.getSettingName());
+
         final Map<String, Setting> settings = new HashMap<>();
         settingsServiceClient.getMultipleGlobalSettings(
                 GetMultipleGlobalSettingsRequest.newBuilder().build().newBuilder()
-                        .addAllSettingSpecName(riSettingNames)
+                        .addAllSettingSpecName(settingNames)
                         .build())
                 .forEachRemaining( setting -> {
                     settings.put(setting.getSettingSpecName(), setting);

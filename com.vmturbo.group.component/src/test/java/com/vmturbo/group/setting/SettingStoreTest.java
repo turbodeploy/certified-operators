@@ -13,6 +13,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -30,6 +31,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
@@ -41,6 +43,7 @@ import com.google.protobuf.ProtocolStringList;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
+import reactor.test.StepVerifier;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
@@ -64,13 +67,15 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.SettingValueTypeCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
-import com.vmturbo.group.common.DuplicateNameException;
-import com.vmturbo.group.common.ImmutableUpdateException.ImmutableSettingPolicyUpdateException;
+import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeResponse;
 import com.vmturbo.group.common.InvalidItemException;
-import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
 import com.vmturbo.group.group.GroupStore;
 import com.vmturbo.group.group.GroupStore.GroupStoreUpdateEvent;
+import com.vmturbo.group.group.GroupStore.GroupStoreUpdateEvent.GroupChangeType;
 import com.vmturbo.group.identity.IdentityProvider;
+import com.vmturbo.group.common.DuplicateNameException;
+import com.vmturbo.group.common.ImmutableUpdateException.ImmutableSettingPolicyUpdateException;
+import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
@@ -105,8 +110,6 @@ public class SettingStoreTest {
 
     private FluxSink<GroupStoreUpdateEvent> updateEventEmitter;
 
-    private SettingsUpdatesSender settingsUpdatesSender = mock(SettingsUpdatesSender.class);
-
     @Before
     public void setUp() {
         final Flux<GroupStoreUpdateEvent> flux = Flux.fromIterable(Collections.emptyList());
@@ -115,7 +118,7 @@ public class SettingStoreTest {
         final DSLContext dslContext = dbConfig.prepareDatabase();
         settingSpecStore = new FileBasedSettingsSpecStore(SETTING_TEST_JSON_SETTING_SPEC_JSON);
         settingStore = new SettingStore(settingSpecStore, dslContext, identityProviderSpy,
-                settingPolicyValidator, groupStore, settingsUpdatesSender);
+                settingPolicyValidator, groupStore);
     }
 
     @After

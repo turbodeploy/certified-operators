@@ -20,6 +20,12 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import com.google.protobuf.InvalidProtocolBufferException;
+
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -31,12 +37,6 @@ import org.jooq.impl.DSL;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
-import com.google.protobuf.InvalidProtocolBufferException;
-
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
@@ -45,11 +45,9 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
-import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableSettingPolicyUpdateException;
 import com.vmturbo.group.common.InvalidItemException;
@@ -85,29 +83,22 @@ public class SettingStore implements Diagnosable {
 
     private final GroupToSettingPolicyIndex groupToSettingPolicyIndex;
 
-    private final SettingsUpdatesSender settingsUpdatesSender;
     /**
      * Create a new SettingStore.
      *
      * @param settingSpecStore The source, providing the {@link SettingSpec} definitions.
      * @param dslContext A context with which to interact with the underlying datastore.
      * @param identityProvider The identity provider used to assign OIDs.
-     * @param settingPolicyValidator settingPolicyValidator.
-     * @param groupStore The group store.
-     * @param settingsUpdatesSender broadcaster for settings updates.
-     *
      */
     public SettingStore(@Nonnull final SettingSpecStore settingSpecStore,
             @Nonnull final DSLContext dslContext,
             @Nonnull final IdentityProvider identityProvider,
             @Nonnull final SettingPolicyValidator settingPolicyValidator,
-            @Nonnull final GroupStore groupStore,
-            @Nonnull final SettingsUpdatesSender settingsUpdatesSender) {
+            @Nonnull final GroupStore groupStore) {
         this.settingSpecStore = Objects.requireNonNull(settingSpecStore);
         this.dslContext = Objects.requireNonNull(dslContext);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.settingPolicyValidator = Objects.requireNonNull(settingPolicyValidator);
-        this.settingsUpdatesSender = settingsUpdatesSender;
         // This makes a blocking call to the DB during object initialization.
         // Since the amount of setting policies will be small, this shouldn't
         // be a problem. If this assumption changes, this loading may have to be
@@ -705,25 +696,12 @@ public class SettingStore implements Diagnosable {
         maxAttempts = 3, backoff = @Backoff(delay = 2000))
     private void updateGlobalSettingInternal(@Nonnull final Setting setting)
             throws SQLTransientException, DataAccessException {
+
         try {
             dslContext.update(GLOBAL_SETTINGS)
                         .set(GLOBAL_SETTINGS.SETTING_DATA, setting.toByteArray())
                         .where(GLOBAL_SETTINGS.NAME.eq(setting.getSettingSpecName()))
                         .execute();
-            final Optional<GlobalSettingSpecs> settingByName = GlobalSettingSpecs
-                    .getSettingByName(setting.getSettingSpecName());
-            if (settingByName.isPresent()) {
-                GlobalSettingSpecs specs = settingByName.get();
-                try {
-                    settingsUpdatesSender.notifySettingsUpdated(setting);
-                } catch (InterruptedException e) {
-                    logger.error("Interrupted exception while broadcasting notification for setting {}",
-                            specs.getDisplayName(), e);
-                } catch (CommunicationException e) {
-                    logger.error("CommunicationException exception while broadcasting notification for" +
-                                    " setting {}", specs.getDisplayName(), e);
-                }
-            }
         } catch (DataAccessException e) {
             if ((e.getCause() instanceof SQLException) &&
                     (((SQLException)e.getCause()).getCause() instanceof  SQLTransientException)) {
@@ -736,7 +714,7 @@ public class SettingStore implements Diagnosable {
     }
 
     public void updateGlobalSetting(@Nonnull final Setting setting)
-            throws DataAccessException {
+        throws DataAccessException {
 
         try {
             updateGlobalSettingInternal(setting);
