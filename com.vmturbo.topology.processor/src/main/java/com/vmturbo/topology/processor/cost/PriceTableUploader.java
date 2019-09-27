@@ -361,8 +361,7 @@ public class PriceTableUploader implements Diagnosable {
         }
 
         // Populate the new Price table with license costs
-        priceTableBuilder.addAllOnDemandLicensePrices(sourcePriceTable.getOnDemandLicensePriceTableList());
-        priceTableBuilder.addAllReservedLicensePrices(sourcePriceTable.getReservedLicensePriceTableList());
+        priceTableBuilder.addAllLicensePrices(sourcePriceTable.getLicensePriceTableList());
 
         return priceTableBuilder.build();
     }

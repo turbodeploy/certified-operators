@@ -56,7 +56,6 @@ public class CloudCostDataProviderTest {
     // License Prices
     private static final double WINDOWS_SQL_WEB_LICENSE_PRICE = 0.005;
     private static final double RHEL_LICENSE_PRICE = 0.006;
-    private static final double WINDOWS_SERVER_LICENSE_PRICE = 0.51;
 
     private static final String LINUX = "Linux";
     private static final String RHEL = "RHEL";
@@ -85,17 +84,13 @@ public class CloudCostDataProviderTest {
                         createComputeTierConfigPrice(OSType.WINDOWS, WINDOWS_PRICE_ADJUSTMENT),
                         createComputeTierConfigPrice(OSType.WINDOWS_BYOL, WINDOWS_BYOL_PRICE_ADJUSTMENT))))
             .build())
-        .addOnDemandLicensePrices(LicensePriceByOsEntry.newBuilder()
+        .addLicensePrices(LicensePriceByOsEntry.newBuilder()
             .setOsType(OSType.WINDOWS_WITH_SQL_WEB)
             .addLicensePrices(createLicensePrice(NUM_OF_CORES, WINDOWS_SQL_WEB_LICENSE_PRICE))
             .build())
-        .addOnDemandLicensePrices(LicensePriceByOsEntry.newBuilder()
+        .addLicensePrices(LicensePriceByOsEntry.newBuilder()
             .setOsType(OSType.RHEL)
             .addLicensePrices(createLicensePrice(NUM_OF_CORES, RHEL_LICENSE_PRICE))
-            .build())
-         .addReservedLicensePrices(LicensePriceByOsEntry.newBuilder()
-            .setOsType(OSType.WINDOWS_SERVER)
-            .addLicensePrices(createLicensePrice(NUM_OF_CORES, WINDOWS_SERVER_LICENSE_PRICE))
             .build())
         .build();
 
@@ -270,11 +265,6 @@ public class CloudCostDataProviderTest {
         assertThat(licensePriceTuple.getImplicitLicensePrice(), equalTo(WINDOWS_PRICE_ADJUSTMENT));
         assertThat(licensePriceTuple.getExplicitLicensePrice(),
             equalTo(LicensePriceTuple.NO_LICENSE_PRICE));
-
-        licensePriceTuple = cloudCostDataAzure.getLicensePriceForOS(OSType.WINDOWS_SERVER, NUM_OF_CORES,
-                        getComputePriceList(cloudCostDataAzure, AZURE_COMPUTE_TIER_ID));
-        assertThat(licensePriceTuple.getImplicitLicensePrice(), equalTo(WINDOWS_PRICE_ADJUSTMENT));
-        assertThat(licensePriceTuple.getExplicitLicensePrice(), equalTo(LicensePriceTuple.NO_LICENSE_PRICE));
     }
 
     /**

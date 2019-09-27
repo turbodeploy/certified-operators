@@ -501,7 +501,7 @@ public class CloudCostCalculatorTest {
             .putSpotPriceByRegionId(REGION_ID, Pricing.SpotInstancePriceTable.newBuilder()
                 .putSpotPriceByInstanceId(COMPUTE_TIER_ID, price(Unit.HOURS, BASE_PRICE))
                 .build())
-            .addOnDemandLicensePrices(LicensePriceByOsEntry.newBuilder()
+            .addLicensePrices(LicensePriceByOsEntry.newBuilder()
                 .setOsType(OSType.WINDOWS_WITH_SQL_ENTERPRISE)
                 .addLicensePrices(licensePrice(1, price(Unit.HOURS, WSQL_ENTERPRISE_1)))
                 .addLicensePrices(licensePrice(2, price(Unit.HOURS, WSQL_ENTERPRISE_2)))

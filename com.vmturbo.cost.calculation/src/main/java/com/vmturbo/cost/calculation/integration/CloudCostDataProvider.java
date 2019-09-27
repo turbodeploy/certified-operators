@@ -73,9 +73,7 @@ public interface CloudCostDataProvider {
 
         private final Map<Long, ReservedInstanceData> buyRIBoughtDataById;
 
-        private final Map<OSType, List<LicensePrice>> onDemandlicensePrices;
-
-        private final Map<OSType, List<LicensePrice>> reservedLicensePrices;
+        private final Map<OSType, List<LicensePrice>> licensePrices;
 
         private final Map<OSType, Map<Integer, Optional<LicensePrice>>>
                     licensePriceByOsTypeByNumCores = Maps.newHashMap();
@@ -120,7 +118,7 @@ public interface CloudCostDataProvider {
                             .filter(riBought -> riSpecById.containsKey(riBought.getReservedInstanceBoughtInfo().getReservedInstanceSpec()))
                             .map(riBought -> new ReservedInstanceData(riBought, riSpecById.get(riBought.getReservedInstanceBoughtInfo().getReservedInstanceSpec())))
                             .collect(Collectors.toMap(riData -> riData.getReservedInstanceBought().getId(), Function.identity()));
-            onDemandlicensePrices = priceTable.getOnDemandLicensePricesList().stream()
+            licensePrices = priceTable.getLicensePricesList().stream()
                             .collect(Collectors.toMap(LicensePriceByOsEntry::getOsType,
                                 LicensePriceByOsEntry::getLicensePricesList,
                                     // if there are duplicate OS types then merge their price lists
@@ -130,16 +128,6 @@ public interface CloudCostDataProvider {
                                         list3.addAll(list2);
                                         return list3;
                                     }));
-
-            reservedLicensePrices = priceTable.getReservedLicensePricesList().stream()
-                            .collect(Collectors.toMap(LicensePriceByOsEntry::getOsType,
-                                            LicensePriceByOsEntry::getLicensePricesList,
-                                            (list1, list2) -> {
-                                                List<LicensePrice> list3 = Lists.newArrayList();
-                                                list3.addAll(list1);
-                                                list3.addAll(list2);
-                                                return list3;
-                                            }));
         }
 
         @Nonnull
@@ -157,7 +145,7 @@ public interface CloudCostDataProvider {
          * @return the matching license price
          */
         private Optional<LicensePrice> getExplicitLicensePrice(OSType os, int numCores) {
-            List<LicensePrice> prices = onDemandlicensePrices.get(os);
+            List<LicensePrice> prices = licensePrices.get(os);
             if (prices == null) {
                 return Optional.empty();
             }
