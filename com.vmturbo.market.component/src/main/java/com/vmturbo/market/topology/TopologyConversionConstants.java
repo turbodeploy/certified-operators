@@ -1,6 +1,7 @@
 package com.vmturbo.market.topology;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableMap;
@@ -54,9 +55,36 @@ public class TopologyConversionConstants {
                     .put(CommodityType.DB_MEM_VALUE, CommodityType.VMEM_VALUE)
                     .put(CommodityType.TRANSACTION_VALUE, CommodityType.VCPU_VALUE).build();
 
+    /**
+     * Map for the type of the commodity in an entity on the cloud to the type of
+     * the  commodity sold in a cloud tier.
+     **/
+    public static Map<Integer, ImmutableMap<Integer, Integer>> entityCommTypeToTierCommType
+            = ImmutableMap.<Integer, ImmutableMap<Integer, Integer>>builder()
+            .put(EntityType.COMPUTE_TIER.getNumber(),
+                    ImmutableMap.<Integer, Integer>builder()
+                    .put(CommodityType.VMEM_VALUE, CommodityType.MEM_VALUE)
+                    .put(CommodityType.VCPU_VALUE, CommodityType.CPU_VALUE).build())
+            .put(EntityType.DATABASE_SERVER_TIER.getNumber(),
+                    ImmutableMap.<Integer, Integer>builder()
+                    .put(CommodityType.VMEM_VALUE, CommodityType.VMEM_VALUE)
+                    .put(CommodityType.VCPU_VALUE, CommodityType.VCPU_VALUE).build())
+            .put(EntityType.DATABASE_TIER.getNumber(),
+                    ImmutableMap.<Integer, Integer>builder()
+                    .put(CommodityType.VMEM_VALUE, CommodityType.DB_MEM_VALUE)
+                    .put(CommodityType.VCPU_VALUE, CommodityType.TRANSACTION_VALUE).build())
+            .build();
+
     // Throughput commodities.
     public static final Set<Integer> THROUGHPUT_COMMODITIES =
             ImmutableSet.of(CommodityType.IO_THROUGHPUT_VALUE, CommodityType.NET_THROUGHPUT_VALUE);
+
+    /**
+     * These are the bought commodities that drive scale to new template actions.
+     */
+    public static final Set<Integer> BOUGHT_COMMODITIES_RESIZED =
+            ImmutableSet.of(CommodityType.IO_THROUGHPUT_VALUE, CommodityType.NET_THROUGHPUT_VALUE);
+
 
     // TODO: the following constants will be from user settings once UI supports it
     public static final double RESIZE_AVG_WEIGHT = 0.1f;
