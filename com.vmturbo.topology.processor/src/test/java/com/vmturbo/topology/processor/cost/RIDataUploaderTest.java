@@ -73,7 +73,6 @@ public class RIDataUploaderTest {
     private static final long PROBE_ID_AWS_DISCOVERY_1 = 1;
     private static final long TARGET_ID_AWS_DISCOVERY_1 = 1;
     private static final long TARGET_ID_AWS_BILLING_1 = 2;
-    private static final long TARGET_ID_AZURE_DISCOVERY_1 = 3;
 
     // simple KV store for the test identity provider
     private KeyValueStore keyValueStore = new MapKeyValueStore();
@@ -112,7 +111,6 @@ public class RIDataUploaderTest {
         probeTypeMap = new HashMap<>();
         probeTypeMap.put(TARGET_ID_AWS_DISCOVERY_1, SDKProbeType.AWS);
         probeTypeMap.put(TARGET_ID_AWS_BILLING_1, SDKProbeType.AWS_BILLING);
-        probeTypeMap.put(TARGET_ID_AZURE_DISCOVERY_1, SDKProbeType.AZURE_EA);
 
         // test cost component client
         final RIAndExpenseUploadServiceBlockingStub costServiceClient = RIAndExpenseUploadServiceGrpc.newBlockingStub(server.getChannel());
@@ -367,33 +365,7 @@ public class RIDataUploaderTest {
                                 .oid(103)
                                 .targetId(TARGET_ID_AWS_DISCOVERY_1)
                                 .lastUpdatedTime(now)
-                                .build()),
-        new TopologyStitchingEntity(StitchingEntityData.newBuilder(
-                EntityDTO.newBuilder()
-                        .setEntityType(EntityType.RESERVED_INSTANCE)
-                        .setId("azure::96c54bd2-e4a2-4105-9a4b-c3ab28bdef1a::RESERVED_INSTAN5B351A")
-                        .setReservedInstanceData(ReservedInstanceData.newBuilder()
-                                .setReservedInstanceId("c991a277-c5ec-48e6-9a70-c36a910ccd5d")
-                                .setStartTime(0)
-                                .setNumberOfCoupons(16)
-                                .setNumberOfCouponsUsed(4)
-                                .setFixedCost(10)
-                                .setUsageCost(12)
-                                .setRecurringCost(13)
-                                .setRegion("azure::australiaeast::DC::australiaeast")
-                                .setInstanceCount(1)
-                                .setOfferingClass(OfferingClass.CONVERTIBLE)
-                                .setOfferingType(OfferingType.ALL_UPFRONT)
-                                .setDuration(2 * DiscoveredCloudCostUploader.MILLIS_PER_YEAR)
-                                .setInstanceTenancy(InstanceTenancy.DEFAULT)
-                                .setPlatform(Platform.UNKNOWN)
-                                .setRelatedProfileId("azure::VMPROFILE::Standard_B2ms")
-                                .setPlatformFlexible(true)
-                                .setInstanceSizeFlexible(true)))
-                .oid(104)
-                .targetId(TARGET_ID_AZURE_DISCOVERY_1)
-                .lastUpdatedTime(now)
-                .build())
+                                .build())
                 )
         );
         Mockito.when(mockStitchingContext.getEntitiesOfType(EntityType.VIRTUAL_MACHINE)).thenAnswer(
@@ -423,10 +395,10 @@ public class RIDataUploaderTest {
         RICostComponentData riData = riCostDataUploader.createRICostComponentData(
                 mockStitchingContext, cloudEntitiesMap, costDataByTargetId);
 
-        // there should be 4 RI bought but only 3 specs -- two of the RI should have mapped to the
+        // there should be 3 RI bought but only 2 specs -- two of the RI should have mapped to the
         // same spec instance
-        Assert.assertEquals(3, riData.riSpecs.size());
-        Assert.assertEquals(4, riData.riBoughtByLocalId.size());
+        Assert.assertEquals(2, riData.riSpecs.size());
+        Assert.assertEquals(3, riData.riBoughtByLocalId.size());
         // Verify an RI Spec -- the data should have come from the stitching entities rather than
         // the nme's.
 
@@ -488,9 +460,6 @@ public class RIDataUploaderTest {
         final ReservedInstanceScopeInfo scopeInfo = boughtInfo.getReservedInstanceScopeInfo();
         Assert.assertFalse(scopeInfo.getShared());
         Assert.assertEquals(2, scopeInfo.getApplicableBusinessAccountIdCount());
-
-        Assert.assertTrue(riData.riSpecs.stream()
-                .anyMatch(spec -> spec.getReservedInstanceSpecInfo().getPlatformFlexible()));
     }
 
     public static class TestCostService extends RIAndExpenseUploadServiceImplBase {
