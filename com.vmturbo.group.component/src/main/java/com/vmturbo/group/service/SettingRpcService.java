@@ -183,8 +183,7 @@ public class SettingRpcService extends SettingServiceImplBase {
             responseObserver.onError(
                 Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
-
-        responseObserver.onCompleted();
+       responseObserver.onCompleted();
     }
 
     private Setting createSettingFromRequest(UpdateGlobalSettingRequest request) {

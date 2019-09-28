@@ -86,13 +86,6 @@ public class ReservedInstanceAnalysisConfig {
                 realtimeTopologyContextId);
     }
 
-    @Bean
-    public ReservedInstanceAnalysisInvoker reservedInstanceAnalysisInvoker() {
-        return new ReservedInstanceAnalysisInvoker(reservedInstanceAnalyzer(), repositoryServiceClient(),
-                settingServiceClient(), reservedInstanceConfig.reservedInstanceBoughtStore(),
-                realtimeTopologyContextId);
-    }
-
     public ReservedInstanceBoughtStore reservedInstanceBoughtStore() {
         return reservedInstanceConfig.reservedInstanceBoughtStore();
     }

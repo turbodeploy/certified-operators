@@ -29,7 +29,7 @@ public enum GlobalSettingSpecs {
     RateOfResize("RATE_OF_RESIZE", "Rate of Resize",
             numeric(1.0f/*min*/, 3.0f/*max*/, 2.0f/*default*/),
             //path is needed for the UI to display this setting in a separate category
-            Collections.singletonList("resizeRecommendationsConstants")),
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS)),
 
     SmtpServer("smtpServer", "SMTP Server",
             new StringSettingDataType("", "*"),
@@ -102,55 +102,55 @@ public enum GlobalSettingSpecs {
     // RI related settings
     RIPurchase("ri.purchase", "Type",
             new BooleanSettingDataType(true),
-            Lists.newArrayList("ri")),
+            Lists.newArrayList(CategoryPathConstants.RI)),
     /**
      * Global RI Setting of purchaseDate.
      */
     RIPurchaseDate("ri.purchaseDate", "Type",
             numeric(0, Float.MAX_VALUE, 0),
-            Lists.newArrayList("ri")),
+            Lists.newArrayList(CategoryPathConstants.RI)),
 
     /**
      * Global AWS RI setting for OfferingClass.
      */
     AWSPreferredOfferingClass("ri.aws.preferredOfferingClass", "Type",
             new EnumSettingDataType(RISettingsEnum.PreferredOfferingClass.STANDARD),
-            Lists.newArrayList("ri", "aws")),
+            Lists.newArrayList(CategoryPathConstants.RI, CategoryPathConstants.AWS)),
 
     /**
      * Global AWS RI setting for preferred term, length of RI.
      */
     AWSPreferredTerm("ri.aws.preferredTerm", "Term",
             new EnumSettingDataType(RISettingsEnum.PreferredTerm.YEARS_1),
-            Lists.newArrayList("ri", "aws")),
+            Lists.newArrayList(CategoryPathConstants.RI, CategoryPathConstants.AWS)),
 
     /**
      * Global AWS RI setting for preferred payment option.
      */
     AWSPreferredPaymentOption("ri.aws.preferredPaymentOption", "Payment",
             new EnumSettingDataType(RISettingsEnum.PreferredPaymentOption.ALL_UPFRONT),
-            Lists.newArrayList("ri", "aws")),
+            Lists.newArrayList(CategoryPathConstants.RI, CategoryPathConstants.AWS)),
 
     /**
      * Global AZURE RI setting for Offering Class.
      */
     AzurePreferredOfferingClass("ri.azure.preferredOfferingClass", "Type",
             new EnumSettingDataType(RISettingsEnum.PreferredOfferingClass.STANDARD),
-            Lists.newArrayList("ri", "azure")),
+            Lists.newArrayList(CategoryPathConstants.RI, CategoryPathConstants.AZURE)),
 
     /**
      * Global AZURE RI setting for preferred term, length of RI.
      */
     AzurePreferredTerm("ri.azure.preferredTerm", "Term",
             new EnumSettingDataType(RISettingsEnum.PreferredTerm.YEARS_1),
-            Lists.newArrayList("ri", "azure")),
+            Lists.newArrayList(CategoryPathConstants.RI, CategoryPathConstants.AZURE)),
 
     /**
      * Global AZURE RI setting for preferred payment option.
      */
     AzurePreferredPaymentOption("ri.azure.preferredPaymentOption", "Payment",
             new EnumSettingDataType(RISettingsEnum.PreferredPaymentOption.ALL_UPFRONT),
-            Lists.newArrayList("ri", "azure")),
+            Lists.newArrayList(CategoryPathConstants.RI, CategoryPathConstants.AZURE)),
 
     RecurrencePattern("recurrencePattern", "Recurrence Pattern",
             new StringSettingDataType("value: FREQ=WEEKLY;INTERVAL=2;BYHOUR=1", "*"),
@@ -258,8 +258,13 @@ public enum GlobalSettingSpecs {
         return (categoryPath != null && !categoryPath.isEmpty());
     }
 
+    public List<String> getCategoryPaths() {
+        return Collections.unmodifiableList(categoryPath);
+    }
+
     @Nonnull
     private static SettingDataStructure<?> numeric(float min, float max, float defaultValue) {
         return new NumericSettingDataType(min, max, defaultValue);
     }
 }
+

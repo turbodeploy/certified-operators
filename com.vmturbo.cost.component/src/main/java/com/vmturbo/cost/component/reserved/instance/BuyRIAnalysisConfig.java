@@ -103,9 +103,12 @@ public class BuyRIAnalysisConfig {
 
     @Bean
     public ReservedInstanceAnalysisInvoker reservedInstanceAnalysisInvoker() {
-        return new ReservedInstanceAnalysisInvoker(reservedInstanceAnalysisConfig.reservedInstanceAnalyzer(),
+        ReservedInstanceAnalysisInvoker reservedInstanceAnalysisInvoker =
+        new ReservedInstanceAnalysisInvoker(reservedInstanceAnalysisConfig.reservedInstanceAnalyzer(),
                 repositoryServiceClient(), settingServiceClient(),
                 reservedInstanceAnalysisConfig.reservedInstanceBoughtStore(), realtimeTopologyContextId);
+        groupClientConfig.settingsClient().addSettingsListener(reservedInstanceAnalysisInvoker);
+        return reservedInstanceAnalysisInvoker;
     }
 
     public DSLContext getDsl() {

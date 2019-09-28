@@ -34,7 +34,6 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.SenderReceiverPair;
 import com.vmturbo.components.common.mail.MailManager;
-import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.reporting.api.ReportingNotificationReceiver;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportNotification;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceImplBase;
@@ -81,7 +80,7 @@ import com.vmturbo.sql.utils.FlywayMigrator;
  */
 @Configuration
 @EnableTransactionManagement
-@Import({ReportingTestDbConfig.class, GroupClientConfig.class})
+@Import({ReportingTestDbConfig.class})
 public class ReportingTestConfig {
 
     private static final String REPORTING_SCHEMA = "reporting_test";
