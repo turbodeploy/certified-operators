@@ -330,4 +330,11 @@ public class StringConstants {
      * Should be in sync with defaultTemplates.json in the plan orchestrator.
      */
     public static final String CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME = "headroomVM";
+
+    /**
+     * Constant used for Virtual Volume Attachment.
+     */
+    public static final String ATTACHMENT = "attachment";
+    public static final String ATTACHED = "VIRTUAL_VOLUME_ATTACHED";
+    public static final String UNATTACHED = "VIRTUAL_VOLUME_UNATTACHED";
 }

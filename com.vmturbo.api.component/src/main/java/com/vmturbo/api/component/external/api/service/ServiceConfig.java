@@ -38,6 +38,7 @@ import com.vmturbo.api.component.external.api.util.stats.query.impl.PlanCommodit
 import com.vmturbo.api.component.external.api.util.stats.query.impl.ProjectedCommodityStatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.RIStatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.ScopedUserCountStatsSubQuery;
+import com.vmturbo.api.component.external.api.util.stats.query.impl.StorageStatsSubQuery;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.serviceinterfaces.ISAMLService;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
@@ -549,6 +550,14 @@ public class ServiceConfig {
                 communicationConfig.thinTargetCache());
         statsQueryExecutor().addSubquery(cloudCostsStatsQuery);
         return cloudCostsStatsQuery;
+    }
+
+    @Bean
+    public StorageStatsSubQuery storageStatsSubQuery() {
+        final StorageStatsSubQuery storageStatsSubQuery =
+            new StorageStatsSubQuery(communicationConfig.repositoryApi());
+        statsQueryExecutor().addSubquery(storageStatsSubQuery);
+        return storageStatsSubQuery;
     }
 
     @Bean
