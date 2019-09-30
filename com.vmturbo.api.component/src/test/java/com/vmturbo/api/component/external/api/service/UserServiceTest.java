@@ -13,7 +13,9 @@ import java.util.Optional;
 import java.util.Set;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mockito;
@@ -37,6 +39,7 @@ import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.api.component.communication.RestAuthenticationProvider;
 import com.vmturbo.api.dto.user.ActiveDirectoryGroupApiDTO;
+import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
@@ -55,6 +58,9 @@ public class UserServiceTest {
     private WidgetSetsService widgetSetsService = mock(WidgetSetsService.class);
     private final SessionInformation sessionInformation = mock(SessionInformation.class);
     private final SessionRegistry sessionRegistry = mock(SessionRegistry.class);
+
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
     @InjectMocks
     private UsersService usersService = new UsersService("", 0, restTemplate, "", false,
@@ -144,6 +150,147 @@ public class UserServiceTest {
         assertEquals(adGroupName, adGroups.get(0).getDisplayName());
         assertEquals(adGroupType, adGroups.get(0).getType());
         assertEquals(adGroupRoleName, adGroups.get(0).getRoleName());
+    }
+
+    /**
+     * Testing that when the api input has an empty user name, the service will
+     * throw an IllegalArgumentException
+     * @throws Exception when the service fails to create the user
+     */
+    @Test
+    public void testEmptyUserName() throws Exception {
+        final String userName = "";
+        final String userType = "DedicatedCustomer";
+        final String userRole = "observer";
+        final String userLoginProvider = "LOCAL";
+
+        UserApiDTO userApiDTO = new UserApiDTO();
+        userApiDTO.setUsername(userName);
+        userApiDTO.setType(userType);
+        userApiDTO.setRoleName(userRole);
+        userApiDTO.setLoginProvider(userLoginProvider);
+
+        // This should throw an illegal argument exception
+        expectedException.expect(IllegalArgumentException.class);
+        UserApiDTO resultUser = usersService.createUser(userApiDTO);
+    }
+
+    /**
+     * Testing that when the api input has an empty user type, the service will
+     * throw an IllegalArgumentException
+     * @throws Exception when the service fails to create the user
+     */
+    @Test
+    public void testEmptyUserType() throws Exception {
+        final String userName = "testUser2";
+        final String userType = "";
+        final String userRole = "observer";
+        final String userLoginProvider = "LOCAL";
+
+        UserApiDTO userApiDTO = new UserApiDTO();
+        userApiDTO.setUsername(userName);
+        userApiDTO.setType(userType);
+        userApiDTO.setRoleName(userRole);
+        userApiDTO.setLoginProvider(userLoginProvider);
+
+        // This should throw an illegal argument exception
+        expectedException.expect(IllegalArgumentException.class);
+        UserApiDTO resultUser = usersService.createUser(userApiDTO);
+    }
+
+    /**
+     * Testing that when the api input has an empty user role, the service will
+     * throw an IllegalArgumentException
+     * @throws Exception when the service fails to create the user
+     */
+    @Test
+    public void testEmptyRole() throws Exception {
+        final String userName = "testUser2";
+        final String userType = "DedicatedCustomer";
+        final String userRole = "";
+        final String userLoginProvider = "LOCAL";
+
+        UserApiDTO userApiDTO = new UserApiDTO();
+        userApiDTO.setUsername(userName);
+        userApiDTO.setType(userType);
+        userApiDTO.setRoleName(userRole);
+        userApiDTO.setLoginProvider(userLoginProvider);
+
+        // This should throw an illegal argument exception
+        expectedException.expect(IllegalArgumentException.class);
+        UserApiDTO resultUser = usersService.createUser(userApiDTO);
+    }
+
+    /**
+     * Testing that when the api input has an empty user name, the service will
+     * throw an IllegalArgumentException
+     * @throws Exception when the service fails to edit the user
+     */
+    @Test
+    public void testEditEmptyUserName() throws Exception {
+        final String userId = "1234";
+        final String userName = "";
+        final String userType = "DedicatedCustomer";
+        final String userRole = "observer";
+        final String userLoginProvider = "LOCAL";
+
+        UserApiDTO userApiDTO = new UserApiDTO();
+        userApiDTO.setUsername(userName);
+        userApiDTO.setType(userType);
+        userApiDTO.setRoleName(userRole);
+        userApiDTO.setLoginProvider(userLoginProvider);
+
+        // This should throw an illegal argument exception
+        expectedException.expect(IllegalArgumentException.class);
+        UserApiDTO resultUser = usersService.editUser(userId, userApiDTO);
+    }
+
+    /**
+     * Testing that when the api input has an empty user type, the service will
+     * throw an IllegalArgumentException
+     * @throws Exception when the service fails to edit the user
+     */
+    @Test
+    public void testEditEmptyUserType() throws Exception {
+        final String userId = "1234";
+        final String userName = "testUser2";
+        final String userType = "";
+        final String userRole = "observer";
+        final String userLoginProvider = "LOCAL";
+
+        UserApiDTO userApiDTO = new UserApiDTO();
+        userApiDTO.setUsername(userName);
+        userApiDTO.setType(userType);
+        userApiDTO.setRoleName(userRole);
+        userApiDTO.setLoginProvider(userLoginProvider);
+
+        // This should throw an illegal argument exception
+        expectedException.expect(IllegalArgumentException.class);
+        UserApiDTO resultUser = usersService.editUser(userId, userApiDTO);
+    }
+
+    /**
+     * Testing that when the api input has an empty user role, the service will
+     * throw an IllegalArgumentException
+     * @throws Exception when the service fails to edit the user
+     */
+    @Test
+    public void testEditEmptyRole() throws Exception {
+        final String userId = "1234";
+        final String userName = "testUser2";
+        final String userType = "DedicatedCustomer";
+        final String userRole = "";
+        final String userLoginProvider = "LOCAL";
+
+        UserApiDTO userApiDTO = new UserApiDTO();
+        userApiDTO.setUsername(userName);
+        userApiDTO.setType(userType);
+        userApiDTO.setRoleName(userRole);
+        userApiDTO.setLoginProvider(userLoginProvider);
+
+        // This should throw an illegal argument exception
+        expectedException.expect(IllegalArgumentException.class);
+        UserApiDTO resultUser = usersService.editUser(userId, userApiDTO);
     }
 
     private HttpHeaders composeHttpHeaders() {
