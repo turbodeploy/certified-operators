@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredOfferingClass;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredPaymentOption;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredTerm;
+import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIDemandType;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIPurchase;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIPurchaseDate;
 
@@ -102,6 +103,7 @@ import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.RISettingsEnum.PreferredTerm;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 
@@ -147,7 +149,9 @@ public class ScenarioMapper {
     /**
      * Supported RI Purchase Profile Settings.
      */
-    private static final EnumSet<GlobalSettingSpecs> SUPPORTED_RI_PROFILE_SETTINGS = EnumSet.of(AWSPreferredOfferingClass, AWSPreferredPaymentOption, AWSPreferredTerm, RIPurchaseDate);
+    private static final EnumSet<GlobalSettingSpecs> SUPPORTED_RI_PROFILE_SETTINGS = EnumSet
+                    .of(AWSPreferredOfferingClass, AWSPreferredPaymentOption, AWSPreferredTerm,
+                        RIPurchaseDate, RIDemandType);
 
     static {
         MARKET_PLAN_SCOPE = new BaseApiDTO();
@@ -165,6 +169,7 @@ public class ScenarioMapper {
     private final EnumMapper<OfferingClass> riOfferingClassMapper = EnumMapper.of(OfferingClass.class);
     private final EnumMapper<PaymentOption> riPaymentOptionMapper = EnumMapper.of(PaymentOption.class);
     private final EnumMapper<PreferredTerm> riTermMapper = EnumMapper.of(PreferredTerm.class);
+    private final EnumMapper<DemandType> riDemandTypeMapper = EnumMapper.of(DemandType.class);
 
     private final TemplatesUtils templatesUtils;
 
@@ -747,6 +752,9 @@ public class ScenarioMapper {
                     case RIPurchaseDate:
                         awsRISetting.setPurchaseDate(Long.parseLong(settingValue));
                         break;
+                    case RIDemandType:
+                        riDemandTypeMapper.valueOf(settingValue).ifPresent(awsRISetting::setDemandType);
+                        break;
                 }
             });
         });
@@ -1097,6 +1105,13 @@ public class ScenarioMapper {
             purchaseDateDto.setValue(String.valueOf(ri.getPurchaseDate()));
             purchaseDateDto.setDisplayName(RIPurchaseDate.getDisplayName());
             riSettings.add(purchaseDateDto);
+        }
+        if (ri.hasDemandType()) {
+            final SettingApiDTO<String> demandTypeDto = new SettingApiDTO<>();
+            demandTypeDto.setUuid(RIDemandType.getSettingName());
+            demandTypeDto.setValue(ri.getDemandType().name());
+            demandTypeDto.setDisplayName(RIDemandType.getDisplayName());
+            riSettings.add(demandTypeDto);
         }
         return riSettings;
     }

@@ -198,7 +198,8 @@
         "recurrencePattern",
         "preferredCurrentWeight",
         "preferredCoverage",
-        "riCoverageOverride"
+        "riCoverageOverride",
+        "ri.demandType"
       ]
     }
   }
