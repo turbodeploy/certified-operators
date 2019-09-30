@@ -23,7 +23,6 @@ import com.google.gson.GsonBuilder;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jooq.tools.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -280,7 +279,6 @@ public class UsersService implements IUsersService {
     public UserApiDTO createUser(UserApiDTO userApiDTO) throws Exception {
         try {
             AuthUserDTO dto = UserMapper.toAuthUserDTO(userApiDTO);
-            validateUserInput(userApiDTO);
             // Perform the call.
             // Make sure that the currently authenticated user's token is present.
             HttpHeaders headers = composeHttpHeaders();
@@ -411,8 +409,6 @@ public class UsersService implements IUsersService {
      */
     @Override
     public UserApiDTO editUser(String uuid, UserApiDTO userApiDTO) throws Exception {
-        // make sure there is a valid input before updating.
-        validateUserInput(userApiDTO);
         UserApiDTO dto = setUserRoles(userApiDTO);
         if (LoginProviderMapper.fromApi(userApiDTO.getLoginProvider()).equals(PROVIDER.LOCAL)) {
             // We change the password only if requested.
@@ -421,23 +417,6 @@ public class UsersService implements IUsersService {
             }
         }
         return dto;
-    }
-
-    /**
-     * Validate that the user api dto specified has a valid user name, type, and roleName
-     *
-     * @param userApiDTO dto representing the user
-     */
-    private void validateUserInput(UserApiDTO userApiDTO) {
-        if (StringUtils.isBlank(userApiDTO.getUsername())) {
-            throw new IllegalArgumentException("No user name specified for user.");
-        }
-        if (StringUtils.isBlank(userApiDTO.getRoleName())) {
-            throw new IllegalArgumentException("No role specified for user.");
-        }
-        if (StringUtils.isBlank(userApiDTO.getType())) {
-            throw new IllegalArgumentException("No type specified for user.");
-        }
     }
 
     /**
