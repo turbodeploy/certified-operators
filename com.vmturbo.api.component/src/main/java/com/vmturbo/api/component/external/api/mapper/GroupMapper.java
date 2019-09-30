@@ -135,6 +135,8 @@ public class GroupMapper {
     // matches that inside "groupBuilderUseCases.json".
     public static final String ACCOUNT_OID = "BusinessAccount:oid:CONNECTED_TO:1";
     public static final String STATE = "state";
+    public static final String NETWORKS = "networks";
+    public static final String CONNECTED_NETWORKS_FIELD = "connectedNetworks";
 
     private static final String CONSUMES = "CONSUMES";
     private static final String PRODUCES = "PRODUCES";
@@ -230,6 +232,22 @@ public class GroupMapper {
                                     context.getFilter().getExpType().equals(REGEX_MATCH),
                                     context.getFilter().getCaseSensitive()));
                     return Collections.singletonList(SearchProtoUtil.searchFilterCluster(clusterFilter));
+                });
+        filterTypesToProcessors.put(
+                NETWORKS,
+                context -> {
+                    final StringFilter stringFilter =
+                        SearchProtoUtil.stringFilterRegex(
+                            context.getFilter().getExpVal(),
+                            context.getFilter().getExpType().equals(REGEX_MATCH),
+                            context.getFilter().getCaseSensitive());
+                    return Collections.singletonList(SearchProtoUtil.searchFilterProperty(
+                            PropertyFilter.newBuilder()
+                                .setPropertyName(CONNECTED_NETWORKS_FIELD)
+                                .setListFilter(
+                                    ListFilter.newBuilder()
+                                        .setStringFilter(stringFilter))
+                                .build()));
                 });
         filterTypesToProcessors.put(CONSUMES, traversalFilterProcessor);
         filterTypesToProcessors.put(PRODUCES, traversalFilterProcessor);

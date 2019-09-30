@@ -74,6 +74,7 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditi
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition.VerticesCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
@@ -1529,5 +1530,53 @@ public class GroupMapperTest {
         final SearchParameters byName = parameters.get(0);
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
         assertEquals(0, byName.getSearchFilterCount());
+    }
+
+    /**
+     * Test proper construction of a filter that connects VMs to networks.
+     */
+    @Test
+    public void testVmsConnectedToNetwork() {
+        final String displayName = "group-foo";
+        final String groupType = UIEntityType.VIRTUAL_MACHINE.apiStr();
+        final String regex = ".*";
+        final GroupApiDTO groupDto = new GroupApiDTO();
+        final FilterApiDTO filterApiDTOFirst = new FilterApiDTO();
+        filterApiDTOFirst.setExpType(GroupMapper.REGEX_MATCH);
+        filterApiDTOFirst.setExpVal(regex);
+        filterApiDTOFirst.setFilterType("vmsByNetwork");
+        final List<FilterApiDTO> criteriaList = Lists.newArrayList(filterApiDTOFirst);
+        groupDto.setDisplayName(displayName);
+        groupDto.setGroupType(groupType);
+        groupDto.setIsStatic(false);
+        groupDto.setCriteriaList(criteriaList);
+
+        final GroupInfo groupInfo = groupMapper.toGroupInfo(groupDto);
+
+        assertEquals(displayName, groupInfo.getName());
+        assertEquals(EntityType.VIRTUAL_MACHINE.getNumber(), groupInfo.getEntityType());
+        assertEquals(
+                SelectionCriteriaCase.SEARCH_PARAMETERS_COLLECTION, groupInfo.getSelectionCriteriaCase());
+        // Verify the first search parameters' starting filter is VM entity
+        assertEquals(
+                "entityType",
+                groupInfo.getSearchParametersCollection().getSearchParameters(0)
+                        .getStartingFilter().getPropertyName());
+        assertEquals(
+                UIEntityType.VIRTUAL_MACHINE.typeNumber(),
+                groupInfo.getSearchParametersCollection().getSearchParameters(0)
+                        .getStartingFilter().getNumericFilter().getValue());
+        // Verify the first search parameters are by state search for VM
+        assertEquals(
+            SearchableProperties.VM_CONNECTED_NETWORKS,
+            groupInfo.getSearchParametersCollection().getSearchParameters(0)
+                .getSearchFilter(0).getPropertyFilter().getPropertyName());
+        assertEquals(
+            "^" + regex + "$",
+            groupInfo.getSearchParametersCollection().getSearchParameters(0)
+                .getSearchFilter(0).getPropertyFilter().getListFilter().getStringFilter()
+                .getStringPropertyRegex());
+        assertTrue(groupInfo.getSearchParametersCollection().getSearchParameters(0)
+                        .getSearchFilter(0).getPropertyFilter().getStringFilter().getPositiveMatch());
     }
 }

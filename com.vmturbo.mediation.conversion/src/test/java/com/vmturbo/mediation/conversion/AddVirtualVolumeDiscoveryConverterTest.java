@@ -96,4 +96,58 @@ public class AddVirtualVolumeDiscoveryConverterTest {
         assertEquals(1, virtualMachine.getLayeredOverList().size());
         assertEquals(virtualMachine.getLayeredOver(0), virtualVolume.getId());
     }
+
+    /**
+     * Test that networks that VMs are layered over are carried over to the {@code connected_networks}
+     * field.
+     */
+    @Test
+    public void testConnectedNetworks() {
+        final String netId = "netId";
+        final String netName = "netName";
+        final String vmId = "vmId";
+        final String vmName = "foo";
+        final String nonNetId = "nonNetId";
+        final EntityDTO vm = EntityDTO.newBuilder()
+                                .setId(vmId)
+                                .setDisplayName(vmName)
+                                .setEntityType(EntityType.VIRTUAL_MACHINE)
+                                .addLayeredOver(netId)
+                                .addLayeredOver(nonNetId)
+                                .build();
+        final EntityDTO network = EntityDTO.newBuilder()
+                                    .setId(netId)
+                                    .setDisplayName(netName)
+                                    .setEntityType(EntityType.NETWORK)
+                                    .build();
+        final DiscoveryResponse discoveryResponse = DiscoveryResponse.newBuilder()
+                                                        .addEntityDTO(vm)
+                                                        .addEntityDTO(network)
+                                                        .build();
+        final DiscoveryResponse convertedDiscoveryResponse =
+                new AddVirtualVolumeDiscoveryConverter(discoveryResponse, false).convert();
+
+        assertEquals(2, convertedDiscoveryResponse.getEntityDTOCount());
+
+        final EntityDTO convertedVM;
+        final EntityDTO convertedNetwork;
+        if (convertedDiscoveryResponse.getEntityDTO(0).getId().equals(vmId)) {
+            convertedVM = convertedDiscoveryResponse.getEntityDTO(0);
+            convertedNetwork = convertedDiscoveryResponse.getEntityDTO(1);
+        } else {
+            convertedVM = convertedDiscoveryResponse.getEntityDTO(1);
+            convertedNetwork = convertedDiscoveryResponse.getEntityDTO(0);
+        }
+
+        assertEquals(vmId, convertedVM.getId());
+        assertEquals(vmName, convertedVM.getDisplayName());
+        assertEquals(EntityType.VIRTUAL_MACHINE, convertedVM.getEntityType());
+        assertEquals(0, convertedVM.getLayeredOverCount());
+        assertEquals(1, convertedVM.getVirtualMachineData().getConnectedNetworkCount());
+        assertEquals(netName, convertedVM.getVirtualMachineData().getConnectedNetwork(0));
+
+        assertEquals(netId, convertedNetwork.getId());
+        assertEquals(netName, convertedNetwork.getDisplayName());
+        assertEquals(EntityType.NETWORK, convertedNetwork.getEntityType());
+    }
 }

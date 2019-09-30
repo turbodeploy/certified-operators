@@ -68,6 +68,11 @@ public class AddVirtualVolumeDiscoveryConverter {
     private final Map<String, EntityDTO.Builder> vmDtoById = Maps.newHashMap();
 
     /**
+     * The collection of all network display names
+     */
+    private final Map<String, String> networkIds = Maps.newHashMap();
+
+    /**
      * A map from storage id to its EntityDTO.
      */
     private final Map<String, EntityDTO.Builder> storageDtoById = Maps.newHashMap();
@@ -136,8 +141,11 @@ public class AddVirtualVolumeDiscoveryConverter {
     }
 
     /**
-     * Pre process discovery response to create data structures with relationships among files,
-     * virtual machines and storages. These will be the basis for virtual volume creation.
+     * <p>Pre process discovery response to create data structures with relationships among files,
+     * virtual machines and storage. These will be the basis for virtual volume creation.</p>
+     *
+     * <p>Also: populate the {@code connected_networks} field for VMs using their layered-over
+     * relationship.</p>
      */
     private void preProcess() {
         discoveryResponseBuilder.getEntityDTOBuilderList().forEach(entityBuilder -> {
@@ -145,6 +153,7 @@ public class AddVirtualVolumeDiscoveryConverter {
             if (entityBuilder.getEntityType() == EntityType.VIRTUAL_MACHINE) {
                 // mapping from vm id to vm dto builder
                 vmDtoById.put(entityId, entityBuilder);
+
                 // populate the Table of VMFileDescriptors indexed by VM id and storage id
                 if (this.isStorageBrowsing) {
                     // for storage browsing, go through all files list since it contains storage id
@@ -179,10 +188,25 @@ public class AddVirtualVolumeDiscoveryConverter {
                         && entityBuilder.getStorageData().getFileCount() > 0) {
                     storageIdToFiles.put(entityId, entityBuilder.getStorageData().getFileList());
                 }
+            } else if (entityBuilder.getEntityType() == EntityType.NETWORK) {
+                networkIds.put(entityBuilder.getId(), entityBuilder.getDisplayName());
             }
-            // clear layeredOver since we will add volume to this list so XL treat it as
-            // connectedTo, the original layeredOver is not used in XL anyway
-            entityBuilder.clearLayeredOver();
+
+            // clear "layeredOver" for all entities except those of VMs
+            if (entityBuilder.getEntityType() != EntityType.VIRTUAL_MACHINE) {
+                entityBuilder.clearLayeredOver();
+            }
+        });
+
+        // populate connected networks for VMs and then clear their layeredOver relations
+        vmDtoById.values().forEach(vm -> {
+            vm.getVirtualMachineDataBuilder().addAllConnectedNetwork(
+                    vm.getLayeredOverList().stream()
+                        .map(networkIds::get)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList())
+            );
+            vm.clearLayeredOver();
         });
     }
 

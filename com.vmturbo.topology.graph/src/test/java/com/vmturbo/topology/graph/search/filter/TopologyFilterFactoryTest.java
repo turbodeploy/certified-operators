@@ -40,6 +40,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
@@ -1158,6 +1159,49 @@ public class TopologyFilterFactoryTest {
         assertTrue(propertyFilter.test(businessEntityMatching));
         assertFalse(propertyFilter.test(businessEntityNotMatching));
         assertFalse(propertyFilter.test(businessEntityNoAccountId));
+    }
+
+    /**
+     * Test the filter generated from a VMs-connected-to-Network filter
+     */
+    @Test
+    public void testVMsConnectedtoNetworksFilter() {
+        final String regex = "^a.*$";
+        final String matchingString = "axx";
+        final String nonMatchingString = "xaa";
+        final SearchFilter searchFilter =
+                SearchFilter.newBuilder()
+                    .setPropertyFilter(
+                            Search.PropertyFilter.newBuilder()
+                                .setPropertyName(SearchableProperties.VM_CONNECTED_NETWORKS)
+                                .setListFilter(
+                                        ListFilter.newBuilder()
+                                            .setStringFilter(
+                                                    StringFilter.newBuilder()
+                                                        .setStringPropertyRegex(regex))))
+                .build();
+        final PropertyFilter<TestGraphEntity> filter = (PropertyFilter)filterFactory.filterFor(searchFilter);
+
+        final TestGraphEntity vm1 = makeVmWithConnectedNetworks(1);
+        final TestGraphEntity vm2 = makeVmWithConnectedNetworks(2, matchingString);
+        final TestGraphEntity vm3 = makeVmWithConnectedNetworks(3, nonMatchingString);
+        final TestGraphEntity vm4 = makeVmWithConnectedNetworks(4, nonMatchingString, matchingString);
+
+        assertFalse(filter.test(vm1));
+        assertTrue(filter.test(vm2));
+        assertFalse(filter.test(vm3));
+        assertTrue(filter.test(vm4));
+    }
+
+    private TestGraphEntity makeVmWithConnectedNetworks(long id, String... connectedNetworks) {
+        final VirtualMachineInfo vmInfo = VirtualMachineInfo.newBuilder()
+                                              .addAllConnectedNetworks(Arrays.asList(connectedNetworks))
+                                              .build();
+        return TestGraphEntity.newBuilder(id, UIEntityType.VIRTUAL_MACHINE)
+                   .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                                            .setVirtualMachine(vmInfo)
+                                            .build())
+                   .build();
     }
 
     private PropertyFilter<TestGraphEntity> makeDiscoveringTargetFilter(StringFilter stringFilter) {

@@ -253,7 +253,7 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                             stringCriteria.getPositiveMatch() ? ComparisonOperator.EQ : ComparisonOperator.NE,
                             entity -> entity.getEnvironmentType().getNumber())))
                         // If we're not looking for a specific environment type, all entities match.
-                        .orElseGet(() -> new PropertyFilter<>((entity) -> true));
+                        .orElseGet(() -> new PropertyFilter<E>((entity) -> true));
                 } else {
                     // TODO (roman, May 16 2019): Should be able to convert to numeric.
                     return new PropertyFilter<>(stringOptionsPredicate(
@@ -406,6 +406,24 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                                  .map(t -> Long.toString(t))
                                  .anyMatch(
                                      makeCaseSensitivePredicate(listCriteria.getStringFilter())::test));
+            }
+        } else if (propertyName.equals(SearchableProperties.VM_CONNECTED_NETWORKS)) {
+            if (listCriteria.hasStringFilter() && listCriteria.getStringFilter().hasStringPropertyRegex()) {
+                final String regex = listCriteria.getStringFilter().getStringPropertyRegex();
+                final boolean positiveMatch = listCriteria.getStringFilter().getPositiveMatch();
+                final boolean caseSensitive = listCriteria.getStringFilter().getCaseSensitive();
+                final Pattern pattern = Pattern.compile(regex, caseSensitive ? 0 : Pattern.CASE_INSENSITIVE);
+                return new PropertyFilter<E>(entity -> {
+                        if (entity.getTypeSpecificInfo() == null ||
+                                entity.getTypeSpecificInfo().getVirtualMachine() == null) {
+                            return false;
+                        }
+                        final Collection<String> connectedNetworks =
+                                entity.getTypeSpecificInfo().getVirtualMachine().getConnectedNetworksList();
+                        return
+                            connectedNetworks.stream().anyMatch(network -> pattern.matcher(network).find())
+                                == positiveMatch;
+                    });
             }
         }
 

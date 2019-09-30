@@ -55,5 +55,7 @@ public class SearchableProperties {
      */
     public static final String BUSINESS_ACCOUNT_INFO_ACCOUNT_ID = "accountId";
 
+    public static final String VM_CONNECTED_NETWORKS = "connectedNetworks";
+
     private SearchableProperties() {}
 }
