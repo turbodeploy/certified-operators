@@ -181,12 +181,22 @@ public class ReservedInstanceAnalyzer {
             new ReservedInstanceAnalyzerRateAndRIs(priceTableStore, riSpecStore, riBoughtStore);
     }
 
-    public void runRIAnalysisAndSendActions(final long planId,
+    /**
+     * Run the RI buy algorithm and send the RI buy actions to the action orchestrator.
+     *
+     * @param topologyContextId  this may be the plan id or the realtime topology context ID.
+     * @param scope analysis scope
+     * @param historicalDemandDataType the type of demand data: allocated or consumption.
+     * @throws CommunicationException Exception thrown on errors occurred during communications.
+     * @throws InterruptedException Thrown when a thread is waiting, sleeping, or otherwise occupied,
+     *                              and the thread is interrupted, either before or during the activity.
+     */
+    public void runRIAnalysisAndSendActions(final long topologyContextId,
                 @Nonnull ReservedInstanceAnalysisScope scope,
                 @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType)
                                 throws CommunicationException, InterruptedException {
        if (historicalData.containsDataOverWeek()) {
-            @Nullable ReservedInstanceAnalysisResult result = analyze(planId, scope,
+            @Nullable ReservedInstanceAnalysisResult result = analyze(topologyContextId, scope,
                 historicalDemandDataType);
             ActionPlan actionPlan;
             if (result == null) {
@@ -198,7 +208,7 @@ public class ReservedInstanceAnalyzer {
                     .setId(IdentityGenerator.next())
                     .setInfo(ActionPlanInfo.newBuilder()
                         .setBuyRi(BuyRIActionPlanInfo.newBuilder()
-                            .setTopologyContextId(planId)))
+                            .setTopologyContextId(topologyContextId)))
                     .build();
             } else {
                 result.persistResults();
