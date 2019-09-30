@@ -113,6 +113,13 @@ public enum GlobalSettingSpecs {
             Lists.newArrayList(CategoryPathConstants.RI)),
 
     /**
+     * Global RI Setting of demand type.
+     */
+    RIDemandType("ri.demandType", "Type",
+            new EnumSettingDataType<>(RISettingsEnum.DemandType.CONSUMPTION,
+                            RISettingsEnum.DemandType.class),
+            Lists.newArrayList(CategoryPathConstants.RI)),
+    /**
      * Global AWS RI setting for OfferingClass.
      */
     AWSPreferredOfferingClass("ri.aws.preferredOfferingClass", "Type",

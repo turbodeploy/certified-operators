@@ -239,6 +239,7 @@ message ScenarioChange {
         optional common_dto.ReservedInstanceType.PaymentOption preferred_payment_option = 2;
         optional int32 preferred_term = 3;
         optional int64 purchase_date = 4;
+        optional common_dto.DemandType demand_type = 5;
     }
 
     message PlanChanges {
