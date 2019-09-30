@@ -1197,6 +1197,24 @@ public class ActionSpecMapperTest {
                      new HashSet<Long>(filter.getInvolvedEntities().getOidsList()));
     }
 
+    /**
+     * Test that the related entity types from {@link ActionApiInputDTO} makes its way into
+     * the mapped {@link ActionQueryFilter}.
+     */
+    @Test
+    public void testCreateActionFilterWithInvolvedEntityTypes() {
+        final ActionApiInputDTO inputDto = new ActionApiInputDTO();
+        inputDto.setRelatedEntityTypes(Arrays.asList(UIEntityType.VIRTUAL_MACHINE.apiStr(),
+            UIEntityType.PHYSICAL_MACHINE.apiStr()));
+
+        final ActionQueryFilter filter = mapper.createActionFilter(inputDto, Optional.empty());
+
+        assertThat(filter.getEntityTypeList(),
+            containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE.typeNumber(),
+                UIEntityType.PHYSICAL_MACHINE.typeNumber()));
+    }
+
+
     // The UI request for "Pending Actions" does not include any action states
     // in its filter even though it wants to exclude executed actions. When given
     // no action states we should automatically insert the operational action states.

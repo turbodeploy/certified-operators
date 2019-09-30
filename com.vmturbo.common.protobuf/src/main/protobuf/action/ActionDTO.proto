@@ -826,10 +826,21 @@ message ActionQueryFilter {
     repeated ActionState states = 2;
 
     // Include only actions that involve any of these entities.
-    optional InvolvedEntities involvedEntities = 3;
+    //
+    // Involved entities are any entities the action affects, and not just the primary entity.
+    // For example, the involved entities in a VM move are the VM, and the hosts.
+    //
+    // If not set, include any actions.
+    // Some actions have no involved entities. If you want those actions, you need to explicitly
+    // set this field with an empty "oids" list.
+    optional InvolvedEntities involved_entities = 3;
+
+    // Include only actions that involve entities of the specific type.
+    repeated int32 entity_type = 12;
 
     message InvolvedEntities {
         // The oids of the involved entities.
+        // If empty, will return no actions.
         repeated int64 oids = 11;
     }
 
@@ -851,6 +862,7 @@ message ActionQueryFilter {
 
     // Include only actions in a particular environment.
     optional .common.EnvironmentType environment_type = 9;
+
 }
 
 // The number of actions of a specific type that match the criteria in

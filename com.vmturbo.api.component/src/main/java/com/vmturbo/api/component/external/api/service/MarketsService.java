@@ -18,6 +18,13 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
+
+import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
+
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,13 +32,6 @@ import org.apache.logging.log4j.util.Strings;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.CollectionUtils;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
-
-import io.grpc.Status.Code;
-import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
 import com.vmturbo.api.MarketNotificationDTO.StatusNotification;

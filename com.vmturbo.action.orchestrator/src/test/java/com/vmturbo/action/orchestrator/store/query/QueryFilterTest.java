@@ -21,7 +21,6 @@ import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
-import com.vmturbo.action.orchestrator.store.query.QueryFilter;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -268,6 +267,40 @@ public class QueryFilterTest {
 
         assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
                                     .test(actionView));
+    }
+
+    /**
+     * Test that the query filter passes an action that doesn't match the involved entity type
+     * filter.
+     */
+    @Test
+    public void testInvolvedEntityTypeMatch() {
+        final ActionView actionView =
+            executableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
+
+        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
+            .addEntityType(1)
+            .build();
+
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+            .test(actionView));
+    }
+
+    /**
+     * Test that the query filter discards an action that doesn't match the involved entity type
+     * filter.
+     */
+    @Test
+    public void testInvolvedEntityTypeNoMatch() {
+        final ActionView actionView =
+            executableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
+
+        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
+            .addEntityType(2)
+            .build();
+
+        assertFalse(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+            .test(actionView));
     }
 
     @Test

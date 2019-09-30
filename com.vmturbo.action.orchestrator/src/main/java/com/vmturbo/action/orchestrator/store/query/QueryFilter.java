@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.store.query;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -9,9 +10,8 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.Sets;
-
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionEnvironmentType;
@@ -94,16 +94,45 @@ public class QueryFilter {
 
 
         // Return false if the action is not related to the specified entities.
-        if (filter.hasInvolvedEntities()) {
-            Set<Long> involvedEntities;
+        if (filter.hasInvolvedEntities() || filter.getEntityTypeCount() > 0) {
             try {
-                involvedEntities = ActionDTOUtil.getInvolvedEntityIds(
+                // Get the involved entity once.
+                List<ActionEntity> actionInvolvedEntities = ActionDTOUtil.getInvolvedEntities(
                     actionView.getRecommendation());
-            } catch (UnsupportedActionException e) {
-                return false;
-            }
+                // If the caller specified an explicit list of OID to look for, we look in that
+                // list and ignore the specified list of entity types.
+                if (filter.getInvolvedEntities().getOidsCount() > 0) {
+                    final boolean containsInvolved = actionInvolvedEntities.stream()
+                        .anyMatch(actionInvolvedEntity -> this.involvedEntities.contains(actionInvolvedEntity.getId()));
+                    if (!containsInvolved) {
+                        return false;
+                    }
+                } else if (filter.hasInvolvedEntities() && actionInvolvedEntities.isEmpty()) {
+                    // If the filter is explicitly looking for actions that involve no entities,
+                    // and this action has no involved entities (e.g. buy RI) then this action
+                    // matches the filter.
+                    return true;
+                } else if (filter.hasInvolvedEntities()) {
+                    // If the filter has an explicitly set "InvolvedEntities" message containing
+                    // nothing, then no actions match.
+                    return false;
+                }
 
-            if (Sets.intersection(involvedEntities, this.involvedEntities).isEmpty()) {
+                if (filter.getEntityTypeCount() > 0) {
+                    // If the caller DID NOT specify an explicit list of OIDs, but DID specify a
+                    // list of entity types, check the involved entities to see if they match the
+                    // types.
+                    final boolean containsType = actionInvolvedEntities.stream()
+                        .anyMatch(actionInvolvedEntity ->
+                            // This is a "contains" on a list, but the size of the list will be
+                            // small.
+                            filter.getEntityTypeList()
+                                .contains(actionInvolvedEntity.getType()));
+                    if (!containsType) {
+                        return false;
+                    }
+                }
+            } catch (UnsupportedActionException e) {
                 return false;
             }
         }
