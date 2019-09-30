@@ -20,7 +20,11 @@ public class DiscoveredTemplatesConstantFields {
 
     public static final String VM_COMPUTE_IO_THROUGHPUT_CONSUMED = "ioThroughputConsumed";
 
+    public static final String VM_COMPUTE_IO_THROUGHPUT_SIZE = "ioThroughputSize";
+
     public static final String VM_COMPUTE_NETWORK_THROUGHPUT_CONSUMED = "networkThroughputConsumed";
+
+    public static final String VM_COMPUTE_NETWORK_THROUGHPUT_SIZE = "networkThroughputSize";
 
     public static final String VM_STORAGE_DISK_SIZE = "diskSize";
 

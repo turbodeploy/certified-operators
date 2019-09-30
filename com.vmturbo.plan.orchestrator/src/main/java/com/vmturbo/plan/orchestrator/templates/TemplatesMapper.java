@@ -167,6 +167,18 @@ public class TemplatesMapper {
                 CommodityType.VMEM)
                     .map(CommodityProfileDTO::getCapacity)
                     .orElse(0.0f))));
+        //io
+        templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.VM_COMPUTE_IO_THROUGHPUT_SIZE,
+                String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
+                        CommodityType.IO_THROUGHPUT)
+                        .map(CommodityProfileDTO::getCapacity)
+                        .orElse(0.0f))));
+        //net
+        templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.VM_COMPUTE_NETWORK_THROUGHPUT_SIZE,
+                String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
+                        CommodityType.NET_THROUGHPUT)
+                        .map(CommodityProfileDTO::getCapacity)
+                        .orElse(0.0f))));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.VM_COMPUTE_MEM_CONSUMED_FACTOR,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
                 CommodityType.MEM)
@@ -203,7 +215,7 @@ public class TemplatesMapper {
                 CommodityType.VSTORAGE)
                     .map(CommodityProfileDTO::getCapacity)
                     .orElse(0.0f))));
-        templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.VM_STORAGE_DISK_IOPS_CONSUMED,
+        templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.STORAGE_DISK_IOPS,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
                 CommodityType.STORAGE_ACCESS)
                     .map(CommodityProfileDTO::getConsumed)

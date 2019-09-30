@@ -64,7 +64,7 @@
             "description" : "Network Throughput Consumed"
           },
           {
-            "name" : "ioThroughput",
+            "name" : "ioThroughputSize",
             "displayName" : "Throughput",
             "units" : "MB/s",
             "divisor" : "1024f",
@@ -72,7 +72,7 @@
             "description" : "IO Throughput"
           },
           {
-            "name" : "networkThroughput",
+            "name" : "networkThroughputSize",
             "displayName" : "Throughput",
             "units" : "MB/s",
             "divisor" : "1024f",
@@ -208,7 +208,7 @@
         },
         "fields" : [
           {
-            "name" : "diskIops",
+            "name" : "diskIopsConsumed",
             "displayName" : "IOPS",
             "valueType" : "NUMERIC",
             "description" : "Disk IOPS"

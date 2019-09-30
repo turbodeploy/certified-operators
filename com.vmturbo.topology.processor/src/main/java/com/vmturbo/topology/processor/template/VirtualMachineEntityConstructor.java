@@ -225,10 +225,10 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
             @Nonnull Map<String, String> fieldNameValueMap) {
         // if created entity is reservation entity, io throughput used value should be 0.
         final double ioThroughput = this.isReservationEntity ? 0.0 : Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.IO_THROUGHPUT, ZERO));
+            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.IO_THROUGHPUT_SIZE, ZERO));
         // if created entity is reservation entity, network throughput used value should be 0.
         final double netThroughput = this.isReservationEntity ? 0.0 : Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.NETWORK_THROUGHPUT, ZERO));
+            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.NETWORK_THROUGHPUT_SIZE, ZERO));
 
         CommodityBoughtDTO ioThroughputCommodity =
             createCommodityBoughtDTO(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE, ioThroughput);
