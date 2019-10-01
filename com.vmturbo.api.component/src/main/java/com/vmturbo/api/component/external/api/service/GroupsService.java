@@ -1156,7 +1156,7 @@ public class GroupsService implements IGroupsService {
         final List<BaseApiDTO> retList = setPostPaginationGroupsInformation(paginatedGroupApiDTOs,
             paginationRequest.getOrderBy(), idToGroupAndMembers);
 
-        Long nextCursor = skipCount + groupApiDTOs.size();
+        Long nextCursor = skipCount + paginatedGroupApiDTOs.size();
         if (nextCursor == idToGroupAndMembers.values().size()) {
             return paginationRequest.finalPageResponse(retList);
         }
