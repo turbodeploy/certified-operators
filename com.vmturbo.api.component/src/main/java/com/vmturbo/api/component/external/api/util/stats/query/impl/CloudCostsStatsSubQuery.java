@@ -369,7 +369,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                     .map(entry -> {
                         CloudCostStatRecord.StatRecord statRecord = recordAggregator.aggregate(entry.getValue(),
                             Optional.of(Integer.valueOf(UIEntityType.fromString(requestedStat.getRelatedEntityType()).typeNumber())), false);
-                        return toStatApiDTO(UIEntityType.STORAGE_TIER.apiStr(), statRecord, createStatFilterApiDTO(UIEntityType.STORAGE_TIER.apiStr(), entry.getKey()));
+                        return toStatApiDTO(StringConstants.COST_PRICE, statRecord, createStatFilterApiDTO(UIEntityType.STORAGE_TIER.apiStr(), entry.getKey()));
                     })
                     .collect(Collectors.toList());
 
@@ -436,8 +436,8 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                 CloudCostStatRecord.StatRecord attachedRecord = recordAggregator.aggregate(vvAttachedStatRecords, Optional.of(Integer.valueOf(UIEntityType.fromString(requestedStat.getRelatedEntityType()).typeNumber())), false);
                 CloudCostStatRecord.StatRecord unattachedRecord = recordAggregator.aggregate(vvUnattachedStatRecords, Optional.of(Integer.valueOf(UIEntityType.fromString(requestedStat.getRelatedEntityType()).typeNumber())), false);
 
-                StatApiDTO attachedStatApiDto = toStatApiDTO(StringConstants.ATTACHMENT, attachedRecord, createStatFilterApiDTO(StringConstants.ATTACHMENT, StringConstants.ATTACHED));
-                StatApiDTO unattachedStatApiDto = toStatApiDTO(StringConstants.ATTACHMENT, unattachedRecord, createStatFilterApiDTO(StringConstants.ATTACHMENT, StringConstants.UNATTACHED));
+                StatApiDTO attachedStatApiDto = toStatApiDTO(StringConstants.COST_PRICE, attachedRecord, createStatFilterApiDTO(StringConstants.ATTACHMENT, StringConstants.ATTACHED));
+                StatApiDTO unattachedStatApiDto = toStatApiDTO(StringConstants.COST_PRICE, unattachedRecord, createStatFilterApiDTO(StringConstants.ATTACHMENT, StringConstants.UNATTACHED));
 
                 statSnapshotApiDTO.setStatistics(Lists.newArrayList(attachedStatApiDto, unattachedStatApiDto));
 

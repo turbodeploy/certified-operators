@@ -196,7 +196,7 @@ public class CloudCostsStatsSubQueryTest {
         assertThat(stats.size(), is(2));
 
         stats.stream().forEach(stat -> {
-            assertThat(stat.getName(), is(StringConstants.ATTACHMENT));
+            assertThat(stat.getName(), is(StringConstants.COST_PRICE));
             assertThat(stat.getUnits(), is(StringConstants.DOLLARS_PER_HOUR));
             List<StatFilterApiDTO> filters = stat.getFilters();
             assertThat(filters.size(), is(1));
@@ -281,7 +281,7 @@ public class CloudCostsStatsSubQueryTest {
         assertThat(stats.size(), is(2));
 
         stats.stream().forEach(stat -> {
-            assertThat(stat.getName(), is(UIEntityType.STORAGE_TIER.apiStr()));
+            assertThat(stat.getName(), is(StringConstants.COST_PRICE));
             assertThat(stat.getUnits(), is(StringConstants.DOLLARS_PER_HOUR));
             List<StatFilterApiDTO> filters = stat.getFilters();
             assertThat(filters.size(), is(1));
