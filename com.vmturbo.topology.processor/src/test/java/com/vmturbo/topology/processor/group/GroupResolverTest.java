@@ -106,7 +106,8 @@ public class GroupResolverTest {
                     .addAllStaticMemberOids(Arrays.asList(1L, 2L))))
             .build();
 
-        final GroupResolver resolver = new GroupResolver(Mockito.mock(SearchResolver.class));
+        final GroupResolver resolver = new GroupResolver(Mockito.mock(SearchResolver.class),
+                Mockito.mock(GroupConfig.class).groupServiceBlockingStub());
         assertThat(resolver.resolve(staticGroup, topologyGraph), containsInAnyOrder(1L, 2L));
     }
 
@@ -119,7 +120,8 @@ public class GroupResolverTest {
                         .setMembers(StaticGroupMembers.newBuilder()
                                 .addAllStaticMemberOids(Arrays.asList(1L, 2L))))
                 .build();
-        final GroupResolver resolver = new GroupResolver(Mockito.mock(SearchResolver.class));
+        final GroupResolver resolver = new GroupResolver(Mockito.mock(SearchResolver.class),
+                Mockito.mock(GroupConfig.class).groupServiceBlockingStub());
         assertThat(resolver.resolve(cluster, topologyGraph), containsInAnyOrder(1L, 2L));
     }
 
@@ -138,7 +140,8 @@ public class GroupResolverTest {
                                 .setStartingFilter(Search.PropertyFilter.getDefaultInstance()))))
             .build();
 
-        final GroupResolver resolver = new GroupResolver(Mockito.mock(SearchResolver.class));
+        final GroupResolver resolver = new GroupResolver(Mockito.mock(SearchResolver.class),
+                                    Mockito.mock(GroupConfig.class).groupServiceBlockingStub());
         resolver.resolve(dynamicGroup, topologyGraph);
     }
 
@@ -157,7 +160,8 @@ public class GroupResolverTest {
                                     .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))))))
             .build();
 
-        final GroupResolver resolver = new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()));
+        final GroupResolver resolver = new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()),
+                Mockito.mock(GroupConfig.class).groupServiceBlockingStub());
         assertThat(resolver.resolve(dynamicGroup, topologyGraph), containsInAnyOrder(1L, 2L, 3L, 4L));
     }
 
@@ -176,7 +180,8 @@ public class GroupResolverTest {
                                 .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))))))
             .build();
 
-        final GroupResolver resolver = new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()));
+        final GroupResolver resolver = new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()),
+                                            Mockito.mock(GroupConfig.class).groupServiceBlockingStub());
         assertThat(
                 resolver.resolve(dynamicGroup, topologyGraph),
                 containsInAnyOrder(5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L));
@@ -217,7 +222,8 @@ public class GroupResolverTest {
                                 .setSearchParametersCollection(searchParameters)
                 ).build();
         final Set<Long> groupMembers = new GroupResolver(new SearchResolver<TopologyEntity>(
-            new TopologyFilterFactory<>())).resolve(dynamicGroup, topologyGraph);
+            new TopologyFilterFactory<>()), Mockito.mock(GroupConfig.class).groupServiceBlockingStub())
+                .resolve(dynamicGroup, topologyGraph);
         assertEquals(entity11expected, groupMembers.contains(11L));
         assertEquals(entity12expected, groupMembers.contains(12L));
     }
@@ -249,7 +255,8 @@ public class GroupResolverTest {
                                     )))))
                 .build();
 
-        final GroupResolver resolver = new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()));
+        final GroupResolver resolver = new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()),
+                Mockito.mock(GroupConfig.class).groupServiceBlockingStub());
         assertThat(resolver.resolve(dynamicGroup, topologyGraph), containsInAnyOrder(8L, 10L));
     }
 
@@ -298,7 +305,8 @@ public class GroupResolverTest {
                         ))
                 .build();
 
-        final GroupResolver resolver = new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()));
+        final GroupResolver resolver = new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()),
+                Mockito.mock(GroupConfig.class).groupServiceBlockingStub());
         assertThat(resolver.resolve(dynamicGroup, topologyGraph), contains(10L));
     }
 
@@ -346,7 +354,8 @@ public class GroupResolverTest {
                     )
                 .build();
 
-        final GroupResolver resolver = spy(new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>())));
+        final GroupResolver resolver = spy(new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()),
+                Mockito.mock(GroupConfig.class).groupServiceBlockingStub()));
         resolver.resolve(dynamicGroup, topologyGraph);
         resolver.resolve(dynamicGroup, topologyGraph);
         resolver.resolve(dynamicGroup, topologyGraph);
@@ -377,7 +386,8 @@ public class GroupResolverTest {
                         .addAllStaticMemberOids(Arrays.asList(1L, 2L))))
                 .build();
 
-        final GroupResolver resolver = spy(new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>())));
+        final GroupResolver resolver = spy(new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()),
+                Mockito.mock(GroupConfig.class).groupServiceBlockingStub()));
         resolver.resolve(staticGroup, topologyGraph);
         resolver.resolve(staticGroup, topologyGraph);
         resolver.resolve(staticGroup, topologyGraph);
@@ -396,7 +406,8 @@ public class GroupResolverTest {
     public void testResolveWithMissingGroupId() throws GroupResolutionException {
 
         final Group group = Group.newBuilder().build();
-        final GroupResolver resolver = new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()));
+        final GroupResolver resolver = new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()),
+                Mockito.mock(GroupConfig.class).groupServiceBlockingStub());
         resolver.resolve(group, topologyGraph);
     }
 

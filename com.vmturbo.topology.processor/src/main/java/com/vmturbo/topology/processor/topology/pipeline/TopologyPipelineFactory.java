@@ -221,7 +221,7 @@ public class TopologyPipelineFactory {
             @Nonnull final TopologyInfo topologyInfo,
             @Nonnull final List<TopoBroadcastManager> additionalBroadcastManagers,
             @Nonnull final StitchingJournalFactory journalFactory) {
-        final GroupResolver groupResolver = new GroupResolver(searchResolver);
+        final GroupResolver groupResolver = new GroupResolver(searchResolver, groupServiceClient);
         final TopologyPipelineContext context =
             new TopologyPipelineContext(groupResolver, topologyInfo);
         final List<TopoBroadcastManager> managers = new ArrayList<>(additionalBroadcastManagers.size() + 1);
@@ -286,7 +286,7 @@ public class TopologyPipelineFactory {
             @Nullable final PlanScope scope,
             @Nonnull final StitchingJournalFactory journalFactory) {
         final TopologyPipelineContext context =
-                new TopologyPipelineContext(new GroupResolver(searchResolver), topologyInfo);
+                new TopologyPipelineContext(new GroupResolver(searchResolver, groupServiceClient), topologyInfo);
         final TopologyPipeline.Builder topoPipelineBuilder =
             TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context);
         // if the constructed topology is already in the cache from the realtime topology, just
@@ -304,7 +304,7 @@ public class TopologyPipelineFactory {
                 // TODO: Move the ToplogyEditStage after the GraphCreationStage
                 // That way the editstage can work on the graph instead of a
                 // separate structure.
-                .addStage(new TopologyEditStage(topologyEditor, searchResolver, changes))
+                .addStage(new TopologyEditStage(topologyEditor, searchResolver, changes, groupServiceClient))
                 .addStage(new GraphCreationStage())
                 .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
                 .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
@@ -318,7 +318,7 @@ public class TopologyPipelineFactory {
                 .addStage(new PostStitchingStage(stitchingManager))
                 .addStage(new EntityValidationStage(entityValidator))
                 .addStage(new ExtractTopologyGraphStage())
-                .addStage(new PlanScopingStage(planTopologyScopeEditor, scope, searchResolver, changes))
+                .addStage(new PlanScopingStage(planTopologyScopeEditor, scope, searchResolver, changes, groupServiceClient))
                 .addStage(new HistoricalUtilizationStage(historicalEditor, changes))
                 .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager)))
                 .build();
@@ -339,10 +339,10 @@ public class TopologyPipelineFactory {
             @Nonnull final List<ScenarioChange> changes,
             @Nullable final PlanScope scope) {
         final TopologyPipelineContext context =
-                new TopologyPipelineContext(new GroupResolver(searchResolver), topologyInfo);
+                new TopologyPipelineContext(new GroupResolver(searchResolver, groupServiceClient), topologyInfo);
         return TopologyPipeline.<Long, TopologyBroadcastInfo>newBuilder(context)
                 .addStage(new TopologyAcquisitionStage(repositoryClient))
-                .addStage(new TopologyEditStage(topologyEditor, searchResolver, changes))
+                .addStage(new TopologyEditStage(topologyEditor, searchResolver, changes, groupServiceClient))
                 .addStage(new GraphCreationStage())
                 .addStage(new ScopeResolutionStage(groupServiceClient, scope))
                 .addStage(new CommoditiesEditStage(commoditiesEditor, changes, scope))

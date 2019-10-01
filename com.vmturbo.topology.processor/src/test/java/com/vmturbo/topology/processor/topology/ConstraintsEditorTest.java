@@ -14,6 +14,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.topology.processor.group.GroupConfig;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -49,6 +50,7 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import org.mockito.Mockito;
 
 /**
  * Tests disabling of constraints
@@ -341,7 +343,7 @@ public class ConstraintsEditorTest {
     private static class TestGroupResolver extends GroupResolver {
 
         private TestGroupResolver() {
-            super(mock(SearchResolver.class));
+            super(mock(SearchResolver.class), Mockito.mock(GroupConfig.class).groupServiceBlockingStub());
         }
 
         @Override

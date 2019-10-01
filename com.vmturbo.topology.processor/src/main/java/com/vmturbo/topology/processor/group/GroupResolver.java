@@ -11,8 +11,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 
+import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -44,6 +47,8 @@ public class GroupResolver {
 
     private final SearchResolver<TopologyEntity> searchResolver;
 
+    private final GroupServiceGrpc.GroupServiceBlockingStub groupServiceClient;
+
     /**
      * Cache for storing resolved groups.
      * Mapping from GroupID->Set(EntityIDs)
@@ -53,8 +58,10 @@ public class GroupResolver {
     /**
      * Create a GroupResolver.
      */
-    public GroupResolver(@Nonnull final SearchResolver<TopologyEntity> searchResolver) {
+    public GroupResolver(@Nonnull final SearchResolver<TopologyEntity> searchResolver,
+                         @Nullable final GroupServiceGrpc.GroupServiceBlockingStub groupServiceClient) {
         this.searchResolver = Objects.requireNonNull(searchResolver);
+        this.groupServiceClient = groupServiceClient;
         this.groupResolverCache = new HashMap<>();
     }
 
@@ -119,6 +126,15 @@ public class GroupResolver {
                     default:
                         throw new GroupResolutionException("Unknown selection criteria type: " +
                                 group.getGroup().getSelectionCriteriaCase());
+                }
+                break;
+            case NESTED_GROUP:
+                GroupDTO.GetMembersResponse response = groupServiceClient
+                        .getMembers(GroupDTO.GetMembersRequest.newBuilder()
+                                .setExpandNestedGroups(true)
+                                .setId(group.getId()).build());
+                if (response.hasMembers()) {
+                    groupMembers = Optional.of(response.getMembers().getIdsList().stream().collect(Collectors.toSet()));
                 }
                 break;
         }

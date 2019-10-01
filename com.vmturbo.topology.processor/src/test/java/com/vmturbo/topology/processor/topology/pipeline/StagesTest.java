@@ -26,6 +26,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
+
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -52,6 +53,7 @@ import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.entity.EntitiesValidationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
+import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupMemberCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
@@ -121,7 +123,7 @@ public class StagesTest {
         final IStitchingJournal<TopologyEntity> journal = spy(new EmptyStitchingJournal<TopologyEntity>());
         container.setPostStitchingJournal(journal);
         final SearchResolver<TopologyEntity> searchResolver = mock(SearchResolver.class);
-        final GroupResolver groupResolver = new GroupResolver(searchResolver);
+        final GroupServiceBlockingStub groupServiceClient = mock(GroupConfig.class).groupServiceBlockingStub();
         final TopologyGraph<TopologyEntity> graph = mock(TopologyGraph.class);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
                         .setTopologyContextId(1)
@@ -137,7 +139,7 @@ public class StagesTest {
 
         PlanScope emptyScope = PlanScope.newBuilder().build();
         final PlanScopingStage emptyScopingStage = new PlanScopingStage(scopeEditor, emptyScope , searchResolver,
-                                                                   new ArrayList<ScenarioChange>());
+                                                                   new ArrayList<ScenarioChange>(), groupServiceClient);
         assertTrue(emptyScopingStage.execute(graph).getResult().entities().count() == 0);
     }
 
@@ -154,10 +156,11 @@ public class StagesTest {
         final PlanTopologyScopeEditor scopeEditor = mock(PlanTopologyScopeEditor.class);
         final TopologyGraph<TopologyEntity> graph = mock(TopologyGraph.class);
         final SearchResolver<TopologyEntity> searchResolver = mock(SearchResolver.class);
+        final GroupServiceBlockingStub groupServiceClient = mock(GroupConfig.class).groupServiceBlockingStub();
         final PlanScope scope = PlanScope.newBuilder().addScopeEntries(PlanScopeEntry
                 .newBuilder().setClassName(StringConstants.CLUSTER).setScopeObjectOid(11111)).build();
         final PlanScopingStage cloudScopingStage = spy(new PlanScopingStage(scopeEditor, scope , searchResolver,
-                new ArrayList<ScenarioChange>()));
+                new ArrayList<ScenarioChange>(), groupServiceClient));
         when(cloudScopingStage.getContext()).thenReturn(context);
         when(context.getStitchingJournalContainer()).thenReturn(container);
         when(context.getTopologyInfo()).thenReturn(cloudTopologyInfo);
@@ -177,11 +180,12 @@ public class StagesTest {
         final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         final PlanTopologyScopeEditor scopeEditor = mock(PlanTopologyScopeEditor.class);
         final SearchResolver<TopologyEntity> searchResolver = mock(SearchResolver.class);
+        final GroupServiceBlockingStub groupServiceClient = mock(GroupConfig.class).groupServiceBlockingStub();
         final TopologyGraph<TopologyEntity> graph = mock(TopologyGraph.class);
         final PlanScope scope = PlanScope.newBuilder().addScopeEntries(PlanScopeEntry
                 .newBuilder().setClassName(StringConstants.CLUSTER).setScopeObjectOid(11111)).build();
         List<ScenarioChange> changes = new ArrayList<ScenarioChange>();
-        final PlanScopingStage onpremScopingStage = spy(new PlanScopingStage(scopeEditor, scope , searchResolver, changes));
+        final PlanScopingStage onpremScopingStage = spy(new PlanScopingStage(scopeEditor, scope , searchResolver, changes, groupServiceClient));
         TopologyGraph<TopologyEntity> result = mock(TopologyGraph.class);
         when(onpremScopingStage.getContext()).thenReturn(context);
         when(context.getTopologyInfo()).thenReturn(onpremTopologyInfo);
@@ -308,10 +312,11 @@ public class StagesTest {
                 .setTopologyType(TopologyType.PLAN)
                 .build();
         SearchResolver<TopologyEntity> searchResolver = mock(SearchResolver.class);
+        final GroupServiceBlockingStub groupServiceClient = mock(GroupConfig.class).groupServiceBlockingStub();
         final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         when(context.getTopologyInfo()).thenReturn(topologyInfo);
         final TopologyEditStage stage =
-                new TopologyEditStage(topologyEditor, searchResolver, changes);
+                new TopologyEditStage(topologyEditor, searchResolver, changes, groupServiceClient);
         stage.setContext(context);
         stage.execute(Collections.emptyMap());
         verify(topologyEditor).editTopology(eq(Collections.emptyMap()),

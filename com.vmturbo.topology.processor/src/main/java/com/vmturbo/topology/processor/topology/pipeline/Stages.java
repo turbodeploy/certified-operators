@@ -495,13 +495,16 @@ public class Stages {
         private final TopologyEditor topologyEditor;
         private final List<ScenarioChange> changes;
         private final SearchResolver<TopologyEntity> searchResolver;
+        private final GroupServiceBlockingStub groupServiceClient;
 
         public TopologyEditStage(@Nonnull final TopologyEditor topologyEditor,
                                  @Nonnull final SearchResolver<TopologyEntity> searchResolver,
-                                 @Nonnull final List<ScenarioChange> scenarioChanges) {
+                                 @Nonnull final List<ScenarioChange> scenarioChanges,
+                                 @Nullable final GroupServiceBlockingStub groupServiceClient) {
             this.topologyEditor = Objects.requireNonNull(topologyEditor);
             this.changes = Objects.requireNonNull(scenarioChanges);
             this.searchResolver = Objects.requireNonNull(searchResolver);
+            this.groupServiceClient = groupServiceClient;
         }
 
         @Override
@@ -510,7 +513,7 @@ public class Stages {
             // This is so that pre-edit group membership lookups don't get cached in the "main"
             // group resolver, preventing post-edit group membership lookups from seeing members
             // added or removed during editing.
-            final GroupResolver groupResolver = new GroupResolver(searchResolver);
+            final GroupResolver groupResolver = new GroupResolver(searchResolver, groupServiceClient);
             topologyEditor.editTopology(input, changes, getContext().getTopologyInfo(), groupResolver);
             // TODO (roman, Oct 23 2018): Add some information about the number/type of
             // modifications made.
@@ -1247,15 +1250,18 @@ public class Stages {
         private final PlanScope planScope;
         private final PlanTopologyScopeEditor planTopologyScopeEditor;
         private final SearchResolver<TopologyEntity> searchResolver;
+        private final GroupServiceBlockingStub groupServiceClient;
         private final List<ScenarioChange> changes;
 
         public PlanScopingStage(@Nonnull final PlanTopologyScopeEditor topologyScopeEditor,
                                 @Nullable final PlanScope planScope,
                                 @Nonnull final SearchResolver<TopologyEntity> searchResolver,
-                                @Nonnull final List<ScenarioChange> changes) {
+                                @Nonnull final List<ScenarioChange> changes,
+                                @Nullable final GroupServiceBlockingStub groupServiceClient) {
             this.planScope = planScope;
             this.planTopologyScopeEditor = Objects.requireNonNull(topologyScopeEditor);
             this.searchResolver = Objects.requireNonNull(searchResolver);
+            this.groupServiceClient = groupServiceClient;
             this.changes = changes;
         }
 
@@ -1271,7 +1277,7 @@ public class Stages {
                 throw new PipelineStageException("Plan with topology context id " +
                         topologyInfo.getTopologyContextId() + " has no planInfo object");
             }
-            final GroupResolver groupResolver = new GroupResolver(searchResolver);
+            final GroupResolver groupResolver = new GroupResolver(searchResolver, groupServiceClient);
             if (!topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.OPTIMIZE_CLOUD_PLAN_TYPE)
                             && !topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.CLOUD_MIGRATION_PLAN_TYPE)) {
                 // on prem plans
