@@ -460,7 +460,7 @@ public class SearchService implements ISearchService {
         FilterApiDTO nameFilter = new FilterApiDTO();
         nameFilter.setExpVal(".*" + stringToMatch + ".*"); // turn it into a wildcard regex
         nameFilter.setExpType(GroupMapper.REGEX_MATCH);
-        nameFilter.setCaseSensitive(true);
+        nameFilter.setCaseSensitive(false);
         nameFilter.setFilterType(filterTypeToUse);
         List<FilterApiDTO> returnFilters = new ArrayList<>();
         returnFilters.add(nameFilter);
