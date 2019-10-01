@@ -20,6 +20,7 @@ import javax.annotation.Nonnull;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -46,9 +47,11 @@ import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -216,6 +219,12 @@ public class CloudCostsStatsSubQueryTest {
         final long st2VolumeId = 801L;
         final long storageTierOid1 = 99999L;
         final long storageTierOid2 = 88888L;
+        final String stDisplayName1 = "storage tier 1";
+        final String stDisplayName2 = "storage tier 2";
+        final List<MinimalEntity> stMinimalEntities = Arrays.asList(
+            createMinimalEntities(storageTierOid1, stDisplayName1, EntityType.STORAGE_TIER),
+            createMinimalEntities(storageTierOid2, stDisplayName2, EntityType.STORAGE_TIER)
+        );
 
         CloudCostStatRecord ccsr = CloudCostStatRecord.newBuilder()
             .addStatRecords(
@@ -251,9 +260,11 @@ public class CloudCostsStatsSubQueryTest {
             createApiPartialEntity(st2VolumeId, storageTierOid2)
         );
         SearchRequest searchRequest = mock(SearchRequest.class);
-        when(repositoryApi.newSearchRequest(any(Search.SearchParameters.class)))
+        ArgumentCaptor<SearchParameters> searchParametersArgumentCaptor = new ArgumentCaptor<>();
+        when(repositoryApi.newSearchRequest(searchParametersArgumentCaptor.capture()))
             .thenReturn(searchRequest);
         when(searchRequest.getEntities()).thenReturn(attachedVVEntities.stream());
+        when(searchRequest.getMinimalEntities()).thenReturn(stMinimalEntities.stream());
 
         final Set<StatApiInputDTO> requestedStats = Sets.newHashSet(
             createStatApiInputDTO(StringConstants.COST_PRICE, UIEntityType.VIRTUAL_VOLUME, Collections.singletonList(UIEntityType.STORAGE_TIER.apiStr()))
@@ -276,10 +287,10 @@ public class CloudCostsStatsSubQueryTest {
             assertThat(filters.size(), is(1));
             StatFilterApiDTO filter = filters.get(0);
             assertThat(filter.getType(), is(UIEntityType.STORAGE_TIER.apiStr()));
-            assertThat(filter.getValue(), isOneOf(storageTierOid1 + "", storageTierOid2 + ""));
-            if (filter.getValue().equals(storageTierOid1 + "")) {
+            assertThat(filter.getValue(), isOneOf(stDisplayName1, stDisplayName2));
+            if (filter.getValue().equals(stDisplayName1)) {
                 assertThat(stat.getValue(), is(1f));
-            } else {
+            } else if (filter.getValue().equals(stDisplayName2)) {
                 assertThat(stat.getValue(), is(3f));
             }
         });
@@ -323,6 +334,16 @@ public class CloudCostsStatsSubQueryTest {
                 .setEntityType(EntityType.STORAGE_TIER.getValue())
                 .setOid(storageTierOid)
                 .build())
+            .build();
+    }
+
+    private MinimalEntity createMinimalEntities(final long oid,
+                                                @Nonnull final String displayName,
+                                                @Nonnull final EntityType entityType) {
+        return MinimalEntity.newBuilder()
+            .setOid(oid)
+            .setEntityType(entityType.getValue())
+            .setDisplayName(displayName)
             .build();
     }
 

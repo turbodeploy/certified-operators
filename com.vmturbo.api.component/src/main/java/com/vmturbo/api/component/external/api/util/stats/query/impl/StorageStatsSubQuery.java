@@ -26,14 +26,15 @@ import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
-import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -167,15 +168,35 @@ public class StorageStatsSubQuery implements StatsSubQuery {
                     .getEntities()
                     .collect(Collectors.toList());
 
-                final Function<ApiPartialEntity, String> getStorageTierOidFromVV = (vvPartialEntity) ->
+
+                // get list of storageOid in order to get the display name for each storage tier
+                final Set<Long> storageOids = vvInScope.stream().map(vvEntity -> vvEntity.getConnectedToList().stream()
+                    .filter(relatedEntity -> relatedEntity.getEntityType() == EntityType.STORAGE_TIER.getNumber())
+                    .findFirst()
+                    .map(RelatedEntity::getOid)
+                    .get()
+                ).collect(Collectors.toSet());
+
+                final Map<Long, String> storageTierOidToDisplayNameMap = repositoryApi
+                    .newSearchRequest(
+                        SearchProtoUtil
+                            .makeSearchParameters(SearchProtoUtil.idFilter(storageOids))
+                            .build()
+                    )
+                    .getMinimalEntities()
+                    .collect(Collectors.toMap(MinimalEntity::getOid, MinimalEntity::getDisplayName));
+
+
+                final Function<PartialEntity.ApiPartialEntity, String> getStorageTierDisplayNameFromVV = (vvPartialEntity) ->
                     vvPartialEntity.getConnectedToList().stream().filter(relatedEntity -> relatedEntity.getEntityType() == EntityType.STORAGE_TIER.getNumber())
                         .findFirst()
                         .map(RelatedEntity::getOid)
-                        .get().toString();
+                        .map(oid -> storageTierOidToDisplayNameMap.getOrDefault(oid, oid.toString()))
+                        .get();
 
                 if (requestedStat.getName().equals(NUM_VOL)) {
                     Map<String, Long> tempMap = vvInScope.stream()
-                        .collect(Collectors.groupingBy(getStorageTierOidFromVV, Collectors.counting()));
+                        .collect(Collectors.groupingBy(getStorageTierDisplayNameFromVV, Collectors.counting()));
 
                     List<StatApiDTO> stats = toCountStatApiDtos(requestedStat, UIEntityType.STORAGE_TIER.apiStr(), tempMap);
 

@@ -318,20 +318,35 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             .getEntities()
             .collect(Collectors.toSet());
 
+        // get list of storageOid in order to get the display name for each storage tier
+        final Set<Long> storageOids = vvEntities.stream().map(vvEntity -> vvEntity.getConnectedToList().stream()
+            .filter(relatedEntity -> relatedEntity.getEntityType() == EntityType.STORAGE_TIER.getNumber())
+            .findFirst()
+            .map(RelatedEntity::getOid)
+            .get()
+        ).collect(Collectors.toSet());
+
+        final Map<Long, String> storageTierOidToDisplayNameMap = repositoryApi
+            .newSearchRequest(
+                SearchProtoUtil
+                    .makeSearchParameters(SearchProtoUtil.idFilter(storageOids))
+                    .build()
+            )
+            .getMinimalEntities()
+            .collect(Collectors.toMap(MinimalEntity::getOid, MinimalEntity::getDisplayName));
 
         List<StatSnapshotApiDTO> statSnapshotApiDTOs = new ArrayList<>();
-
         final Function<PartialEntity.ApiPartialEntity, String> getStorageTierOidFromVV = (vvPartialEntity) ->
             vvPartialEntity.getConnectedToList().stream().filter(relatedEntity -> relatedEntity.getEntityType() == EntityType.STORAGE_TIER.getNumber())
                 .findFirst()
                 .map(RelatedEntity::getOid)
-                .get().toString();
+                .map(oid -> storageTierOidToDisplayNameMap.getOrDefault(oid, oid.toString()))
+                .get();
 
         cloudCostStatRecords.forEach(cloudCostStatRecord -> {
-
             Map<String, Set<Long>> vvOidsGroupByStOid = vvEntities.stream().collect(
                 Collectors.groupingBy(getStorageTierOidFromVV,
-                                      Collectors.mapping(PartialEntity.ApiPartialEntity::getOid, Collectors.<Long>toSet())));
+                                      Collectors.mapping(PartialEntity.ApiPartialEntity::getOid, Collectors.toSet())));
 
             Map<String, List<CloudCostStatRecord.StatRecord>> cloudCostStatRecordGroupBySt = new HashMap<>();
 
@@ -532,12 +547,12 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     }
 
     private boolean isGroupByAttachment(Set<StatApiInputDTO> requestedStats) {
-        return requestedStats.stream().anyMatch(requestedStat -> requestedStat.getGroupBy().contains(StringConstants.ATTACHMENT) &&
+        return requestedStats.stream().anyMatch(requestedStat -> requestedStat.getGroupBy() != null && requestedStat.getGroupBy().contains(StringConstants.ATTACHMENT) &&
             UIEntityType.VIRTUAL_VOLUME.apiStr().equals(requestedStat.getRelatedEntityType()));
     }
 
     private boolean isGroupByStorageTier(Set<StatApiInputDTO> requestedStats) {
-        return requestedStats.stream().anyMatch(requestedStat -> requestedStat.getGroupBy().contains(UIEntityType.STORAGE_TIER.apiStr()) &&
+        return requestedStats.stream().anyMatch(requestedStat -> requestedStat.getGroupBy() != null && requestedStat.getGroupBy().contains(UIEntityType.STORAGE_TIER.apiStr()) &&
             UIEntityType.VIRTUAL_VOLUME.apiStr().equals(requestedStat.getRelatedEntityType()));
     }
 
