@@ -520,8 +520,6 @@ public class GroupRpcService extends GroupServiceImplBase {
             responseObserver.onError(Status.INTERNAL
                     .withDescription(e.getLocalizedMessage()).asException());
         }
-
-        super.updateClusterHeadroomTemplate(request, responseObserver);
     }
 
     @Override
