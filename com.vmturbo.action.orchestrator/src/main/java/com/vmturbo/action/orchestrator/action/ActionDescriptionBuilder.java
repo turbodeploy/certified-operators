@@ -34,7 +34,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -80,6 +79,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_DELETE_CLOUD("Delete Unattached {0} Volume {1} from {2}"),
         ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT("Remove {0} limit on entity {1}"),
         ACTION_DESCRIPTION_RESIZE("Resize {0} {1} for {2} from {3} to {4}"),
+        ACTION_DESCRIPTION_RESIZE_RESERVATION("Resize {0} {1} reservation for {2} from {3} to {4}"),
         ACTION_DESCRIPTION_RECONFIGURE_WITH_SOURCE("Reconfigure {0} which requires {1} but is hosted by {2} which does not provide {1}"),
         ACTION_DESCRIPTION_RECONFIGURE("Reconfigure {0} as it is unplaced"),
         ACTION_DESCRIPTION_MOVE_WITHOUT_SOURCE("Start {0} on {1}"),
@@ -163,21 +163,29 @@ public class ActionDescriptionBuilder {
         }
 
         ActionPartialEntity entity = optEntity.get();
-        // Check if we need to describe the action as a "remove limit" instead of regular resize.
-        if (resize.getCommodityAttribute() == CommodityAttribute.LIMIT) {
-            return ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT.format(
-                beautifyCommodityType(recommendation.getInfo().getResize().getCommodityType()),
-                beautifyEntityTypeAndName(entity));
-        } else {
-            // Regular case
-            final CommodityDTO.CommodityType commodityType = CommodityDTO.CommodityType
+        final CommodityDTO.CommodityType commodityType = CommodityDTO.CommodityType
                 .forNumber(resize.getCommodityType().getType());
-            return ActionMessageFormat.ACTION_DESCRIPTION_RESIZE.format(
-                resize.getNewCapacity() > resize.getOldCapacity() ? UP : DOWN,
-                beautifyCommodityType(resize.getCommodityType()),
-                beautifyEntityTypeAndName(entity),
-                formatResizeActionCommodityValue(commodityType, resize.getOldCapacity()),
-                formatResizeActionCommodityValue(commodityType, resize.getNewCapacity()));
+        // Construct the description based on the attribute type
+        switch (resize.getCommodityAttribute()) {
+            case LIMIT:
+                return ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT.format(
+                        beautifyCommodityType(resize.getCommodityType()),
+                        beautifyEntityTypeAndName(entity));
+            case RESERVED:
+                return ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_RESERVATION.format(
+                        resize.getNewCapacity() > resize.getOldCapacity() ? UP : DOWN,
+                        beautifyCommodityType(resize.getCommodityType()),
+                        beautifyEntityTypeAndName(entity),
+                        formatResizeActionCommodityValue(commodityType, resize.getOldCapacity()),
+                        formatResizeActionCommodityValue(commodityType, resize.getNewCapacity()));
+            default:
+                // Regular case: CAPACITY
+                return ActionMessageFormat.ACTION_DESCRIPTION_RESIZE.format(
+                        resize.getNewCapacity() > resize.getOldCapacity() ? UP : DOWN,
+                        beautifyCommodityType(resize.getCommodityType()),
+                        beautifyEntityTypeAndName(entity),
+                        formatResizeActionCommodityValue(commodityType, resize.getOldCapacity()),
+                        formatResizeActionCommodityValue(commodityType, resize.getNewCapacity()));
         }
     }
 

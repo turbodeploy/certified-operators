@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -51,6 +52,7 @@ public class ActionDescriptionBuilderTest {
     private ActionDTO.Action scaleRecommendation;
     private ActionDTO.Action resizeRecommendation;
     private ActionDTO.Action resizeMemRecommendation;
+    private ActionDTO.Action resizeMemReservationRecommendation;
     private ActionDTO.Action deactivateRecommendation;
     private ActionDTO.Action activateRecommendation;
     private ActionDTO.Action reconfigureRecommendation;
@@ -95,6 +97,8 @@ public class ActionDescriptionBuilderTest {
                         SupportLevel.SUPPORTED).build();
         resizeRecommendation = makeRec(makeResizeInfo(VM1_ID), SupportLevel.SUPPORTED).build();
         resizeMemRecommendation = makeRec(makeResizeMemInfo(VM1_ID), SupportLevel.SUPPORTED).build();
+        resizeMemReservationRecommendation =
+                makeRec(makeResizeReservationMemInfo(VM1_ID), SupportLevel.SUPPORTED).build();
         deactivateRecommendation =
                 makeRec(makeDeactivateInfo(VM1_ID), SupportLevel.SUPPORTED).build();
         activateRecommendation = makeRec(makeActivateInfo(VM1_ID), SupportLevel.SUPPORTED).build();
@@ -165,6 +169,16 @@ public class ActionDescriptionBuilderTest {
             .setNewCapacity(8 * Units.MBYTE)
             .setOldCapacity(16 * Units.MBYTE)
             .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId)));
+    }
+
+    private ActionInfo.Builder makeResizeReservationMemInfo(long targetId) {
+        return ActionInfo.newBuilder().setResize(Resize.newBuilder()
+                .setCommodityAttribute(CommodityAttribute.RESERVED)
+                .setCommodityType(CommodityType.newBuilder()
+                        .setType(21).build())
+                .setNewCapacity(8 * Units.MBYTE)
+                .setOldCapacity(16 * Units.MBYTE)
+                .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId)));
     }
 
     private ActionInfo.Builder makeDeactivateInfo(long targetId) {
@@ -391,6 +405,23 @@ public class ActionDescriptionBuilderTest {
             entitySettingsCache, resizeMemRecommendation);
 
         Assert.assertEquals(description, "Resize down Mem for Virtual Machine vm1_test from 16 GB to 8 GB");
+    }
+
+    /**
+     * Test resize reservation action description.
+     */
+    @Test
+    public void testBuildResizeMemReservationActionDescription() {
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
+                .thenReturn((createEntity(VM1_ID,
+                        EntityType.VIRTUAL_MACHINE.getNumber(),
+                        VM1_DISPLAY_NAME)));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, resizeMemReservationRecommendation);
+
+        Assert.assertEquals(description,
+                "Resize down Mem reservation for Virtual Machine vm1_test from 16 GB to 8 GB");
     }
 
     @Test
