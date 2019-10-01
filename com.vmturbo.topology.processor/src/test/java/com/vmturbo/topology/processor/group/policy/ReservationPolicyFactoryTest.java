@@ -7,14 +7,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
-
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
@@ -23,8 +23,12 @@ import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ReservationConstraintInfo;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ReservationConstraintInfo.Type;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -40,6 +44,9 @@ import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreato
  * PM1 - ST3  PM2 -- ST4
  * \          |
  * DC7        DC8
+ *
+ * <p>PM1 sells network 20, 21.
+ * PM2 sells network 22, 23.
  */
 public class ReservationPolicyFactoryTest {
 
@@ -57,15 +64,25 @@ public class ReservationPolicyFactoryTest {
         IdentityGenerator.initPrefix(0);
         final Map<Long, TopologyEntity.Builder> topologyMap = new HashMap<>();
 
+
+        topologyMap.put(20L, createNetwork(20L, "Network"));
+        topologyMap.put(21L, createNetwork(21L, "Other"));
+        topologyMap.put(22L, createNetwork(22L, "My Network"));
+        topologyMap.put(23L, createNetwork(23L, "Network of Mine"));
+
         topologyMap.put(3L, topologyEntity(3L, EntityType.STORAGE));
         topologyMap.put(7L, topologyEntity(7L, EntityType.DATACENTER));
         topologyMap.put(1L, topologyEntity(1L, EntityType.PHYSICAL_MACHINE, 3, 7));
+        addNetworkConnection(topologyMap.get(1L), topologyMap.get(20L));
+        addNetworkConnection(topologyMap.get(1L), topologyMap.get(21L));
         topologyMap.put(9L, topologyEntity(9L, EntityType.VIRTUAL_DATACENTER, 1));
         topologyMap.put(5L, neverDiscoveredTopologyEntity(5L, EntityType.VIRTUAL_MACHINE, 9, 3));
 
         topologyMap.put(4L, topologyEntity(4L, EntityType.STORAGE));
         topologyMap.put(8L, topologyEntity(8L, EntityType.DATACENTER));
         topologyMap.put(2L, topologyEntity(2L, EntityType.PHYSICAL_MACHINE, 4, 8));
+        addNetworkConnection(topologyMap.get(2L), topologyMap.get(22L));
+        addNetworkConnection(topologyMap.get(2L), topologyMap.get(23L));
         topologyMap.put(10L, topologyEntity(10L, EntityType.VIRTUAL_DATACENTER, 2));
         topologyMap.put(6L, topologyEntity(6L, EntityType.VIRTUAL_MACHINE, 10, 4));
 
@@ -124,5 +141,63 @@ public class ReservationPolicyFactoryTest {
         Assert.assertEquals(1L, entityMap.get(EntityType.PHYSICAL_MACHINE_VALUE).size());
         Assert.assertEquals(1L,
                 entityMap.get(EntityType.PHYSICAL_MACHINE_VALUE).iterator().next().getOid());
+    }
+
+    /**
+     * Test that the factory generates the correct providers when given a network constraint.
+     */
+    @Test
+    public void testGenerateProviderMembersNetwork() {
+        final ReservationConstraintInfo vdcConstraint = ReservationConstraintInfo.newBuilder()
+            // The "Other" network.
+            .setConstraintId(21)
+            .setType(Type.NETWORK)
+            .build();
+        final Map<Integer, Set<TopologyEntity>> entityMap =
+            reservationPolicyFactory.getProviderMembersOfConstraint(topologyGraph,
+                vdcConstraint);
+        Assert.assertEquals(1L, entityMap.size());
+        Assert.assertEquals(1L, entityMap.get(EntityType.PHYSICAL_MACHINE_VALUE).size());
+        // Only PM 1 is connected to the other network.
+        Assert.assertEquals(1L,
+            entityMap.get(EntityType.PHYSICAL_MACHINE_VALUE).iterator().next().getOid());
+    }
+
+    /**
+     * Test that the factory uses an exact name match when looking for hosts that are related to
+     * a network.
+     */
+    @Test
+    public void testGenerateProviderMembersNetworkExactMatch() {
+        final ReservationConstraintInfo vdcConstraint = ReservationConstraintInfo.newBuilder()
+            // The "Network" network.
+            .setConstraintId(20)
+            .setType(Type.NETWORK)
+            .build();
+        final Map<Integer, Set<TopologyEntity>> entityMap =
+            reservationPolicyFactory.getProviderMembersOfConstraint(topologyGraph,
+                vdcConstraint);
+        Assert.assertEquals(1L, entityMap.size());
+        Assert.assertEquals(1L, entityMap.get(EntityType.PHYSICAL_MACHINE_VALUE).size());
+        // Only PM 1 is connected to the other network.
+        // PM2 is connected to networks that include "Network" in the name.
+        Assert.assertEquals(1L,
+            entityMap.get(EntityType.PHYSICAL_MACHINE_VALUE).iterator().next().getOid());
+    }
+
+
+    private TopologyEntity.Builder createNetwork(final long oid, final String displayName) {
+        TopologyEntity.Builder network = topologyEntity(oid, EntityType.NETWORK);
+        network.getEntityBuilder().setDisplayName(displayName);
+        return network;
+    }
+
+    private TopologyEntity.Builder addNetworkConnection(final TopologyEntity.Builder host,
+                                                        final TopologyEntity.Builder network) {
+        host.getEntityBuilder().addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.NETWORK_VALUE)
+                .setKey("Network::" + network.getDisplayName())));
+        return host;
     }
 }

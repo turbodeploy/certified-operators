@@ -390,13 +390,21 @@ message ReservationConstraintInfo {
     enum Type {
         // Cluster constraint and constraint id is cluster id
         CLUSTER = 1;
+
         // Data center constraint and constraint id is data center id
         DATA_CENTER = 2;
+
         // Virtual data center constraint and constraint id is virtual data center id
         VIRTUAL_DATA_CENTER = 3;
+
         // Placement policy constraint which means reservation entities will be part of policy
         // consumer group.
         POLICY = 4;
+
+        // Network constraints. The constraint ID is the id of the network.
+        // This means the template will only be placed on hosts that are connected to the
+        // specified network.
+        NETWORK = 5;
     }
 }
 

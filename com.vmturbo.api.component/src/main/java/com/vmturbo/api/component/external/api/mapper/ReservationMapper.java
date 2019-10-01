@@ -82,6 +82,7 @@ public class ReservationMapper {
         ImmutableMap.<Integer, ReservationConstraintInfo.Type>builder()
             .put(UIEntityType.DATACENTER.typeNumber(), ReservationConstraintInfo.Type.DATA_CENTER)
             .put(UIEntityType.VIRTUAL_DATACENTER.typeNumber(), ReservationConstraintInfo.Type.VIRTUAL_DATA_CENTER)
+            .put(UIEntityType.NETWORK.typeNumber(), ReservationConstraintInfo.Type.NETWORK)
             .build();
 
     private final Logger logger = LogManager.getLogger();
@@ -420,13 +421,7 @@ public class ReservationMapper {
 
         final ReservationConstraintInfo.Type constraintType = ENTITY_TYPE_TO_CONSTRAINT_TYPE.get(entityType);
         if (constraintType == null) {
-            if (entityType == EntityType.NETWORK_VALUE) {
-                // TODO (roman, Sept 19 2019): OM-50713 Support network constraints.
-                logger.warn("Network constraint not supported (network ID: {})", constraintId);
-                return Optional.empty();
-            } else {
-                throw new UnknownObjectException("Unknown type for constraint id: " + constraintId);
-            }
+            throw new UnknownObjectException("Unknown type for constraint id: " + constraintId);
         } else {
             return Optional.of(constraint.setType(constraintType).build());
         }

@@ -15,11 +15,13 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
@@ -34,13 +36,15 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
 import com.vmturbo.topology.processor.group.policy.application.BindToGroupPolicy;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
+import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
 import com.vmturbo.topology.processor.topology.TopologyEditorException;
 
 /**
@@ -53,6 +57,11 @@ import com.vmturbo.topology.processor.topology.TopologyEditorException;
  */
 public class ReservationPolicyFactory {
     private final Logger logger = LogManager.getLogger();
+
+    /**
+     * The mediation layer uses this prefix for the keys of the network commodities.
+     */
+    private static final String NETWORK_COMMODITY_NAME_PREFIX = "Network::";
 
     private final GroupServiceBlockingStub groupServiceBlockingStub;
 
@@ -200,10 +209,41 @@ public class ReservationPolicyFactory {
                 return pmTargets.stream()
                         .collect(Collectors.groupingBy(TopologyEntity::getEntityType,
                                 Collectors.toSet()));
+            case NETWORK:
+                final TopologyEntity network = graph.getEntity(constraint.getConstraintId())
+                    .orElseThrow(() -> TopologyEditorException.notFoundEntityException(
+                        constraint.getConstraintId()));
+                // At the time of this writing (Oct 1 2019) PMs are not directly connected to
+                // networks. The relationship is expressed with a network commodity, with the name
+                // of the network in the key.
+                //
+                // It's not worth to add the connections just to support the reservation
+                // use case, because network constraints are not frequently used. So we just
+                // iterate over all hosts in the environment and find the ones that sell the target
+                // commodity.
+                final String networkCommodityKey = NETWORK_COMMODITY_NAME_PREFIX + network.getDisplayName();
+                Set<TopologyEntity> matchingHosts = graph.entitiesOfType(EntityType.PHYSICAL_MACHINE_VALUE)
+                    .filter(host -> hostSellsNetwork(networkCommodityKey, host))
+                    .collect(Collectors.toSet());
+                logger.debug("Looking for hosts that sell network commodity {}. Found: {}",
+                    () -> networkCommodityKey,
+                    () -> matchingHosts.stream()
+                        .map(TopologyEntity::toString)
+                        .collect(Collectors.joining(", ")));
+                return ImmutableMap.of(EntityType.PHYSICAL_MACHINE_VALUE, matchingHosts);
             default:
                 throw new IllegalArgumentException("Constraint " + constraint.getType() +
                         " type is not support.");
         }
+    }
+
+    private boolean hostSellsNetwork(@Nonnull final String networkCommodityName,
+                                     @Nonnull final TopologyEntity entity) {
+        Preconditions.checkArgument(entity.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE);
+        return entity.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+            .map(CommoditySoldDTO::getCommodityType)
+            .filter(commSoldType -> commSoldType.getType() == CommodityType.NETWORK_VALUE)
+            .anyMatch(commSoldType -> commSoldType.getKey().equals(networkCommodityName));
     }
 
     /**
