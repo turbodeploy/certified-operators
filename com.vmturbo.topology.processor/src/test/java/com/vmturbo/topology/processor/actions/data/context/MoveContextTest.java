@@ -689,6 +689,52 @@ public class MoveContextTest {
         Assert.assertEquals(ActionType.CROSS_TARGET_MOVE, sdkActionType);
     }
 
+    /**
+     * Test that action execution context has the appropriate values in case of a
+     * cloud volume move.
+     *
+     * @throws Exception if something goes terribly wrong
+     */
+    @Test
+    public void testMoveContextCloudVolumeMove() throws Exception {
+
+        final long entityId = 1;
+        final int targetId = 2;
+        final int actionId = 3;
+        final int sourceEntityId = 4;
+        final int destinationEntityId = 5;
+
+        mockEntity(entityId, EntityType.VIRTUAL_VOLUME, targetId);
+        mockEntity(sourceEntityId, EntityType.STORAGE_TIER, targetId);
+        mockEntity(destinationEntityId, EntityType.STORAGE_TIER, targetId);
+        final ActionInfo move = ActionInfo.newBuilder()
+                .setMove(ActionDTO.Move.newBuilder()
+                        .setTarget(ActionExecutionTestUtils.createActionEntity(
+                            entityId, EntityType.VIRTUAL_VOLUME))
+                        .addChanges(ChangeProvider.newBuilder()
+                            .setSource(ActionExecutionTestUtils
+                                .createActionEntity(sourceEntityId, EntityType.STORAGE_TIER))
+                            .setDestination(ActionExecutionTestUtils
+                                .createActionEntity(destinationEntityId, EntityType.STORAGE_TIER))
+                        )
+                ).build();
+
+        final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
+                .setActionId(actionId)
+                .setTargetId(targetId)
+                .setActionInfo(move)
+                .setActionType(ActionDTO.ActionType.MOVE)
+                .build();
+
+        final ActionExecutionContext actionExecutionContext =
+                actionExecutionContextFactory.getActionExecutionContext(request);
+        Assert.assertFalse(actionExecutionContext.getActionItems().isEmpty());
+        Assert.assertTrue(actionExecutionContext.getAffectedEntities().contains(entityId));
+        Assert.assertEquals(ActionType.MOVE, actionExecutionContext.getSDKActionType());
+        Assert.assertEquals(actionId, actionExecutionContext.getActionId());
+        Assert.assertEquals(targetId, actionExecutionContext.getTargetId());
+    }
+
     private Entity mockEntity(long entityId, EntityType entityType, long targetId)
                 throws EntityRetrievalException {
         final Entity entity = new Entity(entityId, entityType);

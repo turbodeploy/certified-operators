@@ -229,7 +229,7 @@ public class MoveContext extends AbstractActionExecutionContext {
      */
     @Override
     protected long getPrimaryEntityId() {
-        return getMoveInfo().getTarget().getId();
+        return ActionDTOUtil.getMoveActionTarget(getMoveInfo()).getId();
     }
 
     /**
@@ -441,7 +441,8 @@ public class MoveContext extends AbstractActionExecutionContext {
     private static Set<Long> getProviderEntityIdsFromMoveAction(@Nonnull final Move moveAction) {
         // right now, only support controllable flag for VM move actions.
         if (moveAction.getTarget().hasType()
-                && moveAction.getTarget().getType() != EntityType.VIRTUAL_MACHINE_VALUE) {
+                && moveAction.getTarget().getType() != EntityType.VIRTUAL_MACHINE_VALUE
+                && moveAction.getTarget().getType() != EntityType.VIRTUAL_VOLUME_VALUE) {
             logger.warn("Ignore controllable logic for Move action with type: " +
                     moveAction.getTarget().getType());
             return Collections.emptySet();

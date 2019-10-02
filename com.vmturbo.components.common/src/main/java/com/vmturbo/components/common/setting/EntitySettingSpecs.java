@@ -38,7 +38,7 @@ public enum EntitySettingSpecs {
      * Move action automation mode.
      */
     Move("move", "Move / Compute Scale", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE,
+            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.VIRTUAL_VOLUME,
                     EntityType.CONTAINER_POD, EntityType.CONTAINER,
                     EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
     /**

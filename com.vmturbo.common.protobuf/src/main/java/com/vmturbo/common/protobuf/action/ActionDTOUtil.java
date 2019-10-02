@@ -195,7 +195,7 @@ public class ActionDTOUtil {
 
         switch (actionInfo.getActionTypeCase()) {
             case MOVE:
-                return actionInfo.getMove().getTarget();
+                return getMoveActionTarget(actionInfo.getMove());
             case RECONFIGURE:
                 return actionInfo.getReconfigure().getTarget();
             case PROVISION:
@@ -213,6 +213,28 @@ public class ActionDTOUtil {
             default:
                 throw new UnsupportedActionException(action.getId(), actionInfo);
         }
+    }
+
+    /**
+     * If a move action has a volume as resource and is from one storage tier to another, the
+     * resource volume should be treated as the target of the action.
+     *
+     * @param move action to be assessed
+     * @return the entity that should be treated as its target
+     */
+    public static ActionEntity getMoveActionTarget(final ActionDTO.Move move) {
+        if (!move.getChangesList().isEmpty()) {
+            final ChangeProvider primaryChangeProvider = getPrimaryChangeProvider(move);
+            if (primaryChangeProvider.hasSource() && primaryChangeProvider.hasDestination() &&
+                primaryChangeProvider.hasResource() &&
+                TopologyDTOUtil.isTierEntityType(primaryChangeProvider.getSource().getType()) &&
+                TopologyDTOUtil.isTierEntityType(primaryChangeProvider.getDestination().getType()) &&
+                TopologyDTOUtil.isStorageEntityType(primaryChangeProvider.getSource().getType()) &&
+                TopologyDTOUtil.isStorageEntityType(primaryChangeProvider.getDestination().getType())) {
+                return primaryChangeProvider.getResource();
+            }
+        }
+        return move.getTarget();
     }
 
     /**
@@ -428,8 +450,8 @@ public class ActionDTOUtil {
     /**
      * Checks if a given MOVE action is actually a RESIZE based on the following case:
      * <ul>
-     *     <li>If the source and destination is one of the cloud tiers, then the action type is
-     *     considered a resize instead of a move.</li>
+     *     <li>If the source and destination is one of the cloud tiers (except storage tiers),
+     *     the action type is considered a resize instead of a move.</li>
      * </ul>
      *
      * @param action The given MOVE {@link Action}
@@ -438,8 +460,8 @@ public class ActionDTOUtil {
     private static Boolean isMoveResize(@Nonnull final Action action) {
         return action.getInfo().getMove().getChangesList().stream().anyMatch(
             m -> m.hasSource()
-                && TopologyDTOUtil.isTierEntityType(m.getDestination().getType())
-                && TopologyDTOUtil.isTierEntityType(m.getSource().getType()));
+                && TopologyDTOUtil.isPrimaryTierEntityType(m.getDestination().getType())
+                && TopologyDTOUtil.isPrimaryTierEntityType(m.getSource().getType()));
     }
 
     /**

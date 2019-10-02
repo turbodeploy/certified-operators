@@ -435,7 +435,7 @@ public class ActionModeCalculator {
                 return action.getInfo().getMove().getChangesList().stream()
                         .map(provider -> provider.getDestination().getType())
                         .map(destinationEntityType -> {
-                            if (TopologyDTOUtil.isStorageEntityType(destinationEntityType)) {
+                            if (destinationEntityType == EntityType.STORAGE_VALUE) {
                                 return EntitySettingSpecs.StorageMove;
                             } else {
                                 // TODO (roman, Aug 6 2018): Should we check explicitly for
