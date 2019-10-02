@@ -260,8 +260,7 @@ public class PlanProjectExecutorTest {
 
     /**
      *  When calling createPlanInstanceWithClusterHeadroomTemplate, and the group does not have
-     * cluster information. In this case, we don't identify the template as a headroomVM or
-     * average template and code for changing the template is not called at all
+     * cluster information. In this case the code for changing the template is called
      *
      * @throws Exception
      */
@@ -276,13 +275,12 @@ public class PlanProjectExecutorTest {
 
         planProjectExecutor.createClusterPlanInstance(Collections.singleton(groupWithoutHeadroomClusterInfo),
                 PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);
-        verify(groupServiceMole, never()).updateClusterHeadroomTemplate(any(UpdateClusterHeadroomTemplateRequest.class));
+        verify(groupServiceMole).updateClusterHeadroomTemplate(any(UpdateClusterHeadroomTemplateRequest.class));
     }
 
     /**
      * When calling createPlanInstanceWithClusterHeadroomTemplate, and the group does not have
-     * a headroom template ID. In this case, we don't identify the template as a headroomVM or
-     * average template and code for changing the template is not called at all
+     * a headroom template ID. In this case, the code for creating the template is called
      *
      * @throws Exception
      */
@@ -299,8 +297,8 @@ public class PlanProjectExecutorTest {
         planProjectExecutor.createClusterPlanInstance(Collections.singleton(groupWithHeadroomTemplateId),
                 PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);
         verify(templatesDao).getTemplate(anyLong());
-        verify(templatesDao, never()).createTemplate(any());
-        verify(groupServiceMole, never()).updateClusterHeadroomTemplate(any(UpdateClusterHeadroomTemplateRequest.class));
+        verify(templatesDao).createTemplate(any());
+        verify(groupServiceMole).updateClusterHeadroomTemplate(any(UpdateClusterHeadroomTemplateRequest.class));
     }
 
     /**
