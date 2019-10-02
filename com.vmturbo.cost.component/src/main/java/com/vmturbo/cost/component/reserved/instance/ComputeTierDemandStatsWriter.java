@@ -30,6 +30,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -72,20 +73,23 @@ public class ComputeTierDemandStatsWriter {
         this.preferredCurrentWeight = preferredCurrentWeight;
     }
 
+
     /**
      * Calculate the histogram of the various Compute Tiers consumed
      * by the VMs and persist these stats in the DB.
+     *
      * @param topologyInfo Metadata of the topology.
      * @param cloudEntities Map of ID->CloudEntityDTOs in the Topology.
      * @param isProjectedTopology boolean indicating whether the topology is a
      *                            source or a projected topology.
-    */
+     */
     synchronized public void calculateAndStoreRIDemandStats(TopologyInfo topologyInfo,
                                  Map<Long, TopologyEntityDTO> cloudEntities,
                                  boolean isProjectedTopology) {
 
-        logger.info("Calculating RI demands stats from topology {}",
-                topologyInfo);
+        String topologyType = isProjectedTopology ? "Projected" : "Live";
+        logger.info("Calculating RI demands stats from {} topology {}",
+                topologyType, topologyInfo);
 
         // Mapping from RI_ID -> VM_ID
         // Stores the mapping from Reserve Instance Id to VM Id.
@@ -129,10 +133,12 @@ public class ComputeTierDemandStatsWriter {
         if ((isProjectedTopology && lastProjectedTopologyProcessedHour == topologyForHour)
                 || (!isProjectedTopology && lastSourceTopologyProcessedHour == topologyForHour)) {
             logger.info("Already processed a topology for the hour: {}, day: {}." +
-                    " Skipping the {} topology: {}", topologyForHour,
+                    " Skipping the {} topology: {} Last updated {}",
+                    topologyForHour,
                     topologyForDay,
-                    isProjectedTopology ? "Projected" : "Live",
-                    topologyInfo);
+                    topologyType,
+                    topologyInfo,
+                    isProjectedTopology ? lastProjectedTopologyProcessedHour : lastSourceTopologyProcessedHour);
             return;
         }
 
@@ -166,8 +172,9 @@ public class ComputeTierDemandStatsWriter {
         Map<ComputeTierDemandStatsRecord, WeightedCounts> computeTierDemandStatsMap =
                 retrieveExistingStats((byte)topologyForHour, (byte)topologyForDay);
         double statsLoadTime = statsLoadFromDBDurationTimer.observe();
-        logger.info("Time to load stats for day: {}, hour: {} = {} secs",
-                topologyForDay, topologyForHour, statsLoadTime);
+        logger.info("Time to retrieve {} stats for day: {}, hour: {} = {} secs",
+                topologyType, topologyForDay,
+                topologyForHour, statsLoadTime);
 
         Set<ComputeTierTypeHourlyByWeekRecord> statsRecordsToUpload =
                 new HashSet<>();
@@ -190,6 +197,10 @@ public class ComputeTierDemandStatsWriter {
                 }
                 TopologyDTO.TypeSpecificInfo.VirtualMachineInfo vmInfo =
                         vmDTO.getTypeSpecificInfo().getVirtualMachine();
+                if (vmInfo.getGuestOsInfo().getGuestOsType() == OSType.UNKNOWN_OS) {
+                    logger.warn("Skipping. Unknown OS for  vm {}", vmDTO);
+                    return;
+                }
                 byte platform = (byte) vmInfo.getGuestOsInfo().getGuestOsType().getNumber();
                 byte tenancy = (byte) vmInfo.getTenancy().getNumber();
                 Long targetId = workloadIdToBusinessAccountIdMap.get(vmId);
@@ -236,6 +247,17 @@ public class ComputeTierDemandStatsWriter {
                                 tenancy,
                                 newCountFromSourceTopology,
                                 newCountFromProjectedTopology);
+                logger.trace("Persisted {} demand topology {} {} {} {} {} {} {} {} {}",
+                        topologyType,
+                        (byte)topologyForHour,
+                        (byte)topologyForDay,
+                        targetId,
+                        instanceId,
+                        availabilityZone.get(),
+                        platform,
+                        tenancy,
+                        newCountFromSourceTopology,
+                        newCountFromProjectedTopology);
 
                 statsRecordsToUpload.add(newComputeTierDemandStatsRecord);
             });
@@ -244,12 +266,12 @@ public class ComputeTierDemandStatsWriter {
         // Upload stats for this hour to the DB.
         try {
             final DataMetricTimer statsUpLoadToDBDurationTimer =
-                    COMPUTE_TIER_STATS_LOAD_FROM_DB_TIME_SUMMARY.startTimer();
+                    COMPUTE_TIER_STATS_UPLOAD_TO_DB_TIME_SUMMARY.startTimer();
             computeTierDemandStatsStore.persistComputeTierDemandStats(statsRecordsToUpload);
             double statsUploadTime = statsUpLoadToDBDurationTimer.observe();
-            logger.info("Time to upload {} stats to DB for day: {}, hour: {} = {} secs",
-                    statsRecordsToUpload.size(), topologyForDay, topologyForHour,
-                    statsUploadTime);
+            logger.info("Time to upload {} {} stats to DB for day: {}, hour: {} = {} secs",
+                    statsRecordsToUpload.size(), isProjectedTopology ? "Projected" : "Live",
+                    topologyForDay, topologyForHour, statsUploadTime);
         } catch (DataAccessException ex) {
             logger.error("Error while persisting RI Demand stats", ex);
             return;
@@ -263,6 +285,23 @@ public class ComputeTierDemandStatsWriter {
             lastProjectedTopologyProcessedHour = topologyForHour;
         } else {
             lastSourceTopologyProcessedHour = topologyForHour;
+        }
+    }
+
+    /**
+     * Check if there are stats in the database for the source topology.
+     *
+     * @param sourceTopologyInfo  Source TopologyInfo for which databased is checked
+     * @return true if there are stats in the database for the hour and day, false otherwise
+     */
+    public boolean hasExistingStats(TopologyInfo sourceTopologyInfo) {
+        long topologyCreationTime = sourceTopologyInfo.getCreationTime();
+        calendar.setTimeInMillis(topologyCreationTime);
+        int hour = calendar.get(Calendar.HOUR_OF_DAY);
+        int day = calendar.get(Calendar.DAY_OF_WEEK);
+        try (Stream<ComputeTierTypeHourlyByWeekRecord> riStatsRecordStream =
+                     computeTierDemandStatsStore.getStats((byte)hour, (byte)day)) {
+            return riStatsRecordStream.findAny().isPresent();
         }
     }
 

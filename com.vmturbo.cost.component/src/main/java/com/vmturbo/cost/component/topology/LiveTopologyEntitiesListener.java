@@ -83,7 +83,9 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
 
         // if no Cloud entity, skip further processing
         if (cloudTopology.size() > 0) {
+            // Store allocation demand in db
             computeTierDemandStatsWriter.calculateAndStoreRIDemandStats(topologyInfo, cloudTopology.getEntities(), false);
+            // Consumption demand in stored in db in CostComponentProjectedEntityTopologyListener
 
             storeBusinessAccountIdToTargetIdMapping(cloudTopology.getEntities());
 

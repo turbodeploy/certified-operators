@@ -31,6 +31,7 @@ public interface TopologyEntityCloudTopologyFactory {
     /**
      * Create a new {@link TopologyEntityCloudTopology} out of a {@link RemoteIterator}.
      *
+     * @param topologyContextId The topology context Id
      * @param entities The {@link RemoteIterator} over the entities in the cloud topology.
      *                 The factory may filter out non-cloud entities.
      * @return A {@link TopologyEntityCloudTopology} containing the cloud subset of the entities.

@@ -8,6 +8,7 @@ import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.market.component.api.impl.MarketSubscription;
 import com.vmturbo.market.component.api.impl.MarketSubscription.Topic;
 
+
 public class MarketListenerConfig {
 
     @Autowired
@@ -17,6 +18,8 @@ public class MarketListenerConfig {
     public MarketComponent marketComponent() {
         return marketClientConfig.marketComponent(
             MarketSubscription.forTopic(Topic.ProjectedEntityCosts),
-            MarketSubscription.forTopic(Topic.ProjectedEntityRiCoverage));
+            MarketSubscription.forTopic(Topic.ProjectedEntityRiCoverage),
+            MarketSubscription.forTopic(Topic.ProjectedTopologies));
     }
+
 }

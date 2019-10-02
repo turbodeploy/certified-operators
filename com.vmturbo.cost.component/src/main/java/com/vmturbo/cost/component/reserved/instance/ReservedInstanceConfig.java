@@ -32,7 +32,8 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         MarketClientConfig.class,
         MarketListenerConfig.class,
         SQLDatabaseConfig.class,
-        RepositoryClientConfig.class})
+        RepositoryClientConfig.class,
+        ComputeTierDemandStatsConfig.class})
 public class ReservedInstanceConfig {
 
     @Value("${retention.numRetainedMinutes}")
@@ -50,6 +51,9 @@ public class ReservedInstanceConfig {
     @Value("${persistEntityCostChunkSize}")
     private int persistEntityCostChunkSize;
 
+    @Value("${realtimeTopologyContextId}")
+    private long realtimeTopologyContextId;
+
     @Autowired
     private GroupClientConfig groupClientConfig;
 
@@ -64,6 +68,9 @@ public class ReservedInstanceConfig {
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
+
+    @Autowired
+    private ComputeTierDemandStatsConfig computeTierDemandStatsConfig;
 
     @Bean
     public ReservedInstanceBoughtStore reservedInstanceBoughtStore() {
@@ -167,6 +174,20 @@ public class ReservedInstanceConfig {
                                                 planProjectedRICoverageAndUtilStore());
         marketComponent.addProjectedEntityRiCoverageListener(projectedRICoverageListener);
         return projectedRICoverageListener;
+    }
+
+    /**
+     * Setup subscription for projected topology from market.
+     *
+     * @return The listener in the cost component that handles projected topology changes.
+     */
+    @Bean
+    public CostComponentProjectedEntityTopologyListener projectedEntityTopologyListener() {
+        final CostComponentProjectedEntityTopologyListener projectedEntityTopologyListener =
+                new CostComponentProjectedEntityTopologyListener(realtimeTopologyContextId,
+                        computeTierDemandStatsConfig.riDemandStatsWriter());
+        marketComponent.addProjectedTopologyListener(projectedEntityTopologyListener);
+        return projectedEntityTopologyListener;
     }
 
     @Bean
