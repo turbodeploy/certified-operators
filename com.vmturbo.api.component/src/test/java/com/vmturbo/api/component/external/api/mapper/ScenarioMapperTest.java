@@ -412,8 +412,10 @@ public class ScenarioMapperTest {
     public void testSettingOverride() {
         final SettingApiDTO<String> setting = createStringSetting("foo", "value");
 
+        SettingsMapper.SettingApiDtoKey key = SettingsMapper.getSettingApiDtoKey(setting);
+
         when(settingsMapper.toProtoSettings(Collections.singletonList(setting)))
-            .thenReturn(ImmutableMap.of("foo", Setting.newBuilder()
+            .thenReturn(ImmutableMap.of(key, Setting.newBuilder()
                     .setSettingSpecName("foo")
                     .setStringSettingValue(StringSettingValue.newBuilder().setValue("value"))
                     .build()));
@@ -433,8 +435,10 @@ public class ScenarioMapperTest {
     public void testSettingOverridePlanSettingMapping() {
         final SettingApiDTO<String> setting = createStringSetting("foo", "value");
 
+        SettingsMapper.SettingApiDtoKey key = SettingsMapper.getSettingApiDtoKey(setting);
+
         when(settingsMapper.toProtoSettings(Collections.singletonList(setting)))
-                .thenReturn(ImmutableMap.of("foo", Setting.newBuilder()
+                .thenReturn(ImmutableMap.of(key, Setting.newBuilder()
                         .setSettingSpecName("foo")
                         .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(1.2f))
                         .build()));

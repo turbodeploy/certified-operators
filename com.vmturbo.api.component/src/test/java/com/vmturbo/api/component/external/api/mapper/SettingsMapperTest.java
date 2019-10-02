@@ -1358,10 +1358,13 @@ public class SettingsMapperTest {
                     .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
                     .build()));
 
-        final Map<String, Setting> convertedSettings =
+        final Map<SettingsMapper.SettingApiDtoKey, Setting> convertedSettings =
                 mapper.toProtoSettings(Collections.singletonList(setting));
-        assertTrue(convertedSettings.containsKey("foo"));
-        assertThat(convertedSettings.get("foo"), is(Setting.newBuilder()
+
+        SettingsMapper.SettingApiDtoKey key = SettingsMapper.getSettingApiDtoKey(setting);
+
+        assertTrue(convertedSettings.containsKey(key));
+        assertThat(convertedSettings.get(key), is(Setting.newBuilder()
                 .setSettingSpecName("foo")
                 .setStringSettingValue(StringSettingValue.newBuilder()
                         .setValue("value"))

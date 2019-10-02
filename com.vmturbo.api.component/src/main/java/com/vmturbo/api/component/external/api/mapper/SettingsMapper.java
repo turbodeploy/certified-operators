@@ -94,6 +94,7 @@ import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import org.immutables.value.Value;
 
 /**
  * Responsible for mapping Settings-related XL objects to their API counterparts.
@@ -947,11 +948,11 @@ public class SettingsMapper {
      *         settings that could not be mapped will not be present.
      */
     @Nonnull
-    public Map<String, Setting> toProtoSettings(@Nonnull final List<SettingApiDTO<String>> apiDtos) {
-        final Map<String, SettingApiDTO> settingOverrides = apiDtos.stream()
-                .collect(Collectors.toMap(SettingApiDTO::getUuid, Function.identity()));
+    public Map<SettingApiDtoKey, Setting> toProtoSettings(@Nonnull final List<SettingApiDTO<String>> apiDtos) {
+        final Map<String, List<SettingApiDTO>> settingOverrides = apiDtos.stream()
+                .collect(Collectors.groupingBy(SettingApiDTO::getUuid));
 
-        final ImmutableMap.Builder<String, Setting> retChanges = ImmutableMap.builder();
+        final ImmutableMap.Builder<SettingApiDtoKey, Setting> retChanges = ImmutableMap.builder();
         // We need to look up the setting specs to know how to apply setting overrides.
         settingService.searchSettingSpecs(SearchSettingSpecsRequest.newBuilder()
                 .addAllSettingSpecName(settingOverrides.keySet())
@@ -959,18 +960,47 @@ public class SettingsMapper {
                 .forEachRemaining(settingSpec -> {
                     // Since settings in XL are uniquely identified by name, the name of XL's "Setting"
                     // object is the same as the UUID of the API's "SettingApiDTO" object.
-                    final SettingApiDTO dto = settingOverrides.get(settingSpec.getName());
-                    try {
-                        retChanges.put(settingSpec.getName(), toProtoSetting(dto, settingSpec));
-                    } catch (RuntimeException e) {
-                        // Catch and log any runtime exceptions to isolate the failure to that
-                        // particular misbehaving setting.
-                        logger.error("Unable to map setting " + settingSpec.getName() +
-                                " because of error.", e);
-                    }
+                    final List<SettingApiDTO> dtos = settingOverrides.get(settingSpec.getName());
+                    dtos.stream().forEach(dto -> {
+                        try {
+                            retChanges.put(getSettingApiDtoKey(dto), toProtoSetting(dto, settingSpec));
+                        } catch (RuntimeException e) {
+                            // Catch and log any runtime exceptions to isolate the failure to that
+                            // particular misbehaving setting.
+                            logger.error("Unable to map setting " + settingSpec.getName() +
+                                    " because of error.", e);
+                        }
+                    });
+
                 });
         return retChanges.build();
     }
+
+    /**
+     * Used to generate immurtable key for {@link SettingApiDTO}.
+     */
+    @Value.Immutable
+    public interface SettingApiDtoKey {
+        //SettingApiDtoUuid
+        String settingUUID();
+
+        //SettingApiDto entityType mapped to UIEntityType
+        UIEntityType entityType();
+    }
+
+    /**
+     * Gets {@link SettingApiDtoKey} from {@link SettingApiDTO}.
+     *
+     * @param dto to used to build SettingApiDtoKey
+     * @return key created from settingApiDto
+     */
+    public static SettingApiDtoKey getSettingApiDtoKey(SettingApiDTO dto) {
+        return ImmutableSettingApiDtoKey.builder()
+                .entityType(UIEntityType.fromString(dto.getEntityType()))
+                .settingUUID(dto.getUuid())
+                .build();
+    }
+
 
     /**
      * Injects a String value into a {@link Setting.Builder}. The injector is responsible for

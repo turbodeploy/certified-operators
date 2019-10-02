@@ -631,10 +631,12 @@ public class ScenarioMapper {
             return Collections.emptyList();
         }
 
-        final Map<String, Setting> settingProtoOverrides = settingsMapper.toProtoSettings(settingsList);
+        final Map<SettingsMapper.SettingApiDtoKey, Setting> settingProtoOverrides =
+                settingsMapper.toProtoSettings(settingsList);
+
         final ImmutableList.Builder<ScenarioChange> retChanges = ImmutableList.builder();
         settingsList.forEach(apiDto -> {
-            Setting protoSetting = settingProtoOverrides.get(apiDto.getUuid());
+            Setting protoSetting = settingProtoOverrides.get(SettingsMapper.getSettingApiDtoKey(apiDto));
             if (protoSetting == null) {
                 String dtoDescription;
                 try {
