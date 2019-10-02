@@ -26,6 +26,8 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc.BuyRIAnalysisServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
+import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
@@ -81,6 +83,11 @@ public class PlanTestConfig {
     }
 
     @Bean
+    public RIBuyContextFetchServiceBlockingStub riBuyContextService() throws IOException {
+        return RIBuyContextFetchServiceGrpc.newBlockingStub(analysisGrpcServer().getChannel());
+    }
+
+    @Bean
     protected BuyRIAnalysisServiceBlockingStub buyRIService() throws IOException {
         return BuyRIAnalysisServiceGrpc.newBlockingStub(analysisGrpcServer().getChannel());
     }
@@ -110,7 +117,11 @@ public class PlanTestConfig {
     @Bean
     public PlanNotificationSender planNotificationSender() {
         final PlanNotificationSender sender = new PlanNotificationSender(messageChannel());
-        planDao().addStatusListener(sender);
+        try {
+            planDao().addStatusListener(sender);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         return sender;
     }
 
@@ -194,11 +205,11 @@ public class PlanTestConfig {
      * @return plan DAO
      */
     @Bean
-    public PlanDao planDao() {
+    public PlanDao planDao() throws IOException{
         return Mockito.spy(
                 new PlanDaoImpl(dbConfig.dsl(), repositoryClient(),
                         actionServiceClient(), statsServiceClient(), settingGrpcServer().getChannel(),
-                        userSessionContext(), searchClient(), 6));
+                        userSessionContext(), searchClient(), riBuyContextService(), 6));
     }
 
     @Bean

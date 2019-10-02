@@ -922,6 +922,14 @@ message GetRIBuyContextRequest {
     optional string actionId = 1;
 }
 
+message DeleteRIBuyContextDataRequest {
+    optional int64 topologyContextId = 1;
+}
+
+message DeleteRIBuyContextDataResponse {
+    optional bool deleted = 1;
+}
+
 // A service for getting reserved instance bought
 service ReservedInstanceBoughtService {
     // Get reserved instance bought by some filter condition, such as filter by region, availability zones
@@ -1020,4 +1028,8 @@ message riBuyDemandStats {
 service RIBuyContextFetchService {
     // Get buy RIs by some filter condition, such as filter by topology context id, region, business account.
     rpc GetRIBuyContextData(GetRIBuyContextRequest) returns (riBuyDemandStats);
+
+    // Deletes the data corresponding to context topology id from action_context table.
+    rpc DeleteRIBuyContextData(DeleteRIBuyContextDataRequest)
+        returns (DeleteRIBuyContextDataResponse);
 }

@@ -20,6 +20,8 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc.BuyRIAnalysisServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
+import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTOREST.PlanServiceController;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
@@ -99,6 +101,7 @@ public class PlanConfig {
                 groupClientConfig.groupChannel(),
                 userSessionConfig.userSessionContext(),
                 repositoryClientConfig.searchServiceClient(),
+                riBuyContextService(),
                 planTimeOutHours);
     }
 
@@ -110,6 +113,11 @@ public class PlanConfig {
                 startAnalysisThreadPool(),
                 userSessionConfig.userSessionContext(),
                 buyRIService());
+    }
+
+    @Bean
+    public RIBuyContextFetchServiceBlockingStub riBuyContextService() {
+        return RIBuyContextFetchServiceGrpc.newBlockingStub(costClientConfig.costChannel());
     }
 
     @Bean

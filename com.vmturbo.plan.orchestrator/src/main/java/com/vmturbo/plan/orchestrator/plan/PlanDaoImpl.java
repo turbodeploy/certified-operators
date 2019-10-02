@@ -40,6 +40,8 @@ import com.vmturbo.auth.api.authorization.UserContextUtils;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.Cost.DeleteRIBuyContextDataRequest;
+import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
@@ -114,6 +116,7 @@ public class PlanDaoImpl implements PlanDao {
     @GuardedBy("listenerLock")
     private final List<PlanStatusListener> planStatusListeners = new LinkedList<>();
 
+    private final RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riStub;
     /**
      * Constructs plan DAO.
      *
@@ -131,6 +134,7 @@ public class PlanDaoImpl implements PlanDao {
                        @Nonnull final Channel groupChannel,
                        @Nonnull final UserSessionContext userSessionContext,
                        @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
+                       @Nonnull final RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riStub,
                        final int planTimeOutHours) {
         this.dsl = Objects.requireNonNull(dsl);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
@@ -138,6 +142,7 @@ public class PlanDaoImpl implements PlanDao {
         this.statsClient = Objects.requireNonNull(statsClient);
         this.settingService = SettingServiceGrpc.newBlockingStub(groupChannel);
         this.userSessionContext = userSessionContext;
+        this.riStub = riStub;
         this.planTimeOutHours = planTimeOutHours;
         this.scenarioScopeAccessChecker = new ScenarioScopeAccessChecker(userSessionContext,
                 GroupServiceGrpc.newBlockingStub(groupChannel), searchServiceBlockingStub);
@@ -371,6 +376,12 @@ public class PlanDaoImpl implements PlanDao {
         } else {
             logger.info("Skipping stats deletion for plan {}. No stats available to delete.",
                     topologyContextId);
+        }
+
+        if (!plan.getActionPlanIdList().isEmpty()) {
+            // Deletes all entries from the action context ri buy table for a plan.
+            riStub.deleteRIBuyContextData(DeleteRIBuyContextDataRequest.newBuilder()
+                    .setTopologyContextId(topologyContextId).build());
         }
 
         if (!errors.isEmpty()) {

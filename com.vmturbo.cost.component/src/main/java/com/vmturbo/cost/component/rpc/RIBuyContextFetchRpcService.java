@@ -12,9 +12,15 @@ import java.util.List;
 public class RIBuyContextFetchRpcService extends RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceImplBase {
     private ActionContextRIBuyStore actionContextRIBuyStore;
 
+    public RIBuyContextFetchRpcService(@Nonnull ActionContextRIBuyStore actionContextRIBuyStore) {
+        this.actionContextRIBuyStore = actionContextRIBuyStore;
+    }
+
     @Override
-    public void getRIBuyContextData(Cost.GetRIBuyContextRequest request, StreamObserver<Cost.riBuyDemandStats> responseObserver) {
-        List<Stats.StatSnapshot> historicalContextForRIBuyAction = actionContextRIBuyStore.getHistoricalContextForRIBuyAction(request.getActionId());
+    public void getRIBuyContextData(Cost.GetRIBuyContextRequest request,
+                                    StreamObserver<Cost.riBuyDemandStats> responseObserver) {
+        List<Stats.StatSnapshot> historicalContextForRIBuyAction = actionContextRIBuyStore
+                .getHistoricalContextForRIBuyAction(request.getActionId());
         final Cost.riBuyDemandStats response = Cost.riBuyDemandStats.newBuilder()
                 .addAllStatSnapshots(historicalContextForRIBuyAction)
                 .setSnapshotDate(historicalContextForRIBuyAction.get(0).getSnapshotDate()).build();
@@ -22,7 +28,16 @@ public class RIBuyContextFetchRpcService extends RIBuyContextFetchServiceGrpc.RI
         responseObserver.onCompleted();
     }
 
-    public RIBuyContextFetchRpcService(@Nonnull ActionContextRIBuyStore actionContextRIBuyStore) {
-        this.actionContextRIBuyStore = actionContextRIBuyStore;
+    @Override
+    public void deleteRIBuyContextData(Cost.DeleteRIBuyContextDataRequest request,
+                                       StreamObserver<Cost.DeleteRIBuyContextDataResponse> responseObserver) {
+        if (request.hasTopologyContextId()) {
+            int rowsDeleted = actionContextRIBuyStore.deleteRIBuyContextData(request.getTopologyContextId());
+            boolean deleted = (rowsDeleted > 0) ? true : false;
+            Cost.DeleteRIBuyContextDataResponse response = Cost.DeleteRIBuyContextDataResponse
+                    .newBuilder().setDeleted(deleted).build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        }
     }
 }

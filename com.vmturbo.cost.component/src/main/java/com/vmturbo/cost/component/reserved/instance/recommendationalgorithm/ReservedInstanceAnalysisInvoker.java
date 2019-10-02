@@ -31,6 +31,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.CategoryPathConstants;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.RISettingsEnum.PreferredTerm;
+import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore.ReservedInstanceBoughtChangeType;
 import com.vmturbo.group.api.SettingMessages.SettingNotification;
@@ -64,6 +65,8 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
     // The inventory of RIs that have already been purchased
     private final ReservedInstanceBoughtStore riBoughtStore;
 
+    private final ActionContextRIBuyStore actionContextRIBuyStore;
+
     private static List<String> riSettingNames = new ArrayList<>();
 
     static  {
@@ -78,12 +81,14 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
                                     RepositoryServiceBlockingStub repositoryClient,
                                     SettingServiceBlockingStub settingsServiceClient,
                                     ReservedInstanceBoughtStore riBoughtStore,
+                                    ActionContextRIBuyStore actionContextRIBuyStore,
                                     long realtimeTopologyContextId) {
         this.reservedInstanceAnalyzer = reservedInstanceAnalyzer;
         this.repositoryClient = repositoryClient;
         this.settingsServiceClient = settingsServiceClient;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.riBoughtStore = riBoughtStore;
+        this.actionContextRIBuyStore = actionContextRIBuyStore;
         this.riBoughtStore.getUpdateEventStream()
                 .filter(event -> event == ReservedInstanceBoughtChangeType.UPDATED)
                 .subscribe(this::onRIInventoryUpdated);
@@ -97,6 +102,8 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         ReservedInstanceAnalysisScope reservedInstanceAnalysisScope =
                 new ReservedInstanceAnalysisScope(buyRiRequest);
         try {
+            // Delete all entries for real time from action_context_ri_buy table.
+            actionContextRIBuyStore.deleteRIBuyContextData(realtimeTopologyContextId);
             reservedInstanceAnalyzer.runRIAnalysisAndSendActions(realtimeTopologyContextId,
                     reservedInstanceAnalysisScope, ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
         } catch (InterruptedException e) {
