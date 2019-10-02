@@ -501,22 +501,22 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     @Nonnull
     public synchronized Optional<Discovery> addPendingDiscovery(long targetId)
             throws TargetNotFoundException, CommunicationException, InterruptedException {
-        final Optional<Discovery> currentDiscovery = getInProgressDiscoveryForTarget(targetId);
-        if (currentDiscovery.isPresent()) {
-            // Add the target to the set of pending targets.
-            pendingDiscoveries.add(targetId);
-            return Optional.empty();
-        }
+            final Optional<Discovery> currentDiscovery = getInProgressDiscoveryForTarget(targetId);
+            if (currentDiscovery.isPresent()) {
+                // Add the target to the set of pending targets.
+                pendingDiscoveries.add(targetId);
+                return Optional.empty();
+            }
 
         try {
             return Optional.of(startDiscovery(targetId));
         } catch (ProbeException e) {
-            pendingDiscoveries.add(targetId);
-            lastCompletedTargetDiscoveries.remove(targetId);
-            lastCompletedTargetValidations.remove(targetId);
-            return Optional.empty();
+                pendingDiscoveries.add(targetId);
+                lastCompletedTargetDiscoveries.remove(targetId);
+                lastCompletedTargetValidations.remove(targetId);
+                return Optional.empty();
+            }
         }
-    }
 
     /**
      * Request a discovery on a target. There may be only a single ongoing discovery
@@ -1001,40 +1001,56 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 () -> targetId);
         try {
             if (success && change) {
-                // TODO: (DavidBlinn 3/14/2018) if information makes it into the entityStore but fails later
-                // the topological information will be inconsistent. (ie if the entities are placed in the
-                // entityStore but the discoveredGroupUploader throws an exception, the entity and group
-                // information will be inconsistent with each other because we do not roll back on failure.
-                entityStore.entitiesDiscovered(discovery.getProbeId(), targetId, response.getEntityDTOList());
-                discoveredGroupUploader.setTargetDiscoveredGroups(targetId, response.getDiscoveredGroupList());
-                discoveredTemplateDeploymentProfileNotifier.recordTemplateDeploymentInfo(targetId,
+                // Ensure this target hasn't been deleted since the discovery began
+                final Optional<Target> target = targetStore.getTarget(targetId);
+                if (target.isPresent()) {
+                    // TODO: (DavidBlinn 3/14/2018) if information makes it into the entityStore but fails later
+                    // the topological information will be inconsistent. (ie if the entities are placed in the
+                    // entityStore but the discoveredGroupUploader throws an exception, the entity and group
+                    // information will be inconsistent with each other because we do not roll back on failure.
+                    entityStore.entitiesDiscovered(discovery.getProbeId(), targetId, response.getEntityDTOList());
+                    discoveredGroupUploader.setTargetDiscoveredGroups(targetId, response.getDiscoveredGroupList());
+                    discoveredTemplateDeploymentProfileNotifier.recordTemplateDeploymentInfo(targetId,
                         response.getEntityProfileList(), response.getDeploymentProfileList(),
                         response.getEntityDTOList());
-                discoveredWorkflowUploader.setTargetWorkflows(targetId,
+                    discoveredWorkflowUploader.setTargetWorkflows(targetId,
                         response.getWorkflowList());
-                DISCOVERY_SIZE_SUMMARY.observe((double)response.getEntityDTOCount());
-                derivedTargetParser.instantiateDerivedTargets(this, targetId, response.getDerivedTargetList());
-                discoveredCloudCostUploader.recordTargetCostData(targetId, discovery,
+                    DISCOVERY_SIZE_SUMMARY.observe((double)response.getEntityDTOCount());
+                    derivedTargetParser.instantiateDerivedTargets(this, targetId, response.getDerivedTargetList());
+                    discoveredCloudCostUploader.recordTargetCostData(targetId, discovery,
                         response.getNonMarketEntityDTOList(), response.getCostDTOList(),
                         response.getPriceTable());
-                if (response.hasDiscoveryContext()) {
-                    currentTargetDiscoveryContext.put(targetId, response.getDiscoveryContext());
-                }
-                if (discoveryDumper != null) {
-                    final Optional<Target> target = targetStore.getTarget(targetId);
-                    final Optional<ProbeInfo> probeInfo = probeStore.getProbe(discovery.getProbeId());
-                    String displayName = target.isPresent()
-                        ? target.get().getDisplayName()
-                        : "targetID-" + targetId;
-                    String targetName = probeInfo.get().getProbeType() + "_" + displayName;
-                    if (discovery.getUserInitiated()) {
-                        // make sure we have up-to-date settings if this is a user-initiated discovery
-                        targetDumpingSettings.refreshSettings();
+                    if (response.hasDiscoveryContext()) {
+                        currentTargetDiscoveryContext.put(targetId, response.getDiscoveryContext());
                     }
-                    discoveryDumper.dumpDiscovery(targetName, DiscoveryType.FULL, response, new ArrayList<>());
+                    if (discoveryDumper != null) {
+                        final Optional<ProbeInfo> probeInfo = probeStore.getProbe(discovery.getProbeId());
+                        String displayName = target.isPresent()
+                            ? target.get().getDisplayName()
+                            : "targetID-" + targetId;
+                        String targetName = probeInfo.get().getProbeType() + "_" + displayName;
+                        if (discovery.getUserInitiated()) {
+                            // make sure we have up-to-date settings if this is a user-initiated discovery
+                            targetDumpingSettings.refreshSettings();
+                        }
+                        discoveryDumper.dumpDiscovery(targetName, DiscoveryType.FULL, response, new ArrayList<>());
+                    }
+                    // Flows
+                    matrix.update(response.getFlowDTOList());
+                } else {
+                    final String message = "Discovery completed for a target, "
+                        + targetId
+                        + ", that no longer exists.";
+                    // Logging at info level--this is just poor timing and will happen occasionally
+                    logger.info(message);
+                    // It takes an error to cancel the discovery without processing it
+                    final ErrorDTO error = ErrorDTO.newBuilder()
+                        .setSeverity(ErrorSeverity.CRITICAL)
+                        .setDescription(message)
+                        .build();
+                    operationComplete(discovery, false, Collections.singletonList(error));
+                    return;
                 }
-                // Flows
-                matrix.update(response.getFlowDTOList());
             }
             operationComplete(discovery, success, response.getErrorDTOList());
         } catch (IdentityUninitializedException | IdentityMetadataMissingException |
