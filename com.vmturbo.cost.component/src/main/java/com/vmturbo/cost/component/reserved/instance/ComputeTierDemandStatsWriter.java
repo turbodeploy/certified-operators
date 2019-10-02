@@ -187,25 +187,29 @@ public class ComputeTierDemandStatsWriter {
                         getAvailabilityZone(
                                 vmDTO.getConnectedEntityListList());
                 if (!availabilityZone.isPresent()) {
-                    logger.warn("Skipping. Availability zone missing for vm {}", vmDTO);
+                    logger.warn("Skipping. Availability zone missing for VM {} {} ",
+                            vmId, vmDTO.getDisplayName());
                     return;
                 }
                 if (!vmDTO.hasTypeSpecificInfo() &&
                         !vmDTO.getTypeSpecificInfo().hasVirtualMachine()) {
-                    logger.warn("Skipping. Missing TypeSpecificInfo for vm {}", vmDTO);
+                    logger.warn("Skipping. Missing TypeSpecificInfo for VM {} {} ",
+                            vmId, vmDTO.getDisplayName());
                     return;
                 }
                 TopologyDTO.TypeSpecificInfo.VirtualMachineInfo vmInfo =
                         vmDTO.getTypeSpecificInfo().getVirtualMachine();
                 if (vmInfo.getGuestOsInfo().getGuestOsType() == OSType.UNKNOWN_OS) {
-                    logger.warn("Skipping. Unknown OS for  vm {}", vmDTO);
+                    logger.warn("Skipping. Unknown OS for  VM {} {} {}",
+                            vmId, vmDTO.getDisplayName(), vmInfo.getGuestOsInfo().getGuestOsName());
                     return;
                 }
                 byte platform = (byte) vmInfo.getGuestOsInfo().getGuestOsType().getNumber();
                 byte tenancy = (byte) vmInfo.getTenancy().getNumber();
                 Long targetId = workloadIdToBusinessAccountIdMap.get(vmId);
                 if (targetId == null) {
-                    logger.warn("Skipping. Missing Business Account Id for vm {}", vmDTO);
+                    logger.warn("Skipping. Missing Business Account Id for VM {} {} ",
+                            vmId, vmDTO.getDisplayName());
                     return;
                 }
 
