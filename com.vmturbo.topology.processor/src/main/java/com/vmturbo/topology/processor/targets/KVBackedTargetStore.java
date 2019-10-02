@@ -406,6 +406,7 @@ public class KVBackedTargetStore implements TargetStore {
      */
     private Target removeTarget(final long targetId) throws TargetNotFoundException, IdentityStoreException {
         final Target oldTarget;
+        logger.info("Removing target {}", targetId);
         String targetName;
         synchronized (storeLock) {
             oldTarget = targetsById.remove(targetId);
@@ -417,7 +418,14 @@ public class KVBackedTargetStore implements TargetStore {
             identityStore.removeItemOids(ImmutableSet.of(targetId));
             removeDerivedTargetsRelationships(targetId);
         }
-        logger.info("Removed target '" + targetName + "' (" + targetId + ")");
+        // Recursively remove any derived targets that are children of the target being removed
+        // NOTE: This *must* occur outside of the synchronized block. Otherwise, the onTargetRemoved
+        // listeners will be notified (within the recursive call) while the thread holds the storeLock.
+        // This has been shown to lead to deadlock situations.
+        removeDerivedTargetsRelationships(targetId);
+        // Notify all listeners that the target has been removed. This must occur outside of the
+        // synchronized block, else deadlocks are possible.
+        logger.info("Removed target '{}' ({})", targetName, targetId);
         listeners.forEach(listener -> listener.onTargetRemoved(oldTarget));
         return oldTarget;
     }
@@ -428,7 +436,6 @@ public class KVBackedTargetStore implements TargetStore {
      *
      * @param targetId The target which we need to remove its derived targets or be
      */
-    @GuardedBy("storeLock")
     private void removeDerivedTargetsRelationships(@Nonnull final long targetId) {
         // If it is a parent target, remove the relationship from derivedTargetIdsByParentId map and
         // all the derived targets.
@@ -436,6 +443,7 @@ public class KVBackedTargetStore implements TargetStore {
         if (derivedTargetIds == null) {
             return;
         }
+        logger.info("Removing {} derived targets for target {}", derivedTargetIds.size(), targetId);
         derivedTargetIds.forEach(derivedTargetId -> {
             try {
                 removeTarget(derivedTargetId);
