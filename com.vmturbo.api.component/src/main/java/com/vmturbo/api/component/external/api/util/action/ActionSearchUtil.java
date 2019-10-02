@@ -1,14 +1,17 @@
 package com.vmturbo.api.component.external.api.util.action;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
@@ -27,6 +30,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Common functionality that has to do with action searching.
@@ -39,6 +45,7 @@ public class ActionSearchUtil {
     private final PaginationMapper paginationMapper;
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
     private final long realtimeTopologyContextId;
+    private final RepositoryApi repositoryApi;
     private final GroupExpander groupExpander;
 
     public ActionSearchUtil(
@@ -47,13 +54,39 @@ public class ActionSearchUtil {
             @Nonnull PaginationMapper paginationMapper,
             @Nonnull SupplyChainFetcherFactory supplyChainFetcherFactory,
             @Nonnull GroupExpander groupExpander,
+            @Nonnull RepositoryApi repositoryApi,
             long realtimeTopologyContextId) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpc);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
         this.groupExpander = Objects.requireNonNull(groupExpander);
+        this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+    }
+
+    /**
+     * If the given scope represents an aggregation, (Business Account, Region, or Availability Zone) we should
+     * Retrieve actions associated with all nodes in the supply chain seeded by the scope UUID. Else, just get
+     * actions associated with the provided scope.
+     *
+     * @param entityType for which associated actions are being fetched
+     * @return whether or not to retrieve actions associated with all supply chain nodes
+     */
+    @Nonnull
+    public boolean shouldGetSupplyChainNodeActions (int entityType) {
+        switch (entityType) {
+            // Cloud Aggregations
+            case EntityType.BUSINESS_ACCOUNT_VALUE:
+            case EntityType.REGION_VALUE:
+            case EntityType.AVAILABILITY_ZONE_VALUE:
+            // On-Prem Aggregations
+            case EntityType.DATACENTER_VALUE:
+            case EntityType.VIRTUAL_DATACENTER_VALUE:
+                return true;
+            default:
+                return false;
+        }
     }
 
     /**
@@ -91,7 +124,24 @@ public class ActionSearchUtil {
             // extract entity oids from the supply chain and add them to the scope
             expandedScope = supplyChainFetcherFactory.expandScope(scope, inputDto.getRelatedEntityTypes());
         } else {
-            expandedScope = scope;
+            // If the entity for which we're collecting actions represents an aggregation, (Account, Region,
+            // Zone, DC, VDC) get actions for all nodes in the supply chain seeded from that UUID. Otherwise,
+            // just get actions corresponding to that single entity
+            Set<Long> toNotExpand = new HashSet();
+            Set<Long> toExpand = new HashSet();
+            scopeIds.stream().forEach(scopeId -> {
+                final long oid = scopeId.oid();
+                final Optional<UIEntityType> scopeType = scopeId.getScopeType();
+                if (scopeType.isPresent() && shouldGetSupplyChainNodeActions(scopeType.get().typeNumber())) {
+                    toExpand.add(oid);
+                } else {
+                    toNotExpand.add(oid);
+                }
+            });
+            expandedScope = toNotExpand;
+            if (toExpand.size() > 0) {
+                expandedScope.addAll(supplyChainFetcherFactory.expandScope(toExpand, java.util.Collections.emptyList()));
+            }
         }
 
         // create filter

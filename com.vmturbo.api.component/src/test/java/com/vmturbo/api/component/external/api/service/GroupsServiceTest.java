@@ -201,7 +201,8 @@ public class GroupsServiceTest {
         final ActionSearchUtil actionSearchUtil =
                 new ActionSearchUtil(
                         actionOrchestratorRpcService, actionSpecMapper,
-                        paginationMapper, supplyChainFetcherFactory, groupExpander, CONTEXT_ID);
+                        paginationMapper, supplyChainFetcherFactory, groupExpander,
+                        mock(RepositoryApi.class), CONTEXT_ID);
         final SettingsMapper settingsMapper = mock(SettingsMapper.class);
 
         groupsService =

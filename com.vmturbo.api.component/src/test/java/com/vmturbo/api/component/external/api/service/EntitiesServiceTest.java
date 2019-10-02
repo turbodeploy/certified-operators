@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -20,6 +21,7 @@ import org.mockito.Matchers;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -195,7 +197,7 @@ public class EntitiesServiceTest {
         final ActionSearchUtil actionSearchUtil =
             new ActionSearchUtil(
                 actionOrchestratorRpcService, actionSpecMapper,
-                paginationMapper, supplyChainFetcherFactory, groupExpander, CONTEXT_ID);
+                paginationMapper, supplyChainFetcherFactory, groupExpander, repositoryApi, CONTEXT_ID);
 
         when(groupExpander.expandOids(any()))
             .thenAnswer(invocation -> invocation.getArgumentAt(0, Set.class));
@@ -442,6 +444,13 @@ public class EntitiesServiceTest {
             FilteredActionResponse.newBuilder()
                 .addActions(ActionOrchestratorAction.newBuilder().setActionSpec(dummyActionSpec).build())
                 .build();
+
+        final MinimalEntity minimalEntityVM = MinimalEntity.newBuilder()
+                .setOid(VM_ID)
+                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setDisplayName("VM")
+                .build();
+
         when(actionsService.getAllActions(any())).thenReturn(dummyActionOrchestratorResponse);
         final ActionApiDTO actionApiDTO = mock(ActionApiDTO.class);
         when(actionSpecMapper.mapActionSpecsToActionApiDTOs(any(), anyLong()))
@@ -455,7 +464,11 @@ public class EntitiesServiceTest {
 
         ApiId apiId = mock(ApiId.class);
         when(apiId.oid()).thenReturn(VM_ID);
+        when(apiId.getScopeType()).thenReturn(Optional.of(UIEntityType.VIRTUAL_MACHINE));
         when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
+
+        RepositoryApi.MultiEntityRequest minimalEntityVMRequest = ApiTestUtils.mockMultiMinEntityReq(Lists.newArrayList(minimalEntityVM));
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(Long.valueOf(VM_ID)))).thenReturn(minimalEntityVMRequest);
 
         // call the service
         final ActionPaginationRequest paginationRequest =
@@ -468,5 +481,30 @@ public class EntitiesServiceTest {
 
         // check that the result is the faked translation
         Assert.assertEquals(actionApiDTO, result);
+
+        Long regionId = 2L;
+        ApiId regionApiId = mock(ApiId.class);
+        when(regionApiId.oid()).thenReturn(regionId);
+        when(regionApiId.getScopeType()).thenReturn(Optional.of(UIEntityType.REGION));
+        when(uuidMapper.fromUuid(Long.toString(regionId))).thenReturn(regionApiId);
+
+        final MinimalEntity minimalEntityRegion = MinimalEntity.newBuilder()
+                .setOid(regionId)
+                .setEntityType(UIEntityType.REGION.typeNumber())
+                .setDisplayName("Region1")
+                .build();
+
+        RepositoryApi.MultiEntityRequest minimalEntityRegionRequest = ApiTestUtils.mockMultiMinEntityReq(Lists.newArrayList(minimalEntityRegion));
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(Long.valueOf(regionId)))).thenReturn(minimalEntityRegionRequest);
+
+        when(supplyChainFetcherFactory.expandScope(Sets.newHashSet(regionId), new ArrayList<>())).thenReturn(Sets.newHashSet(VM_ID, regionId));
+
+        final ActionApiDTO regionResult =
+            service
+                .getActionsByEntityUuid(Long.toString(regionId), trivialQuery, paginationRequest)
+                .getRawResults()
+                .get(0);
+
+        Assert.assertEquals(actionApiDTO, regionResult);
     }
 }
