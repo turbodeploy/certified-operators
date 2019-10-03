@@ -21,8 +21,6 @@ import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Histogram;
 import io.prometheus.client.Summary;
 
-import com.vmturbo.components.common.diagnostics.DiagnosticsException;
-
 /**
  * Test cases for {@link DiagnosticsWriter}.
  *
@@ -41,7 +39,7 @@ public class DiagnosticsWriterTest {
      * Write strings to a zip file, then read the file.
      * @throws IOException
      */
-    public void testWriteZipEntries() throws IOException, DiagnosticsException {
+    public void testWriteZipEntries() throws IOException {
         final DiagnosticsWriter writer = new DiagnosticsWriter();
         List<String> list1 = Lists.newArrayList("A", "BB", "CCC");
         List<String> list2 = Lists.newArrayList("X", "Y", "Z");
@@ -64,7 +62,7 @@ public class DiagnosticsWriterTest {
     }
 
     @Test
-    public void testWritePrometheusMetrics() throws IOException, DiagnosticsException {
+    public void testWritePrometheusMetrics() throws IOException {
         // Clear the registry so that only the metrics registered by this test are written
         // by the diagnostics dump.
         CollectorRegistry.defaultRegistry.clear();

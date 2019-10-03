@@ -91,6 +91,10 @@ public class DiagnosticsController {
             List<Target> targets = diagnosticsHandler.restore(inputStream.getInputStream());
             String response = "Restored " + targets.size() + " targets";
             return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (TargetDeserializationException | InvalidTargetException e) {
+            String errorMsg = "Failed to deserialize the input";
+            logger.error(errorMsg, e);
+            return new ResponseEntity<>(errorMsg, HttpStatus.UNPROCESSABLE_ENTITY);
         } catch (IOException e) {
             String errorMsg = "Failed to initialize ZipInputStream";
             logger.error(errorMsg, e);

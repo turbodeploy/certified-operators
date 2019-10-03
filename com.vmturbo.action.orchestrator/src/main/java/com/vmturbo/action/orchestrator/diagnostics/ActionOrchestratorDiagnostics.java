@@ -16,14 +16,14 @@ import java.util.zip.ZipOutputStream;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 
 import io.prometheus.client.CollectorRegistry;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.Action.SerializationState;
@@ -36,7 +36,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.InvalidRestoreInputException;
-import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 
 /**
  * Represents the diagnostics of the action
@@ -71,13 +70,6 @@ public class ActionOrchestratorDiagnostics {
         this.actionModeCalculator = Objects.requireNonNull(actionModeCalculator);
     }
 
-    /**
-     * Write the diagnostics files for the curent ActionStorehouseData values
-     * onto the given zipOutPutStream. The data will captured inside a zip file
-     * segment (file) with the name specified by {@value #SERIALIZED_FILE_NAME}.
-     *
-     * @param zipOutputStream the output stream to write to
-     */
     public void dump(@Nonnull final ZipOutputStream zipOutputStream) {
         final ActionStorehouseData storehouseData = new ActionStorehouseData(
             actionStorehouse.getAllStores().entrySet().stream()
@@ -89,14 +81,11 @@ public class ActionOrchestratorDiagnostics {
                 }).collect(Collectors.toList())
         );
 
-        try {
-            diagnosticsWriter.writeZipEntry(SERIALIZED_FILE_NAME,
+        diagnosticsWriter.writeZipEntry(SERIALIZED_FILE_NAME,
                 Collections.singletonList(GSON.toJson(storehouseData)),
                 zipOutputStream);
-            diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry, zipOutputStream);
-        } catch (DiagnosticsException e) {
-            logger.error("Dump diags error:", e);
-        }
+
+        diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry, zipOutputStream);
     }
 
     public void restore(@Nonnull final ZipInputStream zipInputStream)

@@ -11,41 +11,37 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.zip.ZipOutputStream;
 
-import com.google.common.collect.ImmutableMap;
-
-import io.prometheus.client.CollectorRegistry;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.google.common.collect.ImmutableMap;
+
+import io.prometheus.client.CollectorRegistry;
+
+import com.vmturbo.api.internal.controller.ApiDiagnosticsHandler.VersionAndRevision;
 import com.vmturbo.api.component.external.api.service.AdminService;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.admin.ProductVersionDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
-import com.vmturbo.api.internal.controller.ApiDiagnosticsHandler.VersionAndRevision;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
 import com.vmturbo.components.common.DiagnosticsWriter;
-import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.proactivesupport.metrics.TelemetryMetricUtilities;
 
-/**
- * Test handling for the Api Diagnostic Dump functions.
- */
 public class ApiDiagnosticsHandlerTest {
 
-    private final SupplyChainFetcherFactory supplyChainFetcherFactory = Mockito.mock(SupplyChainFetcherFactory.class);
-    private final SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder builder =
+    final SupplyChainFetcherFactory supplyChainFetcherFactory = Mockito.mock(SupplyChainFetcherFactory.class);
+    final SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder builder =
         Mockito.mock(SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder.class);
-    private final AdminService adminService = Mockito.mock(AdminService.class);
-    private final ClusterMgrRestClient clusterService = Mockito.mock(ClusterMgrRestClient.class);
-    private final DiagnosticsWriter diagnosticsWriter = Mockito.mock(DiagnosticsWriter.class);
-    private final ZipOutputStream diagnosticZip = Mockito.mock(ZipOutputStream.class);
-    private final long liveTopologyContextId = 123456L;
+    final AdminService adminService = Mockito.mock(AdminService.class);
+    final ClusterMgrRestClient clusterService = Mockito.mock(ClusterMgrRestClient.class);
+    final DiagnosticsWriter diagnosticsWriter = Mockito.mock(DiagnosticsWriter.class);
+    final ZipOutputStream diagnosticZip = Mockito.mock(ZipOutputStream.class);
+    final long liveTopologyContextId = 123456L;
 
-    private final ApiDiagnosticsHandler diagnosticsHandler = Mockito.spy(
+    final ApiDiagnosticsHandler diagnosticsHandler = Mockito.spy(
         new ApiDiagnosticsHandler(supplyChainFetcherFactory, adminService,
             clusterService, diagnosticsWriter, liveTopologyContextId));
 
@@ -102,7 +98,7 @@ public class ApiDiagnosticsHandlerTest {
     }
 
     @Test
-    public void testCollectTelemetryWhenEnabled() throws DiagnosticsException {
+    public void testCollectTelemetryWhenEnabled() {
         when(clusterService.isTelemetryEnabled()).thenReturn(true);
         final ProductVersionDTO versionDTO = new ProductVersionDTO();
         versionDTO.setMarketVersion(2);
@@ -116,7 +112,7 @@ public class ApiDiagnosticsHandlerTest {
     }
 
     @Test
-    public void testDoNotCollectTelemetryWhenDisabled() throws DiagnosticsException {
+    public void testDoNotCollectTelemetryWhenDisabled() {
         when(clusterService.isTelemetryEnabled()).thenReturn(false);
 
         diagnosticsHandler.dump(diagnosticZip);

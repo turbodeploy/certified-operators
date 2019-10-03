@@ -35,7 +35,7 @@ import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 
 import com.vmturbo.components.api.test.IntegrationTestServer;
-import com.vmturbo.components.common.ConsulRegistrationConfig;
+import com.vmturbo.components.common.ConsulDiscoveryManualConfig;
 import com.vmturbo.mediation.client.it.AbstractIntegrationTest.ContextConfiguration;
 import com.vmturbo.mediation.common.ProbeInstanceRegistry;
 import com.vmturbo.mediation.common.tests.util.IRemoteMediation;
@@ -103,14 +103,13 @@ public class XlSdkEngine implements ISdkEngine {
         environment.setProperty(TestMediationCommonConfig.FIELD_TEST_NAME,
                 testName.getMethodName());
         environment.setProperty("instance_id", testName.getMethodName());
-        environment.setProperty("instance_ip", "10.10.10.10");
         environment.setProperty("identityGeneratorPrefix", "0");
         environment.setProperty("kvStoreRetryIntervalMillis", "1000");
         environment.setProperty("websocket.pong.timeout", "10000");
         environment.setProperty("server.grpcPort", "0");
         environment.setProperty("consul_port", "0");
         environment.setProperty("consul_host", "consul");
-        environment.setProperty(ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION, "false");
+        environment.setProperty(ConsulDiscoveryManualConfig.ENABLE_CONSUL_REGISTRATION, "false");
 
         applicationContext = new AnnotationConfigWebApplicationContext();
         applicationContext.setEnvironment(environment);
@@ -261,7 +260,7 @@ public class XlSdkEngine implements ISdkEngine {
             };
             environment.setProperty(TestMediationCommonConfig.FIELD_TEST_NAME,
                     testName.getMethodName());
-            environment.setProperty(ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION,
+            environment.setProperty(ConsulDiscoveryManualConfig.ENABLE_CONSUL_REGISTRATION,
                     "true");
             environment.setProperty("consul_host", "consul");
             environment.setProperty("consul_port", "0");
@@ -278,7 +277,6 @@ public class XlSdkEngine implements ISdkEngine {
             final String instanceId =
                     testName.getMethodName() + "-" + instanceCounter.getAndIncrement();
             environment.setProperty("instance_id", instanceId);
-            environment.setProperty("instance_ip", "10.10.10.10");
             environment.setProperty("component_type", "sdk-test-" + instanceId);
             environment.setProperty("probe-directory", probeJarsDir.toString());
             environment.setProperty("serverAddress",

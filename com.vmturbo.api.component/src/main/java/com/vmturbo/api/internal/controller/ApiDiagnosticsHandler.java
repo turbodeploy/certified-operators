@@ -27,7 +27,6 @@ import com.vmturbo.api.dto.admin.ProductVersionDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
 import com.vmturbo.components.common.DiagnosticsWriter;
-import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.proactivesupport.metrics.TelemetryMetricDefinitions;
 
 public class ApiDiagnosticsHandler {
@@ -36,7 +35,7 @@ public class ApiDiagnosticsHandler {
 
     private final DiagnosticsWriter diagnosticsWriter;
 
-    private static final String VERSION_FILE_NAME = "turbonomic_cluster_version.txt";
+    public static final String VERSION_FILE_NAME = "turbonomic_cluster_version.txt";
 
     private static final String ERRORS_FILE = "dump_errors";
 
@@ -64,8 +63,9 @@ public class ApiDiagnosticsHandler {
      * Dumps the API component state to a {@link ZipOutputStream}.
      *
      * @param diagnosticZip The destination.
+     * @return The list of errors encountered, or an empty list if successful.
      */
-    public void dump(@Nonnull final ZipOutputStream diagnosticZip) {
+    public List<String> dump(@Nonnull final ZipOutputStream diagnosticZip) {
         final List<String> errors = new ArrayList<>();
 
         ProductVersionDTO versionDTO = new ProductVersionDTO();
@@ -87,20 +87,14 @@ public class ApiDiagnosticsHandler {
         if (clusterService.isTelemetryEnabled()) {
             // Collect telemetry metrics to Prometheus before writing out the Prometheus metrics.
             collectTelemetryMetrics(versionDTO);
-            try {
-                diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry, diagnosticZip);
-            } catch (DiagnosticsException e) {
-                errors.addAll(e.getErrors());
-            }
+            diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry, diagnosticZip);
         }
 
         if (!errors.isEmpty()) {
-            try {
-                diagnosticsWriter.writeZipEntry(ERRORS_FILE, errors, diagnosticZip);
-            } catch (DiagnosticsException e) {
-                logger.error("Error writing the zip errors file", e);
-            }
+            diagnosticsWriter.writeZipEntry(ERRORS_FILE, errors, diagnosticZip);
         }
+
+        return errors;
     }
 
     public List<String> restore(@Nonnull final InputStream inputStream) {
@@ -146,19 +140,13 @@ public class ApiDiagnosticsHandler {
         }
     }
 
-    /**
-     * Capture the build version and revision from a string that looks like:
-     * {@code
-     * Turbonomic Operations Manager 7.4.0 (Build \"20180722153849000\") \"2018-07-24 12:26:58\"
-     * }
-     */
     @VisibleForTesting
     @Immutable
     static class VersionAndRevision {
         public final String version;
         public final String revision;
 
-        VersionAndRevision(@Nonnull final String versionInfo) {
+        public VersionAndRevision(@Nonnull final String versionInfo) {
             String parsedVersion = "";
             String parsedRevision = "";
 

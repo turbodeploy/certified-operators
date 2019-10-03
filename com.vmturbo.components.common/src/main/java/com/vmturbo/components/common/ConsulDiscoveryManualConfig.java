@@ -1,6 +1,5 @@
 package com.vmturbo.components.common;
 
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 
 import javax.annotation.PostConstruct;
@@ -18,7 +17,9 @@ import org.springframework.context.annotation.Configuration;
  * This configuration holds all the dependency configuration, required to run Consul client.
  */
 @Configuration
-public class ConsulRegistrationConfig {
+public class ConsulDiscoveryManualConfig {
+
+    public static final String ENABLE_CONSUL_REGISTRATION = "enableConsulRegistration";
 
     @Value("${consul_host}")
     private String consulHost;
@@ -36,10 +37,9 @@ public class ConsulRegistrationConfig {
 
     @PostConstruct
     protected void registerConsul() throws UnknownHostException {
-        enableConsulRegistration = EnvironmentUtils.getOptionalEnvProperty(ConsulDiscoveryManualConfig.ENABLE_CONSUL_REGISTRATION)
+        enableConsulRegistration = EnvironmentUtils.getOptionalEnvProperty(ENABLE_CONSUL_REGISTRATION)
                 .map(Boolean::parseBoolean)
                 .orElse(false);
-
         if (!enableConsulRegistration) {
             return;
         }
@@ -48,7 +48,7 @@ public class ConsulRegistrationConfig {
         final NewService svc = new NewService();
         svc.setName(componentType);
         svc.setId(instanceId);
-        svc.setAddress(InetAddress.getLocalHost().getHostName());
+        svc.setAddress(componentType);
         svc.setPort(serverPort);
         client.agentServiceRegister(svc);
         final NewCheck healthCheck = new NewCheck();
@@ -59,5 +59,20 @@ public class ConsulRegistrationConfig {
         healthCheck.setServiceId(svc.getId());
         healthCheck.setInterval("60s");
         client.agentCheckRegister(healthCheck);
+    }
+
+    /**
+     * Deregister service from consul
+     */
+    protected void deregisterService() {
+        enableConsulRegistration = EnvironmentUtils.getOptionalEnvProperty(ENABLE_CONSUL_REGISTRATION)
+            .map(Boolean::parseBoolean)
+            .orElse(false);
+        if (!enableConsulRegistration) {
+            return;
+        }
+        final ConsulRawClient rawClient = new ConsulRawClient(consulHost, consulPort);
+        final ConsulClient client = new ConsulClient(rawClient);
+        client.agentServiceDeregister(instanceId);
     }
 }

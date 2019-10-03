@@ -112,18 +112,10 @@ public class GroupDiagnosticsHandler {
             errors.addAll(e.getErrors());
         }
 
-        try {
-            diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry, diagnosticZip);
-        } catch (DiagnosticsException e) {
-            errors.addAll(e.getErrors());
-        }
+        diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry, diagnosticZip);
 
         if (!errors.isEmpty()) {
-            try {
-                diagnosticsWriter.writeZipEntry(ERRORS_FILE, errors, diagnosticZip);
-            } catch (DiagnosticsException e) {
-                logger.error("Error writing {}: {}", ERRORS_FILE, errors);
-            }
+            diagnosticsWriter.writeZipEntry(ERRORS_FILE, errors, diagnosticZip);
         }
 
         return errors;

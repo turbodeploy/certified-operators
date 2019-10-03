@@ -14,21 +14,21 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protobuf.util.JsonFormat;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.util.JsonFormat;
+
 import com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo;
-import com.vmturbo.common.protobuf.common.Migration.MigrationRecord;
 import com.vmturbo.common.protobuf.common.Migration.MigrationStatus;
+import com.vmturbo.common.protobuf.common.Migration.MigrationRecord;
 import com.vmturbo.kvstore.KeyValueStore;
 
 /**
  * This class provides a general framework for running migrations.
  *
- * <p>Only one thread can call the startMigration() method at a time. The read methods
+ * Only one thread can call the startMigration() method at a time. The read methods
  * can be called by multiple threads.
  */
 public class MigrationFramework {
@@ -39,27 +39,26 @@ public class MigrationFramework {
 
     private static final String DATA_VERSION_PATH = "dataVersion";
 
-    private final KeyValueStore kvStore;
+    final KeyValueStore kvStore;
 
-    private volatile ConcurrentMap<String, MigrationRecord.Builder> migrationRecords;
+    volatile List<Migration> migrations;
 
-    /**
-     * Class to control the version-to-version data migration steps for a given component.
-     *
-     * @param kvStore the persistent key/value store that records the current version number.
-     */
+    volatile ConcurrentMap<String, MigrationRecord.Builder> migrationRecords;
+
+    volatile Migration currentRunningMigration;
+
     public MigrationFramework(@Nonnull KeyValueStore kvStore) {
         this.kvStore = kvStore;
         this.migrationRecords =
             this.kvStore.getByPrefix(MIGRATION_PREFIX)
-                .values().stream()
-                .map(s -> {
+                .entrySet().stream()
+                .map(entry -> {
                     final MigrationRecord.Builder migrationRecordBuilder =
                         MigrationRecord.newBuilder();
                     try {
-                        JsonFormat.parser().merge(s, migrationRecordBuilder);
+                        JsonFormat.parser().merge(entry.getValue(), migrationRecordBuilder);
                         return migrationRecordBuilder;
-                    } catch (InvalidProtocolBufferException e) {
+                    } catch (InvalidProtocolBufferException e){
                         logger.error("Failed to load migration record from KV Store.", e);
                         throw new RuntimeException(e);
                     }
@@ -73,7 +72,7 @@ public class MigrationFramework {
     /**
      * Start migrations.
      *
-     * <p>Migrations are run one at a time.
+     * Migrations are run one at a time.
      *
      * @param migrations Migrations which have to be executed. The input is a
      *                   mapping from MigrationName -> Migration.
@@ -104,6 +103,7 @@ public class MigrationFramework {
                         && forceStartFailedMigration)) {
 
                 logger.info("Starting migration: {}", migrationName);
+                currentRunningMigration = migration;
                 migrationRecordBuilder.setMigrationName(migrationName);
                 migrationRecordBuilder.setStartTime(LocalDateTime.now().toString());
                 migrationRecords.put(migrationName, migrationRecordBuilder);
@@ -141,20 +141,32 @@ public class MigrationFramework {
     /**
      * List all the migrations.
      *
-     * @return the migrations
      */
     public List<MigrationRecord> listMigrations() {
-        return migrationRecords.values().stream()
+        // Include already executed migrations(stored in KV store)
+        // as well as new migrations.
+        List<MigrationRecord> records = migrationRecords.values().stream()
                 .map(MigrationRecord.Builder::build)
                 .collect(Collectors.toList());
+
+        if (migrations != null) {
+            migrations.stream()
+                .filter(migration ->
+                    !migrationRecords.containsKey(migration.getClass().getCanonicalName()))
+                .map(migration -> MigrationRecord.newBuilder()
+                        .setMigrationName(migration.getClass().getName())
+                        .build())
+                .map(rec -> records.add(rec));
+        }
+
+        return records;
     }
 
     /**
      * Return the migration record for the give migration.
      *
      * @param migrationName Name of the migration whose migration record is requested.
-     * @return an Optional of the migration record for the given name, or Optional.empty() if not
-     * found
+     *
      */
     public Optional<MigrationRecord> getMigrationRecord(String migrationName) {
         return Optional.ofNullable(migrationRecords.get(migrationName))
@@ -162,11 +174,9 @@ public class MigrationFramework {
     }
 
     /**
-     *  Fetch the Data Version for this component from the Persistent Key/Value store.
+     *  Fetch the Data Version for this component from Consul.
      *
-     *  <p>If there is no data version set, return an empty string.
-     *
-     * @return the data version fetched from the kvStore
+     *  If there is no data version set, return an empty string.
      */
     private String fetchDataVersion() {
         return kvStore.get(DATA_VERSION_PATH).orElse("");
@@ -175,21 +185,11 @@ public class MigrationFramework {
     // Fetch the current data version for the component from Consul.
     // If no version exists, set the version number to max(0, highest_version_number in migrationName)
     // and update this value in Consul.
-
-    /**
-     * Fetch the current data version for the component from the history of versions stored in the
-     * KeyValue store.
-     * If no version exists, set the version number to max(0, highest_version_number in migrationName)
-     * and update this value in Consul.
-     *
-     * @param migrationNames the history of migration versions for the component
-     * @return the version number from the most recent migration name
-     */
-    private String getCurrentDataVersion(Collection<String> migrationNames) {
+    public String getCurrentDataVersion(Collection<String> migrationNames) {
         String currentDataVersion = fetchDataVersion();
         if (currentDataVersion.isEmpty()) {
             currentDataVersion = migrationNames.isEmpty() ? "" :
-                    extractVersionNumberFromMigrationName(new TreeSet<>(migrationNames).last());
+                    extractVersionNumberFromMigrationName(new TreeSet<String>(migrationNames).last());
             if (currentDataVersion.isEmpty()) {
                 currentDataVersion = "00_00_00";
             }
@@ -200,20 +200,16 @@ public class MigrationFramework {
     }
 
     /**
-     * Return the version number from the given migrationName.
+     * Return the version number from the given migrationName
      * The name should be of the form:
      * V_XX_XX_XX__name
      * Where X is a number from [0-9]
      *
-     * <p>The function will return the version number string in the form: XX_XX_XX
+     * The function will return the version number string in the form: XX_XX_XX
      *
-     * @param migrationName the name of the migration
-     * @return the version number portion of the migrationName
      */
     public static String extractVersionNumberFromMigrationName(String migrationName) {
-        if (migrationName == null || migrationName.isEmpty()) {
-            return "";
-        }
+        if (migrationName == null || migrationName.isEmpty()) return "";
 
         Pattern p = Pattern.compile("V_((\\d{2}_\\d{2}_\\d{2}))__\\S+");
         Matcher m = p.matcher(migrationName);

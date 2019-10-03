@@ -1,15 +1,12 @@
 package com.vmturbo.components.common;
 
 import static com.vmturbo.clustermgr.api.ClusterMgrClient.COMPONENT_VERSION_KEY;
-import static com.vmturbo.components.common.ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.net.UnknownHostException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
@@ -37,22 +34,6 @@ import javax.servlet.Servlet;
 import javax.servlet.ServletContext;
 import javax.servlet.ServletRegistration;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-
-import io.grpc.BindableService;
-import io.grpc.Server;
-import io.grpc.ServerInterceptor;
-import io.grpc.ServerInterceptors;
-import io.grpc.netty.NettyServerBuilder;
-import io.opentracing.contrib.grpc.ServerTracingInterceptor;
-import io.prometheus.client.CollectorRegistry;
-import io.prometheus.client.exporter.MetricsServlet;
-import io.prometheus.client.hotspot.DefaultExports;
-
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
-
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -72,6 +53,21 @@ import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+
+import io.grpc.BindableService;
+import io.grpc.Server;
+import io.grpc.ServerInterceptor;
+import io.grpc.ServerInterceptors;
+import io.grpc.netty.NettyServerBuilder;
+import io.opentracing.contrib.grpc.ServerTracingInterceptor;
+import io.prometheus.client.CollectorRegistry;
+import io.prometheus.client.exporter.MetricsServlet;
+import io.prometheus.client.hotspot.DefaultExports;
+import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import com.vmturbo.clustermgr.api.ClusterMgrClient;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
@@ -118,42 +114,27 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      */
     private static final int GRPC_MIN_KEEPALIVE_TIME_MIN = 1;
 
-    /**
-     * The environment key for the "type" (or category) for the current component.
-     */
     public static final String PROP_COMPONENT_TYPE = "component_type";
-    /**
-     * The environment key for the unique ID for this instance of the component type.
-     */
     public static final String PROP_INSTANCE_ID = "instance_id";
-    /**
-     * The environment key for the IP for this component instance.
-     */
     public static final String PROP_INSTANCE_IP = "instance_ip";
-    /**
-     * The environment key - should this component only take configuration properties from the
-     * environment ("standalone: true") vs. fetch configuration properties from
-     * ClusterMgr ("standalone: false").
-     */
     public static final String PROP_STANDALONE = "standalone";
-    /**
-     * The environment key for the port number for the Jetty instance for each component.
-     */
     public static final String PROP_serverHttpPort = "serverHttpPort";
 
-    /**
-     * The environment key for the hostname to contact for the ClusterMgr API.
-     */
     public static final String ENV_CLUSTERMGR_HOST = "clustermgr_host";
-    /**
-     * The environment key for the port number to contact for the ClusterMgr API.
-     */
     public static final String ENV_CLUSTERMGR_PORT = "clustermgr_port";
-    /**
-     * The environment key for the value to delay when looping trying to contact
-     * ClusterMgr.
-     */
     public static final String ENV_CLUSTERMGR_RETRY_S = "clustermgr_retry_delay_sec";
+
+    public static final String PROP_SECURE_PORT = "secure_serverHttpPort";
+    public static final String PROP_KEYSTORE_FILE = "keystore_file";
+    public static final String PROP_KEYSTORE_PASS = "keystore_pass";
+    public static final String PROP_SECURE_CIPHER_SUITES = "secure_cipher_suites";
+    public static final String PROP_KEYSTORE_TYPE = "keystore_type";
+    public static final String PROP_KEYSTORE_ALIAS = "keystore_alias";
+    public static final String DEFAULT_KEYSTORE_PASS = "jumpy-crazy-experience";
+    public static final String DEFAULT_CIPHER_SUITES = "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,"
+                                                    + "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,"
+                                                    + "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,"
+                                                    + "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384";
 
     // These keys/values are defined in global_defaults.properties files. During components startup,
     // if keys are in the OVERRIDABLE_ENV_PROPERTIES set and passed in from JVM environment,
@@ -171,6 +152,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     private static String componentType;
     private static String instanceId;
     private static String instanceIp;
+    private static Boolean enableConsulRegistration;
     private static Boolean standalone;
     private static long clusterMgrConnectionRetryDelayMs;
 
@@ -215,11 +197,12 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @Autowired(required = false)
     DiagnosticService diagnosticService;
 
+    @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
     @Autowired
     private ServletContext servletContext;
 
     @Autowired
-    private ConsulRegistrationConfig consulRegistrationConfig;
+    private ConsulDiscoveryManualConfig consulDiscoveryManualConfig;
 
     /**
      * Embed a component for monitoring dependency/subcomponent health.
@@ -269,9 +252,6 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         return componentType;
     }
 
-    /**
-     * After the Spring Environment has been constructed calculate the elapsed time.
-     */
     @PostConstruct
     public void componentContextConstructed() {
         logger.info("------------ spring context constructed ----------");
@@ -281,9 +261,6 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         STARTUP_DURATION_METRIC.setData((double)msToStartUp);
     }
 
-    /**
-     * Before the Spring Context is closed, log a message.
-     */
     @PreDestroy
     public void componentContextClosing() {
         logger.info("------------ spring context closing ----------");
@@ -358,10 +335,9 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         }
 
         setStatus(ExecutionStatus.MIGRATING);
-        final Boolean enableConsulRegistration = EnvironmentUtils
-            .getOptionalEnvProperty(ENABLE_CONSUL_REGISTRATION)
-            .map(Boolean::parseBoolean)
-            .orElse(false);
+        enableConsulRegistration = EnvironmentUtils.getOptionalEnvProperty(ConsulDiscoveryManualConfig.ENABLE_CONSUL_REGISTRATION)
+                .map(Boolean::parseBoolean)
+                .orElse(false);
         if (enableConsulRegistration) {
             baseVmtComponentConfig.migrationFramework().startMigrations(getMigrations(), false);
         }
@@ -376,6 +352,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @Override
     public final void stopComponent() {
         setStatus(ExecutionStatus.STOPPING);
+        logger.info("Deregistering service: {}", instanceId);
+        consulDiscoveryManualConfig.deregisterService();
         onStopComponent();
         stopGrpc();
         JETTY_SERVER.getValue().ifPresent(server -> {
@@ -557,8 +535,9 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                 // and the other interceptors get traced too.
                 serverInterceptors.add(tracingInterceptor);
 
-                allServices.forEach(service -> serverBuilder
-                    .addService(ServerInterceptors.intercept(service, serverInterceptors)));
+                allServices.forEach(service -> {
+                    serverBuilder.addService(ServerInterceptors.intercept(service, serverInterceptors));
+                });
 
                 try {
                     grpcServer = serverBuilder.build();
@@ -664,15 +643,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         // fetch the component information from the environment
         componentType = EnvironmentUtils.requireEnvProperty(PROP_COMPONENT_TYPE);
         instanceId = EnvironmentUtils.requireEnvProperty(PROP_INSTANCE_ID);
-        try {
-            instanceIp = EnvironmentUtils.getOptionalEnvProperty(PROP_INSTANCE_IP)
-                .orElse(InetAddress.getLocalHost().getHostAddress());
-        } catch (UnknownHostException e) {
-            logger.error("Cannot fetch localHost().", e);
-            System.exit(1);
-        }
-        logger.info("External configuration: componentType {}; instanceId {}; instanceIp {};",
-            componentType, instanceId, instanceIp);
+        instanceIp = EnvironmentUtils.getOptionalEnvProperty(PROP_INSTANCE_IP)
+                .orElse("");
         standalone = EnvironmentUtils.getOptionalEnvProperty(PROP_STANDALONE)
                 .map(Boolean::parseBoolean)
                 .orElse(false);
@@ -697,7 +669,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         System.setProperty("org.jooq.no-logo", "true");
 
         org.eclipse.jetty.server.Server server =
-                new org.eclipse.jetty.server.Server(Integer.parseInt(serverPort));
+                new org.eclipse.jetty.server.Server(Integer.valueOf(serverPort));
         JETTY_SERVER.trySetValue(server);
 
         final ServletContextHandler contextServer =
@@ -720,11 +692,6 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         return null;
     }
 
-    /**
-     * Create a handle to the ClusterMgr component REST API.
-     *
-     * @return a new Client for the ClusterMgr REST API
-     */
     public static ClusterMgrRestClient getClusterMgrClient() {
         final int clusterMgrPort = EnvironmentUtils.parseIntegerFromEnv("clustermgr_port");
         final int clusterMgrConnectionRetryDelaySecs = EnvironmentUtils.parseIntegerFromEnv("clustermgr_retry_delay_sec");
@@ -880,7 +847,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                 clusterMgrClient.putComponentDefaultProperties(componentType, defaultComponentProperties);
                 logger.info("Default property values for component type '{}' successfully stored",
                     componentType);
-                defaultProperties.forEach(BaseVmtComponent::logProperty);
+                defaultProperties.forEach((configKey, configValue) ->
+                    logProperty(configKey, configValue));
                 break;
             } catch (ResourceAccessException e) {
                 logger.error("Error in attempt {} to send default configuration from ClusterMgr: {}",
@@ -897,8 +865,6 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * This method is intended to be called by each component's main() method before
      * beginning Spring instantiation.
      *
-     * @param defaultProperties the set of properties to use as the baseline;
-     *                          loaded from a file "global_defaults.properties"
      */
     @VisibleForTesting
     static void fetchLocalConfigurationProperties(Properties defaultProperties) {
