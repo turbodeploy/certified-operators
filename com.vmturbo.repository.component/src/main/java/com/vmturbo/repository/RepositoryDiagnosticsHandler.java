@@ -11,6 +11,10 @@ import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+
+import io.prometheus.client.CollectorRegistry;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.core.io.ByteArrayResource;
@@ -21,10 +25,6 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
-
-import com.google.common.annotations.VisibleForTesting;
-
-import io.prometheus.client.CollectorRegistry;
 
 import com.vmturbo.arangodb.tool.ArangoDump;
 import com.vmturbo.arangodb.tool.ArangoRestore;
@@ -45,8 +45,8 @@ import com.vmturbo.repository.topology.TopologyLifecycleManager;
 /**
  * The {@link RepositoryDiagnosticsHandler} controls the dumping and restoring of the Repository's
  * internal state.
- * <p>
- * The state has two parts:
+ *
+ * <p>The state has two parts:
  * 1) Various files collected from {@link Diagnosable} objects injected into the handler,
  *    such as the {@link GlobalSupplyChainManager}.
  * 2) A binary file representing the Arangodb state collected via arangodump. See
@@ -91,8 +91,10 @@ public class RepositoryDiagnosticsHandler {
     @VisibleForTesting
     static final String ERRORS_FILE = "dump_errors";
 
-    static final String REALTIME_TOPOLOGY_STORE_DUMP_FILE = "live.topology.source.entities";
-    static final String REALTIME_PROJECTED_TOPOLOGY_STORE_DUMP_FILE = "projected.topology.source.entities";
+    private static final String REALTIME_TOPOLOGY_STORE_DUMP_FILE
+        = "live.topology.source.entities";
+    private static final String REALTIME_PROJECTED_TOPOLOGY_STORE_DUMP_FILE
+        = "projected.topology.source.entities";
 
     private final GlobalSupplyChainManager globalSupplyChainManager;
 
@@ -194,8 +196,12 @@ public class RepositoryDiagnosticsHandler {
             // Dumps the SE provider relationship
             if (globalSupplyChain.isPresent()) {
                 logger.info("Dumping global supply chain");
-                diagnosticsWriter.writeZipEntry(GLOBAL_SUPPLY_CHAIN_DIAGS_FILE,
+                try {
+                    diagnosticsWriter.writeZipEntry(GLOBAL_SUPPLY_CHAIN_DIAGS_FILE,
                         globalSupplyChain.get().collectDiags(), diagnosticZip);
+                } catch (DiagnosticsException e) {
+                    errors.addAll(e.getErrors());
+                }
             }
         }
 
@@ -210,8 +216,12 @@ public class RepositoryDiagnosticsHandler {
                 }
             })
             .orElse(Stream.empty());
-        diagnosticsWriter.writeZipEntry(REALTIME_TOPOLOGY_STORE_DUMP_FILE,
-            liveSourceTopology, diagnosticZip);
+        try {
+            diagnosticsWriter.writeZipEntry(REALTIME_TOPOLOGY_STORE_DUMP_FILE,
+                liveSourceTopology, diagnosticZip);
+        } catch (DiagnosticsException e) {
+            errors.addAll(e.getErrors());
+        }
 
         logger.info("Dumping live projected topology.");
         final Stream<String> liveProjectedTopology = liveTopologyStore.getProjectedTopology()
@@ -224,13 +234,25 @@ public class RepositoryDiagnosticsHandler {
                 }
             })
             .orElse(Stream.empty());
-        diagnosticsWriter.writeZipEntry(REALTIME_PROJECTED_TOPOLOGY_STORE_DUMP_FILE,
-            liveProjectedTopology, diagnosticZip);
+        try {
+            diagnosticsWriter.writeZipEntry(REALTIME_PROJECTED_TOPOLOGY_STORE_DUMP_FILE,
+                liveProjectedTopology, diagnosticZip);
+        } catch (DiagnosticsException e) {
+            errors.addAll(e.getErrors());
+        }
 
-        diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry, diagnosticZip);
+        try {
+            diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry, diagnosticZip);
+        } catch (DiagnosticsException e) {
+            errors.addAll(e.getErrors());
+        }
 
         if (!errors.isEmpty()) {
-            diagnosticsWriter.writeZipEntry(ERRORS_FILE, errors, diagnosticZip);
+            try {
+                diagnosticsWriter.writeZipEntry(ERRORS_FILE, errors, diagnosticZip);
+            } catch (DiagnosticsException e) {
+                logger.error("Error writing {}: errors: {}", ERRORS_FILE, errors, e);
+            }
         }
         return errors;
     }
@@ -326,8 +348,8 @@ public class RepositoryDiagnosticsHandler {
     /**
      * An interface to abstract away the details of interacting with the arango_dump_restore.py
      * web server in ArangoDB.
-     * <p>
-     * Mostly here for testing purposes (and also because it's cleaner :)).
+     *
+     * <p>Mostly here for testing purposes (and also because it's cleaner :)).
      */
     @VisibleForTesting
     interface TopologyDiagnostics {
@@ -339,10 +361,10 @@ public class RepositoryDiagnosticsHandler {
          *              The {@link Diags#getBytes()} method should return the bytes
          *              returned by {@link TopologyDiagnostics#dumpTopology(TopologyID)}.
          * @param topologyType The type of the topology.
-         * @throws DiagnosticsException
+         * @throws DiagnosticsException if there's an error reading the diagnostics dumps
          */
-        void restoreTopology(@Nonnull final Optional<Diags> diags,
-                             @Nonnull final TopologyType topologyType) throws DiagnosticsException;
+        void restoreTopology(@Nonnull Optional<Diags> diags,
+                             @Nonnull TopologyType topologyType) throws DiagnosticsException;
 
         /**
          * Dump the topology identified by the {@link TopologyID}.
@@ -377,7 +399,6 @@ public class RepositoryDiagnosticsHandler {
             this.restTemplate = Objects.requireNonNull(restTemplate);
         }
 
-        @Nonnull
         @Override
         public void restoreTopology(@Nonnull final Optional<Diags> diags,
                                     @Nonnull final TopologyType topologyType)

@@ -440,7 +440,8 @@ public class ClusterMgrController {
      * @return a map from component type -> {@link ComponentState} for that type
      */
     @ApiOperation("Get processing state from all running VmtComponents")
-    @RequestMapping(path = "/state")
+    @RequestMapping(path = "/state",
+        method = RequestMethod.GET)
     @ResponseBody
     @SuppressWarnings("unused")
     public Map<String, String> getComponentsState() {
@@ -454,7 +455,8 @@ public class ClusterMgrController {
      * @return a map from component type -> {@link HealthCheck}
      */
     @ApiOperation("Get service health from all running VmtComponents")
-    @RequestMapping(path = "/cluster/health")
+    @RequestMapping(path = "/cluster/health",
+        method = RequestMethod.GET)
     @ResponseBody
     @SuppressWarnings("unused")
     public Map<String, HealthCheck> getClusterHealth() {
@@ -469,7 +471,8 @@ public class ClusterMgrController {
      */
     @ApiOperation("Get diagnostics from all running VmtComponents")
     @RequestMapping(path = "/diagnostics",
-            produces = {"application/zip"})
+        method = RequestMethod.GET,
+        produces = {"application/zip"})
     @ResponseBody
     @SuppressWarnings("unused")
     public void getDiagnostics(OutputStream responseOutput) {

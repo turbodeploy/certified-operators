@@ -1,8 +1,5 @@
 package com.vmturbo.components.common;
 
-import java.util.Optional;
-
-import com.vmturbo.components.common.utils.EnvironmentUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,9 +16,10 @@ import com.vmturbo.components.common.health.MemoryMonitor;
 import com.vmturbo.components.common.logging.LogConfigurationService;
 import com.vmturbo.components.common.logging.TracingConfigurationRpcService;
 import com.vmturbo.components.common.metrics.ComponentLifespanMetrics;
-import com.vmturbo.components.common.migration.MigrationFramework;
 import com.vmturbo.components.common.migration.MigrationController;
+import com.vmturbo.components.common.migration.MigrationFramework;
 import com.vmturbo.components.common.tracing.TracingManager;
+import com.vmturbo.components.common.utils.EnvironmentUtils;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 
@@ -30,10 +28,8 @@ import com.vmturbo.kvstore.KeyValueStoreConfig;
  **/
 @Configuration
 @Import({BaseVmtComponentConfig.DebugSwaggerConfig.class, KeyValueStoreConfig.class,
-        ConsulDiscoveryManualConfig.class})
+        ConsulRegistrationConfig.class})
 public class BaseVmtComponentConfig {
-
-    private static Boolean enableConsulRegistration;
 
     @Value("${deadlockCheckIntervalSecs:900}")
     private int deadlockCheckIntervalSecs;
@@ -47,7 +43,7 @@ public class BaseVmtComponentConfig {
      * Required to fill @{...} @Value annotations referencing
      * properties from the diagnostic.properties.
      *
-     * See:
+     * <p>See:
      * https://docs.spring.io/spring/docs/4.2.4.RELEASE/javadoc-api/org/springframework/context/annotation/PropertySource.html
      *
      * @return The configurer.
@@ -110,9 +106,10 @@ public class BaseVmtComponentConfig {
 
     @Bean
     public MigrationFramework migrationFramework() {
-        enableConsulRegistration = EnvironmentUtils.getOptionalEnvProperty(ConsulDiscoveryManualConfig.ENABLE_CONSUL_REGISTRATION)
-                .map(Boolean::parseBoolean)
-                .orElse(false);
+        final Boolean enableConsulRegistration = EnvironmentUtils
+            .getOptionalEnvProperty(ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION)
+            .map(Boolean::parseBoolean)
+            .orElse(false);
         if (enableConsulRegistration) {
             return new MigrationFramework(keyValueStore());
         }

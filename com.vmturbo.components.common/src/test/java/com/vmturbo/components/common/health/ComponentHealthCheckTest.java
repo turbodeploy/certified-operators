@@ -22,7 +22,7 @@ import org.springframework.web.context.WebApplicationContext;
 import com.vmturbo.components.api.test.IntegrationTestServer;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.ComponentController;
-import com.vmturbo.components.common.ConsulDiscoveryManualConfig;
+import com.vmturbo.components.common.ConsulRegistrationConfig;
 
 public class ComponentHealthCheckTest {
 
@@ -52,6 +52,7 @@ public class ComponentHealthCheckTest {
         System.setProperty(BaseVmtComponent.PROP_STANDALONE, "true");
         System.setProperty(BaseVmtComponent.PROP_serverHttpPort, "8282");
         System.setProperty(BaseVmtComponent.PROP_INSTANCE_ID, "instance");
+        System.setProperty(BaseVmtComponent.PROP_INSTANCE_IP, "10.10.10.10");
         System.setProperty("serverGrpcPort", "9001");
         System.setProperty("consul_host", "consul");
         System.setProperty("consul_port", "5");
@@ -59,7 +60,7 @@ public class ComponentHealthCheckTest {
         environmentVariables.set(BaseVmtComponent.ENV_CLUSTERMGR_PORT, "8889");
         environmentVariables.set(BaseVmtComponent.ENV_CLUSTERMGR_RETRY_S, "10");
         environmentVariables.set(BaseVmtComponent.ENV_CLUSTERMGR_HOST, "clustermgr");
-        System.setProperty(ConsulDiscoveryManualConfig.ENABLE_CONSUL_REGISTRATION, "false");
+        System.setProperty(ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION, "false");
         context = SimpleTestComponent.start();
         mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
         testComponent = context.getBean(SimpleTestComponent.class);
