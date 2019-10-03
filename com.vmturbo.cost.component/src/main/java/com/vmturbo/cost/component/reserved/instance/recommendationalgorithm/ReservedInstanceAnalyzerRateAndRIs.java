@@ -401,6 +401,11 @@ public class ReservedInstanceAnalyzerRateAndRIs {
         List<ReservedInstanceBoughtInfo> reservedInstances = new ArrayList<>();
         Map<Long, List<ReservedInstanceBoughtInfo>> risBought =
                             reservedInstanceBoughtInfoTable.rowMap().get(regionalContext.getMasterAccountId());
+        if (risBought == null) {
+            logger.debug("lookupReservedInstancesBoughtInfos: found no bought RIs for context={}",
+                regionalContext);
+            return null;
+        }
         long regionId = regionalContext.getRegionId();
         for (Entry<Long, List<ReservedInstanceBoughtInfo>> entry: risBought.entrySet()) {
             Long zone = entry.getKey();
