@@ -98,6 +98,7 @@
         <flyway.version>4.0.3</flyway.version>
         <flyway-plugin.version>4.2.0</flyway-plugin.version>
         <google.findbugs.version>2.0.3</google.findbugs.version>
+        <spotbugs.version>3.1.12</spotbugs.version>
         <tomcat.version>8.5.15</tomcat.version>
         <start-class/>
         <api.version>${project.version}</api.version>
@@ -1223,6 +1224,23 @@
                     </configuration>
                 </plugin>
                 <plugin>
+                   <groupId>com.github.spotbugs</groupId>
+                   <artifactId>spotbugs-maven-plugin</artifactId>
+                   <version>${spotbugs.version}</version>
+                   <configuration>
+                       <!-- min|less|default|more|max -->
+                       <effort>More</effort>
+                       <!-- Report on Low, Medium, High bugs -->
+                       <threshold>High</threshold>
+                       <failOnError>false</failOnError>
+                       <maxHeap>1024</maxHeap>
+                       <!--
+                        <includeFilterFile></includeFilterFile>
+                        <excludeFilterFile></excludeFilterFile>
+                       -->
+                   </configuration>
+                </plugin>
+                <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-war-plugin</artifactId>
                     <version>2.5</version>
@@ -2221,6 +2239,12 @@
                 <groupId>org.powermock</groupId>
                 <artifactId>powermock-api-mockito</artifactId>
                 <version>${powermock.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs</artifactId>
+                <version>${spotbugs.version}</version>
                 <scope>test</scope>
             </dependency>
 
