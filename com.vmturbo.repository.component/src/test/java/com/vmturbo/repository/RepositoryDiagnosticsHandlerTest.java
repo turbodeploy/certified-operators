@@ -27,13 +27,13 @@ import java.util.Optional;
 import java.util.stream.Stream;
 import java.util.zip.ZipOutputStream;
 
+import io.prometheus.client.CollectorRegistry;
+
 import org.junit.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
-
-import io.prometheus.client.CollectorRegistry;
 
 import com.vmturbo.arangodb.tool.ArangoDump;
 import com.vmturbo.arangodb.tool.ArangoRestore;
@@ -89,7 +89,7 @@ public class RepositoryDiagnosticsHandlerTest {
     private final byte[] projectedTopoDump = new byte[]{2};
 
     @Test
-    public void testDumpNoRealtimeTopology() {
+    public void testDumpNoRealtimeTopology() throws DiagnosticsException {
         when(lifecycleManager.getRealtimeTopologyId(any()))
                 .thenReturn(Optional.empty());
         when(liveTopologyStore.getSourceTopology()).thenReturn(Optional.empty());
@@ -395,10 +395,6 @@ public class RepositoryDiagnosticsHandlerTest {
     }
 
     @Test
-    public void testRestoreTopologySuccess() throws DiagnosticsException {
-    }
-
-    @Test
     public void testRestoreWrongDiags() throws DiagnosticsException {
         // Set up all diags to return nulls for the data they're supposed to contain.
         final Diags idMgrDiags = mock(Diags.class);
@@ -430,9 +426,7 @@ public class RepositoryDiagnosticsHandlerTest {
 
         Boolean[] bools = new Boolean[otherDiags.length + 1];
         Arrays.fill(bools, true);
-        if (bools.length > 0) {
-            bools[bools.length - 1] = false;
-        }
+        bools[bools.length - 1] = false;
 
         when(diagsIt.hasNext()).thenReturn(true, bools);
         when(diagsIt.next()).thenReturn(diags, otherDiags);

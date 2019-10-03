@@ -6,12 +6,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.zip.ZipOutputStream;
+
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableBiMap;
 
 import io.prometheus.client.CollectorRegistry;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
@@ -27,6 +31,8 @@ import com.vmturbo.plan.orchestrator.templates.TemplateSpecParser;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 
 public class PlanOrchestratorDiagnosticsHandler {
+
+    private static final Logger logger = LogManager.getLogger();
 
     private final DiagnosticsWriter diagnosticsWriter;
 
@@ -83,17 +89,26 @@ public class PlanOrchestratorDiagnosticsHandler {
             errors.addAll(writeDiags(filename, diagnosable, diagnosticZip))
         );
 
-        diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry, diagnosticZip);
+        try {
+            diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry, diagnosticZip);
+        } catch (DiagnosticsException e) {
+            errors.addAll(e.getErrors());
+        }
 
         if (!errors.isEmpty()) {
-            diagnosticsWriter.writeZipEntry(ERRORS_FILE, errors, diagnosticZip);
+            try {
+                diagnosticsWriter.writeZipEntry(ERRORS_FILE, errors, diagnosticZip);
+            } catch (DiagnosticsException e) {
+                logger.error("Error dumping " + ERRORS_FILE, e);
+            }
         }
 
         return errors;
     }
 
     /**
-     * Write diagnostics from one diagnosable to a certain file in an output stream
+     * Write diagnostics from one diagnosable to a certain file in an output stream.
+     *
      * @param filename the file to write to
      * @param diagnosable diagnosable to collect diagnostics from
      * @param diagnosticZip the output stream to write to
@@ -111,7 +126,7 @@ public class PlanOrchestratorDiagnosticsHandler {
     }
 
     /**
-     * Restores the plan orchestrator component state from an {@link InputStream}
+     * Restores the plan orchestrator component state from an {@link InputStream}.
      *
      * @param inputStream the input stream to restore diagnostics from
      * @return a list of strings representing any errors that may have occurred
@@ -125,7 +140,7 @@ public class PlanOrchestratorDiagnosticsHandler {
     }
 
     /**
-     * Restore diagnostics to the diagnosable that matches the diagnostics file name
+     * Restore diagnostics to the diagnosable that matches the diagnostics file name.
      *
      * @param diags the diagnostics to restore including file name
      * @return a list of strings representing any errors that may have occurred

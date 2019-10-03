@@ -12,14 +12,17 @@ import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Lists;
+
+import io.prometheus.client.CollectorRegistry;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Cursor;
 import org.jooq.Field;
 
-import io.prometheus.client.CollectorRegistry;
-
 import com.vmturbo.components.common.DiagnosticsWriter;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.Tables;
@@ -29,8 +32,8 @@ import com.vmturbo.history.schema.abstraction.tables.records.ApplPerformanceReco
 
 /**
  * Responsible for collecting additional diagnostics from the history component.
- * <p>
- * Unlike the other components, we don't dump the actual contents of the various stat tables.
+ *
+ * <p>Unlike the other components, we don't dump the actual contents of the various stat tables.
  * It would be too expensive. As a result, there is no real "restore" for the diagnostics.
  */
 public class HistoryDiagnostics {
@@ -38,13 +41,13 @@ public class HistoryDiagnostics {
      * File name for the aggregation performance. This is data about the last day of
      * aggregation operations and how well they performed.
      */
-    private final static String AGGREGATION_PERFORMANCE = "AggregationPerformance.txt";
+    private static final String AGGREGATION_PERFORMANCE = "AggregationPerformance.txt";
 
     /**
      * File name for the aggregation metadata - this is data about the duration and completion
      * time of the last aggregation for each latest table.
      */
-    private final static String AGGREGATION_METADATA = "AggregationMetadata.txt";
+    private static final String AGGREGATION_METADATA = "AggregationMetadata.txt";
 
 
     private static final Logger logger = LogManager.getLogger();
@@ -70,16 +73,43 @@ public class HistoryDiagnostics {
      */
     public void dump(@Nonnull final ZipOutputStream zipOutputStream) {
 
-        diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry, zipOutputStream);
+        List<String> diagErrors = Lists.newArrayList();
 
-        writeAggregationPerformance(zipOutputStream);
+        try {
+            diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry,
+                zipOutputStream);
+        } catch (DiagnosticsException e) {
+            logger.error("Error writing prometheus metrics.", e);
+            diagErrors.addAll(e.getErrors());
+        }
 
-        writeAggregationMetadata(zipOutputStream);
+        try {
+            writeAggregationPerformance(zipOutputStream);
+        } catch (DiagnosticsException e) {
+            logger.error("Error writing aggregation performance.", e);
+            diagErrors.addAll(e.getErrors());
+        }
+
+        try {
+            writeAggregationMetadata(zipOutputStream);
+        } catch (DiagnosticsException e) {
+            logger.error("Error writing aggregation metadata.", e);
+            diagErrors.addAll(e.getErrors());
+        }
+
+        if (!diagErrors.isEmpty()) {
+            try {
+                diagnosticsWriter.writeZipEntry("Diag Errors", diagErrors, zipOutputStream);
+            } catch (DiagnosticsException e) {
+                logger.error("Diagnostics errors: {}", diagErrors);
+            }
+        }
     }
 
-    private void writeAggregationPerformance(@Nonnull final ZipOutputStream zipOutputStream) {
+    private void writeAggregationPerformance(@Nonnull final ZipOutputStream zipOutputStream)
+        throws DiagnosticsException {
         try (Connection connection = historydbIO.connection()) {
-            try (final Cursor<ApplPerformanceRecord> cursor = historydbIO.using(connection)
+            try (Cursor<ApplPerformanceRecord> cursor = historydbIO.using(connection)
                     .selectFrom(Tables.APPL_PERFORMANCE)
                     .where(Tables.APPL_PERFORMANCE.START_TIME.gt(
                         Timestamp.from(clock.instant().minus(1, ChronoUnit.DAYS))))
@@ -110,7 +140,8 @@ public class HistoryDiagnostics {
         }
     }
 
-    private void writeAggregationMetadata(@Nonnull final ZipOutputStream zipOutputStream) {
+    private void writeAggregationMetadata(@Nonnull final ZipOutputStream zipOutputStream)
+        throws DiagnosticsException {
         try {
             final List<String> aggregationLines = new ArrayList<>();
             aggregationLines.add("Current clock time: " + LocalDateTime.now(clock));
@@ -134,7 +165,8 @@ public class HistoryDiagnostics {
 
             diagnosticsWriter.writeZipEntry(AGGREGATION_METADATA, aggregationLines, zipOutputStream);
         } catch (RuntimeException | VmtDbException | SQLException e) {
-            logger.error("Failed to write aggregation metadata due to error: {}", e.getMessage());
+            logger.error("Failed to write aggregation metadata due to error.", e);
+            throw new DiagnosticsException(e);
         }
     }
 

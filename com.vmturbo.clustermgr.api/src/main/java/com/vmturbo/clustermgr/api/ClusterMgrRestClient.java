@@ -1,5 +1,7 @@
 package com.vmturbo.clustermgr.api;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.util.ArrayList;
@@ -24,6 +26,7 @@ import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.web.client.RequestCallback;
 import org.springframework.web.client.ResponseExtractor;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
@@ -292,15 +295,23 @@ public class ClusterMgrRestClient extends ComponentRestClient {
                         new MediaType("application", "zip"),
                         MediaType.APPLICATION_OCTET_STREAM,
                         MediaType.ALL));
-        ResponseExtractor copyResponseToOutputStream = response -> {
-
-            ByteStreams.copy(response.getBody(), responseOutput);
+        ResponseExtractor<Object> copyResponseToOutputStream = response -> {
+            try (InputStream inputStream = response.getBody()) {
+                ByteStreams.copy(inputStream, responseOutput);
+            } catch (IOException e) {
+                logger.error("IOException {} collecting component diagnostics.",
+                    e.toString());
+            }
             return null;
         };
-        getStreamingRestTemplate().execute(uriBase + DIAGNOSTICS_URI,
+        try {
+            getStreamingRestTemplate().execute(uriBase + DIAGNOSTICS_URI,
                 HttpMethod.GET,
                 requestCallback,
                 copyResponseToOutputStream);
+        } catch (RestClientException e) {
+            logger.error("Exception requesting diagnostics.", e);
+        }
     }
 
 
