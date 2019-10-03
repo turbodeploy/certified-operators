@@ -17,6 +17,10 @@ import org.mockito.Mockito;
 
 import com.vmturbo.mediation.aws.client.AwsAccount;
 import com.vmturbo.mediation.conversion.util.TestUtils;
+import com.vmturbo.platform.common.builders.ActionPolicyBuilder;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionCapability;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;
@@ -143,5 +147,26 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
 
         assertTrue(
             TestUtils.verifyEntityTypes(entitiesInSupplyChain, AWS_CONVERSION_PROBE_ENTITY_TYPES));
+    }
+
+    /**
+     * Test that conversion probe returns all action policies from parent as well as
+     * those new to XL.
+     */
+    @Test
+    public void testGetActionPolicies() {
+        final AwsConversionProbe awsConversionProbe = new AwsConversionProbe();
+        final AwsProbe legacyProbe = new AwsProbe();
+        final List<ActionPolicyDTO> resultPolicies = awsConversionProbe.getActionPolicies();
+        final List<ActionPolicyDTO> oldActionPolicies = legacyProbe.getActionPolicies();
+        final List<ActionPolicyDTO> newActionPolicies = new ActionPolicyBuilder()
+            .entityType(EntityType.VIRTUAL_VOLUME)
+            .policy(ActionType.MOVE, ActionCapability.SUPPORTED)
+            .build();
+
+        assertTrue(resultPolicies.containsAll(oldActionPolicies));
+        assertTrue(resultPolicies.containsAll(newActionPolicies));
+        assertEquals(oldActionPolicies.size() + newActionPolicies.size(), resultPolicies.size());
+
     }
 }

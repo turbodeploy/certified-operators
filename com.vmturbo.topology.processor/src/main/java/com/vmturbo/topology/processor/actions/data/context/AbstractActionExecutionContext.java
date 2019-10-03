@@ -330,7 +330,10 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
                     getPrimaryEntityId(),
                     TARGET_LOOKUP_TOKEN);
             // Look up the raw entity info for the host
-            return Optional.of(getFullEntityDTO(entityInfo.getHost()));
+            final long host = entityInfo.getHost();
+            if (host != 0) {
+                return Optional.of(getFullEntityDTO(host));
+            }
         }
         return Optional.empty();
     }
