@@ -44,6 +44,17 @@ public class ReservedInstanceMapper {
 
     private static final int NUM_OF_HOURS_OF_YEAR = 365 * 24;
 
+    private final CloudTypeMapper cloudTypeMapper;
+
+    /**
+     * Constructor for {@code ReservedInstanceMapper}.
+     *
+     * @param cloudTypeMapper {@link CloudTypeMapper} instance.
+     */
+    public ReservedInstanceMapper(final CloudTypeMapper cloudTypeMapper) {
+        this.cloudTypeMapper = cloudTypeMapper;
+    }
+
     /**
      * Convert {@link ReservedInstanceBought} and {@link ReservedInstanceSpec} to {@link ReservedInstanceApiDTO}.
      *
@@ -280,7 +291,7 @@ public class ReservedInstanceMapper {
      * @return {@link CloudType} instance for the given reserved instance.
      */
     @Nonnull
-    private static CloudType retrieveCloudType(
+    private CloudType retrieveCloudType(
             @Nonnull final ReservedInstanceBoughtInfo reservedInstanceBoughtInfo,
             @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap)
             throws NotFoundCloudTypeException {
@@ -300,12 +311,16 @@ public class ReservedInstanceMapper {
             throw new NotFoundCloudTypeException("Missing target in Business Account " +
                 businessAccountId);
         }
-        final String type = targetApiDTO.getType();
-        final Optional<CloudType> cloudType = CloudType.getByName(type);
-        if (!cloudType.isPresent()) {
-            throw new NotFoundCloudTypeException("Unknown Cloud Type: " + type);
+        final String targetType = targetApiDTO.getType();
+        if (targetType == null) {
+            throw new NotFoundCloudTypeException("Missing target type for target: " + targetApiDTO);
         }
-        return cloudType.get();
+        final CloudType cloudType = cloudTypeMapper.fromTargetType(targetType);
+        if (cloudType == null) {
+            throw new NotFoundCloudTypeException("Cannot identify Cloud for target type: "
+                + targetType);
+        }
+        return cloudType;
     }
 
     /**

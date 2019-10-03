@@ -5,9 +5,9 @@ import static org.junit.Assert.assertEquals;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableMap;
+
+import org.junit.Test;
 
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
@@ -26,13 +26,15 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
- * Unit tests for {@link ReservedInstanceMapperTest} class.
+ * Unit tests for {@link ReservedInstanceMapper} class.
  */
 public class ReservedInstanceMapperTest {
 
-    private ReservedInstanceMapper reservedInstanceMapper = new ReservedInstanceMapper();
+    private ReservedInstanceMapper reservedInstanceMapper =
+        new ReservedInstanceMapper(new CloudTypeMapper());
 
     private ReservedInstanceBought riBought = ReservedInstanceBought.newBuilder()
             .setId(123L)
@@ -114,12 +116,32 @@ public class ReservedInstanceMapperTest {
         assertEquals(CloudType.AWS, reservedInstanceApiDTO.getCloudType());
     }
 
+    /**
+     * Test mapping for Azure RI.
+     *
+     * @throws Exception in case of any error.
+     */
     @Test
     public void testMapToReservedInstanceApiDTOForAzure() throws Exception {
+        testMapToReservedInstanceApiDTOForAzureProbeType(SDKProbeType.AZURE);
+    }
+
+    /**
+     * Test mapping for Azure EA RI.
+     *
+     * @throws Exception in case of any error.
+     */
+    @Test
+    public void testMapToReservedInstanceApiDTOForAzureEA() throws Exception {
+        testMapToReservedInstanceApiDTOForAzureProbeType(SDKProbeType.AZURE_EA);
+    }
+
+    private void testMapToReservedInstanceApiDTOForAzureProbeType(SDKProbeType probeType)
+            throws Exception {
         // Arrange
         final ServiceEntityApiDTO businessAccount = new ServiceEntityApiDTO();
         final TargetApiDTO target = new TargetApiDTO();
-        target.setType(CloudType.AZURE.name());
+        target.setType(probeType.getProbeType());
         businessAccount.setDiscoveredBy(target);
         final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap = ImmutableMap
             .of(11L, businessAccount);

@@ -179,8 +179,18 @@ public class MapperConfig {
     }
 
     @Bean
+    public CloudTypeMapper cloudTypeMapper() {
+        return new CloudTypeMapper();
+    }
+
+    /**
+     * Get {@link ReservedInstanceMapper} bean.
+     *
+     * @return {@link ReservedInstanceMapper} bean.
+     */
+    @Bean
     public ReservedInstanceMapper reservedInstanceMapper() {
-        return new ReservedInstanceMapper();
+        return new ReservedInstanceMapper(mapperConfig.cloudTypeMapper());
     }
 
     @Bean
