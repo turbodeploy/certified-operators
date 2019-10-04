@@ -499,24 +499,30 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      */
     @Override
     @Nonnull
-    public synchronized Optional<Discovery> addPendingDiscovery(long targetId)
-            throws TargetNotFoundException, CommunicationException, InterruptedException {
+    public Optional<Discovery> addPendingDiscovery(long targetId)
+        throws TargetNotFoundException, CommunicationException, InterruptedException {
+        // TODO: Replace this with a dedicated lock object to synchronize on (see OM-51162)
+        synchronized (this) {
             final Optional<Discovery> currentDiscovery = getInProgressDiscoveryForTarget(targetId);
             if (currentDiscovery.isPresent()) {
                 // Add the target to the set of pending targets.
                 pendingDiscoveries.add(targetId);
                 return Optional.empty();
             }
-
+        }
         try {
+            // Avoid holding a lock while calling this, else that lock will continue to be held
+            // while waiting on a probe operation permit.
             return Optional.of(startDiscovery(targetId));
         } catch (ProbeException e) {
+            synchronized (this) {
                 pendingDiscoveries.add(targetId);
                 lastCompletedTargetDiscoveries.remove(targetId);
                 lastCompletedTargetValidations.remove(targetId);
                 return Optional.empty();
             }
         }
+    }
 
     /**
      * Request a discovery on a target. There may be only a single ongoing discovery
@@ -527,6 +533,9 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * throws exceptions if the discovery can't initiate. If a problem
      * occurs after the discovery is initiated, an appropriate error will be enqueued
      * for later processing.
+     *
+     * Note: It is best to avoid holding unnecessary locks when calling this method, as it may
+     *       block for an extended period while waiting for a probe operation permit.
      *
      * @param targetId The id of the target to discover.
      * @return The {@link Discovery} requested for the given target. If there was no ongoing discovery

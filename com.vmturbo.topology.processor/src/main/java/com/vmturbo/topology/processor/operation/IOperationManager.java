@@ -99,6 +99,9 @@ public interface IOperationManager {
      * occurs after the discovery is initiated, an appropriate error will be enqueued
      * for later processing.
      *
+     * Note: It is best to avoid holding unnecessary locks when calling this method, as it may
+     *       block for an extended period while waiting for a probe operation permit.
+     *
      * @param targetId The id of the target to discover.
      * @return The {@link Discovery} requested for the given target. If there was no ongoing
      * discovery
