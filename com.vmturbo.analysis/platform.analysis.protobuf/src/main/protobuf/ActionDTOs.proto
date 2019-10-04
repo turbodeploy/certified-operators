@@ -32,7 +32,7 @@ message MoveTO {
     // Contains additional information about the Move
     message MoveContext {
         // The allocated region ID in NumericIDAllocator that has the best cost. Assumed null if missing.
-        optional int32 region_id = 1;
+        optional int64 region_id = 1;
     }
 
     // The context of the move, contains additional info.

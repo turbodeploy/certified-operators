@@ -649,7 +649,7 @@ public class TestUtils {
     public static CbtpCostDTO.Builder createCbtpBundleBuilder(int couponBaseType, double price, double averageDiscount) {
         CbtpCostDTO.Builder cbtpBundleBuilder = CbtpCostDTO.newBuilder();
         cbtpBundleBuilder.setCouponBaseType(couponBaseType);
-        cbtpBundleBuilder.setPrice(price);
+        cbtpBundleBuilder.setCostTuple(CostTuple.newBuilder().setPrice(price));
         cbtpBundleBuilder.setDiscountPercentage(averageDiscount);
         return cbtpBundleBuilder;
     }

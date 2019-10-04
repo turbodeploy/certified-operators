@@ -97,11 +97,11 @@ public class CostTable {
      * Class to support the Cost values by Cloud info.
      */
     private static class CostTableKey {
-        private int regionId;           // -1 if not provided
+        private long regionId;           // -1 if not provided
         private long businessAccountId; // -1 if not provided
         private int licenseCommodityType;
 
-        public CostTableKey(int regionId, long businessAccountId, int licenseCommodityType) {
+        public CostTableKey(long regionId, long businessAccountId, int licenseCommodityType) {
             this.regionId = regionId;
             this.businessAccountId = businessAccountId;
             this.licenseCommodityType = licenseCommodityType;
@@ -125,7 +125,7 @@ public class CostTable {
         public int hashCode() {
             final int prime = 31;
             int result = 1;
-            result = prime * result + regionId;
+            result = prime * result + Long.hashCode(regionId);
             result = prime * result + Long.hashCode(businessAccountId);
             result = prime * result + licenseCommodityType;
             return result;

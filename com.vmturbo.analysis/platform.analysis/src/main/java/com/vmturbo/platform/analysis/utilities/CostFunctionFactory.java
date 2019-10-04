@@ -596,17 +596,22 @@ public class CostFunctionFactory {
         double singleVmTemplateCost = templateCostForBuyer / (groupFactor > 0 ? groupFactor : 1);
 
         double discountedCost = 0;
+        final CostTuple costTuple = cbtpResourceBundle.getCostTuple();
         if (availableCoupons > 0) {
             if (couponCommSoldByTp.getCapacity() != 0) {
                 double templateCostPerCoupon = singleVmTemplateCost / couponCommSoldByTp.getCapacity();
                 // Assuming 100% discount for the portion of requested coupons satisfied by the CBTP
                 double numCouponsToPayFor = Math.max(0, (requestedCoupons - availableCoupons));
-                if (cbtpResourceBundle.getPrice() != 0) {
-                    discountedCost = Math.max(cbtpResourceBundle.getPrice(),
+                if (costTuple != null && costTuple.getPrice() != 0) {
+                    discountedCost = Math.max(costTuple.getPrice(),
                             numCouponsToPayFor * templateCostPerCoupon);
                 } else {
                     discountedCost = numCouponsToPayFor * templateCostPerCoupon;
                 }
+            } else {
+                logger.warn("Coupon commodity sold by {} has 0 capacity.",
+                        matchingTP.getDebugInfoNeverUseInCode());
+                discountedCost = Double.POSITIVE_INFINITY;
             }
         } else {
             // In case that there isn't discount available, avoid preferring a cbtp that provides
@@ -675,7 +680,7 @@ public class CostFunctionFactory {
             costTuple = costTable.getTuple(regionCommBoughtIndex, accountId, CostTable.NO_VALUE);
         }
 
-        final Integer regionId = costTuple.getRegionId();
+        final Long regionId = costTuple.getRegionId();
         final double cost = costTuple.getPrice();
         // NOTE: CostTable.NO_VALUE (-1) is the no license commodity type
         return Double.isInfinite(cost) && licenseCommBoughtIndex != CostTable.NO_VALUE ?

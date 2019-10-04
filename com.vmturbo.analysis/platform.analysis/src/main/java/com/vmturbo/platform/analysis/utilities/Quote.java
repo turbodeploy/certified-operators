@@ -341,7 +341,7 @@ public abstract class Quote {
 
         protected CommodityCloudQuote(@Nullable final Trader seller,
                                       final double quoteValue,
-                                      @Nullable final Integer regionId) {
+                                      @Nullable final Long regionId) {
             super(seller, quoteValue);
             MoveContext.Builder builder = MoveContext.newBuilder();
             if (regionId != null) {
