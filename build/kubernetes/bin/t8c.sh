@@ -350,7 +350,19 @@ then
 
   # Setup mariadb before brining up XL components
   #./mariadb_storage_setup.sh
-  /opt/local/bin/configure_mariadb.sh
+  # Check to see if an external db is being used.  If so, do not run mariadb locally
+  egrep "externalDBName" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
+  externalDB=$(echo $?)
+  if [ X${externalDB} = X0 ]
+  then
+    externalDB=$(egrep "externalDBName" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml)
+    echo "The database is external from thise server"
+    echo "${externalDB}"
+  else
+    /opt/local/bin/configure_mariadb.sh
+  fi
+
+  # Create the operator  
   kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/service_account.yaml -n turbonomic
   kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/role.yaml -n turbonomic
   kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/role_binding.yaml -n turbonomic
