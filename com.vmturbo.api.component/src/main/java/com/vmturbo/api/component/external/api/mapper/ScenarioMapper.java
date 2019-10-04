@@ -402,18 +402,26 @@ public class ScenarioMapper {
      * @param maxUtilizations a list of the max utilization settings from the UI
      * @return a list of matching {@link ScenarioChange} objects
      */
+    @VisibleForTesting
     @Nonnull
-    private List<ScenarioChange> getMaxUtilizationChanges(@Nonnull final List<MaxUtilizationApiDTO> maxUtilizations) {
+    List<ScenarioChange> getMaxUtilizationChanges(@Nonnull final List<MaxUtilizationApiDTO> maxUtilizations) {
         List<ScenarioChange> scenarioChanges = new ArrayList<>(maxUtilizations.size());
         for (MaxUtilizationApiDTO maxUtilization : maxUtilizations) {
             final Builder maxUtilLevelBuilder = MaxUtilizationLevel.newBuilder();
             maxUtilLevelBuilder.setPercentage(maxUtilization.getMaxPercentage());
             // if the UUID is null or "Market", we don't set the Group OID, since by default the scope is "Market"
-            if (maxUtilization.getTarget().getUuid() != null
+            if (maxUtilization.getTarget() != null
+                    && maxUtilization.getTarget().getUuid() != null
                     && !(MarketMapper.MARKET.equals(maxUtilization.getTarget().getUuid()))) {
                 // get the target oid for this change
                 maxUtilLevelBuilder.setGroupOid(Long.parseLong(maxUtilization.getTarget().getUuid()));
             }
+
+            if (maxUtilization.getSelectedEntityType() != null) {
+                maxUtilLevelBuilder.setSelectedEntityType(
+                        UIEntityType.fromStringToSdkType(maxUtilization.getSelectedEntityType()));
+            }
+
             scenarioChanges.add(ScenarioChange.newBuilder()
                     .setPlanChanges(PlanChanges.newBuilder()
                             .setMaxUtilizationLevel(maxUtilLevelBuilder))
@@ -580,8 +588,9 @@ public class ScenarioMapper {
         return loadChanges;
     }
 
+    @VisibleForTesting
     @Nonnull
-    private static List<MaxUtilizationApiDTO> getMaxUtilizationApiDTOs(List<ScenarioChange> changes,
+    static List<MaxUtilizationApiDTO> getMaxUtilizationApiDTOs(List<ScenarioChange> changes,
                                                                        ScenarioChangeMappingContext context) {
         return changes.stream()
                 .filter(change -> change.getPlanChanges().hasMaxUtilizationLevel())
@@ -596,6 +605,12 @@ public class ScenarioMapper {
                     if (maxUtilizationLevel.hasGroupOid()) {
                         maxUtilization.setTarget(context.dtoForId(maxUtilizationLevel.getGroupOid()));
                     }
+
+                    if (maxUtilizationLevel.hasSelectedEntityType()) {
+                        maxUtilization.setSelectedEntityType(
+                                UIEntityType.fromSdkTypeToEntityTypeString(maxUtilizationLevel.getSelectedEntityType()));
+                    }
+
                     return maxUtilization;
                 })
                 .collect(Collectors.toList());

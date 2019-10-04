@@ -297,9 +297,15 @@ message ScenarioChange {
         // TODO: Can this be modeled as a SettingOverride instead, once we expand that message to
         // allow scoping the override to a group?
         message MaxUtilizationLevel {
+
             required int32 percentage = 2;
-            // the group to apply this to. This is expected to be a group of hosts or storages.
+
+            // The group to apply this to. This is expected to be a group of hosts or storages.
+            // If null, apply to global scope
             optional int64 group_oid = 3;
+
+            // Type of entity being targeted with global scope configuration
+            optional int32 selected_entity_type = 4;
         }
 
         // Represents baseline date selected from UI. It is used to get the used and peak values from historical data

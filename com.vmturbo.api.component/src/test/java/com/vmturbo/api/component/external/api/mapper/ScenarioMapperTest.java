@@ -53,6 +53,7 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.scenario.AddObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ConfigChangesApiDTO;
 import com.vmturbo.api.dto.scenario.LoadChangesApiDTO;
+import com.vmturbo.api.dto.scenario.MaxUtilizationApiDTO;
 import com.vmturbo.api.dto.scenario.RelievePressureObjectApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveConstraintApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveObjectApiDTO;
@@ -81,6 +82,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.DetailsCase;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.HistoricalBaseline;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreConstraint;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.MaxUtilizationLevel;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.UtilizationLevel;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
@@ -1067,6 +1069,187 @@ public class ScenarioMapperTest {
                                 .map(change -> change.getSettingOverride().getSetting())
                                 .collect(Collectors.toList()));
     }
+
+    /**
+     * Tests convert {@link MaxUtilizationLevel} objects to {@link MaxUtilizationApiDTO}.
+     * All fields with values
+     */
+    @Test
+    public void testGetMaxUtilizationApiDTOs() {
+        //GIVEN
+        final MaxUtilizationLevel maxUtilLevel = MaxUtilizationLevel.newBuilder()
+                .setPercentage(100)
+                .setGroupOid(12)
+                .setSelectedEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .build();
+        List<ScenarioChange> changes = new ArrayList<ScenarioChange>();
+        changes.add(ScenarioChange.newBuilder()
+                .setPlanChanges(PlanChanges.newBuilder()
+                        .setMaxUtilizationLevel(maxUtilLevel))
+                .build());
+
+        ScenarioChangeMappingContext contextMock = mock(ScenarioChangeMappingContext.class);
+        BaseApiDTO baseApiDto = new BaseApiDTO();
+        when(contextMock.dtoForId(maxUtilLevel.getGroupOid())).thenReturn(baseApiDto);
+
+
+        //WHEN
+        List<MaxUtilizationApiDTO> dtos = scenarioMapper.getMaxUtilizationApiDTOs(changes, contextMock);
+
+        //THEN
+        assertEquals(1, dtos.size());
+        assertEquals(baseApiDto, dtos.get(0).getTarget());
+        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), dtos.get(0).getSelectedEntityType());
+        assertEquals(Integer.valueOf(100), dtos.get(0).getMaxPercentage());
+    }
+
+    /**
+     * Tests convert {@link MaxUtilizationLevel} objects to {@link MaxUtilizationApiDTO}.
+     * Group field is null, indicates global setting
+     */
+    @Test
+    public void testGetMaxUtilizationApiDTOsWithoutGroup() {
+        //GIVEN
+        final MaxUtilizationLevel maxUtilLevel = MaxUtilizationLevel.newBuilder()
+                .setPercentage(100)
+                .setSelectedEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .build();
+        List<ScenarioChange> changes = new ArrayList<ScenarioChange>();
+        changes.add(ScenarioChange.newBuilder()
+                .setPlanChanges(PlanChanges.newBuilder()
+                        .setMaxUtilizationLevel(maxUtilLevel))
+                .build());
+
+        ScenarioChangeMappingContext contextMock = mock(ScenarioChangeMappingContext.class);
+        BaseApiDTO baseApiDto = new BaseApiDTO();
+        when(contextMock.dtoForId(maxUtilLevel.getGroupOid())).thenReturn(baseApiDto);
+
+
+        //WHEN
+        List<MaxUtilizationApiDTO> dtos = scenarioMapper.getMaxUtilizationApiDTOs(changes, contextMock);
+
+        //THEN
+        assertEquals(1, dtos.size());
+        assertNull(dtos.get(0).getTarget());
+        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), dtos.get(0).getSelectedEntityType());
+        assertEquals(Integer.valueOf(100), dtos.get(0).getMaxPercentage());
+    }
+
+    /**
+     * Tests convert {@link MaxUtilizationLevel} objects to {@link MaxUtilizationApiDTO}.
+     * targetEntity
+     */
+    @Test
+    public void testGetMaxUtilizationApiDTOsWithoutTargetEntityType() {
+        //GIVEN
+        final MaxUtilizationLevel maxUtilLevel = MaxUtilizationLevel.newBuilder()
+                .setPercentage(100)
+                .setGroupOid(12)
+                .build();
+        List<ScenarioChange> changes = new ArrayList<ScenarioChange>();
+        changes.add(ScenarioChange.newBuilder()
+                .setPlanChanges(PlanChanges.newBuilder()
+                        .setMaxUtilizationLevel(maxUtilLevel))
+                .build());
+
+        ScenarioChangeMappingContext contextMock = mock(ScenarioChangeMappingContext.class);
+        BaseApiDTO baseApiDto = new BaseApiDTO();
+        when(contextMock.dtoForId(maxUtilLevel.getGroupOid())).thenReturn(baseApiDto);
+
+        //WHEN
+        List<MaxUtilizationApiDTO> dtos = scenarioMapper.getMaxUtilizationApiDTOs(changes, contextMock);
+
+        //THEN
+        assertEquals(1, dtos.size());
+        assertEquals(baseApiDto, dtos.get(0).getTarget());
+        assertNull(dtos.get(0).getSelectedEntityType());
+        assertEquals(Integer.valueOf(100), dtos.get(0).getMaxPercentage());
+    }
+
+    /**
+     * Tests convert {@link MaxUtilizationApiDTO} objects to {@link MaxUtilizationLevel}.
+     * All dto fields have values
+     */
+    @Test
+    public void testGetMaxUtilizationChanges() {
+        //GIVEN
+        BaseApiDTO baseApiDTO = new BaseApiDTO();
+        baseApiDTO.setUuid("23");
+
+        MaxUtilizationApiDTO maxUtil = new MaxUtilizationApiDTO();
+        maxUtil.setMaxPercentage(100);
+        maxUtil.setSelectedEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        maxUtil.setTarget(baseApiDTO);
+
+        List<MaxUtilizationApiDTO> maxUtilizations = new ArrayList<MaxUtilizationApiDTO>() {{
+            add(maxUtil);
+        }};
+
+        //WHEN
+        List<ScenarioChange> scenarioChanges = scenarioMapper.getMaxUtilizationChanges(maxUtilizations);
+
+        //THEN
+        assertEquals(1, scenarioChanges.size());
+        MaxUtilizationLevel mLevel = scenarioChanges.get(0).getPlanChanges().getMaxUtilizationLevel();
+        assertEquals(100, mLevel.getPercentage());
+        assertEquals(UIEntityType.VIRTUAL_MACHINE.typeNumber(), mLevel.getSelectedEntityType());
+        assertEquals(baseApiDTO.getUuid(), String.valueOf(mLevel.getGroupOid()));
+    }
+
+    /**
+     * Tests convert {@link MaxUtilizationApiDTO} objects to {@link MaxUtilizationLevel}.
+     * Target object missing
+     */
+    @Test
+    public void testGetMaxUtilizationChangesWithNullGroup() {
+        //GIVEN
+        MaxUtilizationApiDTO maxUtil = new MaxUtilizationApiDTO();
+        maxUtil.setMaxPercentage(100);
+        maxUtil.setSelectedEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        List<MaxUtilizationApiDTO> maxUtilizations = new ArrayList<MaxUtilizationApiDTO>() {{
+            add(maxUtil);
+        }};
+
+        //WHEN
+        List<ScenarioChange> scenarioChanges = scenarioMapper.getMaxUtilizationChanges(maxUtilizations);
+
+        //THEN
+        assertEquals(1, scenarioChanges.size());
+        MaxUtilizationLevel mLevel = scenarioChanges.get(0).getPlanChanges().getMaxUtilizationLevel();
+        assertEquals(100, mLevel.getPercentage());
+        assertEquals(UIEntityType.VIRTUAL_MACHINE.typeNumber(), mLevel.getSelectedEntityType());
+        assertEquals(0, mLevel.getGroupOid());
+    }
+
+    /**
+     * Tests convert {@link MaxUtilizationApiDTO} objects to {@link MaxUtilizationLevel}.
+     * Tests conversion with targetEntityType null
+     */
+    @Test
+    public void testGetMaxUtilizationChangesWithNullTargetEntityType() {
+        //GIVEN
+        BaseApiDTO baseApiDTO = new BaseApiDTO();
+        baseApiDTO.setUuid("23");
+
+        MaxUtilizationApiDTO maxUtil = new MaxUtilizationApiDTO();
+        maxUtil.setMaxPercentage(100);
+        maxUtil.setTarget(baseApiDTO);
+        maxUtil.setMaxPercentage(100);
+
+        List<MaxUtilizationApiDTO> maxUtilizations = new ArrayList<MaxUtilizationApiDTO>() {{
+            add(maxUtil);
+        }};
+
+        //WHEN
+        List<ScenarioChange> scenarioChanges = scenarioMapper.getMaxUtilizationChanges(maxUtilizations);
+
+        //THEN
+        assertEquals(1, scenarioChanges.size());
+        MaxUtilizationLevel mLevel = scenarioChanges.get(0).getPlanChanges().getMaxUtilizationLevel();
+        assertEquals(100, mLevel.getPercentage());
+        assertEquals(baseApiDTO.getUuid(), String.valueOf(mLevel.getGroupOid()));
+    }
+
 
     private SettingApiDTO<String> createStringSetting(final String uuid, final String value) {
         SettingApiDTO<String> riSetting = new SettingApiDTO<>();
