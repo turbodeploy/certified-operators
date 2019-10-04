@@ -19,6 +19,7 @@ import static com.vmturbo.history.db.jooq.JooqUtils.dField;
 import static com.vmturbo.history.db.jooq.JooqUtils.dateOrTimestamp;
 import static com.vmturbo.history.db.jooq.JooqUtils.doubl;
 import static com.vmturbo.history.db.jooq.JooqUtils.relType;
+import static com.vmturbo.history.db.jooq.JooqUtils.getBigDecimalField;
 import static com.vmturbo.history.db.jooq.JooqUtils.statsTableByTimeFrame;
 import static com.vmturbo.history.db.jooq.JooqUtils.str;
 import static com.vmturbo.history.db.jooq.JooqUtils.timestamp;
@@ -33,6 +34,7 @@ import static com.vmturbo.history.schema.abstraction.Tables.SCENARIOS;
 import static org.jooq.impl.DSL.avg;
 import static org.jooq.impl.DSL.row;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -62,6 +64,7 @@ import org.jooq.Query;
 import org.jooq.Record;
 import org.jooq.Record1;
 import org.jooq.Record2;
+import org.jooq.Record3;
 import org.jooq.Result;
 import org.jooq.Select;
 import org.jooq.Table;
@@ -121,7 +124,6 @@ public class  HistorydbIO extends BasedbIO {
 
     // min and max for numerical values for the statstables; must fit in DECIMAL(15,3), 12 digits
     private static final double MAX_STATS_VALUE = 1e12D - 1;
-    private static final int UTILIZATION_PRECISION = 3;
     private static final double MIN_STATS_VALUE = -MAX_STATS_VALUE;
     private final SQLConfigObject sqlConfigObject;
     private static final String SECURE_DB_URL = "?useSSL=true&trustServerCertificate=true";
@@ -821,31 +823,45 @@ public class  HistorydbIO extends BasedbIO {
             conditions.add(relType(dField(table, RELATION)).eq(RelationType.COMMODITIES));
         }
 
-        // This call adds the seek pagination parameters to the list of conditions.
-        seekPaginationCursor.toCondition(table, paginationParams)
-            .ifPresent(cursorConditions -> conditions.addAll(cursorConditions));
-
-
-        final Field<String> uuidField = (Field<String>) dField(table, UUID);
-        final Field<Double> valueField = seekPaginationCursor.getValueField(paginationParams,table);
-
+        final Field<BigDecimal> avgValue =
+            avg(doubl(dField(table, AVG_VALUE))).as(AVG_VALUE);
+        final Field<BigDecimal> avgCapacity =
+            avg(doubl(dField(table, CAPACITY))).as(CAPACITY);
+        final Field<String> uuid =
+            str(dField(table, UUID));
         if (!requestedIdSet.isEmpty()) {
-            conditions.add(uuidField.in(requestedIdSet));
+            conditions.add(uuid.in(requestedIdSet));
         }
         // Given an entity id, a commodity type and a time snapshot, we might have multiple
-        // entries in the db. We want to group them by the fields just mentioned and calculate the
-        // average of their utilization. This average utilization is the parameter that is going to
-        // be used to order each entity.
+        // entries in the db. We want to group them first, by averaging their values and
+        // capacity, this will be stored in the aggregate stats table. Then, from this table we
+        // can apply our cursor conditions and order the members based on the pagination
+        // parameters.
         try (Connection conn = transConnection()) {
-            final Result<Record2<String, Double>> results = using(conn)
-                .select(uuidField, valueField)
+            Table<Record3<String, BigDecimal, BigDecimal>> aggregatedStats = using(conn)
+                .select(uuid, avgValue, avgCapacity)
                 .from(table)
-                // The pagination is enforced by the conditions (see above).
                 .where(conditions)
-                .orderBy(paginationParams.isAscending() ? valueField.asc().nullsLast() :
-                        valueField.desc().nullsLast(),
+                .groupBy(uuid).asTable();
+            final Field<String> aggregateUuidField =  str(dField(aggregatedStats, UUID));
+            final Field<BigDecimal> aggregateValueField =
+                seekPaginationCursor.getValueField(paginationParams,
+                aggregatedStats);
+
+            // This call adds the seek pagination parameters to the list of conditions.
+            final List<Condition> cursorConditions = new ArrayList<>();
+            seekPaginationCursor.toCondition(aggregatedStats, paginationParams)
+                .ifPresent(cursorCondition -> cursorConditions.addAll(cursorCondition));
+
+            final Result<Record2<String, BigDecimal>> results = using(conn)
+                .select(aggregateUuidField, aggregateValueField)
+                .from(aggregatedStats)
+                // The pagination is enforced by the conditions (see above).
+                .where(cursorConditions)
+                .orderBy(paginationParams.isAscending() ? aggregateValueField.asc().nullsLast() :
+                        aggregateValueField.desc().nullsLast(),
                     paginationParams.isAscending() ?
-                    uuidField.asc() : uuidField.desc())
+                        aggregateUuidField.asc() : aggregateUuidField.desc())
                 // Add one to the limit so we can tests to see if there are more results.
                 .limit(paginationParams.getLimit() + 1)
                 .fetch();
@@ -853,13 +869,13 @@ public class  HistorydbIO extends BasedbIO {
                 // If there are more results, we trim the last result (since that goes beyond
                 // the page limit).
                 final List<String> nextPageIds =
-                    results.getValues(uuidField).subList(0, paginationParams.getLimit());
+                    results.getValues(aggregateUuidField).subList(0, paginationParams.getLimit());
                 final int lastIdx = nextPageIds.size() - 1;
                 return new NextPageInfo(nextPageIds, table,
                     SeekPaginationCursor.nextCursor(nextPageIds.get(lastIdx),
-                        results.getValue(lastIdx, valueField)));
+                        results.getValue(lastIdx, aggregateValueField)));
             } else {
-                return new NextPageInfo(results.getValues(uuidField), table, SeekPaginationCursor.empty());
+                return new NextPageInfo(results.getValues(aggregateUuidField), table, SeekPaginationCursor.empty());
             }
         } catch (SQLException e) {
             throw new VmtDbException(VmtDbException.SQL_EXEC_ERR, e);
@@ -1587,7 +1603,7 @@ public class  HistorydbIO extends BasedbIO {
     static class SeekPaginationCursor {
         private final Optional<String> lastId;
 
-        private final Optional<Double> lastValue;
+        private final Optional<BigDecimal> lastValue;
 
         /**
          * Do not use the constructor - use the helper methods!
@@ -1596,7 +1612,7 @@ public class  HistorydbIO extends BasedbIO {
          */
         @VisibleForTesting
         SeekPaginationCursor(final Optional<String> lastId,
-                                   final Optional<Double> lastValue) {
+                                   final Optional<BigDecimal> lastValue) {
             this.lastId = lastId;
             this.lastValue = lastValue;
         }
@@ -1618,7 +1634,8 @@ public class  HistorydbIO extends BasedbIO {
                 return new SeekPaginationCursor(Optional.empty(), Optional.empty());
             } else {
                 try {
-                    return new SeekPaginationCursor(Optional.of(results[0]), Optional.of(Double.valueOf(results[1])));
+                    return new SeekPaginationCursor(Optional.of(results[0]),
+                        Optional.of(new BigDecimal(results[1])));
                 } catch (NumberFormatException e) {
                     throw new IllegalArgumentException("Invalid cursor: " + nextCursor);
                 }
@@ -1640,7 +1657,7 @@ public class  HistorydbIO extends BasedbIO {
          * @return The {@link SeekPaginationCursor} object.
          */
         public static SeekPaginationCursor nextCursor(@Nonnull final String lastId,
-                                                      @Nonnull final Double lastValue) {
+                                                      @Nonnull final BigDecimal lastValue) {
             return new SeekPaginationCursor(Optional.of(lastId), Optional.of(lastValue));
         }
 
@@ -1652,7 +1669,7 @@ public class  HistorydbIO extends BasedbIO {
          */
         public Optional<String> toCursorString() {
             if (lastId.isPresent() && lastValue.isPresent()) {
-                return Optional.of(lastId.get() + ":" + Double.toString(lastValue.get()));
+                return Optional.of(lastId.get() + ":" + lastValue.get().toString());
             } else {
                 return Optional.empty();
             }
@@ -1668,11 +1685,13 @@ public class  HistorydbIO extends BasedbIO {
          * @return A {@link Field} containing the value field.
          */
         @VisibleForTesting
-        static Field<Double> getValueField(@Nonnull final EntityStatsPaginationParams paginationParams,
+        static Field<BigDecimal> getValueField(@Nonnull final EntityStatsPaginationParams paginationParams,
                                     @Nonnull final Table<?> table) {
-            final Field<Double> avgValueField = (doubl(dField(table, AVG_VALUE)));
+            final Field<BigDecimal> avgValueField =
+                getBigDecimalField(table, AVG_VALUE);
             return paginationParams.getSortCommodity().equals(PRICE_INDEX)
-                ? avgValueField : avgValueField.divide((doubl(dField(table, CAPACITY)))).round(UTILIZATION_PRECISION);
+                ? avgValueField :
+                avgValueField.divide(getBigDecimalField(table, CAPACITY));
         }
 
         /**

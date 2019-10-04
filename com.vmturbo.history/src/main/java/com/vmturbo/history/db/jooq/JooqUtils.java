@@ -6,8 +6,11 @@ import static com.vmturbo.history.schema.abstraction.Routines.startOfDay;
 import static com.vmturbo.history.schema.abstraction.Routines.startOfHour;
 import static com.vmturbo.history.schema.abstraction.Routines.startOfMonth;
 
+import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
+
+import javax.annotation.Nonnull;
 
 import org.jooq.Condition;
 import org.jooq.Field;
@@ -122,6 +125,19 @@ public class JooqUtils {
         return (Field<RelationType>)field;
     }
 
+    /**
+     * Get a field from a table and check that it's a BigDecimal field
+     */
+    @SuppressWarnings("unchecked")
+    @Nonnull
+    public static Field<BigDecimal> getBigDecimalField(@Nonnull Table<?> table,
+                                                @Nonnull String fieldName) {
+        return (Field<BigDecimal>) dField(table, fieldName);
+    }
+
+    /**
+     * Get a field from a table and check that it's some sort of Number field.
+     */
     @SuppressWarnings("unchecked")
     public static Field<? extends Number> number(Field<?> field){
         checkNotNull(field);
