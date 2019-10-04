@@ -32,8 +32,10 @@ import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 import com.google.protobuf.util.JsonFormat;
+
 import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.identity.store.IdentityStore;
+import com.vmturbo.identity.store.IdentityStoreUpdate;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue;
@@ -113,6 +115,38 @@ public class KVBackedTargetStoreTest {
         verify(keyValueStore).put(Mockito.eq("targets/" + target.getId()), any());
 
         targetStore.getTarget(target.getId()).get();
+    }
+
+    /**
+     * Test that when we create a target with bad account values, we get an exception and the
+     * identity store does not have a target with that ID in it afterwards.
+     *
+     * @throws Exception when something goes wrong.
+     */
+    @Test
+    public void testCreateTargetWrongAccountValues() throws Exception {
+        ProbeInfo pi = ProbeInfo.newBuilder()
+            .setProbeCategory("test")
+            .setProbeType("vc")
+            .addTargetIdentifierField(PredefinedAccountDefinition.Address.name().toLowerCase())
+            .build();
+        Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(pi));
+
+        final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L,
+            Collections.singletonList(new InputField(
+                PredefinedAccountDefinition.Username.name().toLowerCase(),
+                "foo",
+                Optional.empty())));
+        // we expect the create target to fail since the account values don't match the account
+        // definition of the probe.
+        try {
+            final Target target = targetStore.createTarget(spec.toDto());
+        } catch (InvalidTargetException e) {
+        }
+        // now we make sure that the target spec does not exist in the identity store
+        final IdentityStoreUpdate<TargetSpec> identityStoreUpdate = targetIdentityStore
+            .fetchOrAssignItemOids(Arrays.asList(spec.toDto()));
+        assertTrue(identityStoreUpdate.getOldItems().isEmpty());
     }
 
     @Test
@@ -525,7 +559,35 @@ public class KVBackedTargetStoreTest {
         return targetStore.getTarget(target.getId()).get().getSpec().getDerivedTargetIdsList();
     }
 
+    /**
+     * Test that if we have a derived target that has incorrect account values, we don't leave
+     * behind an entry for it in the identity store.
+     *
+     * @throws Exception when something goes wrong.
+     */
     @Test
+    public void testBadDerivedTargetPopulation() throws Exception {
+        prepareInitialProbe();
+        final Target parent = targetStore.createTarget(createTargetSpec(0L, 666));
+        final TargetSpec derivedTargetSpec1 = TargetSpec.newBuilder()
+            .setProbeId(DERIVED_PROBE_ID)
+            .setParentId(parent.getId())
+            .setIsHidden(true)
+            .addAllAccountValue(Collections.singleton(TopologyProcessorDTO.AccountValue.newBuilder()
+                .setKey("badfield")
+                .setStringValue("whocares")
+                .build()))
+            .build();
+        // this call should fail to create a derived target, since the account value doesn't
+        // match the probe's account definition
+        targetStore.createOrUpdateDerivedTargets(Lists.newArrayList(derivedTargetSpec1));
+        // now we make sure that the target spec does not exist in the identity store
+        final IdentityStoreUpdate<TargetSpec> identityStoreUpdate = targetIdentityStore
+            .fetchOrAssignItemOids(Arrays.asList(derivedTargetSpec1));
+        assertTrue(identityStoreUpdate.getOldItems().isEmpty());
+    }
+
+        @Test
     public void testPartialUpdateTarget() throws Exception {
         final String fooName = "foo";
         final String barName = "bar";

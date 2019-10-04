@@ -25,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
@@ -167,9 +168,15 @@ public class KVBackedTargetStore implements TargetStore {
             final Map<TargetSpec, Long> newItems = identityStoreUpdate.getNewItems();
             if (!newItems.isEmpty()) {
                 final long newTargetId = newItems.values().iterator().next();
-                final Target retTarget = new Target(newTargetId, probeStore, spec, true);
-                registerTarget(retTarget);
-                return retTarget;
+                try {
+                    final Target retTarget = new Target(newTargetId, probeStore, spec, true);
+                    registerTarget(retTarget);
+                    return retTarget;
+                } catch (InvalidTargetException e) {
+                    // clean up identity store if we failed to create the Target
+                    identityStore.removeItemOids(Sets.newHashSet(newTargetId));
+                    throw e;
+                }
             } else if (!oldItems.isEmpty()) {
                 final long existingTargetId = oldItems.values().iterator().next();
                 throw new DuplicateTargetException(getTargetDisplayName(existingTargetId)
@@ -236,6 +243,15 @@ public class KVBackedTargetStore implements TargetStore {
                             Objects.requireNonNull(key), true);
                     registerTarget(retTarget);
                 } catch (InvalidTargetException e) {
+                    try {
+                        // clean up identityStore if we failed to create the target
+                        identityStore.removeItemOids(Sets.newHashSet(value));
+                    } catch (IdentityStoreException ex) {
+                        // should never happen
+                        logger.error(String.format(
+                            "Error cleaning up identity store after failed creation of target %s",
+                            value), ex);
+                    }
                     logger.error(String.format("Create new derived target %s failed!", value), e);
                 }
             });
