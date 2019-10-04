@@ -66,6 +66,8 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
     // use for storage tier value for non cloud entities
     private static final String UNKNOWN = "unknown";
 
+    private final String COSTCOMPONENT = "costComponent";
+
     private final CostServiceBlockingStub costServiceRpc;
 
     private final RepositoryApi repositoryApi;
@@ -173,7 +175,7 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
         });
 
         // get cost stats for all volumes
-        Map<Long, StatApiDTO> volumeCostStatById = getVolumeCostStats(volumes, null);
+        Map<Long, List<StatApiDTO>> volumeCostStatById = getVolumeCostStats(volumes, null);
 
         // get all VMs consuming given storage tiers
         List<TopologyEntityDTO> vms = storageTierIds.stream()
@@ -272,7 +274,7 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
         });
 
         // get cost stats for all volumes
-        final Map<Long, StatApiDTO> volumeCostStatById = getVolumeCostStats(volumes, topologyContextId);
+        final Map<Long, List<StatApiDTO>> volumeCostStatById = getVolumeCostStats(volumes, topologyContextId);
 
         // convert to VirtualDiskApiDTO
         final Map<Long, List<VirtualDiskApiDTO>> volumeAspectsByVMId = new HashMap<>();
@@ -351,8 +353,7 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
                         storageTierKeyValue.getValue()));
 
         // get cost stats for all volumes
-        final Map<Long, StatApiDTO> volumeCostStatById = getVolumeCostStats(
-                new ArrayList<>(vmByVolumeId.values()), topologyContextId);
+        final Map<Long, List<StatApiDTO>> volumeCostStatById = getVolumeCostStats(vols, topologyContextId);
 
         // convert to VirtualDiskApiDTO
         List<VirtualDiskApiDTO> virtualDisks = vols.stream()
@@ -410,7 +411,7 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
      * @param volumes list of volumes to get cost for
      * @return map of cost StatApiDTO for each volume id
      */
-    private Map<Long, StatApiDTO> getVolumeCostStats(@Nonnull List<TopologyEntityDTO> volumes,
+    private Map<Long, List<StatApiDTO>> getVolumeCostStats(@Nonnull List<TopologyEntityDTO> volumes,
                                                      @Nullable Long topologyContextId) {
         final Set<Long> cloudVolumeIds = volumes.stream()
             .filter(IAspectMapper::isCloudEntity)
@@ -436,24 +437,31 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
             final List<CloudCostStatRecord> cloudStatRecords = costServiceRpc.getCloudCostStats(request.build())
                 .getCloudStatRecordList();
             return cloudStatRecords.stream()
-                .flatMap(cloudStatRecord -> cloudStatRecord.getStatRecordsList().stream())
-                .collect(Collectors.toMap(StatRecord::getAssociatedEntityId, record -> {
-                    // cost stats
-                    StatApiDTO costStat = new StatApiDTO();
-                    costStat.setName(StringConstants.COST_PRICE);
-                    costStat.setUnits(record.getUnits());
+                    .flatMap(cloudStatRecord -> cloudStatRecord.getStatRecordsList().stream())
+                    .collect(
+                        Collectors.groupingBy(StatRecord::getAssociatedEntityId,
+                            Collectors.mapping((record -> {
+                                // cost stats
+                                StatApiDTO costStat = new StatApiDTO();
+                                costStat.setName(StringConstants.COST_PRICE);
+                                costStat.setUnits(record.getUnits());
 
-                    StatValueApiDTO valueDTO = new StatValueApiDTO();
-                    StatValue value = record.getValues();
-                    valueDTO.setAvg(value.getAvg());
-                    valueDTO.setMin(value.getMin());
-                    valueDTO.setMax(value.getMax());
-                    valueDTO.setTotal(value.getTotal());
-                    costStat.setValues(valueDTO);
-                    costStat.setValue(value.getAvg());
+                                StatFilterApiDTO filter = new StatFilterApiDTO();
+                                filter.setType(COSTCOMPONENT);
+                                filter.setValue(record.getCategory().toString());
+                                costStat.setFilters(Lists.newArrayList(filter));
 
-                    return costStat;
-                }));
+                                StatValueApiDTO valueDTO = new StatValueApiDTO();
+                                StatValue value = record.getValues();
+                                valueDTO.setAvg(value.getAvg());
+                                valueDTO.setMin(value.getMin());
+                                valueDTO.setMax(value.getMax());
+                                valueDTO.setTotal(value.getTotal());
+                                costStat.setValues(valueDTO);
+                                costStat.setValue(value.getAvg());
+
+                                return costStat;
+                            }), Collectors.toList())));
         } catch (StatusRuntimeException e) {
             logger.error("Error when getting cost for volumes: ", e);
             return Collections.emptyMap();
@@ -523,7 +531,7 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
             @Nonnull Map<Long, TopologyEntityDTO> vmByVolumeId,
             @Nonnull Map<Long, ServiceEntityApiDTO> storageTierByVolumeId,
             @Nonnull Map<Long, ApiPartialEntity> regionByVolumeId,
-            @Nonnull Map<Long, StatApiDTO> volumeCostStatById) {
+            @Nonnull Map<Long, List<StatApiDTO>> volumeCostStatById) {
         Long volumeId = volume.getOid();
         // the VirtualDiskApiDTO to return
         VirtualDiskApiDTO virtualDiskApiDTO = new VirtualDiskApiDTO();
@@ -601,7 +609,7 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
         List<StatApiDTO> statDTOs = Lists.newArrayList();
         // cost stats
         if (volumeCostStatById.containsKey(volume.getOid())) {
-            statDTOs.add(volumeCostStatById.get(volume.getOid()));
+            statDTOs.addAll(volumeCostStatById.get(volume.getOid()));
         }
         // storage amount stats
         statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
