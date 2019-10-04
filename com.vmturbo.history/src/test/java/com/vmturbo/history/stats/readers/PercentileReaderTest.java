@@ -8,11 +8,17 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 
 import org.hamcrest.CoreMatchers;
@@ -26,6 +32,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
@@ -44,6 +51,8 @@ import com.vmturbo.platform.sdk.common.util.Pair;
 public class PercentileReaderTest {
 
     private static final PercentileBlobs PERCENTILE_BLOBS_TABLE = PercentileBlobs.PERCENTILE_BLOBS;
+    private static final int GRPC_TIMEOUT_MS = 100000;
+    private static final String SOURCE_DATA = "Some string for test bytes";
 
     /**
      * Helps to check that testing code is throwing exceptions of the desired type with desired
@@ -55,6 +64,7 @@ public class PercentileReaderTest {
     private HistorydbIO historyDbIo;
     private LinkedList<Pair<Pair<String, List<?>>, ?>> sqlRequestToResponse;
     private PercentileReader percentileReader;
+    private Clock clock;
 
     /**
      * Initializes all resources required by tests.
@@ -66,9 +76,11 @@ public class PercentileReaderTest {
     public void before() throws VmtDbException {
         historyDbIo = Mockito.mock(HistorydbIO.class);
         sqlRequestToResponse = new LinkedList<>();
-        percentileReader = new PercentileReader(historyDbIo);
-        final Connection connection = new MockConnection(
-                        new TestDataProvider(sqlRequestToResponse));
+        clock = Mockito.mock(Clock.class);
+        Mockito.when(clock.millis()).thenAnswer(invocation -> System.currentTimeMillis());
+        percentileReader = new PercentileReader(10, GRPC_TIMEOUT_MS, clock, historyDbIo);
+        final Connection connection =
+                        new MockConnection(new TestDataProvider(sqlRequestToResponse));
         Mockito.when(historyDbIo.transConnection()).thenReturn(connection);
         Mockito.when(historyDbIo.using(Mockito.any(Connection.class)))
                         .thenReturn(DSL.using(connection, SQLDialect.MARIADB));
@@ -76,41 +88,31 @@ public class PercentileReaderTest {
 
     /**
      * Checks that request to empty database will not fail with an exception.
-     *
-     * @throws VmtDbException in case of error while reading data from the
-     *                 database.
      */
     @Test
-    public void checkRequestToEmptyDatabase() throws VmtDbException {
+    public void checkRequestToEmptyDatabase() {
         sqlRequestToResponse.add(Pair.create(
                         Pair.create("select `vmtdb`.`percentile_blobs`.`start_timestamp`",
                                         Collections.singletonList(new Timestamp(0))), null));
         final List<PercentileChunk> result = new ArrayList<>();
-        final StreamObserver<PercentileChunk> responseObserver = createStreamObserver(result);
+        final StreamObserver<PercentileChunk> responseObserver = createStreamObserver(result, true);
         percentileReader.processRequest(
                         GetPercentileCountsRequest.newBuilder().setChunkSize(10).build(),
                         responseObserver);
         Assert.assertThat(result, CoreMatchers.is(Collections.emptyList()));
     }
 
-    private StreamObserver<PercentileChunk> createStreamObserver(
-                    List<PercentileChunk> result) {
-        return new StreamObserver<PercentileChunk>() {
-            @Override
-            public void onNext(PercentileChunk percentileChunk) {
-                result.add(percentileChunk);
-            }
-
-            @Override
-            public void onError(Throwable throwable) {
-
-            }
-
-            @Override
-            public void onCompleted() {
-
-            }
-        };
+    private static StreamObserver<PercentileChunk> createStreamObserver(
+                    Collection<PercentileChunk> receivedChunks, boolean isReady) {
+        @SuppressWarnings("unchecked")
+        final ServerCallStreamObserver<PercentileChunk> result =
+                        Mockito.mock(ServerCallStreamObserver.class);
+        Mockito.doAnswer(invocation -> {
+            receivedChunks.add(invocation.getArgumentAt(0, PercentileChunk.class));
+            return null;
+        }).when(result).onNext(Mockito.any());
+        Mockito.when(result.isReady()).thenReturn(isReady);
+        return result;
     }
 
     /**
@@ -133,7 +135,7 @@ public class PercentileReaderTest {
             return connection;
         });
         final StreamObserver<PercentileChunk> streamObserver =
-                        Mockito.spy(createStreamObserver(new ArrayList<>()));
+                        createStreamObserver(new ArrayList<>(), true);
         percentileReader.processRequest(
                         GetPercentileCountsRequest.newBuilder().setChunkSize(10).build(),
                         streamObserver);
@@ -144,30 +146,55 @@ public class PercentileReaderTest {
      * Checks that data read from database will be split into chunks according to chunk size value
      * specified through the API request.
      *
-     * @throws VmtDbException in case reading data from the database failed
      * @throws IOException in case union of the received data split into chunks
      *                 failed.
      */
     @Test
-    public void checkBatchedResponse() throws VmtDbException, IOException {
-        final DSLContext context = DSL.using(SQLDialect.MARIADB);
-        final Result<PercentileBlobsRecord> result = context.newResult(PERCENTILE_BLOBS_TABLE);
-        final String sourceData = "Some string for test bytes";
-        final PercentileBlobsRecord values = context.newRecord(PERCENTILE_BLOBS_TABLE)
-                        .values(new Timestamp(20), 3L, sourceData.getBytes());
-        result.add(values);
+    public void checkBatchedResponse() throws IOException {
+        final Result<PercentileBlobsRecord> result = createDbRecord(SOURCE_DATA);
         sqlRequestToResponse.add(Pair.create(
                         Pair.create("select `vmtdb`.`percentile_blobs`.`start_timestamp`",
                                         Collections.singletonList(new Timestamp(20))), result));
         final List<PercentileChunk> records = new ArrayList<>();
         percentileReader.processRequest(GetPercentileCountsRequest.newBuilder().setChunkSize(10)
-                        .setStartTimestamp(20).build(), createStreamObserver(records));
+                        .setStartTimestamp(20).build(), createStreamObserver(records, true));
         Assert.assertThat(records.size(), CoreMatchers.is(3));
         final ByteArrayOutputStream receivedData = new ByteArrayOutputStream();
         for (PercentileChunk chunk : records) {
             receivedData.write(chunk.getContent().toByteArray());
         }
-        Assert.assertThat(receivedData.toString(), CoreMatchers.is(sourceData));
+        Assert.assertThat(receivedData.toString(), CoreMatchers.is(SOURCE_DATA));
+    }
+
+    private static Result<PercentileBlobsRecord> createDbRecord(String sourceData) {
+        final DSLContext context = DSL.using(SQLDialect.MARIADB);
+        final Result<PercentileBlobsRecord> result = context.newResult(PERCENTILE_BLOBS_TABLE);
+        final PercentileBlobsRecord values = context.newRecord(PERCENTILE_BLOBS_TABLE)
+                        .values(new Timestamp(20), 3L, sourceData.getBytes());
+        result.add(values);
+        return result;
+    }
+
+    /**
+     * Checks that reading will be interrupted by GRPC timeout.
+     */
+    @Test
+    public void checkTimeoutDueToGrpcNotReady() {
+        final Result<PercentileBlobsRecord> result = createDbRecord(SOURCE_DATA);
+        final Queue<Long> currentTimeValues = Stream.of(0L, GRPC_TIMEOUT_MS + 1L)
+                        .collect(Collectors.toCollection(LinkedList::new));
+        Mockito.when(clock.millis()).thenAnswer(invocation -> currentTimeValues.poll());
+        sqlRequestToResponse.add(Pair.create(
+                        Pair.create("select `vmtdb`.`percentile_blobs`.`start_timestamp`",
+                                        Collections.singletonList(new Timestamp(0))), result));
+        final StreamObserver<PercentileChunk> streamObserver =
+                        createStreamObserver(Collections.emptyList(), false);
+        percentileReader.processRequest(GetPercentileCountsRequest.newBuilder().setChunkSize(10)
+                        .setStartTimestamp(0).build(), streamObserver);
+        final ArgumentCaptor<Throwable> errorCaptor = ArgumentCaptor.forClass(Throwable.class);
+        Mockito.verify(streamObserver, Mockito.atLeastOnce()).onError(errorCaptor.capture());
+        Assert.assertThat(errorCaptor.getValue().getMessage(),
+                        CoreMatchers.containsString("because of exceeding GRPC timeout"));
     }
 
 }

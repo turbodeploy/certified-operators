@@ -9,13 +9,16 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.Nonnull;
 
 import com.google.protobuf.ByteString;
 
 import io.grpc.Status;
+import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
@@ -25,6 +28,7 @@ import org.jooq.Result;
 
 import com.vmturbo.common.protobuf.stats.Stats.GetPercentileCountsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.PercentileChunk;
+import com.vmturbo.common.protobuf.stats.Stats.PercentileChunk.Builder;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
@@ -42,45 +46,45 @@ public class PercentileReader
                 implements RequestBasedReader<GetPercentileCountsRequest, PercentileChunk> {
     private static final PercentileBlobs PERCENTILE_BLOBS_TABLE = PercentileBlobs.PERCENTILE_BLOBS;
     private static final Logger LOGGER = LogManager.getLogger();
+    private final int timeToWaitNetworkReadinessMs;
+    private final long grpcTimeoutMs;
+    private final Clock clock;
     private final HistorydbIO historydbIO;
 
     /**
      * Creates {@link PercentileReader} instance.
      *
+     * @param timeToWaitNetworkReadinessMs time to wait network buffer readiness to
+     *                 send accept next chunk for sending over the network.
+     * @param grpcTimeoutMs GRPC interaction timeout in milliseconds
+     * @param clock provides information about current time.
      * @param historydbIO provides connection to database.
      */
-    public PercentileReader(@Nonnull HistorydbIO historydbIO) {
+    public PercentileReader(int timeToWaitNetworkReadinessMs, long grpcTimeoutMs,
+                    @Nonnull Clock clock, @Nonnull HistorydbIO historydbIO) {
+        this.timeToWaitNetworkReadinessMs = timeToWaitNetworkReadinessMs;
+        this.grpcTimeoutMs = grpcTimeoutMs;
+        this.clock = Objects.requireNonNull(clock, "Clock cannot be null");
         this.historydbIO = Objects.requireNonNull(historydbIO, "HistorydbIO cannot be null");
     }
 
-    private static void convert(PercentileBlobsRecord record, int chunkSize,
+    private int convert(PercentileBlobsRecord record, int chunkSize,
                     StreamObserver<PercentileChunk> responseObserver) {
-        int totalProcessed = 0;
-        try {
-            final byte[] sourceData = record.getData();
-            while (totalProcessed < sourceData.length) {
-                final PercentileChunk.Builder percentileChunkBuilder = PercentileChunk.newBuilder();
-                percentileChunkBuilder.setPeriod(record.getAggregationWindowLength());
-                final long startTimestamp = record.getStartTimestamp().getTime();
-                percentileChunkBuilder.setStartTimestamp(startTimestamp);
-                final ByteString data = ByteString.readFrom(
-                                new ByteArrayInputStream(sourceData, totalProcessed, chunkSize));
-                percentileChunkBuilder.setContent(data);
-                totalProcessed += data.size();
-                responseObserver.onNext(percentileChunkBuilder.build());
-                if (LOGGER.isDebugEnabled()) {
-                    LOGGER.debug("Percentile chunk#{} for {} processed({}/{})",
-                                    sourceData.length / chunkSize, startTimestamp, totalProcessed,
-                                    sourceData.length);
-                }
-            }
-        } catch (IOException ex) {
-            LOGGER.error("Cannot split the data from table '{}' into chunks for start timestamp '{}' and period '{}'",
-                            PERCENTILE_BLOBS_TABLE, record.getStartTimestamp(),
-                            record.getAggregationWindowLength(), ex);
-            responseObserver.onError(
-                            Status.INTERNAL.withDescription(ex.getMessage()).asException());
-        }
+        final ServerCallStreamObserver<PercentileChunk> serverObserver =
+                        (ServerCallStreamObserver<PercentileChunk>)responseObserver;
+        final AtomicInteger totalProcessed = new AtomicInteger();
+
+        /*
+         * This is required to avoid java.lang.OutOfMemoryError: Direct buffer memory
+         * by using io.grpc.stub.CallStreamObserver#isReady.
+         * Please, consider https://github.com/grpc/grpc-java/issues/1216 for more details.
+         */
+        final Runnable readyHandler =
+                        new PercentileReaderHandler(record, totalProcessed, serverObserver,
+                                        chunkSize);
+        serverObserver.setOnReadyHandler(readyHandler);
+        readyHandler.run();
+        return totalProcessed.get();
     }
 
     @Override
@@ -108,14 +112,80 @@ public class PercentileReader
                     LOGGER.warn("There are '{}' percentile records for '{}' timestamp, first random will be chosen",
                                     amountOfRecords, startTimestamp);
                 }
-                convert(percentileBlobsRecords.iterator().next(), request.getChunkSize(),
-                                responseObserver);
-                LOGGER.trace("Percentile data read from database for '{}' timestamp in '{}'",
-                                () -> startTimestamp, dataMetricTimer::getTimeElapsedSecs);
+                final int processedBytes = convert(percentileBlobsRecords.iterator().next(),
+                                request.getChunkSize(), responseObserver);
+                LOGGER.debug("Percentile data read '{}' bytes from database for '{}' timestamp in '{}'",
+                                () -> processedBytes, () -> startTimestamp,
+                                dataMetricTimer::getTimeElapsedSecs);
                 responseObserver.onCompleted();
             } catch (VmtDbException | SQLException ex) {
                 LOGGER.error("Cannot extract data from the database for '{}'", startTimestamp, ex);
                 responseObserver.onError(
+                                Status.INTERNAL.withDescription(ex.getMessage()).asException());
+            }
+        }
+    }
+
+    /**
+     * {@link PercentileReaderHandler} sends the data read from DB record over the GRPC, considering
+     * unavailability of the network.
+     */
+    private class PercentileReaderHandler implements Runnable {
+        private final PercentileBlobsRecord record;
+        private final AtomicInteger totalProcessed;
+        private final ServerCallStreamObserver<PercentileChunk> serverObserver;
+        private final int chunkSize;
+
+        private PercentileReaderHandler(PercentileBlobsRecord record, AtomicInteger totalProcessed,
+                        ServerCallStreamObserver<PercentileChunk> serverObserver, int chunkSize) {
+            this.record = record;
+            this.totalProcessed = totalProcessed;
+            this.serverObserver = serverObserver;
+            this.chunkSize = chunkSize;
+        }
+
+        @Override
+        public void run() {
+            try {
+                final long operationStart = clock.millis();
+                final byte[] sourceData = record.getData();
+                while (totalProcessed.get() < sourceData.length) {
+                    if (!serverObserver.isReady()) {
+                        if (clock.millis() - grpcTimeoutMs > operationStart) {
+                            final String message =
+                                            String.format("Cannot read percentile data for start timestamp '%s' and period '%s' because of exceeding GRPC timeout '%s' ms",
+                                                            record.getStartTimestamp(),
+                                                            record.getAggregationWindowLength(),
+                                                            grpcTimeoutMs);
+                            LOGGER.error(message);
+                            serverObserver.onError(
+                                            Status.INTERNAL.withDescription(message).asException());
+                            return;
+                        }
+                        Thread.sleep(timeToWaitNetworkReadinessMs);
+                        continue;
+                    }
+                    final Builder percentileChunkBuilder = PercentileChunk.newBuilder();
+                    percentileChunkBuilder.setPeriod(record.getAggregationWindowLength());
+                    final long startTimestamp = record.getStartTimestamp().getTime();
+                    percentileChunkBuilder.setStartTimestamp(startTimestamp);
+                    final ByteString data = ByteString.readFrom(
+                                    new ByteArrayInputStream(sourceData, totalProcessed.get(),
+                                                    chunkSize));
+                    percentileChunkBuilder.setContent(data);
+                    totalProcessed.getAndAdd(data.size());
+                    serverObserver.onNext(percentileChunkBuilder.build());
+                    if (LOGGER.isTraceEnabled()) {
+                        LOGGER.trace("Percentile chunk#{} for {} processed({}/{})",
+                                        totalProcessed.get() / chunkSize, startTimestamp,
+                                        totalProcessed, sourceData.length);
+                    }
+                }
+            } catch (IOException | InterruptedException ex) {
+                LOGGER.error("Cannot split the data from table '{}' into chunks for start timestamp '{}' and period '{}'",
+                                PERCENTILE_BLOBS_TABLE, record.getStartTimestamp(),
+                                record.getAggregationWindowLength(), ex);
+                serverObserver.onError(
                                 Status.INTERNAL.withDescription(ex.getMessage()).asException());
             }
         }

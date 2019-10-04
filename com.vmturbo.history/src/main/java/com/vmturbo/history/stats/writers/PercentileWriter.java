@@ -20,6 +20,8 @@ import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 
+import com.google.protobuf.ByteString;
+
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
@@ -49,6 +51,7 @@ public class PercentileWriter implements StreamObserver<PercentileChunk> {
     private final HistorydbIO historydbIO;
     private final ExecutorService statsWriterExecutorService;
     private final AtomicLong processedChunks = new AtomicLong();
+    private final AtomicLong totalBytesWritten = new AtomicLong();
     private final AtomicLong startTimestamp = new AtomicLong();
 
     private Connection connection;
@@ -83,10 +86,13 @@ public class PercentileWriter implements StreamObserver<PercentileChunk> {
             if (connection == null) {
                 initialChunk(percentileChunk);
             }
-            percentileChunk.getContent().writeTo(incomingData);
-            logger.trace("Chunk#{} of percentile data for '{}' timestamp and '{}' period has been processed",
-                            processedChunks::getAndIncrement, percentileChunk::getStartTimestamp,
-                            percentileChunk::getPeriod);
+            final ByteString content = percentileChunk.getContent();
+            totalBytesWritten.addAndGet(content.size());
+            content.writeTo(incomingData);
+            final long current = this.processedChunks.getAndIncrement();
+            logger.trace("Chunk#{} of percentile data '{}' for '{}' timestamp and '{}' period has been processed.",
+                            () -> current, content::size,
+                            percentileChunk::getStartTimestamp, percentileChunk::getPeriod);
         } catch (IOException | SQLException ex) {
             handleException(ex, () -> String.format(
                             "Cannot execute update of percentile values for '%s' start timestamp",
@@ -156,8 +162,9 @@ public class PercentileWriter implements StreamObserver<PercentileChunk> {
             try {
                 dataWritingPromise.get();
                 responseObserver.onNext(SetPercentileCountsResponse.newBuilder().build());
-                logger.trace("Percentile data for '{}' timestamp have been written successfully in '{}'",
-                                startTimestamp::get, dataMetricTimer::getTimeElapsedSecs);
+                logger.debug("Percentile data '{}' bytes in '{}' chunks for '{}' timestamp have been written successfully in '{}'",
+                                totalBytesWritten::get, processedChunks::get, startTimestamp::get,
+                                dataMetricTimer::getTimeElapsedSecs);
                 responseObserver.onCompleted();
             } catch (InterruptedException ex) {
                 handleException(ex, () -> String.format(

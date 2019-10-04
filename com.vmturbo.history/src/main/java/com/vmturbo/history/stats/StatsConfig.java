@@ -89,6 +89,10 @@ public class StatsConfig {
 
     @Value("${systemLoadRecordsPerChunk}")
     private int systemLoadRecordsPerChunk;
+    @Value("${timeToWaitNetworkReadinessMs}")
+    private int timeToWaitNetworkReadinessMs;
+    @Value("${grpcReadingTimeoutMs}")
+    private long grpcReadingTimeoutMs;
 
     @Bean
     public StatsHistoryRpcService statsRpcService() {
@@ -104,7 +108,13 @@ public class StatsConfig {
 
     @Bean
     protected PercentileReader percentileReader() {
-        return new PercentileReader(historyDbConfig.historyDbIO());
+        return new PercentileReader(timeToWaitNetworkReadinessMs, grpcReadingTimeoutMs, clock(),
+                        historyDbConfig.historyDbIO());
+    }
+
+    @Bean
+    protected Clock clock() {
+        return Clock.systemUTC();
     }
 
     @Bean
@@ -124,14 +134,14 @@ public class StatsConfig {
 
     @Bean
     public RetentionPeriodFetcher retentionPeriodFetcher() {
-        return new RetentionPeriodFetcher(Clock.systemUTC(), updateRetentionIntervalSeconds,
+        return new RetentionPeriodFetcher(clock(), updateRetentionIntervalSeconds,
             TimeUnit.SECONDS, numRetainedMinutes,
             SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()));
     }
 
     @Bean
     public HistoryTimeFrameCalculator timeFrameCalculator() {
-        return new HistoryTimeFrameCalculator(Clock.systemUTC(), retentionPeriodFetcher());
+        return new HistoryTimeFrameCalculator(clock(), retentionPeriodFetcher());
     }
 
     @Bean
