@@ -416,7 +416,6 @@ public class KVBackedTargetStore implements TargetStore {
             targetName = oldTarget.getDisplayName();
             keyValueStore.removeKeysWithPrefix(TARGET_KV_STORE_PREFIX + Long.toString(targetId));
             identityStore.removeItemOids(ImmutableSet.of(targetId));
-            removeDerivedTargetsRelationships(targetId);
         }
         // Recursively remove any derived targets that are children of the target being removed
         // NOTE: This *must* occur outside of the synchronized block. Otherwise, the onTargetRemoved
