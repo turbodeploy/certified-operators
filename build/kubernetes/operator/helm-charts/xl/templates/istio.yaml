@@ -63,6 +63,12 @@ spec:
                     prefix: /swagger/external/index.html
               - uri:
                     prefix: /vmturbo/rest
+              - uri:
+                    prefix: /vmturbo/saml
+          headers:
+              response:
+                  set:
+                      X-Frame-Options: SAMEORIGIN
           route:
               - destination:
                     host: api.{{ .Release.Namespace }}.svc.cluster.local

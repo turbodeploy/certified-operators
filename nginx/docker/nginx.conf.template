@@ -122,6 +122,7 @@ http {
 
             #Add cookie security and httponly headers
             proxy_cookie_path / "/; HTTPOnly; Secure";
+            add_header X-Frame-Options "SAMEORIGIN" always;
 
             # Ensure the proxy-side redirect from API gets rewritten to the gateway address
             proxy_set_header   X-Forwarded-Proto $scheme;
