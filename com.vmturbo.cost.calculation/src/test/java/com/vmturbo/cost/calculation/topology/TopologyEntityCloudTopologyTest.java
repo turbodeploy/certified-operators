@@ -59,6 +59,14 @@ public class TopologyEntityCloudTopologyTest {
             .setConnectionType(ConnectionType.NORMAL_CONNECTION))
         .build();
 
+    private static final TopologyEntityDTO DATABASE_SERVER_TIER = constructTopologyEntity("DatabaseServerTier",
+        EntityType.DATABASE_SERVER_TIER_VALUE)
+        .addConnectedEntityList(ConnectedEntity.newBuilder()
+            .setConnectedEntityType(REGION.getEntityType())
+            .setConnectedEntityId(REGION.getOid())
+            .setConnectionType(ConnectionType.NORMAL_CONNECTION))
+        .build();
+
     private static final TopologyEntityDTO STORAGE_TIER = constructTopologyEntity("StorageTier",
         EntityType.STORAGE_TIER_VALUE)
         .addConnectedEntityList(ConnectedEntity.newBuilder()
@@ -131,7 +139,25 @@ public class TopologyEntityCloudTopologyTest {
             .setConnectedEntityId(AZ.getOid()))
         .build();
 
+    private static final TopologyEntityDTO DATABASE_SERVER = constructTopologyEntity(DEFAULT_NAME,
+        EntityType.DATABASE_SERVER_VALUE)
+        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderId(DATABASE_SERVER_TIER.getOid())
+            .setProviderEntityType(DATABASE_SERVER_TIER.getEntityType()))
+        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+            .setDatabase(DatabaseInfo.newBuilder()
+                .setEdition(DatabaseEdition.SQL_SERVER_EXPRESS)
+                .setEngine(DatabaseEngine.MARIADB)))
+        .addConnectedEntityList(ConnectedEntity.newBuilder()
+            .setConnectedEntityType(AZ.getEntityType())
+            .setConnectedEntityId(AZ.getOid()))
+        .build();
+
     private static final TopologyEntityDTO EMPTY_DATABASE = constructTopologyEntity(DEFAULT_NAME,
+        EntityType.DATABASE_VALUE)
+        .build();
+
+    private static final TopologyEntityDTO EMPTY_DATABASE_SERVER = constructTopologyEntity(DEFAULT_NAME,
         EntityType.DATABASE_VALUE)
         .build();
 
@@ -144,8 +170,8 @@ public class TopologyEntityCloudTopologyTest {
         .build();
 
     private static final Stream<TopologyEntityDTO> topologyStream =
-        Stream.of(VM, EMPTY_VM, DATABASE, EMPTY_DATABASE, AZ, COMPUTE_TIER, DATABASE_TIER,
-            STORAGE_TIER, EMPTY_STORAGE_TIER, VOLUME, REGION, BUSINESS_ACCOUNT, SERVICE);
+        Stream.of(VM, EMPTY_VM, DATABASE, DATABASE_SERVER, EMPTY_DATABASE, EMPTY_DATABASE_SERVER, AZ, COMPUTE_TIER, DATABASE_TIER,
+            DATABASE_SERVER_TIER, STORAGE_TIER, EMPTY_STORAGE_TIER, VOLUME, REGION, BUSINESS_ACCOUNT, SERVICE);
 
     private static final TopologyEntityCloudTopology cloudTopology = new TopologyEntityCloudTopology(topologyStream);
     private static long globalOid = 1000;
@@ -183,6 +209,22 @@ public class TopologyEntityCloudTopologyTest {
     @Test
     public void testGetEmptyEntityDatabaseTier() {
         Assert.assertFalse(cloudTopology.getDatabaseTier(EMPTY_DATABASE.getOid()).isPresent());
+    }
+
+    /**
+     * Test getting the DB server tier of an entity.
+     */
+    @Test
+    public void testGetEntityDatabaseServerTier() {
+        assertThat(cloudTopology.getDatabaseServerTier(DATABASE_SERVER.getOid()), is(Optional.of(DATABASE_SERVER_TIER)));
+    }
+
+    /**
+     * Test getting the DB server tier of a database not connected to a DB server tier.
+     */
+    @Test
+    public void testGetEmptyEntityDatabaseServerTier() {
+        Assert.assertFalse(cloudTopology.getDatabaseTier(EMPTY_DATABASE_SERVER.getOid()).isPresent());
     }
 
     @Test
@@ -249,6 +291,6 @@ public class TopologyEntityCloudTopologyTest {
         final List<TopologyEntityDTO> allEntitesOfTypes = cloudTopology.getAllEntitesOfTypes(entityTypeSet);
         Assert.assertEquals(2, allEntitesOfTypes.size());
         // testing the number of entities defined in the test
-        Assert.assertEquals(13, cloudTopology.size());
+        Assert.assertEquals(16, cloudTopology.size());
     }
 }

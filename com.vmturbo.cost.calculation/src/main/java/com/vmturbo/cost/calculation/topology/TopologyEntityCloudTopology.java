@@ -115,6 +115,19 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
 
     @Nonnull
     @Override
+    public Optional<TopologyEntityDTO> getDatabaseServerTier(long entityId) {
+        final List<TopologyEntityDTO> providers = getProvidersOfType(entityId, EntityType.DATABASE_SERVER_TIER_VALUE);
+        if (providers.size() > 1) {
+            logger.warn("Entity {} buying from multiple database server tiers. Choosing the first.",
+                entityId);
+        } else if (providers.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(providers.get(0));
+    }
+
+    @Nonnull
+    @Override
     public Optional<TopologyEntityDTO> getStorageTier(final long entityId) {
         final List<TopologyEntityDTO> providers = getProvidersOfType(entityId, EntityType.STORAGE_TIER_VALUE);
         if (providers.size() > 1) {

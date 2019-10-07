@@ -111,6 +111,7 @@ public class CloudCostCalculatorTest {
     private static final long STORAGE_TIER_ID = 10;
     private static final long COMPUTE_TIER_ID = 11;
     private static final long DB_TIER_ID = 4;
+    private static final long DB_SERVER_TIER_ID = 5;
     private static final long VOLUME_ID = 7;
     private static final long DEFAULT_VM_ID = 7;
     private static final long DEFAULT_SERVICE_ID = 0;
@@ -124,6 +125,8 @@ public class CloudCostCalculatorTest {
                     .build(infoExtractor);
     private static final TestEntityClass databaseTier = TestEntityClass.newBuilder(DB_TIER_ID)
                     .build(infoExtractor);
+    private static final TestEntityClass databaseServerTier = TestEntityClass.newBuilder(DB_SERVER_TIER_ID)
+        .build(infoExtractor);
 
     private static final PriceTable PRICE_TABLE = thePriceTable();
     private static final CloudCostData CLOUD_COST_DATA = new CloudCostData(PRICE_TABLE,
@@ -404,6 +407,38 @@ public class CloudCostCalculatorTest {
     }
 
     /**
+     * Test a on-demand calculation (no discount) for a Database Server.
+     */
+    @Test
+    public void testCalculateOnDemandCostForDatabaseServer() {
+        // arrange
+        final long dbId = 9;
+
+        final TestEntityClass db = TestEntityClass.newBuilder(dbId)
+            .setType(EntityType.DATABASE_SERVER_VALUE)
+            .setDatabaseConfig(new EntityInfoExtractor.DatabaseConfig(
+                DatabaseEdition.SQL_SERVER_ENTERPRISE,
+                DatabaseEngine.MYSQL, LicenseModel.BRING_YOUR_OWN_LICENSE, DeploymentType.SINGLE_AZ))
+            .build(infoExtractor);
+
+        when(topology.getConnectedRegion(dbId)).thenReturn(Optional.of(region));
+        when(topology.getDatabaseServerTier(dbId)).thenReturn(Optional.of(databaseServerTier));
+
+        final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
+        // act
+        final CostJournal<TestEntityClass> journal = CALCULATOR.calculateCost(db);
+
+        // assert
+        assertThat(journal.getTotalHourlyCost(), is(BASE_PRICE + MYSQL_ADJUSTMENT));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE), is(BASE_PRICE));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.LICENSE), is(MYSQL_ADJUSTMENT));
+
+        // Once for the compute, once for the license, because both costs are "paid to" the
+        // database server tier.
+        verify(discountApplicator, times(2)).getDiscountPercentage(databaseServerTier);
+    }
+
+    /**
      * Verify that an entity of a type that doesn't have a cost (e.g. NETWORK) returns
      * an empty journal.
      *
@@ -477,6 +512,16 @@ public class CloudCostCalculatorTest {
                             .setDbEngine(DatabaseEngine.MYSQL)
                             .addPrices(price(Unit.HOURS, MYSQL_ADJUSTMENT)))
                     .build())
+                .putDbPricesByInstanceId(DB_SERVER_TIER_ID, DatabaseTierPriceList.newBuilder()
+                    .setBasePrice(DatabaseTierConfigPrice.newBuilder()
+                        .setDbEdition(DatabaseEdition.NONE)
+                        .setDbEngine(DatabaseEngine.MARIADB)
+                        .addPrices(price(Unit.HOURS, BASE_PRICE)))
+                    .addConfigurationPriceAdjustments(DatabaseTierConfigPrice.newBuilder()
+                        .setDbEdition(DatabaseEdition.SQL_SERVER_ENTERPRISE)
+                        .setDbEngine(DatabaseEngine.MYSQL)
+                        .addPrices(price(Unit.HOURS, MYSQL_ADJUSTMENT)))
+                    .build())
                 .putComputePricesByTierId(COMPUTE_TIER_ID, ComputeTierPriceList.newBuilder()
                     .setBasePrice(ComputeTierConfigPrice.newBuilder()
                         .setGuestOsType(OSType.LINUX)
@@ -511,13 +556,8 @@ public class CloudCostCalculatorTest {
     }
 
     private static CloudCostCalculator<TestEntityClass> calculator() {
-        try {
-            return calculatorFactory.newCalculator(CLOUD_COST_DATA, topology, infoExtractor,
-                discountApplicatorFactory, reservedInstanceApplicatorFactory,
-                e -> null, topologyRiCoverage);
-        } catch (CloudCostDataRetrievalException e) {
-            // no expected to happen
-            return null;
-        }
+        return calculatorFactory.newCalculator(CLOUD_COST_DATA, topology, infoExtractor,
+            discountApplicatorFactory, reservedInstanceApplicatorFactory,
+            e -> null, topologyRiCoverage);
     }
 }

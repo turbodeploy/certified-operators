@@ -68,6 +68,18 @@ public interface CloudTopology<ENTITY_CLASS> {
     Optional<ENTITY_CLASS> getDatabaseTier(final long entityId);
 
     /**
+     * Get the database server tier associated with an entity.
+     *
+     * <p>Only finds the immediately connected database server tier.
+     *
+     * @param entityId The ID of the entity (normally this would be a database server).
+     * @return An optional containing the database server tier entity, or an empty optional if the
+     *  ID is not found, or if there is no database server tier directly associated with the entity.
+     */
+    @Nonnull
+    Optional<ENTITY_CLASS> getDatabaseServerTier(long entityId);
+
+    /**
      * Get the storage tier associated with an entity.
      *
      * Only finds the immediately connected storage tier. For example, suppose a VIRTUAL_MACHINE is

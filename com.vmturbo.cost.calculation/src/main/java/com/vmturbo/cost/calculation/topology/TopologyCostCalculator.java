@@ -134,25 +134,20 @@ public class TopologyCostCalculator {
             final CloudTopology<TopologyEntityDTO> cloudTopology,
             final Map<Long, EntityReservedInstanceCoverage> topologyRICoverage) {
         final CloudCostCalculator<TopologyEntityDTO> costCalculator;
-        try {
-            final Map<Long, CostJournal<TopologyEntityDTO>> retCosts = new HashMap<>(cloudTopology.size());
-            final DependentCostLookup<TopologyEntityDTO> dependentCostLookup = entity -> retCosts.get(entity.getOid());
-            costCalculator = cloudCostCalculatorFactory.newCalculator(cloudCostData,
-                    cloudTopology,
-                    topologyEntityInfoExtractor,
-                    discountApplicatorFactory,
-                    riApplicatorFactory,
-                    dependentCostLookup,
-                    topologyRICoverage);
-            entities.forEach(entity -> {
-                retCosts.put(entity.getOid(), costCalculator.calculateCost(entity));
-            });
-            logger.info("Cost calculation completed.");
-            return retCosts;
-        } catch (CloudCostDataRetrievalException e) {
-            logger.error("Failed to retrieve cloud cost data. Not doing any cloud cost calculation.", e);
-            return Collections.emptyMap();
-        }
+        final Map<Long, CostJournal<TopologyEntityDTO>> retCosts = new HashMap<>(cloudTopology.size());
+        final DependentCostLookup<TopologyEntityDTO> dependentCostLookup = entity -> retCosts.get(entity.getOid());
+        costCalculator = cloudCostCalculatorFactory.newCalculator(cloudCostData,
+                cloudTopology,
+                topologyEntityInfoExtractor,
+                discountApplicatorFactory,
+                riApplicatorFactory,
+                dependentCostLookup,
+                topologyRICoverage);
+        entities.forEach(entity -> {
+            retCosts.put(entity.getOid(), costCalculator.calculateCost(entity));
+        });
+        logger.info("Cost calculation completed.");
+        return retCosts;
     }
 
     /**

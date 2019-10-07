@@ -12,12 +12,12 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
-
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -27,7 +27,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
-import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePriceTuple;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
@@ -159,9 +158,10 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 calculateVirtualMachineCost(entity, region, journal);
                 break;
             case EntityType.DATABASE_VALUE:
+                calculateDatabaseCost(entity, region, false, journal);
+                break;
             case EntityType.DATABASE_SERVER_VALUE:
-                // TODO (roman, Oct 12, 2018): We will need to split up DB and DB Server calculation.
-                calculateDatabaseCost(entity, region, journal);
+                calculateDatabaseCost(entity, region, true, journal);
                 break;
             case EntityType.VIRTUAL_VOLUME_VALUE:
                 calculateVirtualVolumeCost(entity, region, journal);
@@ -488,12 +488,19 @@ public class CloudCostCalculator<ENTITY_CLASS> {
 
     private void calculateDatabaseCost(@Nonnull final ENTITY_CLASS entity,
                                        @Nonnull final ENTITY_CLASS region,
+                                       final boolean isDbServer,
                                        @Nonnull final CostJournal.Builder<ENTITY_CLASS> journal) {
         final long entityId = entityInfoExtractor.getId(entity);
         logger.trace("Starting entity cost calculation for db {}", entityId);
         entityInfoExtractor.getDatabaseConfig(entity).ifPresent(databaseConfig -> {
             // Calculate on-demand prices for entities that have a database config.
-            cloudTopology.getDatabaseTier(entityId).ifPresent(databaseTier -> {
+            final Optional<ENTITY_CLASS> tier;
+            if (isDbServer) {
+                tier = cloudTopology.getDatabaseServerTier(entityId);
+            } else {
+                tier = cloudTopology.getDatabaseTier(entityId);
+            }
+            tier.ifPresent(databaseTier -> {
                 final long regionId = entityInfoExtractor.getId(region);
                 final OnDemandPriceTable onDemandPriceTable =
                     cloudCostData.getPriceTable().getOnDemandPriceByRegionIdMap().get(regionId);
@@ -599,7 +606,22 @@ public class CloudCostCalculator<ENTITY_CLASS> {
      * @return The {@link CloudCostCalculatorFactory}.
      */
     public static <ENTITY_CLASS> CloudCostCalculatorFactory<ENTITY_CLASS> newFactory() {
-        return CloudCostCalculator::new;
+        return new CloudCostCalculatorFactory<ENTITY_CLASS>() {
+            @Nonnull
+            @Override
+            public CloudCostCalculator<ENTITY_CLASS> newCalculator(
+                    @Nonnull final CloudCostData cloudCostData,
+                    @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
+                    @Nonnull final EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor,
+                    @Nonnull final DiscountApplicatorFactory<ENTITY_CLASS> discountApplicatorFactory,
+                    @Nonnull final ReservedInstanceApplicatorFactory<ENTITY_CLASS> riApplicatorFactory,
+                    @Nonnull final DependentCostLookup<ENTITY_CLASS> dependentCostLookup,
+                    @Nonnull final Map<Long, EntityReservedInstanceCoverage> topologyRICoverage) {
+                return new CloudCostCalculator<>(cloudCostData, cloudTopology, entityInfoExtractor,
+                    discountApplicatorFactory, riApplicatorFactory,
+                    dependentCostLookup, topologyRICoverage);
+            }
+        };
     }
 
     /**
@@ -610,15 +632,26 @@ public class CloudCostCalculator<ENTITY_CLASS> {
     @FunctionalInterface
     public interface CloudCostCalculatorFactory<ENTITY_CLASS> {
 
+        /**
+         * Create a new {@link CloudCostCalculator}.
+         *
+         * @param cloudCostData Cost information.
+         * @param cloudTopology The cloud topology to use for cost calculation.
+         * @param entityInfoExtractor Extracts properties from entities in the topology.
+         * @param discountApplicatorFactory Applies discounts.
+         * @param riApplicatorFactory Figures out per-entity RI coverage precentage.
+         * @param dependentCostLookup Lookup for cost dependencies (e.g. VM -> Volume).
+         * @param topologyRICoverage RI coverage information.
+         * @return The cost calculator.
+         */
         @Nonnull
         CloudCostCalculator<ENTITY_CLASS> newCalculator(
-                @Nonnull final CloudCostData cloudCostData,
-                @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
-                @Nonnull final EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor,
-                @Nonnull final DiscountApplicatorFactory<ENTITY_CLASS> discountApplicatorFactory,
-                @Nonnull final ReservedInstanceApplicatorFactory<ENTITY_CLASS> riApplicatorFactory,
-                @Nonnull final DependentCostLookup<ENTITY_CLASS> dependentCostLookup,
-                @Nonnull final Map<Long, EntityReservedInstanceCoverage> topologyRICoverage)
-            throws CloudCostDataRetrievalException;
+                @Nonnull CloudCostData cloudCostData,
+                @Nonnull CloudTopology<ENTITY_CLASS> cloudTopology,
+                @Nonnull EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor,
+                @Nonnull DiscountApplicatorFactory<ENTITY_CLASS> discountApplicatorFactory,
+                @Nonnull ReservedInstanceApplicatorFactory<ENTITY_CLASS> riApplicatorFactory,
+                @Nonnull DependentCostLookup<ENTITY_CLASS> dependentCostLookup,
+                @Nonnull Map<Long, EntityReservedInstanceCoverage> topologyRICoverage);
     }
 }
