@@ -136,8 +136,7 @@ public class CostComponentProjectedEntityCostListener implements ProjectedEntity
         final Builder projectedNotificationBuilder = StatusUpdate.newBuilder()
                 .setTopologyId(originalTopologyInfo.getTopologyId())
                 .setTopologyContextId(originalTopologyInfo.getTopologyContextId())
-                .setStatus(status)
-                .setStatusDescription(description);
+                .setStatus(status);
         // It adds the error description to the notification.
         if (description != null) {
             projectedNotificationBuilder.setStatusDescription(description);
