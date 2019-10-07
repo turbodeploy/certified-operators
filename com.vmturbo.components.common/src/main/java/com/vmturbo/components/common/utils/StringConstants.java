@@ -261,6 +261,10 @@ public class StringConstants {
     public static final String TARGET_UUID_CC = "targetUuid";
     public static final String PROPERTY_SUBTYPE_USED = "used";
     public static final String PROPERTY_SUBTYPE_UTILIZATION = "utilization";
+    /**
+     * Commodity percentile utilization.
+     */
+    public static final String PROPERTY_SUBTYPE_PERCENTILE_UTILIZATION = "percentileUtilization";
     public static final String TARGET_UUID = "target_uuid";
     public static final String PROVIDER_ID = "provider_id";
     public static final String CATEGORY_ID = "category_id";

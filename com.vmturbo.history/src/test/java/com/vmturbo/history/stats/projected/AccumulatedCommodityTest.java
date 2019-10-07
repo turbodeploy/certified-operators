@@ -10,6 +10,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.stats.StatsAccumulator;
 import com.vmturbo.history.stats.projected.AccumulatedCommodity.AccumulatedBoughtCommodity;
@@ -47,6 +48,7 @@ public class AccumulatedCommodityTest {
                 .setUsed(3)
                 .setPeak(4)
                 .setCapacity(5)
+                .setHistoricalUsed(HistoricalValues.newBuilder().setPercentile(0.5D).build())
                 .build();
         // Add two of the same commodity (to make the math easier)
         commodity.recordSoldCommodity(soldCommodity);
@@ -64,7 +66,11 @@ public class AccumulatedCommodityTest {
                 .setUsed(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(6).build())
                 .setValues(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(6).build())
                 .setPeak(StatValue.newBuilder().setAvg(4).setMax(4).setMin(4).setTotal(8).build())
-                .build();
+                .setPercentileUtilization(StatValue.newBuilder()
+                        .setAvg(0.5F)
+                        .setMax(0.5F)
+                        .setMin(0.5F)
+                        .setTotal(1F).build()).build();
 
 
         assertEquals(expectedStatRecord, commodity.toStatRecord().get());
@@ -79,6 +85,7 @@ public class AccumulatedCommodityTest {
                 .setCommodityType(MEM_COMMODITY_TYPE)
                 .setUsed(3)
                 .setPeak(4)
+                .setHistoricalUsed(HistoricalValues.newBuilder().setPercentile(0.5D).build())
                 .build();
 
         commodity.recordBoughtCommodity(dto, 1L, 5);
@@ -96,7 +103,11 @@ public class AccumulatedCommodityTest {
                 .setUsed(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(6).build())
                 .setValues(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(6).build())
                 .setPeak(StatValue.newBuilder().setAvg(4).setMax(4).setMin(4).setTotal(8).build())
-                .build();
+                .setPercentileUtilization(StatValue.newBuilder()
+                        .setAvg(0.5F)
+                        .setMax(0.5F)
+                        .setMin(0.5F)
+                        .setTotal(1F).build()).build();
 
         assertEquals(expectedStatRecord, commodity.toStatRecord().get());
     }
@@ -110,6 +121,7 @@ public class AccumulatedCommodityTest {
             .setCommodityType(MEM_COMMODITY_TYPE)
             .setUsed(3)
             .setPeak(4)
+            .setHistoricalUsed(HistoricalValues.newBuilder().setPercentile(0.5D).build())
             .build();
 
         commodity.recordBoughtCommodity(dto, null, 0);
@@ -124,7 +136,11 @@ public class AccumulatedCommodityTest {
             .setUsed(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(6).build())
             .setValues(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(6).build())
             .setPeak(StatValue.newBuilder().setAvg(4).setMax(4).setMin(4).setTotal(8).build())
-            .build();
+            .setPercentileUtilization(StatValue.newBuilder()
+                    .setAvg(0.5F)
+                    .setMax(0.5F)
+                    .setMin(0.5F)
+                    .setTotal(1F).build()).build();
 
         assertEquals(expectedStatRecord, commodity.toStatRecord().get());
     }
@@ -142,6 +158,7 @@ public class AccumulatedCommodityTest {
                 .setCommodityType(MEM_COMMODITY_TYPE)
                 .setUsed(3)
                 .setPeak(4)
+                .setHistoricalUsed(HistoricalValues.newBuilder().setPercentile(0.5D).build())
                 .build();
 
         commodity.recordBoughtCommodity(dto, 1L, 5);

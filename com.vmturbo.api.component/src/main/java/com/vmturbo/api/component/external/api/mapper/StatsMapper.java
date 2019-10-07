@@ -32,6 +32,7 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
+import com.vmturbo.api.dto.statistic.StatPercentileApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -364,6 +365,15 @@ public class StatsMapper {
             keyFilter.setType(FILTER_NAME_KEY);
             keyFilter.setValue(convertedStatRecord.getStatKey());
             filters.add(keyFilter);
+        }
+
+        if (convertedStatRecord.hasPercentileUtilization()) {
+            final StatValue percentileUtilization = convertedStatRecord.getPercentileUtilization();
+            if (percentileUtilization.hasAvg()) {
+                final StatPercentileApiDTO statPercentileApiDTO = new StatPercentileApiDTO();
+                statPercentileApiDTO.setPercentileUtilization(percentileUtilization.getAvg());
+                statApiDTO.setPercentile(statPercentileApiDTO);
+            }
         }
 
         if (filters.size() > 0) {

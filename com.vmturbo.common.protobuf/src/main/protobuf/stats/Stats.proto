@@ -236,6 +236,9 @@ message StatSnapshot {
         // sold by a PhysicalMachine
         optional string related_entity_type = 13;
 
+        // commodity percentile utilization
+        optional StatValue percentile_utilization = 14;
+
         // statistics for a given value over time
         message StatValue {
             optional float max = 1;

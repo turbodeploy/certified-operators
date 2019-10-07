@@ -37,11 +37,11 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
 
-import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.Builder;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * A helper class to assemble database {@link Record}s into a {@link StatSnapshot}
@@ -89,7 +89,6 @@ public interface StatSnapshotCreator {
             // Process all the DB records grouped by, and ordered by, snapshot_time
             TreeMap<Timestamp, Multimap<String, Record>> statRecordsByTimeByCommodity =
                     organizeStatsRecordsByTime(statDBRecords, commodityRequests);
-
             // For each snapshot_time, create a {@link StatSnapshot} and handle as it is constructed
             return statRecordsByTimeByCommodity.entrySet().stream().map(entry -> {
                 final Timestamp timestamp = entry.getKey();
@@ -100,6 +99,18 @@ public interface StatSnapshotCreator {
                 // process all the stats records for a given commodity for the current snapshot_time
                 // - might be 1, many for group, or none if time range didn't overlap recorded stats
                 commodityMap.asMap().values().forEach(dbStatRecordList -> {
+                    final StatsAccumulator percentileUtilization = new StatsAccumulator();
+                    dbStatRecordList.removeIf(r -> {
+                        if (StringConstants.PROPERTY_SUBTYPE_PERCENTILE_UTILIZATION.equalsIgnoreCase(
+                                r.getValue(PROPERTY_SUBTYPE, String.class))) {
+                            final Double value = r.getValue(AVG_VALUE, Double.class);
+                            if (value != null) {
+                                percentileUtilization.record(value);
+                            }
+                            return true;
+                        }
+                        return false;
+                    });
                     if (!dbStatRecordList.isEmpty()) {
                         // use the first element as the core of the group value
                         Record dbFirstStatRecord = dbStatRecordList.iterator().next();
@@ -183,7 +194,7 @@ public interface StatSnapshotCreator {
                             statRecord = statRecordBuilder.buildStatRecord(propertyType,
                                 propertySubtype, capacityValue.toStatValue(), reserved,
                                 relatedEntityType, producerId, avgTotal, minTotal, maxTotal,
-                                commodityKey, avgTotal, relation);
+                                commodityKey, avgTotal, relation, null);
                         } else {
                             // calculate the averages
                             final int numStatRecords = dbStatRecordList.size();
@@ -199,8 +210,10 @@ public interface StatSnapshotCreator {
                             // build the record for this stat (commodity type)
                             statRecord = statRecordBuilder.buildStatRecord(propertyType,
                                 propertySubtype, capacityValue.toStatValue(), reserved,
-                                relatedEntityType, producerId, avgValueAvg, minValueAvg, maxValueAvg,
-                                commodityKey, avgTotal, relation);
+                                relatedEntityType, producerId, avgValueAvg, minValueAvg,
+                                maxValueAvg, commodityKey, avgTotal, relation,
+                                percentileUtilization.getCount() > 0 ?
+                                        percentileUtilization.toStatValue() : null);
                         }
 
                         // return add this record to the snapshot for this timestamp

@@ -10,6 +10,7 @@ import javax.annotation.Nullable;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.stats.StatsAccumulator;
@@ -25,6 +26,8 @@ abstract class AccumulatedCommodity {
     private StatsAccumulator peak = new StatsAccumulator();
 
     private StatsAccumulator capacity = new StatsAccumulator();
+
+    private StatsAccumulator percentileUtilization = new StatsAccumulator();
 
     private final String commodityName;
 
@@ -48,7 +51,9 @@ abstract class AccumulatedCommodity {
         builder.setValues(used.toStatValue());
         builder.setPeak(peak.toStatValue());
         builder.setCurrentValue((float)used.getAvg());
-
+        if (percentileUtilization.getCount() > 0) {
+            builder.setPercentileUtilization(percentileUtilization.toStatValue());
+        }
 
         final CommodityTypeUnits commodityType = CommodityTypeUnits.fromString(commodityName);
         if (commodityType != null) {
@@ -83,6 +88,11 @@ abstract class AccumulatedCommodity {
         this.capacity.record(capacity);
     }
 
+    protected void recordPercentileUtilization(final double percentileUtilization) {
+        empty = false;
+        this.percentileUtilization.record(percentileUtilization);
+    }
+
     /**
      * Accumulated information about a single bought commodity across some number of
      * entities in the topology.
@@ -114,6 +124,12 @@ abstract class AccumulatedCommodity {
             recordUsed(commodityBoughtDTO.getUsed());
             recordPeak(commodityBoughtDTO.getPeak());
             recordCapacity(capacity);
+            if (commodityBoughtDTO.hasHistoricalUsed()) {
+                final HistoricalValues historicalUsed = commodityBoughtDTO.getHistoricalUsed();
+                if (historicalUsed.hasPercentile()) {
+                    recordPercentileUtilization(historicalUsed.getPercentile());
+                }
+            }
             this.providers.add(providerId);
         }
 
@@ -152,6 +168,12 @@ abstract class AccumulatedCommodity {
             recordUsed(commoditySoldDTO.getUsed());
             recordPeak(commoditySoldDTO.getPeak());
             recordCapacity(commoditySoldDTO.getCapacity());
+            if (commoditySoldDTO.hasHistoricalUsed()) {
+                final HistoricalValues historicalUsed = commoditySoldDTO.getHistoricalUsed();
+                if (historicalUsed.hasPercentile()) {
+                    recordPercentileUtilization(historicalUsed.getPercentile());
+                }
+            }
         }
 
         @Nonnull

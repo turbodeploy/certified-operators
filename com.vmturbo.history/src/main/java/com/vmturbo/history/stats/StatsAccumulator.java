@@ -45,6 +45,10 @@ public class StatsAccumulator {
         return count == 0 ? 0 : total / count;
     }
 
+    public int getCount() {
+        return count;
+    }
+
     public static StatValue singleStatValue(final float value) {
         return new StatsAccumulator()
             .record(value)

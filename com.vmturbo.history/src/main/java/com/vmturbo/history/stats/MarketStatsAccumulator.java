@@ -4,6 +4,7 @@ import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits
 import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.NUM_SOCKETS;
 import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.NUM_VCPUS;
 import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.PRODUCES;
+import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_SUBTYPE_PERCENTILE_UTILIZATION;
 import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_SUBTYPE_USED;
 import static com.vmturbo.history.utils.HistoryStatsUtils.countSEsMetrics;
 
@@ -36,6 +37,7 @@ import com.google.common.collect.Multimap;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -352,10 +354,11 @@ public class MarketStatsAccumulator {
                     = (commoditySoldDTO.hasEffectiveCapacityPercentage() && (capacity != null))
                     ? (commoditySoldDTO.getEffectiveCapacityPercentage() / 100.0 * capacity)
                     : capacity;
-            historydbIO.initializeCommodityInsert(mixedCaseCommodityName, topologyInfo.getCreationTime(),
-                    entityId, RelationType.COMMODITIES, /*providerId*/null, capacity,
-                    effectiveCapacity, commoditySoldDTO.getCommodityType().getKey(), insertStmt,
-                    dbTable);
+            final String key = commoditySoldDTO.getCommodityType().getKey();
+            final long snapshotTime = topologyInfo.getCreationTime();
+            historydbIO.initializeCommodityInsert(mixedCaseCommodityName, snapshotTime, entityId,
+                    RelationType.COMMODITIES, /*providerId*/null, capacity, effectiveCapacity, key,
+                    insertStmt, dbTable);
             // set the values specific to used component of commodity and write
             historydbIO.setCommodityValues(PROPERTY_SUBTYPE_USED, commoditySoldDTO.getUsed(),
                     commoditySoldDTO.getPeak(), insertStmt, dbTable);
@@ -366,6 +369,24 @@ public class MarketStatsAccumulator {
             internalAddCommodity(mixedCaseCommodityName, PROPERTY_SUBTYPE_USED,
                     commoditySoldDTO.getUsed(), capacity, effectiveCapacity, commoditySoldDTO.getPeak(),
                     RelationType.COMMODITIES);
+
+            if (commoditySoldDTO.hasHistoricalUsed()) {
+                insertCommodityPercentileUtilization(mixedCaseCommodityName, snapshotTime, entityId,
+                        RelationType.COMMODITIES, null, key, commoditySoldDTO.getHistoricalUsed());
+            }
+        }
+    }
+
+    private void insertCommodityPercentileUtilization(String commodityName, long snapshotTime,
+            long entityId, RelationType relationType, Long providerId, String commodityKey,
+            HistoricalValues historicalUsed) throws VmtDbException {
+        if (historicalUsed.hasPercentile()) {
+            historydbIO.initializeCommodityInsert(commodityName, snapshotTime, entityId,
+                    relationType, providerId, 1D, 1D, commodityKey, insertStmt, dbTable);
+            historydbIO.setCommodityValues(PROPERTY_SUBTYPE_PERCENTILE_UTILIZATION,
+                    historicalUsed.getPercentile(), historicalUsed.getPercentile(), insertStmt,
+                    dbTable);
+            markRowComplete();
         }
     }
 
@@ -613,6 +634,12 @@ public class MarketStatsAccumulator {
             internalAddCommodity(mixedCaseCommodityName, PROPERTY_SUBTYPE_USED,
                     commodityBoughtDTO.getUsed(), capacity, null, commodityBoughtDTO.getPeak(),
                     RelationType.COMMODITIESBOUGHT);
+
+            if (commodityBoughtDTO.hasHistoricalUsed()) {
+                insertCommodityPercentileUtilization(mixedCaseCommodityName, snapshotTime,
+                        entityDTO.getOid(), RelationType.COMMODITIESBOUGHT, providerId, key,
+                        commodityBoughtDTO.getHistoricalUsed());
+            }
         }
     }
 

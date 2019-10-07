@@ -32,6 +32,7 @@ public interface StatRecordBuilder {
      * @param commodityKey unique key to associate commodities between seller and buyer
      * @param totalValue total of value (avgValue) over all elements of a group
      * @param relation stat relation to entity, e.g., "CommoditiesBought"
+     * @param percentileUtilization commodity percentile utilization
      * @return a {@link StatRecord} protobuf populated with the given values
      */
     @Nonnull
@@ -46,7 +47,8 @@ public interface StatRecordBuilder {
                                @Nullable final Float maxValue,
                                @Nullable final String commodityKey,
                                @Nullable final Float totalValue,
-                               @Nullable final String relation);
+                               @Nullable String relation,
+                               @Nullable StatValue percentileUtilization);
 
     /**
      * Create a {@link StatRecord} protobuf to contain aggregate stats values.
@@ -89,7 +91,8 @@ public interface StatRecordBuilder {
             maxValue,
             commodityKey,
             totalValue,
-            relation);
+            relation,
+                null);
     }
 
     /**
@@ -116,7 +119,8 @@ public interface StatRecordBuilder {
                                           @Nullable final Float maxValue,
                                           @Nullable final String commodityKey,
                                           @Nullable final Float totalValue,
-                                          @Nullable final String relation) {
+                                          @Nullable final String relation,
+                                          @Nullable final StatValue percentileUtilization) {
             final StatRecord.Builder statRecordBuilder = StatRecord.newBuilder()
                     .setName(propertyType);
 
@@ -184,7 +188,9 @@ public interface StatRecordBuilder {
             statRecordBuilder.setValues(statValue);
             statRecordBuilder.setUsed(statValue);
             statRecordBuilder.setPeak(statValue);
-
+            if (percentileUtilization != null) {
+                statRecordBuilder.setPercentileUtilization(percentileUtilization);
+            }
             return statRecordBuilder.build();
         }
     }

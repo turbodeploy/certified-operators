@@ -13,13 +13,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.sql.Timestamp;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +43,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.history.schema.abstraction.tables.records.BuStatsLatestRecord;
 import com.vmturbo.history.stats.StatRecordBuilder.DefaultStatRecordBuilder;
 import com.vmturbo.history.stats.StatSnapshotCreator.DefaultStatSnapshotCreator;
 import com.vmturbo.history.stats.readers.LiveStatsReader;
@@ -73,7 +74,7 @@ public class StatSnapshotCreatorTest {
                 .setName("mock2")
                 .build();
         when(statRecordBuilder.buildStatRecord(any(), any(), isA(StatValue.class), any(), any(),
-            any(), any(), any(), any(), any(), any(), any()))
+            any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(record1, record2);
         final List<CommodityRequest> commodityRequests =
                 Collections.singletonList(CommodityRequest.newBuilder()
@@ -241,7 +242,7 @@ public class StatSnapshotCreatorTest {
                 .setName("mock")
                 .build();
         when(statRecordBuilder.buildStatRecord(any(), any(), isA(StatValue.class), any(), any(),
-            any(), any(), any(), any(), any(), any(), any()))
+            any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(record);
         final List<CommodityRequest> commodityRequests =
             Collections.singletonList(CommodityRequest.newBuilder()
@@ -260,6 +261,43 @@ public class StatSnapshotCreatorTest {
         assertThat(snapshots.size(), is(1));
         final StatSnapshot snapshot = snapshots.get(0);
         assertThat(snapshot.getStatRecordsList(), containsInAnyOrder(record));
+    }
+
+    /**
+     * Test commodity percentile utilization.
+     */
+    @Test
+    public void testPercentileUtilization() {
+        final StatSnapshotCreator statSnapshotCreator =
+                new DefaultStatSnapshotCreator(new TestStatRecordBuilder());
+        final BuStatsLatestRecord usedRecord = new BuStatsLatestRecord();
+        usedRecord.setSnapshotTime(SNAPSHOT_TIME);
+        usedRecord.setPropertyType(UICommodityType.IMAGE_CPU.apiStr());
+        usedRecord.setPropertySubtype(StringConstants.PROPERTY_SUBTYPE_USED);
+        usedRecord.setAvgValue(500D);
+        usedRecord.setMinValue(500D);
+        usedRecord.setMaxValue(500D);
+        usedRecord.setCapacity(1000D);
+
+        final BuStatsLatestRecord percentileRecord = new BuStatsLatestRecord();
+        percentileRecord.setSnapshotTime(SNAPSHOT_TIME);
+        percentileRecord.setPropertyType(UICommodityType.IMAGE_CPU.apiStr());
+        percentileRecord.setPropertySubtype(
+                StringConstants.PROPERTY_SUBTYPE_PERCENTILE_UTILIZATION);
+        percentileRecord.setAvgValue(20D);
+        percentileRecord.setMinValue(20D);
+        percentileRecord.setMaxValue(20D);
+
+        final List<StatSnapshot> statSnapshots =
+                statSnapshotCreator.createStatSnapshots(Arrays.asList(percentileRecord, usedRecord),
+                        false, Collections.emptyList())
+                        .map(StatSnapshot.Builder::build)
+                        .collect(Collectors.toList());
+        Assert.assertEquals(1, statSnapshots.size());
+        Assert.assertEquals(1, statSnapshots.get(0).getStatRecordsList().size());
+        final StatRecord statRecords = statSnapshots.get(0).getStatRecords(0);
+        Assert.assertEquals(500D, statRecords.getUsed().getAvg(), 0.0001);
+        Assert.assertEquals(20D, statRecords.getPercentileUtilization().getAvg(), 0.0001);
     }
 
     @Test
@@ -420,7 +458,8 @@ public class StatSnapshotCreatorTest {
                                           @Nullable final Float maxValue,
                                           @Nullable final String commodityKey,
                                           @Nullable final Float totalValue,
-                                          @Nullable final String relation) {
+                                          @Nullable final String relation,
+                                          @Nullable final StatValue percentileUtilization) {
             final StatRecord.Builder statRecordBuilder = StatRecord.newBuilder()
                     .setName(propertyType);
 
@@ -485,7 +524,9 @@ public class StatSnapshotCreatorTest {
             statRecordBuilder.setValues(statValue);
             statRecordBuilder.setUsed(statValue);
             statRecordBuilder.setPeak(statValue);
-
+            if (percentileUtilization != null) {
+                statRecordBuilder.setPercentileUtilization(percentileUtilization);
+            }
             return statRecordBuilder.build();
         }
     }

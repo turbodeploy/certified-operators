@@ -108,8 +108,8 @@ public class LiveStatsAggregatorTest {
      */
     @Test
     public void testRecords() {
-        // 10 records: 5 x Produces attributes + 2 x commodity bought + 3 x commodity sold
-        Mockito.verify(stmt, Mockito.times(10)).newRecord();
+        // 13 records: 5 x Produces attributes + 2 x commodity bought + 3 x commodity sold (+ percentile utilization record)
+        Mockito.verify(stmt, Mockito.times(13)).newRecord();
         // 3 PMs produce 1 entity each
         Mockito.verify(historydbIO, Mockito.times(3)).setCommodityValues(Mockito.eq("Produces"),
             Mockito.eq(1.0), Mockito.eq(0.0), Mockito.eq(stmt), Mockito.any());

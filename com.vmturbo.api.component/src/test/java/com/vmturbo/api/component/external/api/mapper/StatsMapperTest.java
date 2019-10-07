@@ -856,6 +856,7 @@ public class StatsMapperTest {
         assertThat(mappedStat.getRelatedEntity().getUuid(), is(test.getProviderUuid()));
         assertThat(mappedStat.getUnits(), is(test.getUnits()));
         assertThat(mappedStat.getValue(), is(test.getUsed().getAvg()));
+        assertThat(mappedStat.getPercentile().getPercentileUtilization(), is(test.getPercentileUtilization().getAvg()));
         validateStatValue(mappedStat.getValues(), test.getUsed());
     }
 
@@ -911,6 +912,7 @@ public class StatsMapperTest {
             .setPeak(buildStatValue(index))
             .setUsed(buildStatValue(index + 100))
             .setValues(buildStatValue(index + 200))
+            .setPercentileUtilization(buildStatValue(index + 300))
             .setRelation(relation);
     }
 

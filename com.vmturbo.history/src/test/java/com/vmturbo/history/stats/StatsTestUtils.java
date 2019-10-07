@@ -28,7 +28,9 @@ import com.google.gson.stream.JsonReader;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -59,6 +61,7 @@ public class StatsTestUtils {
             .setCommodityType(CPU_COMMODITY_TYPE)
             .build();
     private static double CPU_CAPACITY = 111.111;
+    private static final double CPU_PERCENTILE = 0.111;
     private static double DSPMA_CAPACITY = 100000;
 
     public static TopologyEntityDTO vm(long oid, long providerId) {
@@ -93,10 +96,12 @@ public class StatsTestUtils {
     }
 
     public static TopologyDTO.CommoditySoldDTO cpu(double used) {
-        return TopologyDTO.CommoditySoldDTO.newBuilder()
-                        .setCommodityType(CPU_COMMODITY_TYPE)
-                        .setUsed(used)
-                        .setCapacity(CPU_CAPACITY).build();
+        return CommoditySoldDTO.newBuilder()
+                .setCommodityType(CPU_COMMODITY_TYPE)
+                .setUsed(used)
+                .setCapacity(CPU_CAPACITY)
+                .setHistoricalUsed(HistoricalValues.newBuilder().setPercentile(CPU_PERCENTILE))
+                .build();
     }
 
     public static TopologyDTO.CommoditySoldDTO dspma(double used) {

@@ -153,9 +153,9 @@ public class MarketStatsAccumulatorTest {
         // flush the stats, triggering the final insert
         marketStatsAccumulator.writeQueuedRows();
 
-        // assert 10 rows, buffering 3 at a time -> 4 insert statements total
-        verify(historydbIO, times(4)).getCommodityInsertStatement(StatsTestUtils.PM_LATEST_TABLE);
-        verify(historydbIO, times(4)).execute(eq(BasedbIO.Style.FORCED), eq(mockInsertStmt));
+        // assert 20 rows, buffering 3 at a time -> 7 insert statements total
+        verify(historydbIO, times(7)).getCommodityInsertStatement(StatsTestUtils.PM_LATEST_TABLE);
+        verify(historydbIO, times(7)).execute(eq(BasedbIO.Style.FORCED), eq(mockInsertStmt));
     }
 
     @Test
@@ -212,10 +212,10 @@ public class MarketStatsAccumulatorTest {
         marketStatsAccumulator.writeQueuedRows();
 
         // assert
-        // 10 * 2 commodities -> 20 rows; 3 at a time -> 7 inserts;
-        verify(historydbIO, times(7)).execute(eq(BasedbIO.Style.FORCED), eq(mockInsertStmt));
-        // no additional unused getCommodityInsertStatement fetched => 7
-        verify(historydbIO, times(7)).getCommodityInsertStatement(StatsTestUtils.APP_LATEST_TABLE);
+        // 10 * 2 commodities (1 commodity with percentile * 10) -> 30 rows; 3 at a time -> 10 inserts;
+        verify(historydbIO, times(10)).execute(eq(BasedbIO.Style.FORCED), eq(mockInsertStmt));
+        // no additional unused getCommodityInsertStatement fetched => 11
+        verify(historydbIO, times(11)).getCommodityInsertStatement(StatsTestUtils.APP_LATEST_TABLE);
     }
 
     @Test
@@ -315,10 +315,10 @@ public class MarketStatsAccumulatorTest {
         marketStatsAccumulator.writeQueuedRows();
 
         // assert
-        // vm - 2 commodities bought -> 2 rows; 1 insert
+        // vm - 2 commodities bought (1 commodity with percentile) -> 3 rows; 1 insert
         verify(historydbIO, times(1)).execute(eq(BasedbIO.Style.FORCED), eq(mockInsertStmt));
-        // one unused getCommodityInsertStatement fetched
-        verify(historydbIO, times(1)).getCommodityInsertStatement(StatsTestUtils.APP_LATEST_TABLE);
+        // 2 unused getCommodityInsertStatement fetched
+        verify(historydbIO, times(2)).getCommodityInsertStatement(StatsTestUtils.APP_LATEST_TABLE);
     }
 
     @Test
