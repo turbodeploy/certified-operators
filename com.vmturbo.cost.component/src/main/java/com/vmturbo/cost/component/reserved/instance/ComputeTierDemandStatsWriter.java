@@ -28,6 +28,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -45,6 +46,9 @@ public class ComputeTierDemandStatsWriter {
     private float preferredCurrentWeight;
 
     private final ComputeTierDemandStatsStore computeTierDemandStatsStore;
+
+    // Storage for projected reserved instance(RI) coverage of entities.
+    private final ProjectedRICoverageAndUtilStore projectedRICoverageAndUtilStore;
 
     private final Calendar calendar =
             GregorianCalendar.getInstance(TimeZone.getTimeZone("UTC"));
@@ -67,9 +71,18 @@ public class ComputeTierDemandStatsWriter {
                     .withHelp("Time taken to update/upload the compute tier stats to DB.")
                     .build();
 
+    /**
+     * Constructor.
+     *
+     * @param riStatsStore Provides historical data for instances.
+     * @param projectedRICoverageAndUtilStore Storage for projected reserved instance(RI) coverage of entities.
+     * @param preferredCurrentWeight Weight for the current demand.
+     */
     public ComputeTierDemandStatsWriter(@Nonnull ComputeTierDemandStatsStore riStatsStore,
+                                        @Nonnull ProjectedRICoverageAndUtilStore projectedRICoverageAndUtilStore,
                                         float preferredCurrentWeight) {
         this.computeTierDemandStatsStore = Objects.requireNonNull(riStatsStore);
+        this.projectedRICoverageAndUtilStore = projectedRICoverageAndUtilStore;
         this.preferredCurrentWeight = preferredCurrentWeight;
     }
 
@@ -90,14 +103,6 @@ public class ComputeTierDemandStatsWriter {
         String topologyType = isProjectedTopology ? "Projected" : "Live";
         logger.info("Calculating RI demands stats from {} topology {}",
                 topologyType, topologyInfo);
-
-        // Mapping from RI_ID -> VM_ID
-        // Stores the mapping from Reserve Instance Id to VM Id.
-        final Map<Long, Set<Long>> computeTierIdToVmIdMap = new HashMap<>();
-        // Mapping from workload OID -> BusinessAccount OID
-        // This stores the mapping of the business account associated
-        // with the entities.
-        final Map<Long, Long> workloadIdToBusinessAccountIdMap = new HashMap<>();
 
         final boolean isRealTimeTopology =
                 (topologyInfo.getTopologyType() == TopologyType.REALTIME);
@@ -142,27 +147,6 @@ public class ComputeTierDemandStatsWriter {
             return;
         }
 
-        for (TopologyEntityDTO entityDTO : cloudEntities.values()) {
-            // If the entity is a business account, get all the entities connected to it.
-            if (entityDTO.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
-                getAllConnectedEntitiesForBusinessAccount(
-                        entityDTO)
-                        .forEach(entityId ->
-                                workloadIdToBusinessAccountIdMap.put(entityId,
-                                        entityDTO.getOid()));
-                continue;
-            }
-
-            // We are only interested in entities which are buying from ComputeTier.
-            Optional<CommoditiesBoughtFromProvider> computeTierProvider =
-                    getComputeTierProvider(entityDTO);
-            if (computeTierProvider.isPresent()) {
-                computeTierIdToVmIdMap.computeIfAbsent(
-                        computeTierProvider.get().getProviderId(),
-                        k -> new HashSet<>()).add(entityDTO.getOid());
-            }
-        }
-
         // For now, we are getting all the records for the hour and day.
         // If it becomes a memory hog, we may have to query and
         // update in batches.
@@ -176,97 +160,32 @@ public class ComputeTierDemandStatsWriter {
                 topologyType, topologyForDay,
                 topologyForHour, statsLoadTime);
 
-        Set<ComputeTierTypeHourlyByWeekRecord> statsRecordsToUpload =
-                new HashSet<>();
+        // Mapping from workload OID -> BusinessAccount OID
+        // This stores the mapping of the business account associated
+        // with the entities.
+        final Map<Long, Long> workloadIdToBusinessAccountIdMap = new HashMap<>();
+        for (TopologyEntityDTO entityDTO : cloudEntities.values()) {
+            // If the entity is a business account, get all the entities connected to it.
+            if (entityDTO.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
+                getAllConnectedEntitiesForBusinessAccount(
+                        entityDTO)
+                        .forEach(entityId ->
+                                workloadIdToBusinessAccountIdMap.put(entityId,
+                                        entityDTO.getOid()));
+                continue;
+            }
+        }
 
-        computeTierIdToVmIdMap.forEach((instanceId, vmIdSet) -> {
-            int computeTierIdCount = vmIdSet.size();
-            vmIdSet.forEach(vmId -> {
-                TopologyEntityDTO vmDTO = cloudEntities.get(vmId);
-                Optional<Long> availabilityZone =
-                        getAvailabilityZone(
-                                vmDTO.getConnectedEntityListList());
-                if (!availabilityZone.isPresent()) {
-                    logger.warn("Skipping. Availability zone missing for VM {} {} ",
-                            vmId, vmDTO.getDisplayName());
-                    return;
-                }
-                if (!vmDTO.hasTypeSpecificInfo() &&
-                        !vmDTO.getTypeSpecificInfo().hasVirtualMachine()) {
-                    logger.warn("Skipping. Missing TypeSpecificInfo for VM {} {} ",
-                            vmId, vmDTO.getDisplayName());
-                    return;
-                }
-                TopologyDTO.TypeSpecificInfo.VirtualMachineInfo vmInfo =
-                        vmDTO.getTypeSpecificInfo().getVirtualMachine();
-                if (vmInfo.getGuestOsInfo().getGuestOsType() == OSType.UNKNOWN_OS) {
-                    logger.warn("Skipping. Unknown OS for  VM {} {} {}",
-                            vmId, vmDTO.getDisplayName(), vmInfo.getGuestOsInfo().getGuestOsName());
-                    return;
-                }
-                byte platform = (byte) vmInfo.getGuestOsInfo().getGuestOsType().getNumber();
-                byte tenancy = (byte) vmInfo.getTenancy().getNumber();
-                Long targetId = workloadIdToBusinessAccountIdMap.get(vmId);
-                if (targetId == null) {
-                    logger.warn("Skipping. Missing Business Account Id for VM {} {} ",
-                            vmId, vmDTO.getDisplayName());
-                    return;
-                }
+        Map<ComputeTierDemandStatsRecord, Integer> statsRecordToCountMapping
+                        = getStatsRecordToCountMapping(cloudEntities, workloadIdToBusinessAccountIdMap);
 
-                WeightedCounts prevWeightedValue =
-                        computeTierDemandStatsMap.getOrDefault(
-                                new ComputeTierDemandStatsRecord(
-                                        targetId, instanceId,
-                                        availabilityZone.get(),
-                                        platform, tenancy),
-                                new WeightedCounts(new BigDecimal(0.0),
-                                        new BigDecimal(0.0)));
-
-                BigDecimal newCountFromSourceTopology;
-                BigDecimal newCountFromProjectedTopology;
-
-                if (isProjectedTopology) {
-                    newCountFromProjectedTopology =
-                            getNewWeightedValue(prevWeightedValue.getCountFromProjectedTopology(),
-                                    computeTierIdCount);
-                    newCountFromSourceTopology =
-                            prevWeightedValue.getCountFromSourceTopology();
-
-                } else {
-                    newCountFromSourceTopology =
-                            getNewWeightedValue(prevWeightedValue.getCountFromSourceTopology(),
-                                    computeTierIdCount);
-                    newCountFromProjectedTopology =
-                            prevWeightedValue.getCountFromProjectedTopology();
-                }
-
-                ComputeTierTypeHourlyByWeekRecord newComputeTierDemandStatsRecord =
-                        new ComputeTierTypeHourlyByWeekRecord(
-                                (byte)topologyForHour,
-                                (byte)topologyForDay,
-                                targetId,
-                                instanceId,
-                                availabilityZone.get(),
-                                platform,
-                                tenancy,
-                                newCountFromSourceTopology,
-                                newCountFromProjectedTopology);
-                logger.trace("Persisted {} demand topology {} {} {} {} {} {} {} {} {}",
-                        topologyType,
-                        (byte)topologyForHour,
-                        (byte)topologyForDay,
-                        targetId,
-                        instanceId,
-                        availabilityZone.get(),
-                        platform,
-                        tenancy,
-                        newCountFromSourceTopology,
-                        newCountFromProjectedTopology);
-
-                statsRecordsToUpload.add(newComputeTierDemandStatsRecord);
-            });
-        });
-
+        Set<ComputeTierTypeHourlyByWeekRecord> statsRecordsToUpload
+                        = getComputeTierTypeHourlyByWeekRecords(statsRecordToCountMapping,
+                                                                computeTierDemandStatsMap,
+                                                                topologyType,
+                                                                isProjectedTopology,
+                                                                topologyForHour,
+                                                                topologyForDay);
         // Upload stats for this hour to the DB.
         try {
             final DataMetricTimer statsUpLoadToDBDurationTimer =
@@ -290,6 +209,134 @@ public class ComputeTierDemandStatsWriter {
         } else {
             lastSourceTopologyProcessedHour = topologyForHour;
         }
+    }
+
+    /**
+     * Returns a mapping from statsRecord to their count.
+     *
+     * @param cloudEntities Mapping from entity Id to the entity.
+     * @return a mapping from statsRecord to their count.
+     */
+    protected Map<ComputeTierDemandStatsRecord, Integer> getStatsRecordToCountMapping(
+            Map<Long, TopologyEntityDTO> cloudEntities,
+            Map<Long, Long> workloadIdToBusinessAccountIdMap) {
+        Map<ComputeTierDemandStatsRecord, Integer> statsRecordToCountMapping = new HashMap<>();
+        for (Long workLoadId : cloudEntities.keySet()) {
+            TopologyEntityDTO workLoadDto = cloudEntities.get(workLoadId);
+
+            if (!workLoadDto.hasTypeSpecificInfo() &&
+                    !workLoadDto.getTypeSpecificInfo().hasVirtualMachine()) {
+                logger.debug("Skipping. Missing TypeSpecificInfo for workload {}", workLoadDto.getDisplayName());
+                continue;
+            }
+
+            Long businessAccountId = workloadIdToBusinessAccountIdMap.get(workLoadId);
+            if (businessAccountId == null) {
+                logger.debug("Skipping. Missing Business Account Id for workload {}", workLoadDto.getDisplayName());
+                continue;
+            }
+
+            Optional<CommoditiesBoughtFromProvider> computeTierId = getComputeTierProvider(workLoadDto);
+            if (!computeTierId.isPresent()) {
+                logger.debug("Skipping. Compute Tier missing for workload {}", workLoadDto.getDisplayName());
+                continue;
+            }
+
+            Optional<Long> availabilityZone = getAvailabilityZoneorRegion(workLoadDto.getConnectedEntityListList());
+            if (!availabilityZone.isPresent()) {
+                logger.debug("Skipping. Availability zone missing for workload {}", workLoadDto.getDisplayName());
+                continue;
+            }
+
+            TopologyDTO.TypeSpecificInfo.VirtualMachineInfo vmInfo =
+                    workLoadDto.getTypeSpecificInfo().getVirtualMachine();
+            if (vmInfo.getGuestOsInfo().getGuestOsType() == OSType.UNKNOWN_OS) {
+                logger.debug("Skipping. Unknown OS for workload {}", workLoadDto.getDisplayName());
+                continue;
+            }
+
+            byte platform = (byte) vmInfo.getGuestOsInfo().getGuestOsType().getNumber();
+            byte tenancy = (byte) vmInfo.getTenancy().getNumber();
+
+            final ComputeTierDemandStatsRecord statsRecord = new ComputeTierDemandStatsRecord(
+                    businessAccountId, computeTierId.get().getProviderId(),
+                    availabilityZone.get(),
+                    platform, tenancy);
+            statsRecordToCountMapping.putIfAbsent(statsRecord, 0);
+            statsRecordToCountMapping.put(statsRecord, statsRecordToCountMapping.get(statsRecord) + 1);
+        }
+
+        return statsRecordToCountMapping;
+    }
+
+    /**
+     * Gets ComputeTierTypeHourlyByWeekRecord's for a given hour and day.
+     *
+     * @param statsRecordToCountMapping mapping from statsRecord to their count.
+     * @param computeTierDemandStatsMap Mapping from existing ComputeTierDemandStatsRecord to their weights.
+     * @param topologyType The topology type.
+     * @param isProjectedTopology flag for projected topology.
+     * @param topologyForHour The hour for which records will be returned.
+     * @param topologyForDay The day for which records will be returned.
+     * @return computeTierTypeHourlyByWeekRecord's for a given hour and day.
+     */
+    protected Set<ComputeTierTypeHourlyByWeekRecord> getComputeTierTypeHourlyByWeekRecords(
+            Map<ComputeTierDemandStatsRecord, Integer> statsRecordToCountMapping,
+            Map<ComputeTierDemandStatsRecord, WeightedCounts> computeTierDemandStatsMap,
+            String topologyType,
+            boolean isProjectedTopology,
+            int topologyForHour,
+            int topologyForDay) {
+        final Set<ComputeTierTypeHourlyByWeekRecord> statsRecordsToUpload = new HashSet<>();
+
+        for (ComputeTierDemandStatsRecord statsRecord : statsRecordToCountMapping.keySet()) {
+            WeightedCounts prevWeightedValue = computeTierDemandStatsMap.getOrDefault(statsRecord,
+                    new WeightedCounts(new BigDecimal(0.0),
+                            new BigDecimal(0.0)));
+            BigDecimal newCountFromSourceTopology;
+            BigDecimal newCountFromProjectedTopology;
+
+            if (isProjectedTopology) {
+                newCountFromProjectedTopology =
+                        getNewWeightedValue(prevWeightedValue.getCountFromProjectedTopology(),
+                                statsRecordToCountMapping.get(statsRecord));
+                newCountFromSourceTopology =
+                        prevWeightedValue.getCountFromSourceTopology();
+
+            } else {
+                newCountFromSourceTopology =
+                        getNewWeightedValue(prevWeightedValue.getCountFromSourceTopology(),
+                                statsRecordToCountMapping.get(statsRecord));
+                newCountFromProjectedTopology =
+                        prevWeightedValue.getCountFromProjectedTopology();
+            }
+
+            ComputeTierTypeHourlyByWeekRecord newComputeTierDemandStatsRecord =
+                    new ComputeTierTypeHourlyByWeekRecord(
+                            (byte)topologyForHour,
+                            (byte)topologyForDay,
+                            statsRecord.targetId,
+                            statsRecord.instanceType,
+                            statsRecord.availabilityZone,
+                            statsRecord.platform,
+                            statsRecord.tenancy,
+                            newCountFromSourceTopology,
+                            newCountFromProjectedTopology);
+
+            logger.trace("Persisted {} demand topology {} {} {} {} {} {} {} {} {}",
+                    topologyType,
+                    (byte)topologyForHour,
+                    (byte)topologyForDay,
+                    statsRecord.targetId,
+                    statsRecord.instanceType,
+                    statsRecord.availabilityZone,
+                    statsRecord.platform,
+                    statsRecord.tenancy,
+                    newCountFromSourceTopology,
+                    newCountFromProjectedTopology);
+            statsRecordsToUpload.add(newComputeTierDemandStatsRecord);
+        }
+        return statsRecordsToUpload;
     }
 
     /**
@@ -361,18 +408,17 @@ public class ComputeTierDemandStatsWriter {
     }
 
     /**
-      Return the Availability zone for an entity given
-      it's connected entity list.
-      @param connectedEntityList
-      @return Optional availability zone id.
+      Return the Availability zone or the region for an entity given it's connected entity list.
 
+      @param connectedEntityList
+      @return Optional availability zone or the region id.
      */
-    private Optional<Long> getAvailabilityZone(
+    private Optional<Long> getAvailabilityZoneorRegion(
             @Nonnull List<ConnectedEntity> connectedEntityList) {
 
         return connectedEntityList.stream()
-                    .filter(ce -> (ce.getConnectedEntityType() ==
-                                EntityType.AVAILABILITY_ZONE_VALUE))
+                    .filter(ce -> (ce.getConnectedEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
+                                || ce.getConnectedEntityType() == EntityType.REGION_VALUE)
                     .findFirst()
                     .map(e -> e.getConnectedEntityId());
     }
@@ -394,28 +440,10 @@ public class ComputeTierDemandStatsWriter {
         return entityDTO.getConnectedEntityListList().stream()
                 .filter(entity -> (entity.getConnectionType() ==
                         ConnectionType.OWNS_CONNECTION)
-                    && (entity.getConnectedEntityType() ==
+                        && (entity.getConnectedEntityType() ==
                         EntityType.VIRTUAL_MACHINE_VALUE))
                 .map(e -> e.getConnectedEntityId())
                 .collect(Collectors.toList());
-    }
-
-    /**
-     * Get the Ids of the Targets that discovered the entity.
-     *
-     * @param entityDTO DTO of the entity.
-     * @return The list of TargetIds.
-     *
-     */
-    private Set<Long> getTargetIds(TopologyEntityDTO entityDTO) {
-            if (!entityDTO.hasOrigin() &&
-                    !entityDTO.getOrigin().hasDiscoveryOrigin()) {
-                return Collections.emptySet();
-            }
-            return entityDTO.getOrigin().getDiscoveryOrigin()
-                        .getDiscoveringTargetIdsList()
-                        .stream()
-                        .collect(Collectors.toSet());
     }
 
     /**
@@ -438,7 +466,7 @@ public class ComputeTierDemandStatsWriter {
      *  Helper class used as a key in a Map to identify existing stats for
      *  a given RI instance class.
      */
-    private  class ComputeTierDemandStatsRecord {
+    protected static class ComputeTierDemandStatsRecord {
 
         private final long targetId;
 

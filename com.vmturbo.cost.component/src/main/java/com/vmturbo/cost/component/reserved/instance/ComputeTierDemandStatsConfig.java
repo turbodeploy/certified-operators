@@ -23,6 +23,9 @@ public class ComputeTierDemandStatsConfig {
     @Value("${preferredCurrentWeight}")
     private float preferredCurrentWeight;
 
+    @Autowired
+    private ReservedInstanceConfig reservedInstanceConfig;
+
     @Bean
     public ComputeTierDemandStatsStore riDemandStatsStore() {
         return new ComputeTierDemandStatsStore(
@@ -35,6 +38,7 @@ public class ComputeTierDemandStatsConfig {
     public ComputeTierDemandStatsWriter riDemandStatsWriter() {
         return new ComputeTierDemandStatsWriter(
                 riDemandStatsStore(),
+                reservedInstanceConfig.projectedEntityRICoverageAndUtilStore(),
                 preferredCurrentWeight);
     }
 }
