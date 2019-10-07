@@ -38,8 +38,6 @@ public class DerivedTargetParserTest {
 
     private DerivedTargetParser derivedTargetParser;
 
-    private OperationManager operationManager;
-
     private long nextTargetId;
 
     @Before
@@ -49,9 +47,6 @@ public class DerivedTargetParserTest {
         identityStore = new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore));
         targetStore = new KVBackedTargetStore(keyValueStore, probeStore, identityStore);
         derivedTargetParser = new DerivedTargetParser(probeStore, targetStore);
-        operationManager = Mockito.mock(OperationManager.class);
-        Mockito.when(operationManager.startValidation(Mockito.anyLong()))
-                .thenReturn(Mockito.mock(Validation.class));
         Mockito.when(probeStore.getProbe(probeID1)).thenReturn(Optional.of(probeInfo1));
         Mockito.when(probeStore.getProbeIdForType(probeType1)).thenReturn(Optional.of(probeID1));
         Mockito.when(probeStore.getProbe(probeID2)).thenReturn(Optional.of(probeInfo2));
@@ -165,7 +160,7 @@ public class DerivedTargetParserTest {
     @SuppressWarnings("unchecked")
     @Test
     public void testInstantiateDerivedTargetsForAddressField() {
-        derivedTargetParser.instantiateDerivedTargets(operationManager, parentTargetID1, Arrays.asList(dto1, dto2));
+        derivedTargetParser.instantiateDerivedTargets(parentTargetID1, Arrays.asList(dto1, dto2));
 
         Assert.assertEquals(2, targetStore.getAll().size());
         targetStore.getAll().stream().anyMatch(target -> target.getSpec().hasParentId());
@@ -180,7 +175,7 @@ public class DerivedTargetParserTest {
     @SuppressWarnings("unchecked")
     @Test
     public void testInstantiateDerivedTargetsForNameField() {
-        derivedTargetParser.instantiateDerivedTargets(operationManager, parentTargetID2, Arrays.asList(dto4));
+        derivedTargetParser.instantiateDerivedTargets(parentTargetID2, Arrays.asList(dto4));
 
         Assert.assertEquals(1, targetStore.getAll().size());
         targetStore.getAll().stream().allMatch(target -> target.getSpec().hasParentId());
@@ -194,11 +189,11 @@ public class DerivedTargetParserTest {
      */
     @Test
     public void testUpdateDerivedTargets() {
-        derivedTargetParser.instantiateDerivedTargets(operationManager, parentTargetID1, Arrays.asList(dto1, dto2));
+        derivedTargetParser.instantiateDerivedTargets(parentTargetID1, Arrays.asList(dto1, dto2));
 
         Assert.assertEquals(2, targetStore.getAll().size());
 
-        derivedTargetParser.instantiateDerivedTargets(operationManager, parentTargetID1, Arrays.asList(dto3));
+        derivedTargetParser.instantiateDerivedTargets(parentTargetID1, Arrays.asList(dto3));
 
         Assert.assertEquals(1, targetStore.getAll().size());
         Assert.assertTrue(targetStore.getAll().get(0).getSpec().getAccountValueList().stream()
@@ -210,29 +205,16 @@ public class DerivedTargetParserTest {
     }
 
     /**
-     * Tests that validation in initiated for each derived target we add to the store.
-     * One target is dependent of its parent target, one is independent (different flows).
-     * @throws Exception may be thrown in startValidation.
-     */
-    @Test
-    public void testValidationAfterInstantiatingDerivedTargets() throws Exception {
-        derivedTargetParser.instantiateDerivedTargets(operationManager, parentTargetID1, Arrays.asList(dto1, dto2));
-
-        Assert.assertEquals(2, targetStore.getAll().size());
-        Mockito.verify(operationManager, times(2)).startValidation(Mockito.anyLong());
-    }
-
-    /**
      * Tests that readOnly attribute is populated correctly into {@link TargetSpec} from
      * {@link DerivedTargetSpecificationDTO}.
      */
     @Test
     public void testReadOnlyPopulation() {
-        derivedTargetParser.instantiateDerivedTargets(operationManager, parentTargetID1, Arrays.asList(dto1));
+        derivedTargetParser.instantiateDerivedTargets(parentTargetID1, Arrays.asList(dto1));
 
         Assert.assertTrue(targetStore.getAll().get(0).getSpec().getReadOnly());
 
-        derivedTargetParser.instantiateDerivedTargets(operationManager, parentTargetID1, Arrays.asList(dto4));
+        derivedTargetParser.instantiateDerivedTargets(parentTargetID1, Arrays.asList(dto4));
 
         Assert.assertFalse(targetStore.getAll().get(0).getSpec().getReadOnly());
     }
