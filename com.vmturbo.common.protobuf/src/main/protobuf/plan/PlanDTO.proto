@@ -7,6 +7,7 @@ import "CommonDTO.proto";
 import "group/PolicyDTO.proto";
 import "setting/Setting.proto";
 import "CloudCostDTO.proto";
+import "cost/CostNotification.proto";
 
 // NB Informational (most) messages in this set of declarations are serialized in rdbms.
 // They are not modifiable, only extendable.
@@ -452,6 +453,9 @@ message PlanInstance {
     // track of it somewhere else.
     optional bool stats_available = 11;
 
+    // The status of the notifications received by the plan orchestrator.
+    optional PlanProgress plan_progress = 13;
+
     // The current status of the plan
     required PlanStatus status = 7;
 
@@ -506,6 +510,17 @@ message PlanInstance {
         // plan has been force-stopped by user
         STOPPED = 10;
     }
+}
+
+// The status of the notifications received by the plan orchestrator.
+message PlanProgress {
+
+    // The status of the notifications received by the plan orchestrator related to cost.
+    optional cost.CostNotification.Status projected_cost_status = 1 [default = UNKNOWN];
+
+    // The status of the notifications received by the plan orchestrator realted to RI Coverage.
+    optional cost.CostNotification.Status projected_ri_coverage_status = 2 [default = UNKNOWN];
+
 }
 
 // A request to create a plan.

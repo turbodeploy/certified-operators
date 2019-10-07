@@ -13,10 +13,12 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.action.orchestrator.api.ActionsListener;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.cost.api.CostNotificationListener;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
 import com.vmturbo.history.component.api.StatsListener;
 import com.vmturbo.plan.orchestrator.reservation.ReservationPlacementHandler;
@@ -25,7 +27,8 @@ import com.vmturbo.repository.api.RepositoryListener;
 /**
  * Listener for action orchestrator's notifications.
  */
-public class PlanProgressListener implements ActionsListener, RepositoryListener, StatsListener {
+public class PlanProgressListener implements ActionsListener, RepositoryListener, StatsListener,
+        CostNotificationListener {
 
     private final PlanDao planDao;
 
@@ -203,6 +206,7 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
     }
 
     private static void processStatsAvailable(@Nonnull final PlanInstance.Builder plan) {
+        // TODO (OM-50357): Combine it with the cost notification feedback logic.
         plan.setStatsAvailable(true);
         if (plan.hasProjectedTopologyId() && !plan.getActionPlanIdList().isEmpty()) {
             plan.setStatus(PlanStatus.SUCCEEDED);
@@ -213,6 +217,7 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
 
     private void processActionsUpdated(@Nonnull final PlanInstance.Builder plan,
             @Nonnull final ActionsUpdated actionsUpdated) {
+        // TODO (OM-50357): Combine it with the cost notification feedback logic.
         plan.addActionPlanId(actionsUpdated.getActionPlanId());
         if (plan.hasProjectedTopologyId() && plan.hasStatsAvailable()) {
             plan.setStatus(PlanStatus.SUCCEEDED);
@@ -223,6 +228,7 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
 
     private static void processProjectedTopology(@Nonnull final PlanInstance.Builder plan,
             final long projectedTopologyId) {
+        // TODO (OM-50357): Combine it with the cost notification feedback logic.
         plan.setProjectedTopologyId(projectedTopologyId);
         if (!plan.getActionPlanIdList().isEmpty() && plan.hasStatsAvailable()) {
             plan.setStatus(PlanStatus.SUCCEEDED);
@@ -230,4 +236,17 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
             plan.setStatus(PlanStatus.WAITING_FOR_RESULT);
         }
     }
+
+    @Override
+    public void onCostNotificationReceived(@Nonnull final CostNotification
+                                                   costNotification) {
+        // TODO (OM-50357): Combine it with the cost notification feedback logic.
+        if (costNotification.hasProjectedCostUpdate()) {
+            logger.debug("Final plan message has been received from cost component- status: {}.",
+                    costNotification.getProjectedCostUpdate().getStatus());
+        } else {
+            logger.debug("This notification is not implemented yet.");
+        }
+    }
+
 }

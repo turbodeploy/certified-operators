@@ -1,0 +1,54 @@
+syntax = "proto2";
+package cost;
+
+option java_package = "com.vmturbo.common.protobuf.cost";
+
+// This is the notification message from cost component to plan orchestrator at the end of an
+// optimize cloud plan.
+message CostNotification {
+
+    oneof Type {
+
+        // It will be sent from cost to plan orchestrator after receiving the cost signal.
+        StatusUpdate projected_cost_update = 1;
+
+        // It will be sent from cost to plan orchestrator after receiving the RI coverage signal.
+        StatusUpdate projected_ri_coverage_update = 2;
+
+    }
+
+    // A message about a cost operation stats
+    message StatusUpdate {
+
+        // the topology context id that the operation relates to
+        optional int64 topology_context_id = 1;
+
+        // the topology id that the operation relates to
+        optional int64 topology_id = 2;
+
+        // status of the operation
+        optional Status status = 3 [default = UNKNOWN];
+
+        // TODO: the error description should be set if any error happens while running the plan.
+        // This description is useful when status is fail.
+        optional string status_description = 4;
+
+        // the time that the operation reached the status indicated
+        optional int64 timestamp = 5;
+
+    }
+
+    enum Status {
+
+        // The notification has not been received yet.
+        UNKNOWN = 0;
+
+        // The notification received was success.
+        SUCCESS = 1;
+
+        // The notification received was fail.
+        FAIL = 2;
+
+    }
+
+}

@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.cost.component.MarketListenerConfig;
+import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
@@ -16,11 +17,15 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
 @Configuration
 @Import({MarketClientConfig.class,
         MarketListenerConfig.class,
-        SQLDatabaseConfig.class})
+        SQLDatabaseConfig.class,
+        CostNotificationConfig.class})
 public class EntityCostConfig {
 
     @Autowired
     private SQLDatabaseConfig databaseConfig;
+
+    @Autowired
+    private CostNotificationConfig costNotificationConfig;
 
     @Value("${persistEntityCostChunkSize}")
     private int persistEntityCostChunkSize;
@@ -47,7 +52,8 @@ public class EntityCostConfig {
     public CostComponentProjectedEntityCostListener projectedEntityCostListener() {
         final CostComponentProjectedEntityCostListener projectedEntityCostListener =
                 new CostComponentProjectedEntityCostListener(projectedEntityCostStore(),
-                                                             planProjectedEntityCostStore());
+                        planProjectedEntityCostStore(),
+                        costNotificationConfig.costNotificationSender());
         marketComponent.addProjectedEntityCostsListener(projectedEntityCostListener);
         return projectedEntityCostListener;
     }

@@ -153,6 +153,7 @@ public class PlanConfig {
         aoClientConfig.actionOrchestratorClient().addActionsListener(listener);
         repositoryClientConfig.repository().addListener(listener);
         historyClientConfig.historyComponent().addStatsListener(listener);
+        costClientConfig.costComponent().addCostNotificationListener(listener);
         return listener;
     }
 
