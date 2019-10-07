@@ -1,8 +1,5 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import static com.vmturbo.common.protobuf.action.ActionDTOUtil.TRANSLATION_PATTERN;
-import static com.vmturbo.common.protobuf.action.ActionDTOUtil.TRANSLATION_PREFIX;
-
 import java.beans.PropertyDescriptor;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -102,6 +99,11 @@ import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
+
+import static com.vmturbo.common.protobuf.action.ActionDTO.ActionType.BUY_RI;
+import static com.vmturbo.common.protobuf.action.ActionDTO.ActionType.RESIZE;
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.TRANSLATION_PATTERN;
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.TRANSLATION_PREFIX;
 
 /**
  * Map an ActionSpec returned from the ActionOrchestrator into an {@link ActionApiDTO} to be
@@ -1344,10 +1346,10 @@ public class ActionSpecMapper {
      */
     public ActionDetailsApiDTO createActionDetailsApiDTO(final ActionSpec actionSpec) {
         if (actionSpec != null && actionSpec.hasRecommendation()) {
+            ActionDTO.ActionType actionType = ActionDTOUtil.getActionInfoActionType(actionSpec.getRecommendation());
             ActionDetailsApiDTO detailsDTO = null;
             // Buy RI action - set est. on-demand cost and coverage values + historical demand data
-            if (actionSpec.getRecommendation().hasExplanation() && actionSpec.getRecommendation()
-                    .getExplanation().hasBuyRI()) {
+            if (actionSpec.getRecommendation().hasExplanation() && actionType.equals(BUY_RI)) {
                 RIBuyActionDetailsApiDTO detailsDto = new RIBuyActionDetailsApiDTO();
                 // set est RI Coverage
                 ActionDTO.Explanation.BuyRIExplanation buyRIExplanation = actionSpec.getRecommendation()
@@ -1367,7 +1369,7 @@ public class ActionSpecMapper {
                 return detailsDto;
             }
             // todo: action details for cloud resize actions (OM-49988)
-            if (actionSpec.getRecommendation().getExplanation().hasResize()) {
+            if (actionType.equals(RESIZE)) {
                 return null;
             }
             return null;

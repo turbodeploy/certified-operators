@@ -44,6 +44,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStats
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord.StatValue;
 import com.vmturbo.common.protobuf.cost.CostMoles.ReservedInstanceUtilizationCoverageServiceMole;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -79,8 +80,9 @@ public class RIStatsSubQueryTest {
     @Before
     public void setup() {
         query = new RIStatsSubQuery(
-            ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(testServer.getChannel()),
-            mapper);
+                ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(testServer.getChannel()),
+                ReservedInstanceBoughtServiceGrpc.newBlockingStub(testServer.getChannel()),
+                mapper);
 
         when(context.getInputScope()).thenReturn(scope);
         StatsQueryScope queryScope = StatsQueryScope.some(SCOPE_ENTITIES);
@@ -108,7 +110,7 @@ public class RIStatsSubQueryTest {
         when(scope.isPlan()).thenReturn(false);
         when(context.getTimeWindow()).thenReturn(Optional.empty());
 
-        assertThat(query.applicableInContext(context), is(false));
+        assertThat(query.applicableInContext(context), is(true));
     }
 
     @Test

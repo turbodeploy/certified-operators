@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,7 @@ import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -24,10 +26,13 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountByTemplateResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -37,20 +42,24 @@ import com.vmturbo.components.common.utils.StringConstants;
  */
 public class RIStatsSubQuery implements StatsSubQuery {
     private final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService;
+    private final ReservedInstanceBoughtServiceBlockingStub riBoughtService;
 
     private final RIStatsMapper riStatsMapper;
 
     private static final Set<String> SUPPORTED_STATS =
-        ImmutableSet.of(StringConstants.RI_COUPON_UTILIZATION,
-            StringConstants.RI_COUPON_COVERAGE);
+            ImmutableSet.of(StringConstants.RI_COUPON_UTILIZATION,
+                    StringConstants.RI_COUPON_COVERAGE, StringConstants.NUM_RI);
 
-    public RIStatsSubQuery(@Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService) {
-        this(riUtilizationCoverageService, new RIStatsMapper());
+    public RIStatsSubQuery(@Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService,
+                           @Nonnull final ReservedInstanceBoughtServiceBlockingStub riBoughtService) {
+        this(riUtilizationCoverageService, riBoughtService, new RIStatsMapper());
     }
 
     RIStatsSubQuery(@Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService,
+                    @Nonnull final ReservedInstanceBoughtServiceBlockingStub riBoughtService,
                     @Nonnull final RIStatsMapper riStatsMapper) {
         this.riUtilizationCoverageService = riUtilizationCoverageService;
+        this.riBoughtService = riBoughtService;
         this.riStatsMapper = riStatsMapper;
     }
 
@@ -58,10 +67,7 @@ public class RIStatsSubQuery implements StatsSubQuery {
     public boolean applicableInContext(@Nonnull final StatsQueryContext context) {
         // Doesn't seem like it should support plan, because the backend doesn't allow specifying
         // the plan ID.
-        return !context.getInputScope().isPlan() &&
-            // Right now we don't support retrieving "latest" RI stats - we expect the UI/API
-            // to pass in some values.
-            context.getTimeWindow().isPresent();
+        return !context.getInputScope().isPlan();
     }
 
     @Override
@@ -72,8 +78,18 @@ public class RIStatsSubQuery implements StatsSubQuery {
     @Nonnull
     @Override
     public Map<Long, List<StatApiDTO>> getAggregateStats(@Nonnull final Set<StatApiInputDTO> stats,
-                                                         @Nonnull final StatsQueryContext context) throws OperationFailedException {
+                                                         @Nonnull final StatsQueryContext context)
+            throws OperationFailedException {
         final List<StatSnapshotApiDTO> snapshots = new ArrayList<>();
+        if (containsStat(StringConstants.NUM_RI, stats)) {
+            final GetReservedInstanceBoughtCountRequest countRequest = GetReservedInstanceBoughtCountRequest
+                    .newBuilder().build();
+            GetReservedInstanceBoughtCountByTemplateResponse res =
+                    riBoughtService.getReservedInstanceBoughtCountByTemplateType(countRequest).toBuilder().build();
+            snapshots.addAll(riStatsMapper
+                    .convertNumRIStatsRecordsToStatSnapshotApiDTO(res.getReservedInstanceCountMapMap()));
+        }
+
         if (containsStat(StringConstants.RI_COUPON_COVERAGE, stats)) {
             final GetReservedInstanceCoverageStatsRequest coverageRequest =
                 riStatsMapper.createCoverageRequest(context);
@@ -170,6 +186,25 @@ public class RIStatsSubQuery implements StatsSubQuery {
         }
 
         /**
+         * Convert numRI records to StatSnapshotApiDTO
+         * @param records - map containing template types and counts from users RI inventory
+         * @return a list {@link StatSnapshotApiDTO}
+         */
+        public List<StatSnapshotApiDTO> convertNumRIStatsRecordsToStatSnapshotApiDTO(
+                @Nonnull final Map<String, Long> records) {
+            final List<StatSnapshotApiDTO> response = new ArrayList<>();
+            final StatSnapshotApiDTO snapshotApiDTO = new StatSnapshotApiDTO();
+            snapshotApiDTO.setDate(DateTimeUtil.toString(Clock.systemUTC().millis()));
+            List<StatApiDTO> statApiDTOList = new ArrayList<>();
+            for (String template : records.keySet()) {
+                statApiDTOList.add(createNumRIStatApiDTO(template, records.get(template)));
+            }
+            snapshotApiDTO.setStatistics(statApiDTOList);
+            response.add(snapshotApiDTO);
+            return response;
+        }
+
+        /**
          * Convert a list of {@link ReservedInstanceStatsRecord} to a list of {@link StatSnapshotApiDTO}.
          *
          * @param records a list of {@link ReservedInstanceStatsRecord}.
@@ -218,6 +253,32 @@ public class RIStatsSubQuery implements StatsSubQuery {
             statsDto.setUnits(StringConstants.RI_COUPON_UNITS);
             statsDto.setName(name);
             statsDto.setValue(record.getValues().getAvg());
+            return statsDto;
+        }
+
+        /**
+         * Create StatApiDTO for NumRI stats.
+         *
+         * @param template - template type key
+         * @param count - number of RIs in users inventory for given template type
+         * @return a {@link StatApiDTO}
+         */
+        private StatApiDTO createNumRIStatApiDTO(@Nonnull String template, @Nonnull Long count) {
+            StatApiDTO statsDto = new StatApiDTO();
+            statsDto.setValue((float)count);
+            statsDto.setName(StringConstants.NUM_RI);
+            StatValueApiDTO statsValueDto = new StatValueApiDTO();
+            statsValueDto.setAvg((float)count);
+            statsValueDto.setMax((float)count);
+            statsValueDto.setMin((float)count);
+            statsValueDto.setTotal((float)count);
+            statsDto.setValues(statsValueDto);
+            List<StatFilterApiDTO> filterList = new ArrayList<>();
+            StatFilterApiDTO filterDto = new StatFilterApiDTO();
+            filterDto.setType(StringConstants.TEMPLATE);
+            filterDto.setValue(template);
+            filterList.add(filterDto);
+            statsDto.setFilters(filterList);
             return statsDto;
         }
     }

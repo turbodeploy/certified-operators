@@ -599,8 +599,9 @@ public class ServiceConfig {
     @Bean
     public RIStatsSubQuery riStatsSubQuery() {
         final RIStatsSubQuery riStatsQuery =
-            new RIStatsSubQuery(
-                communicationConfig.reservedInstanceUtilizationCoverageServiceBlockingStub());
+                new RIStatsSubQuery(
+                        communicationConfig.reservedInstanceUtilizationCoverageServiceBlockingStub(),
+                        communicationConfig.reservedInstanceBoughtServiceBlockingStub());
         statsQueryExecutor().addSubquery(riStatsQuery);
         return riStatsQuery;
     }

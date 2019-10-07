@@ -24,6 +24,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRe
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountByTemplateResponse;
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceImplBase;
@@ -89,8 +90,8 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                             : Optional.empty();
                     final ReservedInstanceBoughtFilter filter =
                             createReservedInstanceBoughtFilter(regionFilter, azFilter, accountFilter);
-            final Map<Long, Long> reservedInstanceCountMap =
-                            reservedInstanceBoughtStore.getReservedInstanceCountMap(filter);
+                    Map<Long, Long> reservedInstanceCountMap
+                            = reservedInstanceBoughtStore.getReservedInstanceCountMap(filter);
             final GetReservedInstanceBoughtCountResponse response =
                     GetReservedInstanceBoughtCountResponse.newBuilder()
                         .putAllReservedInstanceCountMap(reservedInstanceCountMap)
@@ -98,6 +99,25 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
             responseObserver.onNext(response);
             responseObserver.onCompleted();
 
+        } catch (DataAccessException e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Failed to get reserved instance count map.")
+                    .asException());
+        }
+    }
+
+    @Override
+    public void getReservedInstanceBoughtCountByTemplateType(
+            GetReservedInstanceBoughtCountRequest request,
+            StreamObserver<GetReservedInstanceBoughtCountByTemplateResponse> responseObserver) {
+        try {
+            Map<String, Long> reservedInstanceCountMap = reservedInstanceBoughtStore.getReservedInstanceCountByRISpecIdMap();
+            final GetReservedInstanceBoughtCountByTemplateResponse response =
+                    GetReservedInstanceBoughtCountByTemplateResponse.newBuilder()
+                            .putAllReservedInstanceCountMap(reservedInstanceCountMap)
+                            .build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
         } catch (DataAccessException e) {
             responseObserver.onError(Status.INTERNAL
                     .withDescription("Failed to get reserved instance count map.")

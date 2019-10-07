@@ -14,11 +14,15 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
  */
 public class CloudTypeMapper {
 
-    private static final Map<String, CloudType> probeTypeToCloudType = ImmutableMap.of(
-        SDKProbeType.AWS.getProbeType(), CloudType.AWS,
-        SDKProbeType.AZURE.getProbeType(), CloudType.AZURE,
-        SDKProbeType.AZURE_EA.getProbeType(), CloudType.AZURE,
-        SDKProbeType.GCP.getProbeType(), CloudType.GCP);
+    private static final Map<String, CloudType> probeTypeToCloudType =
+            new ImmutableMap.Builder<String, CloudType>()
+                    .put(SDKProbeType.AWS.getProbeType(), CloudType.AWS)
+                    .put(SDKProbeType.AWS_COST.getProbeType(), CloudType.AWS)
+                    .put(SDKProbeType.AWS_BILLING.getProbeType(), CloudType.AWS)
+                    .put(SDKProbeType.AZURE.getProbeType(), CloudType.AZURE)
+                    .put(SDKProbeType.AZURE_EA.getProbeType(), CloudType.AZURE)
+                    .put(SDKProbeType.GCP.getProbeType(), CloudType.GCP)
+                    .build();
 
     /**
      * Get Cloud type from target type.

@@ -671,6 +671,12 @@ message GetReservedInstanceBoughtCountResponse {
     map<int64, int64> reserved_instance_count_map = 1;
 }
 
+// Response contains ri count map by template type
+message GetReservedInstanceBoughtCountByTemplateResponse {
+    // A map where key is template type and count is the number of the type in users RI inventory
+    map<string, int64> reserved_instance_count_map = 1;
+}
+
 // A request to get reserved instance specs
 message GetReservedInstanceSpecByIdsRequest {
     // A list of reserved instance specs id need to retrieve.
@@ -938,6 +944,10 @@ service ReservedInstanceBoughtService {
     // to include spec definitions.
     rpc GetReservedInstanceBoughtByFilter(GetReservedInstanceBoughtByFilterRequest) returns
     (GetReservedInstanceBoughtByFilterResponse);
+
+    // Get reserved instance count in the users inventory by template type
+    rpc GetReservedInstanceBoughtCountByTemplateType(GetReservedInstanceBoughtCountRequest) returns
+    (GetReservedInstanceBoughtCountByTemplateResponse);
 
     // Get the reserved instance bought count map which key is computer tier id, value is the count of
     // reserved instance bought.

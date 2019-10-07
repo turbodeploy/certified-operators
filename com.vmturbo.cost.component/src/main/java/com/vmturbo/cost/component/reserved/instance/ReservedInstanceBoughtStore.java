@@ -4,6 +4,7 @@ import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_BOUGHT;
 import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_SPEC;
 import static org.jooq.impl.DSL.sum;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -119,6 +120,32 @@ public class ReservedInstanceBoughtStore {
                 .fetch();
         return riCountMap.intoMap(riCountMap.field(RESERVED_INSTANCE_SPEC.TIER_ID),
                 (riCountMap.field(RI_SUM_COUNT)).cast(Long.class));
+    }
+
+    /**
+     * Get the sum count of reserved instance bought by RI spec ID.
+     *
+     * @return a Map which key is reservedInstance spec ID and value is the sum count of reserved instance bought
+     * which belong to this spec.
+     */
+    public Map<String, Long> getReservedInstanceCountByRISpecIdMap() {
+        final Result<Record2<ReservedInstanceBoughtInfo, Long>> riCountMap =
+                dsl.select(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_BOUGHT_INFO,
+                        (sum(RESERVED_INSTANCE_BOUGHT.COUNT)).cast(Long.class).as(RI_SUM_COUNT))
+        .from(RESERVED_INSTANCE_BOUGHT).groupBy(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID).fetch();
+        Map<ReservedInstanceBoughtInfo, Long> riSpecMap = riCountMap.intoMap(riCountMap
+                        .field(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_BOUGHT_INFO),
+                (riCountMap.field(RI_SUM_COUNT).cast(Long.class)));
+        Map<String, Long> countsByTemplate = new HashMap<>();
+        for (ReservedInstanceBoughtInfo riInfo: riSpecMap.keySet()) {
+            String key = riInfo.getDisplayName();
+            if (countsByTemplate.containsKey(riInfo.getDisplayName())) {
+                countsByTemplate.put(key, countsByTemplate.get(key) + riSpecMap.get(riInfo));
+            } else {
+                countsByTemplate.put(key, riSpecMap.get(riInfo));
+            }
+        }
+        return countsByTemplate;
     }
 
     public void updateReservedInstanceBought(
