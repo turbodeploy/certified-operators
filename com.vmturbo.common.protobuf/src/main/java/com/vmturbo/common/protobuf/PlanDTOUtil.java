@@ -83,6 +83,8 @@ public class PlanDTOUtil {
             PlanChanges planChanges = scenarioChange.getPlanChanges();
             if (planChanges.getMaxUtilizationLevel().hasGroupOid()) {
                 groupBuilder.add(planChanges.getMaxUtilizationLevel().getGroupOid());
+            } else if (planChanges.getUtilizationLevel().hasGroupOid()) {
+                groupBuilder.add(planChanges.getUtilizationLevel().getGroupOid());
             }
 
             groupBuilder.addAll(getInvolvedGroupsUUidsFromIgnoreConstraints(planChanges));

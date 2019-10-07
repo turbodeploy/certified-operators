@@ -290,6 +290,9 @@ message ScenarioChange {
         // Since we apply this setting only for VMs we need only percentage field.
         message UtilizationLevel {
             required int32 percentage = 2;
+
+            // the group to apply this to. This is expected to be a group of VMs.
+            optional int64 group_oid = 3;
         }
 
         // Represents the max utilization level a group of entities should support. This is used to

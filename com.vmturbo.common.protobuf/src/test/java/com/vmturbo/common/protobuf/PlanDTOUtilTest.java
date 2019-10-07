@@ -28,7 +28,7 @@ public class PlanDTOUtilTest {
     public void testTopologyAdditionEntity() {
         final ScenarioChange change = ScenarioChange.newBuilder()
                 .setTopologyAddition(TopologyAddition.newBuilder()
-                    .setEntityId(1))
+                        .setEntityId(1))
                 .build();
         final Set<Long> result = PlanDTOUtil.getInvolvedEntities(change);
         assertEquals(1, result.size());
@@ -38,9 +38,9 @@ public class PlanDTOUtilTest {
     @Test
     public void testTopologyAdditionTemplate() {
         final ScenarioChange change = ScenarioChange.newBuilder()
-            .setTopologyAddition(TopologyAddition.newBuilder()
-                .setTemplateId(1))
-            .build();
+                .setTopologyAddition(TopologyAddition.newBuilder()
+                        .setTemplateId(1))
+                .build();
         final Set<Long> result = PlanDTOUtil.getInvolvedTemplates(change);
         assertEquals(1, result.size());
         assertTrue(result.contains(1L));
@@ -71,10 +71,10 @@ public class PlanDTOUtilTest {
     @Test
     public void testTopologyReplaceTemplate() {
         final ScenarioChange change = ScenarioChange.newBuilder()
-            .setTopologyReplace(TopologyReplace.newBuilder()
-                .setAddTemplateId(1)
-                .setRemoveEntityId(2))
-            .build();
+                .setTopologyReplace(TopologyReplace.newBuilder()
+                        .setAddTemplateId(1)
+                        .setRemoveEntityId(2))
+                .build();
         final Set<Long> result = PlanDTOUtil.getInvolvedTemplates(change);
         assertEquals(1, result.size());
         assertTrue(result.contains(1L));
@@ -83,14 +83,14 @@ public class PlanDTOUtilTest {
     @Test
     public void testMultiChange() {
         List<ScenarioChange> changes = Lists.newArrayList(
-            ScenarioChange.newBuilder()
-                .setTopologyReplace(TopologyReplace.newBuilder()
-                        .setRemoveEntityId(1))
-                .build(),
-            ScenarioChange.newBuilder()
-                .setTopologyAddition(TopologyAddition.newBuilder()
-                    .setEntityId(2))
-                .build());
+                ScenarioChange.newBuilder()
+                        .setTopologyReplace(TopologyReplace.newBuilder()
+                                .setRemoveEntityId(1))
+                        .build(),
+                ScenarioChange.newBuilder()
+                        .setTopologyAddition(TopologyAddition.newBuilder()
+                                .setEntityId(2))
+                        .build());
 
         final Set<Long> result = PlanDTOUtil.getInvolvedEntities(changes);
         assertEquals(2, result.size());
@@ -133,9 +133,9 @@ public class PlanDTOUtilTest {
     @Test
     public void testInvolvedGroupsAddition() {
         final ScenarioChange groupAddition = ScenarioChange.newBuilder()
-            .setTopologyAddition(TopologyAddition.newBuilder()
-                    .setGroupId(1L))
-            .build();
+                .setTopologyAddition(TopologyAddition.newBuilder()
+                        .setGroupId(1L))
+                .build();
         assertThat(PlanDTOUtil.getInvolvedGroups(groupAddition), contains(1L));
     }
 
@@ -188,7 +188,7 @@ public class PlanDTOUtilTest {
      * Test that unique uuids returned from {@link ScenarioChange.PlanChanges.IgnoreConstraint}
      */
     @Test
-    public void testgetInvolvedGroupsUUidsFromIgnoreConstraintsWithNonUniqueTargetsUuids() {
+    public void testGetInvolvedGroupsUUidsFromIgnoreConstraintsWithNonUniqueTargetsUuids() {
 
         //GIVEN
         Long groupUUid1 = 1234L;
@@ -220,7 +220,7 @@ public class PlanDTOUtilTest {
      * returns empty Set
      */
     @Test
-    public void testgetInvolvedGroupsUUidsFromEmptyIgnoreConstraints() {
+    public void testGetInvolvedGroupsUUidsFromEmptyIgnoreConstraints() {
         //GIVEN
         PlanChanges planChanges = PlanChanges.newBuilder().build();
 
@@ -237,7 +237,7 @@ public class PlanDTOUtilTest {
      * when {@link ScenarioChange.PlanChanges} is present.
      */
     @Test
-    public void testgetInvolvedGroupsCallsGetInvolvedGroupsUuidWhenPlanChangesPresent() {
+    public void testGetInvolvedGroupsCallsGetInvolvedGroupsUuidWhenPlanChangesPresent() {
         //GIVEN
         Long uuid = 1234L;
 
@@ -257,5 +257,26 @@ public class PlanDTOUtilTest {
         assertTrue(uuids.contains(uuid));
     }
 
+    /**
+     * Tests getting group id from {@link PlanChanges.UtilizationLevel}.
+     */
+    @Test
+    public void testGetInvolvedEntitiesPlanChangesUtilizationLevel() {
+        //GIVEN
+        PlanChanges planChanges = PlanChanges.newBuilder()
+                .setUtilizationLevel(
+                        PlanChanges.UtilizationLevel
+                                .newBuilder()
+                                .setPercentage(10)
+                                .setGroupOid(1L)
+                                .build()
+                ).build();
 
+        //WHEN
+        Set<Long> ids = PlanDTOUtil.getInvolvedGroups(
+                ScenarioChange.newBuilder().setPlanChanges(planChanges).build());
+
+        //THEN
+        assertTrue(ids.contains(1L));
+    }
 }

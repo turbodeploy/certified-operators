@@ -350,7 +350,7 @@ public class ScenarioMapper {
         // Set utilization changes.
         List<UtilizationApiDTO> utilizationList = loadChangesApiDTO.getUtilizationList();
         if (CollectionUtils.isNotEmpty(utilizationList)) {
-            changes.add(getUtilizationChanges(utilizationList));
+            changes.addAll(getUtilizationChanges(utilizationList));
         }
 
         // get max utilization changes
@@ -378,21 +378,34 @@ public class ScenarioMapper {
         return change;
     }
 
+    /**
+     * Convert any {@link UtilizationApiDTO} objects to {@link ScenarioChange}.
+     *
+     * @param utilizationList a list of the utilization settings from the UI
+     * @return a list of matching {@link ScenarioChange} objects
+     */
+    @VisibleForTesting
     @Nonnull
-    private ScenarioChange getUtilizationChanges(@Nonnull final List<UtilizationApiDTO> utilizationList) {
-        /* Utilization comes from UI as list of utilizations but there is always one value in list
-         because in UI we cannot choose type of entity for setting - it's always for VMs.
-         So actually utilization should be single value instead of list.
-         We hold Iterable scenarioChanges as output parameter instead of single ScenarioChange
-         because there may be another plan changes in LoadChangesApiDTO */
-        final int percentage = utilizationList.get(0).getPercentage();
-        final UtilizationLevel utilizationLevel =
-                UtilizationLevel.newBuilder().setPercentage(percentage).build();
-        final ScenarioChange change = ScenarioChange.newBuilder()
-                .setPlanChanges(PlanChanges.newBuilder()
-                    .setUtilizationLevel(utilizationLevel))
-                .build();
-        return change;
+    List<ScenarioChange> getUtilizationChanges(@Nonnull final List<UtilizationApiDTO> utilizationList) {
+        List<ScenarioChange> scenarioChanges = new ArrayList<>(utilizationList.size());
+
+        for (UtilizationApiDTO utilization : utilizationList) {
+            final UtilizationLevel.Builder utilizationLevel = UtilizationLevel.newBuilder();
+
+            utilizationLevel.setPercentage(utilization.getPercentage());
+
+            if (utilization.getTarget() != null &&
+                    utilization.getTarget().getUuid() != null) {
+                utilizationLevel.setGroupOid(Long.parseLong(utilization.getTarget().getUuid()));
+            }
+
+            scenarioChanges.add(ScenarioChange.newBuilder()
+                    .setPlanChanges(PlanChanges.newBuilder()
+                            .setUtilizationLevel(utilizationLevel))
+                    .build());
+        }
+
+        return scenarioChanges;
     }
 
     /**
@@ -572,7 +585,7 @@ public class ScenarioMapper {
                 .map(PlanChanges::getUtilizationLevel);
 
         final List<UtilizationApiDTO> utilizationApiDTOS = utilizationLevels
-                .map(ScenarioMapper::createUtilizationApiDto).collect(Collectors.toList());
+                .map(utilLevel -> createUtilizationApiDto(utilLevel, context)).collect(Collectors.toList());
         loadChanges.setUtilizationList(utilizationApiDTOS);
 
         // convert max utilization changes too
@@ -618,21 +631,23 @@ public class ScenarioMapper {
 
     /**
      * Create a {@link UtilizationApiDTO} object representing the utilization level change passed in.
-     * Utilization level changes are only applied globally, to all VM's in the plan scope. So we
+     *
+     * <p>Utilization level changes are only applied globally, to all VM's in the plan scope. So we
      * set a hardcoded "Virtual Machines" target on the resulting object. This corresponds with the
-     * behavior in the UI, which expects this hardcoded default target.
+     * behavior in the UI, which expects this hardcoded default target</p>
      *
      * @param utilizationLevel The UtilizationLevel containing the change amount
+     * @param mappingContext Mapping context object
      * @return a {@link UtilizationApiDTO} representing the same change, with hardcoded VM's target.
      */
     @Nonnull
-    private static UtilizationApiDTO createUtilizationApiDto(@Nonnull UtilizationLevel utilizationLevel) {
+    private static UtilizationApiDTO createUtilizationApiDto(@Nonnull UtilizationLevel utilizationLevel, ScenarioChangeMappingContext mappingContext) {
         final UtilizationApiDTO utilizationDTO = new UtilizationApiDTO();
         utilizationDTO.setPercentage(utilizationLevel.getPercentage());
-        // this is hardcoded to a "Virtual Machines" target in the UI.
-        BaseApiDTO defaultTarget = new BaseApiDTO();
-        defaultTarget.setDisplayName(VIRTUAL_MACHINES_DISPLAY_NAME);
-        utilizationDTO.setTarget(defaultTarget);
+        if (utilizationLevel.hasGroupOid()) {
+            utilizationDTO.setTarget(mappingContext.dtoForId(utilizationLevel.getGroupOid()));
+        }
+
         return utilizationDTO;
     }
 

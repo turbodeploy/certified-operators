@@ -669,6 +669,46 @@ public class ScenarioMapperTest {
         Assert.assertEquals(1, scenarioInfo.getChangesList().size());
     }
 
+
+    /**
+     * Converts global {@link UtilizationApiDTO} setting to {@link UtilizationLevel}.
+     * */
+    @Test
+    public void testGetUtilizationChangesGlobalSetting() {
+        //GiVEN
+        UtilizationApiDTO dto = new UtilizationApiDTO();
+        dto.setPercentage(10);
+
+        //WHEN
+        List<ScenarioChange> changes = scenarioMapper.getUtilizationChanges(Lists.newArrayList(dto));
+
+        //THEN
+        assertEquals(1, changes.size());
+        assertTrue(changes.get(0).getPlanChanges().hasUtilizationLevel());
+        assertEquals(10, changes.get(0).getPlanChanges().getUtilizationLevel().getPercentage());
+        assertFalse(changes.get(0).getPlanChanges().getUtilizationLevel().hasGroupOid());
+    }
+
+    /**
+     * Converts group {@link UtilizationApiDTO} setting to {@link UtilizationLevel}.
+     * */
+    @Test
+    public void testGetUtilizationChangesPerGroupSetting() {
+        //GiVEN
+        UtilizationApiDTO dto = new UtilizationApiDTO();
+        dto.setPercentage(10);
+        dto.setTarget(entity(1L));
+
+        //WHEN
+        List<ScenarioChange> changes = scenarioMapper.getUtilizationChanges(Lists.newArrayList(dto));
+
+        //THEN
+        assertEquals(1, changes.size());
+        assertTrue(changes.get(0).getPlanChanges().hasUtilizationLevel());
+        assertEquals(10, changes.get(0).getPlanChanges().getUtilizationLevel().getPercentage());
+        assertEquals(1L, changes.get(0).getPlanChanges().getUtilizationLevel().getGroupOid());
+    }
+
     private UtilizationApiDTO createUtilizationApiDto(int percentage) {
         final UtilizationApiDTO utilizationDto = new UtilizationApiDTO();
         utilizationDto.setPercentage(percentage);
