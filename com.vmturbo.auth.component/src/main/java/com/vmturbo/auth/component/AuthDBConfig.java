@@ -326,7 +326,6 @@ public class AuthDBConfig {
             if (!credentials.isPresent()) {
                 // use the same externalized admin db password as prefix and append it with random characters.
                 String dbPassword = getRootSqlDBPassword() + generatePassword();
-                authKVConfig.authKeyValueStore().put(CONSUL_KEY, dbPassword);
                 // Make sure we have the proper user here.
                 // We call this only when the database user is not yet been created and set.
                 // We are doing the inlined code here, since creating multiple beans causes the circular
@@ -334,21 +333,38 @@ public class AuthDBConfig {
                 dataSource.setUser(getRootSqlDBUser());
                 dataSource.setPassword(getRootSqlDBPassword());
                 try (Connection connection = dataSource.getConnection()) {
+
+                    // Clean up existing auth db user, if it exists.
+                    try (PreparedStatement stmt = connection.prepareStatement(
+                            "DROP USER 'auth'@'%';")) {
+                        stmt.execute();
+                        logger.info("Cleaned up auth@% db user.");
+                    } catch (SQLException e) {
+                        // SQLException will be thrown when trying to drop not existed auth@% user in DB. It's valid case.
+                        logger.info("auth@% user is not in the DB, clean up is not needed.");
+                    }
+                    // Create auth db user.
                     try (PreparedStatement stmt = connection.prepareStatement(
                             "CREATE USER 'auth'@'%' IDENTIFIED BY ?;")) {
                         stmt.setString(1, dbPassword);
                         stmt.execute();
+                        logger.info("Created auth@% db user.");
                     }
+                    // Grant auth db user privileges
                     try (PreparedStatement stmt = connection.prepareStatement(
-                            "GRANT ALL PRIVILEGES ON auth.* TO 'auth'@'%' WITH GRANT OPTION;")) {
+                            "GRANT ALL PRIVILEGES ON auth.* TO 'auth'@'%';")) {
                         stmt.execute();
+                        logger.info("Granted privileges to auth@% db user.");
                     }
+                    // Flush user privileges
                     try (PreparedStatement stmt = connection.prepareStatement("FLUSH PRIVILEGES;")) {
                         stmt.execute();
+                        logger.info("Flushed DB privileges.");
                     }
                 } catch (SQLException e) {
                     throw new RuntimeException(e);
                 }
+                authKVConfig.authKeyValueStore().put(CONSUL_KEY, dbPassword);
                 dataSource.setUser(dbSchemaName);
                 dataSource.setPassword(dbPassword);
             }
