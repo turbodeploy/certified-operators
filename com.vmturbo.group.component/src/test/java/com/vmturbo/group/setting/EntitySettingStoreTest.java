@@ -76,7 +76,7 @@ public class EntitySettingStoreTest {
     final SettingToPolicyId trueSettingToPolicyId =
             SettingToPolicyId.newBuilder()
                     .setSetting(trueSetting)
-                    .setSettingPolicyId(1L)
+                    .addSettingPolicyId(1L)
                     .build();
 
     private final Setting falseSetting = Setting.newBuilder(trueSetting)
@@ -335,7 +335,7 @@ public class EntitySettingStoreTest {
         final SettingToPolicyId settingToPolicyId =
             SettingToPolicyId.newBuilder()
                 .setSetting(setting)
-                .setSettingPolicyId(1L)
+                .addSettingPolicyId(1L)
                 .build();
         final EntitySettings id1Settings = EntitySettings.newBuilder()
             .setEntityOid(1L)
@@ -359,7 +359,7 @@ public class EntitySettingStoreTest {
         final SettingToPolicyId settingToPolicyId =
                 SettingToPolicyId.newBuilder()
                         .setSetting(setting)
-                        .setSettingPolicyId(1L)
+                        .addSettingPolicyId(1L)
                         .build();
 
         final EntitySettings id1Settings = EntitySettings.newBuilder()
@@ -398,7 +398,7 @@ public class EntitySettingStoreTest {
         final SettingToPolicyId userSetting =
             SettingToPolicyId.newBuilder()
                 .setSetting(setting2)
-                .setSettingPolicyId(1111L)
+                .addSettingPolicyId(1111L)
                 .build();
 
         final EntitySettings id1Settings = EntitySettings.newBuilder()
@@ -437,14 +437,14 @@ public class EntitySettingStoreTest {
                 .setSetting(Setting.newBuilder()
                     .setSettingSpecName("name2")
                     .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance()))
-                .setSettingPolicyId(1111L)
+                .addSettingPolicyId(1111L)
                 .build();
         final SettingToPolicyId otherUserSetting =
             SettingToPolicyId.newBuilder()
                 .setSetting(Setting.newBuilder()
                     .setSettingSpecName("name3")
                     .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance()))
-                .setSettingPolicyId(2222L)
+                .addSettingPolicyId(2222L)
                 .build();
 
         final EntitySettings id1Settings = EntitySettings.newBuilder()
@@ -463,7 +463,7 @@ public class EntitySettingStoreTest {
             Stream.of(id1Settings), Collections.singletonMap(defaultPolicyId, defaultSettingPolicy));
         final Map<Long, Collection<SettingToPolicyId>> results =
             snapshot.getFilteredSettings(EntitySettingFilter.newBuilder()
-                .setPolicyId(userSetting.getSettingPolicyId())
+                .setPolicyId(userSetting.getSettingPolicyId(0))
                 .build());
         assertTrue(results.containsKey(id1Settings.getEntityOid()));
 
@@ -486,14 +486,14 @@ public class EntitySettingStoreTest {
                 .setSetting(Setting.newBuilder()
                     .setSettingSpecName("name2")
                     .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance()))
-                .setSettingPolicyId(1111L)
+                .addSettingPolicyId(1111L)
                 .build();
         final SettingToPolicyId otherUserSetting =
             SettingToPolicyId.newBuilder()
                 .setSetting(Setting.newBuilder()
                     .setSettingSpecName("name3")
                     .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance()))
-                .setSettingPolicyId(2222L)
+                .addSettingPolicyId(2222L)
                 .build();
 
         final EntitySettings id1Settings = EntitySettings.newBuilder()

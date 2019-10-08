@@ -443,7 +443,8 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
 
                 results.values().stream()
                     .flatMap(Collection::stream)
-                    .map(SettingToPolicyId::getSettingPolicyId)
+                    .map(SettingToPolicyId::getSettingPolicyIdList)
+                    .flatMap(Collection::stream)
                     .forEach(settingPolicyFilter::withId);
 
                 final Map<Long, SettingPolicyId> settingPolicyById =
@@ -469,12 +470,14 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
                         final GetEntitySettingsResponse.Builder chunkResponse =
                             GetEntitySettingsResponse.newBuilder();
                         settingGroupChunk.forEach(settingGroup -> {
-                            final long settingPolicyId = settingGroup.getKey().getSettingPolicyId();
-                            final SettingPolicyId identifier = settingPolicyById.get(settingPolicyId);
-                            if (identifier != null) {
+                            final List<Long> settingPolicyIdList = settingGroup.getKey().getSettingPolicyIdList();
+                            final List<SettingPolicyId> identifiers = settingPolicyIdList.stream()
+                                .filter(settingPolicyById::containsKey)
+                                .map(settingPolicyById::get).collect(Collectors.toList());
+                            if (!identifiers.isEmpty()) {
                                 chunkResponse.addSettingGroup(EntitySettingGroup.newBuilder()
                                     .setSetting(settingGroup.getKey().getSetting())
-                                    .setPolicyId(identifier)
+                                    .addAllPolicyId(identifiers)
                                     .addAllEntityOids(settingGroup.getValue()));
                             }
                         });

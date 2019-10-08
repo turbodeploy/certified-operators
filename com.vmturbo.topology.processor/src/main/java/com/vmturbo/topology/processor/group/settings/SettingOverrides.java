@@ -166,7 +166,8 @@ public class SettingOverrides {
                     entitySettingOverrides.merge(settingSpec.getName(), newSetting,
                             (setting1, setting2) -> {
                                 // use the tiebreaker if there is a conflict
-                                Setting winner = EntitySettingsResolver.applyTiebreaker(setting1, setting2, MAX_UTILIZATION_SETTING_SPECS);
+                                Setting winner = EntitySettingsResolver.SettingResolver
+                                    .applyTiebreaker(setting1, setting2, MAX_UTILIZATION_SETTING_SPECS);
                                 logger.trace("Plan override of max utilization settings for entity {}"
                                                 + " selected {}% from ({}%,{}%) for setting {}", entityOid,
                                         winner, setting1, setting2, settingSpec.getName());

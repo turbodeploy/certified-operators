@@ -338,7 +338,7 @@ public class TierExcluderTest {
                 .addAllOids(excludedTiers).build()).build();
         SettingPolicyId settingPolicyId = SettingPolicyId.newBuilder().setPolicyId(policyIds.get(0)).build();
         EntitySettingGroup entitySettingGroup = EntitySettingGroup.newBuilder()
-            .setSetting(exclusionSetting).setPolicyId(settingPolicyId).addAllEntityOids(consumers).build();
+            .setSetting(exclusionSetting).addPolicyId(settingPolicyId).addAllEntityOids(consumers).build();
         return entitySettingGroup;
     }
 

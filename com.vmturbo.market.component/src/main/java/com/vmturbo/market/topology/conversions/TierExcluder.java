@@ -18,6 +18,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup.SettingPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -120,10 +121,10 @@ public class TierExcluder {
                 consumers.forEach(consumer -> consumerToCommTypeBought.computeIfAbsent(
                     consumer, k -> new HashSet<>()).add(commType));
 
-                // TODO: Change this to get the list of policy ids directly from the setting
-                // policy id once settings framework changes are done
-                Set<Long> responsibleSettingPolicies = Sets.newHashSet(entitySettingGroup.getPolicyId().getPolicyId());
-                commTypeToResponsibleSettings.computeIfAbsent(commType, k -> new HashSet<>()).addAll(responsibleSettingPolicies);
+                Set<Long> responsibleSettingPolicies = Sets.newHashSet(entitySettingGroup
+                    .getPolicyIdList().stream().map(SettingPolicyId::getPolicyId).iterator());
+                commTypeToResponsibleSettings.computeIfAbsent(commType,
+                    k -> new HashSet<>()).addAll(responsibleSettingPolicies);
             }
         });
         isInitialized = true;

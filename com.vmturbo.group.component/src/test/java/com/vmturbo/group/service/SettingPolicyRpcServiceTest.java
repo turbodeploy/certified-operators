@@ -62,6 +62,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyResponse;
@@ -683,7 +684,7 @@ public class SettingPolicyRpcServiceTest {
                         settingPolicyInfo.getSettingsList().stream()
                                 .map(setting -> SettingToPolicyId.newBuilder()
                                         .setSetting(setting)
-                                        .setSettingPolicyId(settingPolicy.getId())
+                                        .addSettingPolicyId(settingPolicy.getId())
                                         .build())
                                 .collect(Collectors.toList()))
                     .build();
@@ -825,7 +826,7 @@ public class SettingPolicyRpcServiceTest {
 
         final SettingToPolicyId settingToPolicyId = SettingToPolicyId.newBuilder()
                 .setSetting(setting)
-                .setSettingPolicyId(1L)
+                .addSettingPolicyId(1L)
                 .build();
 
         when(entitySettingStore.getEntitySettings(eq(topologyFilter), eq(settingsFilter)))
@@ -854,7 +855,7 @@ public class SettingPolicyRpcServiceTest {
         assertEquals(1, settingGroupList.size());
         final EntitySettingGroup settingGroup = settingGroupList.get(0);
         assertThat(settingGroup.getSetting(), is(settingToPolicyId.getSetting()));
-        assertThat(settingGroup.hasPolicyId(), is(false));
+        assertThat(settingGroup.getPolicyIdCount(), is(0));
         assertThat(settingGroup.getEntityOidsList(), containsInAnyOrder(7L));
     }
 
@@ -879,7 +880,7 @@ public class SettingPolicyRpcServiceTest {
 
         final SettingToPolicyId settingToPolicyId = SettingToPolicyId.newBuilder()
             .setSetting(setting)
-            .setSettingPolicyId(1L)
+            .addSettingPolicyId(1L)
             .build();
 
         when(entitySettingStore.getEntitySettings(eq(topologyFilter), eq(settingsFilter)))
@@ -910,12 +911,133 @@ public class SettingPolicyRpcServiceTest {
         assertEquals(1, settingGroupList.size());
         final EntitySettingGroup settingGroup = settingGroupList.get(0);
         assertThat(settingGroup.getSetting(), is(settingToPolicyId.getSetting()));
-        assertThat(settingGroup.getPolicyId(), is(SettingPolicyId.newBuilder()
+        assertThat(settingGroup.getPolicyIdCount(), is(1));
+        assertThat(settingGroup.getPolicyId(0), is(SettingPolicyId.newBuilder()
             .setPolicyId(1L)
             .setDisplayName("Test-SP")
             .setType(Type.DISCOVERED)
             .build()));
         assertThat(settingGroup.getEntityOidsList(), containsInAnyOrder(7L));
+    }
+
+    /**
+     * This method tests the grouping result for SortedSetOfOidSetting. In this test, there are:
+     * Two tiers: {tier1, tier2},
+     * Three entities: {entityOid1, entityOid2, entityOid3},
+     * Three settingPolicyIds: {sp1, sp2, sp3}
+     * Three SettingToPolicyIds:
+     *     settingToPolicyId1, for entityOid1, excludes {tier1, tier2} and is resolved from {sp1, sp2},
+     *     settingToPolicyId2, for entityOid2, excludes {tier1, tier2} and is resolved from {sp1, sp2},
+     *     settingToPolicyId3, for entityOid3, excludes {tier1, tier2} and is resolved from {sp2, sp3}
+     *
+     * After grouping by SettingToPolicyId, we should have:
+     *     EntitySettingGroup1, for {entityOid1, entityOid2}, excludes {tier1, tier2} and is resolved from {sp1, sp2},
+     *     EntitySettingGroup2, for {entityOid3}, excludes {tier1, tier2} and is resolved from {sp2, sp3}
+     *
+     * @throws NoSettingsForTopologyException NoSettingsForTopologyException
+     */
+    @Test
+    public void testGetEntitySettingsWithPolicySortedSetOfOidSetting()
+            throws NoSettingsForTopologyException {
+        final StreamObserver<GetEntitySettingsResponse> responseObserver =
+            (StreamObserver<GetEntitySettingsResponse>)mock(StreamObserver.class);
+
+        final TopologySelection topologyFilter = TopologySelection.newBuilder()
+            .setTopologyId(7L).setTopologyContextId(8L).build();
+
+        long entityOid1 = 10L;
+        long entityOid2 = 11L;
+        long entityOid3 = 12L;
+        final EntitySettingFilter settingsFilter = EntitySettingFilter.newBuilder()
+            .addAllEntities(Arrays.asList(entityOid1, entityOid2, entityOid3)).build();
+
+        long tier1 = 100L;
+        long tier2 = 101L;
+        long sp1 = 1L;
+        long sp2 = 2L;
+        long sp3 = 3L;
+
+        final Setting setting1 = Setting.newBuilder().setSettingSpecName("name")
+            .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                .addAllOids(Arrays.asList(tier1, tier2))).build();
+        final SettingToPolicyId settingToPolicyId1 = SettingToPolicyId.newBuilder()
+            .setSetting(setting1)
+            .addAllSettingPolicyId(Arrays.asList(sp1, sp2))
+            .build();
+
+        final Setting setting2 = Setting.newBuilder().setSettingSpecName("name")
+            .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                .addAllOids(Arrays.asList(tier1, tier2))).build();
+        final SettingToPolicyId settingToPolicyId2 = SettingToPolicyId.newBuilder()
+            .setSetting(setting2)
+            .addAllSettingPolicyId(Arrays.asList(sp1, sp2))
+            .build();
+
+        final Setting setting3 = Setting.newBuilder().setSettingSpecName("name")
+            .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                .addAllOids(Arrays.asList(tier1, tier2))).build();
+        final SettingToPolicyId settingToPolicyId3 = SettingToPolicyId.newBuilder()
+            .setSetting(setting3)
+            .addAllSettingPolicyId(Arrays.asList(sp2, sp3))
+            .build();
+
+        when(entitySettingStore.getEntitySettings(eq(topologyFilter), eq(settingsFilter)))
+            .thenReturn(ImmutableMap.of(
+                entityOid1, Collections.singletonList(settingToPolicyId1),
+                entityOid2, Collections.singletonList(settingToPolicyId2),
+                entityOid3, Collections.singletonList(settingToPolicyId3)));
+
+        when(settingStore.getSettingPolicies(any())).thenReturn(Stream.of(
+            SettingPolicy.newBuilder().setId(sp1)
+                .setSettingPolicyType(Type.USER)
+                .setInfo(SettingPolicyInfo.newBuilder().setName("Test-SP1").build())
+                .build(),
+            SettingPolicy.newBuilder().setId(sp2)
+                .setSettingPolicyType(Type.DISCOVERED)
+                .setInfo(SettingPolicyInfo.newBuilder().setName("Test-SP2").build())
+                .build(),
+            SettingPolicy.newBuilder().setId(sp3)
+                .setSettingPolicyType(Type.USER)
+                .setInfo(SettingPolicyInfo.newBuilder().setName("Test-SP3").build())
+                .build()));
+
+        settingPolicyService.getEntitySettings(GetEntitySettingsRequest.newBuilder()
+            .setTopologySelection(topologyFilter).setSettingFilter(settingsFilter)
+            .setIncludeSettingPolicies(true).build(), responseObserver);
+
+        final ArgumentCaptor<GetEntitySettingsResponse> respCaptor =
+            ArgumentCaptor.forClass(GetEntitySettingsResponse.class);
+        verify(responseObserver, times(2)).onNext(respCaptor.capture());
+        verify(responseObserver).onCompleted();
+
+        final List<GetEntitySettingsResponse> responses = respCaptor.getAllValues();
+        assertThat(responses.size(), is(2));
+        for (GetEntitySettingsResponse response : responses) {
+            final List<EntitySettingGroup> settingGroupList = response.getSettingGroupList();
+            assertThat(settingGroupList.size(), is(1));
+            final EntitySettingGroup settingGroup = settingGroupList.get(0);
+            if (settingGroup.getEntityOidsList().size() == 2) {
+                assertThat(settingGroup.getEntityOidsList().size(), is(2));
+                assertThat(settingGroup.getEntityOidsList(), containsInAnyOrder(entityOid1, entityOid2));
+                assertThat(settingGroup.getSetting(), is(settingToPolicyId1.getSetting()));
+                assertThat(settingGroup.getPolicyIdCount(), is(2));
+                assertThat(settingGroup.getPolicyIdList(), containsInAnyOrder(
+                    SettingPolicyId.newBuilder().setPolicyId(sp1)
+                        .setDisplayName("Test-SP1").setType(Type.USER).build(),
+                    SettingPolicyId.newBuilder().setPolicyId(sp2)
+                        .setDisplayName("Test-SP2").setType(Type.DISCOVERED).build()));
+            } else {
+                assertThat(settingGroup.getEntityOidsList().size(), is(1));
+                assertThat(settingGroup.getEntityOidsList(), containsInAnyOrder(entityOid3));
+                assertThat(settingGroup.getSetting(), is(settingToPolicyId3.getSetting()));
+                assertThat(settingGroup.getPolicyIdCount(), is(2));
+                assertThat(settingGroup.getPolicyIdList(), containsInAnyOrder(
+                    SettingPolicyId.newBuilder().setPolicyId(sp2)
+                        .setDisplayName("Test-SP2").setType(Type.DISCOVERED).build(),
+                    SettingPolicyId.newBuilder().setPolicyId(sp3)
+                        .setDisplayName("Test-SP3").setType(Type.USER).build()));
+            }
+        }
     }
 
     @Test

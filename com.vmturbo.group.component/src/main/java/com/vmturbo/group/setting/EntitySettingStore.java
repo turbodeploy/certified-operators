@@ -443,7 +443,10 @@ public class EntitySettingStore {
             }
 
             return userSettings.getUserSettingsList().stream()
-                .filter(settingToPolicy -> settingToPolicy.getSettingPolicyId() == policyId)
+                // TODO (Hongyue): improve slow operation: searching in an array is an O(n) operation.
+                // One way is to change this is to store a custom java object instead of the protobuf
+                // object in the entity settings store's settingsByEntity map.
+                .filter(settingToPolicy -> settingToPolicy.getSettingPolicyIdList().contains(policyId))
                 .filter(namePredicate)
                 .collect(Collectors.toList());
         }
@@ -509,7 +512,7 @@ public class EntitySettingStore {
                                                          @Nonnull final Setting setting) {
             return SettingToPolicyId.newBuilder()
                 .setSetting(setting)
-                .setSettingPolicyId(defaultSettingPolicy.getId())
+                .addSettingPolicyId(defaultSettingPolicy.getId())
                 .build();
         }
 
@@ -519,7 +522,7 @@ public class EntitySettingStore {
          * @return Set of setting policy ids associated with the entity.
          */
         @Nonnull
-        public Set<Long> getEntitySettingPolicyIds(long entityId) {
+        Set<Long> getEntitySettingPolicyIds(long entityId) {
             final EntitySettings userSettings = settingsByEntity.get(entityId);
             if (userSettings == null) {
                 return Collections.emptySet();
@@ -527,8 +530,8 @@ public class EntitySettingStore {
 
             return userSettings.getUserSettingsList()
                     .stream()
-                    .filter(SettingToPolicyId::hasSettingPolicyId)
-                    .map(SettingToPolicyId::getSettingPolicyId)
+                    .map(SettingToPolicyId::getSettingPolicyIdList)
+                    .flatMap(Collection::stream)
                     .collect(Collectors.toSet());
         }
 

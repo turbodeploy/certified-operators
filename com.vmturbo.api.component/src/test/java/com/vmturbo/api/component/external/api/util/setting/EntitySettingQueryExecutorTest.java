@@ -233,7 +233,7 @@ public class EntitySettingQueryExecutorTest {
                 .setSettingSpecName(FOO_SETTING_SPEC.getName())
                 .setBooleanSettingValue(BooleanSettingValue.newBuilder()
                     .setValue(true)))
-            .setPolicyId(SettingPolicyId.newBuilder()
+            .addPolicyId(SettingPolicyId.newBuilder()
                 .setPolicyId(5L)
                 .setType(Type.USER)
                 .setDisplayName("smallerPolicy"))
@@ -246,7 +246,7 @@ public class EntitySettingQueryExecutorTest {
                 .setBooleanSettingValue(BooleanSettingValue.newBuilder()
                     // Value is different
                     .setValue(false)))
-            .setPolicyId(SettingPolicyId.newBuilder()
+            .addPolicyId(SettingPolicyId.newBuilder()
                 .setPolicyId(55L)
                 .setType(Type.USER)
                 .setDisplayName("dominantPolicy"))
@@ -282,35 +282,35 @@ public class EntitySettingQueryExecutorTest {
         // The rest of SettingApiDTO properties should be set by the settings mapper, so we don't
         // check them.
 
-        assertThat(result.getSourceGroupName(), is(dominantGroup.getPolicyId().getDisplayName()));
+        assertThat(result.getSourceGroupName(), is(dominantGroup.getPolicyId(0).getDisplayName()));
         assertThat(result.getSourceGroupUuid(),
-            is(Long.toString(dominantGroup.getPolicyId().getPolicyId())));
+            is(Long.toString(dominantGroup.getPolicyId(0).getPolicyId())));
         final Map<String, SettingActivePolicyApiDTO> activePoliciesByName =
             result.getActiveSettingsPolicies().stream()
                 .collect(Collectors.toMap(
                     policy -> policy.getSettingsPolicy().getDisplayName(),
                     Function.identity()));
         assertThat(activePoliciesByName.keySet(),
-            containsInAnyOrder(dominantGroup.getPolicyId().getDisplayName(),
-                smallerGroup.getPolicyId().getDisplayName()));
+            containsInAnyOrder(dominantGroup.getPolicyId(0).getDisplayName(),
+                smallerGroup.getPolicyId(0).getDisplayName()));
 
         final SettingActivePolicyApiDTO smallerActivePolicy =
-            activePoliciesByName.get(smallerGroup.getPolicyId().getDisplayName());
+            activePoliciesByName.get(smallerGroup.getPolicyId(0).getDisplayName());
         assertThat(smallerActivePolicy.getNumEntities(), is(smallerGroup.getEntityOidsCount()));
         assertThat(smallerActivePolicy.getValue(), is("true"));
         assertThat(smallerActivePolicy.getSettingsPolicy().getUuid(),
-            is(Long.toString(smallerGroup.getPolicyId().getPolicyId())));
+            is(Long.toString(smallerGroup.getPolicyId(0).getPolicyId())));
         assertThat(smallerActivePolicy.getSettingsPolicy().getDisplayName(),
-            is(smallerGroup.getPolicyId().getDisplayName()));
+            is(smallerGroup.getPolicyId(0).getDisplayName()));
 
         final SettingActivePolicyApiDTO dominantActivePolicy =
-            activePoliciesByName.get(dominantGroup.getPolicyId().getDisplayName());
+            activePoliciesByName.get(dominantGroup.getPolicyId(0).getDisplayName());
         assertThat(dominantActivePolicy.getNumEntities(), is(dominantGroup.getEntityOidsCount()));
         assertThat(dominantActivePolicy.getValue(), is("false"));
         assertThat(dominantActivePolicy.getSettingsPolicy().getUuid(),
-            is(Long.toString(dominantGroup.getPolicyId().getPolicyId())));
+            is(Long.toString(dominantGroup.getPolicyId(0).getPolicyId())));
         assertThat(dominantActivePolicy.getSettingsPolicy().getDisplayName(),
-            is(dominantGroup.getPolicyId().getDisplayName()));
+            is(dominantGroup.getPolicyId(0).getDisplayName()));
     }
 
     @Test
@@ -325,7 +325,7 @@ public class EntitySettingQueryExecutorTest {
                 .setSettingSpecName(FOO_SETTING_SPEC.getName())
                 .setBooleanSettingValue(BooleanSettingValue.newBuilder()
                     .setValue(true)))
-            .setPolicyId(SettingPolicyId.newBuilder()
+            .addPolicyId(SettingPolicyId.newBuilder()
                 .setPolicyId(5L)
                 .setType(Type.DEFAULT)
                 .setDisplayName("defaultPolicy"))
@@ -348,8 +348,8 @@ public class EntitySettingQueryExecutorTest {
         // Relying on object equality - the "base" should still be the dominant setting.
         final SettingApiDTO result = resultOpt.get();
         assertThat(result.getActiveSettingsPolicies(), is(Collections.emptyList()));
-        assertThat(result.getSourceGroupName(), is(defaultGroup.getPolicyId().getDisplayName()));
+        assertThat(result.getSourceGroupName(), is(defaultGroup.getPolicyId(0).getDisplayName()));
         assertThat(result.getSourceGroupUuid(),
-            is(Long.toString(defaultGroup.getPolicyId().getPolicyId())));
+            is(Long.toString(defaultGroup.getPolicyId(0).getPolicyId())));
     }
 }

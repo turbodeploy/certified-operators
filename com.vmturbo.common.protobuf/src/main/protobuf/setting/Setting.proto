@@ -198,8 +198,10 @@ message EnumSettingValueType {
 // This is used to indicate that a setting is carrying a list type of oids which are strictly ordered.
 // Since protobuf doesn't support set data structure, we can compare values across settings easily
 // in this way, especially for template exclusion setting, which contains a list of excluded tiers.
-// We'll sort strictly the list of oids provided by UI/API/probe before creating such a setting.
-// We'll also check if the list is strictly ordered before saving the setting into the database.
+// We'll sort strictly the list of oids provided by UI/API inside SettingsMapper.
+// We'll sort strictly the list of oids provided by probe inside DiscoveredSettingPolicyScanner.
+// We'll also check if the list is strictly ordered inside DefaultSettingPolicyValidator
+// before saving the setting into the database.
 message SortedSetOfOidSettingValueType {
     // This specify the type of the oids.
     optional Type type = 1 [default = ENTITY];
@@ -580,8 +582,8 @@ message EntitySettings {
         // The setting applied to the entity after conflict resolution.
         optional Setting setting = 1;
 
-        // The ID of the non-default setting policy the setting is associated with.
-        optional int64 setting_policy_id = 2;
+        // The IDs of the non-default setting policies the setting is associated with.
+        repeated int64 setting_policy_id = 2;
 
     }
 }
@@ -692,7 +694,7 @@ message EntitySettingGroup {
     // The two setting groups would have the same "setting" field, but a different "policy_id".
     //
     // Not set if the entity setting request did NOT request the setting policies.
-    optional SettingPolicyId policy_id = 2;
+    repeated SettingPolicyId policy_id = 2;
 
     // The entities in the setting group.
     repeated int64 entity_oids = 10;

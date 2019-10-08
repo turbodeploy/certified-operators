@@ -739,7 +739,7 @@ public class EntitySettingsApplicatorTest {
         for (Setting setting : settings) {
             settingsBuilder.addUserSettings(SettingToPolicyId.newBuilder()
                     .setSetting(setting)
-                    .setSettingPolicyId(1L)
+                    .addSettingPolicyId(1L)
                     .build());
         }
         final SettingPolicy policy = SettingPolicy.newBuilder().setId(DEFAULT_SETTING_ID).build();

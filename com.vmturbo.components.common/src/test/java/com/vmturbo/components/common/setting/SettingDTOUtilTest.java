@@ -73,7 +73,7 @@ public class SettingDTOUtilTest {
         EntitySettingGroup group2 = EntitySettingGroup.newBuilder()
             .addEntityOids(3L)
             .setSetting(setting2)
-            .setPolicyId(SettingPolicyId.newBuilder()
+            .addPolicyId(SettingPolicyId.newBuilder()
                 .setDisplayName("foo")
                 .setPolicyId(123))
             .build();
@@ -81,7 +81,7 @@ public class SettingDTOUtilTest {
         EntitySettingGroup group3 = EntitySettingGroup.newBuilder()
             .addEntityOids(4L)
             .setSetting(setting3)
-            .setPolicyId(SettingPolicyId.newBuilder()
+            .addPolicyId(SettingPolicyId.newBuilder()
                 .setDisplayName("bar")
                 .setPolicyId(456))
             .build();

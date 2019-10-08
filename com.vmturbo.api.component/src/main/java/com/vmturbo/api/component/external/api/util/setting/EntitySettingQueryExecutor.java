@@ -237,7 +237,8 @@ public class EntitySettingQueryExecutor {
                     // If "includePolicyBreakdown" is true we should have the policy ids in each
                     // setting group.
                     final List<SettingActivePolicyApiDTO> activePolicies;
-                    if (groups.size() == 1 && groups.get(0).getPolicyId().getType() == Type.DEFAULT) {
+                    if (groups.size() == 1 && groups.get(0).getPolicyIdList().stream()
+                        .allMatch(settingPolicyId -> settingPolicyId.getType() == Type.DEFAULT)) {
                         // This is a special case - the only active policy is the default policy for
                         // this entity type. This doesn't count as an "active" policy for API/UI
                         // purposes.
@@ -250,9 +251,12 @@ public class EntitySettingQueryExecutor {
                                     final SettingActivePolicyApiDTO settingActivePolicyApiDTO =
                                         new SettingActivePolicyApiDTO();
 
+                                    // The SettingActivePolicyApiDTO has only one settingsPolicy.
+                                    // That is why we take the first SettingPolicyId in the EntitySettingGroup.
+                                    // If the API dto were to change, we could easily put multiple SettingsPolicies here.
                                     final BaseApiDTO policy = new BaseApiDTO();
-                                    policy.setDisplayName(settingGroup.getPolicyId().getDisplayName());
-                                    policy.setUuid(Long.toString(settingGroup.getPolicyId().getPolicyId()));
+                                    policy.setDisplayName(settingGroup.getPolicyId(0).getDisplayName());
+                                    policy.setUuid(Long.toString(settingGroup.getPolicyId(0).getPolicyId()));
                                     settingActivePolicyApiDTO.setSettingsPolicy(policy);
 
                                     settingActivePolicyApiDTO.setNumEntities(settingGroup.getEntityOidsCount());
@@ -278,8 +282,8 @@ public class EntitySettingQueryExecutor {
                     // policy ID. However, a policy can be applied to multiple groups, in which case
                     // we will need to know which of the groups an entity belongs to. This will
                     // require a reverse membership lookup, which is quite expensive.
-                    dominantDto.setSourceGroupName(dominantGroup.getPolicyId().getDisplayName());
-                    dominantDto.setSourceGroupUuid(Long.toString(dominantGroup.getPolicyId().getPolicyId()));
+                    dominantDto.setSourceGroupName(dominantGroup.getPolicyId(0).getDisplayName());
+                    dominantDto.setSourceGroupUuid(Long.toString(dominantGroup.getPolicyId(0).getPolicyId()));
                 }
                 return dominantDto;
             });
