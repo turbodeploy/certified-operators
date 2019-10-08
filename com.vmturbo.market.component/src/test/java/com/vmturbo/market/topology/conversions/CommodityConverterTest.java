@@ -2,10 +2,15 @@ package com.vmturbo.market.topology.conversions;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.commons.analysis.AnalysisUtil;
+import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -33,21 +38,30 @@ public class CommodityConverterTest {
     private static final Float MARKET_USED = RAW_USED * SCALING_FACTOR;
     private static final Float MARKET_CAPACITY = RAW_CAPACITY * SCALING_FACTOR;
 
+    NumericIDAllocator commodityTypeAllocator;
+    Map<String, CommodityType> commoditySpecMap;
+    boolean includeGuaranteedBuyer;
+    BiCliquer dsBasedBicliquer;
+    Table<Long, CommodityType, Integer> numConsumersOfSoldCommTable;
+    CommodityConverter converterToTest;
+    @Before
+    public void setup() {
+        // Arrange
+        commodityTypeAllocator = new NumericIDAllocator();
+        commoditySpecMap = Mockito.mock(Map.class);
+        includeGuaranteedBuyer = false;
+        dsBasedBicliquer = Mockito.mock(BiCliquer.class);
+        numConsumersOfSoldCommTable = Mockito.mock(Table.class);
+        converterToTest = new CommodityConverter(commodityTypeAllocator,
+                commoditySpecMap, includeGuaranteedBuyer,  dsBasedBicliquer,
+                numConsumersOfSoldCommTable, new ConversionErrorCounts());
+    }
+
     /**
      * Create a CommoditySoldTO (market) from a TopologyEntityDTO (xl).
      */
     @Test
     public void testCreateCommonCommoditySoldTO() {
-        // Arrange
-        NumericIDAllocator commodityTypeAllocator = new NumericIDAllocator();
-        Map<String, CommodityType> commoditySpecMap = Mockito.mock(Map.class);
-        boolean includeGuaranteedBuyer = false;
-        BiCliquer dsBasedBicliquer = Mockito.mock(BiCliquer.class);
-        Table<Long, CommodityType, Integer> numConsumersOfSoldCommTable = Mockito.mock(Table.class);
-
-        CommodityConverter converterToTest = new CommodityConverter(commodityTypeAllocator,
-                commoditySpecMap, includeGuaranteedBuyer,  dsBasedBicliquer,
-                numConsumersOfSoldCommTable, new ConversionErrorCounts());
         HistoricalValues histUsed = HistoricalValues.newBuilder()
                         .setHistUtilization(RAW_USED)
                         .build();
@@ -70,5 +84,26 @@ public class CommodityConverterTest {
         final CommoditySoldTO cpuCommodityTO = result.iterator().next();
         assertThat(cpuCommodityTO.getCapacity(), equalTo(MARKET_CAPACITY));
         assertThat(cpuCommodityTO.getQuantity(), equalTo(MARKET_USED));
+    }
+
+    @Test
+    public void testPopulateCommToConsiderForOverheadMap() {
+        long context = 1;
+        // setting up for plan1
+        TopologyDTO.TopologyInfo topologyInfo = TopologyDTO.TopologyInfo.newBuilder()
+                .setTopologyContextId(context).build();
+        converterToTest.populateCommToConsiderForOverheadMap(topologyInfo);
+
+        // setting up for plan2
+        topologyInfo.toBuilder().setTopologyContextId(2).build();
+        converterToTest.populateCommToConsiderForOverheadMap(topologyInfo);
+
+        // assert that there are 2 entries for the 2 plans
+        assertThat(converterToTest.commToConsiderForOverheadMap.size(),
+                equalTo(2));
+
+        // assert the presence of commsToSkip for the 2nd plan
+        assertThat(converterToTest.commToConsiderForOverheadMap.get(context).size(),
+                equalTo(AnalysisUtil.COMM_TYPES_TO_ALLOW_OVERHEAD.size()));
     }
 }

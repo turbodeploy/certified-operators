@@ -10,21 +10,22 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.CommodityResizeDependencyMap;
 import com.vmturbo.commons.analysis.RawMaterialsMap;
 import com.vmturbo.commons.analysis.UpdateFunction;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
+import com.vmturbo.market.topology.conversions.CommodityConverter;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Activate;
@@ -32,7 +33,6 @@ import com.vmturbo.platform.analysis.actions.ProvisionBase;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomySettings;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -111,6 +111,7 @@ public class TopologyEntitiesHandler {
      * and return the list of {@link Action}s for those TOs.
      * @param traderTOs A set of trader TOs.
      * @param topologyInfo Information about the topology, including parameters for the analysis.
+     * @param analysisConfig has information about this round of analysis
      * @param analysis containing reference for replay actions.
      * @return The list of actions for the TOs.
      */
@@ -141,7 +142,7 @@ public class TopologyEntitiesHandler {
         populateCommodityResizeDependencyMap(topology);
         populateProducesDependencyMap(topology);
         populateRawMaterialsMap(topology);
-        commToAllowOverheadInClone(topology);
+        parseAndResetCommToAllowOverheadInClone(topology, topologyInfo);
 
         final Economy economy = (Economy)topology.getEconomy();
         analysis.setEconomy(economy);
@@ -262,7 +263,7 @@ public class TopologyEntitiesHandler {
         final String contextType = topologyInfo.hasPlanInfo() ? PLAN_CONTEXT_TYPE_LABEL : LIVE_CONTEXT_TYPE_LABEL;
         ANALYSIS_ECONOMY_SIZE
             .labels(scopeType, contextType)
-            .observe((double) traderTOs.size());
+            .observe((double)traderTOs.size());
 
         logger.info("Completed analysis, with {} actions, and a projected topology of {} traders",
                 results.getActionsCount(), results.getProjectedTopoEntityTOCount());
@@ -360,10 +361,13 @@ public class TopologyEntitiesHandler {
         topology.getModifiableRawCommodityMap().putAll(RawMaterialsMap.rawMaterialsMap);
     }
 
-    private static void commToAllowOverheadInClone(Topology topology) {
-        AnalysisUtil.COMM_TYPES_TO_ALLOW_OVERHEAD.stream()
-            .map(CommoditySpecification::new)
-            .forEach(topology::addCommsToAdjustOverhead);
+    private static void parseAndResetCommToAllowOverheadInClone(Topology topology, TopologyDTO.TopologyInfo topoInfo) {
+        CommodityConverter.commToConsiderForOverheadMap.computeIfPresent(topoInfo.getTopologyContextId(),
+                (context, commSpecList) -> {
+                    commSpecList.forEach(topology::addCommsToAdjustOverhead);
+                    return commSpecList;
+                });
+        CommodityConverter.commToConsiderForOverheadMap.remove(topoInfo.getTopologyContextId());
     }
 
     private static void setEconomySettings(@Nonnull EconomySettings economySettings,

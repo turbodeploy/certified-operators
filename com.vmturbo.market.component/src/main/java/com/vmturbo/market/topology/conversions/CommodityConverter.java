@@ -2,6 +2,7 @@ package com.vmturbo.market.topology.conversions;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -12,11 +13,11 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Table;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -24,6 +25,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.conversions.ConversionErrorCounts.ErrorCategory;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
@@ -48,6 +50,7 @@ public class CommodityConverter {
     private final boolean includeGuaranteedBuyer;
     private final BiCliquer dsBasedBicliquer;
     private int bcBaseType = -1;
+    public static Map<Long, List<CommoditySpecification>> commToConsiderForOverheadMap = new HashMap<>();
     private final Table<Long, CommodityType, Integer> numConsumersOfSoldCommTable;
     private final ConversionErrorCounts conversionErrorCounts;
 
@@ -516,4 +519,18 @@ public class CommodityConverter {
         return usedExtractor.apply(commDto).floatValue();
     }
 
+    /**
+     * Populates commToConsiderForOverheadMap that is later used while creating the economy
+     *
+     * @param topoInfo is the {@link com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo} that contains the contextID
+     */
+    public void populateCommToConsiderForOverheadMap(TopologyDTO.TopologyInfo topoInfo) {
+        commToConsiderForOverheadMap.put(topoInfo.getTopologyContextId(),
+                AnalysisUtil.COMM_TYPES_TO_ALLOW_OVERHEAD.stream()
+                    .map(type -> TopologyDTO.CommodityType.newBuilder().setType(type).build())
+                    .map(ct -> new CommoditySpecification(toMarketCommodityId(ct),
+                            ct.getType(), 0, Integer.MAX_VALUE))
+                    .collect(Collectors.toList()));
+
+    }
 }

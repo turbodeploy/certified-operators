@@ -16,11 +16,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.lang3.mutable.MutableDouble;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.checkerframework.checker.nullness.qual.NonNull;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBasedTable;
@@ -32,6 +27,11 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
 import com.google.gson.Gson;
+
+import org.apache.commons.lang3.mutable.MutableDouble;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -469,6 +469,9 @@ public class TopologyConverter {
                 .map(this::topologyDTOtoTraderTO)
                 .filter(Objects::nonNull)
                 .forEach(returnBuilder::add);
+
+        // populate commToConsiderForOverheadMap
+        commodityConverter.populateCommToConsiderForOverheadMap(this.topologyInfo);
         logger.info("Converted topologyEntityDTOs to traderTOs");
         return returnBuilder.build();
     }
