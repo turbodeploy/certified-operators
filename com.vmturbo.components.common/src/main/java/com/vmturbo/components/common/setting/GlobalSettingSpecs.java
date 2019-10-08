@@ -10,10 +10,12 @@ import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.components.common.mail.MailConfiguration.EncryptionType;
 
@@ -52,7 +54,7 @@ public enum GlobalSettingSpecs {
             Collections.emptyList()),
 
     SmtpEncription("smtpEncryption", "Encryption",
-            new EnumSettingDataType(EncryptionType.NONE),
+            new EnumSettingDataType<>(EncryptionType.NONE, EncryptionType.class),
             Collections.emptyList()),
 
     VmContent("VMContent", "Email content format - VM notifications",
@@ -114,42 +116,48 @@ public enum GlobalSettingSpecs {
      * Global AWS RI setting for OfferingClass.
      */
     AWSPreferredOfferingClass("ri.aws.preferredOfferingClass", "Type",
-            new EnumSettingDataType(RISettingsEnum.PreferredOfferingClass.STANDARD),
+            new EnumSettingDataType<>(RISettingsEnum.PreferredOfferingClass.STANDARD,
+                            RISettingsEnum.PreferredOfferingClass.class),
             Lists.newArrayList(CategoryPathConstants.RI, CategoryPathConstants.AWS)),
 
     /**
      * Global AWS RI setting for preferred term, length of RI.
      */
     AWSPreferredTerm("ri.aws.preferredTerm", "Term",
-            new EnumSettingDataType(RISettingsEnum.PreferredTerm.YEARS_1),
+            new EnumSettingDataType<>(RISettingsEnum.PreferredTerm.YEARS_1,
+                                    RISettingsEnum.PreferredTerm.class),
             Lists.newArrayList(CategoryPathConstants.RI, CategoryPathConstants.AWS)),
 
     /**
      * Global AWS RI setting for preferred payment option.
      */
     AWSPreferredPaymentOption("ri.aws.preferredPaymentOption", "Payment",
-            new EnumSettingDataType(RISettingsEnum.PreferredPaymentOption.ALL_UPFRONT),
+            new EnumSettingDataType<>(RISettingsEnum.PreferredPaymentOption.ALL_UPFRONT,
+                                    RISettingsEnum.PreferredPaymentOption.class),
             Lists.newArrayList(CategoryPathConstants.RI, CategoryPathConstants.AWS)),
 
     /**
      * Global AZURE RI setting for Offering Class.
      */
     AzurePreferredOfferingClass("ri.azure.preferredOfferingClass", "Type",
-            new EnumSettingDataType(RISettingsEnum.PreferredOfferingClass.STANDARD),
+            new EnumSettingDataType<>(RISettingsEnum.PreferredOfferingClass.STANDARD,
+                                    RISettingsEnum.PreferredOfferingClass.class),
             Lists.newArrayList(CategoryPathConstants.RI, CategoryPathConstants.AZURE)),
 
     /**
      * Global AZURE RI setting for preferred term, length of RI.
      */
     AzurePreferredTerm("ri.azure.preferredTerm", "Term",
-            new EnumSettingDataType(RISettingsEnum.PreferredTerm.YEARS_1),
+            new EnumSettingDataType<>(RISettingsEnum.PreferredTerm.YEARS_1,
+                                    RISettingsEnum.PreferredTerm.class),
             Lists.newArrayList(CategoryPathConstants.RI, CategoryPathConstants.AZURE)),
 
     /**
      * Global AZURE RI setting for preferred payment option.
      */
     AzurePreferredPaymentOption("ri.azure.preferredPaymentOption", "Payment",
-            new EnumSettingDataType(RISettingsEnum.PreferredPaymentOption.ALL_UPFRONT),
+            new EnumSettingDataType<>(RISettingsEnum.PreferredPaymentOption.ALL_UPFRONT,
+                                    RISettingsEnum.PreferredPaymentOption.class),
             Lists.newArrayList(CategoryPathConstants.RI, CategoryPathConstants.AZURE)),
 
     RecurrencePattern("recurrencePattern", "Recurrence Pattern",
@@ -252,6 +260,22 @@ public enum GlobalSettingSpecs {
         }
         value.build(builder);
         return builder.build();
+    }
+
+    /**
+     * Extract the value from a setting.
+     *
+     * @param <T> type of a setting value
+     * @param setting setting
+     * @param cls class of a setting value
+     * @return value, null if not present
+     */
+    @Nullable
+    public <T> T getValue(@Nullable Setting setting, @Nonnull Class<T> cls) {
+        Objects.requireNonNull(setting);
+        Objects.requireNonNull(cls);
+        Object result = value.getValue(setting);
+        return cls.isInstance(result) ? cls.cast(result) : null;
     }
 
     private boolean hasCategoryPath() {

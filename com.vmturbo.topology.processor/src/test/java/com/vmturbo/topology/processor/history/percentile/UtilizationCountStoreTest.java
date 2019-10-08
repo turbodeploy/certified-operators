@@ -1,12 +1,13 @@
 package com.vmturbo.topology.processor.history.percentile;
 
+import java.util.Collections;
+
 import com.google.common.collect.ImmutableList;
 
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
@@ -31,8 +32,7 @@ public class UtilizationCountStoreTest {
         ref =
             new EntityCommodityFieldReference(134L,
                                               CommodityType.newBuilder().setKey("efds").setType(12).build(),
-                                              4857L, CommodityBoughtDTO.newBuilder(),
-                                              CommodityField.USED);
+                                              4857L, CommodityField.USED);
         store = new UtilizationCountStore(new PercentileBuckets(null), ref);
     }
 
@@ -90,7 +90,7 @@ public class UtilizationCountStoreTest {
         for (int i = 0; i <= 100; ++i) {
             oldest.addUtilization(i == 20 ? 1 : 0);
         }
-        PercentileRecord.Builder full = store.checkpoint(oldest.build());
+        PercentileRecord.Builder full = store.checkpoint(Collections.singleton(oldest.build()));
         Assert.assertNotNull(full);
         PercentileRecord record = full.build();
 

@@ -5,7 +5,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
@@ -160,7 +159,7 @@ public class UtilizationCountArrayTest {
         counts.addPoint(2, capacity, "", true);
         EntityCommodityFieldReference ref = new EntityCommodityFieldReference(134L,
                                               CommodityType.newBuilder().setKey("efds").setType(12).build(),
-                                              4857L, CommodityBoughtDTO.newBuilder(), CommodityField.USED);
+                                              4857L, CommodityField.USED);
         PercentileRecord.Builder builder = counts.serialize(ref);
         Assert.assertNotNull(builder);
         PercentileRecord record = builder.build();

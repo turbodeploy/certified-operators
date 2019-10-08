@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -84,6 +85,7 @@ import com.vmturbo.topology.processor.topology.ConstraintsEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector.InjectionSummary;
 import com.vmturbo.topology.processor.topology.HistoricalEditor;
+import com.vmturbo.topology.processor.topology.HistoryAggregator;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor.EditorSummary;
@@ -1347,4 +1349,41 @@ public class Stages {
             return Status.success(statusSummary);
         }
     }
+
+    /**
+     * Dummy wrapper around class that does the work of applying
+     * different kinds of history values calculations to commodities.
+     * Added for compliance.
+     */
+    public static class HistoryAggregationStage extends PassthroughStage<GraphWithSettings> {
+        private final HistoryAggregator historyAggregator;
+        private final List<ScenarioChange> changes;
+        private final TopologyDTO.TopologyInfo topologyInfo;
+        private final PlanScope scope;
+
+        /**
+         * Construct the stage wrapper.
+         *
+         * @param historyAggregator historical values calculator
+         * @param changes plan scenarios, if applicable
+         * @param topologyInfo topology information
+         * @param scope plan scope, if applicable
+         */
+        public HistoryAggregationStage(@Nonnull HistoryAggregator historyAggregator,
+                                              @Nullable List<ScenarioChange> changes,
+                                              @Nonnull TopologyDTO.TopologyInfo topologyInfo,
+                                              @Nullable PlanScope scope) {
+            this.historyAggregator = historyAggregator;
+            this.changes = changes;
+            this.topologyInfo = topologyInfo;
+            this.scope = scope;
+        }
+
+        @Override
+        public Status passthrough(@Nonnull GraphWithSettings graph) throws PipelineStageException {
+            historyAggregator.applyCommodityEdits(graph, changes, topologyInfo, scope);
+            return Status.success();
+        }
+    }
+
 }

@@ -7,8 +7,8 @@ import static org.junit.Assert.assertFalse;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.Properties;
+import java.util.regex.Pattern;
 
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -69,6 +69,7 @@ public class BaseVmtComponentTest {
         // The content of the file test.txt is "text-value"
         assertEquals("text-value", BaseVmtComponent.getConfigurationProperty("test.txt"));
         // test2.txt contains two lines
-        assertEquals("line1\nline2", BaseVmtComponent.getConfigurationProperty("test2.txt"));
+        Pattern multiline = Pattern.compile("line1\\Rline2");
+        assertTrue(multiline.matcher(BaseVmtComponent.getConfigurationProperty("test2.txt")).matches());
     }
 }

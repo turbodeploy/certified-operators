@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor.history;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -11,28 +10,31 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.processor.topology.HistoryAggregationStage;
+import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
+import com.vmturbo.topology.processor.topology.HistoryAggregator;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 
 /**
- * Unit tests for HistoryAggregationStage.
+ * Unit tests for HistoryAggregator.
  */
-public class HistoryAggregationStageTest {
+public class HistoryAggregatorTest extends BaseGraphRelatedTest {
     private static CommodityType CT1 = CommodityType.newBuilder().setType(1).build();
     private static CommodityType CT2 = CommodityType.newBuilder().setType(2).build();
     private static CommodityType CT3 = CommodityType.newBuilder().setType(3).setKey("qqq").build();
@@ -45,10 +47,13 @@ public class HistoryAggregationStageTest {
     @Test
     public void testContextNotApplicable() throws PipelineStageException {
         ExecutorService executor = Mockito.mock(ExecutorService.class);
-        HistoryAggregationStage stage = new HistoryAggregationStage(executor, Collections
-                        .singleton(new TestHistoricalEditor(false, Collections.emptySet(),
+        TopologyGraph<TopologyEntity> graph = mockGraph(Collections.emptySet());
+        HistoryAggregator stage = new HistoryAggregator(executor, Collections
+                        .singleton(new TestHistoricalEditor(graph, false, Collections.emptySet(),
                                                             Collections.emptySet())));
-        stage.applyCommodityEdits(null, null, null, null);
+        stage.applyCommodityEdits(new GraphWithSettings(graph, Collections.emptyMap(),
+                                                        Collections.emptyMap()),
+                                  null, null, null);
 
         Mockito.verify(executor, Mockito.never()).submit(Mockito.any(Callable.class));
     }
@@ -62,12 +67,14 @@ public class HistoryAggregationStageTest {
         ExecutorService executor = Mockito.mock(ExecutorService.class);
         int entityType1 = 1;
         int entityType2 = 2;
-        TopologyEntity entity = mockEntity(entityType2, 1l, CT1, 0d, null, null, null);
+        TopologyEntity entity = mockEntity(entityType2, 1L, CT1, 1, 0D, null, null, null, null);
         TopologyGraph<TopologyEntity> graph = mockGraph(ImmutableSet.of(entity));
-        HistoryAggregationStage stage = new HistoryAggregationStage(executor, Collections
-                        .singleton(new TestHistoricalEditor(true, Collections.singleton(entityType1),
+        HistoryAggregator stage = new HistoryAggregator(executor, Collections
+                        .singleton(new TestHistoricalEditor(graph, true, Collections.singleton(entityType1),
                                                             Collections.singleton(CT1))));
-        stage.applyCommodityEdits(graph, null, null, null);
+        stage.applyCommodityEdits(new GraphWithSettings(graph, Collections.emptyMap(),
+                                                        Collections.emptyMap()),
+                                  null, null, null);
 
         Mockito.verify(executor, Mockito.never()).submit(Mockito.any(Callable.class));
     }
@@ -80,12 +87,14 @@ public class HistoryAggregationStageTest {
     public void testCommodityTypeNotApplicable() throws PipelineStageException {
         ExecutorService executor = Mockito.mock(ExecutorService.class);
         int entityType1 = 1;
-        TopologyEntity entity = mockEntity(entityType1, 1l, CT1, 0d, 2l, CT3, 0d);
+        TopologyEntity entity = mockEntity(entityType1, 1L, CT1, 1D, 0D, 2L, CT3, 0D, null);
         TopologyGraph<TopologyEntity> graph = mockGraph(ImmutableSet.of(entity));
-        HistoryAggregationStage stage = new HistoryAggregationStage(executor, Collections
-                        .singleton(new TestHistoricalEditor(true, Collections.singleton(entityType1),
+        HistoryAggregator stage = new HistoryAggregator(executor, Collections
+                        .singleton(new TestHistoricalEditor(graph, true, Collections.singleton(entityType1),
                                                             Collections.singleton(CT2))));
-        stage.applyCommodityEdits(graph, null, null, null);
+        stage.applyCommodityEdits(new GraphWithSettings(graph, Collections.emptyMap(),
+                                                        Collections.emptyMap()),
+                                  null, null, null);
 
         Mockito.verify(executor, Mockito.never()).submit(Mockito.any(Callable.class));
     }
@@ -99,12 +108,14 @@ public class HistoryAggregationStageTest {
         ExecutorService executor = Mockito.spy(Executors.newCachedThreadPool());
         try {
             int entityType1 = 1;
-            TopologyEntity entity = mockEntity(entityType1, 1l, CT1, 0d, 2l, CT3, 0d);
+            TopologyEntity entity = mockEntity(entityType1, 1L, CT1, 1D, 0D, 2L, CT3, 0D, null);
             TopologyGraph<TopologyEntity> graph = mockGraph(ImmutableSet.of(entity));
-            HistoryAggregationStage stage = new HistoryAggregationStage(executor, Collections
-                            .singleton(new TestHistoricalEditor(true, Collections.singleton(entityType1),
+            HistoryAggregator stage = new HistoryAggregator(executor, Collections
+                            .singleton(new TestHistoricalEditor(graph, true, Collections.singleton(entityType1),
                                                                 ImmutableSet.of(CT1, CT2, CT3))));
-            stage.applyCommodityEdits(graph, null, null, null);
+            stage.applyCommodityEdits(new GraphWithSettings(graph, Collections.emptyMap(),
+                                                            Collections.emptyMap()),
+                                      null, null, null);
 
             Mockito.verify(executor, Mockito.times(2)).submit(Mockito.any(Callable.class));
         } finally {
@@ -122,19 +133,21 @@ public class HistoryAggregationStageTest {
         try {
             int entityType1 = 1;
             int entityType2 = 2;
-            long oid1 = 12l;
-            long oid2 = 123l;
-            double usedSold1 = 10d;
-            double usedSold2 = 22d;
-            double usedBought = 20d;
-            TopologyEntity entity1 = mockEntity(entityType1, oid1, CT1, usedSold1, null, null, null);
-            TopologyEntity entity2 = mockEntity(entityType2, oid2, CT3, usedSold2, oid1, CT2, usedBought);
+            long oid1 = 12L;
+            long oid2 = 123L;
+            double usedSold1 = 10D;
+            double usedSold2 = 22D;
+            double usedBought = 20D;
+            TopologyEntity entity1 = mockEntity(entityType1, oid1, CT1, 100D, usedSold1, null, null, null, null);
+            TopologyEntity entity2 = mockEntity(entityType2, oid2, CT3, 100D, usedSold2, oid1, CT2, usedBought, null);
             TopologyGraph<TopologyEntity> graph = mockGraph(ImmutableSet.of(entity1, entity2));
-            HistoryAggregationStage stage = new HistoryAggregationStage(executor, Collections
-                            .singleton(new TestHistoricalEditor(true,
+            HistoryAggregator stage = new HistoryAggregator(executor, Collections
+                            .singleton(new TestHistoricalEditor(graph, true,
                                                                 ImmutableSet.of(entityType1, entityType2),
                                                                 ImmutableSet.of(CT1, CT2, CT3))));
-            stage.applyCommodityEdits(graph, null, null, null);
+            stage.applyCommodityEdits(new GraphWithSettings(graph, Collections.emptyMap(),
+                                                            Collections.emptyMap()),
+                                      null, null, null);
 
             // hist utilization should now be used / 2 for all passed commodities
 
@@ -160,46 +173,22 @@ public class HistoryAggregationStageTest {
         }
     }
 
-    private static TopologyGraph<TopologyEntity> mockGraph(Set<TopologyEntity> entities) {
-        @SuppressWarnings("unchecked")
-        TopologyGraph<TopologyEntity> graph = Mockito.mock(TopologyGraph.class);
-        Mockito.when(graph.entities()).thenReturn(entities.stream());
-        Mockito.when(graph.getEntity(Mockito.anyLong())).thenReturn(Optional.empty());
-        return graph;
-    }
-
-    private static TopologyEntity mockEntity(int type, long oid, CommodityType ctSold,
-                                             double usedSold,
-                                             Long provider, CommodityType ctBought,
-                                             Double usedBought) {
-        TopologyEntity e = Mockito.mock(TopologyEntity.class);
-        Mockito.when(e.getEntityType()).thenReturn(type);
-        Mockito.when(e.getOid()).thenReturn(oid);
-        TopologyEntityDTO.Builder entityBuilder = TopologyEntityDTO.newBuilder();
-        entityBuilder.setOid(oid).setEntityType(type);
-        if (ctSold != null) {
-            entityBuilder.addCommoditySoldListBuilder().setCommodityType(ctSold).setUsed(usedSold);
-        }
-        if (provider != null) {
-            entityBuilder.addCommoditiesBoughtFromProvidersBuilder().setProviderId(provider)
-                            .addCommodityBoughtBuilder().setCommodityType(ctBought).setUsed(usedBought);
-        }
-        Mockito.when(e.getTopologyEntityDtoBuilder()).thenReturn(entityBuilder);
-        return e;
-    }
     /**
      * Test implementation of a historical type editor.
      * Which accepts by-entity and commodity types that it modifies.
      * And then creates a single initialization task and a single calculation task that divides usage by 2
      * and sets into historical utilization.
      */
-    private static class TestHistoricalEditor implements IHistoricalEditor<Void> {
+    private static class TestHistoricalEditor implements IHistoricalEditor<HistoricalEditorConfig> {
+        private final TopologyGraph<TopologyEntity> graph;
         private final boolean applicable;
         private final Set<Integer> applicableEntityTypes;
         private final Set<TopologyDTO.CommodityType> applicableCommTypes;
 
-        TestHistoricalEditor(boolean applicable, @Nonnull Set<Integer> applicableEntityTypes,
+        TestHistoricalEditor(@Nonnull TopologyGraph<TopologyEntity> graph, boolean applicable,
+                             @Nonnull Set<Integer> applicableEntityTypes,
                              @Nonnull Set<TopologyDTO.CommodityType> applicableCommTypes) {
+            this.graph = graph;
             this.applicable = applicable;
             this.applicableEntityTypes = applicableEntityTypes;
             this.applicableCommTypes = applicableCommTypes;
@@ -231,7 +220,7 @@ public class HistoryAggregationStageTest {
 
         @Override
         public List<? extends Callable<List<EntityCommodityFieldReference>>>
-               createPreparationTasks(List<EntityCommodityReferenceWithBuilder> commodityRefs) {
+               createPreparationTasks(List<EntityCommodityReference> commodityRefs) {
             // simulate loading 'used' for all passed commodities
             return Collections.singletonList(new Callable<List<EntityCommodityFieldReference>>() {
                 @Override
@@ -241,12 +230,10 @@ public class HistoryAggregationStageTest {
                                     .map(cref -> cref.getProviderOid() == null
                                         ? new EntityCommodityFieldReference(cref.getEntityOid(),
                                                                             cref.getCommodityType(),
-                                                                            cref.getSoldBuilder(),
                                                                             CommodityField.USED)
                                         : new EntityCommodityFieldReference(cref.getEntityOid(),
                                                                             cref.getCommodityType(),
                                                                             cref.getProviderOid(),
-                                                                            cref.getBoughtBuilder(),
                                                                             CommodityField.USED))
                                     .collect(Collectors.toList());
                 }});
@@ -254,18 +241,25 @@ public class HistoryAggregationStageTest {
 
         @Override
         public List<? extends Callable<List<Void>>>
-               createCalculationTasks(List<EntityCommodityReferenceWithBuilder> commodityFieldRefs) {
+               createCalculationTasks(List<EntityCommodityReference> commodityFieldRefs) {
             return Collections.singletonList(new Callable<List<Void>>() {
                 @Override
                 public List<Void> call() throws Exception {
                     // divide running used by 2 and set into hist util
                     commodityFieldRefs.stream().forEach(fieldRef -> {
+                        TopologyEntity entity = graph.getEntity(fieldRef.getEntityOid()).get();
                         if (fieldRef.getProviderOid() == null) {
-                            fieldRef.getSoldBuilder().getHistoricalUsedBuilder()
-                                            .setHistUtilization(fieldRef.getSoldBuilder().getUsed() / 2);
+                            CommoditySoldDTO.Builder commSold =
+                                          CommodityFieldAccessor.SOLD_BUILDER_EXTRACTOR
+                                                          .apply(fieldRef,
+                                                                 entity.getTopologyEntityDtoBuilder());
+                            commSold.getHistoricalUsedBuilder().setHistUtilization(commSold.getUsed() / 2);
                         } else {
-                            fieldRef.getBoughtBuilder().getHistoricalUsedBuilder()
-                                            .setHistUtilization(fieldRef.getBoughtBuilder().getUsed() / 2);
+                            CommodityBoughtDTO.Builder commBought =
+                                          CommodityFieldAccessor.BOUGHT_BUILDER_EXTRACTOR
+                                                          .apply(fieldRef,
+                                                                 entity.getTopologyEntityDtoBuilder());
+                            commBought.getHistoricalUsedBuilder().setHistUtilization(commBought.getUsed() / 2);
                         }
                     });
                     return Collections.emptyList();
@@ -275,6 +269,14 @@ public class HistoryAggregationStageTest {
         @Override
         public boolean isMandatory() {
             return true;
+        }
+
+        @Override
+        public void initContext(GraphWithSettings graph, ICommodityFieldAccessor accessor) {
+        }
+
+        @Override
+        public void completeBroadcast() throws HistoryCalculationException {
         }
     }
 }

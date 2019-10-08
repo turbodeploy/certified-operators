@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.history;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -15,12 +16,12 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.Lists;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.Lists;
-
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.stitching.EntityCommodityReference;
 
 /**
  * Historical editor with state that caches pre-calculated data from previous topology broadcast
@@ -30,12 +31,14 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
  * @param <HistoryData> per-commodity field historical data to cache that wraps DbValue with runtime info
  * @param <HistoryLoadingTask> loader of DbValue's from the persistent store
  * @param <Config> per-editor type configuration values holder
+ * @param <Stub> type of history component stub
  */
 public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHistoryCommodityData<Config, DbValue>,
-            HistoryLoadingTask extends IHistoryLoadingTask<DbValue>,
+            HistoryLoadingTask extends IHistoryLoadingTask<Config, DbValue>,
             Config extends CachingHistoricalEditorConfig,
-            DbValue>
-        extends AbstractHistoricalEditor<Config> {
+            DbValue,
+            Stub extends io.grpc.stub.AbstractStub<Stub>>
+        extends AbstractHistoricalEditor<Config, Stub> {
     private static final Logger logger = LogManager.getLogger();
 
     /**
@@ -43,8 +46,14 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
      */
     private final ConcurrentMap<EntityCommodityFieldReference, HistoryData> cache = new ConcurrentHashMap<>();
 
-    private final Function<StatsHistoryServiceBlockingStub, HistoryLoadingTask> historyLoadingTaskCreator;
-    private final Supplier<HistoryData> historyDataCreator;
+    /**
+     * Creator for the task that fetches persisted data.
+     */
+    protected final Function<Stub, HistoryLoadingTask> historyLoadingTaskCreator;
+    /**
+     * Creator for the cached per-commodity-field data entry.
+     */
+    protected final Supplier<HistoryData> historyDataCreator;
 
     /**
      * Construct the instance of a caching history editor.
@@ -55,8 +64,8 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
      * @param historyDataCreator create an instance of cached history element
      */
     protected AbstractCachingHistoricalEditor(@Nullable Config config,
-                                              @Nonnull StatsHistoryServiceBlockingStub statsHistoryClient,
-                                              @Nonnull Function<StatsHistoryServiceBlockingStub, HistoryLoadingTask> historyLoadingTaskCreator,
+                                              @Nonnull Stub statsHistoryClient,
+                                              @Nonnull Function<Stub, HistoryLoadingTask> historyLoadingTaskCreator,
                                               @Nonnull Supplier<HistoryData> historyDataCreator) {
         super(config, statsHistoryClient);
         this.historyLoadingTaskCreator = historyLoadingTaskCreator;
@@ -66,9 +75,12 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
     @Override
     @Nonnull
     public List<? extends Callable<List<EntityCommodityFieldReference>>>
-           createPreparationTasks(@Nonnull List<EntityCommodityReferenceWithBuilder> commodityRefs) {
+           createPreparationTasks(@Nonnull List<EntityCommodityReference> commodityRefs) {
+        // remove cached history for entities that are not in current topology
+        // (the history component will keep storing data for them for retention period, in case they reappear)
+        cache.keySet().retainAll(new HashSet<>(commodityRefs));
         // load only commodities that have no fields in the cache yet
-        List<EntityCommodityReferenceWithBuilder> uninitializedCommodities = commodityRefs.stream()
+        List<EntityCommodityReference> uninitializedCommodities = commodityRefs.stream()
                         .filter(ref -> {
                             for (CommodityField field : CommodityField.values()) {
                                 if (cache.containsKey(new EntityCommodityFieldReference(ref, field))) {
@@ -79,7 +91,7 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
                         })
                         .collect(Collectors.toList());
         // chunk by configured size
-        List<List<EntityCommodityReferenceWithBuilder>> partitions = Lists
+        List<List<EntityCommodityReference>> partitions = Lists
                         .partition(uninitializedCommodities, getConfig().getLoadingChunkSize());
         return partitions.stream()
                         .map(chunk -> new HistoryLoadingCallable(historyLoadingTaskCreator.apply(getStatsHistoryClient()),
@@ -90,7 +102,7 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
     @Override
     @Nonnull
     public List<? extends Callable<List<Void>>>
-           createCalculationTasks(@Nonnull List<EntityCommodityReferenceWithBuilder> commodityRefs) {
+           createCalculationTasks(@Nonnull List<EntityCommodityReference> commodityRefs) {
         // calculate only fields for commodities present in the cache
         List<EntityCommodityFieldReference> cachedFields = commodityRefs.stream()
                         .flatMap(commRef -> Arrays.stream(CommodityField.values())
@@ -105,13 +117,17 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
                         .collect(Collectors.toList());
     }
 
+    protected Map<EntityCommodityFieldReference, HistoryData> getCache() {
+        return cache;
+    }
+
     /**
      * Wrapper callable to load a chunk of historical data from the persistent store.
      * Upon success the values are stored into cache, with configured expiration on write.
      */
     private class HistoryLoadingCallable implements Callable<List<EntityCommodityFieldReference>> {
         private final HistoryLoadingTask task;
-        private final List<EntityCommodityReferenceWithBuilder> commodities;
+        private final List<EntityCommodityReference> commodities;
 
         /**
          * Construct the wrapper to load a chunk of historical commodity values from the history db.
@@ -120,14 +136,14 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
          * @param commodities list of commodities
          */
         HistoryLoadingCallable(@Nonnull HistoryLoadingTask task,
-                               @Nonnull List<EntityCommodityReferenceWithBuilder> commodities) {
+                               @Nonnull List<EntityCommodityReference> commodities) {
             this.task = task;
             this.commodities = commodities;
         }
 
         @Override
         public List<EntityCommodityFieldReference> call() throws Exception {
-            Map<EntityCommodityFieldReference, DbValue> dbValues = task.load(commodities);
+            Map<EntityCommodityFieldReference, DbValue> dbValues = task.load(commodities, getConfig());
             // update the cache with loaded db values
             dbValues.forEach((fieldRef, dbValue) -> cache.compute(fieldRef, (key, cacheValue) -> {
                 if (logger.isTraceEnabled()) {
@@ -136,7 +152,7 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
                 if (cacheValue == null) {
                     cacheValue = historyDataCreator.get();
                 }
-                cacheValue.init(dbValue, getConfig());
+                cacheValue.init(fieldRef, dbValue, getConfig(), getCommodityFieldAccessor());
                 return cacheValue;
             }));
             // return the list of loaded fields
@@ -169,7 +185,7 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
                     // shouldn't have happened, preparation is supposed to add entries
                     logger.error("Missing historical data cache entry for " + ref);
                 } else {
-                    data.aggregate(ref, getConfig());
+                    data.aggregate(ref, getConfig(), getCommodityFieldAccessor());
                 }
             });
             return Collections.emptyList();

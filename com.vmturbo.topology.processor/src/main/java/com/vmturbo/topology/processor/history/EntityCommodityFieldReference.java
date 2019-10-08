@@ -6,16 +6,14 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
+import com.vmturbo.stitching.EntityCommodityReference;
 
 /**
  * Reference to a historical field within a topology commodity (used or peak).
  */
 @Immutable
-public class EntityCommodityFieldReference extends EntityCommodityReferenceWithBuilder {
+public class EntityCommodityFieldReference extends EntityCommodityReference {
     private final CommodityField field;
 
     /**
@@ -24,9 +22,9 @@ public class EntityCommodityFieldReference extends EntityCommodityReferenceWithB
      * @param commRef commodity reference
      * @param field commodity's field
      */
-    public EntityCommodityFieldReference(@Nonnull EntityCommodityReferenceWithBuilder commRef,
+    public EntityCommodityFieldReference(@Nonnull EntityCommodityReference commRef,
                     @Nonnull CommodityField field) {
-        super(commRef);
+        super(commRef.getEntityOid(), commRef.getCommodityType(), commRef.getProviderOid());
         this.field = field;
     }
 
@@ -35,13 +33,11 @@ public class EntityCommodityFieldReference extends EntityCommodityReferenceWithB
      *
      * @param entityOid entity oid
      * @param commodityType commodity type
-     * @param soldBuilder sold commodity builder
      * @param field commodity's field
      */
     public EntityCommodityFieldReference(long entityOid, @Nonnull CommodityType commodityType,
-                    @Nonnull CommoditySoldDTO.Builder soldBuilder,
                     @Nonnull CommodityField field) {
-        super(entityOid, commodityType, soldBuilder);
+        super(entityOid, commodityType, null);
         this.field = field;
     }
 
@@ -55,37 +51,14 @@ public class EntityCommodityFieldReference extends EntityCommodityReferenceWithB
      * @param field commodity's field
      */
     public EntityCommodityFieldReference(long entityOid, @Nonnull CommodityType commodityType,
-                    @Nullable Long providerOid, @Nonnull CommodityBoughtDTO.Builder boughtBuilder,
-                    @Nonnull CommodityField field) {
-        super(entityOid, commodityType, providerOid, boughtBuilder);
+                    @Nullable Long providerOid, @Nonnull CommodityField field) {
+        super(entityOid, commodityType, providerOid);
         this.field = field;
     }
 
     @Nonnull
     public CommodityField getField() {
         return field;
-    }
-
-    /**
-     * Get the builder for historical used values (whether the commodity is bought or sold).
-     *
-     * @return historical values used builder
-     */
-    @Nonnull
-    public HistoricalValues.Builder getHistoricalUsedBuilder() {
-        return getProviderOid() == null ? getSoldBuilder().getHistoricalUsedBuilder()
-                        : getBoughtBuilder().getHistoricalUsedBuilder();
-    }
-
-    /**
-     * Get the builder for historical peak values (whether the commodity is bought or sold).
-     *
-     * @return historical values peak builder
-     */
-    @Nonnull
-    public HistoricalValues.Builder getHistoricalPeakBuilder() {
-        return getProviderOid() == null ? getSoldBuilder().getHistoricalPeakBuilder()
-                        : getBoughtBuilder().getHistoricalPeakBuilder();
     }
 
     @Override

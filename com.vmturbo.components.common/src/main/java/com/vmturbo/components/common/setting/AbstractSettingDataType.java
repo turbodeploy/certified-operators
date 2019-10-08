@@ -9,10 +9,8 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.Immutable;
 
-import jdk.nashorn.internal.ir.annotations.Immutable;
-
-import com.vmturbo.components.common.setting.SettingDataStructure;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -22,7 +20,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 @Immutable
 public abstract class AbstractSettingDataType<T> implements SettingDataStructure<T> {
-
     /**
      * Default value for the setting.
      */
@@ -33,7 +30,7 @@ public abstract class AbstractSettingDataType<T> implements SettingDataStructure
     private final Map<EntityType, T> entityDefaults;
 
     protected AbstractSettingDataType(@Nonnull T defaultValue,
-            @Nonnull Map<EntityType, T> entityDefaults) {
+                                      @Nonnull Map<EntityType, T> entityDefaults) {
         this.defaultValue = Objects.requireNonNull(defaultValue);
         this.entityDefaults = entityDefaults.isEmpty() ? Collections.emptyMap() :
                 Collections.unmodifiableMap(new EnumMap<>(Objects.requireNonNull(entityDefaults)));
@@ -73,5 +70,6 @@ public abstract class AbstractSettingDataType<T> implements SettingDataStructure
                 Optional.ofNullable(entityDefaults.get(Objects.requireNonNull(entityType)));
         return entityDefault.orElse(defaultValue);
     }
+
 }
 

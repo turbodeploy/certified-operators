@@ -21,7 +21,8 @@ public class MaxValueEditor extends
                 AbstractCachingHistoricalEditor<MaxValueCommodityData,
                     MaxValueLoadingTask,
                     CachingHistoricalEditorConfig,
-                    Float> {
+                    Float,
+                    StatsHistoryServiceBlockingStub> {
     // TODO dmitry handle background reloading task
 
     public MaxValueEditor(@Nonnull CachingHistoricalEditorConfig config,

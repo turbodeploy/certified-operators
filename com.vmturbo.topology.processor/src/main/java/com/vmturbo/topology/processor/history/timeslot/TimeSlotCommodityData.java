@@ -5,6 +5,7 @@ import javax.annotation.Nullable;
 
 import com.vmturbo.topology.processor.history.CachingHistoricalEditorConfig;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
+import com.vmturbo.topology.processor.history.ICommodityFieldAccessor;
 import com.vmturbo.topology.processor.history.IHistoryCommodityData;
 
 /**
@@ -19,13 +20,16 @@ public class TimeSlotCommodityData
 
     @Override
     public void aggregate(@Nonnull EntityCommodityFieldReference field,
-                         @Nullable CachingHistoricalEditorConfig config) {
+                          @Nonnull CachingHistoricalEditorConfig config,
+                          @Nonnull ICommodityFieldAccessor commodityFieldsAccessor) {
         // TODO dmitry update the array and calculate the averages
         // TODO dmitry trace log
     }
 
     @Override
-    public void init(@Nullable Void dbValue, @Nullable CachingHistoricalEditorConfig config) {
+    public void init(@Nonnull EntityCommodityFieldReference field,
+                     @Nullable Void dbValue, @Nonnull CachingHistoricalEditorConfig config,
+                     @Nonnull ICommodityFieldAccessor commodityFieldsAccessor) {
         // TODO dmitry reinitialize the store according to config
     }
 

@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 import java.util.SortedMap;
 import java.util.zip.ZipOutputStream;
 
@@ -15,17 +14,9 @@ import org.apache.logging.log4j.Logger;
 import org.eclipse.jetty.websocket.jsr356.server.deploy.WebSocketServerContainerInitializer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.web.context.ConfigurableWebApplicationContext;
-
-import io.grpc.BindableService;
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
-import io.grpc.ServerInterceptor;
-import io.grpc.ServerInterceptors;
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
@@ -54,6 +45,8 @@ import com.vmturbo.topology.processor.supplychain.SupplyChainValidationConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.template.TemplateConfig;
 import com.vmturbo.topology.processor.topology.TopologyConfig;
+
+import io.grpc.BindableService;
 
 /**
  * The main class of the Topology Processor.

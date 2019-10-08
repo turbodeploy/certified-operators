@@ -1,15 +1,21 @@
 package com.vmturbo.topology.processor.history;
 
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import javax.annotation.Nonnull;
+
+import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 
 /**
  * Base class for history-related commodity value editors.
  *
  * @param <Config> configuration values
+ * @param <Stub> type of history component stub
  */
-public abstract class AbstractHistoricalEditor<Config> implements IHistoricalEditor<Config> {
-    private final StatsHistoryServiceBlockingStub statsHistoryClient;
+public abstract class AbstractHistoricalEditor<Config extends HistoricalEditorConfig,
+                    Stub extends io.grpc.stub.AbstractStub<Stub>>
+                implements IHistoricalEditor<Config> {
+    private final Stub statsHistoryClient;
     private final Config config;
+    private ICommodityFieldAccessor commodityFieldAccessor;
 
     /**
      * Construct the instance of a historical editor.
@@ -17,7 +23,7 @@ public abstract class AbstractHistoricalEditor<Config> implements IHistoricalEdi
      * @param config configuration values
      * @param statsHistoryClient history db client
      */
-    public AbstractHistoricalEditor(Config config, StatsHistoryServiceBlockingStub statsHistoryClient) {
+    public AbstractHistoricalEditor(Config config, Stub statsHistoryClient) {
         this.config = config;
         this.statsHistoryClient = statsHistoryClient;
     }
@@ -26,8 +32,24 @@ public abstract class AbstractHistoricalEditor<Config> implements IHistoricalEdi
         return config;
     }
 
-    protected StatsHistoryServiceBlockingStub getStatsHistoryClient() {
+    protected Stub getStatsHistoryClient() {
         return statsHistoryClient;
     }
 
+    protected ICommodityFieldAccessor getCommodityFieldAccessor() {
+        return commodityFieldAccessor;
+    }
+
+    @Override
+    public void initContext(@Nonnull GraphWithSettings graph,
+                            @Nonnull ICommodityFieldAccessor accessor)
+                    throws HistoryCalculationException {
+        config.initSettings(graph);
+        this.commodityFieldAccessor = accessor;
+    }
+
+    @Override
+    public void completeBroadcast() throws HistoryCalculationException {
+        // in most cases, nothing to do
+    }
 }

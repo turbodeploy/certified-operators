@@ -22,6 +22,7 @@ import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
 import com.vmturbo.topology.processor.historical.HistoricalUtilizationDatabase;
+import com.vmturbo.topology.processor.history.HistoryAggregationConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
@@ -57,7 +58,8 @@ import com.vmturbo.topology.processor.workflow.WorkflowConfig;
     WorkflowConfig.class,
     HistoryClientConfig.class,
     CloudCostConfig.class,
-    MatrixConfig.class
+    MatrixConfig.class,
+    HistoryAggregationConfig.class
 })
 public class TopologyConfig {
 
@@ -117,6 +119,9 @@ public class TopologyConfig {
 
     @Autowired
     private MatrixConfig matrixConfig;
+
+    @Autowired
+    private HistoryAggregationConfig historyAggregationConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -193,7 +198,8 @@ public class TopologyConfig {
                 planTopologyScopeEditor(),
                 historicalEditor(),
                 matrixInterface(),
-                probeActionCapabilitiesApplicatorEditor()
+                probeActionCapabilitiesApplicatorEditor(),
+                historyAggregationConfig.historyAggregationStage()
         );
     }
 

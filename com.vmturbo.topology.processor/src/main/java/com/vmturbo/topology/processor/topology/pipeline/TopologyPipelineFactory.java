@@ -40,6 +40,7 @@ import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
 import com.vmturbo.topology.processor.topology.HistoricalEditor;
+import com.vmturbo.topology.processor.topology.HistoryAggregator;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
@@ -57,6 +58,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.EnvironmentTypeSt
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ExtractTopologyGraphStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.HistoricalUtilizationStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.HistoryAggregationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.IgnoreConstraintsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PlanScopingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
@@ -144,6 +146,8 @@ public class TopologyPipelineFactory {
 
     private final ProbeActionCapabilitiesApplicatorEditor applicatorEditor;
 
+    private final HistoryAggregator historyAggregator;
+
     public TopologyPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                    @Nonnull final PolicyManager policyManager,
                                    @Nonnull final StitchingManager stitchingManager,
@@ -170,7 +174,8 @@ public class TopologyPipelineFactory {
                                    @Nonnull final PlanTopologyScopeEditor planTopologyScopeEditor,
                                    @Nonnull final HistoricalEditor historicalEditor,
                                    @Nonnull final MatrixInterface matrix,
-                                   @Nonnull final ProbeActionCapabilitiesApplicatorEditor applicatorEditor) {
+                                   @Nonnull final ProbeActionCapabilitiesApplicatorEditor applicatorEditor,
+                                   @Nonnull HistoryAggregator historyAggregationStage) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -198,6 +203,7 @@ public class TopologyPipelineFactory {
         this.historicalEditor = Objects.requireNonNull(historicalEditor);
         this.matrix = Objects.requireNonNull(matrix);
         this.applicatorEditor = Objects.requireNonNull(applicatorEditor);
+        this.historyAggregator = Objects.requireNonNull(historyAggregationStage);
     }
 
     /**
@@ -253,6 +259,7 @@ public class TopologyPipelineFactory {
                 .addStage(new PostStitchingStage(stitchingManager))
                 .addStage(new EntityValidationStage(entityValidator))
                 .addStage(new SupplyChainValidationStage(supplyChainValidator))
+                .addStage(new HistoryAggregationStage(historyAggregator, null, topologyInfo, null))
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new HistoricalUtilizationStage(historicalEditor))
                 .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
@@ -317,6 +324,7 @@ public class TopologyPipelineFactory {
                 .addStage(new SettingsApplicationStage(settingsApplicator))
                 .addStage(new PostStitchingStage(stitchingManager))
                 .addStage(new EntityValidationStage(entityValidator))
+                .addStage(new HistoryAggregationStage(historyAggregator, changes, topologyInfo, scope))
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new PlanScopingStage(planTopologyScopeEditor, scope, searchResolver, changes, groupServiceClient))
                 .addStage(new HistoricalUtilizationStage(historicalEditor, changes))

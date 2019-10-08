@@ -1,10 +1,13 @@
 package com.vmturbo.topology.processor.history.maxvalue;
 
+import java.util.Optional;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.vmturbo.topology.processor.history.CachingHistoricalEditorConfig;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
+import com.vmturbo.topology.processor.history.ICommodityFieldAccessor;
 import com.vmturbo.topology.processor.history.IHistoryCommodityData;
 
 /**
@@ -17,26 +20,26 @@ public class MaxValueCommodityData implements IHistoryCommodityData<CachingHisto
 
     @Override
     public void aggregate(@Nonnull EntityCommodityFieldReference field,
-                          @Nullable CachingHistoricalEditorConfig config) {
+                          @Nonnull CachingHistoricalEditorConfig config,
+                          @Nonnull ICommodityFieldAccessor commodityFieldsAccessor) {
         // TODO dmitry trace log
-        float newUsed = (float)field.getSoldBuilder().getUsed();
+        float newUsed = Optional.ofNullable(commodityFieldsAccessor.getRealTimeValue(field))
+                        .orElse(0d).floatValue();
         if (topologyMax == null) {
             topologyMax = newUsed;
         } else {
             topologyMax = Math.max(newUsed, topologyMax);
         }
         float max = Math.max(topologyMax, dbMax == null ? 0f : dbMax);
-        // this is parallelized and builder gets updated
-        // TODO dmitry consider per-commodity-instance locking mechanics exposed from AbstractHistoricalEditor
-        // (or consider moving all the history editing into stitching and using TopologicalChangelog?)
-        synchronized (field.getSoldBuilder()) {
-            field.getSoldBuilder().getHistoricalUsedBuilder().setMaxQuantity(max);
-        }
+        commodityFieldsAccessor.updateHistoryValue(field, hv -> hv.setMaxQuantity(max),
+                                                   MaxValueEditor.class.getSimpleName());
     }
 
     @Override
-    public void init(@Nullable Float dbValue,
-                     @Nullable CachingHistoricalEditorConfig config) {
+    public void init(@Nonnull EntityCommodityFieldReference field,
+                     @Nullable Float dbValue,
+                     @Nonnull CachingHistoricalEditorConfig config,
+                     @Nonnull ICommodityFieldAccessor commodityFieldsAccessor) {
         if (dbValue != null) {
             dbMax = dbValue;
         }

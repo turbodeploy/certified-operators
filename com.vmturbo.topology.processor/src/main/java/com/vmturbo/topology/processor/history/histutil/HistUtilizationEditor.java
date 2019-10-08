@@ -19,7 +19,8 @@ public class HistUtilizationEditor extends
                 AbstractCachingHistoricalEditor<HistUtilizationCommodityData,
                     HistUtilizationLoadingTask,
                     CachingHistoricalEditorConfig,
-                    Float> {
+                    Float,
+                    StatsHistoryServiceBlockingStub> {
 
     public HistUtilizationEditor(CachingHistoricalEditorConfig config,
                     StatsHistoryServiceBlockingStub statsHistoryClient) {

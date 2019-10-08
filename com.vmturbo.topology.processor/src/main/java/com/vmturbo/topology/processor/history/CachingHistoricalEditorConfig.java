@@ -3,7 +3,7 @@ package com.vmturbo.topology.processor.history;
 /**
  * Base class for history editor configurations.
  */
-public class CachingHistoricalEditorConfig {
+public class CachingHistoricalEditorConfig extends HistoricalEditorConfig {
     private final int loadingChunkSize;
     private final int calculationChunkSize;
 

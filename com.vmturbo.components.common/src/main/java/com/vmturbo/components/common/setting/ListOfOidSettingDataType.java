@@ -3,9 +3,11 @@ package com.vmturbo.components.common.setting;
 import java.util.List;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.ListOfOidSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListOfOidSettingValueType.Type;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.Builder;
 
 /**
@@ -37,5 +39,12 @@ public class ListOfOidSettingDataType extends AbstractSettingDataType<List<Long>
             ListOfOidSettingValueType.newBuilder()
                 .setType(type)
                 .addAllDefault(getDefault()));
+    }
+
+    @Override
+    @Nullable
+    public List<Long> getValue(@Nullable Setting setting) {
+        return setting == null || !setting.hasListOfOidSettingValue() ? null
+                        : setting.getListOfOidSettingValue().getOidsList();
     }
 }

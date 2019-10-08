@@ -16,15 +16,21 @@ public interface IHistoryCommodityData<Config, DbValue> {
      *
      * @param field what field is being aggregated and updated
      * @param config configuration (e.g. observation window or averaging weights)
+     * @param commodityFieldsAccessor access to commodity builders
      */
-    void aggregate(@Nonnull EntityCommodityFieldReference field, @Nullable Config config);
+    void aggregate(@Nonnull EntityCommodityFieldReference field, @Nonnull Config config,
+                   @Nonnull ICommodityFieldAccessor commodityFieldsAccessor);
 
     /**
      * (Re)initialize the underlying cache according to configuration values and
      * pre-calculated persisted data.
      *
+     * @param field what field is being initialized
      * @param dbValue previous values loaded from persistent store, if applicable
      * @param config configuration (e.g. observation window)
+     * @param commodityFieldsAccessor access to commodity builders
      */
-    void init(@Nullable DbValue dbValue, @Nullable Config config);
+    void init(@Nonnull EntityCommodityFieldReference field,
+              @Nullable DbValue dbValue, @Nonnull Config config,
+              @Nonnull ICommodityFieldAccessor commodityFieldsAccessor);
 }

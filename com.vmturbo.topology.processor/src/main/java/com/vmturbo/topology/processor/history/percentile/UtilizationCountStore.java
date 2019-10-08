@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.history.percentile;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.apache.logging.log4j.LogManager;
@@ -119,30 +120,32 @@ public class UtilizationCountStore {
 
     /**
      * Handle the checkpoint of full counts array - when it gets persisted.
-     * Subtract the counts of oldest array from the full.
+     * Subtract the counts of oldest arrays from the full.
      * Clear the latest array.
      *
-     * @param oldest counts array for the old period of time that goes out of observation window
+     * @param oldPages counts arrays for the old periods of time that go out of observation window
      * @return serialized counts array for the entire observation window, to be persisted
      * @throws HistoryCalculationException when passed data are not valid
      */
-    public PercentileRecord.Builder checkpoint(PercentileRecord oldest) throws HistoryCalculationException {
-        if (oldest.getUtilizationCount() != buckets.size()) {
-            throw new HistoryCalculationException("Length " + oldest.getUtilizationCount()
-                                                  + " of serialized percentile counts array is not valid for "
-                                                  + fieldReference.toString()
-                                                  + ", expected "
-                                                  + buckets.size());
-        }
-        latest.clear();
-        for (int i = 0; i < oldest.getUtilizationCount(); ++i) {
-            int count = oldest.getUtilization(i);
-            float average = buckets.average(i);
-            for (int j = 0; j < count; ++j) {
-                full.addPoint(average * oldest.getCapacity() / 100, oldest.getCapacity(),
-                              fieldReference.toString(), false);
+    public PercentileRecord.Builder checkpoint(Collection<PercentileRecord> oldPages) throws HistoryCalculationException {
+        for (PercentileRecord oldest : oldPages) {
+            if (oldest.getUtilizationCount() != buckets.size()) {
+                throw new HistoryCalculationException("Length " + oldest.getUtilizationCount()
+                                                      + " of serialized percentile counts array is not valid for "
+                                                      + fieldReference.toString()
+                                                      + ", expected "
+                                                      + buckets.size());
+            }
+            for (int i = 0; i < oldest.getUtilizationCount(); ++i) {
+                int count = oldest.getUtilization(i);
+                float average = buckets.average(i);
+                for (int j = 0; j < count; ++j) {
+                    full.addPoint(average * oldest.getCapacity() / 100, oldest.getCapacity(),
+                                  fieldReference.toString(), false);
+                }
             }
         }
+        latest.clear();
         return full.serialize(fieldReference);
     }
 

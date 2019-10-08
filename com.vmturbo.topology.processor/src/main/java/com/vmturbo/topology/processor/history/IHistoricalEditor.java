@@ -4,13 +4,16 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 
 /**
  * Perform a certain kind of aggregation of per-commodity history points and update the
@@ -18,7 +21,7 @@ import com.vmturbo.stitching.TopologyEntity;
  *
  * @param <Config> per-editor type configuration values holder
  */
-public interface IHistoricalEditor<Config> {
+public interface IHistoricalEditor<Config extends HistoricalEditorConfig> {
     /**
      * Quick check without walking the topology graph -
      * is aggregation of this kind required in the current context?
@@ -28,9 +31,9 @@ public interface IHistoricalEditor<Config> {
      * @param scope plan scope
      * @return true if an aggregation may be needed
      */
-    boolean isApplicable(@Nonnull List<ScenarioChange> changes,
+    boolean isApplicable(@Nullable List<ScenarioChange> changes,
                          @Nonnull TopologyDTO.TopologyInfo topologyInfo,
-                         @Nonnull PlanScope scope);
+                         @Nullable PlanScope scope);
 
     /**
      * Whether the entity applies to history calculation.
@@ -76,7 +79,7 @@ public interface IHistoricalEditor<Config> {
      */
     @Nonnull
     List<? extends Callable<List<EntityCommodityFieldReference>>>
-                createPreparationTasks(@Nonnull List<EntityCommodityReferenceWithBuilder> commodityRefs);
+                createPreparationTasks(@Nonnull List<EntityCommodityReference> commodityRefs);
 
     /**
      * Create (optionally chunk) the tasks that aggregate and set the commodity historical data.
@@ -86,5 +89,27 @@ public interface IHistoricalEditor<Config> {
      */
     @Nonnull
     List<? extends Callable<List<Void>>>
-                createCalculationTasks(@Nonnull List<EntityCommodityReferenceWithBuilder> commodityRefs);
+                createCalculationTasks(@Nonnull List<EntityCommodityReference> commodityRefs);
+
+    /**
+     * Synchronously initialize the data, if necessary, upon broadcast.
+     * In particular entity settings only get available way after construction at certain pipeline stage.
+     * Which is supposed to run before history calculations stage.
+     * This should be initialized when the stage begins.
+     * Also editor may have to access persistent store in a single-threaded way.
+     *
+     * @param graph topology graph with settings
+     * @param accessor commodity fields' accessor for the current graph - performance optimization
+     * @throws HistoryCalculationException when initialization fails
+     */
+    void initContext(@Nonnull GraphWithSettings graph, @Nonnull ICommodityFieldAccessor accessor)
+                    throws HistoryCalculationException;
+
+    /**
+     * Synchronously finish the handling of the broadcast, after all the calculation tasks
+     * have been invoked.
+     *
+     * @throws HistoryCalculationException when completion fails critically
+     */
+    void completeBroadcast() throws HistoryCalculationException;
 }

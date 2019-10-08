@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -551,6 +552,13 @@ public class SdkToTopologyEntityConverter {
         if (reservedCommodityType.contains(commDTO.getCommodityType())) {
             retCommBoughtBuilder.setReservedCapacity(commDTO.getReservation());
         }
+        if (commDTO.hasUtilizationData()) {
+            CommonDTO.CommodityDTO.UtilizationData data = commDTO.getUtilizationData();
+            retCommBoughtBuilder.setUtilizationData(UtilizationData.newBuilder()
+                            .setIntervalMs(data.getIntervalMs())
+                            .setLastPointTimestampMs(data.getLastPointTimestampMs())
+                            .addAllPoint(data.getPointList()));
+        }
         return retCommBoughtBuilder.build();
     }
 
@@ -617,6 +625,13 @@ public class SdkToTopologyEntityConverter {
                     .build())
                 .setRatio(commDTO.getRatioDependency().getRatio())
                 .build());
+        }
+        if (commDTO.hasUtilizationData()) {
+            CommonDTO.CommodityDTO.UtilizationData data = commDTO.getUtilizationData();
+            retCommSoldBuilder.setUtilizationData(UtilizationData.newBuilder()
+                            .setIntervalMs(data.getIntervalMs())
+                            .setLastPointTimestampMs(data.getLastPointTimestampMs())
+                            .addAllPoint(data.getPointList()));
         }
 
         if (commDTO.getCommodityType() == CommodityDTO.CommodityType.VCPU && commDTO.hasVcpuData()) {

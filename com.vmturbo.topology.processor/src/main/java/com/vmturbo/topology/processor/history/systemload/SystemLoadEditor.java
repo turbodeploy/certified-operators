@@ -9,18 +9,26 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.history.AbstractHistoricalEditor;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
-import com.vmturbo.topology.processor.history.EntityCommodityReferenceWithBuilder;
+import com.vmturbo.topology.processor.history.HistoricalEditorConfig;
 
 /**
  * Calculate the system load for topology commodities.
  * TODO dmitry provide config
  */
-public class SystemLoadEditor extends AbstractHistoricalEditor<Void> {
+public class SystemLoadEditor extends
+                AbstractHistoricalEditor<HistoricalEditorConfig, StatsHistoryServiceBlockingStub> {
 
-    public SystemLoadEditor(Void config, StatsHistoryServiceBlockingStub statsHistoryClient) {
+    /**
+     * Construct an instance of editor.
+     *
+     * @param config configuration
+     * @param statsHistoryClient persistence client
+     */
+    public SystemLoadEditor(HistoricalEditorConfig config, StatsHistoryServiceBlockingStub statsHistoryClient) {
         super(config, statsHistoryClient);
     }
 
@@ -54,7 +62,7 @@ public class SystemLoadEditor extends AbstractHistoricalEditor<Void> {
 
     @Override
     public List<? extends Callable<List<EntityCommodityFieldReference>>>
-           createPreparationTasks(List<EntityCommodityReferenceWithBuilder> commodityRefs) {
+           createPreparationTasks(List<EntityCommodityReference> commodityRefs) {
         // no caching, no chunking
         // TODO dmitry create single task
         return Collections.emptyList();
@@ -62,7 +70,7 @@ public class SystemLoadEditor extends AbstractHistoricalEditor<Void> {
 
     @Override
     public List<? extends Callable<List<Void>>>
-           createCalculationTasks(List<EntityCommodityReferenceWithBuilder> commodityFieldRefs) {
+           createCalculationTasks(List<EntityCommodityReference> commodityFieldRefs) {
         // TODO dmitry create single task, move/call functionality from CommoditiesEditor
         return Collections.emptyList();
     }

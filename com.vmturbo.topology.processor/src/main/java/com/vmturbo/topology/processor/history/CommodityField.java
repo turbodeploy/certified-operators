@@ -1,42 +1,69 @@
 package com.vmturbo.topology.processor.history;
 
-import java.util.function.Consumer;
+import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 
 /**
  * Define the target field of commodity DTO to be filled by historical aggregation.
  */
 public enum CommodityField {
-    USED(TopologyDTO.CommoditySoldDTO.Builder::getHistoricalUsedBuilder,
+    /**
+     * A "used" field description for identity purposes.
+     */
+    USED(TopologyDTO.CommoditySoldDTO.Builder::getUsed,
+         TopologyDTO.CommodityBoughtDTO.Builder::getUsed,
+         TopologyDTO.CommoditySoldDTO.Builder::getHistoricalUsedBuilder,
          TopologyDTO.CommodityBoughtDTO.Builder::getHistoricalUsedBuilder),
-    PEAK(TopologyDTO.CommoditySoldDTO.Builder::getHistoricalPeakBuilder,
+    /**
+     * A "peak" field description for identity purposes.
+     */
+    PEAK(TopologyDTO.CommoditySoldDTO.Builder::getPeak,
+         TopologyDTO.CommodityBoughtDTO.Builder::getPeak,
+         TopologyDTO.CommoditySoldDTO.Builder::getHistoricalPeakBuilder,
          TopologyDTO.CommodityBoughtDTO.Builder::getHistoricalPeakBuilder);
 
-    private final Consumer<TopologyDTO.CommoditySoldDTO.Builder> soldBuilder;
-    private final Consumer<TopologyDTO.CommodityBoughtDTO.Builder> boughtBuilder;
+    private final Function<TopologyDTO.CommoditySoldDTO.Builder, Double> soldValue;
+    private final Function<TopologyDTO.CommodityBoughtDTO.Builder, Double> boughtValue;
+    private final Function<TopologyDTO.CommoditySoldDTO.Builder, HistoricalValues.Builder> soldBuilder;
+    private final Function<TopologyDTO.CommodityBoughtDTO.Builder, HistoricalValues.Builder> boughtBuilder;
 
     /**
      * Construct the field reference.
      *
+     * @param soldValue how to get the running value from a sold commodity dto
+     * @param boughtValue how to get the running value from a bought commodity dto
      * @param soldBuilder how to get the field dto builder from a sold commodity dto
      * @param boughtBuilder how to get the field dto builder from a bought commodity dto
      */
     private CommodityField(
-                    @Nonnull Consumer<TopologyDTO.CommoditySoldDTO.Builder> soldBuilder,
-                    @Nonnull Consumer<TopologyDTO.CommodityBoughtDTO.Builder> boughtBuilder) {
+                    @Nonnull Function<TopologyDTO.CommoditySoldDTO.Builder, Double> soldValue,
+                    @Nonnull Function<TopologyDTO.CommodityBoughtDTO.Builder, Double> boughtValue,
+                    @Nonnull Function<TopologyDTO.CommoditySoldDTO.Builder, HistoricalValues.Builder> soldBuilder,
+                    @Nonnull Function<TopologyDTO.CommodityBoughtDTO.Builder, HistoricalValues.Builder> boughtBuilder) {
+        this.soldValue = soldValue;
+        this.boughtValue = boughtValue;
         this.soldBuilder = soldBuilder;
         this.boughtBuilder = boughtBuilder;
     }
 
-    public Consumer<TopologyDTO.CommoditySoldDTO.Builder> getSoldBuilder() {
+    public Function<TopologyDTO.CommoditySoldDTO.Builder, HistoricalValues.Builder> getSoldBuilder() {
         return soldBuilder;
     }
 
-    public Consumer<TopologyDTO.CommodityBoughtDTO.Builder> getBoughtBuilder() {
+    public Function<TopologyDTO.CommodityBoughtDTO.Builder, HistoricalValues.Builder> getBoughtBuilder() {
         return boughtBuilder;
+    }
+
+    public Function<TopologyDTO.CommoditySoldDTO.Builder, Double> getSoldValue() {
+        return soldValue;
+    }
+
+    public Function<TopologyDTO.CommodityBoughtDTO.Builder, Double> getBoughtValue() {
+        return boughtValue;
     }
 
 }

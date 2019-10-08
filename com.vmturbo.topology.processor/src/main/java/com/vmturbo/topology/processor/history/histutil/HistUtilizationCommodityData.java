@@ -5,6 +5,7 @@ import javax.annotation.Nullable;
 
 import com.vmturbo.topology.processor.history.CachingHistoricalEditorConfig;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
+import com.vmturbo.topology.processor.history.ICommodityFieldAccessor;
 import com.vmturbo.topology.processor.history.IHistoryCommodityData;
 
 /**
@@ -16,7 +17,9 @@ public class HistUtilizationCommodityData
     private Float lastUsed;
 
     @Override
-    public void init(@Nullable Float dbValue, @Nullable CachingHistoricalEditorConfig config) {
+    public void init(@Nonnull EntityCommodityFieldReference field,
+                     @Nullable Float dbValue, @Nonnull CachingHistoricalEditorConfig config,
+                     @Nonnull ICommodityFieldAccessor commodityFieldsAccessor) {
         if (lastUsed == null) {
             lastUsed = dbValue;
         }
@@ -24,7 +27,8 @@ public class HistUtilizationCommodityData
 
     @Override
     public void aggregate(@Nonnull EntityCommodityFieldReference field,
-                                         @Nullable CachingHistoricalEditorConfig config) {
+                          @Nonnull CachingHistoricalEditorConfig config,
+                          @Nonnull ICommodityFieldAccessor commodityFieldsAccessor) {
         // TODO dmitry weighted average with previous value and update the latter, trace log
     }
 

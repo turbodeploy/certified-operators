@@ -5,6 +5,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
@@ -86,6 +87,26 @@ public class EntitySettingsCollection {
     public Optional<Setting> getEntitySetting(@Nonnull final TopologyEntity topologyEntity,
                                               @Nonnull final EntitySettingSpecs settingName) {
         return getEntitySetting(topologyEntity.getOid(), settingName);
+    }
+
+    /**
+     * Extract the entity setting value by passed entity and spec.
+     *
+     * @param <T> setting value type
+     * @param oid entity identifier
+     * @param settingSpec setting specification
+     * @param cls setting value class
+     * @return setting value, null if not present
+     */
+    @Nullable
+    public <T> T getEntitySettingValue(long oid,
+                                       @Nonnull EntitySettingSpecs settingSpec,
+                                       @Nonnull Class<T> cls) {
+        Optional<Setting> setting = getEntitySetting(oid, settingSpec);
+        if (!setting.isPresent()) {
+            return null;
+        }
+        return settingSpec.getValue(setting.get(), cls);
     }
 
     private Optional<Setting> associatedDefaultSetting(@Nonnull final EntitySettings settingsForEntity,

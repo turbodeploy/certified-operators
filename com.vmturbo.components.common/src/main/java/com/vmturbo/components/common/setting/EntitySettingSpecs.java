@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -23,6 +24,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.AllEn
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListOfOidSettingValueType.Type;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -926,19 +928,35 @@ public enum EntitySettingSpecs {
         return AUTOMATION_SETTINGS.contains(specName);
     }
 
+    /**
+     * Extract the value from a setting.
+     *
+     * @param <T> type of a setting value
+     * @param setting setting
+     * @param cls class of a setting value
+     * @return value, null if not present
+     */
+    @Nullable
+    public <T> T getValue(@Nonnull Setting setting, @Nonnull Class<T> cls) {
+        Objects.requireNonNull(setting);
+        Objects.requireNonNull(cls);
+        Object value = dataStructure.getValue(setting);
+        return cls.isInstance(value) ? cls.cast(value) : null;
+    }
+
     @Nonnull
     private static SettingDataStructure<?> actionExecutionModeSetToManual() {
-        return new EnumSettingDataType<>(ActionMode.MANUAL);
+        return new EnumSettingDataType<>(ActionMode.MANUAL, ActionMode.class);
     }
 
     @Nonnull
     private static SettingDataStructure<?> actionExecutionModeSetToRecommend() {
-        return new EnumSettingDataType<>(ActionMode.RECOMMEND);
+        return new EnumSettingDataType<>(ActionMode.RECOMMEND, ActionMode.class);
     }
 
     @Nonnull
     private static SettingDataStructure<?> nonExecutableActionMode() {
-        return new EnumSettingDataType<>(ActionMode.RECOMMEND, ActionMode.RECOMMEND);
+        return new EnumSettingDataType<>(ActionMode.RECOMMEND, ActionMode.RECOMMEND, ActionMode.class);
     }
 
     @Nonnull

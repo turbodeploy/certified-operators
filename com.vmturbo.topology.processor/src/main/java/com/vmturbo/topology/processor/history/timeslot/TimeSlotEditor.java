@@ -16,7 +16,11 @@ import com.vmturbo.topology.processor.history.CachingHistoricalEditorConfig;
  * TODO dmitry provide config and db value class
  */
 public class TimeSlotEditor extends
-                AbstractCachingHistoricalEditor<TimeSlotCommodityData, TimeSlotLoadingTask, CachingHistoricalEditorConfig, Void> {
+                AbstractCachingHistoricalEditor<TimeSlotCommodityData,
+                TimeSlotLoadingTask,
+                CachingHistoricalEditorConfig,
+                Void,
+                StatsHistoryServiceBlockingStub> {
 
     public TimeSlotEditor(CachingHistoricalEditorConfig config,
                           StatsHistoryServiceBlockingStub statsHistoryClient) {
