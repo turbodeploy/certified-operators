@@ -70,6 +70,7 @@ import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.util.Probes;
 
@@ -598,8 +599,8 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
     private void addEntities(final long probeId,
                              final long targetId,
                              Map<Long, EntityDTO> entities)
-            throws EntitiesValidationException, IdentityUninitializedException,
-                    IdentityMetadataMissingException, IdentityProviderException {
+            throws IdentityUninitializedException, IdentityMetadataMissingException,
+            IdentityProviderException, TargetNotFoundException {
         Mockito.doReturn(entities)
                 .when(identityProviderSpy)
                 .getIdsForEntities(Mockito.eq(probeId),

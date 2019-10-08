@@ -618,15 +618,18 @@ public class TopologyProcessorDiagnosticsHandler {
 
     /**
      * Restore entity DTOs for a given target from a list of serialized entities, usually produced
-     * via a {@link #dumpDiags(ZipOutputStream) operation.
+     * via a {@link #dumpDiags(ZipOutputStream)} operation.
      *
      * @param targetId the target ID that the restored entities will be associated with in
      *        the {@link EntityStore}
+     * @param lastUpdatedTime the last updated time to set on the restored entities
      * @param serializedEntities a list of serialized entity DTOs
-     * @see {@link EntityStore#entitiesDiscovered(long, long, List)
+     * @throws TargetNotFoundException if no target exists with the provided targetId
+     * @see EntityStore#entitiesDiscovered(long, long, List) entitiesDiscovered
      */
     private void restoreEntities(final long targetId, final long lastUpdatedTime,
-                                @Nonnull final List<String> serializedEntities) {
+                                @Nonnull final List<String> serializedEntities)
+            throws TargetNotFoundException {
         logger.info("Restoring " + serializedEntities.size() + " entities for target " + targetId);
         final Map<Long, EntityDTO> identifiedEntityDTOs = serializedEntities.stream()
             .map(IdentifiedEntityDTO::fromJson)

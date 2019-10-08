@@ -11,6 +11,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -41,6 +42,7 @@ import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.TargetStoreListener;
 
@@ -71,6 +73,10 @@ public class EntityStoreTest {
         final EntityDTO entity1 = EntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE)
                 .setId(id1).build();
         Map<Long, EntityDTO> entitiesMap = ImmutableMap.of(1L, entity1);
+
+        // Pretend that any target exists
+        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
+
         addEntities(entitiesMap);
 
         Assert.assertTrue(entityStore.getTargetEntityIdMap(targetId).isPresent());
@@ -98,6 +104,10 @@ public class EntityStoreTest {
         final String id1 = "en-hypervisorTarget";
         final EntityDTO entity1 = EntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE)
                 .setId(id1).build();
+
+        // Pretend that any target exists
+        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
+
         addEntities(ImmutableMap.of(1L, entity1));
 
         Assert.assertTrue(entityStore.getTargetEntityIdMap(targetId).isPresent());
@@ -118,7 +128,8 @@ public class EntityStoreTest {
     @Test
     public void testConstructStitchingGraphSingleTarget()
         throws EntitiesValidationException, IdentityUninitializedException,
-            IdentityMetadataMissingException, IdentityProviderException {
+            IdentityMetadataMissingException, IdentityProviderException,
+            TargetNotFoundException {
         final Map<Long, EntityDTO> entities = ImmutableMap.of(
             1L, virtualMachine("foo")
                 .buying(vCpuMHz().from("bar").used(100.0))
@@ -130,6 +141,10 @@ public class EntityStoreTest {
         final Clock mockClock = Mockito.mock(Clock.class);
         Mockito.when(mockClock.millis()).thenReturn(12345L);
         entityStore = new EntityStore(targetStore, identityProvider, mockClock);
+
+        // Pretend that any target exists
+        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
+
         addEntities(entities);
         // the probe type doesn't matter here, just return any non-cloud probe type so it gets
         // treated as normal probe
@@ -158,7 +173,8 @@ public class EntityStoreTest {
     @Test
     public void testConstructStitchingGraphMultipleTargets()
         throws EntitiesValidationException, IdentityUninitializedException,
-                IdentityMetadataMissingException, IdentityProviderException {
+                IdentityMetadataMissingException, IdentityProviderException,
+                TargetNotFoundException {
 
         final long target1Id = 1234L;
         final long target2Id = 5678L;
@@ -176,6 +192,9 @@ public class EntityStoreTest {
                 .build(),
             5L, physicalMachine("werewolf").build(),
             6L, storage("dragon").build());
+
+        // Pretend that any target exists
+        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
 
         addEntities(firstTargetEntities, target1Id, 0L);
         addEntities(secondTargetEntities, target2Id, 1L);
@@ -200,11 +219,15 @@ public class EntityStoreTest {
     }
 
     @Test
-    public void testEntitiesRestored() {
+    public void testEntitiesRestored() throws TargetNotFoundException {
         final String id1 = "en-hypervisorTarget";
         final EntityDTO entity1 = EntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE)
             .setId(id1).build();
         Map<Long, EntityDTO> entitiesMap = ImmutableMap.of(1L, entity1);
+
+        // Pretend that any target exists
+        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
+        
         entityStore.entitiesRestored(targetId, 5678L, entitiesMap);
 
         Assert.assertTrue(entityStore.getTargetEntityIdMap(targetId).isPresent());
@@ -213,9 +236,12 @@ public class EntityStoreTest {
     }
 
     @Test
-    public void testRestoreMultipleEntitiesSameOidDifferentTargets() {
+    public void testRestoreMultipleEntitiesSameOidDifferentTargets() throws TargetNotFoundException {
         final String sharedId = "en-hypervisorTarget";
         final long sharedOid = 1L;
+
+        // Pretend that any target exists
+        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
 
         final EntityDTO entity1 = EntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE)
             .setId(sharedId).build();
@@ -246,14 +272,16 @@ public class EntityStoreTest {
 
     private void addEntities(@Nonnull final Map<Long, EntityDTO> entities)
             throws EntitiesValidationException, IdentityUninitializedException,
-                    IdentityMetadataMissingException, IdentityProviderException {
+                    IdentityMetadataMissingException, IdentityProviderException,
+                    TargetNotFoundException {
         addEntities(entities, targetId, 0);
     }
 
     private void addEntities(@Nonnull final Map<Long, EntityDTO> entities, final long targetId,
                              final long probeId)
         throws EntitiesValidationException, IdentityUninitializedException,
-                    IdentityMetadataMissingException, IdentityProviderException {
+            IdentityMetadataMissingException, IdentityProviderException,
+            TargetNotFoundException {
         Mockito.when(identityProvider.getIdsForEntities(
             Mockito.eq(probeId), Mockito.eq(new ArrayList<>(entities.values()))))
             .thenReturn(entities);

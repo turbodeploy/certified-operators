@@ -59,7 +59,15 @@ public class KVBackedTargetStore implements TargetStore {
     private final ProbeStore probeStore;
     private final IdentityStore<TargetSpec> identityStore;
 
-    @GuardedBy("storeLock")
+    /**
+     * A map of targets by id
+     *
+     * This is the primary source of truth for target data.
+     *
+     * This map is guarded--for write operations only--by the storeLock. For read operations,
+     * we rely on the concurrency capabilities of the ConcurrentMap. Acquiring the storeLock
+     * during read operations would likely cause a lot of contention for this lock.
+     */
     private final ConcurrentMap<Long, Target> targetsById;
 
     @GuardedBy("storeLock")

@@ -19,6 +19,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -27,6 +28,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import org.junit.Test;
+import org.mockito.Matchers;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
@@ -80,18 +82,23 @@ public class StorageStitchingIntegrationTest extends StitchingIntegrationTest {
         final Map<Long, EntityDTO> hypervisorEntities =
                 sdkDtosFromFile(getClass(), "protobuf/messages/vcenter_data.json.zip", 1L);
 
-        addEntities(hypervisorEntities, vcTargetId);
-
-        setOperationsForProbe(vcProbeId, Collections.emptyList());
-
         final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
                 preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore,
                 cpuCapacityStore);
         final Target netAppTarget = mock(Target.class);
+        final Target vcTarget = mock(Target.class);
         when(netAppTarget.getId()).thenReturn(netAppTargetId);
 
         when(targetStore.getProbeTargets(netAppProbeId))
                 .thenReturn(Collections.singletonList(netAppTarget));
+        when(targetStore.getTarget(netAppTargetId))
+            .thenReturn(Optional.of(netAppTarget));
+        when(targetStore.getTarget(vcTargetId))
+            .thenReturn(Optional.of(vcTarget));
+
+        addEntities(hypervisorEntities, vcTargetId);
+
+        setOperationsForProbe(vcProbeId, Collections.emptyList());
 
         final StitchingContext stitchingContext = entityStore.constructStitchingContext();
         stitchingManager.stitch(stitchingContext, new StitchingJournal<>());
@@ -193,9 +200,6 @@ public class StorageStitchingIntegrationTest extends StitchingIntegrationTest {
         final Map<Long, EntityDTO> hypervisorEntities =
                 sdkDtosFromFile(getClass(), "protobuf/messages/vcenter_data.json.zip", storageEntities.size() + 1L);
 
-        addEntities(storageEntities, netAppTargetId);
-        addEntities(hypervisorEntities, vcTargetId);
-
         setOperationsForProbe(netAppProbeId,
                 Collections.singletonList(storageStitchingOperationToTest));
         setOperationsForProbe(vcProbeId, Collections.emptyList());
@@ -206,18 +210,29 @@ public class StorageStitchingIntegrationTest extends StitchingIntegrationTest {
         final Target netAppTarget = mock(Target.class);
         when(netAppTarget.getId()).thenReturn(netAppTargetId);
 
+        // Default targetStore to return empty
+        when(targetStore.getTarget(Matchers.anyLong()))
+            .thenReturn(Optional.empty());
+
         when(targetStore.getProbeTargets(netAppProbeId))
                 .thenReturn(Collections.singletonList(netAppTarget));
+        when(targetStore.getTarget(netAppTargetId))
+            .thenReturn(Optional.of(netAppTarget));
         final Target vcTarget = mock(Target.class);
         when(vcTarget.getId()).thenReturn(vcTargetId);
 
         when(targetStore.getProbeTargets(vcProbeId))
                 .thenReturn(Collections.singletonList(vcTarget));
+        when(targetStore.getTarget(vcTargetId))
+            .thenReturn(Optional.of(vcTarget));
 
         when(probeStore.getProbeIdsForCategory(ProbeCategory.STORAGE))
                 .thenReturn(Collections.singletonList(netAppProbeId));
         when(probeStore.getProbeIdsForCategory(ProbeCategory.HYPERVISOR))
                 .thenReturn(Collections.singletonList(vcProbeId));
+
+        addEntities(storageEntities, netAppTargetId);
+        addEntities(hypervisorEntities, vcTargetId);
 
         final StitchingContext stitchingContext = entityStore.constructStitchingContext();
         final IStitchingJournal<StitchingEntity> journal = journalFactory.stitchingJournal(stitchingContext);

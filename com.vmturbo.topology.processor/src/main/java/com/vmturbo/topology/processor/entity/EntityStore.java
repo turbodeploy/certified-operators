@@ -41,6 +41,7 @@ import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.TargetStoreListener;
 
@@ -79,6 +80,12 @@ public class EntityStore {
 
     /**
      * The target store which contains target specific information for the entity.
+     *
+     *  TODO (OM-51214): Remove this dependency to eliminate the circular dependency between
+     * EntityStore and {@link com.vmturbo.topology.processor.targets.KVBackedTargetStore}.
+     * We should never acquire the TargetStore lock within this class. And since which methods
+     * are guarded by a lock is implementation-dependent, we really shouldn't be making calls to the
+     * TargetStore from this class at all. We should refactor to remove this dependency altogether.
      */
     private final TargetStore targetStore;
 
@@ -382,8 +389,19 @@ public class EntityStore {
     }
 
     private void insertTargetEntities(final long targetId,
-                                      @Nonnull final Map<Long, EntityDTO> entitiesById) {
+                                      @Nonnull final Map<Long, EntityDTO> entitiesById)
+            throws TargetNotFoundException {
         synchronized (topologyUpdateLock) {
+            // Ensure that the target exists; avoid adding entities for targets that have been removed
+            // TODO (OM-51214): Remove this check when we have better overall synchronization of
+            // target operations. This call would lead to a deadlock if it grabbed the storeLock
+            // while holding the topologyUpdateLock. Currently, TargetStore::getTarget does not
+            // acquire the storeLock, allowing this check to work as a stop-gap.
+            final Optional<Target> target = targetStore.getTarget(targetId);
+            if (!target.isPresent()) {
+                throw new TargetNotFoundException(targetId);
+            }
+
             purgeTarget(targetId,
                     // If the entity is not present in the incoming snapshot, then remove it.
                     (entity) -> !entitiesById.containsKey(entity.getId()));
@@ -486,12 +504,15 @@ public class EntityStore {
      *  unable to assign IDs to discovered entities.
      * @throws IdentityMetadataMissingException if asked to assign an ID to an {@link EntityDTO}
      *         for which there is no identity metadata.
+     * @throws IdentityProviderException If during id assignment, those assignments cannot be
+     *         persisted.
+     * @throws TargetNotFoundException if no target exists with the provided targetId
      */
     public void entitiesDiscovered(final long probeId,
                                    final long targetId,
                                    @Nonnull final List<EntityDTO> entityDTOList)
             throws IdentityUninitializedException, IdentityMetadataMissingException,
-                    IdentityProviderException {
+                    IdentityProviderException, TargetNotFoundException {
 
         final Map<Long, EntityDTO> entitiesById =
             assignIdsToEntities(probeId, targetId, entityDTOList);
@@ -508,9 +529,12 @@ public class EntityStore {
      * discovered by multiple targets.
      *
      * @param targetId the ID of the target with which the entities are associated
+     * @param lastUpdatedTime unused. entity lastUpdatedTime will be set to the current clock time
      * @param restoredMap a map from entity OID to entity
+     * @throws TargetNotFoundException if no target exists with the provided targetId
      */
-    public void entitiesRestored(long targetId, long lastUpdatedTime, Map<Long, EntityDTO> restoredMap) {
+    public void entitiesRestored(long targetId, long lastUpdatedTime,
+                                 Map<Long, EntityDTO> restoredMap) throws TargetNotFoundException {
         logger.info("Restoring {} entities for target {}", restoredMap.size(), targetId);
         insertTargetEntities(targetId, restoredMap);
     }

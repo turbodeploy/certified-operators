@@ -7,6 +7,7 @@ import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -59,6 +60,7 @@ import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity.CommoditySold;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
@@ -203,12 +205,16 @@ public class SharedStorageIntegrationTest {
 
     private void addEntities(@Nonnull final Map<Long, EntityDTO> entities, final long targetId,
                              final long discoveryTime)
-        throws IdentityUninitializedException, IdentityMetadataMissingException, IdentityProviderException {
+            throws IdentityUninitializedException, IdentityMetadataMissingException,
+            IdentityProviderException, TargetNotFoundException {
         final long probeId = 0;
         when(identityProvider.getIdsForEntities(
             eq(probeId), eq(new ArrayList<>(entities.values()))))
             .thenReturn(entities);
         when(entityClock.millis()).thenReturn(discoveryTime);
+
+        // Pretend that any target exists
+        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
 
         entityStore.entitiesDiscovered(probeId, targetId,
                 new ArrayList<>(entities.values()));

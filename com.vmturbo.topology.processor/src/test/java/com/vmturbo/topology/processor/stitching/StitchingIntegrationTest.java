@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.stitching;
 
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -40,6 +41,8 @@ import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.StandardProbeOrdering;
+import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
@@ -94,12 +97,15 @@ public abstract class StitchingIntegrationTest {
     }
 
     protected void addEntities(@Nonnull final Map<Long, EntityDTO> entities, final long targetId)
-            throws IdentityUninitializedException, IdentityMetadataMissingException, IdentityProviderException {
+            throws IdentityUninitializedException, IdentityMetadataMissingException,
+            IdentityProviderException, TargetNotFoundException {
         final long probeId = 0;
         when(identityProvider.getIdsForEntities(
                 Mockito.eq(probeId),
                 Mockito.eq(new ArrayList<>(entities.values()))))
                 .thenReturn(entities);
+        // Pretend that any target exists
+        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
         entityStore.entitiesDiscovered(probeId, targetId,
                 new ArrayList<>(entities.values()));
     }
