@@ -35,6 +35,7 @@ import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 
 public class CostFunctionTest {
 
+    private static final long zoneId = 0L;
     /**
      * Case: AWS IO1 storage tier as a seller. Storage amount unit price is 2, IOPS unit price is 10.
      * VM1 asks for 3GB, 90 IOPS, VM2 asks for 5GB, 500IOPS, VM3 asks for 10GB, 200IOPS
@@ -47,13 +48,13 @@ public class CostFunctionTest {
         Economy economy = new Economy();
         BalanceAccount ba = new BalanceAccount(100, 10000, 1, 0);
         Trader io1 = TestUtils.createStorage(economy, Arrays.asList(0l), 4, false);
-        io1.getSettings().setContext(new Context(10L, ba));
+        io1.getSettings().setContext(new Context(10L, zoneId, ba));
         CostFunction io1Function = TestUtils.setUpIO1CostFunction();
         io1.getSettings().setCostFunction(io1Function);
 
         // create VM2 and get its cost from io1
         Trader vm2 = TestUtils.createVM(economy);
-        vm2.getSettings().setContext(new Context(10L, ba));
+        vm2.getSettings().setContext(new Context(10L, zoneId, ba));
         ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS), vm2, new double[] {5, 500},
                         null);
@@ -63,7 +64,7 @@ public class CostFunctionTest {
 
         // create VM3 and get its cost from io1
         Trader vm3 = TestUtils.createVM(economy);
-        vm3.getSettings().setContext(new Context(10L, ba));
+        vm3.getSettings().setContext(new Context(10L, zoneId, ba));
         ShoppingList sl3 = TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS), vm3,
                         new double[] {10, 200}, null);
@@ -90,7 +91,7 @@ public class CostFunctionTest {
 
         // create VM2 and get its cost from io1
         Trader vm = TestUtils.createVM(economy);
-        vm.getSettings().setContext(new Context(10L, ba));
+        vm.getSettings().setContext(new Context(10L, zoneId, ba));
         ShoppingList sl = TestUtils.createAndPlaceShoppingList(economy,
                 Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS), vm, new double[] {5, 120},
                 null);
@@ -98,7 +99,7 @@ public class CostFunctionTest {
 
         // create VM3 and get its cost from io1
         Trader vm3 = TestUtils.createVM(economy);
-        vm3.getSettings().setContext(new Context(10L, ba));
+        vm3.getSettings().setContext(new Context(10L, zoneId, ba));
         ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
                 Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS), vm3,
                 new double[] {5, 80}, null);
@@ -119,14 +120,14 @@ public class CostFunctionTest {
         Economy economy = new Economy();
         BalanceAccount ba = new BalanceAccount(100, 10000, 1, 0);
         Trader premiumManaged = TestUtils.createStorage(economy, Arrays.asList(0l), 4, false);
-        premiumManaged.getSettings().setContext(new Context(10L, ba));
+        premiumManaged.getSettings().setContext(new Context(10L, zoneId, ba));
         CostFunction premiumManagedFunction = TestUtils.setUpPremiumManagedCostFunction();
         premiumManaged.getSettings().setCostFunction(premiumManagedFunction);
 
 
         // create VM2 and get its cost from io1
         Trader vm2 = TestUtils.createVM(economy);
-        vm2.getSettings().setContext(new Context(10L, ba));
+        vm2.getSettings().setContext(new Context(10L, zoneId, ba));
         ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[] {64}, null);
         assertEquals(10.21, premiumManagedFunction.calculateCost(sl2, premiumManaged, true, economy).getQuoteValue(),
@@ -143,13 +144,13 @@ public class CostFunctionTest {
         Economy economy = new Economy();
         BalanceAccount ba = new BalanceAccount(100, 10000, 1, 0);
         Trader standardUnManaged = TestUtils.createStorage(economy, Arrays.asList(0l), 4, false);
-        standardUnManaged.getSettings().setContext(new Context(10L, ba));
+        standardUnManaged.getSettings().setContext(new Context(10L, zoneId, ba));
         CostFunction standardUnManagedFunction = TestUtils.setUpStandardUnmanagedCostFunction();
         standardUnManaged.getSettings().setCostFunction(standardUnManagedFunction);
 
         // create VM1 and get its cost
         Trader vm1 = TestUtils.createVM(economy);
-        vm1.getSettings().setContext(new Context(10L, ba));
+        vm1.getSettings().setContext(new Context(10L, zoneId, ba));
         ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm1, new double[] {2000}, null);
         assertEquals(0.05 * 1024 + 0.10 * (2000 - 1024),
@@ -179,7 +180,7 @@ public class CostFunctionTest {
                 new CommoditySpecification(TestUtils.REGION_COMM_TYPE, TestUtils.LICENSE_COMM_BASE_TYPE, 0, 100000, false);
         Trader t2Nano = economy.addTrader(1, TraderState.ACTIVE, new Basket(linuxComm, windowsComm, regionComm),
                                           Arrays.asList(0l));
-        t2Nano.getSettings().setContext(new Context(10L, ba));
+        t2Nano.getSettings().setContext(new Context(10L, zoneId, ba));
         t2Nano.getCommoditiesSold().get(t2Nano.getBasketSold().indexOf(linuxComm)).setCapacity(1000);
         t2Nano.getCommoditiesSold().get(t2Nano.getBasketSold().indexOf(windowsComm)).setCapacity(1000);
         t2Nano.getCommoditiesSold().get(t2Nano.getBasketSold().indexOf(regionComm)).setCapacity(1000);
@@ -187,9 +188,9 @@ public class CostFunctionTest {
         t2Nano.getSettings().setCostFunction(t2NanoFunction);
 
         Trader vm1 = TestUtils.createVM(economy);
-        vm1.getSettings().setContext(new Context(10L, ba));
+        vm1.getSettings().setContext(new Context(10L, zoneId, ba));
         Trader vm2 = TestUtils.createVM(economy);
-        vm2.getSettings().setContext(new Context(10L, ba));
+        vm2.getSettings().setContext(new Context(10L, zoneId, ba));
         ShoppingList vm1Sl = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(linuxComm), vm1,
                 new double[]{1}, new double[]{1}, t2Nano);
         ShoppingList vm2Sl = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(windowsComm), vm2,
@@ -225,7 +226,7 @@ public class CostFunctionTest {
         // Create a VM buyer
         Trader vm = TestUtils.createVM(economy, "buyer");
         BalanceAccount ba = new BalanceAccount(0.0, 100000000d, 24, 0);
-        vm.getSettings().setContext(new Context(10L, ba));
+        vm.getSettings().setContext(new Context(10L, zoneId, ba));
 
         // Create CBTPs
         Trader cbtp1 = TestUtils.createTrader(economy, TestUtils.VM_TYPE, Arrays.asList(0l),
@@ -236,10 +237,10 @@ public class CostFunctionTest {
                 Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.CPU),new double[] {25, 3000},
                 true, true, "cbtp2");
 
-        cbtp1.getSettings().setContext(new Context(10L, ba));
+        cbtp1.getSettings().setContext(new Context(10L, zoneId, ba));
         cbtp1.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
 
-        cbtp2.getSettings().setContext(new Context(10L, ba));
+        cbtp2.getSettings().setContext(new Context(10L, zoneId, ba));
         cbtp2.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
 
         CbtpCostDTO.Builder cbtpBundleBuilder = TestUtils.createCbtpBundleBuilder(0,m5Large*riDeprecationFactor,
@@ -356,8 +357,8 @@ public class CostFunctionTest {
         // to 10^-5 from 10^-7
         // Update the budget on balance account
         BalanceAccount ba2 = new BalanceAccount(0.0, 10000d, 24, 0);
-        cbtp1.getSettings().setContext(new Context(10L, ba2));
-        cbtp2.getSettings().setContext(new Context(10L, ba2));
+        cbtp1.getSettings().setContext(new Context(10L, zoneId, ba2));
+        cbtp2.getSettings().setContext(new Context(10L, zoneId, ba2));
 
         double updatedriDprecationFactor = 0.00001;
         // Set the price for a t2.large cbtp with updated riDeprecationFactor
@@ -399,7 +400,7 @@ public class CostFunctionTest {
         // Create a VM buyer
         Trader vm = TestUtils.createVM(economy, "vm-buyer");
         BalanceAccount ba = new BalanceAccount(0.0, 100000000d, 24, 0);
-        vm.getSettings().setContext(new Context(10L, ba));
+        vm.getSettings().setContext(new Context(10L, zoneId, ba));
 
         // Create a TP for this VM
         Trader t2NanoTP = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0l),
@@ -483,7 +484,7 @@ public class CostFunctionTest {
         // Create a VM buyer
         Trader vm = TestUtils.createVM(economy, "vm-buyer");
         BalanceAccount ba = new BalanceAccount(0.0, 100000000d, 24, 0);
-        vm.getSettings().setContext(new Context(10L, ba));
+        vm.getSettings().setContext(new Context(10L, zoneId, ba));
 
         // VM with no supplier
         ShoppingList vmSL = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.CPU),
@@ -646,14 +647,14 @@ public class CostFunctionTest {
         final Economy economy = new Economy();
         final BalanceAccount ba = new BalanceAccount(100, 10000, 1, 0);
         final Trader dbs1 = TestUtils.createDBS(economy);
-        dbs1.getSettings().setContext(new Context(dcCommType, ba));
+        dbs1.getSettings().setContext(new Context(dcCommType, zoneId, ba));
         final CommoditySpecification winComm =
                 new CommoditySpecification(TestUtils.WINDOWS_COMM_TYPE, TestUtils.LICENSE_COMM_BASE_TYPE, 0, 100000, false);
         final CommoditySpecification dcComm =
                 new CommoditySpecification(dcCommType, TestUtils.DC_COMM_BASE_TYPE, 0, 100000, false);
         final Trader trader = economy.addTrader(1, TraderState.ACTIVE, new Basket(winComm, dcComm),
                 Arrays.asList(0L));
-        trader.getSettings().setContext(new Context(dcCommType, ba));
+        trader.getSettings().setContext(new Context(dcCommType, zoneId, ba));
         trader.getCommoditiesSold().get(trader.getBasketSold().indexOf(winComm)).setCapacity(1000);
         final ShoppingList buyer = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(winComm, dcComm), dbs1,
                 new double[]{1, 1}, new double[]{1, 1}, trader);

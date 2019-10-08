@@ -45,6 +45,7 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
@@ -556,7 +557,9 @@ public final class ProtobufToAnalysis {
             topology.getEconomy().getBalanceAccountMap().put(balanceAccount.getId(),
                                                              balanceAccount);
         }
-        Context context = new Context(source.getCurrentContext().getRegionId(), balanceAccount);
+        final EconomyDTOs.Context sourceContext = source.getCurrentContext();
+        final Context context = new Context(sourceContext.getRegionId(),
+                sourceContext.getZoneId(), balanceAccount);
         destination.setContext(context);
     }
 

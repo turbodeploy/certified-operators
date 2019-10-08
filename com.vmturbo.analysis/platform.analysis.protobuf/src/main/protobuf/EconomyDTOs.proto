@@ -83,6 +83,9 @@ message Context {
 
     // The allocated business account id which the entity scopes to. Assumed missing if null
     optional BalanceAccountDTO balance_account = 2;
+
+    // Zone id of the zone to which the holding Trader belongs.
+    optional int64 zone_id = 3;
 }
 
 // A group of parameters effecting how a trader will be treated by the analysis engine.

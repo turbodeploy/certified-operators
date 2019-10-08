@@ -7,22 +7,29 @@ import java.util.Objects;
  */
 public class Context {
 
-    private long regionId;
+    private long regionId_;
+    private long zoneId_;
     private BalanceAccount balanceAccount_;
 
     /**
      * Constructor for the Context.
      *
-     * @param regionIdentity The regionId associated with the context
+     * @param regionId The regionId associated with the context
+     * @param zoneId The zoneId associated with the context
      * @param balanceAccount The balance account associated with the context
      */
-    public Context(long regionIdentity, BalanceAccount balanceAccount) {
-        regionId = regionIdentity;
+    public Context(long regionId, long zoneId, BalanceAccount balanceAccount) {
+        regionId_ = regionId;
+        zoneId_ = zoneId;
         balanceAccount_ = balanceAccount;
     }
 
     public long getRegionId() {
-        return regionId;
+        return regionId_;
+    }
+
+    public long getZoneId() {
+        return zoneId_;
     }
 
     public BalanceAccount getBalanceAccount() {
@@ -86,7 +93,7 @@ public class Context {
 
     @Override
     public int hashCode() {
-        return Objects.hash(regionId, balanceAccount_);
+        return Objects.hash(regionId_, balanceAccount_);
     }
 
     @Override
