@@ -24,6 +24,7 @@ import com.vmturbo.topology.processor.api.ProbeListener;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TargetListener;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
@@ -146,6 +147,12 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
         doWithListeners(actionListeners, l -> l.onActionFailure(notification));
     }
 
+    private void onActionsLostNotification(@Nonnull final TopologyProcessorNotification message) {
+        final ActionsLost notification = message.getActionsLost();
+        getLogger().debug("ActionsLost notification received: {}", notification);
+        doWithListeners(actionListeners, l -> l.onActionsLost(notification));
+    }
+
     private void onProbeRegisteredNotification(@Nonnull final TopologyProcessorNotification message) {
         final TopologyProcessorDTO.ProbeInfo notification = message.getProbeRegistrationNotification();
         getLogger().debug("Probe registration notification received for probe {}", notification.getId());
@@ -181,6 +188,8 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
             case ACTION_FAILURE:
                 onActionFailureNotification(message);
                 break;
+            case ACTIONS_LOST:
+                onActionsLostNotification(message);
             case PROBE_REGISTRATION_NOTIFICATION:
                 onProbeRegisteredNotification(message);
                 break;

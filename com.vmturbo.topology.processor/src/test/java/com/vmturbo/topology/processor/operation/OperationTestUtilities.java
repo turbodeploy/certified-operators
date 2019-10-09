@@ -152,6 +152,10 @@ public class OperationTestUtilities {
             lastNotifiedStatus = Optional.of(operation.getStatus());
         }
 
+        @Override
+        public void notifyOperationsCleared() {
+        }
+
         public Optional<Status> getLastNotifiedStatus() {
             return lastNotifiedStatus;
         }

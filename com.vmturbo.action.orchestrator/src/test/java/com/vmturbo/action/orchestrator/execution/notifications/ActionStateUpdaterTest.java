@@ -2,13 +2,18 @@ package com.vmturbo.action.orchestrator.execution.notifications;
 
 import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.makeActionModeSetting;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -29,17 +34,20 @@ import com.vmturbo.action.orchestrator.execution.FailedCloudVMGroupProcessor;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
+import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost.ActionIds;
 
 /**
  * Tests for the {@link ActionStateUpdater}.
@@ -59,6 +67,7 @@ public class ActionStateUpdaterTest {
             new ActionStateUpdater(actionStorehouse, notificationSender, actionHistoryDao, actionExecutorMock, workflowStoreMock, realtimeTopologyContextId, failedCloudVMGroupProcessor);
 
     private final long actionId = 123456;
+    private final long actionId2 = 12345667;
     private final long notFoundId = 99999;
     private final ActionDTO.Action recommendation = ActionDTO.Action.newBuilder()
         .setId(actionId)
@@ -71,21 +80,28 @@ public class ActionStateUpdaterTest {
     private final EntitiesAndSettingsSnapshot entitySettingsCache = mock(EntitiesAndSettingsSnapshot.class);
 
     private Action testAction;
+    private Action testAction2;
 
     @Before
     public void setup() {
         when(entitySettingsCache.getSettingsForEntity(eq(3L)))
             .thenReturn(makeActionModeSetting(ActionMode.MANUAL));
-        testAction = new Action(recommendation, 4, actionModeCalculator);
+        when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(Optional.of(actionStore));
+        when(actionStore.getAction(eq(notFoundId))).thenReturn(Optional.empty());
+        testAction = makeTestAction(actionId);
+        testAction2 = makeTestAction(actionId2);
+    }
+
+    private Action makeTestAction(final long actionId) {
+        Action testAction = new Action(recommendation.toBuilder().setId(actionId).build(), 4, actionModeCalculator);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entitySettingsCache, testAction);
         testAction.getActionTranslation().setPassthroughTranslationSuccess();
         testAction.refreshAction(entitySettingsCache);
-        when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(Optional.of(actionStore));
         when(actionStore.getAction(eq(actionId))).thenReturn(Optional.of(testAction));
-        when(actionStore.getAction(eq(notFoundId))).thenReturn(Optional.empty());
         testAction.receive(new ManualAcceptanceEvent("99", 102));
         testAction.receive(new PrepareExecutionEvent());
         testAction.receive(new BeginExecutionEvent());
+        return testAction;
     }
 
     @Test
@@ -169,6 +185,128 @@ public class ActionStateUpdaterTest {
                 serializedAction.getActionDecision(),
                 serializedAction.getExecutionStep(),
                 serializedAction.getCurrentState().getNumber(), serializedAction.getActionDetailData());
+    }
+
+    /**
+     * Test that specific actions that got lost get marked as failed.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testSomeActionsLost() throws Exception {
+        ActionsLost actionsLost = ActionsLost.newBuilder()
+            .setLostActionId(ActionIds.newBuilder()
+                .addActionIds(actionId))
+            .build();
+        final QueryableActionViews views = mock(QueryableActionViews.class);
+        when(views.get(Collections.singletonList(actionId))).thenReturn(Stream.of(testAction));
+        when(actionStore.getActionViews()).thenReturn(views);
+
+        actionStateUpdater.onActionsLost(actionsLost);
+
+        verify(views).get(Collections.singletonList(actionId));
+        assertEquals(ActionState.FAILED, testAction.getState());
+        assertEquals(Status.FAILED, testAction.getCurrentExecutableStep().get().getStatus());
+        verify(notificationSender).notifyActionFailure(ActionFailure.newBuilder()
+            .setActionId(actionId)
+            .setErrorDescription("Topology Processor lost action state.")
+            .build());
+        SerializationState serializedAction = new SerializationState(testAction);
+        verify(actionHistoryDao).persistActionHistory(recommendation.getId(),
+            recommendation,
+            realtimeTopologyContextId,
+            serializedAction.getRecommendationTime(),
+            serializedAction.getActionDecision(),
+            serializedAction.getExecutionStep(),
+            serializedAction.getCurrentState().getNumber(), serializedAction.getActionDetailData());
+    }
+
+    /**
+     * Test that actions that got executed before the actions lost message's timestamp get
+     * marked as failed.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testAllActionsLost() throws Exception {
+        ActionsLost actionsLost = ActionsLost.newBuilder()
+            .setBeforeTime(System.currentTimeMillis() + 10)
+            .build();
+        final QueryableActionViews views = mock(QueryableActionViews.class);
+        when(views.get(any(ActionQueryFilter.class))).thenReturn(Stream.of(testAction, testAction2));
+
+        when(actionStore.getActionViews()).thenReturn(views);
+
+        actionStateUpdater.onActionsLost(actionsLost);
+
+        verify(views).get(ActionQueryFilter.newBuilder()
+            .addStates(ActionState.IN_PROGRESS)
+            .addStates(ActionState.PRE_IN_PROGRESS)
+            .addStates(ActionState.POST_IN_PROGRESS)
+            .build());
+        assertEquals(ActionState.FAILED, testAction.getState());
+        assertEquals(ActionState.FAILED, testAction2.getState());
+        assertEquals(Status.FAILED, testAction.getCurrentExecutableStep().get().getStatus());
+        assertEquals(Status.FAILED, testAction2.getCurrentExecutableStep().get().getStatus());
+        verify(notificationSender).notifyActionFailure(ActionFailure.newBuilder()
+            .setActionId(actionId)
+            .setErrorDescription("Topology Processor lost action state.")
+            .build());
+        verify(notificationSender).notifyActionFailure(ActionFailure.newBuilder()
+            .setActionId(actionId2)
+            .setErrorDescription("Topology Processor lost action state.")
+            .build());
+        SerializationState serializedAction = new SerializationState(testAction);
+        verify(actionHistoryDao).persistActionHistory(recommendation.getId(),
+            recommendation,
+            realtimeTopologyContextId,
+            serializedAction.getRecommendationTime(),
+            serializedAction.getActionDecision(),
+            serializedAction.getExecutionStep(),
+            serializedAction.getCurrentState().getNumber(), serializedAction.getActionDetailData());
+        SerializationState serializedAction2 = new SerializationState(testAction);
+        verify(actionHistoryDao).persistActionHistory(recommendation.getId(),
+            recommendation,
+            realtimeTopologyContextId,
+            serializedAction2.getRecommendationTime(),
+            serializedAction2.getActionDecision(),
+            serializedAction2.getExecutionStep(),
+            serializedAction2.getCurrentState().getNumber(), serializedAction2.getActionDetailData());
+    }
+
+    /**
+     * Test that actions that got executed after the actions lost message's timestamp don't get
+     * marked as failed.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testAllActionsLostRespectBeforeTime() throws Exception {
+        ActionsLost actionsLost = ActionsLost.newBuilder()
+            // Very early on. The actions shouldn't get dropped.
+            .setBeforeTime(100)
+            .build();
+        final QueryableActionViews views = mock(QueryableActionViews.class);
+        when(views.get(any(ActionQueryFilter.class))).thenReturn(Stream.of(testAction, testAction2));
+
+        when(actionStore.getActionViews()).thenReturn(views);
+
+        actionStateUpdater.onActionsLost(actionsLost);
+
+        verify(views).get(ActionQueryFilter.newBuilder()
+            .addStates(ActionState.IN_PROGRESS)
+            .addStates(ActionState.PRE_IN_PROGRESS)
+            .addStates(ActionState.POST_IN_PROGRESS)
+            .build());
+
+        // No failure.
+        assertNotEquals(ActionState.FAILED, testAction.getState());
+        assertNotEquals(ActionState.FAILED, testAction2.getState());
+        assertNotEquals(Status.FAILED, testAction.getCurrentExecutableStep().get().getStatus());
+        assertNotEquals(Status.FAILED, testAction2.getCurrentExecutableStep().get().getStatus());
+
+        verify(notificationSender, never()).notifyActionFailure(any());
+        verifyZeroInteractions(actionHistoryDao);
     }
 
     @Test

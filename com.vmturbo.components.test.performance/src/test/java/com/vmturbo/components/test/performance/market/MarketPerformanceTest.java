@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
+import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
@@ -131,7 +132,7 @@ public class MarketPerformanceTest {
                               @Nonnull final Optional<List<Long>> scopeSeedOids) throws Exception {
         final TopologyProcessorNotificationSender tpNotificationSender =
             TopologyProcessorKafkaSender.create(threadPool,
-                componentTestRule.getKafkaMessageProducer());
+                componentTestRule.getKafkaMessageProducer(), new MutableFixedClock(1_000_000));
 
         final TopologyInfo.Builder topologyInfoBuilder = TopologyInfo.newBuilder()
             .setTopologyType(TopologyType.REALTIME)

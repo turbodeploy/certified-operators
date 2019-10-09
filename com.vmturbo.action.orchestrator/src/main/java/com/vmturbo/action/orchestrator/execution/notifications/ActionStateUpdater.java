@@ -2,6 +2,7 @@ package com.vmturbo.action.orchestrator.execution.notifications;
 
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -16,15 +17,18 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
+import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
 import com.vmturbo.action.orchestrator.execution.FailedCloudVMGroupProcessor;
+import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
@@ -32,6 +36,7 @@ import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.topology.processor.api.ActionExecutionListener;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
 
 /**
  * The {@link ActionStateUpdater} listens for Action Execution notifications
@@ -201,37 +206,86 @@ public class ActionStateUpdater implements ActionExecutionListener {
             .flatMap(store -> store.getAction(actionFailure.getActionId()));
         if (storedAction.isPresent()) {
             Action action = storedAction.get();
-            final String errorDescription = actionFailure.getErrorDescription();
-            // Notify the action of the failure, possibly triggering a transition
-            // within the action's state machine.
-            action.receive(new FailureEvent(errorDescription));
-
-            if (ActionState.POST_IN_PROGRESS == action.getState()) {
-                // Allow the action to immediately transition from POST_IN_PROGRESS to FAILED,
-                // if no post-execution workflow is defined
-                action.receive(new AfterFailureEvent(errorDescription));
-            }
-
-            logger.info("Action execution failed for action: {}", action);
-
-            failedCloudVMGroupProcessor.handleActionFailure(action);
-            saveToDb(action);
-            writeToAudit(action, false);
-
-            // Allow the action to initate a post-execution workflow, if one is defined
-            if (ActionState.POST_IN_PROGRESS == action.getState() && action.hasPendingExecution()) {
-                // There is a POST workflow defined, which needs to be run even after a failure
-                continueActionExecution(action);
-            } else {
-                try {
-                    notificationSender.notifyActionFailure(actionFailure);
-                } catch (CommunicationException | InterruptedException e) {
-                    logger.error("Unable to send notification for failure of " + actionFailure, e);
-                }
-            }
-
+            failAction(action, actionFailure);
         } else {
             logger.error("Unable to mark failure for " + actionFailure);
+        }
+    }
+
+    @Override
+    public void onActionsLost(@Nonnull final ActionsLost actionsLost) {
+        Optional<ActionStore> storeOpt = actionStorehouse.getStore(realtimeTopologyContextId);
+        if (!storeOpt.isPresent()) {
+            // No realtime action store - can't have in-progress actions!
+            return;
+        }
+
+        final ActionStore liveActionStore = storeOpt.get();
+        final Stream<ActionView> targetActions;
+        if (actionsLost.getBeforeTime() > 0) {
+            targetActions = liveActionStore.getActionViews().get(ActionQueryFilter.newBuilder()
+                    .addStates(ActionState.IN_PROGRESS)
+                    .addStates(ActionState.PRE_IN_PROGRESS)
+                    .addStates(ActionState.POST_IN_PROGRESS)
+                    .build())
+                .filter(actionView -> actionView.getDecision()
+                    // Only include actions that HAD a decision (should be all in progress
+                    // actions) before the "before time".
+                    //
+                    // The time check is mainly a safeguard against long delays in message
+                    // reception (e.g. if Kafka is down or overloaded/unresponsibe). By using
+                    // timestamps we are introducing the possibility of some errors if the clocks
+                    // between components are out of sync. However, it should be safe to assume
+                    // that they will be loosely in sync and that's all we need: this is mainly to
+                    // prevent messages that are delivered much later (e.g. an hour later) from
+                    // clearing all in-progress actions indiscriminately.
+                    .map(decision -> decision.getDecisionTime() < actionsLost.getBeforeTime())
+                    .orElse(false));
+        } else if (!actionsLost.getLostActionId().getActionIdsList().isEmpty()) {
+            targetActions = liveActionStore.getActionViews()
+                .get(actionsLost.getLostActionId().getActionIdsList());
+        } else {
+            targetActions = Stream.empty();
+        }
+
+        targetActions.forEach(actionView -> {
+            liveActionStore.getAction(actionView.getId())
+                .ifPresent(action -> failAction(action, ActionFailure.newBuilder()
+                    .setErrorDescription("Topology Processor lost action state.")
+                    .setActionId(actionView.getId())
+                    .build()));
+        });
+    }
+
+    private void failAction(@Nonnull final Action action,
+                            @Nonnull final ActionFailure actionFailure) {
+        final String errorDescription = actionFailure.getErrorDescription();
+        // Notify the action of the failure, possibly triggering a transition
+        // within the action's state machine.
+        action.receive(new FailureEvent(errorDescription));
+
+        if (ActionState.POST_IN_PROGRESS == action.getState()) {
+            // Allow the action to immediately transition from POST_IN_PROGRESS to FAILED,
+            // if no post-execution workflow is defined
+            action.receive(new AfterFailureEvent(errorDescription));
+        }
+
+        logger.info("Action execution failed for action: {}", action);
+
+        failedCloudVMGroupProcessor.handleActionFailure(action);
+        saveToDb(action);
+        writeToAudit(action, false);
+
+        // Allow the action to initate a post-execution workflow, if one is defined
+        if (ActionState.POST_IN_PROGRESS == action.getState() && action.hasPendingExecution()) {
+            // There is a POST workflow defined, which needs to be run even after a failure
+            continueActionExecution(action);
+        } else {
+            try {
+                notificationSender.notifyActionFailure(actionFailure);
+            } catch (CommunicationException | InterruptedException e) {
+                logger.error("Unable to send notification for failure of " + actionFailure, e);
+            }
         }
     }
 

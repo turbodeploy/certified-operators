@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
+import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.alert.Alert;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
@@ -185,7 +186,7 @@ public class RepositoryPerformanceTest {
         final List<TopologyEntityDTO> topoDTOs = TopologyUtils.generateTopology(topologySize);
 
         final TopologyProcessorNotificationSender topologySender = TopologyProcessorKafkaSender
-                .create(threadPool, componentTestRule.getKafkaMessageProducer());
+                .create(threadPool, componentTestRule.getKafkaMessageProducer(), new MutableFixedClock(1_000_000));
 
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
                 .setTopologyType(TopologyType.REALTIME)

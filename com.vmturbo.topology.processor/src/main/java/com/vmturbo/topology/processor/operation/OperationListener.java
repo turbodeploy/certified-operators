@@ -13,4 +13,10 @@ public interface OperationListener {
      */
     void notifyOperationState(@Nonnull final Operation operation);
 
+    /**
+     * Called when operations are cleared - there will be no more state updates for any
+     * previously known operations.
+     */
+    void notifyOperationsCleared();
+
 }

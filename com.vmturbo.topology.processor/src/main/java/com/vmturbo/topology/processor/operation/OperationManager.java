@@ -279,6 +279,10 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         this.probeStore.addListener(this);
         this.targetStore.addListener(this);
         this.matrix = matrix;
+
+        // On restart we notify any listeners that all previously existing operations are now
+        // cleared.
+        operationListener.notifyOperationsCleared();
     }
 
     /**

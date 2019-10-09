@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.api.test.SenderReceiverPair;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.kvstore.KeyValueStore;
@@ -93,6 +94,16 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     }
 
     /**
+     * Clock.
+     *
+     * @return Clock.
+     */
+    @Bean
+    public Clock clock() {
+        return new MutableFixedClock(1_000_000);
+    }
+
+    /**
      * This bean performs registration of all configured websocket endpoints.
      *
      * @return bean
@@ -125,7 +136,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public TopologyProcessorNotificationSender topologyProcessorNotificationSender() {
         final TopologyProcessorNotificationSender backend =
-                new TopologyProcessorNotificationSender(apiServerThreadPool(),
+                new TopologyProcessorNotificationSender(apiServerThreadPool(), clock(),
                         liveTopologyConnection(), planTopologyConnection(),
                         planTopologyConnection(), notificationsConnection(),
                         topologySummaryConnection());

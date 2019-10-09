@@ -5,7 +5,6 @@ import static org.hamcrest.Matchers.contains;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -53,6 +52,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.api.server.KafkaMessageProducer;
+import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
@@ -111,7 +111,7 @@ public class HistoryStatPaginationSysTest {
         statsService = StatsHistoryServiceGrpc.newBlockingStub(historyChannel);
 
         final KafkaMessageProducer messageProducer = componentTestRule.getKafkaMessageProducer();
-        tpSender = TopologyProcessorKafkaSender.create(threadPool, messageProducer);
+        tpSender = TopologyProcessorKafkaSender.create(threadPool, messageProducer, new MutableFixedClock(1_000_000));
         marketSender = MarketKafkaSender.createMarketSender(messageProducer);
     }
 

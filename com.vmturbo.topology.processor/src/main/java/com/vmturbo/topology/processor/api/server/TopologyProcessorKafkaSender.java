@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.api.server;
 
+import java.time.Clock;
 import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
@@ -18,12 +19,14 @@ public class TopologyProcessorKafkaSender {
      *
      * @param threadPool thread pool
      * @param kafkaMessageProducer kafka producer to send through
+     * @param clock System clock to use.
      * @return topology processor notification sender.
      */
     public static TopologyProcessorNotificationSender create(
             @Nonnull final ExecutorService threadPool,
-            @Nonnull final KafkaMessageProducer kafkaMessageProducer) {
-        return new TopologyProcessorNotificationSender(threadPool,
+            @Nonnull final KafkaMessageProducer kafkaMessageProducer,
+            @Nonnull final Clock clock) {
+        return new TopologyProcessorNotificationSender(threadPool, clock,
                 kafkaMessageProducer.messageSender(
                         TopologyProcessorClient.TOPOLOGY_LIVE, TopologyProcessorKafkaSender::generateMessageKey),
                 kafkaMessageProducer.messageSender(

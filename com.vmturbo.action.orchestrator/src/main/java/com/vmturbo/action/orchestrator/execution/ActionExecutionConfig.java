@@ -69,6 +69,7 @@ public class ActionExecutionConfig {
     public ActionExecutor actionExecutor() {
         final ActionExecutor executor =
                 new ActionExecutor(globalConfig.topologyProcessorChannel(),
+                    globalConfig.actionOrchestratorClock(),
                     actionExecutionTimeoutMins,
                     TimeUnit.MINUTES);
 

@@ -5,6 +5,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
 
 /**
  * Listener to receive event-related notifications for action execution.
@@ -18,7 +19,7 @@ public interface ActionExecutionListener {
      *
      * @param actionProgress The progress notification for an action.
      */
-    void onActionProgress(@Nonnull ActionProgress actionProgress);
+    default void onActionProgress(@Nonnull ActionProgress actionProgress) {}
 
 
     /**
@@ -29,7 +30,7 @@ public interface ActionExecutionListener {
      *
      * @param actionSuccess The progress notification for an action.
      */
-    void onActionSuccess(@Nonnull ActionSuccess actionSuccess);
+    default void onActionSuccess(@Nonnull ActionSuccess actionSuccess) {}
 
     /**
      * A notification sent by the Topology Processor to report the unsuccessful
@@ -39,5 +40,14 @@ public interface ActionExecutionListener {
      *
      * @param actionFailure The progress notification for an action.
      */
-    void onActionFailure(@Nonnull ActionFailure actionFailure);
+    default void onActionFailure(@Nonnull ActionFailure actionFailure) {}
+
+    /**
+     * A notification sent by the Topology Processor to report that it lost the state of some
+     * or all of the in-progress actions. See {@link ActionsLost}. There will be no more updates
+     * for those actions.
+     *
+     * @param notification The {@link ActionsLost} notification.
+     */
+    default void onActionsLost(@Nonnull ActionsLost notification) { }
 }

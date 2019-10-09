@@ -2,7 +2,6 @@ package com.vmturbo.components.test.performance.history;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -38,6 +37,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.server.KafkaMessageProducer;
+import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.components.test.utilities.utils.TopologyUtils;
 import com.vmturbo.history.component.api.HistoryComponent;
@@ -112,7 +112,7 @@ public abstract class HistoryPerformanceTest {
 
     @Before
     public void createSenders() {
-        tpSender = TopologyProcessorKafkaSender.create(threadPool, getKafkaMessageProducer());
+        tpSender = TopologyProcessorKafkaSender.create(threadPool, getKafkaMessageProducer(), new MutableFixedClock(1_000_000));
         marketSender = MarketKafkaSender.createMarketSender(getKafkaMessageProducer());
     }
 

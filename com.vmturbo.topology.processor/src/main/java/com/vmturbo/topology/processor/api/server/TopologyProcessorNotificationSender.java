@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.api.server;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -35,6 +36,7 @@ import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.operation.Operation;
@@ -61,15 +63,18 @@ public class TopologyProcessorNotificationSender
     private final IMessageSender<TopologyProcessorNotification> notificationSender;
     private final IMessageSender<TopologySummary> topologySummarySender;
     private final ExecutorService threadPool;
+    private final Clock clock;
 
 
     public TopologyProcessorNotificationSender(@Nonnull final ExecutorService threadPool,
+            @Nonnull final Clock clock,
             @Nonnull IMessageSender<Topology> liveTopologySender,
             @Nonnull IMessageSender<Topology> userPlanTopologySender,
             @Nonnull IMessageSender<Topology> schedPlanTopologySender,
             @Nonnull IMessageSender<TopologyProcessorNotification> notificationSender,
             @Nonnull IMessageSender<TopologySummary> topologySummarySender) {
         super();
+        this.clock = Objects.requireNonNull(clock);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.liveTopologySender = Objects.requireNonNull(liveTopologySender);
         this.userPlanTopologySender = Objects.requireNonNull(userPlanTopologySender);
@@ -238,6 +243,19 @@ public class TopologyProcessorNotificationSender
             // TODO implement guaranteed delivery instead of RTE
             throw new RuntimeException("Thread interrupted", e);
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void notifyOperationsCleared() {
+        getLogger().info("Sending notification that all in-progress actions got cleared.");
+        final TopologyProcessorNotification message = createNewMessage()
+            .setActionsLost(ActionsLost.newBuilder()
+                .setBeforeTime(clock.millis()))
+            .build();
+        sendMessageSilently(message);
     }
 
     // TODO switch to IClassMap, after SDK is synched between MT and XL

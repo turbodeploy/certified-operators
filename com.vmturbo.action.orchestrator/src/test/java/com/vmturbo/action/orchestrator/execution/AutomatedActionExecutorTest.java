@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -52,13 +53,17 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
+import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class AutomatedActionExecutorTest {
 
     private final Channel channel = Mockito.mock(Channel.class);
+
+    private final Clock clock = new MutableFixedClock(1_000_000);
+
     private final ActionExecutor actionExecutor =
-            Mockito.spy(new ActionExecutor(channel, 1, TimeUnit.HOURS));
+            Mockito.spy(new ActionExecutor(channel, clock, 1, TimeUnit.HOURS));
     private final ActionTargetSelector actionTargetSelector =
             Mockito.mock(ActionTargetSelector.class);
     private final ActionStore actionStore = Mockito.mock(ActionStore.class);
