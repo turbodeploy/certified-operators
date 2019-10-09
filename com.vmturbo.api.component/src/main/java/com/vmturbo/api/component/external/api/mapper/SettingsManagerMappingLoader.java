@@ -4,13 +4,16 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Serializable;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -329,6 +332,35 @@ public class SettingsManagerMappingLoader {
         @Nonnull
         public Optional<PlanSettingInfo> getPlanSettingInfo() {
             return Optional.ofNullable(planSettingInfo);
+        }
+
+        /**
+         * Sort the input setting specs (or other objects that are associated with setting names)
+         * according to the order in which the names appear in the settingManagers.json file.
+         *
+         * @param unordered The unordered objects (e.g. setting specs).
+         * @param nameExtractor Function to extract the name from the object type.
+         * @param T The type of items that have to be ordered.
+         * @return An ordered list of the input objects according to the order specified in
+         *         this manager's entry in settingManagers.json.
+         */
+        @Nonnull
+        public <T> List<T> sortSettingSpecs(@Nonnull final Collection<T> unordered,
+                                            @Nonnull final Function<T, String> nameExtractor) {
+            Map<String, Integer> nameIndices = new HashMap<>();
+            int i = 0;
+            // The "settings" set is deserialized by GSON into a linked hash set, which preserves
+            // the order from the settingManagers.json file.
+            for (String name : settings) {
+                nameIndices.put(name, i++);
+            }
+
+            // Sort according to setting names, because the method is called with the argument
+            // SettingSpec::getName corresponding to the nameExtractor parameter
+            final List<T> sortedSpecs = unordered.stream()
+                .sorted(Comparator.comparingInt(spec -> nameIndices.getOrDefault(nameExtractor.apply(spec), -1)))
+                .collect(Collectors.toList());
+            return sortedSpecs;
         }
 
         /**

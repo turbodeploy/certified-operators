@@ -41,6 +41,7 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.VIRTUAL_VOLUME,
                     EntityType.CONTAINER_POD, EntityType.CONTAINER,
                     EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
+
     /**
      * Resize action automation mode.
      *
@@ -51,29 +52,32 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
                             EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
                             EntityType.APPLICATION_SERVER, EntityType.DATABASE_SERVER), actionExecutionModeSetToManual(), true),
+
+    /**
+     * Resize action automation mode for vcpu resize ups where the target capacity is between
+     * {@link EntitySettingSpecs#ResizeVcpuMinThreshold} and {@link EntitySettingSpecs#ResizeVcpuMaxThreshold}.
+     */
+    ResizeVcpuUpInBetweenThresholds("resizeVcpuUpInBetweenThresholds", "VCPU Resize Up", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToManual(), true),
+
+    /**
+     * Resize action automation mode for vcpu resize downs where the target capacity is between
+     * {@link EntitySettingSpecs#ResizeVcpuMinThreshold} and {@link EntitySettingSpecs#ResizeVcpuMaxThreshold}.
+     */
+    ResizeVcpuDownInBetweenThresholds("resizeVcpuDownInBetweenThresholds", "VCPU Resize Down", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToManual(), true),
+
     /**
      * Resize action automation mode for vcpu resizes where the target capacity is above the max threshold value {@link EntitySettingSpecs#ResizeVcpuMaxThreshold}.
      */
-    ResizeVcpuAboveMaxThreshold("resizeVcpuAboveMaxThreshold", "VCPU Resize Above Max Threshold", Collections.emptyList(), SettingTiebreaker.SMALLER,
+    ResizeVcpuAboveMaxThreshold("resizeVcpuAboveMaxThreshold", "VCPU Resize Above Max", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToRecommend(), true),
 
     /**
      * Resize action automation mode for vcpu resizes where the target capacity is below the min value {@link EntitySettingSpecs#ResizeVcpuMinThreshold}.
      */
-    ResizeVcpuBelowMinThreshold("resizeVcpuBelowMinThreshold", "VCPU Resize Below Min Threshold", Collections.emptyList(), SettingTiebreaker.SMALLER,
+    ResizeVcpuBelowMinThreshold("resizeVcpuBelowMinThreshold", "VCPU Resize Below Min", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToRecommend(), true),
-    /**
-     * Resize action automation mode for vcpu resize ups where the target capacity is between
-     * {@link EntitySettingSpecs#ResizeVcpuMinThreshold} and {@link EntitySettingSpecs#ResizeVcpuMaxThreshold}.
-     */
-    ResizeVcpuUpInBetweenThresholds("resizeVcpuUpInBetweenThresholds", "VCPU Resize Up In Between Thresholds", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToManual(), true),
-    /**
-     * Resize action automation mode for vcpu resize downs where the target capacity is between
-     * {@link EntitySettingSpecs#ResizeVcpuMinThreshold} and {@link EntitySettingSpecs#ResizeVcpuMaxThreshold}.
-     */
-    ResizeVcpuDownInBetweenThresholds("resizeVcpuDownInBetweenThresholds", "VCPU Resize Down In Between Thresholds", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToManual(), true),
 
     /**
      * The minimum number of vcpu cores which is the threshold to decide automation mode.
@@ -91,28 +95,30 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(0, 1000, 64), true),
 
     /**
+     * Resize action automation mode for vmem resize ups where the target capacity is between
+     * {@link EntitySettingSpecs#ResizeVmemMinThreshold} and {@link EntitySettingSpecs#ResizeVmemMaxThreshold}.
+     */
+    ResizeVmemUpInBetweenThresholds("resizeVmemUpInBetweenThresholds", "VMem Resize Up", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToManual(), true),
+
+    /**
+     * Resize action automation mode for vmem resize downs where the target capacity is between
+     * {@link EntitySettingSpecs#ResizeVmemMinThreshold} and {@link EntitySettingSpecs#ResizeVmemMaxThreshold}.
+     */
+    ResizeVmemDownInBetweenThresholds("resizeVmemDownInBetweenThresholds", "VMem Resize Down", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToManual(), true),
+
+    /**
      * Resize action automation mode for vmem resizes where the target capacity is above the max threshold value {@link EntitySettingSpecs#ResizeVmemMaxThreshold}.
      */
-    ResizeVmemAboveMaxThreshold("resizeVmemAboveMaxThreshold", "VMEM Resize Above Max Threshold", Collections.emptyList(), SettingTiebreaker.SMALLER,
+    ResizeVmemAboveMaxThreshold("resizeVmemAboveMaxThreshold", "VMem Resize Above Max", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToRecommend(), true),
 
     /**
      * Resize action automation mode for vmem resizes where the target capacity is below the min value {@link EntitySettingSpecs#ResizeVmemMinThreshold}.
      */
-    ResizeVmemBelowMinThreshold("resizeVmemBelowMinThreshold", "VMEM Resize Below Min Threshold", Collections.emptyList(), SettingTiebreaker.SMALLER,
+    ResizeVmemBelowMinThreshold("resizeVmemBelowMinThreshold", "VMem Resize Below Min", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToRecommend(), true),
-    /**
-     * Resize action automation mode for vmem resize ups where the target capacity is between
-     * {@link EntitySettingSpecs#ResizeVmemMinThreshold} and {@link EntitySettingSpecs#ResizeVmemMaxThreshold}.
-     */
-    ResizeVmemUpInBetweenThresholds("resizeVmemUpInBetweenThresholds", "VMEM Resize Up In Between Thresholds", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToManual(), true),
-    /**
-     * Resize action automation mode for vmem resize downs where the target capacity is between
-     * {@link EntitySettingSpecs#ResizeVmemMinThreshold} and {@link EntitySettingSpecs#ResizeVmemMaxThreshold}.
-     */
-    ResizeVmemDownInBetweenThresholds("resizeVmemDownInBetweenThresholds", "VMEM Resize Down In Between Thresholds", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToManual(), true),
 
     /**
      * The minimum number of vmem cores which is the threshold to decide automation mode.
@@ -150,11 +156,13 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
                     EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
                     EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER), actionExecutionModeSetToManual(), true),
+
     /**
      * Reconfigure action automation mode (not executable).
      */
     Reconfigure("reconfigure", "Reconfigure", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD), nonExecutableActionMode(), true),
+
     /**
      * Activate action automation mode.
      */
@@ -162,11 +170,13 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
                     EntityType.CONTAINER_POD, EntityType.CONTAINER,
                     EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
+
     /**
      * Storage Move action automation mode.
      */
     StorageMove("storageMove", "Storage Move / Storage Scale", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToRecommend(), true),
+
     /**
      * CPU utilization threshold.
      */
@@ -174,18 +184,21 @@ public enum EntitySettingSpecs {
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE_CONTROLLER),
             numeric(0f, 100f, 100f), true),
+
     /**
      * Memory utilization threshold.
      */
     MemoryUtilization("memoryUtilization", "Memory Utilization",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 100f, 100f), true),
+
     /**
      * IO throughput utilization threshold.
      */
     IoThroughput("ioThroughput", "IO Throughput",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 100f, 50f), true),
+
     /**
      * Network throughput utilization threshold.
      */
@@ -194,18 +207,21 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.SWITCH),
             new NumericSettingDataType(0f, 100f, 50f,
                     Collections.singletonMap(EntityType.SWITCH, 70f)), true),
+
     /**
      * Swapping utilization threshold.
      */
     SwappingUtilization("swappingUtilization", "Swapping Utilization",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 100f, 20f), true),
+
     /**
      * Ready queue utilization threshold.
      */
     ReadyQueueUtilization("readyQueueUtilization", "Ready Queue Utilization",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 100f, 50f), true),
+
     /**
      * Storage utilization threshold.
      */
@@ -214,6 +230,7 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.STORAGE, EntityType.DISK_ARRAY, EntityType.STORAGE_CONTROLLER),
             numeric(0f, 100f, 90f),
             true),
+
     /**
      * VCPURequest utilization threshold.
      * Setting VCPURequest utilization threshold to 0.9999 to avoid rounding errors due to
@@ -223,24 +240,28 @@ public enum EntitySettingSpecs {
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD),
             numeric(0f, 100f, 99.99f), true),
+
     /**
      * IOPS utilization threshold.
      */
     IopsUtilization("iopsUtilization", "IOPS Utilization",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE), numeric(0f, 100f, 100f), true),
+
     /**
      * Storage latency utilization threshold.
      */
     LatencyUtilization("latencyUtilization", "Latency Utilization",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE), numeric(0f, 100f, 100f), true),
+
     /**
      * CPU overprovisioned in percents.
      */
     CpuOverprovisionedPercentage("cpuOverprovisionedPercentage", "CPU Overprovisioned Percentage",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(1f, 1000000f, 30000f), true),
+
     /**
      * Memory overprovisioned in percents.
      */
@@ -257,6 +278,7 @@ public enum EntitySettingSpecs {
             Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
             numeric(1f, 1000000f, 200f), true),
+
     /**
      * Desired utilization target.
      */
@@ -352,6 +374,7 @@ public enum EntitySettingSpecs {
                 EntityType.STORAGE_CONTROLLER, EntityType.STORAGE),
             new NumericSettingDataType(20f, 1000000, 5000,
                     Collections.singletonMap(EntityType.DISK_ARRAY, 10_000f)), true),
+
     /**
      * Storage latency capacity to set on the entity.
      */

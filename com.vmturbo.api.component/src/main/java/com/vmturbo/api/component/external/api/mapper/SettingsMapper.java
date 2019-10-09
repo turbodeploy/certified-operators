@@ -306,7 +306,8 @@ public class SettingsMapper {
                     final SettingsManagerInfo info = managerMapping.getManagerInfo(entry.getKey())
                             .orElseThrow(() -> new IllegalStateException("Manager ID " +
                                     entry.getKey() + " not found despite being in the mappings earlier."));
-                    return createMgrDto(entry.getKey(), entityType, info, entry.getValue());
+                    return createMgrDto(entry.getKey(), entityType, info,
+                        info.sortSettingSpecs(entry.getValue(), SettingSpec::getName));
                 })
                 .collect(Collectors.toList());
     }
@@ -611,8 +612,9 @@ public class SettingsMapper {
                                                @Nonnull final SettingsManagerInfo info,
                                                @Nonnull final Collection<SettingSpec> specs) {
         final SettingsManagerApiDTO mgrApiDto = info.newApiDTO(mgrId);
+        List<SettingSpec> sortedSpecs = info.sortSettingSpecs(specs, SettingSpec::getName);
 
-        mgrApiDto.setSettings(specs.stream()
+        mgrApiDto.setSettings(sortedSpecs.stream()
                 .map(settingSpec -> settingSpecMapper.settingSpecToApi(Optional.of(settingSpec), Optional.empty()))
                 .flatMap(settingPossibilities -> {
                     if (entityType.isPresent()) {
