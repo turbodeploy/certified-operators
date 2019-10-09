@@ -16,22 +16,23 @@ import com.vmturbo.stitching.poststitching.ComputedQxVcpuUsedValuePostStitchingO
 import com.vmturbo.stitching.poststitching.ComputedUsedValuePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuScalingFactorPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.PropagatePowerStatePostStitchingOperation;
-import com.vmturbo.stitching.poststitching.SetCommodityCapacityFromSettingPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.VmmPmMemoryAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
-import com.vmturbo.stitching.poststitching.SetResizeDownAnalysisSettingPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.SetTransactionsCapacityPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.StorageEntityAccessCapacityPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.GuestLoadAppPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.CpuProvisionedPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.PmMemoryAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.MemoryProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.PmCpuAllocationPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.PmMemoryAllocationPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.VmmPmMemoryAllocationPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.PropagatePowerStatePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.PropagateStorageAccessAndLatencyPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.SetCommodityCapacityFromSettingPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
 import com.vmturbo.stitching.poststitching.SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation;
+import com.vmturbo.stitching.poststitching.SetResizeDownAnalysisSettingPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.SetTransactionsCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageAccessCapacityPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.StorageEntityAccessCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.DiskArrayLatencyPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.LogicalPoolLatencyPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.StorageControllerLatencyPostStitchingOperation;
@@ -308,7 +309,8 @@ public class PostStitchingOperationLibrary {
                     "transactionsCapacity",
                     "autoSetTransactionsCapacity"),
             new WastedFilesPostStitchingOperation(),
-            new PropagatePowerStatePostStitchingOperation()
+            new PropagatePowerStatePostStitchingOperation(),
+            new GuestLoadAppPostStitchingOperation()
         );
     }
 

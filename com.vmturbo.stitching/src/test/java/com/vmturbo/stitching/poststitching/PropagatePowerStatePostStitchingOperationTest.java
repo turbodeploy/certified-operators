@@ -57,7 +57,7 @@ public class PropagatePowerStatePostStitchingOperationTest {
                 .setEntityType(EntityType.APPLICATION_VALUE)
                 .setEntityState(EntityState.POWERED_OFF)
                 .putEntityPropertyMap(
-                    PropagatePowerStatePostStitchingOperation.APPLICATION_TYPE_PATH,
+                    GuestLoadAppPostStitchingOperation.APPLICATION_TYPE_PATH,
                     SupplyChainConstants.GUEST_LOAD));
 
         final TopologyEntity.Builder app3 = TopologyEntity.newBuilder(
@@ -67,7 +67,7 @@ public class PropagatePowerStatePostStitchingOperationTest {
                 .setEntityType(EntityType.APPLICATION_VALUE)
                 .setEntityState(EntityState.POWERED_ON)
                 .putEntityPropertyMap(
-                    PropagatePowerStatePostStitchingOperation.APPLICATION_TYPE_PATH,
+                    GuestLoadAppPostStitchingOperation.APPLICATION_TYPE_PATH,
                     SupplyChainConstants.GUEST_LOAD));
 
         final TopologyEntity.Builder vm1 = TopologyEntity.newBuilder(
@@ -129,19 +129,15 @@ public class PropagatePowerStatePostStitchingOperationTest {
     public void testNotPropagatePowerState() {
         // apply operation
         UnitTestResultBuilder resultBuilder = new UnitTestResultBuilder();
-        propagatePowerStateOp.performOperation(Stream.of(vmEntity1, vmEntity2),
-            settingsCollection, resultBuilder);
-        // check that only one VM's consumers' states are changed
-        assertEquals(1, resultBuilder.getChanges().size());
+        // if vm state is maintenance, it should not propagate
+        vmEntity1.getTopologyEntityDtoBuilder().setEntityState(EntityState.MAINTENANCE);
+        propagatePowerStateOp.performOperation(Stream.of(vmEntity1), settingsCollection, resultBuilder);
+        // check that no changes applied
+        assertEquals(0, resultBuilder.getChanges().size());
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
-
-        // after operation
-        // verify that app1 is set to unknown, app2 is still powered off, since it's GuestLoad
-        // and app3 is not changed, also vm1 and vm2 are not changed
-        assertEquals(EntityState.UNKNOWN, appEntity1.getEntityState());
+        // after operation, verify that app1 and app2 states are not changed
+        assertEquals(EntityState.POWERED_ON, appEntity1.getEntityState());
         assertEquals(EntityState.POWERED_OFF, appEntity2.getEntityState());
-        assertEquals(EntityState.POWERED_ON, appEntity3.getEntityState());
-        assertEquals(EntityState.POWERED_OFF, vmEntity1.getEntityState());
-        assertEquals(EntityState.POWERED_ON, vmEntity2.getEntityState());
+        assertEquals(EntityState.MAINTENANCE, vmEntity1.getEntityState());
     }
 }

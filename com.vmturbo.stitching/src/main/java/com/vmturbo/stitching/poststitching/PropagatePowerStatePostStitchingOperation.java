@@ -8,9 +8,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.PostStitchingOperation;
 import com.vmturbo.stitching.StitchingScope;
@@ -31,8 +29,6 @@ import com.vmturbo.stitching.TopologyEntity;
 public class PropagatePowerStatePostStitchingOperation implements PostStitchingOperation {
 
     private static final Logger logger = LogManager.getLogger();
-
-    public static final String APPLICATION_TYPE_PATH = "common_dto.EntityDTO.ApplicationData.type";
 
     @Nonnull
     @Override
@@ -72,25 +68,13 @@ public class PropagatePowerStatePostStitchingOperation implements PostStitchingO
      */
     private void propagate(@Nonnull TopologyEntity topologyEntity) {
         topologyEntity.getConsumers().stream()
+            .filter(consumer -> !GuestLoadAppPostStitchingOperation.isGuestLoadApplication(consumer))
             .map(TopologyEntity::getTopologyEntityDtoBuilder)
-            .filter(consumer -> !isGuestLoadApplication(consumer))
             .forEach(consumer -> {
                 logger.debug("Changing state of entity {} from {} to UNKNOWN since state of its " +
                     "provider {} is {}", consumer.getOid(), consumer.getEntityState(),
                     topologyEntity, topologyEntity.getEntityState());
                 consumer.setEntityState(EntityState.UNKNOWN);
             });
-    }
-
-    /**
-     * Check if the given entity is a GuestLoad application.
-     *
-     * @param entityBuilder the entity to check
-     * @return true if the entity is a GuestLoad application, otherwise false
-     */
-    private boolean isGuestLoadApplication(@Nonnull TopologyEntityDTO.Builder entityBuilder) {
-        return entityBuilder.getEntityType() == EntityType.APPLICATION_VALUE &&
-            SupplyChainConstants.GUEST_LOAD.equals(
-                entityBuilder.getEntityPropertyMapMap().get(APPLICATION_TYPE_PATH));
     }
 }
