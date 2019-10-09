@@ -98,6 +98,8 @@ scaleio:
   enabled: false
 snmp:
   enabled: false
+terraform:
+  enabled: false
 tetration:
   enabled: false
 ucs:

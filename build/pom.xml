@@ -352,6 +352,7 @@
                 <module>../com.vmturbo.mediation.scaleio.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
+                <module>../com.vmturbo.mediation.terraform.component</module>
                 <module>../com.vmturbo.mediation.tetration.component</module>
                 <module>../com.vmturbo.mediation.ucs.component</module>
                 <module>../com.vmturbo.mediation.ucsdirector.component</module>
@@ -673,6 +674,13 @@
         </profile>
 
         <profile>
+            <id>mediation-terraform</id>
+            <modules>
+                <module>../com.vmturbo.mediation.terraform.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation-tetration</id>
             <modules>
                 <module>../com.vmturbo.mediation.tetration.component</module>
@@ -981,6 +989,7 @@
                 <module>../com.vmturbo.mediation.scaleio.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
+                <module>../com.vmturbo.mediation.terraform.component</module>
                 <module>../com.vmturbo.mediation.tetration.component</module>
                 <module>../com.vmturbo.mediation.ucs.component</module>
                 <module>../com.vmturbo.mediation.ucsdirector.component</module>

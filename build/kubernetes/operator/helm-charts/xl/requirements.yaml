@@ -267,6 +267,10 @@ dependencies:
     repository: file://../probes/mediation-snmp
     version: 0.1.0
     condition: snmp.enabled
+  - name: mediation-terraform
+    repository: file://../probes/mediation-terraform
+    version: 0.1.0
+    condition: terraform.enabled
   - name: mediation-tetration
     repository: file://../probes/mediation-tetration
     version: 0.1.0
