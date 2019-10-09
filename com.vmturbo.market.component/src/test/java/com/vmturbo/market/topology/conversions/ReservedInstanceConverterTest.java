@@ -5,6 +5,7 @@ import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.REG
 import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.REGION_NAME;
 import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.TIER_ID;
 import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.TIER_NAME;
+import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.ZONE_ID;
 import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.mockComputeTier;
 import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.mockRegion;
 import static org.mockito.Mockito.mock;
@@ -28,6 +29,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -41,6 +43,8 @@ import com.vmturbo.market.topology.conversions.ReservedInstanceAggregate.Reserve
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
 import com.vmturbo.platform.analysis.utilities.NumericIDAllocator;
@@ -67,9 +71,7 @@ public class ReservedInstanceConverterTest {
         commodityConverter = new CommodityConverter(new NumericIDAllocator(),
                 new HashMap<>(), false, new BiCliquer(), HashBasedTable.create(),
                 new ConversionErrorCounts());
-        final CostDTOCreator costDTOCreator = mock(CostDTOCreator.class);
-        final CostDTO cbtpCostDto = CostDTO.newBuilder().build();
-        when(costDTOCreator.createCbtpCostDTO()).thenReturn(cbtpCostDto);
+        final CostDTOCreator costDTOCreator = new CostDTOCreator(commodityConverter, null);
         converter = new ReservedInstanceConverter(info, commodityConverter, costDTOCreator, mock(TierExcluder.class));
     }
 
@@ -113,7 +115,7 @@ public class ReservedInstanceConverterTest {
      */
     @Test
     public void testNonIsfTemplateAccessCommodityConversion() {
-        final List<TraderTO> traders = createMarketTierTraderTOs(false);
+        final List<TraderTO> traders = createMarketTierTraderTOs(false, false);
         final TraderTO traderTO = traders.iterator().next();
         final List<CommodityBoughtTO> boughtTemplateAccessCommodities =
                 extractCommodityOfType(traderTO, CommodityDTO.CommodityType.TEMPLATE_ACCESS_VALUE);
@@ -127,7 +129,7 @@ public class ReservedInstanceConverterTest {
      */
     @Test
     public void testIsfTemplateAccessCommodityConversion() {
-        final List<TraderTO> traders = createMarketTierTraderTOs(true);
+        final List<TraderTO> traders = createMarketTierTraderTOs(true, false);
         final TraderTO traderTO = traders.iterator().next();
         final List<CommodityBoughtTO> boughtTemplateAccessCommodities =
                 extractCommodityOfType(traderTO, CommodityDTO.CommodityType.TEMPLATE_ACCESS_VALUE);
@@ -135,6 +137,42 @@ public class ReservedInstanceConverterTest {
         verifyTemplateAccessCommodities(ImmutableSet.of(REGION_NAME, FAMILY_NAME),
                 boughtTemplateAccessCommodities);
     }
+
+    /**
+     * Test that the CostTuple for a Zonal RI Trader has zoneId set and regionId unset.
+     */
+    @Test
+    public void testZoneInformationInCbtpCostDto() {
+        final List<TraderTO> traders = createMarketTierTraderTOs(true, true);
+        final TraderTO traderTO = traders.iterator().next();
+        final CostDTO costDTO =
+                traderTO.getSettings().getQuoteFunction().getRiskBased().getCloudCost();
+        Assert.assertTrue(costDTO.hasCbtpResourceBundle());
+        final CbtpCostDTO cbtpCostDTO = costDTO.getCbtpResourceBundle();
+        Assert.assertTrue(cbtpCostDTO.hasCostTuple());
+        final CostTuple costTuple = cbtpCostDTO.getCostTuple();
+        Assert.assertEquals(ZONE_ID, costTuple.getZoneId());
+        Assert.assertFalse(costTuple.hasRegionId());
+    }
+
+    /**
+     * Test that the CostTuple for a Regional RI Trader has regionId set and zoneId unset.
+     */
+    @Test
+    public void testRegionInformationInCbtpCostDto() {
+        final List<TraderTO> traders = createMarketTierTraderTOs(true, false);
+        final TraderTO traderTO = traders.iterator().next();
+        final CostDTO costDTO =
+                traderTO.getSettings().getQuoteFunction().getRiskBased().getCloudCost();
+        Assert.assertTrue(costDTO.hasCbtpResourceBundle());
+        final CbtpCostDTO cbtpCostDTO = costDTO.getCbtpResourceBundle();
+        Assert.assertTrue(cbtpCostDTO.hasCostTuple());
+        final CostTuple costTuple = cbtpCostDTO.getCostTuple();
+        Assert.assertEquals(REGION_ID, costTuple.getRegionId());
+        Assert.assertFalse(costTuple.hasZoneId());
+    }
+
+
 
     private void verifyTemplateAccessCommodities(Set<String> expectedKeys,
                                                  List<CommodityBoughtTO> boughtCommodities) {
@@ -153,10 +191,10 @@ public class ReservedInstanceConverterTest {
                 .collect(Collectors.toList());
     }
 
-    private List<TraderTO> createMarketTierTraderTOs(boolean isf) {
+    private List<TraderTO> createMarketTierTraderTOs(boolean isf, boolean zonal) {
         final CloudCostData cloudCostData = mock(CloudCostData.class);
         when(cloudCostData.getExistingRiBought())
-                .thenReturn(Collections.singleton(createRiData(isf)));
+                .thenReturn(Collections.singleton(createRiData(isf, zonal)));
         final Map<Long, TopologyEntityDTO> topology = ImmutableMap.of(REGION_ID, mockRegion(),
                 TIER_ID, mockComputeTier());
         return converter.createMarketTierTraderTOs(cloudCostData,
@@ -164,9 +202,13 @@ public class ReservedInstanceConverterTest {
                 .collect(Collectors.toList());
     }
 
-    private static ReservedInstanceData createRiData(boolean isf) {
+    private static ReservedInstanceData createRiData(boolean isf, boolean zonal) {
         final OSType osType = isf ? OSType.LINUX : OSType.WINDOWS;
-        final ReservedInstanceBought boughtRi = ReservedInstanceBought.newBuilder().build();
+        final ReservedInstanceBought.Builder boughtRiBuilder = ReservedInstanceBought.newBuilder();
+        if (zonal) {
+            boughtRiBuilder.setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
+                    .setAvailabilityZoneId(ZONE_ID).build());
+        }
         final ReservedInstanceSpecInfo riInfo = ReservedInstanceSpecInfo.newBuilder()
                 .setPlatformFlexible(false)
                 .setOs(osType)
@@ -177,7 +219,7 @@ public class ReservedInstanceConverterTest {
         final ReservedInstanceSpec riSpec = ReservedInstanceSpec.newBuilder()
                 .setReservedInstanceSpecInfo(riInfo)
                 .build();
-        return new ReservedInstanceData(boughtRi, riSpec);
+        return new ReservedInstanceData(boughtRiBuilder.build(), riSpec);
     }
 
     private static RiDiscountedMarketTier mockRiDiscountedTier(boolean platformFlexible) {

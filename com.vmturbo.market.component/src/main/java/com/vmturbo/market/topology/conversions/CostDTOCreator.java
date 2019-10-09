@@ -21,6 +21,8 @@ import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.Comput
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle.DatabasePrice;
 import com.vmturbo.market.runner.cost.MarketPriceTable.StoragePriceBundle;
+import com.vmturbo.market.topology.conversions.ReservedInstanceAggregate.ReservedInstanceKey;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
@@ -221,16 +223,25 @@ public class CostDTOCreator {
     }
 
     /**
-     * Create the CBTP cost dto
+     * Create the CBTP cost dto.
      *
-     * @return the CBTP cost DTO
+     * @param reservedInstanceKey of the RI for which the CostDTO is created.
+     * @return the CBTP cost DTO.
      */
-    public CostDTO createCbtpCostDTO() {
+    CostDTO createCbtpCostDTO(final ReservedInstanceKey reservedInstanceKey) {
         return CostDTO.newBuilder().setCbtpResourceBundle(
                 CbtpCostDTO.newBuilder().setCouponBaseType(
-                        com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.COUPON_VALUE)
+                        CommodityDTO.CommodityType
+                                .COUPON_VALUE)
                         .setDiscountPercentage(1)
+                        .setCostTuple(addLocationInfo(CostTuple.newBuilder(), reservedInstanceKey))
                         .build()).build();
+    }
+
+    private CostDTOs.CostDTO.CostTuple.Builder addLocationInfo(
+            CostDTOs.CostDTO.CostTuple.Builder builder, final ReservedInstanceKey riKey) {
+        return riKey.getZoneId() != 0 ? builder.setZoneId(riKey.getZoneId())
+                : builder.setRegionId(riKey.getRegionId());
     }
 
     /**

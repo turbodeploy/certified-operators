@@ -20,6 +20,7 @@ class CloudTestEntityFactory {
 
     static final long REGION_ID = 1L;
     static final long TIER_ID = 100L;
+    static final long ZONE_ID = 4;
     static final String FAMILY_NAME = "compute_optimized";
     static final String TIER_NAME = "compute_optimized_medium";
     static final String REGION_NAME = "antarctica";

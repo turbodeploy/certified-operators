@@ -80,7 +80,8 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
                     .setIsEligibleForResizeDown(false)
                     .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                             .setRiskBased(RiskBased.newBuilder()
-                                    .setCloudCost(costDTOCreator.createCbtpCostDTO())
+                                    .setCloudCost(costDTOCreator
+                                            .createCbtpCostDTO(riAggregate.getRiKey()))
                                     .build()))
                     .setQuoteFactor(1)
                     .build();
