@@ -4,7 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -31,7 +31,6 @@ import io.grpc.stub.StreamObserver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
@@ -326,7 +325,7 @@ public class CostRpcService extends CostServiceImplBase {
                 boolean isGroupByTargetRequest  = request.getGroupBy().equals(GroupByType.TARGET);
                 snapshotToExpenseMap.forEach((snapshotTime, accountIdToExpensesMap) -> {
                             final CloudCostStatRecord.Builder snapshotBuilder = CloudCostStatRecord.newBuilder();
-                            snapshotBuilder.setSnapshotDate(DateTimeUtil.toString(snapshotTime));
+                            snapshotBuilder.setSnapshotDate(snapshotTime);
                             final List<AccountExpenseStat> accountExpenseStats = Lists.newArrayList();
                             accountIdToExpensesMap.values().forEach(accountExpenses -> {
                                 accountExpenses.getAccountExpensesInfo().getServiceExpensesList().forEach(serviceExpenses -> {
@@ -376,7 +375,7 @@ public class CostRpcService extends CostServiceImplBase {
                 if (request.hasStartDate() && request.hasEndDate()) {
                     final CloudCostStatRecord.Builder projectedSnapshotBuilder = CloudCostStatRecord.newBuilder();
                     long projectedTime = request.getEndDate() + TimeUnit.HOURS.toMillis(PROJECTED_STATS_TIME_IN_FUTURE_HOURS);
-                    projectedSnapshotBuilder.setSnapshotDate(DateTimeUtil.toString(projectedTime));
+                    projectedSnapshotBuilder.setSnapshotDate(projectedTime);
                     final List<AccountExpenseStat> accountExpenseStats = Lists.newArrayList();
                     Map<Long, EntityCost> projecteEntitiesCosts = projectedEntityCostStore.getAllProjectedEntitiesCosts();
 
@@ -529,15 +528,14 @@ public class CostRpcService extends CostServiceImplBase {
                                 });
                             }
                             final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
-                                    .setSnapshotDate(DateTimeUtil.toString(time))
+                                    .setSnapshotDate(time)
                                     .addAllStatRecords(statRecords)
                                     .build();
                             cloudStatRecords.add(cloudStatRecord);
 
                         }
                 );
-                Collections.sort(cloudStatRecords,
-                        (CloudCostStatRecord rec1, CloudCostStatRecord rec2) -> rec1.getSnapshotDate().compareTo(rec2.getSnapshotDate()));
+                cloudStatRecords.sort(Comparator.comparingLong(CloudCostStatRecord::getSnapshotDate));
                 GetCloudCostStatsResponse response =
                         GetCloudCostStatsResponse.newBuilder()
                                 .addAllCloudStatRecord(cloudStatRecords)

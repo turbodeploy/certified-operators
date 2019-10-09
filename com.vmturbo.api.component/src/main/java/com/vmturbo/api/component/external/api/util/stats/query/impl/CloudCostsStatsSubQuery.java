@@ -16,15 +16,15 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.collections4.ListUtils;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.ListUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
@@ -363,7 +363,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             requestedStats.stream().forEach(requestedStat -> {
                 StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
                 statSnapshotApiDTO.setDisplayName(requestedStat.getName());
-                statSnapshotApiDTO.setDate(cloudCostStatRecord.getSnapshotDate());
+                statSnapshotApiDTO.setDate(DateTimeUtil.toString(cloudCostStatRecord.getSnapshotDate()));
 
                 List<StatApiDTO> statApiDTOs = cloudCostStatRecordGroupBySt.entrySet().stream()
                     .map(entry -> {
@@ -431,7 +431,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             requestedStats.stream().forEach(requestedStat -> {
                 StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
                 statSnapshotApiDTO.setDisplayName(requestedStat.getName());
-                statSnapshotApiDTO.setDate(cloudCostStatRecord.getSnapshotDate());
+                statSnapshotApiDTO.setDate(DateTimeUtil.toString(cloudCostStatRecord.getSnapshotDate()));
 
                 CloudCostStatRecord.StatRecord attachedRecord = recordAggregator.aggregate(vvAttachedStatRecords, Optional.of(Integer.valueOf(UIEntityType.fromString(requestedStat.getRelatedEntityType()).typeNumber())), false);
                 CloudCostStatRecord.StatRecord unattachedRecord = recordAggregator.aggregate(vvUnattachedStatRecords, Optional.of(Integer.valueOf(UIEntityType.fromString(requestedStat.getRelatedEntityType()).typeNumber())), false);
@@ -642,7 +642,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                                                    @Nonnull final Map<Long, MinimalEntity> cloudServiceDTOs) {
         final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
         if (statSnapshot.hasSnapshotDate()) {
-            dto.setDate(statSnapshot.getSnapshotDate());
+            dto.setDate(DateTimeUtil.toString(statSnapshot.getSnapshotDate()));
         }
         // for Cloud service, search for all the discovered Cloud services ,and match the expenses
         if (!cloudServiceDTOs.isEmpty()) {
@@ -706,7 +706,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     public StatSnapshotApiDTO toCloudStatSnapshotApiDTO(final CloudCostStatRecord statSnapshot) {
         final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
         if (statSnapshot.hasSnapshotDate()) {
-            dto.setDate(statSnapshot.getSnapshotDate());
+            dto.setDate(DateTimeUtil.toString(statSnapshot.getSnapshotDate()));
         }
         dto.setStatistics(statSnapshot.getStatRecordsList().stream()
             .map(statRecord -> {

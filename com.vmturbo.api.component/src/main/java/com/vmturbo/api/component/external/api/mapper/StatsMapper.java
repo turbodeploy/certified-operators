@@ -193,7 +193,7 @@ public class StatsMapper {
         });
         final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
         if (statSnapshot.hasSnapshotDate()) {
-            dto.setDate(statSnapshot.getSnapshotDate());
+            dto.setDate(DateTimeUtil.toString(statSnapshot.getSnapshotDate()));
         }
         // for Cloud service, search for all the discovered Cloud services ,and match the expenses
         if (!cloudServiceDTOs.isEmpty()) {
@@ -712,7 +712,7 @@ public class StatsMapper {
     public StatSnapshotApiDTO toCloudStatSnapshotApiDTO(final CloudCostStatRecord statSnapshot) {
         final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
         if (statSnapshot.hasSnapshotDate()) {
-            dto.setDate(statSnapshot.getSnapshotDate());
+            dto.setDate(DateTimeUtil.toString(statSnapshot.getSnapshotDate()));
         }
         dto.setStatistics(statSnapshot.getStatRecordsList().stream()
                 .map(statRecord -> {

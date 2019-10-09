@@ -18,10 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.ArgumentCaptor;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -30,7 +26,10 @@ import io.grpc.Status.Code;
 import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.api.utils.DateTimeUtil;
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo;
@@ -54,11 +53,11 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupBy
 import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
+import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
-import com.vmturbo.components.api.test.GrpcExceptionMatcher;
-import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.component.discount.DiscountNotFoundException;
 import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
@@ -616,7 +615,7 @@ public class CostRpcServiceTest {
 
         statRecordBuilder.setValues(statValueBuilder.build());
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
-                .setSnapshotDate(DateTimeUtil.toString(1))
+                .setSnapshotDate(1)
                 .addStatRecords(statRecordBuilder.build())
                 .build();
         builder.addCloudStatRecord(cloudStatRecord);
@@ -673,7 +672,7 @@ public class CostRpcServiceTest {
 
         statRecordBuilder.setValues(statValueBuilder.build());
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
-                .setSnapshotDate(DateTimeUtil.toString(1))
+                .setSnapshotDate(1)
                 .addStatRecords(statRecordBuilder.build())
                 .build();
         builder.addCloudStatRecord(cloudStatRecord);
@@ -788,14 +787,14 @@ public class CostRpcServiceTest {
 
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
-                .setSnapshotDate(DateTimeUtil.toString(1))
+                .setSnapshotDate(1)
                 .addStatRecords(getStatRecordBuilder(CostCategory.ON_DEMAND_COMPUTE))
                 .addStatRecords(getStatRecordBuilder(CostCategory.ON_DEMAND_COMPUTE))
                 .addStatRecords(getStatRecordBuilder(CostCategory.IP))
                 .build();
 
         final CloudCostStatRecord cloudStatRecord1 = CloudCostStatRecord.newBuilder()
-                .setSnapshotDate(DateTimeUtil.toString(500l))
+                .setSnapshotDate(500L)
                 .addStatRecords(getStatRecordBuilder(CostCategory.ON_DEMAND_COMPUTE))
                 .addStatRecords(getStatRecordBuilder(CostCategory.IP))
                 .addStatRecords(getStatRecordBuilder(CostCategory.IP))
@@ -912,7 +911,7 @@ public class CostRpcServiceTest {
 
         statRecordBuilder.setValues(statValueBuilder.build());
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
-                .setSnapshotDate(DateTimeUtil.toString(1))
+                .setSnapshotDate(1)
                 .addStatRecords(statRecordBuilder.build())
                 .build();
         builder.addCloudStatRecord(cloudStatRecord);
@@ -927,7 +926,7 @@ public class CostRpcServiceTest {
             statRecordBuilder.setValues(statValueBuilder.build());
             final CloudCostStatRecord projectedCloudStatRecord = CloudCostStatRecord.newBuilder()
                     // the Projected stats will be 1 hour ahead
-                    .setSnapshotDate(DateTimeUtil.toString(1 + TimeUnit.HOURS.toMillis(1)))
+                    .setSnapshotDate(1 + TimeUnit.HOURS.toMillis(1))
                     .addStatRecords(statRecordBuilder.build())
                     .build();
             builder.addCloudStatRecord(projectedCloudStatRecord);
@@ -947,7 +946,7 @@ public class CostRpcServiceTest {
 
         final CloudCostStatRecord.Builder cloudStatRecordBuilder =
                 CloudCostStatRecord.newBuilder()
-                        .setSnapshotDate(DateTimeUtil.toString(snapshotTime));
+                        .setSnapshotDate(snapshotTime);
         for (EntityCost entityCost : entityCosts) {
             for (ComponentCost componentCost : entityCost.getComponentCostList()) {
                 final CloudCostStatRecord.StatRecord.Builder statRecordBuilder =

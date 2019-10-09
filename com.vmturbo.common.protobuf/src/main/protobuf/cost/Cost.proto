@@ -834,7 +834,7 @@ message GetCloudCostStatsResponse {
 // Cloud cost stat record, used for both top down and bottom up
 message CloudCostStatRecord {
     // the actual snapshot_date for this response
-    optional string snapshot_date = 1;
+    optional int64 snapshot_date = 1;
 
     // the individual stat_records collected
     repeated StatRecord stat_records = 2;

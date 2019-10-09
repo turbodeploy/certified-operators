@@ -77,12 +77,14 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
  */
 public class StatsMapperTest {
 
-    public static final long START_DATE = 1234L;
-    public static final long END_DATE = 5678L;
-    public static final String PUID = "puid-";
-    public static final String CSP = "CSP";
-    public static final String AWS = "AWS";
-    public static final String COST_COMPONENT = "costComponent";
+    private static final long START_DATE = 1234L;
+    private static final String START_DATE_STR = DateTimeUtil.toString(1234L);
+    private static final long END_DATE = 5678L;
+    private static final String PUID = "puid-";
+    private static final String CSP = "CSP";
+    private static final String AWS = "AWS";
+    private static final String COST_COMPONENT = "costComponent";
+
 
     private PaginationMapper paginationMapper = mock(PaginationMapper.class);
 
@@ -608,7 +610,7 @@ public class StatsMapperTest {
         apiDTO3.setUuid("6");
 
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
-                .setSnapshotDate("date-value")
+                .setSnapshotDate(1_000_000)
                 .addStatRecords(getStatRecordBuilder(null, 1l, Optional.of(4l)))
                 .addStatRecords(getStatRecordBuilder(null, 2l, Optional.of(5l)))
                 .addStatRecords(getStatRecordBuilder(null, 3l,  Optional.of(6l)))
@@ -622,7 +624,7 @@ public class StatsMapperTest {
                 ImmutableList.of(apiDTO1, apiDTO2, apiDTO3),
                 targetsService);
         // Assert
-        assertThat(cloudStatRecord.getSnapshotDate(), is(mapped.getDate()));
+        assertThat(mapped.getDate(), is(DateTimeUtil.toString(cloudStatRecord.getSnapshotDate())));
         assertThat(cloudStatRecord.getStatRecordsCount(), is(mapped.getStatistics().size()));
         assertEquals(3, cloudStatRecord.getStatRecordsCount());
         assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO ->
@@ -648,11 +650,6 @@ public class StatsMapperTest {
                 RelationType.METRICS.getLiteral()};
 
         // Arrange
-        StatSnapshot testSnapshot = StatSnapshot.newBuilder()
-                .setSnapshotDate(START_DATE)
-                .addAllStatRecords(buildStatRecords(postfixes, relations))
-                .build();
-
         TargetApiDTO targetApiDTO1 = new TargetApiDTO();
         targetApiDTO1.setType("AWS");
         targetApiDTO1.setUuid("4");
@@ -664,7 +661,7 @@ public class StatsMapperTest {
         targetApiDTO3.setType("AWS");
 
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
-                .setSnapshotDate("date-value")
+                .setSnapshotDate(START_DATE)
                 .addStatRecords(getStatRecordBuilder(null, 1l, Optional.empty()))
                 .addStatRecords(getStatRecordBuilder(null, 2l, Optional.empty()))
                 .addStatRecords(getStatRecordBuilder(null, 4l, Optional.empty()))
@@ -678,7 +675,7 @@ public class StatsMapperTest {
                 Collections.EMPTY_LIST,
                 targetsService);
         // Assert
-        assertThat(cloudStatRecord.getSnapshotDate(), is(mapped.getDate()));
+        assertThat(mapped.getDate(), is(START_DATE_STR));
         assertThat(cloudStatRecord.getStatRecordsCount(), is(mapped.getStatistics().size()));
         assertEquals(3, cloudStatRecord.getStatRecordsCount());
         assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO ->
@@ -697,11 +694,6 @@ public class StatsMapperTest {
                 RelationType.METRICS.getLiteral()};
 
         // Arrange
-        StatSnapshot testSnapshot = StatSnapshot.newBuilder()
-                .setSnapshotDate(START_DATE)
-                .addAllStatRecords(buildStatRecords(postfixes, relations))
-                .build();
-
         TargetApiDTO targetApiDTO1 = new TargetApiDTO();
         targetApiDTO1.setType("AWS");
         targetApiDTO1.setUuid("4");
@@ -710,7 +702,7 @@ public class StatsMapperTest {
         targetApiDTO3.setType("AWS");
 
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
-                .setSnapshotDate("date-value")
+                .setSnapshotDate(START_DATE)
                 .addStatRecords(getStatRecordBuilder(null, 1l, Optional.of(11111L)))
                 .addStatRecords(getStatRecordBuilder(null, 2l, Optional.empty()))
                 .addStatRecords(getStatRecordBuilder(null, 4l, Optional.empty()))
@@ -724,7 +716,7 @@ public class StatsMapperTest {
                 Collections.EMPTY_LIST,
                 targetsService);
         // Assert
-        assertThat(cloudStatRecord.getSnapshotDate(), is(mapped.getDate()));
+        assertThat(mapped.getDate(), is(START_DATE_STR));
         assertThat(cloudStatRecord.getStatRecordsCount(), is(mapped.getStatistics().size()));
         assertEquals(3, cloudStatRecord.getStatRecordsCount());
         assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO ->
@@ -771,7 +763,7 @@ public class StatsMapperTest {
     @Test
     public void testToCloudStatSnapshotApiDTO() throws Exception{
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
-                .setSnapshotDate(DateTimeUtil.toString(1))
+                .setSnapshotDate(START_DATE)
                 .addStatRecords(getStatRecordBuilder(CostCategory.ON_DEMAND_COMPUTE, 1l, Optional.empty()))
                 .addStatRecords(getStatRecordBuilder(CostCategory.IP, 2l, Optional.empty()))
                 .addStatRecords(getStatRecordBuilder(CostCategory.LICENSE, 3l, Optional.empty()))
@@ -779,7 +771,7 @@ public class StatsMapperTest {
                 .addStatRecords(getStatRecordBuilder(CostCategory.RI_COMPUTE, 5l, Optional.empty()))
                 .build();
         final StatSnapshotApiDTO mapped = statsMapper.toCloudStatSnapshotApiDTO(cloudStatRecord);
-        assertThat(cloudStatRecord.getSnapshotDate(), is(mapped.getDate()));
+        assertThat(mapped.getDate(), is(START_DATE_STR));
         assertThat(cloudStatRecord.getStatRecordsCount(), is(mapped.getStatistics().size()));
         assertEquals(5, cloudStatRecord.getStatRecordsCount());
         assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO -> statApiDTO.getFilters() != null ));
@@ -798,11 +790,11 @@ public class StatsMapperTest {
     @Test
     public void testToCloudStatSnapshotApiDTOWithEmptyCostCategory() throws Exception{
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
-                .setSnapshotDate(DateTimeUtil.toString(1))
+                .setSnapshotDate(START_DATE)
                 .addStatRecords(getStatRecordBuilder(null, 1l, Optional.empty()))
                 .build();
         final StatSnapshotApiDTO mapped = statsMapper.toCloudStatSnapshotApiDTO(cloudStatRecord);
-        assertThat(cloudStatRecord.getSnapshotDate(), is(mapped.getDate()));
+        assertThat(mapped.getDate(), is(START_DATE_STR));
         assertThat(cloudStatRecord.getStatRecordsCount(), is(mapped.getStatistics().size()));
         assertEquals(1, cloudStatRecord.getStatRecordsCount());
         assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO -> CollectionUtils.isEmpty(statApiDTO.getFilters())));
