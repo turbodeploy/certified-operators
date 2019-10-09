@@ -29,8 +29,9 @@ import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
+import reactor.core.publisher.EmitterProcessor;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.FluxSink;
+import reactor.core.publisher.FluxProcessor;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
@@ -99,16 +100,16 @@ public class GroupStore implements Diagnosable {
 
     private final EntityToClusterMapping entityToClusterMapping;
 
-
     /**
-     * Provides access to a stream of group store updates.
+     * The flux processor used for sending and subscribing to group update events. We're using
+     * an EmitterProcessor here so we can get the built-in support for multicasting and backpressure.
+     * A DirectProcessor would probably have also been fine. We used to use a plain shared Flux here,
+     * which could also work, but it buffers updates until the first subscription starts, which was
+     * not a desired behavior. (it was not very harmful either though, since we add a subscription in
+     * SettingStore anyways)
+     *
      */
-    private final Flux<GroupStoreUpdateEvent> updateEventFlux;
-
-    /**
-     * The statusEmitter is used to push updates to the statusFlux subscribers.
-     */
-    private FluxSink<GroupStoreUpdateEvent> updateEventEmitter;
+    private FluxProcessor<GroupStoreUpdateEvent, GroupStoreUpdateEvent> eventEmitter;
 
     public GroupStore(@Nonnull final DSLContext dslContext,
                       @Nonnull final PolicyStore policyStore,
@@ -119,11 +120,8 @@ public class GroupStore implements Diagnosable {
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.entityToClusterMapping = Objects.requireNonNull(entityToClusterMapping);
 
-        // create a flux that a listener can subscribe to group store update events on.
-        Flux<GroupStoreUpdateEvent> primaryFlux = Flux.create(emitter -> updateEventEmitter = emitter);
-        updateEventFlux = primaryFlux.share(); // create a shareable flux for multicasting.
-        // start publishing immediately w/o waiting for a consumer to signal demand.
-        updateEventFlux.publish().connect();
+        // create a shared flux that a listener can subscribe to group store update events on.
+        eventEmitter = EmitterProcessor.<GroupStoreUpdateEvent>create().connect();
     }
 
     /**
@@ -613,7 +611,7 @@ public class GroupStore implements Diagnosable {
                 .execute();
 
         // broadcast the removal event
-        updateEventEmitter.next(GroupStoreUpdateEvent.createRemoveEvent(group));
+        sendUpdate(GroupStoreUpdateEvent.createRemoveEvent(group));
     }
 
     @Nonnull
@@ -640,7 +638,7 @@ public class GroupStore implements Diagnosable {
                 context.newRecord(Tables.TAGS_GROUP, record).store());
 
         // broadcast the add event
-        updateEventEmitter.next(GroupStoreUpdateEvent.createAddedEvent(group));
+        sendUpdate(GroupStoreUpdateEvent.createAddedEvent(group));
 
         return toGroup(grouping).orElseThrow(() -> new IllegalArgumentException(
                 "Failed to map grouping for group " + group.getId() + " (" + groupName + ") back to group."));
@@ -685,7 +683,7 @@ public class GroupStore implements Diagnosable {
                 context.newRecord(Tables.TAGS_GROUP, record).store());
 
         // broadcast the update event
-        updateEventEmitter.next(GroupStoreUpdateEvent.createUpdatedEvent(group));
+        sendUpdate(GroupStoreUpdateEvent.createUpdatedEvent(group));
 
         return toGroup(groupingRecord.into(Grouping.class)).orElseThrow(() ->
                 new IllegalArgumentException("Failed to map grouping for group " + group.getId() +
@@ -713,7 +711,16 @@ public class GroupStore implements Diagnosable {
      * @return
      */
     public Flux<GroupStoreUpdateEvent> getUpdateEventStream() {
-        return updateEventFlux;
+        return eventEmitter;
+    }
+
+    /**
+     * Publish a group store update over the flux.
+     *
+     * @param update the update to publish
+     */
+    private void sendUpdate(GroupStoreUpdateEvent update) {
+        eventEmitter.onNext(update);
     }
 
     @Nonnull

@@ -15,7 +15,6 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -474,6 +473,48 @@ public class GroupStoreTest {
             .when(policyStore).deletePoliciesForGroup(any(), eq(GROUP_ID));
 
         groupStore.deleteUserGroup(GROUP_ID);
+    }
+
+    /**
+     * Verify that group store updates are only received after subscribing to them.
+     *
+     * @throws DuplicateNameException if the group we are creating already exists (shouldnt happen)
+     */
+    @Test
+    public void testHotUpdates() throws DuplicateNameException {
+        when(identityProvider.next()).thenReturn(GROUP_ID);
+
+        groupStore.newUserGroup(GROUP_INFO);
+        // dummy subscriber
+        groupStore.getUpdateEventStream().subscribe();
+
+        final SetOnce<Group> updatedGroup = new SetOnce<>();
+        // verify that the "new" update event is published after the group is updated but the "old" udpate event is not
+        StepVerifier.create(groupStore.getUpdateEventStream())
+                .then(() -> {
+                    try {
+                        updatedGroup.trySetValue(groupStore.updateUserGroup(GROUP_ID, UPDATED_GROUP_INFO));
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+                .expectNextMatches(event -> event.getType() == GroupChangeType.UPDATED
+                        && event.getGroup().getId() == GROUP_ID)
+                .thenCancel()
+                .verify();
+
+        assertTrue(updatedGroup.getValue().isPresent());
+        final Group group = updatedGroup.getValue().get();
+
+        assertThat(group.getId(), is(GROUP_ID));
+        assertThat(group.getGroup(), is(UPDATED_GROUP_INFO));
+        assertThat(group.getOrigin(), is(Origin.USER));
+        assertThat(group.getType(), is(Type.GROUP));
+
+        final Group gotGroup = groupStore.get(GROUP_ID).get();
+        assertThat(gotGroup, is(group));
+
+        assertFalse(tagsAreInDB(GROUP_ID));
     }
 
     @Test

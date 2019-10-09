@@ -904,6 +904,7 @@ public class SettingStore implements Diagnosable {
         // re-appear in future discoveries. This may result in dangling references when a discovered
         // group is actually deleted "for real", but the system is designed to tolerate them and treat
         // them as null references so hopefully they wouldn't become an issue.
+        logger.info("Handling group {} deletion", deletedGroup.getId());
         if (deletedGroup.hasOrigin() && deletedGroup.getOrigin().equals(Origin.DISCOVERED)) {
             return 0;
         }
