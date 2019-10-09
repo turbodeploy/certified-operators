@@ -46,6 +46,7 @@ import com.vmturbo.api.component.external.api.mapper.SettingsMapper.DefaultSetti
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDTOPossibilities;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingPolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingSpecMapper;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
@@ -74,8 +75,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
-import com.vmturbo.common.protobuf.setting.SettingProto.ListOfOidSettingValue;
-import com.vmturbo.common.protobuf.setting.SettingProto.ListOfOidSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Schedule;
@@ -94,6 +93,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
+import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
@@ -177,14 +178,12 @@ public class SettingsMapperTest {
                 (new SettingsManagerMappingLoader("settingManagersTest.json")).getMapping(),
                 (new SettingSpecStyleMappingLoader("settingSpecStyleTest.json")).getMapping());
 
-        final List<SettingsManagerApiDTO> ret =
-                mapper.toManagerDtos(Arrays.asList(settingSpec1, settingSpec3), Optional.empty());
-        assertEquals(2, ret.size());
-        if ("marketsettingsmanager".equals(ret.get(0).getUuid())) {
-            ret.set(1, ret.set(0, ret.get(1)));
-        }
+        final Map<String, SettingsManagerApiDTO> mgrsByUuid =
+            mapper.toManagerDtos(Arrays.asList(settingSpec1, settingSpec3), Optional.empty()).stream()
+                .collect(Collectors.toMap(BaseApiDTO::getUuid, Function.identity()));
+        assertEquals(2, mgrsByUuid.size());
 
-        final SettingsManagerApiDTO mgr = ret.get(0);
+        final SettingsManagerApiDTO mgr = mgrsByUuid.get("automationmanager");
         assertEquals("automationmanager", mgr.getUuid());
         assertEquals("Action Mode Settings", mgr.getDisplayName());
         assertEquals("Automation", mgr.getCategory());
@@ -211,7 +210,7 @@ public class SettingsMapperTest {
         assertThat(settingApiDTO.getRange().getLabels(),
             containsInAnyOrder("Performance", "Efficiency"));
 
-        final SettingsManagerApiDTO mktomgr = ret.get(1);
+        final SettingsManagerApiDTO mktomgr = mgrsByUuid.get("marketsettingsmanager");
         assertEquals("marketsettingsmanager", mktomgr.getUuid());
         assertEquals("Operational Constraints", mktomgr.getDisplayName());
         assertEquals("Analysis", mktomgr.getCategory());
@@ -515,17 +514,17 @@ public class SettingsMapperTest {
 
         final SettingApiDTO enumSetting = makeSetting("enum setting", "VAL");
 
-        final SettingApiDTO listSetting = makeSetting("list setting", "1,2,3");
+        final SettingApiDTO setOfOidSetting = makeSetting("set of oid setting", "1,2,3");
 
         return makeSettingsPolicyApiDto(
-            boolSetting, numSetting, stringSetting, enumSetting, listSetting);
+            boolSetting, numSetting, stringSetting, enumSetting, setOfOidSetting);
     }
 
     private SettingsPolicyApiDTO makeSettingsPolicyApiDto(SettingApiDTO<?> boolSetting,
                                                           SettingApiDTO<?> numSetting,
                                                           SettingApiDTO<?> stringSetting,
                                                           SettingApiDTO<?> enumSetting,
-                                                          SettingApiDTO<?> listSetting) {
+                                                          SettingApiDTO<?> setOfOidSetting) {
         final SettingsPolicyApiDTO settingsPolicyApiDTO = new SettingsPolicyApiDTO();
 
         when(settingBackend.searchSettingSpecs(any())).thenReturn(ImmutableList.of(
@@ -546,15 +545,15 @@ public class SettingsMapperTest {
                 .setEnumSettingValueType(EnumSettingValueType.getDefaultInstance())
                 .build(),
             SettingSpec.newBuilder()
-                .setName(listSetting.getUuid())
-                .setListOfOidSettingValueType(ListOfOidSettingValueType.getDefaultInstance())
+                .setName(setOfOidSetting.getUuid())
+                .setSortedSetOfOidSettingValueType(SortedSetOfOidSettingValueType.getDefaultInstance())
                 .build()
         ));
 
         final SettingsManagerApiDTO settingMgr1 = new SettingsManagerApiDTO();
         settingMgr1.setSettings(Arrays.asList(boolSetting, numSetting));
         final SettingsManagerApiDTO settingMgr2 = new SettingsManagerApiDTO();
-        settingMgr2.setSettings(Arrays.asList(stringSetting, enumSetting, listSetting));
+        settingMgr2.setSettings(Arrays.asList(stringSetting, enumSetting, setOfOidSetting));
 
         settingsPolicyApiDTO.setSettingsManagers(Arrays.asList(settingMgr1, settingMgr2));
         settingsPolicyApiDTO.setDefault(false);
@@ -600,14 +599,14 @@ public class SettingsMapperTest {
                 .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("VAL"))
                 .build();
 
-        final SettingApiDTO listOfOidSetting = makeSetting("list setting", "1,2,3");
-        final Setting listSettingProto = Setting.newBuilder()
-            .setSettingSpecName(listOfOidSetting.getUuid())
-            .setListOfOidSettingValue(ListOfOidSettingValue.newBuilder().addAllOids(Arrays.asList(1L, 2L, 3L)))
-            .build();
+        final SettingApiDTO setOfOidSetting = makeSetting("set of oid setting", "4,2,1,2,3,4,3");
+        final Setting setOfOidSettingProto = Setting.newBuilder()
+            .setSettingSpecName(setOfOidSetting.getUuid())
+            .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                .addAllOids(Arrays.asList(1L, 2L, 3L, 4L))).build();
 
         final SettingsPolicyApiDTO settingsPolicyApiDTO = makeSettingsPolicyApiDto(boolSetting, numSetting,
-                stringSetting, enumSetting, listOfOidSetting);
+                stringSetting, enumSetting, setOfOidSetting);
 
         final int entityType = EntityType.VIRTUAL_MACHINE.getNumber();
 
@@ -622,7 +621,7 @@ public class SettingsMapperTest {
         assertThat(info.getScope().getGroupsList(), containsInAnyOrder(7L));
         assertThat(info.getSettingsList(),
                 containsInAnyOrder(boolSettingProto, numSettingProto,
-                        strSettingProto, enumSettingProto, listSettingProto));
+                        strSettingProto, enumSettingProto, setOfOidSettingProto));
         assertTrue(info.hasSchedule());
         final Schedule schedule = info.getSchedule();
         verifyBasicSchedule(schedule);

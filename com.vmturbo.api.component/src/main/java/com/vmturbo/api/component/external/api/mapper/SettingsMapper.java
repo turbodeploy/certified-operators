@@ -70,7 +70,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.ListOfOidSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Schedule;
@@ -84,6 +83,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.SettingValueTypeCase;
+import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingRequest;
@@ -121,10 +121,11 @@ public class SettingsMapper {
             .put(SettingValueTypeCase.ENUM_SETTING_VALUE_TYPE,
                 (val, builder) -> builder.setEnumSettingValue(EnumSettingValue.newBuilder()
                 .setValue(ActionDTOUtil.mixedSpacesToUpperUnderScore(val))))
-            .put(SettingValueTypeCase.LIST_OF_OID_SETTING_VALUE_TYPE,
-                (val, builder) -> builder.setListOfOidSettingValue(ListOfOidSettingValue.newBuilder()
-                    .addAllOids(() -> Arrays.stream(StringUtils.split(val, ","))
-                        .mapToLong(Long::valueOf).iterator())))
+            .put(SettingValueTypeCase.SORTED_SET_OF_OID_SETTING_VALUE_TYPE,
+                // Here we sort strictly the list of oids provided by UI/API.
+                (val, builder) -> builder.setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue
+                    .newBuilder().addAllOids(() -> Arrays.stream(StringUtils.split(val, ","))
+                        .mapToLong(Long::valueOf).sorted().distinct().iterator())))
             .build();
 
     /**
@@ -150,8 +151,8 @@ public class SettingsMapper {
                 apiDTO.setValue(setting.getEnumSettingValue().getValue());
                 apiDTO.setValueType(InputValueType.STRING);
             })
-            .put(ValueCase.LIST_OF_OID_SETTING_VALUE, (setting, apiDTO) -> {
-                apiDTO.setValue(setting.getListOfOidSettingValue().getOidsList().stream()
+            .put(ValueCase.SORTED_SET_OF_OID_SETTING_VALUE, (setting, apiDTO) -> {
+                apiDTO.setValue(setting.getSortedSetOfOidSettingValue().getOidsList().stream()
                     .map(String::valueOf).collect(Collectors.joining(",")));
                 apiDTO.setValueType(InputValueType.LIST);
             })
@@ -1325,7 +1326,7 @@ public class SettingsMapper {
                             })
                             .collect(Collectors.toList()));
                     break;
-                case LIST_OF_OID_SETTING_VALUE_TYPE:
+                case SORTED_SET_OF_OID_SETTING_VALUE_TYPE:
                     dtoSkeleton.setValueType(InputValueType.LIST);
                     break;
                 default:

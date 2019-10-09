@@ -81,7 +81,8 @@ public class TierExcluder {
         Map<Set<Long>, CommodityType> excludedTiersToCommodityType = Maps.newHashMap();
         Stream<EntitySettingGroup> entitySettingGroups = fetchTierExclusionSettings();
         entitySettingGroups.forEach(entitySettingGroup -> {
-            List<Long> excludedTiersList = entitySettingGroup.getSetting().getListOfOidSettingValue().getOidsList();
+            List<Long> excludedTiersList = entitySettingGroup.getSetting()
+                .getSortedSetOfOidSettingValue().getOidsList();
             List<Long> consumers = entitySettingGroup.getEntityOidsList();
             // Make sure that the setting has some consumer and some excluded tiers
             // Also make sure that the topology contains the excluded tier

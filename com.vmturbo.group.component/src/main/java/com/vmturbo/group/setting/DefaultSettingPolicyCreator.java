@@ -26,14 +26,14 @@ import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
-import com.vmturbo.common.protobuf.setting.SettingProto.ListOfOidSettingValue;
-import com.vmturbo.common.protobuf.setting.SettingProto.ListOfOidSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -253,9 +253,9 @@ public class DefaultSettingPolicyCreator implements Runnable {
                         .setValue(specificTypeDefault.orElse(valueType.getDefault())));
                 break;
             }
-            case LIST_OF_OID_SETTING_VALUE_TYPE:
-                final ListOfOidSettingValueType valueType = spec.getListOfOidSettingValueType();
-                retBuilder.setListOfOidSettingValue(ListOfOidSettingValue.newBuilder()
+            case SORTED_SET_OF_OID_SETTING_VALUE_TYPE:
+                final SortedSetOfOidSettingValueType valueType = spec.getSortedSetOfOidSettingValueType();
+                retBuilder.setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
                     .addAllOids(valueType.getDefaultList()));
                 break;
             default: {

@@ -30,8 +30,8 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolic
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup.SettingPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.ListOfOidSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -333,8 +333,8 @@ public class TierExcluderTest {
 
     private EntitySettingGroup createEntitySettingGroup(
         List<Long> excludedTiers, List<Long> consumers, List<Long> policyIds) {
-        Setting exclusionSetting = Setting.newBuilder().setListOfOidSettingValue(
-            ListOfOidSettingValue.newBuilder()
+        Setting exclusionSetting = Setting.newBuilder().setSortedSetOfOidSettingValue(
+            SortedSetOfOidSettingValue.newBuilder()
                 .addAllOids(excludedTiers).build()).build();
         SettingPolicyId settingPolicyId = SettingPolicyId.newBuilder().setPolicyId(policyIds.get(0)).build();
         EntitySettingGroup entitySettingGroup = EntitySettingGroup.newBuilder()

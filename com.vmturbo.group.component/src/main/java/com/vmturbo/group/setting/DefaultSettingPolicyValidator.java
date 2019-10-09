@@ -21,6 +21,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.jooq.exception.DataAccessException;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Ordering;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -65,7 +66,7 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
         processors.put(SettingValueTypeCase.ENUM_SETTING_VALUE_TYPE, this::processEnumSetting);
         processors.put(SettingValueTypeCase.STRING_SETTING_VALUE_TYPE, this::processStringSetting);
         processors.put(SettingValueTypeCase.NUMERIC_SETTING_VALUE_TYPE, this::processNumericSetting);
-        processors.put(SettingValueTypeCase.LIST_OF_OID_SETTING_VALUE_TYPE, this::processListSetting);
+        processors.put(SettingValueTypeCase.SORTED_SET_OF_OID_SETTING_VALUE_TYPE, this::processSortedSetOfOidSetting);
         settingProcessors = Collections.unmodifiableMap(processors);
     }
 
@@ -322,21 +323,23 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
     }
 
     /**
-     * Validate settings with {@link ValueCase.LIST_OF_OID_SETTING_VALUE}.
+     * Validate settings with {@link ValueCase.SORTED_SET_OF_OID_SETTING_VALUE}.
+     * The list value of the setting should be sorted in natural order and
+     * shouldn't contain any duplicate, which means it's strictly ordered.
      *
      * @param setting the {@link Setting} to validate
      * @param settingSpec the {@link SettingSpec} corresponds to the setting
      * @return a {@link Collection} of errors
      */
-    private Collection<String> processListSetting(@Nonnull Setting setting,
-                                                  @Nonnull SettingSpec settingSpec) {
-        final Optional<String> typeError = matchType(setting, ValueCase.LIST_OF_OID_SETTING_VALUE);
+    private Collection<String> processSortedSetOfOidSetting(@Nonnull Setting setting,
+                                                            @Nonnull SettingSpec settingSpec) {
+        final Optional<String> typeError = matchType(setting, ValueCase.SORTED_SET_OF_OID_SETTING_VALUE);
         if (typeError.isPresent()) {
             return Collections.singleton(typeError.get());
         }
-        final List<Long> value = setting.getListOfOidSettingValue().getOidsList();
-        if (value.isEmpty()) {
-            return Collections.singleton("Value " + value + " can't be empty.");
+        final List<Long> value = setting.getSortedSetOfOidSettingValue().getOidsList();
+        if (!Ordering.natural().isStrictlyOrdered(value)) {
+            return Collections.singleton("Value " + value + " is not strictly ordered.");
         }
         return Collections.emptySet();
     }

@@ -23,10 +23,10 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.AllEntityType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
-import com.vmturbo.common.protobuf.setting.SettingProto.ListOfOidSettingValueType.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
+import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValueType.Type;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -418,7 +418,7 @@ public enum EntitySettingSpecs {
         Collections.singletonList("resizeRecommendationsConstants"),
         SettingTiebreaker.UNION,
         EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER),
-        listOfOid(Type.ENTITY), true),
+        sortedSetOfOid(Type.ENTITY), true),
 
     /**
      * Storage Increment.
@@ -998,13 +998,13 @@ public enum EntitySettingSpecs {
     }
 
     @Nonnull
-    private static SettingDataStructure<?> listOfOid(@Nonnull final Type type) {
-        return new ListOfOidSettingDataType(type, Collections.emptyList());
+    private static SettingDataStructure<?> sortedSetOfOid(@Nonnull final Type type) {
+        return new SortedSetOfOidSettingDataType(type, Collections.emptySet());
     }
 
     @Nonnull
-    private static SettingDataStructure<?> listOfOid(@Nonnull final Type type,
-                                                     @Nonnull final List<Long> defaultValue) {
-        return new ListOfOidSettingDataType(type, defaultValue);
+    private static SettingDataStructure<?> sortedSetOfOid(@Nonnull final Type type,
+                                                          @Nonnull final Set<Long> defaultValue) {
+        return new SortedSetOfOidSettingDataType(type, defaultValue);
     }
 }

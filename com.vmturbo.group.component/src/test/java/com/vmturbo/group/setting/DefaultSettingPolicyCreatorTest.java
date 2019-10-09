@@ -30,13 +30,13 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.Entit
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
-import com.vmturbo.common.protobuf.setting.SettingProto.ListOfOidSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.group.group.GroupStore;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
@@ -140,14 +140,15 @@ public class DefaultSettingPolicyCreatorTest {
     @Test
     public void testDefSettingFromSpecList() throws Exception {
         final SettingSpec spec = SettingSpec.newBuilder(defaultSetting)
-            .setListOfOidSettingValueType(
-                ListOfOidSettingValueType.newBuilder().setType(ListOfOidSettingValueType.Type.ENTITY))
+            .setSortedSetOfOidSettingValueType(
+                SortedSetOfOidSettingValueType.newBuilder()
+                    .setType(SortedSetOfOidSettingValueType.Type.ENTITY))
             .build();
         final SettingPolicyInfo info = getPolicyInfo(spec);
         Assert.assertEquals(1, info.getSettingsCount());
         final Setting setting = info.getSettings(0);
         Assert.assertEquals(spec.getName(), setting.getSettingSpecName());
-        Assert.assertTrue(setting.getListOfOidSettingValue().getOidsList().isEmpty());
+        Assert.assertTrue(setting.getSortedSetOfOidSettingValue().getOidsList().isEmpty());
     }
 
     /**
