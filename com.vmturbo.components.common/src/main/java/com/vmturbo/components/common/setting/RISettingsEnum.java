@@ -8,12 +8,12 @@ import java.util.Optional;
 public class RISettingsEnum {
 
     /**
-     * Preferred Offering Class that can be used.
+     * Preferred Offering Class that can be used
      */
     public enum PreferredOfferingClass { STANDARD, CONVERTIBLE }
 
     /**
-     * Preferred Terms that can be used.
+     * Preferred Terms that can be used
      */
     public enum PreferredTerm {
         //1 Year
@@ -39,7 +39,7 @@ public class RISettingsEnum {
         }
 
         /**
-         * Returns Optional with enum const matching int value.
+         * Returns Optional with enum const matching int value
          *
          * @param years the int value of the enum const to be returned
          * @return Optional of PreferredTem Enum Const
@@ -58,21 +58,7 @@ public class RISettingsEnum {
     }
 
     /**
-     * Preferred Payment Options that can be used.
+     * Preferred Payment Options that can be used
      */
     public enum PreferredPaymentOption { ALL_UPFRONT, PARTIAL_UPFRONT, NO_UPFRONT }
-
-    /**
-     * Demand type.
-     */
-    public enum DemandType {
-        /**
-         * Allocation demand type.
-         */
-        ALLOCATION,
-        /**
-         * Consumption demand type.
-         */
-        CONSUMPTION;
-    }
 }

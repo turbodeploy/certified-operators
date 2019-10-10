@@ -3,7 +3,6 @@ package com.vmturbo.api.component.external.api.mapper;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredOfferingClass;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredPaymentOption;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredTerm;
-import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIDemandType;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIPurchase;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIPurchaseDate;
 import static org.hamcrest.core.Is.is;
@@ -39,6 +38,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
@@ -99,7 +99,6 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 
@@ -555,7 +554,7 @@ public class ScenarioMapperTest {
     }
 
     /**
-     * Tests ScenarioChange Object is correctly built to match SettingApiDTO configurations.
+     * Tests ScenarioChange Object is correctly built to match SettingApiDTO configurations
      */
     @Test
     public void buildRISettingChangesShouldCreateScenarioChangeWithRISettingFromAWSRIsettings() {
@@ -566,7 +565,6 @@ public class ScenarioMapperTest {
         riSettingList.add(createStringSetting(AWSPreferredPaymentOption.getSettingName(), "Partial Upfront"));
         riSettingList.add(createStringSetting(AWSPreferredTerm.getSettingName(), "Years 1"));
         riSettingList.add(createStringSetting(RIPurchaseDate.getSettingName(), "123"));
-        riSettingList.add(createStringSetting(RIDemandType.getSettingName(), "Consumption"));
 
         // WHEN
         final ScenarioChange scenarioChange = scenarioMapper.buildRISettingChanges(riSettingList);
@@ -579,26 +577,6 @@ public class ScenarioMapperTest {
         Assert.assertEquals(PaymentOption.PARTIAL_UPFRONT, riSetting.getPreferredPaymentOption());
         Assert.assertEquals(1, riSetting.getPreferredTerm());
         Assert.assertEquals(123, riSetting.getPurchaseDate());
-        Assert.assertEquals(DemandType.CONSUMPTION, riSetting.getDemandType());
-    }
-
-    /**
-     * Tests ScenarioChange Object is correctly built when there is no demand type set.
-     */
-    @Test
-    public void buildRISettingChangesWithoutDemandType() {
-        // GIVEN
-        List<SettingApiDTO> riSettingList = new ArrayList<>();
-        riSettingList.add(createStringSetting(RIPurchase.getSettingName(), "true"));
-
-        // WHEN
-        final ScenarioChange scenarioChange = scenarioMapper.buildRISettingChanges(riSettingList);
-
-        // THEN
-        Assert.assertNotNull(scenarioChange);
-        final RISetting riSetting = scenarioChange.getRiSetting();
-        Assert.assertNotNull(riSetting);
-        Assert.assertFalse(riSetting.hasDemandType());
     }
 
     /**
