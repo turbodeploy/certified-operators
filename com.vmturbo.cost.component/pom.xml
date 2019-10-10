@@ -290,7 +290,10 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>components-api</artifactId>
         </dependency>
-
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>identity</artifactId>
+        </dependency>
     </dependencies>
 
 </project>
