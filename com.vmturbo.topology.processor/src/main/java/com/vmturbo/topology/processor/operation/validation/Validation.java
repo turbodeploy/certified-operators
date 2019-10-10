@@ -60,4 +60,10 @@ public class Validation extends Operation {
     protected DataMetricCounter getStatusCounter() {
         return VALIDATION_STATUS_COUNTER;
     }
+
+    @Nonnull
+    @Override
+    public String getErrorString() {
+        return "Validation failed: " + String.join(", ", getErrors());
+    }
 }

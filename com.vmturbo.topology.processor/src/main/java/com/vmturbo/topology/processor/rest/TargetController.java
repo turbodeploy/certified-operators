@@ -32,7 +32,7 @@ import io.swagger.annotations.ApiResponses;
 
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.exceptions.IdentifierConflictException;
-import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.GetAllTargetsResponse;
@@ -239,9 +239,13 @@ public class TargetController {
         } else if (inProgressDiscovery.isPresent() && inProgressDiscovery.get().getUserInitiated()) {
             status = "Discovery in progress";
         } else if (latestFinished.isPresent()) {
-            status = latestFinished.get().getStatus() ==
-                    TopologyProcessorDTO.OperationStatus.Status.SUCCESS ? VALIDATED :
-                    String.join("Validation Failed, ", latestFinished.get().getErrors());
+            // If there is no on-going operation which was initiated by the user - show the
+            // status of the last operation.
+            if (latestFinished.get().getStatus() == OperationStatus.Status.SUCCESS) {
+                status = VALIDATED;
+            } else {
+                status = latestFinished.get().getErrorString();
+            }
         } else if (!isProbeConnected) {
             status = "Failed to connect to probe. Check if probe is running";
         } else {

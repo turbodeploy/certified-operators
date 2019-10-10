@@ -96,7 +96,7 @@ public class Target {
                 .forEach(accountValBuilder::add);
         mediationAccountVals = accountValBuilder.build();
 
-        if (info.targetInfo.hasDisplayName()) {
+        if (!info.targetInfo.hasDisplayName()) {
             logger.error("Empty target display name for target id " + this.id);
         }
     }

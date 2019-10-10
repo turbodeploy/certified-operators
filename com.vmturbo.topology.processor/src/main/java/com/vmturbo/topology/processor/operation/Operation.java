@@ -133,6 +133,11 @@ public abstract class Operation {
         return errors;
     }
 
+    @Nonnull
+    public String getErrorString() {
+        return String.join(", ", errors);
+    }
+
     /**
      * Check if the operation is in progress.
      *

@@ -57,4 +57,10 @@ public class Discovery extends Operation {
     protected DataMetricCounter getStatusCounter() {
         return DISCOVERY_STATUS_COUNTER;
     }
+
+    @Nonnull
+    @Override
+    public String getErrorString() {
+        return "Discovery failed: " + String.join(", ", getErrors());
+    }
 }
