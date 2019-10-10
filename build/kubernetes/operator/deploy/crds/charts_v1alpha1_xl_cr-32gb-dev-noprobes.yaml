@@ -10,6 +10,7 @@ spec:
     tag: 7.21.0
     externalIP: 10.0.2.15
     externalDbIP: 10.0.2.15
+    debug: true
     dev_options: "-agentlib:jdwp=transport=dt_socket,address=0.0.0.0:8000,server=y,suspend=n"
 
   # Component selector - Core
@@ -106,7 +107,7 @@ spec:
   action-orchestrator:
     resources:
       limits:
-        memory: 4Gi
+        memory: 2Gi
   api:
     resources:
       limits:
@@ -126,15 +127,15 @@ spec:
   group:
     resources:
       limits:
-        memory: 1Gi
+        memory: 768Mi
   history:
     resources:
       limits:
-        memory: 4Gi
+        memory: 2Gi
   market:
     resources:
       limits:
-        memory: 6Gi
+        memory: 3Gi
   ml-datastore:
     resources:
       limits:
@@ -154,11 +155,11 @@ spec:
   repository:
     resources:
       limits:
-        memory: 4Gi
+        memory: 3Gi
   topology-processor:
     resources:
       limits:
-        memory: 6Gi
+        memory: 4Gi
 
   # Resource limits - Core 3rd party
   arangodb:
@@ -168,11 +169,11 @@ spec:
   kafka:
     resources:
       limits:
-        memory: 4Gi
+        memory: 2Gi
   zookeeper:
     resources:
       limits:
-        memory: 1Gi
+        memory: 512Mi
 
   # Resources limits - Probes
   mediation-actionscript:
@@ -186,11 +187,11 @@ spec:
   mediation-appdynamics:
     resources:
       limits:
-        memory: 2048Mi
+        memory: 1Gi
   mediation-aws:
     resources:
       limits:
-        memory: 2048Mi
+        memory: 1Gi
   mediation-awsbilling:
     resources:
       limits:
@@ -258,7 +259,7 @@ spec:
   mediation-hyperv:
     resources:
       limits:
-        memory: 2Gi
+        memory: 1Gi
   mediation-istio:
     resources:
       limits:
@@ -310,7 +311,7 @@ spec:
   mediation-ucs:
     resources:
       limits:
-        memory: 2Gi
+        memory: 1Gi
   mediation-ucsdirector:
     resources:
       limits:
@@ -322,7 +323,7 @@ spec:
   mediation-vcenter:
     resources:
       limits:
-        memory: 4Gi
+        memory: 2Gi
   mediation-vcenterbrowsing:
     resources:
       limits:
@@ -334,7 +335,7 @@ spec:
   mediation-vmm:
     resources:
       limits:
-        memory: 2Gi
+        memory: 1Gi
   mediation-vplex:
     resources:
       limits:

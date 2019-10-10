@@ -3,53 +3,105 @@ kind: Xl
 metadata:
   name: xl-release
 spec:
-  # Default values copied from <project_dir>/helm-charts/xl/values.yaml
-
-  # Default values for xl.
-  # This is a YAML-formatted file.
-  # Declare variables to be passed into your templates.
-
-  # Any changes run : kubectl apply -f deploy/crds/charts_v1alpha1_xl_cr.yaml -n turbonomic
 
   # Global settings
   global:
-  #  registry: index.docker.io
-  #  imageUsername: turbouser
-  #  imagePassword: turbopassword
     repository: turbonomic
     tag: 7.21.0
     externalIP: 10.0.2.15
     externalDbIP: 10.0.2.15
+    debug: true
+    dev_options: "-agentlib:jdwp=transport=dt_socket,address=0.0.0.0:8000,server=y,suspend=n"
+
+  # Component selector - Core
+  nginxingress:
+    enabled: true
+  istioingress:
+    enabled: false
+  platform:
+    enabled: true
+  metron:
+    enabled: false
+  prometheus:
+    enabled: false
+  grafana:
+    enabled: false
 
   # Component selector - Probes
   actionscript:
-    enabled: true
+    enabled: false
+  aix:
+    enabled: false
   appdynamics:
-    enabled: true
+    enabled: false
   aws:
     enabled: true
+  awslambda:
+    enabled: false
   azure:
     enabled: true
+  cloudfoundry:
+    enabled: false
+  compellent:
+    enabled: false
+  datadog:
+    enabled: false
   dynatrace:
-    enabled: true
+    enabled: false
+  gcp:
+    enabled: false
   hpe3par:
-    enabled: true
+    enabled: false
+  hds:
+    enabled: false
+  horizon:
+    enabled: false
+  hyperflex:
+    enabled: false
   hyperv:
-    enabled: true
+    enabled: false
+  istio:
+    enabled: false
+  mssql:
+    enabled: false
   netapp:
-    enabled: true
+    enabled: false
+  netflow:
+    enabled: false
   oneview:
-    enabled: true
+    enabled: false
+  openstack:
+    enabled: false
+  pivotal:
+    enabled: false
   pure:
-    enabled: true
+    enabled: false
+  rhv:
+    enabled: false
+  scaleio:
+    enabled: false
+  snmp:
+    enabled: false
+  tetration:
+    enabled: false
   ucs:
-    enabled: true
+    enabled: false
+  ucsdirector:
+    enabled: false
+  vcd:
+    enabled: false
   vcenter:
-    enabled: true
+    enabled: false
   vmax:
-    enabled: true
+    enabled: false
   vmm:
-    enabled: true
+    enabled: false
+  vplex:
+    enabled: false
+  wmi:
+    enabled: false
+  xtremio:
+    enabled: false
 
   # Resource limits - Core Services
   action-orchestrator:
@@ -128,6 +180,10 @@ spec:
     resources:
       limits:
         memory: 512Mi
+  mediation-aix:
+    resources:
+      limits:
+        memory: 512Mi
   mediation-appdynamics:
     resources:
       limits:
@@ -160,7 +216,35 @@ spec:
     resources:
       limits:
         memory: 512Mi
+  mediation-cloudfoundry:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-compellent:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-datadog:
+    resources:
+      limits:
+        memory: 512Mi
   mediation-dynatrace:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-gcp:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-gcpcost:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-hds:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-horizon:
     resources:
       limits:
         memory: 512Mi
@@ -168,11 +252,27 @@ spec:
     resources:
       limits:
         memory: 512Mi
+  mediation-hyperflex:
+    resources:
+      limits:
+        memory: 512Mi
   mediation-hyperv:
     resources:
       limits:
         memory: 1Gi
+  mediation-istio:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-mssql:
+    resources:
+      limits:
+        memory: 512Mi
   mediation-netapp:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-netflow:
     resources:
       limits:
         memory: 512Mi
@@ -180,7 +280,31 @@ spec:
     resources:
       limits:
         memory: 512Mi
+  mediation-openstack:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-pivotal:
+    resources:
+      limits:
+        memory: 512Mi
   mediation-pure:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-rhv:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-scaleio:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-snmp:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-tetration:
     resources:
       limits:
         memory: 512Mi
@@ -188,6 +312,14 @@ spec:
     resources:
       limits:
         memory: 1Gi
+  mediation-ucsdirector:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-vcd:
+    resources:
+      limits:
+        memory: 512Mi
   mediation-vcenter:
     resources:
       limits:
@@ -204,4 +336,15 @@ spec:
     resources:
       limits:
         memory: 1Gi
-
+  mediation-vplex:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-wmi:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-xtremio:
+    resources:
+      limits:
+        memory: 512Mi

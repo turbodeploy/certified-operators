@@ -11,6 +11,7 @@ spec:
 
   # Any changes run : kubectl apply -f deploy/crds/charts_v1alpha1_xl_cr.yaml -n turbonomic
 
+  # Global settings
   global:
   #  registry: index.docker.io
   #  imageUsername: turbouser
@@ -19,7 +20,9 @@ spec:
     tag: 7.21.0
     externalIP: 10.0.2.15
     externalDbIP: 10.0.2.15
-  vcenter:
+
+  # Component selector - Probes
+  actionscript:
     enabled: true
   appdynamics:
     enabled: true
@@ -29,19 +32,19 @@ spec:
     enabled: true
   dynatrace:
     enabled: true
-  hyperv:
+  hpe3par:
     enabled: true
-  actionscript:
+  hyperv:
     enabled: true
   netapp:
     enabled: true
-  pure:
-    enabled: true
   oneview:
+    enabled: true
+  pure:
     enabled: true
   ucs:
     enabled: true
-  hpe3par:
+  vcenter:
     enabled: true
   vmax:
     enabled: true
