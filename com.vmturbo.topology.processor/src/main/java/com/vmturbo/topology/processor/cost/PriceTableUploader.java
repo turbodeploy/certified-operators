@@ -10,8 +10,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -38,6 +40,8 @@ import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableChecksumRequest;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableChecksumResponse;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTableChecksum;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
 import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTableSegment;
 import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTableSegment.ProbePriceTableChunk;
 import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTableSegment.ProbePriceTableHeader;
@@ -169,19 +173,22 @@ public class PriceTableUploader implements Diagnosable {
                         + sourcePriceTableByProbeType.hashCode();
         double hashCalculationSecs = timer.observe();
         logger.debug("Price table hash code calculation took {} secs", hashCalculationSecs);
-        long lastConfirmedHashCode;
+        Optional<Long> previousPriceTableCheckSum;
+        Long lastConfirmedHashCode;
         try {
             // Get new hashcode checksum
-            lastConfirmedHashCode = getCheckSum();
+            previousPriceTableCheckSum = getCheckSum();
         } catch (ExecutionException | InterruptedException e) {
             logger.error("Could not retrieve last persisted price table hash. Will not proceed with price table upload.", e);
             return;
         }
         // See if we even need to update the price tables.
-        if (newHashcode == lastConfirmedHashCode) {
+        if (previousPriceTableCheckSum.isPresent() && previousPriceTableCheckSum.get().equals(newHashcode)) {
             logger.info("Last processed upload hash is the same as this one [{}], skipping this upload.",
                     Long.toUnsignedString(newHashcode));
             return;
+        } else {
+            lastConfirmedHashCode = previousPriceTableCheckSum.orElse(-1L);
         }
         logger.info("Price table upload hash check: new upload {} last upload {}. We will upload.",
                 Long.toUnsignedString(newHashcode), Long.toUnsignedString(lastConfirmedHashCode));
@@ -189,16 +196,22 @@ public class PriceTableUploader implements Diagnosable {
         uploadPrices(probePricesList, newHashcode);
     }
 
-    private long getCheckSum() throws ExecutionException, InterruptedException {
+    private Optional<Long> getCheckSum() throws ExecutionException, InterruptedException {
         // Check if the data has changed since our last upload by comparing the new hash against
         // the hash of the last successfully saved price table from the cost component
-        CompletableFuture<Long> lastConfirmedHashFuture = new CompletableFuture<>();
+        CompletableFuture<Optional<Long>> lastConfirmedHashFuture = new CompletableFuture<>();
         priceServiceClient.getPriceTableChecksum(
             GetPriceTableChecksumRequest.getDefaultInstance(),
             new StreamObserver<GetPriceTableChecksumResponse>() {
                 @Override
                 public void onNext(final GetPriceTableChecksumResponse getPriceTableChecksumResponse) {
-                    lastConfirmedHashFuture.complete(getPriceTableChecksumResponse.getPriceTableChecksum());
+                    Iterator<PriceTableChecksum> priceTableChecksumIterator = getPriceTableChecksumResponse
+                            .getPricetableToChecksumList().stream()
+                            .iterator();
+                    Optional<Long> previousCheckSumOptional = priceTableChecksumIterator.hasNext() ?
+                            Optional.of(priceTableChecksumIterator.next().getCheckSum()) :
+                            Optional.empty();
+                    lastConfirmedHashFuture.complete(previousCheckSumOptional);
                 }
 
                 @Override
@@ -569,19 +582,17 @@ public class PriceTableUploader implements Diagnosable {
         }
 
         public void sendProbePrices(List<ProbePriceData> probePriceDataList, long checksum) {
-            // first send the header
-            sendSegment(ProbePriceTableSegment.newBuilder()
-                    .setHeader(ProbePriceTableHeader.newBuilder()
-                            .setCreatedTime(clock.millis())
-                            .setChecksum(checksum))
-                    .build());
-            // send the upload segments
+            // send the header and the upload segments
             for (ProbePriceData probePriceData : probePriceDataList) {
                 if (probePriceData.priceTable != null) {
                     logger.debug("Sending price table for probe {}", probePriceData.probeType);
-                    sendSegment(ProbePriceTableSegment.newBuilder()
+                    sendSegment(ProbePriceTableSegment.newBuilder().setHeader((ProbePriceTableHeader.newBuilder()
+                            .setCreatedTime(clock.millis())
+                            .addPriceTableChecksums(PriceTableChecksum.newBuilder()
+                                    .setCheckSum(checksum))))
                             .setProbePriceTable(ProbePriceTableChunk.newBuilder()
-                                .setProbeType(probePriceData.probeType)
+                                    .setPriceTableKey(PriceTableKey.newBuilder()
+                                            .setProbeType(probePriceData.probeType))
                                 .setPriceTable(probePriceData.priceTable))
                             .build());
                 }
@@ -591,7 +602,8 @@ public class PriceTableUploader implements Diagnosable {
                     int x = 0;
                     ProbePriceTableSegment.Builder nextSegmentBuilder = ProbePriceTableSegment.newBuilder()
                             .setProbeRiSpecPrices(ProbeRISpecPriceChunk.newBuilder()
-                                .setProbeType(probePriceData.probeType));
+                                .setPriceTableKey(PriceTableKey.newBuilder()
+                                        .setProbeType(probePriceData.probeType)));
                     while (x < probePriceData.riSpecPrices.size()) {
                         // add to the next chunk
                         nextSegmentBuilder.getProbeRiSpecPricesBuilder()
@@ -602,7 +614,8 @@ public class PriceTableUploader implements Diagnosable {
                             sendSegment(nextSegmentBuilder.build());
                             nextSegmentBuilder = ProbePriceTableSegment.newBuilder()
                                     .setProbeRiSpecPrices(ProbeRISpecPriceChunk.newBuilder()
-                                            .setProbeType(probePriceData.probeType));
+                                            .setPriceTableKey(PriceTableKey.newBuilder()
+                                                    .setProbeType(probePriceData.probeType)));
                         }
                     }
                     // if there is still an unfinished segment to send, send it now.
@@ -621,10 +634,12 @@ public class PriceTableUploader implements Diagnosable {
             totalBytesSent += segment.getSerializedSize();
             if (segment.hasHeader()) {
                 logger.debug("Sending header with checksum {} and creation time {}",
-                        segment.getHeader().getChecksum(), segment.getHeader().getCreatedTime());
-            } else if (segment.hasProbePriceTable()) {
+                        segment.getHeader().getPriceTableChecksumsList(), segment.getHeader().getCreatedTime());
+            }
+            if (segment.hasProbePriceTable()) {
                 logger.debug("Sending price table segment.");
-            } else if (segment.hasProbeRiSpecPrices()) {
+            }
+            if (segment.hasProbeRiSpecPrices()) {
                 logger.debug("Sending ri price segment with {} ri spec prices.",
                     segment.getProbeRiSpecPrices().getReservedInstanceSpecPricesCount());
             }
