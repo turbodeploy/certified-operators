@@ -203,18 +203,19 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
                     computeTiers.size());
                 continue;
             }
-            double usedCoupons = AwsReservedInstanceCoupon
-                        .convertInstanceTypeToCoupons(computeTiers.get(0).getDisplayName());
-            riCoverage.getCouponsCoveredByRiMap().entrySet().forEach(entry -> {
+            final double totalCoupons =
+                    computeTiers.iterator().next().getTypeSpecificInfo().getComputeTier()
+                            .getNumCoupons();
+            riCoverage.getCouponsCoveredByRiMap().forEach((key, value) -> {
                 coverageRcd.add(context.newRecord(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE,
                         new PlanProjectedReservedInstanceCoverageRecord(
                                 entityId, topologyContextId, region.get(0).getOid(),
                                 az.get(0).getConnectedEntityId(), ba.get(0).getOid(),
-                                usedCoupons, entry.getValue())));
+                                totalCoupons, value)));
                 logger.debug("Projected reserved instance coverage record with entityId {}, topologyContextId {}, "
-                        + "region id {}, az id {}, ba id {}, total coupon {}, used coupon {}.",
+                                + "region id {}, az id {}, ba id {}, total coupon {}, used coupon {}.",
                         entityId, topologyContextId, region.get(0).getOid(), az.get(0).getConnectedEntityId(),
-                        ba.get(0).getOid(), usedCoupons, entry.getValue());
+                        ba.get(0).getOid(), totalCoupons, value);
             });
         }
         Lists.partition(coverageRcd, chunkSize).forEach(entityChunk -> context.batchInsert(coverageRcd).execute());
