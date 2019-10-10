@@ -93,6 +93,7 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
@@ -113,6 +114,7 @@ import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.repository.api.RepositoryClient;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
  * Unit test for {@link SearchService}.
@@ -125,7 +127,8 @@ public class SearchServiceTest {
     private GroupsService groupsService = mock(GroupsService.class);
     private TargetsService targetsService = mock(TargetsService.class);
     private RepositoryApi repositoryApi = mock(RepositoryApi.class);
-    private final GroupMapper groupMapper = mock(GroupMapper.class);
+    private GroupMapper groupMapper;
+    private TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
     private final GroupUseCaseParser groupUseCaseParser = mock(GroupUseCaseParser.class);
     private final SupplyChainFetcherFactory supplyChainFetcherFactory = mock(SupplyChainFetcherFactory.class);
     private final UuidMapper uuidMapper = mock(UuidMapper.class);
@@ -169,6 +172,7 @@ public class SearchServiceTest {
         final GroupServiceBlockingStub groupServiceBlockingStub =
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(userSessionContext.isUserScoped()).thenReturn(false);
+        groupMapper = new GroupMapper(groupUseCaseParser, supplyChainFetcherFactory, groupExpander, topologyProcessor, repositoryApi);
         searchService = spy(new SearchService(
                 repositoryApi,
                 marketsService,
@@ -499,28 +503,15 @@ public class SearchServiceTest {
         assertEquals("1", results.get(0).getUuid());
     }
 
+    /**
+     * Test getMembersBasedOnFilterQuery where a name query string is passed
+     * Verify that the search service rpc call is invoked.
+     * @throws Exception in case of error
+     */
     @Test
     public void testGetMembersBasedOnFilterQuery() throws Exception {
         GroupApiDTO request = new GroupApiDTO();
-        final ApiPartialEntity e1 = ApiPartialEntity.newBuilder()
-            .setOid(1)
-            .setDisplayName("afoobar")
-            .setEntityType(0)
-            .addDiscoveringTargetIds(targetId1)
-            .build();
-        final ApiPartialEntity e2 = ApiPartialEntity.newBuilder()
-            .setOid(4)
-            .setDisplayName("Foo")
-            .setEntityType(0)
-            .addDiscoveringTargetIds(targetId2)
-            .build();
-        final ServiceEntityApiDTO mappedE1 = new ServiceEntityApiDTO();
-        mappedE1.setUuid("1");
-        final ServiceEntityApiDTO mappedE2 = new ServiceEntityApiDTO();
-        mappedE2.setUuid("4");
-        when(serviceEntityMapper.toServiceEntityApiDTO(e1)).thenReturn(mappedE1);
-        when(serviceEntityMapper.toServiceEntityApiDTO(e2)).thenReturn(mappedE2);
-        final List<ApiPartialEntity> entities = Arrays.asList(e1, e2);
+        List<ApiPartialEntity> entities = setupEntitiesForMemberQuery();
         when(searchServiceSpy.searchEntities(any())).thenReturn(SearchEntitiesResponse.newBuilder()
             .addAllEntities(entities.stream()
                 .map(e -> PartialEntity.newBuilder().setApi(e).build())
@@ -549,8 +540,80 @@ public class SearchServiceTest {
         final Map<Long, BaseApiDTO> resultById = resultCaptor.getValue().stream()
             .collect(Collectors.toMap(se -> Long.valueOf(se.getUuid()), Function.identity()));
 
-        assertThat(resultIds.size(), is(2));
-        assertThat(resultById.keySet(), containsInAnyOrder(1L, 4L));
+        assertThat(resultIds.size(), is(3));
+        assertThat(resultById.keySet(), containsInAnyOrder(1L, 4L, 5L));
+    }
+
+
+    /**
+     * Test get members when there is a special character in the query.
+     * @throws Exception if there is an error processing the query
+     */
+    @Test
+    public void testGetMembersBasedOnFilterQueryWSpecialChars() throws Exception {
+        GroupApiDTO request = new GroupApiDTO();
+        List<ApiPartialEntity> entities = setupEntitiesForMemberQuery();
+        when(searchServiceSpy.searchEntities(any())).thenReturn(SearchEntitiesResponse.newBuilder()
+                .addAllEntities(entities.stream()
+                        .map(e -> PartialEntity.newBuilder().setApi(e).build())
+                        .collect(Collectors.toList()))
+                .setPaginationResponse(PaginationResponse.newBuilder())
+                .build());
+
+        final SearchPaginationRequest paginationRequest = mock(SearchPaginationRequest.class);
+        Mockito.when(paginationRequest.getCursor()).thenReturn(Optional.empty());
+        Mockito.when(paginationRequest.allResultsResponse(any()))
+                .thenReturn(mock(SearchPaginationResponse.class));
+        Mockito.when(paginationRequest.getOrderBy())
+                .thenReturn(SearchOrderBy.NAME);
+
+        // Test a search with a special character
+        request.setClassName("VirtualMachine");
+        searchService.getMembersBasedOnFilter("[b", request, paginationRequest);
+
+        final ArgumentCaptor<SearchEntitiesRequest> captor = ArgumentCaptor.forClass(SearchEntitiesRequest.class);
+        verify(searchServiceSpy).searchEntities(captor.capture());
+
+        final SearchEntitiesRequest params = captor.getValue();
+        assertEquals(1, params.getSearchParametersCount());
+        SearchParameters searchParameters = params.getSearchParameters(0);
+        assertEquals(1, searchParameters.getSearchFilterCount());
+        SearchFilter nameFilter = searchParameters.getSearchFilter(0);
+        String value = nameFilter.getPropertyFilter().getStringFilter().getStringPropertyRegex();
+        assertEquals("^.*\\Q[b\\E.*$", value);
+    }
+
+    private List<ApiPartialEntity> setupEntitiesForMemberQuery() {
+        final ApiPartialEntity e1 = ApiPartialEntity.newBuilder()
+                .setOid(1)
+                .setDisplayName("afoobar")
+                .setEntityType(0)
+                .addDiscoveringTargetIds(targetId1)
+                .build();
+        final ApiPartialEntity e2 = ApiPartialEntity.newBuilder()
+                .setOid(4)
+                .setDisplayName("Foo")
+                .setEntityType(0)
+                .addDiscoveringTargetIds(targetId2)
+                .build();
+        final ApiPartialEntity e3 = ApiPartialEntity.newBuilder()
+                .setOid(5)
+                .setDisplayName("Foo [bar]")
+                .setEntityType(0)
+                .addDiscoveringTargetIds(targetId2)
+                .build();
+        final ServiceEntityApiDTO mappedE1 = new ServiceEntityApiDTO();
+        mappedE1.setUuid("1");
+        final ServiceEntityApiDTO mappedE2 = new ServiceEntityApiDTO();
+        mappedE2.setUuid("4");
+        final ServiceEntityApiDTO mappedE3 = new ServiceEntityApiDTO();
+        mappedE3.setUuid("5");
+        when(serviceEntityMapper.toServiceEntityApiDTO(e1)).thenReturn(mappedE1);
+        when(serviceEntityMapper.toServiceEntityApiDTO(e2)).thenReturn(mappedE2);
+        when(serviceEntityMapper.toServiceEntityApiDTO(e3)).thenReturn(mappedE3);
+
+        final List<ApiPartialEntity> entities = Arrays.asList(e1, e2, e3);
+        return entities;
     }
 
     /**

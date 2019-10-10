@@ -21,6 +21,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -482,8 +483,9 @@ public class SearchService implements ISearchService {
                                                                 @Nullable String nameQuery,
                                                                 @Nonnull SearchPaginationRequest paginationRequest)
                 throws OperationFailedException {
+        final String updatedQuery = escapeSpecialCharactersInSearchQueryPattern(nameQuery);
         final List<SearchParameters> searchParameters =
-            groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), nameQuery)
+            groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), updatedQuery)
                 .stream()
                 // Convert any cluster membership filters to property filters.
                 .map(this::resolveClusterFilters)
@@ -509,14 +511,14 @@ public class SearchService implements ISearchService {
                     .addAllSearchParameters(searchParameters)
                     .addAllEntityOid(allEntityOids)
                     .build();
-            return getServiceEntityPaginatedWithSeverity(inputDTO, nameQuery, paginationRequest,
+            return getServiceEntityPaginatedWithSeverity(inputDTO, updatedQuery, paginationRequest,
                     expandedIds, searchOidsRequest);
         } else if (paginationRequest.getOrderBy().equals(SearchOrderBy.UTILIZATION)) {
             final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
                     .addAllSearchParameters(searchParameters)
                     .addAllEntityOid(allEntityOids)
                     .build();
-            return getServiceEntityPaginatedWithUtilization(inputDTO, nameQuery, paginationRequest,
+            return getServiceEntityPaginatedWithUtilization(inputDTO, updatedQuery, paginationRequest,
                     expandedIds, searchOidsRequest, isGlobalScope);
         } else {
             // We don't use the RepositoryAPI utility because we do pagination,
@@ -851,5 +853,19 @@ public class SearchService implements ISearchService {
         }
 
         return optionApiDTOs;
+    }
+
+    /**
+     * Returns a String whose special characters have been escaped (if any)
+     *
+     * @param queryPattern the query string whose special characters will be escaped
+     * @return a String whose special characters have been escaped.
+     */
+    private String escapeSpecialCharactersInSearchQueryPattern(String queryPattern) {
+        if (queryPattern == null) {
+            return null;
+        }
+        // mark the pattern as a literal
+        return Pattern.quote(queryPattern);
     }
 }
