@@ -190,6 +190,7 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
                 break;
             case ACTIONS_LOST:
                 onActionsLostNotification(message);
+                break;
             case PROBE_REGISTRATION_NOTIFICATION:
                 onProbeRegisteredNotification(message);
                 break;
