@@ -110,16 +110,15 @@ public class ActionSearchUtil {
             ActionPaginationRequest paginationRequest)
             throws  InterruptedException, UnknownObjectException, OperationFailedException,
                     UnsupportedActionException, ExecutionException {
-        final Set<Long> scope = groupExpander.expandOids(scopeIds.stream()
-            .map(ApiId::oid)
-            .collect(Collectors.toSet()));
-
         final Set<Long> expandedScope;
         // if the field "relatedEntityTypes" is not empty, then we need to fetch additional
         // entities from the scoped supply chain
         if (inputDto != null &&
                 inputDto.getRelatedEntityTypes() != null &&
                 !inputDto.getRelatedEntityTypes().isEmpty()) {
+            final Set<Long> scope = groupExpander.expandOids(scopeIds.stream()
+                .map(ApiId::oid)
+                .collect(Collectors.toSet()));
             // get the scoped supply chain
             // extract entity oids from the supply chain and add them to the scope
             expandedScope = supplyChainFetcherFactory.expandScope(scope, inputDto.getRelatedEntityTypes());
@@ -127,9 +126,9 @@ public class ActionSearchUtil {
             // If the entity for which we're collecting actions represents an aggregation, (Account, Region,
             // Zone, DC, VDC) get actions for all nodes in the supply chain seeded from that UUID. Otherwise,
             // just get actions corresponding to that single entity
-            Set<Long> toNotExpand = new HashSet();
-            Set<Long> toExpand = new HashSet();
-            scopeIds.stream().forEach(scopeId -> {
+            final Set<Long> toNotExpand = new HashSet<>();
+            final Set<Long> toExpand = new HashSet<>();
+            scopeIds.forEach(scopeId -> {
                 final long oid = scopeId.oid();
                 final Optional<UIEntityType> scopeType = scopeId.getScopeType();
                 if (scopeType.isPresent() && shouldGetSupplyChainNodeActions(scopeType.get().typeNumber())) {
@@ -138,7 +137,7 @@ public class ActionSearchUtil {
                     toNotExpand.add(oid);
                 }
             });
-            expandedScope = toNotExpand;
+            expandedScope = groupExpander.expandOids(toNotExpand);
             if (toExpand.size() > 0) {
                 expandedScope.addAll(supplyChainFetcherFactory.expandScope(toExpand, java.util.Collections.emptyList()));
             }
