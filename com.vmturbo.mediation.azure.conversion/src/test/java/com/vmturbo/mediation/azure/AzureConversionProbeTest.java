@@ -3,16 +3,16 @@ package com.vmturbo.mediation.azure;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Sets;
+
 import org.junit.Test;
-
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import org.mockito.Mockito;
 
 import com.vmturbo.mediation.conversion.util.TestUtils;
@@ -122,11 +122,27 @@ public class AzureConversionProbeTest extends AzureConversionProbe {
         assertEquals(oldResponse.getDiscoveryContext(), newResponse.getDiscoveryContext());
     }
 
+    private Set<EntityType> getEntityTypesWithMergedEntityMetaData(Set<TemplateDTO> supplyChain) {
+        return supplyChain.stream()
+            .filter(TemplateDTO::hasMergedEntityMetaData)
+            .map(TemplateDTO::getTemplateClass)
+            .collect(Collectors.toSet());
+    }
+
     @Test
     public void testGetSupplyChainDefinition() {
         AzureConversionProbe probe = new AzureConversionProbe();
+        AzureProbe azureProbe = new AzureProbe();
 
         Set<TemplateDTO> entitiesInSupplyChain = probe.getSupplyChainDefinition();
+        Set<EntityType> entitiesWithMergeData =
+            getEntityTypesWithMergedEntityMetaData(entitiesInSupplyChain);
+
+        // check that we have merged entity metadata for the entity types in NEW_SHARED_ENTITY_TYPES
+        // and for any types that already had merged entity metadata from the super class
+        assertEquals(Sets.union(NEW_SHARED_ENTITY_TYPES,
+            getEntityTypesWithMergedEntityMetaData(azureProbe.getSupplyChainDefinition())),
+            entitiesWithMergeData);
 
         assertTrue(
             TestUtils.verifyEntityTypes(entitiesInSupplyChain, AZURE_CONVERSION_PROBE_ENTITY_TYPES)

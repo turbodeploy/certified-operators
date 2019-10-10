@@ -84,18 +84,7 @@ public class AzureConversionProbe extends AzureProbe {
     @Nonnull
     @Override
     public Set<TemplateDTO> getSupplyChainDefinition() {
-        final Set<TemplateDTO> sc = Sets.newHashSet();
-
-        // add stitching metadata for existing nodes (BUSINESS_ACCOUNT)
-        for (TemplateDTO templateDTO : super.getSupplyChainDefinition()) {
-            if (templateDTO.getTemplateClass() == EntityType.BUSINESS_ACCOUNT) {
-                sc.add(templateDTO.toBuilder()
-                        .setMergedEntityMetaData(createMergedEntityMetadata())
-                        .build());
-            } else {
-                sc.add(templateDTO);
-            }
-        }
+        final Set<TemplateDTO> sc = Sets.newHashSet(super.getSupplyChainDefinition());
 
         // create supply chain nodes for new shared entities and add stitching metadata
         for (EntityType entityType : NEW_SHARED_ENTITY_TYPES) {
