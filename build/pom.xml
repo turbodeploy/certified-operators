@@ -287,7 +287,6 @@
                 <module>../com.vmturbo.cost.calculation</module>
                 <module>../com.vmturbo.cost.component</module>
                 <module>../com.vmturbo.cost.component.api</module>
-                <module>../com.vmturbo.reserved.instance.coverage.allocator</module>
             </modules>
         </profile>
 
@@ -762,7 +761,6 @@
                 <module>../com.vmturbo.components</module>
                 <module>../com.vmturbo.components.common</module>
                 <module>../com.vmturbo.cost.calculation</module>
-                <module>../com.vmturbo.reserved.instance.coverage.allocator</module>
                 <module>../com.vmturbo.sql.utils</module>
                 <module>../com.vmturbo.components.api.root</module>
                 <module>../com.vmturbo.components.api</module>
@@ -834,7 +832,6 @@
                 <module>../com.vmturbo.components</module>
                 <module>../com.vmturbo.components.common</module>
                 <module>../com.vmturbo.cost.calculation</module>
-                <module>../com.vmturbo.reserved.instance.coverage.allocator</module>
                 <module>../com.vmturbo.sql.utils</module>
                 <module>../com.vmturbo.components.api.root</module>
                 <module>../com.vmturbo.components.api</module>
@@ -896,7 +893,6 @@
                 <module>../com.vmturbo.components</module>
                 <module>../com.vmturbo.components.common</module>
                 <module>../com.vmturbo.cost.calculation</module>
-                <module>../com.vmturbo.reserved.instance.coverage.allocator</module>
                 <module>../com.vmturbo.sql.utils</module>
                 <module>../com.vmturbo.components.api.root</module>
                 <module>../com.vmturbo.components.api</module>
@@ -1783,11 +1779,6 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>cost-calculation</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-	    <dependency>
-                <groupId>com.vmturbo</groupId>
-                <artifactId>reserved-instance-coverage-allocator</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

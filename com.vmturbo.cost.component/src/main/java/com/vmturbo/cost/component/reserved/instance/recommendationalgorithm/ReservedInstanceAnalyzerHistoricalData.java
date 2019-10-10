@@ -265,13 +265,7 @@ public class ReservedInstanceAnalyzerHistoricalData {
      * @return if contains over a week worth of data or not.
      */
     boolean containsDataOverWeek() {
-        /**
-         * TODO : Remove the hardcoded return true and uncomment the next line of code once
-         * OM-50535 is implemented.
-         */
-
-        //return computeTierDemandStatsStore.containsDataOverWeek();
-        return true;
+        return computeTierDemandStatsStore.containsDataOverWeek();
     }
 
 }
