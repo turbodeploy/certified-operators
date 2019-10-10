@@ -25,27 +25,6 @@ http {
 
     access_log  /var/log/nginx/access.log  main;
 
-    # START: NGINX HARDENING
-    # Hide Nginx version
-    server_tokens off;
-
-    # Prevent VERB tampering, and only allow supported VERBS GET, 
-    # POST, OPTIONS, PUT, DELETE and HEAD.
-    # Removed TRACE AND DEBUG
-    map $request_method $bad_method {
-        default 1;
-        ~(?i)(GET|POST|OPTIONS|PUT|DELETE|HEAD) 0;
-    }
-
-    # Hardening of timeouts to mitigate DoS attacks
-    reset_timedout_connection on;
-    keepalive_requests  100;
-    client_header_timeout 10s;
-    client_body_timeout 10s;
-    send_timeout        10s;
-    lingering_timeout   5s;
-    # END: NGINX HARDENING
-
     # turn off proxy buffering due to read-only fs
     proxy_buffering off;
 
@@ -141,23 +120,8 @@ http {
             proxy_read_timeout 6000s;
             proxy_intercept_errors on;
 
-            # START:  NGINX HARDENING
-            # Hide Nginx version
-            server_tokens off;
-
-            # Block MIME sniffing
-            add_header X-Content-Type-Options "nosniff" always;
-
-            # XSS filtering.
-            add_header X-XSS-Protection "1; mode=block" always;
-
-            # Enable HTTP Strict Transport Security
-            add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
-
             #Add cookie security and httponly headers
             proxy_cookie_path / "/; HTTPOnly; Secure";
-            # END:  NGINX HARDENING
-
             add_header X-Frame-Options "SAMEORIGIN" always;
 
             # Ensure the proxy-side redirect from API gets rewritten to the gateway address
