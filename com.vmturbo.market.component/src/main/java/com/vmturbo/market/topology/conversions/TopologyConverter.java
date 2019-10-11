@@ -157,8 +157,37 @@ public class TopologyConverter {
     // shoppinglist oid, buyer oid, seller oid and commodity bought
     private final Map<Long, ShoppingListInfo> shoppingListOidToInfos = Maps.newHashMap();
 
-    // We need access only in tests
-    protected final Map<Long, ShoppingListInfo> getShoppingListOidToInfos() {return shoppingListOidToInfos;}
+    /**
+     * A non-shop-together TopologyConverter.
+     *
+     * @param topologyInfo information about topology
+     * @param marketPriceTable market price table
+     * @param cloudCostData cloud cost data
+     * @param commodityIndexFactory commodity index factory
+     * @param tierExcluderFactory tier excluder factory
+     */
+    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
+                             @Nonnull final MarketPriceTable marketPriceTable,
+                             @Nonnull final CloudCostData cloudCostData,
+                             @Nonnull final CommodityIndexFactory commodityIndexFactory,
+                             @NonNull final TierExcluderFactory tierExcluderFactory) {
+        this.topologyInfo = Objects.requireNonNull(topologyInfo);
+        this.commodityConverter = new CommodityConverter(commodityTypeAllocator, commoditySpecMap,
+                includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable, conversionErrorCounts);
+        this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, commodityConverter,
+            getShoppingListOidToInfos());
+        this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
+                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, regionCommTypeToRegionObj, businessAccounts,
+                marketPriceTable, cloudCostData, tierExcluder);
+        this.commodityIndex = commodityIndexFactory.newIndex();
+        this.actionInterpreter = new ActionInterpreter(commodityConverter,
+            shoppingListOidToInfos,
+            cloudTc,
+            unmodifiableEntityOidToDtoMap,
+            oidToProjectedTraderTOMap,
+            cert,
+            projectedReservedInstanceCoverage, tierExcluder);
+    }
 
     // Mapping of CommoditySpecificationTO (string representation of type and baseType from
     // CommoditySpecificationTO) to specific CommodityType.
@@ -245,63 +274,6 @@ public class TopologyConverter {
     private final TierExcluder tierExcluder;
 
     /**
-     * A non-shop-together TopologyConverter.
-     *
-     * @param topologyInfo information about topology
-     * @param marketPriceTable market price table
-     * @param cloudCostData cloud cost data
-     * @param commodityIndexFactory commodity index factory
-     * @param tierExcluderFactory tier excluder factory
-     */
-    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
-                             @Nonnull final MarketPriceTable marketPriceTable,
-                             @Nonnull final CloudCostData cloudCostData,
-                             @Nonnull final CommodityIndexFactory commodityIndexFactory,
-                             @NonNull final TierExcluderFactory tierExcluderFactory) {
-        this.topologyInfo = Objects.requireNonNull(topologyInfo);
-        this.commodityConverter = new CommodityConverter(commodityTypeAllocator, commoditySpecMap,
-                includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable, conversionErrorCounts);
-        this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo);
-        this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
-                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, regionCommTypeToRegionObj, businessAccounts,
-                marketPriceTable, cloudCostData, tierExcluder);
-        this.commodityIndex = commodityIndexFactory.newIndex();
-        this.actionInterpreter = new ActionInterpreter(commodityConverter,
-                shoppingListOidToInfos,
-                cloudTc,
-                unmodifiableEntityOidToDtoMap,
-                oidToProjectedTraderTOMap,
-                cert,
-                projectedReservedInstanceCoverage);
-    }
-
-
-    /**
-     * Constructor with includeGuaranteedBuyer parameter.
-     *
-     * @param topologyInfo Information about the topology.
-     * @param includeGuaranteedBuyer whether to include guaranteed buyers (VDC, VPod, DPod) or not
-     * @param quoteFactor to be used by move recommendations.
-     * @param liveMarketMoveCostFactor used by the live market to control aggressiveness of move actions.
-     * @param marketPriceTable the market price table
-     * @param cloudCostData cloud cost data
-     * @param commodityIndexFactory commodity index factory
-     * @param tierExcluderFactory tier excluder factory
-     */
-    @VisibleForTesting
-    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
-                             final boolean includeGuaranteedBuyer,
-                             final float quoteFactor,
-                             final float liveMarketMoveCostFactor,
-                             @Nonnull final MarketPriceTable marketPriceTable,
-                             @Nonnull final CloudCostData cloudCostData,
-                             @Nonnull final CommodityIndexFactory commodityIndexFactory,
-                             @NonNull final TierExcluderFactory tierExcluderFactory) {
-        this(topologyInfo, includeGuaranteedBuyer, quoteFactor, liveMarketMoveCostFactor,
-            marketPriceTable, null, cloudCostData, commodityIndexFactory, tierExcluderFactory);
-    }
-
-    /**
      * Constructor with includeGuaranteedBuyer parameter.
      *
      * @param topologyInfo Information about the topology.
@@ -333,7 +305,8 @@ public class TopologyConverter {
         // Uncomment this once integtation testing is done. Till then, use the dummy tier
         // exclusion applicator
         // this.tierExcluder = new TierExcluder(topologyInfo, settingPolicyServiceClient);
-        this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo);
+        this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, commodityConverter,
+            getShoppingListOidToInfos());
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, this.commodityConverter, azToRegionMap, regionCommTypeToRegionObj,
                 businessAccounts, marketPriceTable, cloudCostData, tierExcluder);
@@ -343,9 +316,34 @@ public class TopologyConverter {
                 unmodifiableEntityOidToDtoMap,
                 oidToProjectedTraderTOMap,
                 cert,
-                projectedReservedInstanceCoverage);
+                projectedReservedInstanceCoverage, tierExcluder);
     }
 
+
+    /**
+     * Constructor with includeGuaranteedBuyer parameter.
+     *
+     * @param topologyInfo Information about the topology.
+     * @param includeGuaranteedBuyer whether to include guaranteed buyers (VDC, VPod, DPod) or not
+     * @param quoteFactor to be used by move recommendations.
+     * @param liveMarketMoveCostFactor used by the live market to control aggressiveness of move actions.
+     * @param marketPriceTable the market price table
+     * @param cloudCostData cloud cost data
+     * @param commodityIndexFactory commodity index factory
+     * @param tierExcluderFactory tier excluder factory
+     */
+    @VisibleForTesting
+    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
+                             final boolean includeGuaranteedBuyer,
+                             final float quoteFactor,
+                             final float liveMarketMoveCostFactor,
+                             @Nonnull final MarketPriceTable marketPriceTable,
+                             @Nonnull final CloudCostData cloudCostData,
+                             @Nonnull final CommodityIndexFactory commodityIndexFactory,
+                             @NonNull final TierExcluderFactory tierExcluderFactory) {
+        this(topologyInfo, includeGuaranteedBuyer, quoteFactor, liveMarketMoveCostFactor,
+            marketPriceTable, null, cloudCostData, commodityIndexFactory, tierExcluderFactory);
+    }
 
     @VisibleForTesting
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
@@ -361,17 +359,23 @@ public class TopologyConverter {
         this.quoteFactor = quoteFactor;
         this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
         this.commodityConverter = commodityConverter;
-        this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo);
+        this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, commodityConverter,
+            getShoppingListOidToInfos());
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, regionCommTypeToRegionObj,
                 businessAccounts, marketPriceTable, null, tierExcluder);
         this.commodityIndex = commodityIndexFactory.newIndex();
         this.actionInterpreter = new ActionInterpreter(commodityConverter, shoppingListOidToInfos,
                 cloudTc,
-                unmodifiableEntityOidToDtoMap,
-                oidToProjectedTraderTOMap,
-                cert,
-                projectedReservedInstanceCoverage);
+            unmodifiableEntityOidToDtoMap,
+            oidToProjectedTraderTOMap,
+            cert,
+            projectedReservedInstanceCoverage, tierExcluder);
+    }
+
+    // Read only version
+    protected final Map<Long, ShoppingListInfo> getShoppingListOidToInfos() {
+        return Collections.unmodifiableMap(shoppingListOidToInfos);
     }
 
 
@@ -440,6 +444,7 @@ public class TopologyConverter {
             return convertToMarket();
         } finally {
             conversionErrorCounts.endPhase();
+            tierExcluder.clearStateNeededForConvertToMarket();
         }
     }
 
@@ -774,6 +779,42 @@ public class TopologyConverter {
     }
 
     /**
+     * Interpret stream of market-specific {@link ActionTO} as a stream of topology-specific
+     * {@Action} proto for use by the rest of the system.
+     *
+     * <p>It is vital to use the same {@link TopologyConverter} that converted
+     * the topology into market-specific objects
+     * to interpret the resulting actions in a way that makes sense.</p>
+     *
+     * @param actionTOs A stream of {@link ActionTO} describing the action recommendations
+     *                 generated by the market.
+     * @param projectedTopology The projected topology. All entities involved in the action are
+     *                          expected to be in the projected topology.
+     * @param originalCloudTopology {@link CloudTopology} of the original {@link TopologyEntityDTO}s  received by Analysis
+     * @param projectedCosts  A map of id of projected topologyEntityDTO -> {@link CostJournal} for the entity with that ID.
+     * @param topologyCostCalculator the topologyCostCalculator is used to calculate costs of entities
+     * @return The {@link Action} describing the recommendation in a topology-specific way.
+     */
+    @Nonnull
+    public List<Action> interpretAllActions(@NonNull final List<ActionTO> actionTOs,
+                                              @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
+                                              @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
+                                              @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
+                                              @Nonnull TopologyCostCalculator topologyCostCalculator) {
+        // Before beginning to interpret actions, compute the reason settings for the tier exclusion
+        // actions
+        tierExcluder.computeReasonSettings(actionTOs, originalCloudTopology);
+        List<Action> actions = Lists.newArrayList();
+        actionTOs.forEach(actionTO -> {
+            Optional<Action> action = interpretAction(actionTO, projectedTopology,
+                originalCloudTopology, projectedCosts, topologyCostCalculator);
+            action.ifPresent(actions::add);
+        });
+        tierExcluder.clearStateNeededForActionInterpretation();
+        return actions;
+    }
+
+    /**
      * Interpret the market-specific {@link ActionTO} as a topology-specific {@Action} proto
      * for use by the rest of the system.
      *
@@ -791,14 +832,14 @@ public class TopologyConverter {
      *
      * @return The {@link Action} describing the recommendation in a topology-specific way.
      */
-    @Nonnull
-    public Optional<Action> interpretAction(@Nonnull final ActionTO actionTO,
-                                            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
-                                            @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
-                                            @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
-                                            @Nonnull TopologyCostCalculator topologyCostCalculator) {
+    @NonNull
+    Optional<Action> interpretAction(@NonNull final ActionTO actionTO,
+                                     @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
+                                     @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
+                                     @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
+                                     @Nonnull TopologyCostCalculator topologyCostCalculator) {
         return actionInterpreter.interpretAction(actionTO, projectedTopology, originalCloudTopology,
-                projectedCosts, topologyCostCalculator);
+            projectedCosts, topologyCostCalculator);
     }
 
     /**
@@ -902,6 +943,11 @@ public class TopologyConverter {
             int bicliqueBaseType = commodityTypeAllocator.allocate(
                     TopologyConversionConstants.BICLIQUE);
             for (CommodityDTOs.CommodityBoughtTO commBought : sl.getCommoditiesBoughtList()) {
+                // If the commodity bought was created by market-component for tier exclusion,
+                // then do not include it in the projected topology.
+                if (tierExcluder.isCommSpecTypeForTierExclusion(commBought.getSpecification().getType())) {
+                    continue;
+                }
                 // if the commodity bought DTO type is biclique, create new
                 // DSPM and Datastore bought
                 if (bicliqueBaseType == commBought.getSpecification().getBaseType()) {
@@ -1250,6 +1296,7 @@ public class TopologyConverter {
     private Set<TopologyDTO.CommoditySoldDTO> retrieveCommSoldList(
             @Nonnull final TraderTO traderTO) {
         return traderTO.getCommoditiesSoldList().stream()
+                    .filter(c -> !tierExcluder.isCommSpecTypeForTierExclusion(c.getSpecification().getType()))
                     .map(commoditySoldTO -> commSoldTOtoCommSoldDTO(traderTO.getOid(), commoditySoldTO))
                     .filter(Optional::isPresent)
                     .map(Optional::get)

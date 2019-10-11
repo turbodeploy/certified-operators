@@ -110,7 +110,7 @@ public class TopologyConverterGuaranteedTest {
         entities = Stream.of(vdc1, vdc2, dpod, pm, vm1, vm2)
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         when(ccd.getExistingRiBought()).thenReturn(new ArrayList());
-        when(tierExcluderFactory.newExcluder(any())).thenReturn(mock(TierExcluder.class));
+        when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
     }
 
     /**

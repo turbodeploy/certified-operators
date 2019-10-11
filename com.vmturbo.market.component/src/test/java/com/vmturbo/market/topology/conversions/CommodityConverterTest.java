@@ -98,19 +98,8 @@ public class CommodityConverterTest {
                 .setTopologyContextId(context).build();
         converterToTest.populateCommToConsiderForOverheadMap(topologyInfo);
 
-        // setting up for plan2
-        topologyInfo.toBuilder().setTopologyContextId(2).build();
-        converterToTest.populateCommToConsiderForOverheadMap(topologyInfo);
-
-        // assert that there are 2 entries for the 2 plans
-        assertThat(converterToTest.commToConsiderForOverheadMap.size(),
-                equalTo(2));
-
         // assert the presence of commsToSkip for the 2nd plan
         assertThat(converterToTest.commToConsiderForOverheadMap.get(context).size(),
                 equalTo(AnalysisUtil.COMM_TYPES_TO_ALLOW_OVERHEAD.size()));
     }
-
-
-
 }

@@ -1,5 +1,7 @@
 package com.vmturbo.cost.calculation.topology;
 
+import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.PRIMARY_TIER_VALUES;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -11,6 +13,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -88,8 +92,24 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
      */
     @Override
     @Nonnull
+    public Optional<TopologyEntityDTO> getPrimaryTier(final long entityId) {
+        final List<TopologyEntityDTO> primaryProviders = getProvidersOfTypes(entityId, PRIMARY_TIER_VALUES);
+        if (primaryProviders.size() > 1) {
+            logger.warn("Entity {} buying from multiple primary tiers. Choosing the first.",
+                entityId);
+        } else if (primaryProviders.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(primaryProviders.get(0));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Nonnull
     public Optional<TopologyEntityDTO> getComputeTier(final long entityId) {
-        final List<TopologyEntityDTO> providers = getProvidersOfType(entityId, EntityType.COMPUTE_TIER_VALUE);
+        final List<TopologyEntityDTO> providers = getProvidersOfTypes(entityId, ImmutableSet.of(EntityType.COMPUTE_TIER_VALUE));
         if (providers.size() > 1) {
             logger.warn("Entity {} buying from multiple compute tiers. Choosing the first.",
                     entityId);
@@ -97,13 +117,12 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
             return Optional.empty();
         }
         return Optional.of(providers.get(0));
-
     }
 
     @Nonnull
     @Override
     public Optional<TopologyEntityDTO> getDatabaseTier(long entityId) {
-        final List<TopologyEntityDTO> providers = getProvidersOfType(entityId, EntityType.DATABASE_TIER_VALUE);
+        final List<TopologyEntityDTO> providers = getProvidersOfTypes(entityId, ImmutableSet.of(EntityType.DATABASE_TIER_VALUE));
         if (providers.size() > 1) {
             logger.warn("Entity {} buying from multiple database tiers. Choosing the first.",
                     entityId);
@@ -116,7 +135,7 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
     @Nonnull
     @Override
     public Optional<TopologyEntityDTO> getDatabaseServerTier(long entityId) {
-        final List<TopologyEntityDTO> providers = getProvidersOfType(entityId, EntityType.DATABASE_SERVER_TIER_VALUE);
+        final List<TopologyEntityDTO> providers = getProvidersOfTypes(entityId, ImmutableSet.of(EntityType.DATABASE_SERVER_TIER_VALUE));
         if (providers.size() > 1) {
             logger.warn("Entity {} buying from multiple database server tiers. Choosing the first.",
                 entityId);
@@ -129,7 +148,7 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
     @Nonnull
     @Override
     public Optional<TopologyEntityDTO> getStorageTier(final long entityId) {
-        final List<TopologyEntityDTO> providers = getProvidersOfType(entityId, EntityType.STORAGE_TIER_VALUE);
+        final List<TopologyEntityDTO> providers = getProvidersOfTypes(entityId, ImmutableSet.of(EntityType.STORAGE_TIER_VALUE));
         if (providers.size() > 1) {
             logger.warn("Entity {} buying from multiple storage tiers. Choosing the first.",
                     entityId);
@@ -263,18 +282,20 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
      * {@inheritDoc}
      */
     @Nonnull
-    private List<TopologyEntityDTO> getProvidersOfType(final long entityId, final int type) {
+    private List<TopologyEntityDTO> getProvidersOfTypes(final long entityId, final Set<Integer> types) {
         return getEntity(entityId)
             .map(entity -> entity.getCommoditiesBoughtFromProvidersList().stream()
                 .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
-                .filter(commBought -> commBought.getProviderEntityType() == type)
+                .filter(commBought -> types.contains(commBought.getProviderEntityType()))
                 .map(CommoditiesBoughtFromProvider::getProviderId)
                 .distinct()
                 .map(providerId -> {
                     final Optional<TopologyEntityDTO> providerEntity = getEntity(providerId);
                     if (!providerEntity.isPresent()) {
                         logger.warn("Unable to find provider {} (type: {}) for entity {} in topology.",
-                                providerId, type, entityId);
+                            () -> providerId,
+                            () -> types.stream().map(String::valueOf).collect(Collectors.joining(",")),
+                            () -> entityId);
                     }
                     return providerEntity;
                 })

@@ -311,6 +311,9 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
         if (request.hasTypeFilter()) {
             filterBuilder.withType(request.getTypeFilter());
         }
+        if (!request.getIdFilterList().isEmpty()) {
+            request.getIdFilterList().forEach(filterBuilder::withId);
+        }
         Stream<SettingPolicy> settingPolicies = settingStore.getSettingPolicies(filterBuilder.build());
         if (request.hasContextId() && request.getContextId() != realtimeTopologyContextId) {
             // we need to create new policies for plan, because plan has a different set of action settings

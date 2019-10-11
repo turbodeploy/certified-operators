@@ -147,7 +147,7 @@ public class ScopedTopologyTest {
         when(ccd.getExistingRiBought()).thenReturn(new ArrayList<>());
         final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
             mock(WastedFilesAnalysisFactory.class);
-        when(tierExcluderFactory.newExcluder(any())).thenReturn(mock(TierExcluder.class));
+        when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
         testAnalysis = new Analysis(PLAN_TOPOLOGY_INFO,
             Collections.emptySet(),
             groupServiceClient,

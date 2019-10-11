@@ -135,7 +135,7 @@ public class TopologyEntitiesHandlerTest {
     @Before
     public void setup() {
         when(ccd.getExistingRiBought()).thenReturn(new ArrayList<ReservedInstanceData>());
-        when(tierExcluderFactory.newExcluder(any())).thenReturn(mock(TierExcluder.class));
+        when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
     }
 
     /**
