@@ -52,8 +52,7 @@ public class MarketMapper {
         scenarioApiDTO.setOwners(Collections.singletonList(userApiDTO));
         retDto.setScenario(scenarioApiDTO);
 
-        retDto.setDisplayName(String.format("%s_%d_%s", scenarioApiDTO.getType(),
-                instance.getPlanId(), instance.getCreatedByUser()));
+        retDto.setDisplayName(scenarioApiDTO.getDisplayName());
 
         retDto.setSaved(true);
         if (instance.hasStartTime()) {

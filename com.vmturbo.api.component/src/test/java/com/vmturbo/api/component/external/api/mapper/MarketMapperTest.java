@@ -92,9 +92,8 @@ public class MarketMapperTest {
         Assert.assertNull(inProgressDto.getRunCompleteDate());
         Assert.assertEquals(Long.toString(SCENARIO_ID), inProgressDto.getScenario().getUuid());
         Assert.assertEquals(SCENARIO_NAME, inProgressDto.getScenario().getDisplayName());
-        String compositePlanName = String.format("%s_%d_%s", SCENARIO_TYPE, PLAN_ID, CREATED_BY_USER);
-        Assert.assertEquals(compositePlanName, inProgressDto.getDisplayName());
         Assert.assertEquals(CREATED_BY_USER, inProgressDto.getScenario().getOwners().get(0).getUuid());
+        Assert.assertEquals(SCENARIO_NAME, inProgressDto.getDisplayName());
     }
 
     @Test
@@ -108,6 +107,7 @@ public class MarketMapperTest {
         Assert.assertEquals(DateTimeUtil.toString(END_TIME), succeededDto.getRunCompleteDate());
         Assert.assertEquals(Long.toString(SCENARIO_ID), succeededDto.getScenario().getUuid());
         Assert.assertEquals(SCENARIO_NAME, succeededDto.getScenario().getDisplayName());
+        Assert.assertEquals(SCENARIO_NAME, succeededDto.getDisplayName());
     }
 
     @Test
@@ -120,6 +120,7 @@ public class MarketMapperTest {
         Assert.assertEquals(DateTimeUtil.toString(END_TIME), failedDto.getRunCompleteDate());
         Assert.assertEquals(Long.toString(SCENARIO_ID), failedDto.getScenario().getUuid());
         Assert.assertEquals(SCENARIO_NAME, failedDto.getScenario().getDisplayName());
+        Assert.assertEquals(SCENARIO_NAME, failedDto.getDisplayName());
     }
 
     @Test
