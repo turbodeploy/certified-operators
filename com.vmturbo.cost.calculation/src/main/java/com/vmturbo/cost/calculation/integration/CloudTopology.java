@@ -40,6 +40,24 @@ public interface CloudTopology<ENTITY_CLASS> {
     Optional<ENTITY_CLASS> getEntity(final long entityId);
 
     /**
+     * Get the primary tier associated with an entity.
+     * Primary tier is one of Compute tier, database tier, database server tier.
+     * A consumer is connected to exactly one primary tier.
+     * For ex., A VM is connected to one compute tier, but can be connected to multiple storage tiers.
+     * So, storage tiers are not considered primary tiers.
+     *
+     * <p>Only finds the immediately connected primary tier. For example, suppose an APPLICATION
+     * connected to a VM connected to a COMPUTE TIER. Calling this method with the APPLICATION's
+     * ID will return an empty optional.</p>
+     *
+     * @param entityId The ID of the entity.
+     * @return An optional containing the primary tier entity, or an empty optional if the ID is
+     *  not found, or if there is no primary tier directly associated with the entity.
+     */
+    @Nonnull
+    Optional<ENTITY_CLASS> getPrimaryTier(long entityId);
+
+    /**
      * Get the compute tier associated with an entity.
      *
      * Only finds the immediately connected compute tier. For example, suppose an APPLICATION

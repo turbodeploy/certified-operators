@@ -119,7 +119,7 @@ public class AnalysisTest {
                 .thenReturn(START_INSTANT)
                 .thenReturn(END_INSTANT);
         groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        when(tierExcluderFactory.newExcluder(any())).thenReturn(mock(TierExcluder.class));
+        when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
     }
 
     private Map<String, Setting> getRateOfResizeSettingMap(float resizeValue) {

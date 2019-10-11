@@ -130,7 +130,7 @@ public class MarketRunnerTest {
             when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
             final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
                 mock(WastedFilesAnalysisFactory.class);
-            when(tierExcluderFactory.newExcluder(any())).thenReturn(mock(TierExcluder.class));
+            when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
 
             return new Analysis(topologyInfo, entities,
                     GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),

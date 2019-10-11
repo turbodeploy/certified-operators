@@ -143,7 +143,7 @@ public class TopologyConverterFromMarketTest {
         topologyCommodity1 = CommodityType.newBuilder().setType(CPU_TYPE_ID).setKey("blah").build();
         topologyCommodity2 =
                 CommodityType.newBuilder().setType(DSPM_TYPE_ID).setKey("blahblah").build();
-        when(tierExcluderFactory.newExcluder(any())).thenReturn(mock(TierExcluder.class));
+        when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
     }
 
     /**
