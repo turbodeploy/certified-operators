@@ -10,6 +10,7 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
+
 import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
@@ -19,8 +20,10 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -40,7 +43,7 @@ public class PlanRpcServiceUtil {
      * Create StartBuyRIAnalysisRequest
      *
      * @param scenarioInfo the scenarioInfo of plan instance
-     * @param riScenario the scenario change related with RI 
+     * @param riScenario the scenario change related with RI
      * @param planId the plan id
      * @return StartBuyRIAnalysisRequest
      */
@@ -88,6 +91,18 @@ public class PlanRpcServiceUtil {
         }
         if (baIds != null && !baIds.isEmpty()) {
             buyRiRequest.addAllAccounts(baIds);
+        }
+        if (scenarioInfo.getChangesList()
+                .stream()
+                .filter(sc -> sc.hasSettingOverride())
+                .map(sc -> sc.getSettingOverride())
+                .map(so -> so.getSetting())
+                .anyMatch(setting -> setting.getSettingSpecName()
+                        .equals(EntitySettingSpecs.Resize.getSettingName())
+                        && !setting.getEnumSettingValue().getValue().equals(StringConstants.DISABLED))) {
+            buyRiRequest.setDemandType(DemandType.CONSUMPTION);
+        } else {
+            buyRiRequest.setDemandType(DemandType.ALLOCATION);
         }
         return buyRiRequest.build();
     }

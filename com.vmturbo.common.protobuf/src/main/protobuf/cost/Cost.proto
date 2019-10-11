@@ -616,7 +616,7 @@ message GetReservedInstanceBoughtByFilterRequest {
     // get reserved instance bought filter by scope oid, the OIDs specified here seed the scoping expansion.
     // Combined with scopeEntityType, a scope oid can represent Region/BusinessAccount/AvailabilityZone or other scope.
     // Currently this filter supports one scope entity type, as existing RIs are retrieved in plans and stats calls,
-    // by a single filter and in real-time, without a filter.  If multiple filters were desired in the future  
+    // by a single filter and in real-time, without a filter.  If multiple filters were desired in the future
     // (no use case of now), this request would need to be modified appropriately.  The scope seeds and scope type go together,
     //  hence they could be combined into one message.
     repeated int64 scope_seed_oids = 1;
@@ -911,7 +911,11 @@ message StartBuyRIAnalysisRequest {
 
     // the RI purchase profile
     optional RIPurchaseProfile purchaseProfile = 6;
+
+    // the demand type
+    optional common_dto.DemandType demandType = 7;
 }
+
 // the RI purchase profile for buy RI recommendations
 message RIPurchaseProfile {
     // the reserved instance type. The type of RIs which will be suggested in the Buy RI results

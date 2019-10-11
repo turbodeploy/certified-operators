@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -8,13 +9,14 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
+import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc.BuyRIAnalysisServiceImplBase;
 import com.vmturbo.common.protobuf.cost.Cost.SetBuyRIAnalysisScheduleRequest;
@@ -25,6 +27,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisScope;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalyzer;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceHistoricalDemandDataType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
 
 /**
  * This class is a rpc service for buy reserved instance analysis.
@@ -43,6 +46,11 @@ public class BuyRIAnalysisRpcService extends BuyRIAnalysisServiceImplBase {
 
     private final ExecutorService buyRIExecutor = Executors.newSingleThreadExecutor(
             new ThreadFactoryBuilder().setNameFormat("buy-ri-algorithm-%d").build());
+
+    private static final Map<DemandType, ReservedInstanceHistoricalDemandDataType>
+            demandTypeToHistoricalDemandType = ImmutableMap.of(
+            DemandType.ALLOCATION, ReservedInstanceHistoricalDemandDataType.ALLOCATION,
+            DemandType.CONSUMPTION, ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
 
     public BuyRIAnalysisRpcService(
             @Nonnull final BuyRIAnalysisScheduler buyRIAnalysisScheduler,
@@ -108,20 +116,16 @@ public class BuyRIAnalysisRpcService extends BuyRIAnalysisServiceImplBase {
     private void runPlanBuyRIAnalysis(StartBuyRIAnalysisRequest request,
                                       StreamObserver<StartBuyRIAnalysisResponse> responseObserver) {
         long planId = request.getTopologyInfo().getTopologyContextId();
+        DemandType demandType = request.getDemandType();
+        ReservedInstanceHistoricalDemandDataType historicalDemandDataType =
+                demandTypeToHistoricalDemandType.get(demandType);
         try {
-            // failed the plan because not enough data to run buy ri
-//            if (!computeTierDemandStatsStore.containsDataOverWeek()) {
-//                String failedMsg = "Not enough compute tier data collected to run buy RI analysis";
-//                logger.error(failedMsg);
-//                responseObserver.onError(Status.FAILED_PRECONDITION.withDescription(failedMsg).asException());
-//            } else {
-                logger.info("Executing buy RI algorithm for plan {}.", planId);
-                ReservedInstanceAnalysisScope reservedInstanceAnalysisScope =
-                                new ReservedInstanceAnalysisScope(request);
-                // TODO: ReservedInstanceHistoricalDemandDataType should be based on OCP planType
-                reservedInstanceAnalyzer.runRIAnalysisAndSendActions(planId, reservedInstanceAnalysisScope,
-                                                                     ReservedInstanceHistoricalDemandDataType.ALLOCATION);
-           //}
+            logger.info("Executing buy RI algorithm for plan {} using {}.",
+                    planId, historicalDemandDataType);
+            ReservedInstanceAnalysisScope reservedInstanceAnalysisScope =
+                    new ReservedInstanceAnalysisScope(request);
+            reservedInstanceAnalyzer.runRIAnalysisAndSendActions(planId,
+                    reservedInstanceAnalysisScope, historicalDemandDataType);
         } catch (CommunicationException | InterruptedException e) {
             logger.error("Failed to send buy RI action plan to action orchestrator for plan {}", planId);
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());

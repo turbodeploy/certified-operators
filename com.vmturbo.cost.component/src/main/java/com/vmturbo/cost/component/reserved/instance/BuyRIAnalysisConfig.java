@@ -22,6 +22,7 @@ import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
+
 @Configuration
 @Import({ComputeTierDemandStatsConfig.class,
         ReservedInstanceAnalysisConfig.class,
