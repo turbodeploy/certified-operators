@@ -8,7 +8,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.matrix.component.external.MatrixInterface;
-import com.vmturbo.platform.analysis.economy.BalanceAccount;
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
@@ -248,7 +248,7 @@ public class FunctionalOperatorUtil {
     public static FunctionalOperator UPDATE_EXPENSES = (buyer, boughtIndex, commSold, seller,
                         economy, take, overhead)
                     -> {
-                        BalanceAccount ba = seller.getSettings().getBalanceAccount();
+                        BalanceAccount ba = seller.getSettings().getContext().getBalanceAccount();
                         if (take) {
                             // updating the action spent when taking it
                             CommoditySold commSoldByCurrSeller = buyer.getSupplier() != null ? buyer.getSupplier()

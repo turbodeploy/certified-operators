@@ -22,7 +22,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO.MoveContext;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 
@@ -32,7 +32,7 @@ import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 public class Move extends MoveBase implements Action { // inheritance for code reuse
     // Fields
     private final @Nullable Trader destination_;
-    private final Optional<MoveContext> context_;
+    private final Optional<Context> context_;
 
     // Constructors
 
@@ -76,7 +76,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      */
     public Move(@NonNull Economy economy, @NonNull ShoppingList target,
                 @Nullable Trader source, @Nullable Trader destination,
-                Optional<MoveContext> context) {
+                Optional<Context> context) {
         super(economy,target,source);
         destination_ = destination;
         context_ = context;
@@ -111,6 +111,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
             getTarget().move(destination_);
             updateQuantities(getEconomy(), getTarget(), getSource(), FunctionalOperatorUtil.SUB_COMM);
             updateQuantities(getEconomy(), getTarget(), getDestination(), FunctionalOperatorUtil.ADD_COMM);
+            getTarget().setContext(getContext().orElse(null));
         }
         return this;
     }
@@ -442,7 +443,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
         return ActionType.MOVE;
     }
 
-    public Optional<MoveContext> getContext() {
+    public Optional<Context> getContext() {
         return context_;
     }
 } // end Move class

@@ -27,6 +27,7 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
@@ -365,7 +366,7 @@ public class MarketTest {
         BalanceAccountDTO ba = BalanceAccountDTO.newBuilder().setBudget(10000).setSpent(100).setId(1).build();
         TraderSettingsTO shoptogetherFalseTO =
                 TraderSettingsTO.newBuilder().setIsShopTogether(false)
-                        .setBalanceAccount(ba)
+                        .setCurrentContext(Context.newBuilder().setBalanceAccount(ba).setRegionId(10L).build())
                         .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                                 .setSumOfCommodity(SumOfCommodity
                                         .newBuilder().build())

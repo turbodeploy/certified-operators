@@ -41,7 +41,7 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     @Nullable private CostFunction costFunction_ = null;
     // default quote function is sum of commodity
     private QuoteFunction quoteFunction_ = QuoteFunctionFactory.sumOfCommodityQuoteFunction();
-    private BalanceAccount balanceAccount_;
+    private Context context_;
     private boolean isDaemon_ = false;
     // Whether the trader resizes commodity capacities through its Supplier cloning or suspending.
     private boolean isResizeThroughSupplier_ = false;
@@ -325,12 +325,12 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     }
 
     @Override
-    public void setBalanceAccount(BalanceAccount balanceAccount) {
-        balanceAccount_ = balanceAccount;
+    public void setContext(final Context context) {
+        context_ = context;
     }
 
     @Override
-    public BalanceAccount getBalanceAccount() {
-        return balanceAccount_;
+    public Context getContext() {
+        return context_;
     }
 } // end TraderWithSettings class

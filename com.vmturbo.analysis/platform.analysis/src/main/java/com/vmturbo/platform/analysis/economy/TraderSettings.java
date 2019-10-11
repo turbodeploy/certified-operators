@@ -101,10 +101,12 @@ public interface TraderSettings {
     QuoteFunction getQuoteFunction();
 
     /**
-     * Returns the associated balance account with trader.
+     * Returns the associated context with trader.
      *
+     * @return The context asoociated with the trader
      */
-    BalanceAccount getBalanceAccount();
+    // TODO: Have this method return a Context class which is generic for both on prem and cloud.
+    Context getContext();
 
     /**
      * Sets the value of the <b>controllable</b> field.
@@ -317,8 +319,10 @@ public interface TraderSettings {
     void setQuoteFunction(QuoteFunction quoteFunction);
 
     /**
-     * Sets the {@link BalanceAccount} with a trader
+     * Sets the {@link Context} with a trader.
+     *
+     * @param context The context to be set on the trader.
      */
-    void setBalanceAccount(BalanceAccount balanceAccount);
+    void setContext(Context context);
 
 } // end TraderSettings interface

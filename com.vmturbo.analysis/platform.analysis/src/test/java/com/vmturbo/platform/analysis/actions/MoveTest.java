@@ -4,6 +4,7 @@ import static org.junit.Assert.*;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -18,6 +19,8 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
@@ -50,17 +53,30 @@ public final class MoveTest {
 
     // Methods
 
+    /**
+     * Test the Shopping List Move action.
+     *
+     * @param economy The economy
+     * @param target The target entity
+     * @param source The source entity
+     * @param destination The destination
+     */
     @Test
     @Parameters(method = "parametersForTestMove")
     @TestCaseName("Test #{index}: new Move({0},{1},{3})")
     public final void testMove_3(@NonNull Economy economy, @NonNull ShoppingList target,
                                  @Nullable Trader source, @Nullable Trader destination) {
-        Move move = new Move(economy,target,destination);
+        Context context = Context.newBuilder().setBalanceAccount(BalanceAccountDTO.newBuilder().setId(20L).build()).setRegionId(10L).build();
+        Move move = new Move(economy, target, target.getSupplier(), destination, Optional.ofNullable(context));
 
         assertSame(economy, move.getEconomy());
         assertSame(target, move.getTarget());
         assertSame(target.getSupplier(), move.getSource());
         assertSame(destination, move.getDestination());
+
+        // Test move context
+        assertSame(10L, move.getContext().get().getRegionId());
+        assertSame(20L, move.getContext().get().getBalanceAccount().getId());
     }
 
     @Test

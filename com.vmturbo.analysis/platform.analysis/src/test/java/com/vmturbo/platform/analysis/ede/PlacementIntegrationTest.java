@@ -20,6 +20,7 @@ import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
+import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
@@ -27,6 +28,7 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificati
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
@@ -49,6 +51,7 @@ public class PlacementIntegrationTest {
     private final TraderSettingsTO shoptogetherTrueTO =
         TraderSettingsTO.newBuilder().setIsShopTogether(true)
             .setMoveCostFactor(0.005f)
+                .setCurrentContext(Context.newBuilder().setRegionId(10L).setBalanceAccount(BalanceAccountDTO.newBuilder().setId(100L).build()).build())
             .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                 .setSumOfCommodity(SumOfCommodity
                     .newBuilder().build())
@@ -57,6 +60,7 @@ public class PlacementIntegrationTest {
     private final TraderSettingsTO shoptogetherFalseTO =
         TraderSettingsTO.newBuilder().setIsShopTogether(false)
             .setMoveCostFactor(0.005f)
+                .setCurrentContext(Context.newBuilder().setRegionId(10L).setBalanceAccount(BalanceAccountDTO.newBuilder().setId(100L).build()).build())
             .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                 .setSumOfCommodity(SumOfCommodity
                     .newBuilder().build())
@@ -195,7 +199,7 @@ public class PlacementIntegrationTest {
         .setLicenseCommodityBaseType(LICENSE_ID).setCouponBaseType(COUPON_ID);
     private final CostDTO costDTO = CostDTO.newBuilder()
             .setComputeTierCost(costBundleBuilder.addCostTupleList(CostTuple.newBuilder()
-                    .setPrice(100.0).build()))
+                    .setPrice(100.0).setRegionId(10L).setBusinessAccountId(1000L).build()))
             .build();
     private final CostFunction costFunction = CostFunctionFactory.createCostFunction(costDTO);
 

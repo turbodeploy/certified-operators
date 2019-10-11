@@ -5,8 +5,8 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.platform.analysis.economy.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -86,7 +86,7 @@ public class QuoteFunctionFactory {
         QuoteFunction qf = (buyer, seller, bestQuoteSoFar, forTraderIncomeStmt, economy) -> {
             MutableQuote costOnNewSeller = computeCost(buyer, seller, true, economy);
             MutableQuote costOnCurrentSupplier = computeCost(buyer, buyer.getSupplier(), false, economy);
-            BalanceAccount ba = buyer.getBuyer().getSettings().getBalanceAccount();
+            BalanceAccount ba = buyer.getBuyer().getSettings().getContext().getBalanceAccount();
             // TODO: if the buyer is on the wrong supplier, costOnSupplier may be infinity
             // now I added this to workaround such a case
             if (Double.isInfinite(costOnCurrentSupplier.getQuoteValue())) {

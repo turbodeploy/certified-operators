@@ -7,7 +7,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -16,8 +18,8 @@ import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
-import com.vmturbo.platform.analysis.economy.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -38,6 +40,7 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDT
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceCost;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceLimitation;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityCloudQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
@@ -129,13 +132,15 @@ public class CostFunctionFactory {
         private double price_;
         private boolean isUnitPrice_;
         private boolean isAccumulative_;
+        private long regionId_;
 
         public PriceData(double upperBound, double price, boolean isUnitPrice,
-                        boolean isAccumulative) {
+                        boolean isAccumulative, long regionId) {
             upperBound_ = upperBound;
             price_ = price;
             isUnitPrice_ = isUnitPrice;
             isAccumulative_ = isAccumulative;
+            regionId_ = regionId;
         }
 
         /**
@@ -164,6 +169,15 @@ public class CostFunctionFactory {
          */
         public boolean isAccumulative() {
             return isAccumulative_;
+        }
+
+        /**
+         * Getter for the region id.
+         *
+         * @return the region id
+         */
+        public long getRegionId() {
+            return  regionId_;
         }
 
         @Override
@@ -444,68 +458,6 @@ public class CostFunctionFactory {
     }
 
     /**
-     * Calculates the cost of template that a shopping list has matched to
-     *
-     * @param seller {@link Trader} that the buyer matched to
-     * @param sl is the {@link ShoppingList} that is requesting price
-     * @param costDTO is the resourceBundle associated with this templateProvider
-     * @param costMap is a map of map which stores cost by business account and license type
-     *
-     * @return A quote for the cost given by {@link CostFunction}
-     */
-    public static MutableQuote calculateComputeCostQuote(Trader seller, ShoppingList sl,
-                                                         ComputeTierCostDTO costDTO,
-                                                         Map<Long, Map<Integer, Double>> costMap) {
-        final int licenseBaseType = costDTO.getLicenseCommodityBaseType();
-        final int licenseCommBoughtIndex = sl.getBasket().indexOfBaseType(licenseBaseType);
-        final long groupFactor = sl.getGroupFactor();
-        final BalanceAccount balanceAccount = sl.getBuyer().getSettings().getBalanceAccount();
-        if (balanceAccount == null) {
-            logger.warn("Business account is not found on seller: {}, for shopping list: {}, " +
-                            "return infinity compute quote",
-                    seller.getDebugInfoNeverUseInCode(), sl.getDebugInfoNeverUseInCode());
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
-        }
-        final long priceId = balanceAccount.getPriceId();
-        final long balanceAccountId = balanceAccount.getId();
-
-        final Map<Integer, Double> costByLicense = costMap.containsKey(priceId) ?
-                costMap.get(priceId) : costMap.get(balanceAccountId);
-
-        if (costByLicense == null) {
-            if (logger.isTraceEnabled() || seller.isDebugEnabled()
-                    || sl.getBuyer().isDebugEnabled()) {
-                logger.warn("No entry found in cost map on seller: {}, for shopping list: {}, using " +
-                                "priceId: {}, balanceAccountId: {}, costMap keys: {}",
-                        seller.getDebugInfoNeverUseInCode(),
-                        sl.getDebugInfoNeverUseInCode(), priceId, balanceAccountId,
-                        costMap.keySet());
-            }
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
-        }
-
-        if (licenseCommBoughtIndex == -1) {
-        // NOTE: -1 is the no license commodity type
-            return new CommodityQuote(seller, costByLicense.get(licenseCommBoughtIndex) * groupFactor);
-        }
-
-        // if the license commodity exists in the basketBought, get the type of that commodity
-        // and lookup the costMap for that license type
-        final Integer type = sl.getBasket().get(licenseCommBoughtIndex).getType();
-        final Double cost = costByLicense.get(type);
-        if (cost == null) {
-            logger.error("Cannot find type {} in costMap, license base type: {}", type,
-                    licenseBaseType);
-            // NOTE: -1 is the no license commodity type
-            return new CommodityQuote(seller, costByLicense.get(-1) * groupFactor);
-        }
-
-        return Double.isInfinite(cost) ?
-            new LicenseUnavailableQuote(seller, sl.getBasket().get(licenseCommBoughtIndex)) :
-            new CommodityQuote(seller, cost * groupFactor);
-    }
-
-    /**
      * Calculate the discounted compute cost, based on available RIs discount on a cbtp.
      *
      * @param buyer {@link ShoppingList} associated with the vm that is requesting price
@@ -515,12 +467,12 @@ public class CostFunctionFactory {
      *
      * @return the cost given by {@link CostFunction}
      */
-    public static double calculateDiscountedComputeCost(ShoppingList buyer, Trader seller,
+    public static MutableQuote calculateDiscountedComputeCost(ShoppingList buyer, Trader seller,
                     CbtpCostDTO cbtpResourceBundle, UnmodifiableEconomy economy) {
         long groupFactor = buyer.getGroupFactor();
         // If the buyer is already placed on a CBTP return 0
         if (buyer.getSupplier() == seller) {
-            return 0;
+            return new CommodityCloudQuote(seller, 0, null, null);
         }
         // Match the vm with a template in order to:
         // 1) Estimate the number of coupons requested by the vm
@@ -547,14 +499,15 @@ public class CostFunctionFactory {
         // 2) when none of the mutableSellers can fit the buyer
         // so when it gets here, minimizer has no best seller.
         if (matchingTP == null) {
-            return Double.POSITIVE_INFINITY;
+            return new CommodityCloudQuote(seller, Double.POSITIVE_INFINITY, null, null);
         }
 
         // Get the cost of the template matched with the vm. If this buyer represents a
         // consistent scaling group, the template cost will be for all members of the
         // group (the cost will be multiplied by the group factor)
-        double templateCostForBuyer = QuoteFunctionFactory.computeCost(buyer, matchingTP, false, economy)
-                .getQuoteValue();
+        MutableQuote matchingTpQuote = QuoteFunctionFactory.computeCost(buyer, matchingTP, false, economy);
+        Optional<Context> context = matchingTpQuote.getContext();
+        double templateCostForBuyer = matchingTpQuote.getQuoteValue();
 
         double costOnCurrentSupplier = QuoteFunctionFactory.computeCost(buyer, buyer.getSupplier(), false, economy)
                 .getQuoteValue();
@@ -573,7 +526,7 @@ public class CostFunctionFactory {
                                 economy.getSettings().getDiscountedComputeCostFactor(),
                                 buyer.getSupplier(), costOnCurrentSupplier);
             }
-            return Double.POSITIVE_INFINITY;
+            return new CommodityCloudQuote(seller, Double.POSITIVE_INFINITY, null, null);
         }
 
         // The capacity of a coupon commodity sold by a template provider reflects the number of
@@ -618,7 +571,8 @@ public class CostFunctionFactory {
             // no discount on tp of the matching template.
             discountedCost = Double.POSITIVE_INFINITY;
         }
-        return discountedCost;
+        return new CommodityCloudQuote(seller, discountedCost, context.isPresent() ? context.get().getRegionId()
+                : null, context.isPresent() ? context.get().getBalanceAccount().getId() : null);
     }
 
     /**
@@ -626,20 +580,16 @@ public class CostFunctionFactory {
      *
      * @param seller {@link Trader} that the buyer matched to
      * @param sl is the {@link ShoppingList} that is requesting price
-     * @param costDTO is the resourceBundle associated with this templateProvider
      * @param costTable Table that stores cost by Business Account, license type and Region.
-     *
+     * @param licenseBaseType The base type of the license commodity the sl contains.
      * @return A quote for the cost given by {@link CostFunction}
      */
-    private static MutableQuote calculateDatabaseCostQuote(Trader seller, ShoppingList sl,
-                                                          DatabaseTierCostDTO costDTO,
-                                                          CostTable costTable) {
-        final int licenseBaseType = costDTO.getLicenseCommodityBaseType();
+    private static MutableQuote calculateComputeAndDatabaseCostQuote(Trader seller, ShoppingList sl,
+                                                                     CostTable costTable, final int licenseBaseType) {
         final int licenseCommBoughtIndex = sl.getBasket().indexOfBaseType(licenseBaseType);
-        final int regionBaseType = costDTO.getRegionCommodityBaseType();
-        final int regionCommBoughtIndex = sl.getBasket().indexOfBaseType(regionBaseType);
+        final long regionIdBought = sl.getBuyer().getSettings().getContext().getRegionId();
         final long groupFactor = sl.getGroupFactor();
-        final BalanceAccount balanceAccount = sl.getBuyer().getSettings().getBalanceAccount();
+        final BalanceAccount balanceAccount = sl.getBuyer().getSettings().getContext().getBalanceAccount();
         if (balanceAccount == null) {
             logger.warn("Business account is not found on seller: {}, for shopping list: {}, return " +
                             "infinity compute quote", seller.getDebugInfoNeverUseInCode(),
@@ -667,17 +617,13 @@ public class CostFunctionFactory {
         } else {
             licenseTypeKey = sl.getBasket().get(licenseCommBoughtIndex).getType();
         }
-        // NOTE: CostTable.NO_VALUE (-1) means find the cheapest region Id
-        final int regionTypeKey = regionCommBoughtIndex == CostTable.NO_VALUE ?
-                regionCommBoughtIndex :
-                sl.getBasket().get(regionCommBoughtIndex).getType();
 
-        CostTuple costTuple = costTable.getTuple(regionTypeKey, accountId, licenseTypeKey);
+        CostTuple costTuple = costTable.getTuple(regionIdBought, accountId, licenseTypeKey);
         if (costTuple == null) {
             logger.error("Cannot find type {} and region {} in costMap, license base type: {}",
-                    licenseTypeKey, regionCommBoughtIndex, licenseBaseType);
-            // NOTE: CostTable.NO_VALUE (-1) is the no license commodity type
-            costTuple = costTable.getTuple(regionCommBoughtIndex, accountId, CostTable.NO_VALUE);
+                    licenseTypeKey, regionIdBought, licenseBaseType);
+            // NOTE: CostTable.NO_VALUE (-1) is the no license commodity type and the same for region.
+            costTuple = costTable.getTuple(CostTable.NO_VALUE, accountId, CostTable.NO_VALUE);
         }
 
         final Long regionId = costTuple.getRegionId();
@@ -685,7 +631,7 @@ public class CostFunctionFactory {
         // NOTE: CostTable.NO_VALUE (-1) is the no license commodity type
         return Double.isInfinite(cost) && licenseCommBoughtIndex != CostTable.NO_VALUE ?
                 new LicenseUnavailableQuote(seller, sl.getBasket().get(licenseCommBoughtIndex)) :
-                new CommodityCloudQuote(seller, cost * groupFactor, regionId);
+                new CommodityCloudQuote(seller, cost * groupFactor, regionId, accountId);
     }
 
     /**
@@ -709,27 +655,6 @@ public class CostFunctionFactory {
         }
     }
 
-    /**
-     * A utility method to construct the pricing information map.
-     *
-     * @param costTupleList a list of cost data
-     * @return map The map has business account id as key and a mapping of license to price as value.
-     */
-    private static Map<Long, Map<Integer, Double>>
-            translateResourceCostForTier(List<CostTuple> costTupleList) {
-        Map<Long, Map<Integer, Double>> costMap = new HashMap<>();
-        for (CostTuple costTuple: costTupleList) {
-            long baId = costTuple.getBusinessAccountId();
-            if (costMap.containsKey(baId)) {
-                costMap.get(baId).put(costTuple.getLicenseCommodityType(), costTuple.getPrice());
-            } else {
-                Map<Integer, Double> priceByLicense = new HashMap<>();
-                priceByLicense.put(costTuple.getLicenseCommodityType(), costTuple.getPrice());
-                costMap.put(baId, priceByLicense);
-            }
-        }
-        return costMap;
-    }
 
     /**
      * Create {@link CostFunction} by extracting data from {@link ComputeTierCostDTO}
@@ -738,18 +663,17 @@ public class CostFunctionFactory {
      * @return CostFunction
      */
     public static @NonNull CostFunction createCostFunctionForComputeTier(ComputeTierCostDTO costDTO) {
-        Map<Long, Map<Integer, Double>> costMap =
-                        translateResourceCostForTier(costDTO.getCostTupleListList());
+        final CostTable costTable = new CostTable(costDTO.getCostTupleListList());
         Map<CommoditySpecification, CommoditySpecification> dependencyMap =
                 translateComputeResourceDependency(costDTO.getComputeResourceDepedencyList());
-
+        final int licenseBaseType = costDTO.getLicenseCommodityBaseType();
         CostFunction costFunction = new CostFunction() {
             @Override
             public MutableQuote calculateCost(ShoppingList buyer, Trader seller, boolean validate,
                     UnmodifiableEconomy economy) {
                 if (!validate) {
                     // seller is the currentSupplier. Just return cost
-                    return calculateComputeCostQuote(seller, buyer, costDTO, costMap);
+                    return calculateComputeAndDatabaseCostQuote(seller, buyer, costTable, licenseBaseType);
                 }
 
                 int couponCommodityBaseType = costDTO.getCouponBaseType();
@@ -769,7 +693,7 @@ public class CostFunctionFactory {
                     }
                 }
 
-                return calculateComputeCostQuote(seller, buyer, costDTO, costMap);
+                return calculateComputeAndDatabaseCostQuote(seller, buyer, costTable, licenseBaseType);
             }
         };
         return costFunction;
@@ -808,8 +732,7 @@ public class CostFunctionFactory {
                     return quote;
                 }
 
-                return new CommodityQuote(seller,
-                    calculateDiscountedComputeCost(buyer, seller, cbtpResourceBundle, economy));
+                return calculateDiscountedComputeCost(buyer, seller, cbtpResourceBundle, economy);
             }
         };
 
@@ -852,7 +775,7 @@ public class CostFunctionFactory {
                 if (dependentCommodityQuote.isInfinite()) {
                     return dependentCommodityQuote;
                 }
-                return new CommodityQuote(seller, calculateStorageTierCost(priceDataMap, commCapacity, buyer));
+                return calculateStorageTierCost(priceDataMap, commCapacity, buyer, seller);
             }
         };
 
@@ -867,6 +790,7 @@ public class CostFunctionFactory {
      */
     public static @NonNull CostFunction createCostFunctionForDatabaseTier(DatabaseTierCostDTO costDTO) {
         CostTable costTable = new CostTable(costDTO.getCostTupleListList());
+        final int licenseBaseType = costDTO.getLicenseCommodityBaseType();
 
         CostFunction costFunction = new CostFunction() {
             @Override
@@ -874,7 +798,7 @@ public class CostFunctionFactory {
                                               UnmodifiableEconomy economy) {
                 if (!validate) {
                     // seller is the currentSupplier. Just return cost
-                    return calculateDatabaseCostQuote(seller, buyer, costDTO, costTable);
+                    return calculateComputeAndDatabaseCostQuote(seller, buyer, costTable, licenseBaseType);
                 }
 
                 int couponCommodityBaseType = costDTO.getCouponBaseType();
@@ -884,7 +808,7 @@ public class CostFunctionFactory {
                     return capacityQuote;
                 }
 
-                return calculateDatabaseCostQuote(seller, buyer, costDTO, costTable);
+                return calculateComputeAndDatabaseCostQuote(seller, buyer, costTable, licenseBaseType);
             }
         };
         return costFunction;
@@ -905,19 +829,22 @@ public class CostFunctionFactory {
             if (!priceDataMap.containsKey(resource.getResourceType())) {
                 Map<Long, List<CostFunctionFactory.PriceData>> priceDataPerBusinessAccount = new HashMap<>();
                 for (CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData priceData : resource.getStorageTierPriceDataList()) {
-                    long businessAccountId = priceData.getBusinessAccountId();
-                    CostFunctionFactory.PriceData price = new PriceData(priceData.getUpperBound(),
-                                                                           priceData.getPrice(),
-                                                                           priceData.getIsUnitPrice(),
-                                                                           priceData.getIsAccumulativeCost());
-                    if (priceDataPerBusinessAccount.containsKey(businessAccountId)) {
-                        List<CostFunctionFactory.PriceData> currentPriceDataList = priceDataPerBusinessAccount
-                            .get(businessAccountId);
-                        currentPriceDataList.add(price);
-                    } else {
-                        priceDataPerBusinessAccount.put(businessAccountId, new ArrayList<>(Arrays.asList(price)));
-                    }
+                    for (CostDTO.CostTuple costTuple : priceData.getCostTupleListList()) {
+                        long businessAccountId = costTuple.getBusinessAccountId();
+                        CostFunctionFactory.PriceData price = new PriceData(priceData.getUpperBound(),
+                                costTuple.getPrice(),
+                                priceData.getIsUnitPrice(),
+                                priceData.getIsAccumulativeCost(),
+                                costTuple.getRegionId());
+                        if (priceDataPerBusinessAccount.containsKey(businessAccountId)) {
+                            List<CostFunctionFactory.PriceData> currentPriceDataList = priceDataPerBusinessAccount
+                                    .get(businessAccountId);
+                            currentPriceDataList.add(price);
+                        } else {
+                            priceDataPerBusinessAccount.put(businessAccountId, new ArrayList<>(Arrays.asList(price)));
+                        }
 
+                    }
                 }
                 // make sure price list is ascending based on upper bound, because we need to get the
                 // first resource range that can satisfy the requested amount, and the price
@@ -939,13 +866,17 @@ public class CostFunctionFactory {
      * on a seller
      * @param commCapacity the information of a commodity and its minimum and maximum capacity
      * @param sl the shopping list requests resources
+     * @param seller the seller
      *
-     * @return the cost given by {@link CostFunction}
+     * @return the Quote given by {@link CostFunction}
      */
-    public static double calculateStorageTierCost(@NonNull Map<CommoditySpecification, Map<Long, List<PriceData>>> priceDataMap,
-                                              Map<CommoditySpecification, CapacityLimitation> commCapacity,
-                                              @NonNull ShoppingList sl) {
+    public static CommodityCloudQuote calculateStorageTierCost(@NonNull Map<CommoditySpecification, Map<Long, List<PriceData>>> priceDataMap,
+                                                               Map<CommoditySpecification, CapacityLimitation> commCapacity,
+                                                               @NonNull ShoppingList sl, Trader seller) {
+        // TODO: refactor the PriceData to improve performance for region and business account lookup
         double cost = 0;
+        Long businessAccountChosenId = null;
+        final long regionId = sl.getBuyer().getSettings().getContext().getRegionId();
         for (Entry<CommoditySpecification, Map<Long, List<PriceData>>> commodityPrice : priceDataMap.entrySet()) {
             int i = sl.getBasket().indexOf(commodityPrice.getKey());
             if (i == -1) {
@@ -962,12 +893,12 @@ public class CostFunctionFactory {
                                            commCapacity.get(sl.getBasket().get(i)).getMinCapacity());
             }
             double previousUpperBound = 0;
-            final BalanceAccount balanceAccount = sl.getBuyer().getSettings().getBalanceAccount();
+            final BalanceAccount balanceAccount = sl.getBuyer().getSettings().getContext().getBalanceAccount();
             if (balanceAccount == null) {
                 logger.warn("Business account is not found for shopping list: {}, return infinity storage quote",
                         sl.getDebugInfoNeverUseInCode());
 
-                return Double.POSITIVE_INFINITY;
+                return new CommodityCloudQuote(seller, Double.POSITIVE_INFINITY, regionId, null);
             }
             // priceMap may contain PriceData by price id. Price id is the identifier for a price
             // offering associated with a Balance Account. Different Balance Accounts (i.e.
@@ -977,20 +908,21 @@ public class CostFunctionFactory {
             final long priceId = balanceAccount.getPriceId();
             final long balanceAccountId = balanceAccount.getId();
             final Map<Long, List<PriceData>> priceMap = commodityPrice.getValue();
-            final List<PriceData> priceDataList = priceMap.containsKey(priceId) ?
-                    priceMap.get(priceId) : priceMap.get(balanceAccountId);
+            businessAccountChosenId = priceMap.containsKey(priceId) ? priceId : balanceAccountId;
+            final List<PriceData> priceDataList = priceMap.get(businessAccountChosenId);
 
             if (priceDataList == null) {
                 if (logger.isTraceEnabled() || sl.getBuyer().isDebugEnabled()) {
                     logger.warn("No entry found in cost map for shopping list: {}, " +
                                     "using priceId: {}, balanceAccountId: {}, priceMap keys: {}",
-                            sl.getDebugInfoNeverUseInCode(), priceId, balanceAccountId,
+                            sl.getDebugInfoNeverUseInCode(), priceId, businessAccountChosenId,
                             priceMap.keySet());
                 }
-                return Double.POSITIVE_INFINITY;
+                return new CommodityCloudQuote(seller, Double.POSITIVE_INFINITY, regionId, balanceAccountId);
             }
 
-            for (PriceData priceData : priceDataList) {
+            List<PriceData> pricesScopedToregion = priceDataList.stream().filter(s -> s.getRegionId() == regionId).collect(Collectors.toList());
+            for (PriceData priceData : pricesScopedToregion) {
                 // the list of priceData is sorted based on upper bound
                 double currentUpperBound = priceData.getUpperBound();
                 if (priceData.isAccumulative()) {
@@ -1015,6 +947,6 @@ public class CostFunctionFactory {
                 previousUpperBound = currentUpperBound;
             }
         }
-        return cost;
+        return new CommodityCloudQuote(seller, cost, regionId, businessAccountChosenId);
     }
 }

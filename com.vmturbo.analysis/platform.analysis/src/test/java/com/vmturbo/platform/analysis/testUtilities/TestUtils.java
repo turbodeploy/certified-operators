@@ -5,15 +5,14 @@ package com.vmturbo.platform.analysis.testUtilities;
 
 import java.util.*;
 
-import com.google.common.collect.ImmutableMap;
-import com.vmturbo.platform.analysis.actions.ResizeTest;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.platform.analysis.actions.Move;
-import com.vmturbo.platform.analysis.economy.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.Context;
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -72,11 +71,19 @@ public class TestUtils {
     public static final int DC_COMM_BASE_TYPE = 1;
     public static final int COUPON_COMM_BASE_TYPE = 64;
     public static final int LINUX_COMM_TYPE = 100;
+    /**
+     * The region comm type.
+     */
+    public static final int REGION_COMM_TYPE = 10;
     public static final int WINDOWS_COMM_TYPE = 200;
     public static final int DC1_COMM_TYPE = 300;
     public static final int DC2_COMM_TYPE = 301;
     public static final int DC3_COMM_TYPE = 302;
     public static final int DC4_COMM_TYPE = 303;
+    /**
+     * The DataCenter commodity ID.
+     */
+    public static final int DC5_COMM_TYPE = 400;
 
     // CommoditySpecifications to use in tests
     public static final CommoditySpecification CPU = createNewCommSpec();
@@ -440,8 +447,7 @@ public class TestUtils {
                         StorageResourceDependency.newBuilder().setBaseResourceType(stAmtTO)
                                         .setDependentResourceType(iopsTO).setRatio(3).build();
         StorageTierPriceData stAmtPriceDTO = StorageTierPriceData.newBuilder().setUpperBound(Double.POSITIVE_INFINITY)
-                        .setIsUnitPrice(true).setIsAccumulativeCost(false).setPrice(0.10)
-                        .setBusinessAccountId(1).build();
+                        .setIsUnitPrice(true).setIsAccumulativeCost(false).addCostTupleList(setUpCostTuple(1, -1, 10L, 0.10)).build();
         StorageResourceCost stAmtCostDTO = StorageResourceCost.newBuilder().setResourceType(stAmtTO)
                         .addStorageTierPriceData(stAmtPriceDTO).build();
         CostDTO costDTO = CostDTO.newBuilder()
@@ -464,11 +470,9 @@ public class TestUtils {
                         StorageResourceDependency.newBuilder().setBaseResourceType(stAmtTO)
                                         .setDependentResourceType(iopsTO).setRatio(50).build();
         StorageTierPriceData stAmtPriceDTO = StorageTierPriceData.newBuilder().setUpperBound(Double.POSITIVE_INFINITY)
-                        .setIsUnitPrice(true).setIsAccumulativeCost(false).setBusinessAccountId(1)
-                        .setPrice(0.125).build();
+                        .setIsUnitPrice(true).setIsAccumulativeCost(false).addCostTupleList(setUpCostTuple(1, -1, 10L, 0.125)).build();
         StorageTierPriceData iopsPriceDTO = StorageTierPriceData.newBuilder().setUpperBound(Double.POSITIVE_INFINITY)
-                        .setIsUnitPrice(true).setIsAccumulativeCost(false).setBusinessAccountId(1)
-                        .setPrice(0.065).build();
+                        .setIsUnitPrice(true).setIsAccumulativeCost(false).addCostTupleList(setUpCostTuple(1, -1, 10L, 0.065)).build();
         StorageResourceCost stAmtCostDTO = StorageResourceCost.newBuilder().setResourceType(stAmtTO)
                         .addStorageTierPriceData(stAmtPriceDTO).build();
         StorageResourceCost iopsCostDTO = StorageResourceCost.newBuilder().setResourceType(iopsTO)
@@ -491,9 +495,9 @@ public class TestUtils {
     public static CostFunction setUpPremiumManagedCostFunction() {
         // create cost function DTO for azure premium managed storage
         StorageTierPriceData stAmt32GBPriceDTO = StorageTierPriceData.newBuilder().setUpperBound(32).setIsUnitPrice(false)
-                        .setIsAccumulativeCost(false).setPrice(5.28).setBusinessAccountId(1).build();
+                        .setIsAccumulativeCost(false).addCostTupleList(setUpCostTuple(1, -1, 10L, 5.28)).build();
         StorageTierPriceData stAmt64GBPriceDTO = StorageTierPriceData.newBuilder().setUpperBound(64).setIsUnitPrice(false)
-                        .setIsAccumulativeCost(false).setPrice(10.21).setBusinessAccountId(1).build();
+                        .setIsAccumulativeCost(false).addCostTupleList(setUpCostTuple(1, -1, 10L, 10.21)).build();
         StorageResourceCost stAmtDTO = StorageResourceCost.newBuilder().setResourceType(stAmtTO)
                         .addStorageTierPriceData(stAmt32GBPriceDTO).addStorageTierPriceData(stAmt64GBPriceDTO).build();
         CostDTO costDTO = CostDTO.newBuilder()
@@ -509,9 +513,9 @@ public class TestUtils {
     public static CostFunction setUpStandardUnmanagedCostFunction() {
         // create cost function DTO for azure standard unmanaged storage
         StorageTierPriceData stAmtLRS1TBPriceDTO = StorageTierPriceData.newBuilder().setUpperBound(1024)
-                        .setIsAccumulativeCost(true).setIsUnitPrice(true).setBusinessAccountId(1).setPrice(0.05).build();
+                        .setIsAccumulativeCost(true).setIsUnitPrice(true).addCostTupleList(setUpCostTuple(1, -1, 10L, 0.05)).build();
         StorageTierPriceData stAmtLRS50TBPriceDTO = StorageTierPriceData.newBuilder().setUpperBound(1024 * 50)
-                        .setIsAccumulativeCost(true).setIsUnitPrice(true).setBusinessAccountId(1).setPrice(0.10).build();
+                        .setIsAccumulativeCost(true).setIsUnitPrice(true).addCostTupleList(setUpCostTuple(1, -1, 10L, 0.10)).build();
         StorageResourceCost resourceCostDTO = StorageResourceCost.newBuilder().setResourceType(stAmtTO)
                         .addStorageTierPriceData(stAmtLRS1TBPriceDTO).addStorageTierPriceData(stAmtLRS50TBPriceDTO)
                         .build();
@@ -530,14 +534,17 @@ public class TestUtils {
                 ComputeTierCostDTO.newBuilder()
                         .setLicenseCommodityBaseType(LICENSE_COMM_BASE_TYPE)
                         .setCouponBaseType(COUPON_COMM_BASE_TYPE)
+                        .setRegionCommodityBaseType(REGION_COMM_TYPE)
                         .addCostTupleList(CostTuple.newBuilder()
                                 .setLicenseCommodityType(LINUX_COMM_TYPE)
                                 .setBusinessAccountId(1)
+                                .setRegionId(10L)
                                 .setPrice(1.5)
                                 .build())
                         .addCostTupleList(CostTuple.newBuilder()
                                 .setLicenseCommodityType(WINDOWS_COMM_TYPE)
                                 .setBusinessAccountId(1)
+                                .setRegionId(10L)
                                 .setPrice(2.5)
                                 .build())
                         .build())
@@ -591,7 +598,7 @@ public class TestUtils {
 
     private static CostTuple setUpCostTuple(long businessAccountId,
                                             int licenseCommodityType,
-                                            int regionId,
+                                            long regionId,
                                             double cost) {
         return CostTuple.newBuilder()
                 .setLicenseCommodityType(licenseCommodityType)
@@ -615,7 +622,7 @@ public class TestUtils {
         double riDeprecationFactor = 0.0000001;
         Trader cbtp = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0l),
                         Arrays.asList(TestUtils.CPU, TestUtils.COUPON_COMMODITY),new double[] {3000, 2},true, true, name);
-        cbtp.getSettings().setBalanceAccount(new BalanceAccount(0.0, 100000000d, 24, 0));
+        cbtp.getSettings().setContext(new Context(10L, new BalanceAccount(0.0, 100000000d, 24, 0)));
         cbtp.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
         CbtpCostDTO.Builder cbtpBundleBuilder = createCbtpBundleBuilder(TestUtils.COUPON_COMMODITY.getBaseType(), cost * riDeprecationFactor, 50);
         CostDTO costDTOcbtp = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder.build()).build();

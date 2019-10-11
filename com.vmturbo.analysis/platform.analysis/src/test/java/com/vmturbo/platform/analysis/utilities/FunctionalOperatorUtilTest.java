@@ -5,7 +5,8 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.platform.analysis.economy.BalanceAccount;
+import com.vmturbo.platform.analysis.economy.Context;
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -73,11 +74,11 @@ public class FunctionalOperatorUtilTest {
     @Test
     public void testUpdateExpenses() {
         Trader vm1 = TestUtils.createVM(economy);
-        vm1.getSettings().setBalanceAccount(new BalanceAccount(200, 0, 0, 0));
+        vm1.getSettings().setContext(new Context(10L, new BalanceAccount(200, 0, 0, 0)));
         Trader pm1 = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0L),
                         Arrays.asList(TestUtils.COST_COMMODITY), new double[] {100}, true, false);
         BalanceAccount ba = new BalanceAccount(200, 300, 1, 0);
-        pm1.getSettings().setBalanceAccount(ba);
+        pm1.getSettings().setContext(new Context(10L, ba));
         TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COST_COMMODITY), vm1,
                         new double[] {40}, new double[] {60}, pm1);
         ShoppingList sl3 = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COST_COMMODITY), vm1,

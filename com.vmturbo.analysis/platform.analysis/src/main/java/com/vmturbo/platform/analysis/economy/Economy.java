@@ -19,7 +19,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
-import com.vmturbo.platform.analysis.utilities.M2Utils;
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
+
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -874,7 +875,13 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         cloneTrader.setDebugInfoNeverUseInCode(
                 trader.getDebugInfoNeverUseInCode() + SIM_CLONE_SUFFIX);
         cloneTrader.getSettings().setQuoteFunction(trader.getSettings().getQuoteFunction());
-        cloneTrader.getSettings().setBalanceAccount(trader.getSettings().getBalanceAccount());
+        //TODO Have Cloud Context extend a Context class so that the setting is generic for
+        // on prem and cloud
+        Context context = trader.getSettings().getContext();
+        Context cloneTraderContext = cloneTrader.getSettings().getContext();
+        if (cloneTraderContext != null && context != null) {
+            cloneTrader.getSettings().setContext(cloneTraderContext);
+        }
         cloneTrader.getSettings().setCostFunction(trader.getSettings().getCostFunction());
         cloneCommoditiesSold(trader, cloneTrader);
         cloneShoppingLists(trader, cloneTrader);

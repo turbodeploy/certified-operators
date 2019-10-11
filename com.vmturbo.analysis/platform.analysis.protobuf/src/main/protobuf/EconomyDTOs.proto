@@ -70,6 +70,19 @@ message ShoppingListTO {
 
     // The list of commodities' base_type that are not going to increase quote for the shopping list.
     repeated int32 unquoted_commodities_base_type_list = 8;
+
+    // The context of the move, contains additional info.
+    optional Context context = 9;
+}
+
+// Contains additional information about the Move
+message Context {
+    // The allocated region ID in NumericIDAllocator that has the best cost. Assumed missing
+    // if null.
+    optional int64 region_id = 1;
+
+    // The allocated business account id which the entity scopes to. Assumed missing if null
+    optional BalanceAccountDTO balance_account = 2;
 }
 
 // A group of parameters effecting how a trader will be treated by the analysis engine.
@@ -101,7 +114,7 @@ message TraderSettingsTO {
     optional QuoteFunctionDTO quote_function = 9;
 
     // This field refers to the balance account that the trader associated with
-    optional BalanceAccountDTO balance_account = 10;
+    optional Context current_context = 10;
 
     // Whether a trader's provider should clone when the trader clones
     optional bool provider_must_clone = 11;

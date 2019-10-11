@@ -52,13 +52,13 @@ public class CostTable {
     /**
      * Given a Region, an Account and a License Type, it will return the Tuple with the cost.
      *
-     * @param regionId
-     * @param businessAccountId
-     * @param licenseCommodityType
-     * @return
+     * @param regionId The region Id
+     * @param businessAccountId The business account id
+     * @param licenseCommodityType The license commodity type
+     * @return the CostTuple
      */
     @Nullable
-    public CostTuple getTuple(int regionId,
+    public CostTuple getTuple(long regionId,
                               long businessAccountId,
                               int licenseCommodityType) {
         return map.get(new CostTableKey(

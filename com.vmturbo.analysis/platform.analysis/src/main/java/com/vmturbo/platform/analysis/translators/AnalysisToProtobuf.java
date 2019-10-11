@@ -68,6 +68,7 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults.NewShoppingListToBuyerEntry;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
@@ -206,6 +207,12 @@ public final class AnalysisToProtobuf {
             .setOid(oid)
             .setMovable(shoppingList.isMovable());
 
+        if (shoppingList.getContext().isPresent()) {
+            Context context = shoppingList.getContext().get();
+            Context contextBuilder = Context.newBuilder().setRegionId(context.getRegionId())
+                    .setBalanceAccount(context.getBalanceAccount()).build();
+            builder.setContext(contextBuilder);
+        }
         // This mirrors the behavior in AnalysisToProtobuf::actionTO, in which we're resolving
         // a CBTP to a TP. The intent is to reconcile the sl's supplier with the move's destination.
         // The check for a clique mirrors the behavior for resolving move destination, in that it is
@@ -358,7 +365,7 @@ public final class AnalysisToProtobuf {
             moveTO.setShoppingListToMove(shoppingListOid.get(move.getTarget()));
             moveTO.setCouponId(traderOid.get(newSupplier));
             if (move.getContext().isPresent()) {
-                moveTO.setContext(move.getContext().get());
+                moveTO.setMoveContext(move.getContext().get());
             }
             final Optional<Double> moveTargetCost = move.getTarget().getCost();
             if(moveTargetCost.isPresent()){

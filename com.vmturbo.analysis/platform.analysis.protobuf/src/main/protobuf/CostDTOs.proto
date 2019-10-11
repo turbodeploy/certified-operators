@@ -35,6 +35,7 @@ message CostDTO {
         repeated ComputeResourceDependency compute_resource_depedency = 2;// a list of dependency constraint
         optional int32 license_commodity_base_type = 3; // the base type of license commodity
         required int32 couponBaseType = 4;
+        optional int32 region_commodity_base_type = 5;
     }
 
     message CostTuple {
@@ -64,17 +65,17 @@ message CostDTO {
             required CommoditySpecificationTO dependent_resource_type = 2;
             required int32 ratio = 3;
         }
-        // the price information
+        // the price information. Consists of multiple cost tuples representing a region and
+        // business account.
         message StorageTierPriceData {
             optional double upper_bound = 1; // the commodity amount upper bound
-            optional double price = 2; // the price after the discount is applied
-            optional bool is_unit_price = 3; // if the price is unit price or total price
-            optional bool is_accumulative_cost = 4; // if the cost should be accumulated
-            // some business account can be used for applying discount, id of business account
-            // maps to the discounted price of resource
-            optional int64 business_account_id = 5;
+            optional bool is_unit_price = 2; // if the price is unit price or total price
+            optional bool is_accumulative_cost = 3; // if the cost should be accumulated
+            repeated CostTuple cost_tuple_list = 4;
         }
         // the commodity specification and its price data list
+        // The price data list is repeated as each instance might correspond to a different type of cost.
+        // For example, iops Cost and storage Amount cost.
         message StorageResourceCost {
             required CommoditySpecificationTO resource_type = 1;
             repeated StorageTierPriceData storage_tier_price_data =2;

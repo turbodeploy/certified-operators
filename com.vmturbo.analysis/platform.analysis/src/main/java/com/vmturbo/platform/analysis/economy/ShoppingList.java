@@ -17,6 +17,8 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
+
 /**
  * One of the shopping lists of a given trader in a given market.
  *
@@ -66,6 +68,8 @@ public class ShoppingList implements Serializable {
     // The list of commodities' base_types that are not going to increase quote for the
     // shopping list.
     private List<Integer> modifiableUnquotedCommoditiesBaseTypeList_ = new ArrayList<Integer>();
+
+    private Context moveContext;
 
     // Constructors
     /**
@@ -414,5 +418,23 @@ public class ShoppingList implements Serializable {
     public String toDebugString() {
         return String.format("basket: %s, quantities: %s", getBasket().toDebugString(),
                 Arrays.asList(ArrayUtils.toObject(quantities_)));
+    }
+
+    /**
+     * Set the move context on the shopping list based on the move context from the move action.
+     *
+     * @param context The given context
+     */
+    public void setContext(Context context) {
+        this.moveContext = context;
+    }
+
+    /**
+     * Return the context set on the shopping list.
+     *
+     * @return An optional move context
+     */
+    public Optional<Context> getContext() {
+        return Optional.ofNullable(moveContext);
     }
 } // end ShoppingList class

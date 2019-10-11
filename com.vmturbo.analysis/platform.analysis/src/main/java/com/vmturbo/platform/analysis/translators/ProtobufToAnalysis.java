@@ -19,8 +19,9 @@ import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.actions.Resize;
-import com.vmturbo.platform.analysis.economy.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.Context;
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
@@ -307,7 +308,7 @@ public final class ProtobufToAnalysis {
             destination.setCostFunction(
                             CostFunctionFactory.createCostFunction(source.getQuoteFunction().getRiskBased().getCloudCost()));
         }
-        if (source.hasBalanceAccount()) {
+        if (source.hasCurrentContext() && source.getCurrentContext().hasBalanceAccount()) {
             populateCloudSpent(topology, source, destination);
         }
     }
@@ -546,16 +547,17 @@ public final class ProtobufToAnalysis {
                                           @NonNull TraderSettingsTO source,
                                           @NonNull TraderSettings destination) {
         BalanceAccount balanceAccount = topology.getEconomy().getBalanceAccountMap()
-                        .get(source.getBalanceAccount().getId());
+                        .get(source.getCurrentContext().getBalanceAccount().getId());
         if (balanceAccount == null) {
-            balanceAccount = new BalanceAccount(source.getBalanceAccount().getSpent(),
-                                                source.getBalanceAccount().getBudget(),
-                                                source.getBalanceAccount().getId(),
-                    source.getBalanceAccount().getPriceId());
+            balanceAccount = new BalanceAccount(source.getCurrentContext().getBalanceAccount().getSpent(),
+                                                source.getCurrentContext().getBalanceAccount().getBudget(),
+                                                source.getCurrentContext().getBalanceAccount().getId(),
+                    source.getCurrentContext().getBalanceAccount().getPriceId());
             topology.getEconomy().getBalanceAccountMap().put(balanceAccount.getId(),
                                                              balanceAccount);
         }
-        destination.setBalanceAccount(balanceAccount);
+        Context context = new Context(source.getCurrentContext().getRegionId(), balanceAccount);
+        destination.setContext(context);
     }
 
 } // end ProtobufToAnalysis class

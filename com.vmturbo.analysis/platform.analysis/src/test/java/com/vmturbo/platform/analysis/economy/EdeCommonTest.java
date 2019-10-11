@@ -3,6 +3,7 @@ package com.vmturbo.platform.analysis.economy;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.ede.EdeCommon;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
@@ -162,15 +163,15 @@ public class EdeCommonTest {
         Trader gp2 = TestUtils.createTrader(economy, TestUtils.ST_TYPE, Arrays.asList(4l),
                         Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS),
                         new double[] {16 * 1024, 10000}, true, false);
-        gp2.getSettings().setBalanceAccount(ba);
+        gp2.getSettings().setContext(new Context(10L, ba));
         gp2.getSettings().setQuoteFunction(
                         QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
         gp2.getSettings().setCostFunction(gp2CostFunc);
         Trader io1 = TestUtils.createStorage(economy, Arrays.asList(0l), 4, false);
-        io1.getSettings().setBalanceAccount(ba);
+        io1.getSettings().setContext(new Context(10L, ba));
         io1.getSettings().setCostFunction(io1CostFunc);
         Trader vm1 = TestUtils.createVM(economy);
-        vm1.getSettings().setBalanceAccount(ba);
+        vm1.getSettings().setContext(new Context(10L, ba));
         ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS), vm1,
                         new double[] {100, 200}, gp2);

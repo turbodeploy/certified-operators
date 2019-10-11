@@ -18,7 +18,8 @@ import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO.MoveContext;
+import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory.DependentResourcePair;
 
 /**
@@ -202,7 +203,7 @@ public abstract class Quote {
         return seller;
     }
 
-    public Optional<MoveContext> getContext() {
+    public Optional<Context> getContext() {
         return Optional.empty();
     }
 
@@ -337,21 +338,25 @@ public abstract class Quote {
     public static class CommodityCloudQuote extends CommodityQuote {
 
         // Context with extra data about the Quote
-        protected MoveContext moveContext;
+        protected Context moveContext;
 
         protected CommodityCloudQuote(@Nullable final Trader seller,
                                       final double quoteValue,
-                                      @Nullable final Long regionId) {
+                                      @Nullable final Long regionId, @Nullable final Long balanceAccountId) {
             super(seller, quoteValue);
-            MoveContext.Builder builder = MoveContext.newBuilder();
+            Context.Builder builder = Context.newBuilder();
             if (regionId != null) {
                 builder.setRegionId(regionId);
+            }
+            if (balanceAccountId != null) {
+                BalanceAccountDTO balanceAccount = BalanceAccountDTO.newBuilder().setId(balanceAccountId).build();
+                builder.setBalanceAccount(balanceAccount);
             }
             moveContext = builder.build();
         }
 
         @Override
-        public Optional<MoveContext> getContext() {
+        public Optional<Context> getContext() {
             return Optional.of(moveContext);
         }
     }

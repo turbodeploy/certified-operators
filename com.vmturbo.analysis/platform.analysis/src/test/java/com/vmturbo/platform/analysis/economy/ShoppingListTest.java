@@ -8,6 +8,7 @@ import java.util.stream.IntStream;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -15,6 +16,9 @@ import org.junit.runner.RunWith;
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
+
+import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 /**
@@ -61,6 +65,18 @@ public class ShoppingListTest {
         assertNotSame(shoppingList.getQuantities(), shoppingList.getPeakQuantities());
         assertEquals(nCommodities, shoppingList.getQuantities().length);
         assertEquals(nCommodities, shoppingList.getPeakQuantities().length);
+    }
+
+    /**
+     * Test the move context on the shopping list.
+     */
+    @Test
+    public final void testShoppingListMoveContext() {
+        Context moveContext = Context.newBuilder().setRegionId(TestUtils.REGION_COMM_TYPE)
+                .setBalanceAccount(BalanceAccountDTO.newBuilder().setId(20L).build()).build();
+        fixture_.setContext(moveContext);
+        Assert.assertEquals( 20L, fixture_.getContext().get().getBalanceAccount().getId());
+        Assert.assertEquals(TestUtils.REGION_COMM_TYPE, fixture_.getContext().get().getRegionId());
     }
 
     @SuppressWarnings("unused") // it is used reflectively
