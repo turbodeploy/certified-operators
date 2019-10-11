@@ -44,6 +44,24 @@ message PriceTable {
     repeated common_dto.LicensePriceByOsEntry reserved_license_prices = 30;
 }
 
+// PriceTableKey contains information which describes the source of price table.
+message PriceTableKey {
+    // eg: probe_type like aws,azure ea etc.
+    optional string probe_type = 1;
+
+    // probe_key_material is a map of miscellaneous information about the price table which helps to
+    // uniquely identify a price table and to which account it might be related to.
+    map<string, string> probe_key_material = 2;
+}
+
+// Simple MapFieldEntry to capture checksum of each priceTableKey and to
+// serve GetPriceTableChecksum requests.
+message PriceTableChecksum {
+    optional PriceTableKey price_table_key = 1;
+
+    optional int64 check_sum = 2;
+}
+
 // The pricing information for reserved instances.
 //
 // This is kept separate from the main pricing table, because reserved instance pricing is only
@@ -112,34 +130,35 @@ message GetPriceTableResponse {
     optional PriceTable global_price_table = 1;
 }
 
-
 // a segment of a probe price table delivery
 message ProbePriceTableSegment {
-    oneof segment_contents {
-        ProbePriceTableHeader header = 1;
-        ProbePriceTableChunk probe_price_table = 2;
-        ProbeRISpecPriceChunk probe_ri_spec_prices = 3;
-    }
+    optional ProbePriceTableHeader header = 1;
+    optional ProbePriceTableChunk probe_price_table = 2;
+    optional ProbeRISpecPriceChunk probe_ri_spec_prices = 3;
 
     message ProbePriceTableHeader {
-        // the checksum of the data in this request
-        optional int64 checksum = 1;
-
         // the time the request was created
-        optional int64 created_time = 2;
+        optional int64 created_time = 1;
+
+        // entries of price_table to its checksum values.
+        repeated PriceTableChecksum price_table_checksums = 2;
     }
 
     // a chunk containing a probe's price table.
     message ProbePriceTableChunk {
-        optional string probe_type = 1;
+        //PriceTableKey contains priceTable properties.
+        required PriceTableKey price_table_key = 1;
+
         optional PriceTable price_table = 2;
     }
 
     // a chunk of RI Spec Prices from a probe type. We may see several of these spread across
     // several ProbePriceTableSegments
     message ProbeRISpecPriceChunk {
-        optional string probe_type = 1;
-        repeated ReservedInstanceSpecPrice reserved_instance_spec_prices = 20;
+        //PriceTableKey contains priceTable properties.
+        optional PriceTableKey price_table_key = 1;
+
+        repeated ReservedInstanceSpecPrice reserved_instance_spec_prices = 2;
     }
 }
 
@@ -153,23 +172,24 @@ message UploadPriceTablesResponse {
 }
 
 message GetPriceTableChecksumRequest {
+    repeated PriceTableKey priceTableKey = 1;
 }
 
 message GetPriceTableChecksumResponse {
-    optional int64 price_table_checksum = 1;
+    repeated PriceTableChecksum pricetable_to_checksum = 1;
 }
 
 // The pricing service is the interface to upload and retrieve pricing data from the cost
 // component.
 service PricingService {
     // Get the current "global" price table.
-    rpc GetPriceTable(GetPriceTableRequest) returns (GetPriceTableResponse);
+    rpc GetPriceTable (GetPriceTableRequest) returns (GetPriceTableResponse);
 
-    // request for the checksum of the current price table data
-    rpc GetPriceTableChecksum(GetPriceTableChecksumRequest) returns (GetPriceTableChecksumResponse);
+    // request for the checksum of the list of price tables
+    rpc GetPriceTableChecksum (GetPriceTableChecksumRequest) returns (GetPriceTableChecksumResponse);
 
     // Upload the most recent price table discovered by a particular cost probe.
     //
     // Returns INVALID_ARGUMENT if the request is missing fields.
-    rpc UpdatePriceTables(stream ProbePriceTableSegment) returns (UploadPriceTablesResponse);
+    rpc UpdatePriceTables (stream ProbePriceTableSegment) returns (UploadPriceTablesResponse);
 }
