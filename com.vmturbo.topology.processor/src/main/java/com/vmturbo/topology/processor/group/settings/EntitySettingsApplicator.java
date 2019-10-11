@@ -300,7 +300,7 @@ public class EntitySettingsApplicator {
             }
             return true;
         } else {
-            logger.error("Unknown entity type scope {} for Move setting.", entityType);
+            logger.debug("Not overriding entity type {} for Move setting.", entityType);
             return false;
         }
     }

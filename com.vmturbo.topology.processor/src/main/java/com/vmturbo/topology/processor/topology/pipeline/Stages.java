@@ -924,6 +924,7 @@ public class Stages {
             settingsApplicator.applySettings(getContext().getTopologyInfo(), input);
             // TODO (roman, Oct 23 2018): Information about number of entities modified as part of
             // setting application.
+            // TODO (Gary, Oct 10, 2019): Information about what entity types are not overridden in MoveApplicator
             return Status.success();
         }
 
