@@ -127,6 +127,8 @@
         <st4.version>4.0.8</st4.version>
         <failsafe.version>2.19.1</failsafe.version>
         <surefire.version>2.20</surefire.version>
+        <!-- This allows nested modules to override the path to the root checkstyle.xml -->
+        <checkstyle.path>${project.basedir}/../build/checkstyle.xml</checkstyle.path>
         <jetty.version>9.4.19.v20190610</jetty.version>
         <bouncycastle.version>1.57</bouncycastle.version>
         <!-- FlexLM, for use with Cisco licenses -->
@@ -1174,39 +1176,29 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-checkstyle-plugin</artifactId>
-                    <version>3.0.0</version>
+                    <version>2.16</version>
                     <dependencies>
                         <dependency>
                             <groupId>com.puppycrawl.tools</groupId>
                             <artifactId>checkstyle</artifactId>
-                            <version>8.23</version>
-                        </dependency>
-                        <dependency>
-                            <groupId>com.vmturbo</groupId>
-                            <artifactId>com.vmturbo.checkstyle.config</artifactId>
-                            <version>${vmturbo.mt.branch.version}</version>
+                            <version>6.12</version>
                         </dependency>
                     </dependencies>
+                    <configuration>
+                        <sourceDirectory>${project.basedir}</sourceDirectory>
+                        <configLocation>${checkstyle.path}</configLocation>
+                        <includes>src/**,*.xml</includes>
+                        <failOnViolation>false</failOnViolation>
+                        <consoleOutput>true</consoleOutput>
+                    </configuration>
                     <executions>
                         <execution>
-                            <id>validate</id>
                             <phase>validate</phase>
                             <goals>
                                 <goal>check</goal>
                             </goals>
                         </execution>
                     </executions>
-                    <configuration>
-                        <configLocation>vmt-checkstyle.xml</configLocation>
-                        <encoding>UTF-8</encoding>
-                        <violationSeverity>info</violationSeverity>
-                        <failOnViolation>false</failOnViolation>
-                        <failsOnError>false</failsOnError>
-                        <sourceDirectories>
-                            <sourceDirectory>${basedir}</sourceDirectory>
-                        </sourceDirectories>
-                        <includes>src/**,*.xml,*.md</includes>
-                    </configuration>
                 </plugin>
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>
