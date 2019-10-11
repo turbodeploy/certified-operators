@@ -28,6 +28,7 @@ import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.stats.query.live.CombinedStatsBuckets.CombinedStatsBucketsFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
+import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter;
@@ -172,6 +173,7 @@ public class CurrentActionStatReader {
         }
 
         candidateActionViews
+            .filter(LiveActionStore.VISIBILITY_PREDICATE)
             .map(actionView -> {
                 try {
                     // The main reason to construct this helper is to pre-calculate the involved
