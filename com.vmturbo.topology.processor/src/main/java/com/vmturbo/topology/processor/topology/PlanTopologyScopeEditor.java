@@ -78,23 +78,21 @@ public class PlanTopologyScopeEditor {
     /**
      * Filter entities in cloud plans based on user defined scope.
      *
+     * @param topologyInfo the topologyInfo which contains topology relevant properties
      * @param graph the topology entity graph
-     * @param scope the scope user defined in cloud plan
      * @return {@link TopologyGraph}
      */
-    public TopologyGraph<TopologyEntity> scopeCloudTopology(@Nonnull final TopologyGraph<TopologyEntity> graph,
-                                                            @Nonnull final PlanScope scope) {
+    public TopologyGraph<TopologyEntity> scopeCloudTopology(@Nonnull final TopologyInfo topologyInfo,
+                                                            @Nonnull final TopologyGraph<TopologyEntity> graph) {
         logger.info("Entering scoping stage for cloud topology .....");
         Set<TopologyEntity> totalEntitySet = graph.entities().collect(Collectors.toSet());
         // record a count of the number of entities by their entity type in the context.
         logger.info("Initial entity graph total count is {}", graph.size());
         entityCountMsg(graph.entities().collect(Collectors.toSet()));
-        Set<Long> targetSet = new HashSet<>();
-        for (PlanScopeEntry planScope : scope.getScopeEntriesList()) {
-            totalEntitySet.stream().filter(e -> e.getOid() == planScope.getScopeObjectOid())
-                            .flatMap(TopologyEntity::getDiscoveringTargetIds)
-                            .forEach(t -> targetSet.add(t));
-        }
+        final List<Long> seedOids = topologyInfo.getScopeSeedOidsList();
+        final Set<Long> targetSet = totalEntitySet.stream().filter(e -> seedOids.contains(e.getOid()))
+                                                  .flatMap(TopologyEntity::getDiscoveringTargetIds)
+                                                  .collect(Collectors.toSet());
         // first filter all entities discovered by the target which discover the scope seed
         // TODO: Cloud migration plan has to keep onprem entity selected, which will not have same
         // target as the scope
@@ -103,8 +101,8 @@ public class PlanTopologyScopeEditor {
         entityCountMsg(filteredEntities.values().stream().collect(Collectors.toSet()));
         final Set<TopologyEntity> cloudProviders = new HashSet<>();
         final Set<TopologyEntity> cloudConsumers = new HashSet<>();
-        for (PlanScopeEntry planScope : scope.getScopeEntriesList()) {
-            TopologyEntity seed = filteredEntities.get(planScope.getScopeObjectOid());
+        for (Long seedOid : seedOids) {
+            TopologyEntity seed = filteredEntities.get(seedOid);
             // if user specify a scope on region or business account
             if (seed.getEntityType() == EntityType.REGION_VALUE
                     || seed.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {

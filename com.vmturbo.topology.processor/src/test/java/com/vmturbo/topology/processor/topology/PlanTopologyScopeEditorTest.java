@@ -30,9 +30,10 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -191,13 +192,9 @@ public class PlanTopologyScopeEditorTest {
      */
     @Test
     public void testScopeCloudTopologyForAWSRegion() {
-
-        final PlanScope planScope = PlanScope.newBuilder()
-            .addScopeEntries(PlanScopeEntry.newBuilder()
-                .setClassName(StringConstants.REGION)
-                .setScopeObjectOid(2001L).setDisplayName("London").build())
-            .build();
-        testScopeCloudTopology(planScope, EXPECTED_ENTITIES_FOR_AWS_REGION);
+        // Region London
+        final List<Long> oidsList = Arrays.asList(2001L);
+        testScopeCloudTopology(oidsList, EXPECTED_ENTITIES_FOR_AWS_REGION);
     }
 
     /**
@@ -208,13 +205,9 @@ public class PlanTopologyScopeEditorTest {
      */
     @Test
     public void testScopeCloudTopologyForAzureRegion() {
-
-        final PlanScope planScope = PlanScope.newBuilder()
-            .addScopeEntries(PlanScopeEntry.newBuilder()
-                .setClassName(StringConstants.REGION)
-                .setScopeObjectOid(2004L).setDisplayName("Central US").build())
-            .build();
-        testScopeCloudTopology(planScope, EXPECTED_ENTITIES_FOR_AZURE_REGION);
+        // Region Central US
+        final List<Long> oidsList = Arrays.asList(2004L);
+        testScopeCloudTopology(oidsList, EXPECTED_ENTITIES_FOR_AZURE_REGION);
     }
 
     /**
@@ -224,15 +217,9 @@ public class PlanTopologyScopeEditorTest {
      */
     @Test
     public void testScopeCloudTopologyForRegionsList() {
-        final PlanScope planScope = PlanScope.newBuilder()
-                        .addScopeEntries(PlanScopeEntry.newBuilder()
-                                        .setClassName(StringConstants.REGION)
-                                        .setScopeObjectOid(2001L).setDisplayName("London").build())
-                        .addScopeEntries(PlanScopeEntry.newBuilder()
-                                         .setClassName(StringConstants.REGION)
-                                         .setScopeObjectOid(2002L).setDisplayName("Ohio").build())
-                        .build();
-        testScopeCloudTopology(planScope, EXPECTED_ENTITIES_FOR_REGIONS_LIST);
+        // Regions London and Ohio
+        final List<Long> oidsList = Arrays.asList(2001L, 2002L);
+        testScopeCloudTopology(oidsList, EXPECTED_ENTITIES_FOR_REGIONS_LIST);
     }
 
     /**
@@ -242,12 +229,9 @@ public class PlanTopologyScopeEditorTest {
      */
     @Test
     public void testScopeCloudTopologyForBusinessAccount() {
-        final PlanScope planScope = PlanScope.newBuilder()
-                        .addScopeEntries(PlanScopeEntry.newBuilder()
-                                        .setClassName(StringConstants.BUSINESS_ACCOUNT)
-                                        .setScopeObjectOid(5003L).setDisplayName("Business account 3").build())
-                        .build();
-        testScopeCloudTopology(planScope, EXPECTED_ENTITIES_FOR_BUSINESS_ACCOUNT);
+        // Business account 3
+        final List<Long> oidsList = Arrays.asList(5003L);
+        testScopeCloudTopology(oidsList, EXPECTED_ENTITIES_FOR_BUSINESS_ACCOUNT);
     }
 
     /**
@@ -257,15 +241,9 @@ public class PlanTopologyScopeEditorTest {
      */
     @Test
     public void testScopeCloudTopologyForBusinessAccountsList() {
-        final PlanScope planScope = PlanScope.newBuilder()
-                        .addScopeEntries(PlanScopeEntry.newBuilder()
-                                        .setClassName(StringConstants.BUSINESS_ACCOUNT)
-                                        .setScopeObjectOid(5002L).setDisplayName("Business account 2").build())
-                        .addScopeEntries(PlanScopeEntry.newBuilder()
-                                         .setClassName(StringConstants.BUSINESS_ACCOUNT)
-                                         .setScopeObjectOid(5003L).setDisplayName("Business account 3").build())
-                        .build();
-        testScopeCloudTopology(planScope, EXPECTED_ENTITIES_FOR_BUSINESS_ACCOUNTS_LIST);
+        // Business account 2 and Business account 3
+        final List<Long> oidsList = Arrays.asList(5002L, 5003L);
+        testScopeCloudTopology(oidsList, EXPECTED_ENTITIES_FOR_BUSINESS_ACCOUNTS_LIST);
     }
 
     /**
@@ -275,17 +253,20 @@ public class PlanTopologyScopeEditorTest {
      */
     @Test
     public void testScopeCloudTopologyForBillingFamily() {
-        final PlanScope planScope = PlanScope.newBuilder()
-                        .addScopeEntries(PlanScopeEntry.newBuilder()
-                                        .setClassName(StringConstants.BILLING_FAMILY)
-                                        .setScopeObjectOid(5001L).setDisplayName("Business account 1").build())
-                        .build();
-        testScopeCloudTopology(planScope, EXPECTED_ENTITIES_FOR_BILLING_FAMILY);
+        // Billing family
+        final List<Long> oidsList = Arrays.asList(5001L);
+        testScopeCloudTopology(oidsList, EXPECTED_ENTITIES_FOR_BILLING_FAMILY);
     }
 
-    private void testScopeCloudTopology(PlanScope planScope, Set<TopologyEntity.Builder> expectedEntities) {
-        final TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
-                        .scopeCloudTopology(GRAPH, planScope);
+    private void testScopeCloudTopology(List<Long> oidsList, Set<TopologyEntity.Builder> expectedEntities) {
+        final TopologyInfo cloudTopologyInfo = TopologyInfo.newBuilder()
+                        .setTopologyContextId(1)
+                        .setTopologyId(1)
+                        .setTopologyType(TopologyType.PLAN)
+                        .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanType("OPTIMIZE_CLOUD").build())
+                        .addAllScopeSeedOids(oidsList)
+                        .build();
+        final TopologyGraph<TopologyEntity> result = planTopologyScopeEditor.scopeCloudTopology(cloudTopologyInfo, GRAPH);
         Assert.assertEquals(expectedEntities.size(), result.size());
         expectedEntities.forEach(entity -> assertTrue(entity.getOid() + " is missing", result.getEntity(entity.getOid())
                         .isPresent()));

@@ -170,7 +170,10 @@ public class StringConstants {
     public static final String CLUSTER = "Cluster";
     public static final String VIRTUAL_MACHINE_CLUSTER = "VirtualMachineCluster";
     public static final String STORAGE_CLUSTER = "StorageCluster";
-    public static final Set<String> GROUP_TYPES = ImmutableSet.of(GROUP_TYPE, CLUSTER, STORAGE_CLUSTER);
+    /**
+     * Group types set.
+     */
+    public static final Set<String> GROUP_TYPES = ImmutableSet.of(GROUP, CLUSTER, STORAGE_CLUSTER);
     public static final String VIRTUAL_MACHINE = "VirtualMachine";
     public static final String PHYSICAL_MACHINE = "PhysicalMachine";
     public static final String DATA_CENTER = "DataCenter";

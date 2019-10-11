@@ -164,9 +164,9 @@ public class StagesTest {
         when(cloudScopingStage.getContext()).thenReturn(context);
         when(context.getStitchingJournalContainer()).thenReturn(container);
         when(context.getTopologyInfo()).thenReturn(cloudTopologyInfo);
-        when(scopeEditor.scopeCloudTopology(graph, scope)).thenReturn(graph);
+        when(scopeEditor.scopeCloudTopology(cloudTopologyInfo, graph)).thenReturn(graph);
         cloudScopingStage.execute(graph);
-        verify(scopeEditor).scopeCloudTopology(graph, scope);
+        verify(scopeEditor).scopeCloudTopology(cloudTopologyInfo, graph);
     }
 
     @Test

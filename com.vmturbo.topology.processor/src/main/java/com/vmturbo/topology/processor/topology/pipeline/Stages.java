@@ -1290,7 +1290,7 @@ public class Stages {
                                 " from topology of size " + graph.size()));
             } else {
                 // cloud plans
-                result = planTopologyScopeEditor.scopeCloudTopology(graph, planScope);
+                result = planTopologyScopeEditor.scopeCloudTopology(topologyInfo, graph);
                 return StageResult.withResult(result)
                                 .andStatus(Status.success("PlanScopingStage: Constructed a scoped topology of size "
                                                 + result.size() + " from topology of size " + graph.size()));
