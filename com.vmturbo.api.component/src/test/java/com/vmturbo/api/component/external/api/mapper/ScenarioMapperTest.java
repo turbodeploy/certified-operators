@@ -5,7 +5,6 @@ import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPrefer
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredTerm;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIDemandType;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIPurchase;
-import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIPurchaseDate;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -565,7 +564,6 @@ public class ScenarioMapperTest {
         riSettingList.add(createStringSetting(AWSPreferredOfferingClass.getSettingName(), "Convertible"));
         riSettingList.add(createStringSetting(AWSPreferredPaymentOption.getSettingName(), "Partial Upfront"));
         riSettingList.add(createStringSetting(AWSPreferredTerm.getSettingName(), "Years 1"));
-        riSettingList.add(createStringSetting(RIPurchaseDate.getSettingName(), "123"));
         riSettingList.add(createStringSetting(RIDemandType.getSettingName(), "Consumption"));
 
         // WHEN
@@ -578,7 +576,6 @@ public class ScenarioMapperTest {
         Assert.assertEquals(OfferingClass.CONVERTIBLE, riSetting.getPreferredOfferingClass());
         Assert.assertEquals(PaymentOption.PARTIAL_UPFRONT, riSetting.getPreferredPaymentOption());
         Assert.assertEquals(1, riSetting.getPreferredTerm());
-        Assert.assertEquals(123, riSetting.getPurchaseDate());
         Assert.assertEquals(DemandType.CONSUMPTION, riSetting.getDemandType());
     }
 

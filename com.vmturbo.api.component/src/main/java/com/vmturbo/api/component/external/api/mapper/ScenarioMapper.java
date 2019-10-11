@@ -5,7 +5,6 @@ import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPrefer
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredTerm;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIDemandType;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIPurchase;
-import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIPurchaseDate;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -151,7 +150,7 @@ public class ScenarioMapper {
      */
     private static final EnumSet<GlobalSettingSpecs> SUPPORTED_RI_PROFILE_SETTINGS = EnumSet
                     .of(AWSPreferredOfferingClass, AWSPreferredPaymentOption, AWSPreferredTerm,
-                        RIPurchaseDate, RIDemandType);
+                        RIDemandType);
 
     static {
         MARKET_PLAN_SCOPE = new BaseApiDTO();
@@ -749,9 +748,6 @@ public class ScenarioMapper {
                     case AWSPreferredTerm:
                         riTermMapper.valueOf(settingValue).map(PreferredTerm::getYears).ifPresent(awsRISetting::setPreferredTerm);
                         break;
-                    case RIPurchaseDate:
-                        awsRISetting.setPurchaseDate(Long.parseLong(settingValue));
-                        break;
                     case RIDemandType:
                         riDemandTypeMapper.valueOf(settingValue).ifPresent(awsRISetting::setDemandType);
                         break;
@@ -1099,13 +1095,6 @@ public class ScenarioMapper {
         termDto.setDisplayName(AWSPreferredTerm.getDisplayName());
         riSettings.add(termDto);
 
-        if (ri.getPurchaseDate() > 0L) {
-            SettingApiDTO<String> purchaseDateDto = new SettingApiDTO<>();
-            purchaseDateDto.setUuid(RIPurchaseDate.getSettingName());
-            purchaseDateDto.setValue(String.valueOf(ri.getPurchaseDate()));
-            purchaseDateDto.setDisplayName(RIPurchaseDate.getDisplayName());
-            riSettings.add(purchaseDateDto);
-        }
         if (ri.hasDemandType()) {
             final SettingApiDTO<String> demandTypeDto = new SettingApiDTO<>();
             demandTypeDto.setUuid(RIDemandType.getSettingName());

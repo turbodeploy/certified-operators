@@ -175,9 +175,7 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
                                 .setPaymentOption(riSetting.hasPreferredPaymentOption() ?
                                         riSetting.getPreferredPaymentOption()
                                         : ReservedInstanceType.PaymentOption.ALL_UPFRONT)
-                                .setTermYears(riSetting.hasPreferredTerm() ? riSetting.getPreferredTerm() : 1))
-                        .setPurchaseDate(riSetting.hasPurchaseDate() ? riSetting.getPurchaseDate()
-                                : new Date().getTime()));
+                                .setTermYears(riSetting.hasPreferredTerm() ? riSetting.getPreferredTerm() : 1)));
 
         if (!regionIds.isEmpty()) {
             buyRiRequest.addAllRegions(regionIds);
@@ -214,7 +212,6 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
                 .setPreferredTerm(PreferredTerm.valueOf(settings
                         .get(GlobalSettingSpecs.AWSPreferredTerm.getSettingName())
                         .getEnumSettingValue().getValue()).getYears())
-                .setPurchaseDate(0)
                 .build();
 
         return riSetting;

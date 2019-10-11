@@ -188,7 +188,6 @@
       "defaultCategory": "RI Purchase Profile",
       "settings": [
         "ri.purchase",
-        "ri.purchaseDate",
         "ri.aws.preferredOfferingClass",
         "ri.aws.preferredTerm",
         "ri.aws.preferredPaymentOption",

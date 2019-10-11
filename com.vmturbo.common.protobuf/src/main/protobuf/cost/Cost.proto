@@ -920,9 +920,6 @@ message StartBuyRIAnalysisRequest {
 message RIPurchaseProfile {
     // the reserved instance type. The type of RIs which will be suggested in the Buy RI results
     optional common_dto.ReservedInstanceType riType = 1;
-
-    // the purchase date of the RI
-    optional int64 purchaseDate = 2;
 }
 
 message StartBuyRIAnalysisResponse {

@@ -105,12 +105,6 @@ public enum GlobalSettingSpecs {
     RIPurchase("ri.purchase", "Type",
             new BooleanSettingDataType(true),
             Lists.newArrayList(CategoryPathConstants.RI)),
-    /**
-     * Global RI Setting of purchaseDate.
-     */
-    RIPurchaseDate("ri.purchaseDate", "Type",
-            numeric(0, Float.MAX_VALUE, 0),
-            Lists.newArrayList(CategoryPathConstants.RI)),
 
     /**
      * Global RI Setting of demand type.

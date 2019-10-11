@@ -83,9 +83,7 @@ public class PlanRpcServiceUtil {
                                 .setPaymentOption(riSetting.hasPreferredPaymentOption() ?
                                 riSetting.getPreferredPaymentOption()
                                 : ReservedInstanceType.PaymentOption.ALL_UPFRONT)
-                                .setTermYears(riSetting.hasPreferredTerm() ? riSetting.getPreferredTerm() : 1))
-                        .setPurchaseDate(riSetting.hasPurchaseDate() ? riSetting.getPurchaseDate()
-                                : new Date().getTime()));
+                                .setTermYears(riSetting.hasPreferredTerm() ? riSetting.getPreferredTerm() : 1)));
         if (regionIds !=null && !regionIds.isEmpty()) {
             buyRiRequest.addAllRegions(regionIds);
         }

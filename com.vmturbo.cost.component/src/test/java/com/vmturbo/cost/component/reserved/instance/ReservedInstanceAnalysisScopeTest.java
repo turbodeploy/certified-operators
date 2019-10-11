@@ -61,11 +61,9 @@ public class ReservedInstanceAnalysisScopeTest {
         typeBuilder.setOfferingClass(offeringClass);
         typeBuilder.setPaymentOption(paymentOption);
 
-        long purchaseDate = 11111111L;
         RIPurchaseProfile.Builder profileBuilder =
                 com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile.newBuilder();
         profileBuilder.setRiType(typeBuilder.build());
-        profileBuilder.setPurchaseDate(purchaseDate);
         RIPurchaseProfile riPurchaseProfile = profileBuilder.build();
 
         requestBuilder.setPurchaseProfile(riPurchaseProfile);
@@ -101,7 +99,6 @@ public class ReservedInstanceAnalysisScopeTest {
         List<Tenancy>  tenancies = Arrays.asList(Tenancy.DEFAULT);
         List<Long> regions = new ArrayList(Arrays.asList(100L));
         List<Long> accounts = new ArrayList(Arrays.asList(500L));
-        final long purchaseDate = 222222222L;
 
         requestBuilder.addAllPlatforms(platforms);
         requestBuilder.addAllTenancies(tenancies);
@@ -123,7 +120,6 @@ public class ReservedInstanceAnalysisScopeTest {
         RIPurchaseProfile.Builder profileBuilder =
                 com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile.newBuilder();
         profileBuilder.setRiType(typeBuilder.build());
-        profileBuilder.setPurchaseDate(purchaseDate);
         RIPurchaseProfile riPurchaseProfile = profileBuilder.build();
 
         requestBuilder.setPurchaseProfile(riPurchaseProfile);
@@ -152,7 +148,6 @@ public class ReservedInstanceAnalysisScopeTest {
         RIPurchaseProfile.Builder profileBuilder =
                 com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile.newBuilder();
 
-        profileBuilder.setPurchaseDate(0);
         RIPurchaseProfile riPurchaseProfile = profileBuilder.build();
 
         requestBuilder.setPurchaseProfile(riPurchaseProfile);
@@ -257,8 +252,7 @@ public class ReservedInstanceAnalysisScopeTest {
         if (r1 == null || r2 == null) {
             return false;
         }
-        if (r1.getRiType() == r2.getRiType() &&
-            r1.getPurchaseDate() == r2.getPurchaseDate()) {
+        if (r1.getRiType() == r2.getRiType()) {
             return true;
         }
         return false;
