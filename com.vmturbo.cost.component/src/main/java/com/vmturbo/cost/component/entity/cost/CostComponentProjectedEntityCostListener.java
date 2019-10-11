@@ -75,74 +75,77 @@ public class CostComponentProjectedEntityCostListener implements ProjectedEntity
                         " Processed " + chunkCount + " chunks so far.", e);
             }
         }
-        try {
-            if (TopologyType.PLAN.equals(originalTopologyInfo.getTopologyType())) {
-                planProjectedEntityCostStore.updatePlanProjectedEntityCostsTableForPlan(
-                        originalTopologyInfo, costList);
-            } else {
-                projectedEntityCostStore.updateProjectedEntityCosts(costList);
-            }
-            sendCostNotification(buildCostNotification(originalTopologyInfo, Status.SUCCESS));
-        } catch (Exception e) {
-            logger.error(e);
-            sendCostNotification(buildCostNotification(originalTopologyInfo, Status.FAIL, e.getMessage()));
+        if (TopologyType.PLAN.equals(originalTopologyInfo.getTopologyType())) {
+            planProjectedEntityCostStore.updatePlanProjectedEntityCostsTableForPlan(
+                    originalTopologyInfo, costList);
+        } else {
+            projectedEntityCostStore.updateProjectedEntityCosts(costList);
         }
+        // Send the projected cost status notification.
+        sendProjectedCostNotification(buildProjectedCostNotification(originalTopologyInfo,
+                Status.SUCCESS));
         logger.debug("Finished processing projected entity costs. Got costs for {} entities, " +
                 "delivered in {} chunks.", costCount, chunkCount);
     }
 
     /**
-     * Sends the cost notification.
+     * Sends the projected cost notification.
      *
-     * @param costNotification The cost notification
-     * @throws InterruptedException   if sending thread has been interrupted. This does not
-     *                                guarantee, that message has ben sent nor it has not been sent
-     * @throws CommunicationException if persistent communication error occurred (message could
-     *                                not be sent in future).
+     * @param projectedCostNotification The projected cost notification
      */
-    private void sendCostNotification(@Nonnull final CostNotification costNotification) {
+    private void sendProjectedCostNotification(
+            @Nonnull final CostNotification projectedCostNotification) {
         try {
-            costNotificationSender.sendNotification(costNotification);
+            costNotificationSender.sendNotification(projectedCostNotification);
+            final StatusUpdate projectedCostUpdate =
+                    projectedCostNotification.getProjectedCostUpdate();
+            logger.debug("The projected cost notification has been sent successfully. topology " +
+                            "ID: {} topology context ID: {} status: {}",
+                    projectedCostUpdate.getTopologyId(),
+                    projectedCostUpdate.getTopologyContextId(),
+                    projectedCostUpdate.getStatus());
         } catch (CommunicationException | InterruptedException e) {
-            logger.error("An error happened in sending the cost notification.", e);
+            logger.error("An error happened in sending the projected cost notification.", e);
         }
     }
 
     /**
-     * Builds a cost notification object based on the input status. This method is useful if the
-     * notification is success.
+     * Builds a projected cost notification based on the input status. This method is useful if
+     * the notification is success.
      *
      * @param originalTopologyInfo The original topology info
-     * @param status               The status of the cost processing
-     * @return The cost notification object based on the status
+     * @param status               The status of the projected cost processing
+     * @return The projected cost notification
      */
-    private CostNotification buildCostNotification(@Nonnull final TopologyInfo originalTopologyInfo,
-                                                   @Nonnull final Status status) {
-        return buildCostNotification(originalTopologyInfo, status, null);
+    private CostNotification buildProjectedCostNotification(
+            @Nonnull final TopologyInfo originalTopologyInfo,
+            @Nonnull final Status status) {
+        return buildProjectedCostNotification(originalTopologyInfo, status, null);
     }
 
     /**
-     * Builds a cost notification object based on the input status. This method is useful if an
-     * error happens.
+     * Builds a projected cost notification based on the input status. This method is useful if
+     * an error happens.
      *
      * @param originalTopologyInfo The original topology info
-     * @param status               The status of the cost processing
+     * @param status               The status of the projected cost processing
      * @param description          The description of the error
-     * @return The cost notification object based on the status
+     * @return The projected cost notification
      */
-    private CostNotification buildCostNotification(@Nonnull final TopologyInfo originalTopologyInfo,
-                                                   @Nonnull final Status status,
-                                                   @Nullable final String description) {
-        final Builder projectedNotificationBuilder = StatusUpdate.newBuilder()
+    private CostNotification buildProjectedCostNotification(
+            @Nonnull final TopologyInfo originalTopologyInfo,
+            @Nonnull final Status status,
+            @Nullable final String description) {
+        final Builder projectedCostNotificationBuilder = StatusUpdate.newBuilder()
                 .setTopologyId(originalTopologyInfo.getTopologyId())
                 .setTopologyContextId(originalTopologyInfo.getTopologyContextId())
                 .setStatus(status);
         // It adds the error description to the notification.
         if (description != null) {
-            projectedNotificationBuilder.setStatusDescription(description);
+            projectedCostNotificationBuilder.setStatusDescription(description);
         }
         return CostNotification.newBuilder()
-                .setProjectedCostUpdate(projectedNotificationBuilder.build())
-                .build();
+                .setProjectedCostUpdate(projectedCostNotificationBuilder).build();
     }
+
 }

@@ -5,19 +5,23 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeoutException;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
-import org.antlr.v4.runtime.misc.Array2DHashSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.Status;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.cost.component.notification.CostNotificationSender;
 import com.vmturbo.market.component.api.ProjectedReservedInstanceCoverageListener;
 
 /**
@@ -32,10 +36,14 @@ public class ProjectedRICoverageListener implements ProjectedReservedInstanceCov
 
     private final PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore;
 
+    private final CostNotificationSender costNotificationSender;
+
     ProjectedRICoverageListener(@Nonnull final ProjectedRICoverageAndUtilStore projectedRICoverageStore,
-                                @Nonnull final PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore) {
+                                @Nonnull final PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore,
+                                @Nonnull final CostNotificationSender costNotificationSender) {
         this.projectedRICoverageAndUtilStore = Objects.requireNonNull(projectedRICoverageStore);
         this.planProjectedRICoverageAndUtilStore = Objects.requireNonNull(planProjectedRICoverageAndUtilStore);
+        this.costNotificationSender = Objects.requireNonNull(costNotificationSender);
     }
 
     @Override
@@ -55,6 +63,7 @@ public class ProjectedRICoverageListener implements ProjectedReservedInstanceCov
                     riCoverageList.add(riCoverage);
                 }
                 chunkCount++;
+                // TODO (OM-51227): Handle the error properly. If one of the chunks fails.
             } catch (InterruptedException e) {
                 logger.error("Interrupted while waiting for processing projected RI coverage chunk." +
                                 "Processed " + chunkCount + " chunks so far.", e);
@@ -77,7 +86,71 @@ public class ProjectedRICoverageListener implements ProjectedReservedInstanceCov
         } else {
             projectedRICoverageAndUtilStore.updateProjectedRICoverage(riCoverageList);
         }
+        // Send the projected RI coverage status notification.
+        sendProjectedRiCoverageNotification(buildProjectedRiCoverageNotification(
+                originalTopologyInfo, Status.SUCCESS));
         logger.debug("Finished processing projected RI coverage info. Got RI coverage for {} entities, " +
-                        "delivered in {} chunks.", coverageCount, chunkCount);
+                "delivered in {} chunks.", coverageCount, chunkCount);
     }
+
+    /**
+     * Sends the projected RI coverage notification.
+     *
+     * @param projectedRiCoverageNotification The projected RI coverage notification
+     */
+    private void sendProjectedRiCoverageNotification(
+            @Nonnull final CostNotification projectedRiCoverageNotification) {
+        try {
+            costNotificationSender.sendNotification(projectedRiCoverageNotification);
+            final StatusUpdate projectedRiCoverageUpdate = projectedRiCoverageNotification.getProjectedRiCoverageUpdate();
+            logger.debug("The projected RI coverage notification has been sent successfully. " +
+                            "topology ID: {} topology context ID: {} status: {}",
+                    projectedRiCoverageUpdate.getTopologyId(),
+                    projectedRiCoverageUpdate.getTopologyContextId(),
+                    projectedRiCoverageUpdate.getStatus());
+        } catch (CommunicationException | InterruptedException e) {
+            logger.error("An error happened in sending the projected RI coverage notification.",
+                    e);
+        }
+    }
+
+    /**
+     * Builds a projected RI coverage notification based on the input status. This method is
+     * useful if the notification is success.
+     *
+     * @param originalTopologyInfo The original topology info
+     * @param status               The status of the cost processing
+     * @return The projected RI coverage notification
+     */
+    private CostNotification buildProjectedRiCoverageNotification(
+            @Nonnull final TopologyInfo originalTopologyInfo,
+            @Nonnull final Status status) {
+        return buildProjectedRiCoverageNotification(originalTopologyInfo, status, null);
+    }
+
+    /**
+     * Builds a projected RI coverage notification based on the input status. This method is
+     * useful if an error happens.
+     *
+     * @param originalTopologyInfo The original topology info
+     * @param status               The status of the cost processing
+     * @param description          The description of the error
+     * @return The projected RI coverage notification
+     */
+    private CostNotification buildProjectedRiCoverageNotification(
+            @Nonnull final TopologyInfo originalTopologyInfo,
+            @Nonnull final Status status,
+            @Nullable final String description) {
+        final Builder projectedRiCoverageNotificationBuilder = StatusUpdate.newBuilder()
+                .setTopologyId(originalTopologyInfo.getTopologyId())
+                .setTopologyContextId(originalTopologyInfo.getTopologyContextId())
+                .setStatus(status);
+        // It adds the error description to the notification.
+        if (description != null) {
+            projectedRiCoverageNotificationBuilder.setStatusDescription(description);
+        }
+        return CostNotification.newBuilder()
+                .setProjectedRiCoverageUpdate(projectedRiCoverageNotificationBuilder).build();
+    }
+
 }

@@ -20,6 +20,7 @@ import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.MarketListenerConfig;
+import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
@@ -33,7 +34,8 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         MarketListenerConfig.class,
         SQLDatabaseConfig.class,
         RepositoryClientConfig.class,
-        ComputeTierDemandStatsConfig.class})
+        ComputeTierDemandStatsConfig.class,
+        CostNotificationConfig.class})
 public class ReservedInstanceConfig {
 
     @Value("${retention.numRetainedMinutes}")
@@ -71,6 +73,9 @@ public class ReservedInstanceConfig {
 
     @Autowired
     private ComputeTierDemandStatsConfig computeTierDemandStatsConfig;
+
+    @Autowired
+    private CostNotificationConfig costNotificationConfig;
 
     @Bean
     public ReservedInstanceBoughtStore reservedInstanceBoughtStore() {
@@ -166,12 +171,17 @@ public class ReservedInstanceConfig {
                 riCoverageCacheExpireMinutes);
     }
 
-
+    /**
+     * Returns the projected RI coverage listener.
+     *
+     * @return The projected RI coverage listener.
+     */
     @Bean
     public ProjectedRICoverageListener projectedRICoverageListener() {
         final ProjectedRICoverageListener projectedRICoverageListener =
                 new ProjectedRICoverageListener(projectedEntityRICoverageAndUtilStore(),
-                                                planProjectedRICoverageAndUtilStore());
+                        planProjectedRICoverageAndUtilStore(),
+                        costNotificationConfig.costNotificationSender());
         marketComponent.addProjectedEntityRiCoverageListener(projectedRICoverageListener);
         return projectedRICoverageListener;
     }

@@ -51,7 +51,7 @@ public class CostNotificationSender extends
                     + "[ Topology ID: " +
                     costNotification.getProjectedCostUpdate()
                             .getTopologyId()
-                    + ", Topolody context ID: " +
+                    + ", Topology context ID: " +
                     costNotification.getProjectedCostUpdate()
                             .getTopologyContextId() + " ]";
         }
