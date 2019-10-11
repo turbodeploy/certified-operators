@@ -16,7 +16,6 @@ import org.mockito.Mockito;
 
 import com.google.common.collect.Table;
 
-
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
@@ -38,7 +37,6 @@ public class CommodityConverterTest {
     private static final Float RAW_CAPACITY = 2.0F;
     private static final Float MARKET_USED = RAW_USED * SCALING_FACTOR;
     private static final Float MARKET_CAPACITY = RAW_CAPACITY * SCALING_FACTOR;
-    private static final Float PERCENTILE_USED = 0.65F;
 
     NumericIDAllocator commodityTypeAllocator;
     Map<String, CommodityType> commoditySpecMap;
@@ -66,7 +64,6 @@ public class CommodityConverterTest {
     public void testCreateCommonCommoditySoldTO() {
         HistoricalValues histUsed = HistoricalValues.newBuilder()
                         .setHistUtilization(RAW_USED)
-                        .setPercentile(PERCENTILE_USED)
                         .build();
         final TopologyEntityDTO originalTopologyEntityDTO = TopologyEntityDTO.newBuilder()
                 .setOid(PM_OID)
@@ -87,7 +84,6 @@ public class CommodityConverterTest {
         final CommoditySoldTO cpuCommodityTO = result.iterator().next();
         assertThat(cpuCommodityTO.getCapacity(), equalTo(MARKET_CAPACITY));
         assertThat(cpuCommodityTO.getQuantity(), equalTo(MARKET_USED));
-        assertThat(cpuCommodityTO.getHistoricalQuantity(), equalTo(PERCENTILE_USED));
     }
 
     @Test
@@ -110,7 +106,4 @@ public class CommodityConverterTest {
         assertThat(converterToTest.commToConsiderForOverheadMap.get(context).size(),
                 equalTo(AnalysisUtil.COMM_TYPES_TO_ALLOW_OVERHEAD.size()));
     }
-
-
-
 }

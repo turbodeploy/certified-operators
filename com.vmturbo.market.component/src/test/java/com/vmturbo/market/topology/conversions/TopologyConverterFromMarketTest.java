@@ -4,13 +4,11 @@ import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUS
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.longThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -26,11 +24,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.protobuf.util.JsonFormat;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -1265,16 +1262,16 @@ public class TopologyConverterFromMarketTest {
 
         CloudTopologyConverter mockCloudTc = Mockito.mock(CloudTopologyConverter.class);
         CommodityIndex mockINdex = Mockito.mock(CommodityIndex.class);
-        final CommodityIndexFactory indexFactory = mock(CommodityIndexFactory.class);
-        when(indexFactory.newIndex()).thenReturn(mockINdex);
 
         TopologyInfo topoInfo = TopologyInfo.newBuilder()
                 .setTopologyType(TopologyType.PLAN).build();
 
         TopologyConverter converter = Mockito.spy(new TopologyConverter(topoInfo, false,
                 AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable, mockCommodityConverter, mockCCD, indexFactory, tierExcluderFactory));
+                marketPriceTable, mockCommodityConverter, mockCCD,
+                CommodityIndex.newFactory(), tierExcluderFactory));
         converter.cloudTc = mockCloudTc;
+        converter.commodityIndex = mockINdex;
 
         TopologyDTO.TopologyEntityDTO oldTierDTO = createEntityDTO(CLOUD_COMPUTE_TIER_OID,
                 EntityType.COMPUTE_TIER_VALUE, CommodityDTO.CommodityType.MEM_VALUE);
@@ -1314,11 +1311,6 @@ public class TopologyConverterFromMarketTest {
         MarketTier marketTier = new OnDemandMarketTier(newTierDTO);
         Mockito.doReturn(marketTier).when(mockCloudTc).getPrimaryMarketTier(Mockito.eq(vmTO));
         Mockito.doReturn(marketTier).when(mockCloudTc).getMarketTier(Mockito.anyLong());
-        ImmutableList marketTierIDs = ImmutableList.of(CLOUD_COMPUTE_TIER_OID,
-                CLOUD_NEW_COMPUTE_TIER_OID);
-        Mockito.doReturn(true).when(mockCloudTc)
-                .isMarketTier(longThat(isIn(marketTierIDs)));
-
         Mockito.doReturn(true).when(mockCloudTc)
                 .isMarketTier(Mockito.eq(CLOUD_NEW_COMPUTE_TIER_OID));
         Mockito.doReturn(Collections.singleton(oldTierDTO)).when(mockCloudTc)

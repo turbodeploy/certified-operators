@@ -20,7 +20,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.commons.analysis.AnalysisUtil;
@@ -29,7 +28,6 @@ import com.vmturbo.market.topology.conversions.ConversionErrorCounts.ErrorCatego
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
-import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO.Builder;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
@@ -205,8 +203,8 @@ public class CommodityConverter {
                                   topologyCommSold.hasHistoricalPeak()
                                                   ? TopologyDTO.CommoditySoldDTO::getHistoricalPeak
                                                   : null);
-        final Builder soldCommBuilder = CommoditySoldTO.newBuilder();
-        soldCommBuilder.setPeakQuantity(peak)
+        return CommodityDTOs.CommoditySoldTO.newBuilder()
+                .setPeakQuantity(peak)
                 .setCapacity(capacity)
                 .setQuantity(used)
                 // Warning: we are down casting from double to float.
@@ -217,17 +215,7 @@ public class CommodityConverter {
                 .setThin(topologyCommSold.getIsThin())
                 .setNumConsumers(numConsumers)
                 .build();
-        // Set the historical quantity for the onPrem
-        // right sizing only if the percentile value is set.
-        if (topologyCommSold.hasHistoricalUsed()
-                && topologyCommSold.getHistoricalUsed().hasPercentile()) {
-            soldCommBuilder.setHistoricalQuantity(
-                    (float)topologyCommSold.getHistoricalUsed().getPercentile());
-        }
-        return soldCommBuilder.build();
     }
-
-
 
     /**
      * Creates a {@link CommoditySoldTO} of specific type with a specific used and capacity.
@@ -501,38 +489,6 @@ public class CommodityConverter {
                     .build();
         }
     }
-
-    /**
-     * Returns the historical value for sold and bought commodity with the percentile value given
-     * a higher priority.
-     * @param commDto the sold commodity or the bought commodity.
-     * @param usedExtractor function that extracts the current used value.
-     * @param historicalExtractor function that extracts the historical utilization(used) value.
-     * @return the historical used value, returns null if historical value is not set
-     *          and the used extractor is not passed.
-     */
-    @Nullable
-    public static Float getHistoricalUsedOrPeak(final CommodityBoughtDTO commDto,
-                                                @Nullable Function<CommodityBoughtDTO, Double> usedExtractor,
-                                                @Nullable Function<CommodityBoughtDTO, HistoricalValues> historicalExtractor ) {
-        if (historicalExtractor != null) {
-            HistoricalValues hv = historicalExtractor.apply(commDto);
-            if (hv.hasPercentile()) {
-                return (float)hv.getPercentile();
-            } else if (hv.hasHistUtilization()) {
-                // if not then hist utilization which is the historical used value.
-                return (float)hv.getHistUtilization();
-            }
-        }
-        // otherwise take real-time 'used'
-        // real-time values have 0 defaults so there cannot be nulls
-        if (usedExtractor != null) {
-            return usedExtractor.apply(commDto).floatValue();
-        } else {
-            return null;
-        }
-    }
-
 
     /**
      * Fetch the single used or peak value for a topology commodity.

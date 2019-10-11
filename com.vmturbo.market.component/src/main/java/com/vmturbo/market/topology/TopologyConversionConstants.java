@@ -75,6 +75,10 @@ public class TopologyConversionConstants {
                     .put(CommodityType.VCPU_VALUE, CommodityType.TRANSACTION_VALUE).build())
             .build();
 
+    // Throughput commodities.
+    public static final Set<Integer> THROUGHPUT_COMMODITIES =
+            ImmutableSet.of(CommodityType.IO_THROUGHPUT_VALUE, CommodityType.NET_THROUGHPUT_VALUE);
+
     /**
      * These are the bought commodities that drive scale to new template actions.
      */
