@@ -193,16 +193,14 @@ public class TierExcluder {
      * @return the stream of entity setting group which have the template exclusion settings
      */
     private Stream<EntitySettingGroup> fetchTierExclusionSettings() {
-        TopologySelection.Builder topologySelection = TopologySelection.newBuilder()
-            .setTopologyContextId(topologyInfo.getTopologyContextId())
-            .setTopologyId(topologyInfo.getTopologyId());
         EntitySettingFilter.Builder entitySettingFilter = EntitySettingFilter.newBuilder()
             .addSettingName(EntitySettingSpecs.ExcludedTemplates.getSettingName());
+        // Do not set topology selection in GetEntitySettingsRequest because resolved settings are
+        // not uplodaded to group component for plans. So pick the real time settings always.
+        // This is fine because we cannot set template exclusion exclusively for plans today
         GetEntitySettingsRequest request = GetEntitySettingsRequest.newBuilder()
-            .setTopologySelection(topologySelection)
             .setSettingFilter(entitySettingFilter)
             .setIncludeSettingPolicies(true).build();
-
         return SettingDTOUtil.flattenEntitySettings(settingPolicyService.getEntitySettings(request));
     }
 
