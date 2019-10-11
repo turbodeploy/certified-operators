@@ -82,6 +82,7 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults.NewShoppingListToBuyerEntry;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context.Builder;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
@@ -1581,11 +1582,7 @@ public class TopologyConverter {
                             ? PLAN_MOVE_COST_FACTOR
                             : liveMarketMoveCostFactor)
                     .setProviderMustClone(isProviderMustClone);
-            if (cloudEntityToBusinessAccount.get(topologyDTO) != null) {
-                TopologyEntityDTO region = cloudTc.getRegionOfCloudConsumer(topologyDTO);
-                settingsBuilder.setCurrentContext(Context.newBuilder().setBalanceAccount(createBalanceAccountDTO(topologyDTO))
-                        .setRegionId(region != null ? region.getOid() : -1).build());
-            }
+            createCurrentContext(topologyDTO).ifPresent(settingsBuilder::setCurrentContext);
             final EconomyDTOs.TraderSettingsTO settings = settingsBuilder.build();
 
             //compute biclique IDs for this entity, the clique list will be used only for
@@ -1610,12 +1607,29 @@ public class TopologyConverter {
         return traderDTO;
     }
 
-    @Nullable
-    private BalanceAccountDTO createBalanceAccountDTO(TopologyEntityDTO topologyEntityDTO) {
-        TopologyEntityDTO businessAccount = cloudEntityToBusinessAccount.get(topologyEntityDTO);
-        if (businessAccount == null) {
-            return null;
+    private Optional<Context.Builder> createCurrentContext(final TopologyEntityDTO topologyDTO) {
+        final TopologyEntityDTO businessAccount = cloudEntityToBusinessAccount.get(topologyDTO);
+        return Optional.ofNullable(businessAccount).map(ba -> {
+            final Context.Builder result = Context.newBuilder()
+                    .setBalanceAccount(createBalanceAccountFromBusinessAccount(ba));
+            final TopologyEntityDTO region = cloudTc.getRegionOfCloudConsumer(topologyDTO);
+            setIfPresent(region, result::setRegionId);
+            final TopologyEntityDTO zone = cloudTc.getAZOfCloudConsumer(topologyDTO);
+            setIfPresent(zone, result::setZoneId);
+            return result;
+        });
+    }
+
+    private void setIfPresent(final TopologyEntityDTO topologyDTO,
+                                  Function<Long, Context.Builder> setter) {
+        if (topologyDTO != null) {
+            setter.apply(topologyDTO.getOid());
         }
+    }
+
+    @Nonnull
+    private BalanceAccountDTO createBalanceAccountFromBusinessAccount(
+            TopologyEntityDTO businessAccount) {
         // We create default balance account
         double defaultBudgetValue = 100000000d;
         float spent = 0f;

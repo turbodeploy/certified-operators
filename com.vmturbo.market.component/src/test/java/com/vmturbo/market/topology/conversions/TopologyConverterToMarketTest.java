@@ -15,6 +15,7 @@ import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -26,11 +27,13 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.google.protobuf.util.JsonFormat;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -51,6 +54,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.AnalysisUtil;
@@ -63,6 +68,7 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
@@ -287,29 +293,41 @@ public class TopologyConverterToMarketTest {
      */
     @Test
     public void testTraderState() {
-        TopologyEntityDTO vmOn = entity(EntityType.VIRTUAL_MACHINE_VALUE, EntityState.POWERED_ON);
+        TopologyEntityDTO vmOn = entity(EntityType.VIRTUAL_MACHINE_VALUE,
+                10,  EntityState.POWERED_ON, Collections.emptyList(), Collections.emptyList());
         TraderTO traderVmOn = convertToMarketTO(Sets.newHashSet(vmOn), PLAN_TOPOLOGY_INFO).iterator().next();
         assertEquals(TraderStateTO.ACTIVE, traderVmOn.getState());
 
-        TopologyEntityDTO vmOff = entity(EntityType.VIRTUAL_MACHINE_VALUE, EntityState.POWERED_OFF);
+        TopologyEntityDTO vmOff = entity(EntityType.VIRTUAL_MACHINE_VALUE,
+         10, EntityState.POWERED_OFF, Collections.emptyList(), Collections.emptyList());
         TraderTO traderVmOff = convertToMarketTO(Sets.newHashSet(vmOff), PLAN_TOPOLOGY_INFO).iterator().next();
         assertEquals(TraderStateTO.IDLE, traderVmOff.getState());
 
-        TopologyEntityDTO appOn = entity(EntityType.APPLICATION_VALUE, EntityState.POWERED_ON);
+        TopologyEntityDTO appOn = entity(EntityType.APPLICATION_VALUE, 10, EntityState.POWERED_ON,
+                Collections.emptyList(), Collections.emptyList());
         TraderTO traderAppOn = convertToMarketTO(Sets.newHashSet(appOn), PLAN_TOPOLOGY_INFO).iterator().next();
         assertEquals(TraderStateTO.ACTIVE, traderAppOn.getState());
 
-        TopologyEntityDTO appOff = entity(EntityType.APPLICATION_VALUE, EntityState.POWERED_OFF);
+        TopologyEntityDTO appOff = entity(EntityType.APPLICATION_VALUE, 10,
+                EntityState.POWERED_OFF, Collections.emptyList(), Collections.emptyList());
         TraderTO traderAppOff = convertToMarketTO(Sets.newHashSet(appOff), PLAN_TOPOLOGY_INFO).iterator().next();
         assertEquals(TraderStateTO.INACTIVE, traderAppOff.getState());
     }
 
-    private TopologyEntityDTO entity(int type, EntityState state) {
-        return TopologyEntityDTO.newBuilder()
+    private TopologyEntityDTO entity(int type, long oid, EntityState state,
+                                     List<ConnectedEntity> connectedEntities,
+                                     List<CommoditySoldDTO> soldCommodities) {
+        final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
             .setEntityType(type)
             .setEntityState(state)
-            .setOid(10)
-            .build();
+            .setOid(oid);
+        if (!CollectionUtils.isEmpty(connectedEntities)) {
+            builder.addAllConnectedEntityList(connectedEntities);
+        }
+        if (!CollectionUtils.isEmpty(soldCommodities)) {
+            builder.addAllCommoditySoldList(soldCommodities);
+        }
+        return builder.build();
     }
 
     /**
@@ -903,6 +921,97 @@ public class TopologyConverterToMarketTest {
         Assert.assertEquals(100, quantities[0], 0.01f);
         // new peak = max(peak, used) / rtu
         Assert.assertEquals(160, quantities[1], 0.01f);
+    }
+
+    /**
+     * Test that the region_id field is set for a VM's startContext object if the VM is connected
+     * to a region.
+     */
+    @Test
+    public void testRegionalContextSetForCloudVm() {
+        final long regionId = 5L;
+        final long vmId = 3L;
+        final long baId = 2L;
+        final EntityState on = EntityState.POWERED_ON;
+        final TopologyEntityDTO region = entity(EntityType.REGION_VALUE, regionId, on,
+                null, Collections.singletonList(createSoldCommodity(CommodityDTO
+                        .CommodityType.DATACENTER_VALUE)));
+        final TopologyEntityDTO vm = entity(EntityType.VIRTUAL_MACHINE_VALUE, vmId, on,
+                Collections.singletonList(createConnectedEntity(regionId,
+                        ConnectionType.NORMAL_CONNECTION, EntityType.REGION_VALUE)),
+                null);
+        final TopologyEntityDTO ba = entity(EntityType.BUSINESS_ACCOUNT_VALUE, baId, on,
+                Collections.singletonList(createConnectedEntity(vmId,
+                        ConnectionType.OWNS_CONNECTION, EntityType.VIRTUAL_MACHINE_VALUE)),
+                null);
+        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+                AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
+
+        final Set<TraderTO> traders =
+                converter.convertToMarket(ImmutableList.of(region, vm, ba).stream()
+                        .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
+
+        Assert.assertEquals(1, traders.size());
+        final TraderTO vmTrader = traders.iterator().next();
+        final Context startContext = vmTrader.getSettings().getCurrentContext();
+        Assert.assertEquals(regionId, startContext.getRegionId());
+    }
+
+
+    /**
+     * Test that the zone_id and region_id fields are set for a VM's startContext object if the
+     * VM is connected to a zone.
+     */
+    @Test
+    public void testZonalContextSetForCloudVm() {
+        final long regionId = 5L;
+        final long zoneId = 4L;
+        final long vmId = 3L;
+        final long baId = 2L;
+        final EntityState on = EntityState.POWERED_ON;
+        final TopologyEntityDTO zone = entity(EntityType.AVAILABILITY_ZONE_VALUE, zoneId, on,
+                null, null);
+        final TopologyEntityDTO region = entity(EntityType.REGION_VALUE, regionId, on,
+                Collections.singletonList(createConnectedEntity(zoneId,
+                        ConnectionType.OWNS_CONNECTION, EntityType.AVAILABILITY_ZONE_VALUE)),
+                Collections.singletonList(createSoldCommodity(CommodityDTO
+                        .CommodityType.DATACENTER_VALUE)));
+        final TopologyEntityDTO vm = entity(EntityType.VIRTUAL_MACHINE_VALUE, vmId, on,
+                Collections.singletonList(createConnectedEntity(zoneId,
+                        ConnectionType.NORMAL_CONNECTION, EntityType.AVAILABILITY_ZONE_VALUE)),
+                null);
+        final TopologyEntityDTO ba = entity(EntityType.BUSINESS_ACCOUNT_VALUE, baId, on,
+                Collections.singletonList(createConnectedEntity(vmId,
+                        ConnectionType.OWNS_CONNECTION, EntityType.VIRTUAL_MACHINE_VALUE)),
+                null);
+        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+                AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
+
+        final Set<TraderTO> traders =
+                converter.convertToMarket(ImmutableList.of(zone, region, vm, ba).stream()
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
+
+        Assert.assertEquals(1, traders.size());
+        final TraderTO vmTrader = traders.iterator().next();
+        final Context startContext = vmTrader.getSettings().getCurrentContext();
+        Assert.assertEquals(regionId, startContext.getRegionId());
+        Assert.assertEquals(zoneId, startContext.getZoneId());
+    }
+
+    private static CommoditySoldDTO createSoldCommodity(int type) {
+        return CommoditySoldDTO.newBuilder().setCommodityType(CommodityType.newBuilder()
+                        .setType(type)).build();
+    }
+
+    private static ConnectedEntity createConnectedEntity(long oid, ConnectionType type,
+                                                         int entityType) {
+       return  ConnectedEntity.newBuilder()
+                .setConnectionType(type)
+                .setConnectedEntityType(entityType)
+                .setConnectedEntityId(oid)
+                .build();
     }
 
     private static double[] getResizedCapacityForCloud(int entityType, int commodityType,

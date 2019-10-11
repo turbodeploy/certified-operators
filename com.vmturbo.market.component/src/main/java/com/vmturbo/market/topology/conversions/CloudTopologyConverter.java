@@ -337,8 +337,9 @@ public class CloudTopologyConverter {
         // For Azure, a VM is directly connected to Region. It's not connected to Availability Zone.
         // So if an entity is connected to Region, then return this region.
         // Otherwise, find the Region through Availability Zone.
-        if (!regions.isEmpty())
+        if (!regions.isEmpty()) {
             return regions.get(0);
+        }
 
         TopologyEntityDTO region = null;
         if (azToRegionMap.isEmpty()) {
@@ -363,7 +364,7 @@ public class CloudTopologyConverter {
         List<TopologyEntityDTO> AZs = TopologyDTOUtil.getConnectedEntitiesOfType(entity,
                 EntityType.AVAILABILITY_ZONE_VALUE, topology);
         if (AZs.isEmpty()) {
-            logger.error("{} not connected to any AZs", entity.getDisplayName());
+            logger.debug("{} not connected to any AZs", entity.getDisplayName());
             return null;
         }
         if (AZs.size() > 1) {
