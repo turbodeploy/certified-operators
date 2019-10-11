@@ -32,6 +32,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePriceTuple;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -370,8 +371,8 @@ public class MarketPriceTable {
                         final double hourlyPriceAmount = CostProtoUtil.getHourlyPriceAmount(price);
 
                         final StorageTierPriceData.Builder priceDataBuilder = StorageTierPriceData.newBuilder()
-                                .setBusinessAccountId(accountId)
-                                .setPrice(hourlyPriceAmount * (1 - discountPercentage))
+                                .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(accountId).setRegionId(regionId)
+                                        .setPrice(hourlyPriceAmount * (1 - discountPercentage)).build())
                                 .setIsUnitPrice(isUnitPrice)
                                 .setIsAccumulativeCost(isAccumulativePrice);
 

@@ -52,6 +52,8 @@ import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.topology.MarketTier;
+import com.vmturbo.market.topology.RiDiscountedMarketTier;
+import com.vmturbo.market.topology.SingleRegionMarketTier;
 import com.vmturbo.market.topology.conversions.CloudEntityResizeTracker.CommodityUsageType;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
@@ -137,7 +139,7 @@ public class ActionInterpreter {
 
             switch (actionTO.getActionTypeCase()) {
                 case MOVE:
-                    Move move = interpretMoveAction(actionTO.getMove(), projectedTopology);
+                    Move move = interpretMoveAction(actionTO.getMove(), projectedTopology, originalCloudTopology);
                     if (move.getChangesList().isEmpty()) {
                         // There needs to be at least one change provider. It will currently hit
                         // this block for Accounting actions on the cloud.
@@ -147,7 +149,7 @@ public class ActionInterpreter {
                     break;
                 case COMPOUND_MOVE:
                     infoBuilder.setMove(interpretCompoundMoveAction(actionTO.getCompoundMove(),
-                            projectedTopology));
+                            projectedTopology, originalCloudTopology));
                     break;
                 case RECONFIGURE:
                     infoBuilder.setReconfigure(interpretReconfigureAction(
@@ -349,12 +351,14 @@ public class ActionInterpreter {
      *
      * @param compoundMoveTO the input {@link CompoundMoveTO}
      * @param projectedTopology a map of entity id to its {@link ProjectedTopologyEntity}
+     * @param originalCloudTopology The original cloud topology
      * @return {@link ActionDTO.Move} representing the compound move
      */
     @Nonnull
     private ActionDTO.Move interpretCompoundMoveAction(
             @Nonnull final CompoundMoveTO compoundMoveTO,
-            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
+            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
+            @NonNull CloudTopology<TopologyEntityDTO> originalCloudTopology) {
         List<MoveTO> moves = compoundMoveTO.getMovesList();
         if (moves.isEmpty()) {
             throw new IllegalStateException(
@@ -376,7 +380,7 @@ public class ActionInterpreter {
                 .setTarget(createActionEntity(
                         targetIds.iterator().next(), projectedTopology))
                 .addAllChanges(moves.stream()
-                        .map(move -> createChangeProviders(move, projectedTopology, targetOid))
+                        .map(move -> createChangeProviders(move, projectedTopology, originalCloudTopology, targetOid))
                         .flatMap(List::stream)
                         .collect(Collectors.toList()))
                 .build();
@@ -413,11 +417,13 @@ public class ActionInterpreter {
      *
      * @param moveTO the input {@link MoveTO}
      * @param projectedTopology a map of entity id to the {@link ProjectedTopologyEntity}.
+     * @param originalCloudTopology the original cloud topology
      * @return {@link ActionDTO.Move} representing the move
      */
     @Nonnull
     private ActionDTO.Move interpretMoveAction(@Nonnull final MoveTO moveTO,
-                           @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
+                           @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
+                                               @NonNull CloudTopology<TopologyEntityDTO> originalCloudTopology) {
         final ShoppingListInfo shoppingList =
                 shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
         if (shoppingList == null) {
@@ -428,7 +434,7 @@ public class ActionInterpreter {
                     .setTarget(
                             createActionEntity(shoppingList.buyerId, projectedTopology))
                     .addAllChanges(createChangeProviders(moveTO,
-                            projectedTopology, shoppingList.buyerId))
+                            projectedTopology, originalCloudTopology, shoppingList.buyerId))
                     .build();
         }
     }
@@ -567,12 +573,13 @@ public class ActionInterpreter {
      * @param move the input {@link MoveTO}
      * @param projectedTopology A map of the id of the entity to its {@link ProjectedTopologyEntity}.
      * @param targetOid targetOid
+     * @param originalCloudTopology The original cloud topology.
      * @return A list of change providers representing the move
      */
     @Nonnull
     List<ChangeProvider> createChangeProviders(
             @Nonnull final MoveTO move, @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
-            Long targetOid) {
+            CloudTopology<TopologyEntityDTO> originalCloudTopology, Long targetOid) {
         List<ChangeProvider> changeProviders = new ArrayList<>();
         MarketTier sourceMarketTier = move.hasSource() ?
                 cloudTc.getMarketTier(move.getSource()) : null;
@@ -586,6 +593,32 @@ public class ActionInterpreter {
         Long moveSource = move.hasSource() ? move.getSource() : null;
         // Update moveSource if the original supplier is in MAINTENANCE or FAILOVER state.
         final ShoppingListInfo shoppingListInfo = shoppingListOidToInfos.get(move.getShoppingListToMove());
+        TopologyEntityDTO destinationRegion;
+        if (destMarketTier instanceof SingleRegionMarketTier) {
+            // For a RI Discounted market tier we get the region from the destination market tier
+            // SingleRegionMarketTier is currently only for RIDiscountedMarketTier. So,
+            // region information is coming from Tier itself.
+            destinationRegion = ((SingleRegionMarketTier)destMarketTier).getRegion();
+        } else {
+            // This is a onDemandMarketTier so we get the region from the move context.
+            // MultiRegionMarketTier contains all region's cost information so only move context
+            // can tell which region was chosen inside market analysis.
+            long regionCommSpec = move.getMoveContext().getRegionId();
+            destinationRegion = originalTopology.get(regionCommSpec);
+        }
+        TopologyEntityDTO sourceRegion = null;
+        if (sourceMarketTier instanceof SingleRegionMarketTier) {
+            // Ri Discounted MarketTiers have a region associated with them
+            sourceRegion = ((SingleRegionMarketTier)sourceMarketTier).getRegion();
+        } else {
+            if (originalCloudTopology != null) {
+                Optional<TopologyEntityDTO> regionFromCloudTopo = originalCloudTopology.getConnectedRegion(targetOid);
+                if (regionFromCloudTopo != null && regionFromCloudTopo.isPresent()) {
+                    // For an onDemandMarketTier get the source region from the original cloud topology
+                    sourceRegion = regionFromCloudTopo.get();
+                }
+            }
+        }
         if (!move.hasSource() &&
             shoppingListInfo.getSellerId() != null &&
             projectedTopology.containsKey(shoppingListInfo.getSellerId()) &&
@@ -596,9 +629,9 @@ public class ActionInterpreter {
             // TODO: We are considering the destination AZ as the first AZ of the destination
             // region. In case of zonal RIs, we need to get the zone of the RI.
             List<TopologyEntityDTO> connectedEntities = TopologyDTOUtil.getConnectedEntitiesOfType(
-                    destMarketTier.getRegion(), EntityType.AVAILABILITY_ZONE_VALUE, originalTopology);
+                    destinationRegion, EntityType.AVAILABILITY_ZONE_VALUE, originalTopology);
             destAzOrRegion = connectedEntities.isEmpty() ?
-                    destMarketTier.getRegion() : connectedEntities.get(0);
+                    destinationRegion : connectedEntities.get(0);
             destTier = destMarketTier.getTier();
         }
         if (sourceMarketTier != null) {
@@ -616,13 +649,13 @@ public class ActionInterpreter {
         // 4 case of moves:
         // 1) Cloud to cloud. 2) on prem to cloud. 3) cloud to on prem. 4) on prem to on prem.
         if (sourceMarketTier != null && destMarketTier != null) {
-            if ((destMarketTier.getRegion() == sourceMarketTier.getRegion()) && (destTier == sourceTier)
+            if (destinationRegion == sourceRegion && (destTier == sourceTier)
                     && (move.hasCouponDiscount()&& move.hasCouponId())) {
                 logger.warn("ACCOUNTING action generated for {}. We do not handle accounting " +
                         "actions YET. Dropping action.", target.getDisplayName());
             }
             // Cloud to cloud move
-            if (destMarketTier.getRegion() != sourceMarketTier.getRegion()) {
+            if (destinationRegion != sourceRegion) {
                 // AZ or Region change provider. We create an AZ or Region change provider
                 // because the target is connected to AZ or Region.
                 changeProviders.add(createChangeProvider(sourceAzOrRegion.getOid(),

@@ -6,6 +6,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.Map;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import com.google.common.collect.Maps;
@@ -15,24 +16,66 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class MarketTierTest {
 
-    @Test
-    public void testHashCodeAndEquals() {
-         TopologyEntityDTO computeTier1 =  TopologyEntityDTO.newBuilder()
+    private TopologyEntityDTO computeTier;
+    private TopologyEntityDTO storageTier;
+    private TopologyEntityDTO region;
+
+    /**
+     * Setup for the test
+     */
+    @Before
+    public void setup() {
+        computeTier =  TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.COMPUTE_TIER_VALUE)
                 .setOid(11)
                 .build();
-        TopologyEntityDTO region1 =  TopologyEntityDTO.newBuilder()
+        storageTier = TopologyEntityDTO.newBuilder().setEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setOid(12).build();
+        region =  TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.REGION_VALUE)
                 .setOid(1)
                 .build();
+    }
+
+    /**
+     * Test the overriden Hash code and equals for on demand market tier.
+     */
+    @Test
+    public void testHashCodeAndEqualsforOnDemandMarketTier() {
+
         Map<MarketTier, Integer> mstMap = Maps.newHashMap();
-        MarketTier mst1 = new OnDemandMarketTier(computeTier1, region1);
-        MarketTier mst2 = new OnDemandMarketTier(computeTier1, region1);
+        MarketTier mst1 = new OnDemandMarketTier(computeTier);
+        MarketTier mst2 = new OnDemandMarketTier(computeTier);
         mstMap.put(mst1, 1);
 
         assertFalse(mst1 == mst2);
         assertTrue(mst1.equals(mst2));
         assertTrue(mst1.hashCode() == mst2.hashCode());
-        assertEquals(mstMap.get(mst2), (Integer)1);
+        assertEquals((Integer)1, mstMap.get(mst2));
+    }
+
+    /**
+     * Test the overriden Hash code and equals for on demand storage tier.
+     */
+    @Test
+    public void testHashCodeAndEqualsforOnDemandStorageTier() {
+        Map<MarketTier, Integer> mstMap = Maps.newHashMap();
+        MarketTier mst1 = new OnDemandMarketTier(storageTier);
+        MarketTier mst2 = new OnDemandMarketTier(storageTier);
+        mstMap.put(mst1, 1);
+
+        assertFalse(mst1 == mst2);
+        assertTrue(mst1.equals(mst2));
+        assertTrue(mst1.hashCode() == mst2.hashCode());
+        assertEquals((Integer)1, mstMap.get(mst2));
+    }
+
+    @Test
+    /**
+     * Testing for false ri discount on storage tier.
+     */
+    public void testOnDemandStorageTierHasRiCoverage() {
+        MarketTier mst1 = new OnDemandMarketTier(storageTier);
+        assertEquals(false, mst1.hasRIDiscount());
     }
 }

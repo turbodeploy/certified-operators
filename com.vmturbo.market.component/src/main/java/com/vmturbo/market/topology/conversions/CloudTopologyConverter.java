@@ -24,6 +24,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -34,6 +35,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedIn
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -68,16 +70,16 @@ public class CloudTopologyConverter {
     private final Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap;
     private final Set<TopologyEntityDTO> businessAccounts;
     private final CloudCostData cloudCostData;
+    private final Map<CommodityType, TopologyEntityDTO> regionCommTypeToRegionObj;
 
     /**
-     * The CloudTopologyConverter constructor
-     *
      * @param topology the topologyEntityDTOs which came into market-component
      * @param topologyInfo the topology info
      * @param pmBasedBicliquer PM based bicliquer which stores connections between PM and DSs
      * @param dsBasedBicliquer DS based bicliquer which stores connections between DS and PMs
      * @param commodityConverter commodity converter
      * @param azToRegionMap mapping of AZs to Regions
+     * @param regionCommTypeToRegionObj The region commType to Region Object map.
      * @param businessAccounts The set of business accounts
      * @param marketPriceTable The market price table
      * @param cloudCostData Cloud Cost data
@@ -90,6 +92,7 @@ public class CloudTopologyConverter {
              @Nonnull BiCliquer pmBasedBicliquer, @Nonnull BiCliquer dsBasedBicliquer,
              @Nonnull CommodityConverter commodityConverter,
              @Nonnull Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap,
+             @Nonnull Map<CommodityType, TopologyEntityDTO> regionCommTypeToRegionObj,
              @Nonnull Set<TopologyEntityDTO> businessAccounts, @Nonnull MarketPriceTable marketPriceTable,
              @Nonnull CloudCostData cloudCostData,
              @Nonnull TierExcluder tierExcluder) {
@@ -99,6 +102,7 @@ public class CloudTopologyConverter {
          this.pmBasedBicliquer = pmBasedBicliquer;
          this.dsBasedBicliquer = dsBasedBicliquer;
          this.azToRegionMap = azToRegionMap;
+         this.regionCommTypeToRegionObj = regionCommTypeToRegionObj;
          CostDTOCreator costDTOCreator = new CostDTOCreator(commodityConverter, marketPriceTable);
          this.computeTierConverter = new ComputeTierConverter(topologyInfo, commodityConverter, costDTOCreator, tierExcluder);
          this.storageTierConverter = new StorageTierConverter(topologyInfo, commodityConverter, costDTOCreator);
@@ -223,10 +227,6 @@ public class CloudTopologyConverter {
     @Nonnull
     Set<Long> getMarketTierProviderOidOfType(@Nonnull TopologyEntityDTO entity, int providerType) {
         Set<Long> providerOids =  new HashSet<>();
-        if (azToRegionMap.isEmpty()) {
-            logger.error("azToRegionMap not yet initialized.");
-            return providerOids;
-        }
         if (!TopologyDTOUtil.isTierEntityType(providerType)) {
             logger.error("{} is not a tier. Cannot fetch market tier providers for {}"
                     , providerType, entity.getDisplayName());
@@ -243,7 +243,8 @@ public class CloudTopologyConverter {
             return providerOids;
         }
         for (TopologyEntityDTO connectedEntity : connectedEntities) {
-            MarketTier provider = new OnDemandMarketTier(connectedEntity, region);
+            MarketTier provider = null;
+            provider = new OnDemandMarketTier(connectedEntity);
             Long oid = getTraderTOOid(provider);
             if (oid != null) {
                 providerOids.add(oid);
@@ -306,6 +307,20 @@ public class CloudTopologyConverter {
             return null;
         }
         return primaryMarketTiers.get(0);
+    }
+
+    /**
+     * Given a trader, get the region comm type from it shopping list.
+     *
+     * @param trader the trader
+     * @return the Integer corresponding to the region comm type
+     */
+    public Long getRegionCommTypeIntFromShoppingList(TraderTO trader) {
+        Optional<ShoppingListTO> shoppingListTO = trader.getShoppingListsList().stream().filter(s -> s.hasContext()).findFirst();
+        if (shoppingListTO.isPresent()) {
+            return shoppingListTO.get().getContext().getRegionId();
+        }
+        return null;
     }
 
     /**
@@ -392,5 +407,15 @@ public class CloudTopologyConverter {
      */
     public Optional<EntityReservedInstanceCoverage> getRiCoverageForEntity(long entityId) {
         return cloudCostData.getRiCoverageForEntity(entityId);
+    }
+
+    /**
+     * Given a region comm Type get the corresponding topology entity dto.
+     *
+     * @param regionCommType The region comm Type
+     * @return The topology entity dto
+     */
+    public TopologyEntityDTO getTopologyEntityDTOFromRegionCommSpec(CommodityType regionCommType) {
+        return regionCommTypeToRegionObj.get(regionCommType);
     }
 }

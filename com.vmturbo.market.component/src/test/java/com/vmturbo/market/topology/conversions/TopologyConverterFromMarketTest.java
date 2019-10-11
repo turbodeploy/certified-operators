@@ -1308,7 +1308,7 @@ public class TopologyConverterFromMarketTest {
         EconomyDTOs.TraderTO oldVMTO = createVMTOs(oldBoughtTO, soldTO, CLOUD_VM_OID,
                 CLOUD_COMPUTE_TIER_OID, CLOUD_VM_OID + 3L);
 
-        MarketTier marketTier = new OnDemandMarketTier(newTierDTO, region1);
+        MarketTier marketTier = new OnDemandMarketTier(newTierDTO);
         Mockito.doReturn(marketTier).when(mockCloudTc).getPrimaryMarketTier(Mockito.eq(vmTO));
         Mockito.doReturn(marketTier).when(mockCloudTc).getMarketTier(Mockito.anyLong());
         Mockito.doReturn(true).when(mockCloudTc)

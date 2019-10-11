@@ -54,37 +54,35 @@ public class StorageTierConverter implements TierConverter {
         Map<TraderTO.Builder, MarketTier> traderTOs = new HashMap<>();
         List<TopologyEntityDTO> connectedRegions = TopologyDTOUtil.getConnectedEntitiesOfType(
                 storageTier, EntityType.REGION_VALUE, topology);
-        for(TopologyEntityDTO region : connectedRegions) {
-            MarketTier marketTier = new OnDemandMarketTier(storageTier, region);
-            String debugInfo = marketTier.getDisplayName();
-            logger.debug("Creating trader for {}", debugInfo);
-            TraderSettingsTO.Builder settingsBuilder = TopologyConversionUtils.
-                    createCommonTraderSettingsTOBuilder(storageTier, topology);
-            final EconomyDTOs.TraderSettingsTO settings = settingsBuilder
-                    .setClonable(false)
-                    .setSuspendable(false)
-                    // TODO: For canAcceptNewCustomers - Need to check if price is available.
-                    .setCanAcceptNewCustomers(true)
-                    // TODO: Check why isEligibleForResizeDown is true for computeTier?
-                    .setIsEligibleForResizeDown(false)
-                    .setQuoteFunction(QuoteFunctionDTO.newBuilder()
-                            .setRiskBased(RiskBased.newBuilder()
-                                    .setCloudCost(costDTOCreator.createStorageTierCostDTO(
-                                            storageTier, region, businessAccounts)).build()))
-                    .setQuoteFactor(1)
-                    .build();
+        MarketTier marketTier = new OnDemandMarketTier(storageTier);
+        String debugInfo = marketTier.getDisplayName();
+        logger.debug("Creating trader for {}", debugInfo);
+        TraderSettingsTO.Builder settingsBuilder = TopologyConversionUtils.
+                createCommonTraderSettingsTOBuilder(storageTier, topology);
+        final EconomyDTOs.TraderSettingsTO settings = settingsBuilder
+                .setClonable(false)
+                .setSuspendable(false)
+                // TODO: For canAcceptNewCustomers - Need to check if price is available.
+                .setCanAcceptNewCustomers(true)
+                // TODO: Check why isEligibleForResizeDown is true for computeTier?
+                .setIsEligibleForResizeDown(false)
+                .setQuoteFunction(QuoteFunctionDTO.newBuilder()
+                        .setRiskBased(RiskBased.newBuilder()
+                                .setCloudCost(costDTOCreator.createStorageTierCostDTO(
+                                        storageTier, connectedRegions, businessAccounts)).build()))
+                .setQuoteFactor(1)
+                .build();
 
-            TraderTO.Builder traderTOBuilder = EconomyDTOs.TraderTO.newBuilder()
-                    // Type and Oid are the same in the topology DTOs and economy DTOs
-                    .setOid(IdentityGenerator.next())
-                    .setType(EntityType.STORAGE_TIER_VALUE)
-                    .setState(TopologyConversionUtils.traderState(storageTier))
-                    .setSettings(settings)
-                    .setTemplateForHeadroom(false)
-                    .setDebugInfoNeverUseInCode(marketTier.getDisplayName())
-                    .addAllCommoditiesSold(commoditiesSoldList(storageTier));
-            traderTOs.put(traderTOBuilder, marketTier);
-        }
+        TraderTO.Builder traderTOBuilder = EconomyDTOs.TraderTO.newBuilder()
+                // Type and Oid are the same in the topology DTOs and economy DTOs
+                .setOid(IdentityGenerator.next())
+                .setType(EntityType.STORAGE_TIER_VALUE)
+                .setState(TopologyConversionUtils.traderState(storageTier))
+                .setSettings(settings)
+                .setTemplateForHeadroom(false)
+                .setDebugInfoNeverUseInCode(marketTier.getDisplayName())
+                .addAllCommoditiesSold(commoditiesSoldList(storageTier));
+        traderTOs.put(traderTOBuilder, marketTier);
         return traderTOs;
     }
 

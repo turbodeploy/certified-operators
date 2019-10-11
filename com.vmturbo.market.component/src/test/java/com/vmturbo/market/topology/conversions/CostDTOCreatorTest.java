@@ -1,11 +1,13 @@
 package com.vmturbo.market.topology.conversions;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTOREST.CommoditySoldDTO;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -23,14 +25,20 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOREST;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
+import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO.ComputeResourceDependency;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ComputeTierData.DedicatedStorageNetworkState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 
@@ -47,16 +55,12 @@ public class CostDTOCreatorTest {
     private static final int NETSPEC_BASE_TYPE = 2;
     private static final int NETSPEC_TYPE = 22;
 
-    private static final TopologyEntityDTO REGION = TopologyEntityDTO.newBuilder()
-            .setEntityType(EntityType.REGION_VALUE)
-            .setOid(REGION_ID)
-            .build();
-
     private static final TopologyEntityDTO BA = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
             .setOid(BA_ID)
             .build();
 
+    private static List<TopologyEntityDTO> REGIONS;
     private MarketPriceTable marketPriceTable;
     private CommodityConverter converter;
 
@@ -97,6 +101,22 @@ public class CostDTOCreatorTest {
      */
     private TopologyEntityDTO getTestComputeTier() {
 
+        // Setting up the sold commodities for a Region
+        final TopologyDTO.CommoditySoldDTO soldDTO = TopologyDTO.CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.DATACENTER_VALUE)
+                        .build())
+                .build();
+        List<TopologyDTO.CommoditySoldDTO > soldDTOS = new ArrayList<TopologyDTO.CommoditySoldDTO>();
+        soldDTOS.add(soldDTO);
+        TopologyEntityDTO REGION = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.REGION_VALUE)
+                .setOid(REGION_ID)
+                .addAllCommoditySoldList(soldDTOS)
+                .build();
+        REGIONS = Collections.singletonList(REGION);
+
+
         CommodityType ioTpCommType = CommodityType.newBuilder()
                 .setType(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE).build();
         CommodityType netTpCommType = CommodityType.newBuilder()
@@ -114,6 +134,9 @@ public class CostDTOCreatorTest {
         Mockito.doReturn(netCommSpecTO).when(converter)
                 .commoditySpecification(netTpCommType);
 
+        DatabasePriceBundle databasePriceBundle = DatabasePriceBundle.newBuilder().addPrice(BA_ID, DatabaseEngine.MYSQL, DatabaseEdition.ORACLE_STANDARD,
+                DeploymentType.MULTI_AZ, LicenseModel.BRING_YOUR_OWN_LICENSE, 0.4).build();
+        when(marketPriceTable.getDatabasePriceBundle(TIER_ID, REGION_ID)).thenReturn(databasePriceBundle);
         ComputePriceBundle computeBundle = ComputePriceBundle.newBuilder()
                 .addPrice(BA_ID, OSType.LINUX, 0.5, true)
                 .build();
@@ -124,12 +147,14 @@ public class CostDTOCreatorTest {
                                 .setType(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE)
                                 .build())
                         .build();
+
         final TopologyDTO.CommoditySoldDTO topologyNetTpSold =
                 TopologyDTO.CommoditySoldDTO.newBuilder()
                         .setCommodityType(CommodityType.newBuilder()
                                 .setType(CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE)
                                 .build())
                         .build();
+
         TopologyEntityDTO tier = TopologyEntityDTO.newBuilder()
                 .setOid(111)
                 .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
@@ -157,8 +182,10 @@ public class CostDTOCreatorTest {
         Set<TopologyEntityDTO> bas = new HashSet<>();
         bas.add(BA);
         CostDTOCreator costDTOCreator = new CostDTOCreator(converter, marketPriceTable);
-        CostDTO costDTO = costDTOCreator.createComputeTierCostDTO(tier, REGION, bas);
+        CostDTO costDTO = costDTOCreator.createComputeTierCostDTO(tier, REGIONS, bas);
+        CostDTO databaseCostDTO = costDTOCreator.createDatabaseTierCostDTO(tier, REGIONS, bas);
         Assert.assertEquals(1, costDTO.getComputeTierCost().getComputeResourceDepedencyCount());
+        Assert.assertEquals(Double.POSITIVE_INFINITY, databaseCostDTO.getComputeTierCost().getCostTupleList(0).getPrice(), 0);
         ComputeResourceDependency dependency = costDTO.getComputeTierCost().getComputeResourceDepedency(0);
         Assert.assertNotNull(dependency.getBaseResourceType());
         Assert.assertEquals(NETSPEC_BASE_TYPE, dependency.getBaseResourceType().getBaseType());

@@ -67,7 +67,9 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
+import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -596,8 +598,8 @@ public class InterpretActionTest {
             }
         }
 
-        MarketTier sourceMarketTier = new OnDemandMarketTier(m1Large, region);
-        MarketTier destMarketTier = new OnDemandMarketTier(m1Medium, region);
+        MarketTier sourceMarketTier = new OnDemandMarketTier(m1Large);
+        MarketTier destMarketTier = new OnDemandMarketTier(m1Medium);
         when(mockCloudTc.getMarketTier(1)).thenReturn(sourceMarketTier);
         when(mockCloudTc.getMarketTier(2)).thenReturn(destMarketTier);
         when(mockCloudTc.isMarketTier(1l)).thenReturn(true);
@@ -624,7 +626,11 @@ public class InterpretActionTest {
         // Total destination cost = 15
         when(projectedCostJournal.getTotalHourlyCostExcluding(anySet())).thenReturn(15d);
         projectedCosts.put(vm.getOid(), projectedCostJournal);
-        ActionInterpreter interpreter = new ActionInterpreter(mock(CommodityConverter.class),
+        CommodityConverter mockedCommodityConverter = mock(CommodityConverter.class);
+        CommodityType mockedCommType = CommodityType.newBuilder().setType(10).build();
+        when(mockedCommodityConverter.commodityIdToCommodityType(15)).thenReturn(mockedCommType);
+        when(mockCloudTc.getTopologyEntityDTOFromRegionCommSpec(mockedCommType)).thenReturn(region);
+        ActionInterpreter interpreter = new ActionInterpreter(mockedCommodityConverter,
                 slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
                 new CloudEntityResizeTracker(), Maps.newHashMap());
         ActionTO actionTO = null;
@@ -638,6 +644,8 @@ public class InterpretActionTest {
                             .setShoppingListToMove(5)
                             .setSource(1)
                             .setDestination(2)
+                            .setMoveContext(Context.newBuilder().setRegionId(15)
+                                    .setBalanceAccount(BalanceAccountDTO.newBuilder().setId(17438L).build()).build())
                             .setMoveExplanation(MoveExplanation.getDefaultInstance()).build())
                                     .build()).build();
         } else {
@@ -645,6 +653,8 @@ public class InterpretActionTest {
                     .setMove(MoveTO.newBuilder()
                             .setShoppingListToMove(5)
                             .setSource(1)
+                            .setMoveContext(Context.newBuilder().setRegionId(15)
+                                    .setBalanceAccount(BalanceAccountDTO.newBuilder().setId(17438L).build()).build())
                             .setDestination(2)
                             .setMoveExplanation(MoveExplanation.getDefaultInstance())).build();
         }
@@ -654,8 +664,11 @@ public class InterpretActionTest {
                 vm.getOid(), entity(vm),
                 m1Large.getOid(), entity(m1Large),
                 m1Medium.getOid(), entity(m1Medium));
+        TopologyEntityCloudTopology mockedOriginalTopology = mock(TopologyEntityCloudTopology.class);
+        when(mockedOriginalTopology.getConnectedRegion(vm.getOid())).thenReturn(Optional.ofNullable(region));
+        originalTopology.put(15L, region);
         Optional<Action> action = interpreter.interpretAction(actionTO, projectedTopology,
-                mock(TopologyEntityCloudTopology.class), projectedCosts, mockTopologyCostCalculator);
+                mockedOriginalTopology, projectedCosts, mockTopologyCostCalculator);
         if (isVmShopTogether) {
             assertEquals(5, action.get().getSavingsPerHour().getAmount(), 0.0001);
         } else {

@@ -27,7 +27,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * shopping lists. If a cloud entity is placed on RI1, its compute shopping list will be supplied
  * by this MarketTier which will have RI1 as a constituent RI.
  */
-public class RiDiscountedMarketTier implements MarketTier {
+public class RiDiscountedMarketTier implements SingleRegionMarketTier {
     private static final Logger logger = LogManager.getLogger();
     private final TopologyEntityDTO tier;
     private final TopologyEntityDTO region;
@@ -90,37 +90,12 @@ public class RiDiscountedMarketTier implements MarketTier {
     }
 
     /**
-     * On demand market tier has no RI discount.
+     * On demand market tier and on demand storage tier have no RI discount.
      * @return RiDiscountedMarketTier has discount
      */
     @Override
     public boolean hasRIDiscount() {
         return true;
-    }
-
-    /**
-     * Gets the connected market tiers of specified type.
-     * For ex. lets say 'this' represents [Region1 x ComputeTier1] and ComputeTier1 is connected to
-     * 2 storage types io1 and gp2. Then this method called with EntityType.STORAGE_TIER_VALUE
-     * will return 2 MarketTiers - [Region1 x io1] and [Region1 x gp2].
-     *
-     * @param connectedMarketTierType The EntityType of connected TopologyEntityDTO
-     * @param topology the topology
-     * @return List of connected MarketTiers
-     */
-    @Override
-    @Nonnull
-    public List<MarketTier> getConnectedMarketTiersOfType(
-            int connectedMarketTierType,
-            @Nonnull Map<Long, TopologyEntityDTO> topology) {
-        List<MarketTier> connectedMarketTiers = new ArrayList<>();
-        List<TopologyEntityDTO> connectedEntities = TopologyDTOUtil.getConnectedEntitiesOfType(
-                getTier(), connectedMarketTierType, topology);
-        for(TopologyEntityDTO connectedEntity : connectedEntities) {
-            MarketTier marketTier = new OnDemandMarketTier(connectedEntity, getRegion());
-            connectedMarketTiers.add(marketTier);
-        }
-        return connectedMarketTiers;
     }
 
     /**

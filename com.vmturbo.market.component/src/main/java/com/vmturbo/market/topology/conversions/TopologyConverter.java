@@ -68,6 +68,7 @@ import com.vmturbo.market.settings.MarketSettings;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
+import com.vmturbo.market.topology.SingleRegionMarketTier;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.conversions.CommodityIndex.CommodityIndexFactory;
 import com.vmturbo.market.topology.conversions.ConversionErrorCounts.ErrorCategory;
@@ -80,6 +81,7 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults.NewShoppingListToBuyerEntry;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
@@ -203,6 +205,9 @@ public class TopologyConverter {
 
     private final Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap = new HashMap<>();
 
+    // Mapping of the region comm spec index to the topology entity dto region object
+    private final Map<CommodityType, TopologyEntityDTO> regionCommTypeToRegionObj = new HashMap<>();
+
     // This map will hold VM/DB -> BusinessAccount mapping.
     private final Map<TopologyEntityDTO, TopologyEntityDTO> cloudEntityToBusinessAccount = new HashMap<>();
     // This will hold the set of all business accounts in the topology
@@ -259,17 +264,18 @@ public class TopologyConverter {
                 includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable, conversionErrorCounts);
         this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo);
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
-                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
+                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, regionCommTypeToRegionObj, businessAccounts,
                 marketPriceTable, cloudCostData, tierExcluder);
         this.commodityIndex = commodityIndexFactory.newIndex();
         this.actionInterpreter = new ActionInterpreter(commodityConverter,
-            shoppingListOidToInfos,
-            cloudTc,
-            unmodifiableEntityOidToDtoMap,
-            oidToProjectedTraderTOMap,
-            cert,
-            projectedReservedInstanceCoverage);
+                shoppingListOidToInfos,
+                cloudTc,
+                unmodifiableEntityOidToDtoMap,
+                oidToProjectedTraderTOMap,
+                cert,
+                projectedReservedInstanceCoverage);
     }
+
 
     /**
      * Constructor with includeGuaranteedBuyer parameter.
@@ -324,22 +330,23 @@ public class TopologyConverter {
         this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
         this.commodityConverter = commodityConverter != null ?
                 commodityConverter : new CommodityConverter(commodityTypeAllocator, commoditySpecMap,
-                    includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable, conversionErrorCounts);
+                includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable, conversionErrorCounts);
         // Uncomment this once integtation testing is done. Till then, use the dummy tier
         // exclusion applicator
         // this.tierExcluder = new TierExcluder(topologyInfo, settingPolicyServiceClient);
         this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo);
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
-                pmBasedBicliquer, dsBasedBicliquer, this.commodityConverter, azToRegionMap, businessAccounts,
-                marketPriceTable, cloudCostData, tierExcluder);
+                pmBasedBicliquer, dsBasedBicliquer, this.commodityConverter, azToRegionMap, regionCommTypeToRegionObj,
+                businessAccounts, marketPriceTable, cloudCostData, tierExcluder);
         this.commodityIndex = commodityIndexFactory.newIndex();
         this.actionInterpreter = new ActionInterpreter(this.commodityConverter, shoppingListOidToInfos,
                 cloudTc,
-            unmodifiableEntityOidToDtoMap,
-            oidToProjectedTraderTOMap,
-            cert,
-            projectedReservedInstanceCoverage);
+                unmodifiableEntityOidToDtoMap,
+                oidToProjectedTraderTOMap,
+                cert,
+                projectedReservedInstanceCoverage);
     }
+
 
     @VisibleForTesting
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
@@ -357,16 +364,17 @@ public class TopologyConverter {
         this.commodityConverter = commodityConverter;
         this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo);
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
-                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
-                marketPriceTable, null, tierExcluder);
+                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, regionCommTypeToRegionObj,
+                businessAccounts, marketPriceTable, null, tierExcluder);
         this.commodityIndex = commodityIndexFactory.newIndex();
         this.actionInterpreter = new ActionInterpreter(commodityConverter, shoppingListOidToInfos,
                 cloudTc,
-            unmodifiableEntityOidToDtoMap,
-            oidToProjectedTraderTOMap,
-            cert,
-            projectedReservedInstanceCoverage);
+                unmodifiableEntityOidToDtoMap,
+                oidToProjectedTraderTOMap,
+                cert,
+                projectedReservedInstanceCoverage);
     }
+
 
     private boolean isPlan() {
         return TopologyDTOUtil.isPlan(topologyInfo);
@@ -414,6 +422,8 @@ public class TopologyConverter {
                         List<TopologyEntityDTO> AZs = TopologyDTOUtil.getConnectedEntitiesOfType(
                             entity, EntityType.AVAILABILITY_ZONE_VALUE, topology);
                         AZs.forEach(az -> azToRegionMap.put(az, entity));
+                        CommodityType commType = entity.getCommoditySoldListList().get(0).getCommodityType();
+                        regionCommTypeToRegionObj.put(commType, entity);
                     } else if (entity.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
                         List<TopologyEntityDTO> vms = TopologyDTOUtil.getConnectedEntitiesOfType(
                             entity, EntityType.VIRTUAL_MACHINE_VALUE, topology);
@@ -1132,7 +1142,17 @@ public class TopologyConverter {
                             traderTO.getDebugInfoNeverUseInCode());
                 } else {
                     TopologyEntityDTO sourceRegion = cloudTc.getRegionOfCloudConsumer(originalCloudConsumer);
-                    TopologyEntityDTO destinationRegion = destinationPrimaryMarketTier.getRegion();
+                    Long regionCommSpec = cloudTc.getRegionCommTypeIntFromShoppingList(traderTO);
+                    TopologyEntityDTO destinationRegion;
+                    if (destinationPrimaryMarketTier instanceof SingleRegionMarketTier) {
+                        destinationRegion = ((SingleRegionMarketTier)destinationPrimaryMarketTier).getRegion();
+                    } else {
+                        if (regionCommSpec != null) {
+                            destinationRegion = unmodifiableEntityOidToDtoMap.get(regionCommSpec);
+                        } else {
+                            destinationRegion = sourceRegion;
+                        }
+                    }
                     TopologyEntityDTO destAZOrRegion = null;
                     if (sourceRegion == destinationRegion) {
                         // cloud consumer (VM / DB) did NOT move to a different region
@@ -1562,7 +1582,9 @@ public class TopologyConverter {
                             : liveMarketMoveCostFactor)
                     .setProviderMustClone(isProviderMustClone);
             if (cloudEntityToBusinessAccount.get(topologyDTO) != null) {
-                settingsBuilder.setBalanceAccount(createBalanceAccountDTO(topologyDTO));
+                TopologyEntityDTO region = cloudTc.getRegionOfCloudConsumer(topologyDTO);
+                settingsBuilder.setCurrentContext(Context.newBuilder().setBalanceAccount(createBalanceAccountDTO(topologyDTO))
+                        .setRegionId(region != null ? region.getOid() : -1).build());
             }
             final EconomyDTOs.TraderSettingsTO settings = settingsBuilder.build();
 
@@ -1941,8 +1963,8 @@ public class TopologyConverter {
         // cloud VM / DB. In this case, get the marketTier from
         // [tier x region] combination.
         TopologyEntityDTO providerTopologyEntity = entityOidToDto.get(providerId);
-        if (providerTopologyEntity != null && TopologyDTOUtil.isTierEntityType(
-                providerTopologyEntity.getEntityType())) {
+        if (providerTopologyEntity != null && (TopologyDTOUtil.isTierEntityType(
+                providerTopologyEntity.getEntityType()))) {
             // Provider is a compute tier / storage tier / database tier
             // Get the region connected to the topologyEntity
             Optional<EntityReservedInstanceCoverage> coverage = cloudTc
@@ -1957,7 +1979,7 @@ public class TopologyConverter {
                         region, riData, entityOidToDto));
             } else {
                 providerId = cloudTc.getTraderTOOid(new OnDemandMarketTier(
-                        providerTopologyEntity, region));
+                        providerTopologyEntity));
             }
         }
         return providerId;

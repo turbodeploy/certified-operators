@@ -38,6 +38,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.ComputePrice;
 import com.vmturbo.market.runner.cost.MarketPriceTable.StoragePriceBundle;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -439,31 +440,31 @@ public class MarketPriceTableTest {
                 mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
         final StorageTierPriceData[] expectedData = new StorageTierPriceData[]{
                 StorageTierPriceData.newBuilder()
-                    .setBusinessAccountId(baId)
+                    .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                            .setRegionId(REGION_ID).setPrice(10).build())
                     // Unit price true because it's priced per GB-month
                     .setIsUnitPrice(true)
                     // Accumulative price true because we have ranges
                     .setIsAccumulativeCost(true)
                     .setUpperBound(7)
-                    .setPrice(10)
                     .build(),
                 StorageTierPriceData.newBuilder()
-                    .setBusinessAccountId(baId)
+                    .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                            .setRegionId(REGION_ID).setPrice(5).build())
                     // Unit price true because it's priced per GB-month
                     .setIsUnitPrice(true)
                     // Accumulative price true because we have ranges
                     .setIsAccumulativeCost(true)
                     .setUpperBound(10)
-                    .setPrice(5)
                     .build(),
                 StorageTierPriceData.newBuilder()
-                    .setBusinessAccountId(baId)
+                    .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                            .setRegionId(REGION_ID).setPrice(4).build())
                     // Unit price true because it's priced per GB-month
                     .setIsUnitPrice(true)
                     // Accumulative price true because we have ranges
                     .setIsAccumulativeCost(true)
                     .setUpperBound(Double.POSITIVE_INFINITY)
-                    .setPrice(4)
                     .build()};
 
         // The prices for all storage amount commodities should be the same, because the price
@@ -504,22 +505,22 @@ public class MarketPriceTableTest {
                 mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
 
         final List<StorageTierPriceData> expectedData = Lists.newArrayList(StorageTierPriceData.newBuilder()
-                .setBusinessAccountId(baId)
+                .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                        .setRegionId(REGION_ID).setPrice(10).build())
                 // Unit price true because it's priced per million-iops.
                 .setIsUnitPrice(true)
                 // Accumulative price true because we have ranges
                 .setIsAccumulativeCost(true)
                 .setUpperBound(7)
-                .setPrice(10)
                 .build(),
                 StorageTierPriceData.newBuilder()
-                        .setBusinessAccountId(baId)
+                        .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                                .setRegionId(REGION_ID).setPrice(5).build())
                         // Unit price true because it's priced per million-iops.
                         .setIsUnitPrice(true)
                         // Accumulative price true because we have ranges
                         .setIsAccumulativeCost(true)
                         .setUpperBound(Double.POSITIVE_INFINITY)
-                        .setPrice(5)
                         .build());
 
         // The prices for all storage amount commodities should be the same, because the price
@@ -555,13 +556,13 @@ public class MarketPriceTableTest {
                 mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
 
         final StorageTierPriceData expectedData = StorageTierPriceData.newBuilder()
-                .setBusinessAccountId(baId)
+                .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                        .setRegionId(REGION_ID).setPrice(10).build())
                 // Not unit price, because it's a flat cost.
                 .setIsUnitPrice(false)
                 // Not accumulative because we don't have ranges.
                 .setIsAccumulativeCost(false)
                 .setUpperBound(Double.POSITIVE_INFINITY)
-                .setPrice(10)
                 .build();
 
         assertThat(storagePriceBundle.getPrices(FOO_STORAGE_AMOUNT_COMM), contains(expectedData));
@@ -601,22 +602,22 @@ public class MarketPriceTableTest {
 
         final List<StorageTierPriceData> expectedData = Lists.newArrayList(
             StorageTierPriceData.newBuilder()
-                .setBusinessAccountId(baId)
+                .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                        .setRegionId(REGION_ID).setPrice(10).build())
                 // Not unit price, because it's a flat cost for each range.
                 .setIsUnitPrice(false)
                 // Accumulative price true because we have ranges
                 .setIsAccumulativeCost(true)
                 .setUpperBound(7)
-                .setPrice(10)
                 .build(),
             StorageTierPriceData.newBuilder()
-                .setBusinessAccountId(baId)
+                .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                        .setRegionId(REGION_ID).setPrice(5).build())
                 // Not unit price, because it's a flat cost for each range.
                 .setIsUnitPrice(false)
                 // Accumulative price true because we have ranges
                 .setIsAccumulativeCost(true)
                 .setUpperBound(Double.POSITIVE_INFINITY)
-                .setPrice(5)
                 .build());
 
         // The prices for all storage amount commodities should be the same, because the price
@@ -661,24 +662,23 @@ public class MarketPriceTableTest {
                 mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
         final List<StorageTierPriceData> expectedData = Lists.newArrayList(
                 StorageTierPriceData.newBuilder()
-                    .setBusinessAccountId(baId)
+                    .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                            .setRegionId(REGION_ID).setPrice(8).build())
                     // Unit price true because it's priced per GB-month
                     .setIsUnitPrice(true)
                     // Accumulative price true because we have ranges
                     .setIsAccumulativeCost(true)
                     .setUpperBound(7)
                     // 20% off $10
-                    .setPrice(8)
                     .build(),
                 StorageTierPriceData.newBuilder()
-                    .setBusinessAccountId(baId)
+                    .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                            .setRegionId(REGION_ID).setPrice(4).build())
                     // Unit price true because it's priced per GB-month
                     .setIsUnitPrice(true)
                     // Accumulative price true because we have ranges
                     .setIsAccumulativeCost(true)
                     .setUpperBound(Double.POSITIVE_INFINITY)
-                    // 20% off $5
-                    .setPrice(4)
                     .build());
 
         // The prices for all storage amount commodities should be the same, because the price
