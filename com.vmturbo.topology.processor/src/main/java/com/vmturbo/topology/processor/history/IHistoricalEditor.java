@@ -101,15 +101,17 @@ public interface IHistoricalEditor<Config extends HistoricalEditorConfig> {
      * @param graph topology graph with settings
      * @param accessor commodity fields' accessor for the current graph - performance optimization
      * @throws HistoryCalculationException when initialization fails
+     * @throws InterruptedException when interrupted
      */
     void initContext(@Nonnull GraphWithSettings graph, @Nonnull ICommodityFieldAccessor accessor)
-                    throws HistoryCalculationException;
+                    throws HistoryCalculationException, InterruptedException;
 
     /**
      * Synchronously finish the handling of the broadcast, after all the calculation tasks
      * have been invoked.
      *
      * @throws HistoryCalculationException when completion fails critically
+     * @throws InterruptedException when interrupted
      */
-    void completeBroadcast() throws HistoryCalculationException;
+    void completeBroadcast() throws HistoryCalculationException, InterruptedException;
 }

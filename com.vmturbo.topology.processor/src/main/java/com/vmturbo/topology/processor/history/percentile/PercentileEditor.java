@@ -141,7 +141,7 @@ public class PercentileEditor extends
     @Override
     public void initContext(@Nonnull GraphWithSettings graph,
                             @Nonnull ICommodityFieldAccessor accessor)
-                    throws HistoryCalculationException {
+                    throws HistoryCalculationException, InterruptedException {
         super.initContext(graph, accessor);
         this.graph = graph.getTopologyGraph();
 
@@ -170,19 +170,22 @@ public class PercentileEditor extends
     }
 
     @Override
-    public void completeBroadcast() throws HistoryCalculationException {
+    public void completeBroadcast() throws HistoryCalculationException, InterruptedException {
         // persist the daily blob
         PercentileCounts.Builder builder = PercentileCounts.newBuilder();
         getCache().forEach((commRef, data) -> {
             builder.addPercentileRecords(data.getUtilizationCountStore().getLatestCountsRecord());
         });
-        new PercentilePersistenceTask(getStatsHistoryClient(), lastCheckpointMs).save(builder.build());
+        new PercentilePersistenceTask(getStatsHistoryClient(), getCheckpoint())
+                        .save(builder.build(),
+                              (long)(getConfig().getMaintenanceWindowHours() * Units.HOUR_MS),
+                              getConfig());
 
         // perform daily maintenance if needed - synchronously within broadcast (consider scheduling)
         maintenance();
     }
 
-    private void loadPersistedData() throws HistoryCalculationException {
+    private void loadPersistedData() throws HistoryCalculationException, InterruptedException {
         if (!historyInitialized) {
             // read the latest and full window blobs if haven't yet, set into cache
             long checkpointMs = getCheckpoint();

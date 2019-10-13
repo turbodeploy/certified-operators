@@ -21,9 +21,10 @@ public interface IHistoryLoadingTask<Config, DbValue> {
      * @param config configuration (e.g. observation window or averaging weights)
      * @return per-entity field values
      * @throws HistoryCalculationException when failed
+     * @throws InterruptedException when interrupted
      */
     @Nonnull
     Map<EntityCommodityFieldReference, DbValue>
        load(@Nonnull Collection<EntityCommodityReference> commodities, @Nonnull Config config)
-                       throws HistoryCalculationException;
+                       throws HistoryCalculationException, InterruptedException;
 }

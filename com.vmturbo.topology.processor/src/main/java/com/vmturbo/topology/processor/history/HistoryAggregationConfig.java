@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
+import com.vmturbo.commons.Units;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.topology.processor.history.percentile.PercentileEditor;
@@ -50,6 +51,12 @@ public class HistoryAggregationConfig {
     private String percentileBucketsImageMem;
     @Value("${historyAggregation.percentileBuckets.IMAGE_STORAGE:}")
     private String percentileBucketsImageStorage;
+    @Value("${historyAggregation.grpcChannelMaxMessageSizeKb:204800}")
+    private int grpcChannelMaxMessageSizeKb;
+    @Value("${historyAggregation.grpcStreamTimeoutSec:300}")
+    private int grpcStreamTimeoutSec;
+    @Value("${historyAggregation.blobReadWriteChunkSizeKb:128}")
+    private int blobReadWriteChunkSizeKb;
 
     @Autowired
     private HistoryClientConfig historyClientConfig;
@@ -71,7 +78,8 @@ public class HistoryAggregationConfig {
      */
     @Bean
     public StatsHistoryServiceStub nonBlockingHistoryClient() {
-        return StatsHistoryServiceGrpc.newStub(historyClientConfig.historyChannel());
+        return StatsHistoryServiceGrpc.newStub(historyClientConfig
+                        .historyChannel((int)(grpcChannelMaxMessageSizeKb * Units.KBYTE)));
     }
 
     /**
@@ -106,6 +114,8 @@ public class HistoryAggregationConfig {
     public PercentileHistoricalEditorConfig percentileEditorConfig() {
         return new PercentileHistoricalEditorConfig(historyAggregationCalculationChunkSize,
                                     percentileMaintenanceWindowHours,
+                                    grpcStreamTimeoutSec,
+                                    blobReadWriteChunkSizeKb,
                                     ImmutableMap.of(CommodityType.VCPU, percentileBucketsVcpu,
                                                     CommodityType.VMEM, percentileBucketsVmem,
                                                     CommodityType.IMAGE_CPU, percentileBucketsImageCpu,

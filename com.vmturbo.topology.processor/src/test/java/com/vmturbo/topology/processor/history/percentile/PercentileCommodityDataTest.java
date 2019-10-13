@@ -29,6 +29,8 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
     private static final PercentileHistoricalEditorConfig config =
                      new PercentileHistoricalEditorConfig(1,
                                                           24,
+                                                          10,
+                                                          100,
                                                           Collections.emptyMap());
 
     /**

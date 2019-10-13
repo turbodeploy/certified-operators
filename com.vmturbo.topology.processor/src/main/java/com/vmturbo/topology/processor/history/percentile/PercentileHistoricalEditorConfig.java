@@ -39,16 +39,21 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
 
     private final Map<CommodityType, PercentileBuckets> buckets = new HashMap<>();
     private final int maintenanceWindowHours;
+    private final int grpcStreamTimeoutSec;
+    private final int blobReadWriteChunkSizeKb;
 
     /**
      * Initialize the percentile configuration values.
      *
      * @param calculationChunkSize chunk size for percentile calculation
      * @param maintenanceWindowHours how often to checkpoint cache to persistent store
+     * @param grpcStreamTimeoutSec the timeout for history access streaming operations
+     * @param blobReadWriteChunkSizeKb the size of chunks for reading and writing from persistent store
      * @param commType2Buckets map of commodity type to percentile buckets specification
      */
     public PercentileHistoricalEditorConfig(int calculationChunkSize, int maintenanceWindowHours,
-                    @Nonnull Map<CommodityType, String> commType2Buckets) {
+                                            int grpcStreamTimeoutSec, int blobReadWriteChunkSizeKb,
+                                            @Nonnull Map<CommodityType, String> commType2Buckets) {
         super(0, calculationChunkSize);
         // maintenance window cannot exceed minimum observation window
         int minObservationPeriod = (int)EntitySettingSpecs.PercentileObservationPeriodVirtualMachine
@@ -57,6 +62,8 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
                         .min(maintenanceWindowHours <= 0 ? defaultMaintenanceWindowHours
                                         : maintenanceWindowHours,
                              minObservationPeriod * 24);
+        this.grpcStreamTimeoutSec = grpcStreamTimeoutSec;
+        this.blobReadWriteChunkSizeKb = blobReadWriteChunkSizeKb;
         commType2Buckets.forEach((commType, bucketsSpec) -> buckets
                         .put(commType, new PercentileBuckets(bucketsSpec)));
     }
@@ -102,6 +109,24 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
     public int getObservationPeriod(long oid) {
         return getIntSetting(oid, TYPE_OBSERVATION_PERIOD, "observation period",
                              getDefaultObservationPeriod());
+    }
+
+    /**
+     * Get the stream read/write operations timeout.
+     *
+     * @return timeout in seconds
+     */
+    public int getGrpcStreamTimeoutSec() {
+        return grpcStreamTimeoutSec;
+    }
+
+    /**
+     * Get the size of chunks for reading and writing from persistent store.
+     *
+     * @return chunk size
+     */
+    public int getBlobReadWriteChunkSizeKb() {
+        return blobReadWriteChunkSizeKb;
     }
 
     private static int getDefaultAggressiveness() {

@@ -62,4 +62,16 @@ public class HistoryClientConfig {
     public Channel historyChannel() {
         return GrpcChannelFactory.newChannelBuilder(historyHost, grpcPort).build();
     }
+
+    /**
+     * Construct a channel with specified maximum message size.
+     *
+     * @param maxMessageSize message size
+     * @return history channel
+     */
+    @Bean
+    public Channel historyChannel(int maxMessageSize) {
+        return GrpcChannelFactory.newChannelBuilder(historyHost, grpcPort, maxMessageSize).build();
+    }
+
 }

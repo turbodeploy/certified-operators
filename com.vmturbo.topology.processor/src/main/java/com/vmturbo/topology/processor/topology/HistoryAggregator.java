@@ -169,7 +169,7 @@ public class HistoryAggregator {
             try (DataMetricTimer timer = metric.startTimer()) {
                 try {
                     task.accept(editor);
-                } catch (HistoryCalculationException e) {
+                } catch (HistoryCalculationException | InterruptedException e) {
                     throw new PipelineStageException("Historical calculations " + description
                                                      + " failed for "
                                                      + editor.getClass().getSimpleName(), e);
@@ -306,9 +306,10 @@ public class HistoryAggregator {
          * Process the argument, possibly throwing an exception.
          *
          * @param t argument
-         * @throws E exception
+         * @throws E exception to throw
+         * @throws InterruptedException when execution is interrupted
          */
-        void accept(T t) throws E;
+        void accept(T t) throws E, InterruptedException;
     }
 
 }
