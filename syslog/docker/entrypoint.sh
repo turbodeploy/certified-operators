@@ -18,4 +18,10 @@ fi
 touch /home/vmtsyslog/rsyslog/log.txt
 tail -F /home/vmtsyslog/rsyslog/log.txt &
 
-rm -f /tmp/rsyslog.pid; exec /usr/sbin/rsyslogd -n -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
+if [ -n "${EXTERNAL_AUDITLOG}" ]; then
+  cp /etc/rsyslog.conf /tmp/rsyslog.conf
+  sed -i "s/remote_auditlog/${EXTERNAL_AUDITLOG}/" /tmp/rsyslog.conf
+  rm -f /tmp/rsyslog.pid; exec /usr/sbin/rsyslogd -n -f /tmp/rsyslog.conf -i /tmp/rsyslog.pid
+else
+  rm -f /tmp/rsyslog.pid; exec /usr/sbin/rsyslogd -n -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
+fi
