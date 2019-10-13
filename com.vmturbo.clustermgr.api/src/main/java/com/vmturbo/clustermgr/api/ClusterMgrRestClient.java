@@ -1,7 +1,7 @@
 package com.vmturbo.clustermgr.api;
 
+import java.io.EOFException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.util.ArrayList;
@@ -17,6 +17,7 @@ import com.google.common.io.ByteStreams;
 
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -24,6 +25,7 @@ import org.springframework.http.converter.ByteArrayHttpMessageConverter;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RequestCallback;
 import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.client.RestClientException;
@@ -291,27 +293,29 @@ public class ClusterMgrRestClient extends ComponentRestClient {
      */
     public void collectComponentDiagnostics(OutputStream responseOutput) {
         RequestCallback requestCallback = request -> request.getHeaders()
-                .setAccept(Arrays.asList(
-                        new MediaType("application", "zip"),
-                        MediaType.APPLICATION_OCTET_STREAM,
-                        MediaType.ALL));
-        ResponseExtractor<Object> copyResponseToOutputStream = response -> {
-            try (InputStream inputStream = response.getBody()) {
-                ByteStreams.copy(inputStream, responseOutput);
+            .setAccept(Arrays.asList(
+                new MediaType("application", "zip"),
+                MediaType.APPLICATION_OCTET_STREAM,
+                MediaType.ALL));
+        ResponseExtractor<Object> copyRequestToResponseStream = request -> {
+            try {
+                // copy from the target component request to the collected response
+                ByteStreams.copy(request.getBody(), responseOutput);
+            } catch (EOFException e) {
+                // if there's an  EOF on the response output, close the request stream
+                request.getBody().close();
+                logger.error("EOF on the diagnostics response output; diagnostics truncated.");
+                throw new HttpClientErrorException(HttpStatus.PARTIAL_CONTENT);
             } catch (IOException e) {
                 logger.error("IOException {} collecting component diagnostics.",
                     e.toString());
             }
             return null;
         };
-        try {
-            getStreamingRestTemplate().execute(uriBase + DIAGNOSTICS_URI,
-                HttpMethod.GET,
-                requestCallback,
-                copyResponseToOutputStream);
-        } catch (RestClientException e) {
-            logger.error("Exception requesting diagnostics.", e);
-        }
+        getStreamingRestTemplate().execute(uriBase + DIAGNOSTICS_URI,
+            HttpMethod.GET,
+            requestCallback,
+            copyRequestToResponseStream);
     }
 
 
