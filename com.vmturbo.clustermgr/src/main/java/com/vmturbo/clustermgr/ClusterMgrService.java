@@ -6,6 +6,7 @@ import static com.vmturbo.clustermgr.api.ClusterMgrClient.COMPONENT_VERSION_KEY;
 import static com.vmturbo.clustermgr.api.ClusterMgrClient.UNKNOWN_VERSION_STRING;
 import static com.vmturbo.components.common.BaseVmtComponent.PROP_INSTANCE_IP;
 
+import java.io.EOFException;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -27,6 +28,8 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -53,8 +56,9 @@ import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.eclipse.jetty.io.EofException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.web.client.HttpClientErrorException;
 
 import com.vmturbo.clustermgr.api.ClusterConfiguration;
 import com.vmturbo.clustermgr.api.ComponentInstanceInfo;
@@ -167,8 +171,9 @@ public class ClusterMgrService {
     @VisibleForTesting
     static final String DIAGS_SUMMARY_FAIL_TXT = "DiagsSummary-Fail.txt";
 
-    @VisibleForTesting
     private static final String ENVIRONMENT_SUMMARY_TXT = "EnvironmentSummary.txt";
+    private static final String DIAGNOSTIC_OPERATION_BUSY =
+        "There is currently a diagnostic operation running.";
 
     // Custom diags collecting request configuration
     private final RequestConfig requestConfig = RequestConfig.custom()
@@ -185,7 +190,7 @@ public class ClusterMgrService {
     static final String UPLOAD_VMTURBO_COM_URL =
         "http://upload.vmturbo.com/appliance/cgi-bin/vmtupload.cgi";
 
-    private Logger log = LogManager.getLogger();
+    private static Logger log = LogManager.getLogger();
 
     /**
      * The {@link ConsulService} handles the details of the accessing the Key/Value store and
@@ -196,6 +201,19 @@ public class ClusterMgrService {
     private final DiagEnvironmentSummary diagEnvironmentSummary;
 
     private final AtomicBoolean kvInitialized = new AtomicBoolean(false);
+
+    /**
+     * Lock to provide for single-use access to the ClusterMgr /diagnostics upload and
+     * download. Allowing more than one upload/download at a time will significantly impact
+     * system resources and increase the time for each upload/download to complete - resulting
+     * in a negative user experience. Instead, the system service will reject any additional
+     * diagnostics requests immediately, indicicating "system busy".
+     *
+     * <p>Note: in the future, in order to support horizontal scaling for ClusterMgr, this lock
+     * will need to be implemented using a persistent locking facility such as is provided
+     * Consul.
+     */
+    private final Lock diagnosticsLock = new ReentrantLock();
 
     /**
      * Create a new ClusterMgrService instance.
@@ -550,21 +568,34 @@ public class ClusterMgrService {
      * partial responses from the different components; a complete response must be dumped onto the zip file
      * at a time.
      *
+     * <p>Since diagnostics collection is resource intensive, only allow one such operation
+     * at a time within Clustermgr.
+     * TODO: When we move to horizontal scaling of clustermgr, this should be implemented
+     * using a shared, persistent lock (such as provided by Consul).
+     *
      * <p>Note that the responseOutput stream is not closed on exit.
      *
      * <p>TODO: consider moving this to its own class, e.g. ClusterDiagnosticsService
      * TODO: look into the "offset" parameter to the diagnosticZip.write() method
      *
      * @param responseOutput the output stream onto which the zipfile is written.
-     * @throws RuntimeException for errors creating URI, fetching data, and copying to output zip stream
+     * @throws HttpClientErrorException if there is already a diagnostics operation in progress
+     * @throws RuntimeException for errors creating URI or fetching data
+     * @throws IOException if there is an IO error dealing with the zip files on the oupput stream
      */
-    public void collectComponentDiagnostics(OutputStream responseOutput) {
-        ZipOutputStream diagnosticZip = new ZipOutputStream(responseOutput);
-        String acceptTypes = MediaType.toString(Arrays.asList(
-                MediaType.valueOf("application/zip"),
-                MediaType.APPLICATION_OCTET_STREAM));
-        final StringBuilder errorMessagesBuild = new StringBuilder();
+    public void collectComponentDiagnostics(OutputStream responseOutput) throws IOException {
+        log.debug("locking diagnosticLock");
+        if (!diagnosticsLock.tryLock()) {
+            log.debug(DIAGNOSTIC_OPERATION_BUSY);
+            throw new HttpClientErrorException(HttpStatus.TOO_MANY_REQUESTS,
+                DIAGNOSTIC_OPERATION_BUSY);
+        }
         try {
+            ZipOutputStream diagnosticZip = new ZipOutputStream(responseOutput);
+            String acceptTypes = MediaType.toString(Arrays.asList(
+                MediaType.parseMediaType("application/zip"),
+                MediaType.APPLICATION_OCTET_STREAM));
+            final StringBuilder errorMessagesBuild = new StringBuilder();
             visitActiveComponents("/diagnostics", acceptTypes, (componentId, entity) -> {
                 log.info(" --- Begin diagnostic collection for {}", componentId);
                 try (InputStream componentDiagnosticStream = entity.getContent()) {
@@ -574,10 +605,11 @@ public class ClusterMgrService {
                     diagnosticZip.putNextEntry(new ZipEntry(zipFileName));
                     // copy the target .zip diagnostic file onto the .zip output stream
                     IOUtils.copy(componentDiagnosticStream, diagnosticZip);
-                } catch (EofException e) {
-                    // EOF error on the copy means output stream is closed
-                    log.error("Output stream zip file closed; aborting diagnostics collection.");
-                    throw new ZipOutputEofExeption(e);
+                } catch (EOFException e) {
+                    log.error(" --- EOF copying diags for " + componentId);
+                    // throw unchecked exception to break out of the visitActiveComponents lambda
+                    throw new CollectDiagsEofException("EOF copying diagnostics for " +
+                        componentId);
                 } catch (IOException e) {
                     // log the error and continue to the next service in the list of services
                     log.error(" --- Error reading diagnostic stream", e);
@@ -585,33 +617,44 @@ public class ClusterMgrService {
                         .append(componentId)
                         .append(NEXT_LINE);
                 } finally {
-                    log.debug(" --- closing zip entry for {}", componentId);
+                    log.info(" --- closing zip entry");
                     try {
                         diagnosticZip.closeEntry();
-                    } catch (EofException e) {
-                        log.error("Output stream zip file closed; cannot finish output zip entry.");
-                        throw new ZipOutputEofExeption(e);
+                    } catch (EOFException e) {
+                        log.error(" --- EOF closing diagnostics zipfor " + componentId);
+                        // throw unchecked exception to break out of the visitActiveComponents lambda
+                        throw new CollectDiagsEofException("EOF copying diagnostics for " +
+                            componentId);
                     } catch (IOException e) {
-                        log.error("Error closing diagnostic " + componentId + " zip", e);
+                        log.error(" --- Error closing diagnostic .zip for " + componentId, e);
                     }
                 }
             }, errorMessagesBuild);
             getRsyslogDiags(diagnosticZip, acceptTypes, errorMessagesBuild);
             insertDiagEnvironmentSummaryFile(diagnosticZip, errorMessagesBuild);
             insertDiagsSummaryFile(diagnosticZip, errorMessagesBuild);
-        } catch (ZipOutputEofExeption e) {
-            log.error("Zip file output stream closed. Further zip file processing skipped");
-        } finally {
+
             // finished all instances of all known components - finish the aggregate output .zip file
             // stream
-            try {
-                log.info("Finishing diagnosticZip");
-                // NB. finish() doesn't close the underlying stream. I.e. do NOT wrap in try
-                // (resources){}
-                diagnosticZip.finish();
-            } catch (IOException e) {
-                throw new RuntimeException("I/O error finishing diags zip stream", e);
-            }
+            log.info("finishing diagnosticZip");
+            // NB. finish() doesn't close the underlying stream. I.e. do NOT wrap in try
+            // (resources){}
+            diagnosticZip.finish();
+        } catch (EOFException | CollectDiagsEofException e) {
+            // EOF means that the output stream was closed; just exit
+            log.error("Diags EOF exception: " + e.getLocalizedMessage());
+        } finally {
+            log.debug("unlocking diagnosticLock");
+            diagnosticsLock.unlock();
+        }
+    }
+
+    /**
+     * Checked exception used to leave the collectComponentDiagnostics visitActiveComponents loop.
+     */
+    private static class CollectDiagsEofException extends RuntimeException {
+        CollectDiagsEofException(String errorMessage) {
+            super(errorMessage);
         }
     }
 
@@ -625,9 +668,12 @@ public class ClusterMgrService {
      * @param diagnosticZip The diagnostic zip stream.
      * @param acceptResponseTypes The HTTP header for accepted responses.
      * @param errorMessageBuilder an accumulator for multiple error messages
+     * @throws IOException creating the CloseableHttpClient connecting to ryslog container
+     * @throws EOFException from IOUtils.copy(),
      */
     private void getRsyslogDiags(ZipOutputStream diagnosticZip, String acceptResponseTypes,
-                                 @Nonnull final StringBuilder errorMessageBuilder) {
+                                 @Nonnull final StringBuilder errorMessageBuilder)
+        throws IOException, EOFException {
         // Handle the rsyslog
         // It is not part of the consul-managed set of components.
         String componentName = "rsyslog";
@@ -649,7 +695,7 @@ public class ClusterMgrService {
                         diagnosticZip.putNextEntry(new ZipEntry(zipFileName));
                         // copy the target .zip diagnostic file onto the .zip output stream
                         IOUtils.copy(componentDiagnosticStream, diagnosticZip);
-                    } catch (EofException e) {
+                    } catch (EOFException e) {
                         log.error("Output Stream EOF copying rsyslog diags zip.");
                         throw new ZipOutputEofExeption(e);
                     } catch (IOException e) {
@@ -662,7 +708,7 @@ public class ClusterMgrService {
                         log.debug(componentName + " --- closing zip entry");
                         try {
                             diagnosticZip.closeEntry();
-                        } catch (EofException e) {
+                        } catch (EOFException e) {
                             log.error("Output Stream EOF closing rsyslog diags zip.");
                             throw new ZipOutputEofExeption(e);
                         } catch (IOException e) {
@@ -674,8 +720,6 @@ public class ClusterMgrService {
                     log.error(componentName + " --- missing response entity");
                 }
             }
-        } catch (IOException e) {
-            log.error(componentName + " --- Error fetching the information", e);
         }
     }
 
@@ -693,7 +737,7 @@ public class ClusterMgrService {
             diagnosticZip.putNextEntry(zipEntry);
             final byte[] data = diagEnvironmentSummary.getDiagSummary(globalDefaultProperties).getBytes();
             diagnosticZip.write(data, 0, data.length);
-        } catch (EofException e) {
+        } catch (EOFException e) {
             log.error("Output Stream EOF inserting diag environment summary.");
             throw new ZipOutputEofExeption(e);
         } catch (IOException e) {
@@ -704,7 +748,7 @@ public class ClusterMgrService {
         } finally {
             try {
                 diagnosticZip.closeEntry();
-            } catch (EofException e) {
+            } catch (EOFException e) {
                 log.error("Output Stream EOF closing diag environment summary.");
                 throw new ZipOutputEofExeption(e);
             } catch (IOException e) {
@@ -731,7 +775,7 @@ public class ClusterMgrService {
                 final byte[] data = errorMessages.toString().getBytes();
                 diagnosticZip.write(data, 0, data.length);
             }
-        } catch (EofException e) {
+        } catch (EOFException e) {
             log.error("Output Stream EOF inserting diags summary.");
             throw new ZipOutputEofExeption(e);
         } catch (IOException e) {
@@ -740,7 +784,7 @@ public class ClusterMgrService {
             log.debug(" closing zip entry");
             try {
                 diagnosticZip.closeEntry();
-            } catch (EofException e) {
+            } catch (EOFException e) {
                 log.error("Output Stream EOF closing diags summary.");
                 throw new ZipOutputEofExeption(e);
             } catch (IOException e) {
@@ -821,8 +865,6 @@ public class ClusterMgrService {
                     request.addHeader("Accept", acceptResponseTypes);
                     sendRequestToComponent(instanceId, request, responseEntityProcessor,
                         java.util.Optional.of(errorMessageBuilder));
-                } else {
-                    log.warn("- No IP for component instance {}; not fetching diags.", instanceId);
                 }
             }
         }
@@ -839,16 +881,17 @@ public class ClusterMgrService {
      * @param responseEntityProcessor the processor for the response.getEntity() after the http request completes.
      * @param errorMessagBuilder an accumulator for errors in case multiple are found
      */
-    private void sendRequestToComponent(String componentName, HttpUriRequest request,
+    private void sendRequestToComponent(String componentName,
+                                        HttpUriRequest request,
                                         ResponseEntityProcessor responseEntityProcessor,
                                         @Nonnull final java.util.Optional<StringBuilder> errorMessagBuilder) {
+        final Instant start = Instant.now();
         // open an HttpClient link
         try (CloseableHttpClient httpclient = HttpClientBuilder.create()
             .setDefaultRequestConfig(requestConfig).build()) {
             // execute the request
-            final Instant start = Instant.now();
             try (CloseableHttpResponse response = httpclient.execute(request)) {
-                log.debug(componentName + " --- response status: " + response.getStatusLine());
+                log.debug(" --- response status: {}", response.getStatusLine());
                 // process the response entity
                 HttpEntity entity = response.getEntity();
                 if (entity != null) {
@@ -856,7 +899,7 @@ public class ClusterMgrService {
                 } else {
                     appendFailedServiceName(componentName, errorMessagBuilder);
                     // log the error and continue to the next service in the list of services
-                    log.error(componentName + " --- missing response entity");
+                    log.error(" --- missing response entity");
                 }
             }
             long timeElapsed = Duration.between(start, Instant.now()).toMillis();
@@ -864,16 +907,19 @@ public class ClusterMgrService {
         } catch (IOException e) {
             appendFailedServiceName(componentName, errorMessagBuilder);
             // log the error and continue to the next service
-            log.error("{} --- Error executing http request {}: {}",
-                    componentName,
+            log.error(" --- Error executing http request {}: {}",
                     request.getURI().toString(),
                     e.getMessage());
         }
+        // TODO: Log upload times as prometheus metrics - OM-51340
+        long timeElapsed = Duration.between(start, Instant.now()).toMillis();
+        log.info(" --- {} elapsed time: {}", componentName,
+            timeElapsed / 1000.0);
     }
 
     @VisibleForTesting
     private void appendFailedServiceName(@Nonnull final String componentName,
-                                 @Nonnull final java.util.Optional<StringBuilder> errorMessageBuilder) {
+                                         @Nonnull final java.util.Optional<StringBuilder> errorMessageBuilder) {
         errorMessageBuilder.ifPresent(builder -> builder
             .append(componentName)
             .append(NEXT_LINE));
@@ -1425,34 +1471,43 @@ public class ClusterMgrService {
      * Export diagnostics to upload.vmturbo.com using Curl. Because:
      * 1. Both classic and metron are using curl to upload files.
      * 2. The vmtupload.cgi in upload.vmturbo.com doesn't support stream upload!!!
-     * Note: this method is synchronized because they are resources intensive operations, e.g.
-     * the diagnostics file could be very big.
      * TODO: integration test
+     *
      * @param httpProxy value object with proxy settings
      * @return true if export is successful
      */
-    public synchronized boolean exportDiagnostics(final HttpProxyConfig httpProxy) {
+    public boolean exportDiagnostics(final HttpProxyConfig httpProxy) {
         // export the diags file to /home/turbonomic/data/turbonomic-diags-_xxx.zip
         // xxx is current system time epoch.
+        // TODO: clear prior temp files to avoid disk space full - OM-51158
         final String fileName = HOME_TURBONOMIC_DATA_TURBO_FILE_PATH +
             diagEnvironmentSummary.getDiagFileName(globalDefaultProperties);
         final File diagsFile = new File(fileName);
 
+        Instant start = Instant.now();
         // 1. write to file
         if (writeDiagnosticsFileToDisk(diagsFile)) {
-            // 2. invoke curl command to upload, se.g.:
-            // curl -x 10.10.172.84:3128 -F ufile=@test.log  http://10.10.168.175/cgi-bin/vmturboupload.cgi
             try {
+                // 2. invoke curl command to upload, se.g.:
+                // curl -x 10.10.172.84:3128 -F ufile=@test.log \
+                //                            http://10.10.168.175/cgi-bin/vmturboupload.cgi
                 // this runner blocks until the process completes
-                osCommandProcessRunner.runOsCommandProcess(CURL_COMMAND, getCurlArgs(fileName, httpProxy));
-                // delete the file
-                if (diagsFile.delete()) {
-                    log.debug("Successfully deleted diagnostic file: " + diagsFile.getName());
-                } else {
-                    log.error("failed to deleted diagnostic file:" + diagsFile.getName());
+                osCommandProcessRunner.runOsCommandProcess(CURL_COMMAND,
+                    getCurlArgs(fileName, httpProxy));
+                try {
+                    // 3. delete the file
+                    if (diagsFile.delete()) {
+                        log.debug("Successfully deleted diagnostic file: " + diagsFile.getName());
+                    } else {
+                        log.error("failed to deleted diagnostic file:" + diagsFile.getName());
+                    }
+                } catch (SecurityException e) {
+                    log.error("Error deleting the diags file " + fileName, e);
                 }
             } finally {
-                log.info("Successfully upload diagnostics file: " + fileName);
+                long timeElapsed = Duration.between(start, Instant.now()).toMillis();
+                log.info("Successfully upload diagnostics file: {}, time (secs): {}", fileName,
+                    timeElapsed / 1000.0);
             }
             return true;
         }
@@ -1460,30 +1515,23 @@ public class ClusterMgrService {
         return false;
     }
 
-    // write diagnostics file to disk
+    /**
+     * Stream the component diagnostics to a disk file. This allows the file
+     * to be the subject of an external "curl" command.
+     *
+     * @param diagsFile the file onto which the
+     * @return true if written successfully; false if there's an IO error
+     */
     private boolean writeDiagnosticsFileToDisk(@Nonnull final File diagsFile) {
-        FileOutputStream diagsFileOutputStream = null;
         Instant start = Instant.now();
-        try {
-            diagsFileOutputStream = new FileOutputStream(diagsFile);
+        try (FileOutputStream diagsFileOutputStream = new FileOutputStream(diagsFile)) {
             log.info("Diagnostics file: {}", diagsFile.getAbsolutePath());
             collectComponentDiagnostics(diagsFileOutputStream);
             diagsFileOutputStream.flush();
-            diagsFileOutputStream.close();
         } catch (IOException e) {
             log.error("Failed to write diagnostics file to {}. Error message: {}",
                 diagsFile.getPath(), e.getMessage() );
             return false;
-        } finally {
-            try {
-                if (diagsFileOutputStream != null) {
-                    diagsFileOutputStream.close();
-                }
-            } catch (IOException e) {
-                log.error("Failed to close diagnostic file output stream. Error message: {}",
-                    e.getMessage() );
-                // it doesn't affect writing to disk.
-            }
         }
         long timeElapsed = Duration.between(start, Instant.now()).toMillis();
         log.info("done writing diag file to disk. time in secs: {}", timeElapsed / 1000.0);
